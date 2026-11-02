@@ -2,6 +2,15 @@
 // that decides how Jest and Vitest are run for a golden.
 import path from 'node:path'
 
+const LOCALE = 'C.UTF-8'
+const INHERITED_NOISE: ReadonlySet<string> = new Set([
+  'NODE_TEST_CONTEXT',
+  'FORCE_COLOR',
+  'NODE_ENV',
+  'JEST_WORKER_ID',
+  'VITEST',
+])
+
 /** Anything a runner config can hold; JSON-safe by construction. */
 export interface JestConfigFile {
   readonly rootDir: string
@@ -45,4 +54,23 @@ export function vitestConfigSource(workDir: string): string {
     },
   }
   return `export default ${JSON.stringify(config, null, 2)}\n`
+}
+
+/**
+ * The runner's environment: quiet, UTC, CI-style and in one locale, so output doesn't depend on
+ * the caller. `LANG` and `LC_ALL` are `C.UTF-8`, and `LANGUAGE` and every other `LC_*` variable
+ * are dropped, because a locale changes number, date and sort output. `extra` (a fixture's `env`)
+ * is applied last.
+ */
+export function runnerEnv(
+  base: NodeJS.ProcessEnv,
+  extra: Readonly<Record<string, string>> = {},
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {}
+  for (const [name, value] of Object.entries(base)) {
+    // Inherited from `node --test`, a parent runner or a shell, any of these changes the output.
+    if (name.startsWith('LC_') || name === 'LANGUAGE' || INHERITED_NOISE.has(name)) continue
+    env[name] = value
+  }
+  return { ...env, CI: '1', NO_COLOR: '1', TZ: 'UTC', LANG: LOCALE, LC_ALL: LOCALE, ...extra }
 }

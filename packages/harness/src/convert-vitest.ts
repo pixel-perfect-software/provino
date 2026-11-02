@@ -9,7 +9,14 @@ import type {
 import type { JsonTestResults } from 'vitest/node'
 import type { VitestConvertOptions } from './convert-options.ts'
 import { HarnessError } from './errors.ts'
-import { assembleFile, contextOf, type RawFile, runOf, skipReasonOf } from './internal/convert.ts'
+import {
+  assembleFile,
+  contextOf,
+  NO_ERROR_MESSAGE,
+  type RawFile,
+  runOf,
+  skipReasonOf,
+} from './internal/convert.ts'
 import { finiteNumber } from './internal/guards.ts'
 import { normalizeError } from './normalize.ts'
 
@@ -44,9 +51,12 @@ function convertAssertion(
 ): NormalizedTest {
   const status = mapStatus(assertion.status)
   const ctx = contextOf(options)
-  // The JSON has the message text only: no matcher name, so `matcher` stays absent.
-  const errors: NormalizedError[] = (assertion.failureMessages ?? []).map((message) =>
-    normalizeError(message, ctx, undefined, options.fired),
+  // The JSON has the message text only: no matcher name, so `matcher` stays absent. Vitest writes
+  // `e.stack || e.message`, which is nothing at all for `throw { status: 404 }`, and JSON makes
+  // that a null.
+  const messages: readonly (string | null)[] = assertion.failureMessages ?? []
+  const errors: NormalizedError[] = messages.map((message) =>
+    normalizeError(message ?? NO_ERROR_MESSAGE, ctx, undefined, options.fired),
   )
   const skipReason = skipReasonOf(status)
   const duration = finiteNumber(assertion.duration)
@@ -67,7 +77,6 @@ function rawFile(file: VitestFile, options: VitestConvertOptions): RawFile {
     path: file.name,
     status: file.status,
     message: file.message,
-    hasExecError: false,
     ...(duration === undefined ? {} : { durationMs: duration }),
     tests: (allocate) => file.assertionResults.map((a) => convertAssertion(a, allocate, options)),
   }

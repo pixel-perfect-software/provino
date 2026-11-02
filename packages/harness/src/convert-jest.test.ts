@@ -9,6 +9,7 @@ import {
 import type { NormalizedTest } from '@provino/types'
 import { convertJest } from './convert-jest.ts'
 import { HarnessError } from './errors.ts'
+import { testKey } from './normalize.ts'
 import { parseJestJson } from './parse-results.ts'
 import { convertOptions, ROOT, snapshotSummary } from './test-support.ts'
 
@@ -334,4 +335,114 @@ test('snapshot counters and the caller-supplied snapshot files are kept', () => 
     run.snapshots?.files.map((f) => f.file),
     ['__snapshots__/a.snap', 'z.snap'],
   )
+})
+
+test('a describe path and a title that print the same get distinct test keys', () => {
+  const run = convertJest(
+    formattedRun([
+      formattedFile([
+        { ...formattedAssertion('b', 'passed'), ancestorTitles: ['a'] },
+        { ...formattedAssertion('a › b', 'passed'), ancestorTitles: [] },
+        { ...formattedAssertion('b', 'passed'), ancestorTitles: ['a'] },
+      ]),
+    ]),
+    convertOptions(),
+  )
+  const keys = (run.files[0]?.tests ?? []).map((t) => testKey(t.id))
+  assert.deepEqual(keys, ['a.test.ts::a › b#0', 'a.test.ts::a › b#1', 'a.test.ts::a › b#2'])
+})
+
+test('a null entry in failureMessages is one error with a placeholder message', () => {
+  const json = JSON.stringify(
+    formattedRun([
+      formattedFile([
+        formattedAssertion('throws an object', 'failed', { failureMessages: ['PLACEHOLDER'] }),
+      ]),
+    ]),
+  ).replace('"PLACEHOLDER"', 'null')
+  const run = convertJest(parseJestJson(json), convertOptions())
+  const errors = run.files[0]?.tests[0]?.errors ?? []
+  assert.equal(errors.length, 1)
+  assert.equal(errors[0]?.message, '<no message>')
+  assert.equal(errors[0]?.userFrame, undefined)
+})
+
+test('--json shape: a failed file whose tests all passed keeps its reason as fileError', () => {
+  const run = convertJest(
+    formattedRun([
+      formattedFile([formattedAssertion('passes', 'passed')], {
+        status: 'failed',
+        message: '  ● Test suite failed to run\n\n    afterAll blew up\n',
+      }),
+    ]),
+    convertOptions(),
+  )
+  const [file] = run.files
+  assert.equal(file?.status, 'failed')
+  assert.equal(file?.tests.length, 1)
+  assert.equal(file?.fileError?.message, '● Test suite failed to run\n\n    afterAll blew up')
+})
+
+test('reporter shape: a file with an exec error and only passing tests keeps its reason', () => {
+  const aggregated: AggregatedResult = {
+    ...makeEmptyAggregatedTestResult(),
+    success: false,
+    testResults: [
+      {
+        ...createEmptyTestResult(),
+        testFilePath: FILE,
+        testExecError: { message: 'afterAll blew up', stack: undefined },
+        testResults: [
+          {
+            ancestorTitles: [],
+            failureDetails: [],
+            failureMessages: [],
+            fullName: 'passes',
+            numPassingAsserts: 1,
+            status: 'passed',
+            title: 'passes',
+            duration: 1,
+            invocations: 1,
+          },
+        ],
+      },
+    ],
+  }
+  const file = convertJest(aggregated, convertOptions()).files[0]
+  assert.equal(file?.status, 'failed')
+  assert.equal(file?.fileError?.message, 'afterAll blew up')
+})
+
+test('a file with a failed test has no fileError, though its message repeats the failure', () => {
+  const run = convertJest(
+    formattedRun([
+      formattedFile([formattedAssertion('fails', 'failed', { failureMessages: [failure] })], {
+        message: `  ● math › fails\n\n    ${failure}\n`,
+      }),
+    ]),
+    convertOptions(),
+  )
+  const file = run.files[0]
+  assert.equal(file?.status, 'failed')
+  assert.equal(file && 'fileError' in file, false)
+})
+
+test('a failed file whose message is empty has no fileError', () => {
+  const run = convertJest(
+    formattedRun([formattedFile([formattedAssertion('ok', 'passed')], { status: 'failed' })]),
+    convertOptions(),
+  )
+  assert.equal(run.files[0] && 'fileError' in run.files[0], false)
+})
+
+test('a Windows rootDir makes Windows paths relative on any host', () => {
+  const run = convertJest(
+    formattedRun([
+      formattedFile([formattedAssertion('t', 'passed')], {
+        name: 'C:\\work\\fixture\\sub\\a.test.ts',
+      }),
+    ]),
+    convertOptions({ rootDir: 'C:\\work\\fixture' }),
+  )
+  assert.equal(run.files[0]?.file, 'sub/a.test.ts')
 })

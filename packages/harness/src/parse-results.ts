@@ -7,24 +7,50 @@ import { isRecord } from './internal/guards.ts'
 // name, status text and assertion list. Fields inside an assertion are read defensively by the
 // converters, because both runners write more than their types declare.
 
-function isResultFile(value: unknown): boolean {
+// A file's status, as each runner's types declare it. Jest 30's `--json` adds `focused` and
+// `skipped`; Vitest's JSON reporter writes only `passed` or `failed`.
+const JEST_FILE_STATUSES: ReadonlySet<string> = new Set(['passed', 'failed', 'skipped', 'focused'])
+const VITEST_FILE_STATUSES: ReadonlySet<string> = new Set(['passed', 'failed'])
+
+// Fields only Jest's `--json` writes. Jest 30.5 also writes `numTodoTests`, so that one can't tell
+// the runners apart.
+const JEST_ONLY_FIELDS: readonly string[] = ['wasInterrupted', 'numRuntimeErrorTestSuites']
+
+/**
+ * `failureMessages` is a list of strings; Vitest writes `e.stack || e.message`, so a thrown
+ * object with neither is a null in the list, and the whole field can be null or missing.
+ */
+function isFailureMessages(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === null ||
+    (Array.isArray(value) && value.every((m) => m === null || typeof m === 'string'))
+  )
+}
+
+function isResultFile(value: unknown, statuses: ReadonlySet<string>): boolean {
   return (
     isRecord(value) &&
     typeof value.name === 'string' &&
     typeof value.message === 'string' &&
     typeof value.status === 'string' &&
+    statuses.has(value.status) &&
     Array.isArray(value.assertionResults) &&
     value.assertionResults.every(
       (a) =>
         isRecord(a) &&
         typeof a.title === 'string' &&
         typeof a.status === 'string' &&
-        Array.isArray(a.ancestorTitles),
+        Array.isArray(a.ancestorTitles) &&
+        isFailureMessages(a.failureMessages),
     )
   )
 }
 
-function hasEnvelope(value: unknown): value is Record<string, unknown> {
+function hasEnvelope(
+  value: unknown,
+  statuses: ReadonlySet<string>,
+): value is Record<string, unknown> {
   return (
     isRecord(value) &&
     typeof value.startTime === 'number' &&
@@ -32,16 +58,20 @@ function hasEnvelope(value: unknown): value is Record<string, unknown> {
     typeof value.numTotalTests === 'number' &&
     isRecord(value.snapshot) &&
     Array.isArray(value.testResults) &&
-    value.testResults.every(isResultFile)
+    value.testResults.every((file) => isResultFile(file, statuses))
   )
 }
 
 function isJestResults(value: unknown): value is FormattedTestResults {
-  return hasEnvelope(value) && typeof value.wasInterrupted === 'boolean'
+  return hasEnvelope(value, JEST_FILE_STATUSES) && typeof value.wasInterrupted === 'boolean'
 }
 
 function isVitestResults(value: unknown): value is JsonTestResults {
-  return hasEnvelope(value) && typeof value.numTodoTests === 'number'
+  return (
+    hasEnvelope(value, VITEST_FILE_STATUSES) &&
+    typeof value.numTodoTests === 'number' &&
+    JEST_ONLY_FIELDS.every((field) => !(field in value))
+  )
 }
 
 function parseJson(text: string, source: string): unknown {

@@ -172,3 +172,60 @@ test('startedAt defaults to the run start time; counters come from the snapshot 
   assert.equal(converted.snapshots?.counters.total, 4)
   assert.deepEqual(converted.runErrors, [])
 })
+
+test('a null entry in failureMessages (throw { status: 404 }) is one error with a placeholder', () => {
+  const json = JSON.stringify(
+    run([file([assertion('throws an object', 'failed', { failureMessages: ['PLACEHOLDER'] })])]),
+  ).replace('"PLACEHOLDER"', 'null')
+  const converted = convertVitest(parseVitestJson(json), convertOptions())
+  const errors = converted.files[0]?.tests[0]?.errors ?? []
+  assert.equal(errors.length, 1)
+  assert.equal(errors[0]?.message, '<no message>')
+  assert.equal(errors[0]?.raw, '<no message>')
+  assert.equal(errors[0]?.userFrame, undefined)
+})
+
+test('a failed file whose tests all passed keeps its reason as fileError', () => {
+  const converted = convertVitest(
+    run([
+      file([assertion('passes', 'passed')], {
+        status: 'failed',
+        message: 'Error: afterAll hook failed',
+      }),
+    ]),
+    convertOptions(),
+  )
+  const [f] = converted.files
+  assert.equal(f?.status, 'failed')
+  assert.equal(f?.fileError?.message, 'Error: afterAll hook failed')
+})
+
+test('a file with a failed test has no fileError', () => {
+  const converted = convertVitest(
+    run([
+      file([assertion('fails', 'failed', { failureMessages: [failure] })], {
+        message: 'AssertionError: expected 3 to be 4',
+      }),
+    ]),
+    convertOptions(),
+  )
+  const [f] = converted.files
+  assert.equal(f?.status, 'failed')
+  assert.equal(f && 'fileError' in f, false)
+})
+
+test('a describe path and a title that print the same get distinct test keys', () => {
+  const converted = convertVitest(
+    run([
+      file([
+        assertion('b', 'passed', { ancestorTitles: ['a'] }),
+        assertion('a › b', 'passed', { ancestorTitles: [] }),
+      ]),
+    ]),
+    convertOptions(),
+  )
+  assert.deepEqual(
+    converted.files[0]?.tests.map((t) => `${t.id.path.join('/')}#${t.id.dupIndex}`),
+    ['a/b#0', 'a › b#1'],
+  )
+})

@@ -13,10 +13,6 @@
     "./site": {
       "provino-source": "./src/site.ts",
       "types": "./dist/site.d.ts"
-    },
-    "./jest-transform": {
-      "provino-source": "./src/jest-transform.ts",
-      "default": "./src/jest-transform.ts"
     }
   },
   "bin": {

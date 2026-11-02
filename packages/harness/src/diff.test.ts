@@ -205,7 +205,7 @@ test('an exclusion moves its diffs out of the failing list and out of the denomi
   )
   assert.equal(report.messageParity, 1)
   assert.equal(report.counts.failedInBoth, 0)
-  assert.equal(report.counts.excluded, 1)
+  assert.equal(report.counts.excluded, 0, 'a message exclusion does not remove the test from T')
   assert.equal(report.counts.comparedTests, 1)
 })
 
@@ -372,4 +372,108 @@ test('parities are 1 when there is nothing to compare', () => {
     [1, 1, 1, true],
   )
   assert.equal(report.counts.comparedTests, 0)
+})
+
+test('an excluded message diff does not hide a user-frame diff on the same test', () => {
+  const ref = runWith([
+    makeTest(FILE, ['t'], {
+      status: 'failed',
+      errors: [error('a', { userFrame: '<root>/a.test.ts:3:4' })],
+    }),
+  ])
+  const cand = runWith([
+    makeTest(FILE, ['t'], {
+      status: 'failed',
+      errors: [error('b', { userFrame: '<root>/a.test.ts:9:9' })],
+    }),
+  ])
+  const report = diffRuns(
+    ref,
+    cand,
+    options({ exclusions: [{ id: 'X', reason: 'r', kinds: ['message'] }] }),
+    TODAY,
+  )
+  assert.deepEqual(
+    report.diffs.map((d) => d.kind),
+    ['user-frame'],
+  )
+  assert.deepEqual(
+    report.excluded.map((d) => d.kind),
+    ['message'],
+  )
+  assert.equal(report.counts.failedInBoth, 1)
+  assert.equal(report.counts.messageMatched, 0)
+  assert.equal(report.messageParity, 0)
+})
+
+test('with two errors, an excluded message diff on one does not hide a failing diff on the other', () => {
+  const ref = runWith([
+    makeTest(FILE, ['t'], { status: 'failed', errors: [error('a0'), error('a1')] }),
+  ])
+  const cand = runWith([
+    makeTest(FILE, ['t'], {
+      status: 'failed',
+      errors: [error('b0'), error('a1', { userFrame: '<root>/a.test.ts:9:9' })],
+    }),
+  ])
+  const report = diffRuns(
+    ref,
+    cand,
+    options({ exclusions: [{ id: 'X', reason: 'r', kinds: ['message'] }] }),
+    TODAY,
+  )
+  assert.deepEqual(
+    report.diffs.map((d) => [d.kind, d.index]),
+    [['user-frame', 1]],
+  )
+  assert.equal(report.counts.failedInBoth, 1)
+  assert.equal(report.messageParity, 0)
+})
+
+test('when every message-family diff of a test is excluded, the test leaves F', () => {
+  const ref = runWith([
+    makeTest(FILE, ['t'], { status: 'failed', errors: [error('a0'), error('a1')] }),
+  ])
+  const cand = runWith([
+    makeTest(FILE, ['t'], { status: 'failed', errors: [error('b0'), error('b1')] }),
+  ])
+  const report = diffRuns(
+    ref,
+    cand,
+    options({ exclusions: [{ id: 'X', reason: 'r', kinds: ['message'] }] }),
+    TODAY,
+  )
+  assert.deepEqual(report.diffs, [])
+  assert.equal(report.counts.failedInBoth, 0)
+  assert.equal(report.messageParity, 1)
+})
+
+test('two tests with one key in a run are a coded error naming the key and the run', () => {
+  const dup = runWith([makeTest(FILE, ['a']), makeTest(FILE, ['a'])])
+  const duplicate = (side: string) => (e: unknown) =>
+    e instanceof HarnessError &&
+    e.code === 'HARNESS_DUPLICATE_TEST_KEY' &&
+    e.message.includes('a.test.ts::a#0') &&
+    e.message.includes(side)
+  assert.throws(() => diffRuns(dup, runWith([]), options(), TODAY), duplicate('reference'))
+  assert.throws(() => diffRuns(runWith([]), dup, options(), TODAY), duplicate('candidate'))
+})
+
+test('counts.excluded is the number of reference tests an exclusion removed from T', () => {
+  const ref = runWith([makeTest(FILE, ['a']), makeTest(FILE, ['b']), makeTest(FILE, ['gone'])])
+  const cand = runWith([makeTest(FILE, ['a']), makeTest(FILE, ['b'], { status: 'skipped' })])
+  const report = diffRuns(
+    ref,
+    cand,
+    options({
+      exclusions: [
+        { id: 'S', reason: 'r', kinds: ['status'], keyGlob: '*::b#*' },
+        { id: 'M', reason: 'r', kinds: ['missing-in-candidate'], keyGlob: '*::gone#*' },
+      ],
+    }),
+    TODAY,
+  )
+  assert.equal(report.counts.referenceTests, 3)
+  assert.equal(report.counts.comparedTests, 1)
+  assert.equal(report.counts.excluded, 2)
 })

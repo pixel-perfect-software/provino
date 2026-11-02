@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import {
@@ -21,8 +20,14 @@ import { HarnessError } from './errors.ts'
 import { type Fixture, type FixtureRunner, readFixture, testFilesFor } from './fixture.ts'
 import { goldenPath, serializeGolden, toGolden } from './golden.ts'
 import { compareStrings, isRecord } from './internal/guards.ts'
-import { jestConfig, vitestConfigSource } from './internal/runner-config.ts'
-import { lineDiff } from './internal/text-diff.ts'
+import {
+  assertNoPathLeak,
+  assertRunComplete,
+  type CommitOutcome,
+  commitGolden,
+} from './internal/recording.ts'
+import { runProcess } from './internal/run-process.ts'
+import { jestConfig, runnerEnv, vitestConfigSource } from './internal/runner-config.ts'
 import { parseJestJson, parseVitestJson } from './parse-results.ts'
 
 /**
@@ -47,7 +52,7 @@ export interface RecordOptions {
  * `missing` when checking.
  * @public
  */
-export type RecordOutcome = 'written' | 'unchanged' | 'matches' | 'drift' | 'missing'
+export type RecordOutcome = CommitOutcome
 
 /**
  * The result of recording one fixture under one runner.
@@ -61,14 +66,14 @@ export interface RecordResult {
   readonly outcome: RecordOutcome
   /** For `drift`: the differing lines, `-` committed and `+` recorded. */
   readonly diff?: string
-  /** For `written` and `unchanged`, the work directory when `keepWorkDir` is set. */
+  /** The work directory, when `keepWorkDir` is set. */
   readonly workDir?: string
 }
 
 const DEFAULT_TIMEOUT_MS = 120_000
-const OUTPUT_TAIL_CHARS = 4_000
 
 const PACKAGE_DIR = path.resolve(import.meta.dirname, '..')
+const REPO_ROOT = path.resolve(PACKAGE_DIR, '..', '..')
 const TRANSFORMER_PATH = fileURLToPath(new URL('./jest-transform.ts', import.meta.url))
 
 interface RunnerInstall {
@@ -111,47 +116,6 @@ function collectEnvironment(runner: FixtureRunner, version: string): RunEnvironm
     runners: { [runner]: version },
     ci: process.env.CI !== undefined && process.env.CI !== '',
   }
-}
-
-/** The runner's environment: quiet, UTC and CI-style, so output doesn't depend on the caller. */
-function runnerEnv(fixture: Fixture, base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...base }
-  // Inherited from `node --test`, a parent runner or a shell, any of these changes the output.
-  for (const name of ['NODE_TEST_CONTEXT', 'FORCE_COLOR', 'NODE_ENV', 'JEST_WORKER_ID', 'VITEST']) {
-    delete env[name]
-  }
-  return { ...env, CI: '1', NO_COLOR: '1', TZ: 'UTC', ...fixture.manifest.env }
-}
-
-interface ProcessResult {
-  readonly exitCode: number | null
-  readonly output: string
-}
-
-function tail(text: string): string {
-  return text.length > OUTPUT_TAIL_CHARS ? text.slice(-OUTPUT_TAIL_CHARS) : text
-}
-
-function runProcess(
-  args: readonly string[],
-  options: { readonly cwd: string; readonly env: NodeJS.ProcessEnv; readonly timeoutMs: number },
-): Promise<ProcessResult> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, args, {
-      cwd: options.cwd,
-      env: options.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      signal: AbortSignal.timeout(options.timeoutMs),
-    })
-    let output = ''
-    const collect = (chunk: Buffer): void => {
-      output = tail(output + chunk.toString('utf8'))
-    }
-    child.stdout.on('data', collect)
-    child.stderr.on('data', collect)
-    child.on('error', reject)
-    child.on('close', (exitCode) => resolve({ exitCode, output }))
-  })
 }
 
 /** Hex sha256 of every `.snap` file the run left, outside dot-directories and `node_modules`. */
@@ -210,18 +174,26 @@ async function runUnderRunner(
     ]
   }
 
-  let result: ProcessResult
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  let result: Awaited<ReturnType<typeof runProcess>>
   try {
     result = await runProcess(args, {
       cwd: workDir,
-      env: runnerEnv(fixture, options.env ?? process.env),
-      timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      env: runnerEnv(options.env ?? process.env, fixture.manifest.env),
+      deadline: AbortSignal.timeout(timeoutMs),
     })
   } catch (cause) {
     throw new HarnessError('HARNESS_RUNNER_FAILED', `could not run ${runner} for ${fixture.id}`, {
       path: fixture.dir,
       cause,
     })
+  }
+  if (result.timedOut) {
+    throw new HarnessError(
+      'HARNESS_RUNNER_FAILED',
+      `${runner} timed out after ${timeoutMs} ms for ${fixture.id}; its process group was terminated. Output tail:\n${result.output}`,
+      { path: fixture.dir },
+    )
   }
 
   // A failing test makes the runner exit non-zero, which is expected. No JSON is not.
@@ -245,18 +217,24 @@ async function runUnderRunner(
     env: collectEnvironment(runner, install.version),
     snapshotFiles: await collectSnapshotFiles(workDir),
   }
-  return runner === 'jest'
-    ? convertJest(parseJestJson(json, outputFile), base)
-    : convertVitest(parseVitestJson(json, outputFile), base)
+  const run =
+    runner === 'jest'
+      ? convertJest(parseJestJson(json, outputFile), base)
+      : convertVitest(parseVitestJson(json, outputFile), base)
+  assertRunComplete(run, testFilesFor(fixture.files, runner), `${fixture.id} (${runner})`)
+  return run
 }
 
-async function readIfExists(file: string): Promise<string | undefined> {
-  try {
-    return await readFile(file, 'utf8')
-  } catch (cause) {
-    if (isRecord(cause) && cause.code === 'ENOENT') return undefined
-    throw cause
-  }
+/** Paths a golden must not contain: they would tie it to this machine. */
+async function leakCandidates(workDir: string): Promise<string[]> {
+  return [
+    workDir,
+    await realpath(workDir),
+    REPO_ROOT,
+    PACKAGE_DIR,
+    await realpath(PACKAGE_DIR),
+    os.homedir(),
+  ]
 }
 
 /**
@@ -294,25 +272,29 @@ export async function recordFixture(
   const workDir = await mkdtemp(
     path.join(workRoot, `${fixture.id.replaceAll('/', '-')}-${runner}-`),
   )
+  const keep = options.keepWorkDir === true
   let text: string
   try {
     await copyFixture(fixture, workDir)
     text = serializeGolden(toGolden(await runUnderRunner(fixture, runner, workDir, options)))
-  } finally {
-    if (options.keepWorkDir !== true) await rm(workDir, { recursive: true, force: true })
+    assertNoPathLeak(text, await leakCandidates(workDir), `${fixture.id} (${runner})`)
+  } catch (error) {
+    // A cleanup that fails must not replace the error that made it necessary.
+    if (!keep) await removeWorkDir(workDir).catch(() => undefined)
+    throw error
   }
+  if (!keep) await removeWorkDir(workDir)
 
   const target = goldenPath(fixture.dir, runner)
-  const committed = await readIfExists(target)
-  const base = { fixture: fixture.id, runner, goldenPath: target }
-  if (options.check === true) {
-    if (committed === undefined) return { ...base, outcome: 'missing' }
-    if (committed === text) return { ...base, outcome: 'matches' }
-    return { ...base, outcome: 'drift', diff: lineDiff(committed, text) }
-  }
-  const kept = options.keepWorkDir === true ? { workDir } : {}
-  if (committed === text) return { ...base, outcome: 'unchanged', ...kept }
-  await mkdir(path.dirname(target), { recursive: true })
-  await writeFile(target, text)
-  return { ...base, outcome: 'written', ...kept }
+  const committed = await commitGolden({
+    target,
+    text,
+    check: options.check === true,
+    workDir: keep ? workDir : undefined,
+  })
+  return { fixture: fixture.id, runner, goldenPath: target, ...committed }
+}
+
+function removeWorkDir(workDir: string): Promise<void> {
+  return rm(workDir, { recursive: true, force: true, maxRetries: 3 })
 }

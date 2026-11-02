@@ -124,7 +124,11 @@ export interface ParityCounts {
   readonly referenceTests: number
   /** |T|: the reference tests left after exclusions. */
   readonly comparedTests: number
-  /** |E|: the reference tests that have an excluded diff. */
+  /**
+   * |E|: the reference tests an exclusion removed from T, by an excluded `status` or
+   * `missing-in-candidate` diff (`referenceTests - comparedTests`). An excluded error diff keeps
+   * its test in T, so it does not count here.
+   */
   readonly excluded: number
   /** Tests that only the candidate has. Reported, never counted. */
   readonly candidateOnlyTests: number
@@ -411,9 +415,25 @@ function diffConsole(
   }
 }
 
-function indexTests(run: NormalizedRun): Map<string, NormalizedTest> {
+/** Tests by key. Two tests with one key would hide each other, so that is an error. */
+function indexTests(
+  run: NormalizedRun,
+  side: 'reference' | 'candidate',
+): Map<string, NormalizedTest> {
   const tests = new Map<string, NormalizedTest>()
-  for (const file of run.files) for (const test of file.tests) tests.set(testKey(test.id), test)
+  for (const file of run.files) {
+    for (const test of file.tests) {
+      const key = testKey(test.id)
+      if (tests.has(key)) {
+        throw new HarnessError(
+          'HARNESS_DUPLICATE_TEST_KEY',
+          `the ${side} run (${run.runner}, suite ${run.suite}) has two tests with the key "${key}"`,
+          { path: file.file },
+        )
+      }
+      tests.set(key, test)
+    }
+  }
   return tests
 }
 
@@ -480,8 +500,8 @@ export function diffRuns(
 ): ParityReport {
   const { active, expired } = compileRules(options.exclusions, checkDate(today, 'today'))
   const raw: RawDiff[] = []
-  const refTests = indexTests(ref)
-  const candTests = indexTests(cand)
+  const refTests = indexTests(ref, 'reference')
+  const candTests = indexTests(cand, 'candidate')
   const candFiles = new Map(cand.files.map((f) => [f.file, f]))
   const refFileNames = new Set(ref.files.map((f) => f.file))
 
@@ -561,9 +581,12 @@ export function diffRuns(
 
   const compared = [...refTests].filter(([key]) => !statusExcluded.has(key))
   const statusMatched = compared.filter(([key]) => !statusFailing.has(key)).length
+  // A test leaves F only when every one of its message-family diffs is excluded. An excluded
+  // `message` diff must not hide a failing `user-frame`, `matcher` or `error-count` diff.
   const failedInBoth = compared.filter(([key, r]) => {
     const c = candTests.get(key)
-    return r.status === 'failed' && c?.status === 'failed' && !messageExcluded.has(key)
+    const allExcluded = messageExcluded.has(key) && !messageFailing.has(key)
+    return r.status === 'failed' && c?.status === 'failed' && !allExcluded
   })
   const messageMatched = failedInBoth.filter(([key]) => !messageFailing.has(key)).length
 
@@ -587,7 +610,7 @@ export function diffRuns(
     counts: {
       referenceTests: refTests.size,
       comparedTests: compared.length,
-      excluded: new Set(excluded.filter((d) => refTests.has(d.key)).map((d) => d.key)).size,
+      excluded: refTests.size - compared.length,
       candidateOnlyTests: [...candTests.keys()].filter((key) => !refTests.has(key)).length,
       statusMatched,
       failedInBoth: failedInBoth.length,

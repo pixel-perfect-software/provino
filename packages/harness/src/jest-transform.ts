@@ -35,7 +35,7 @@ async function create(): Promise<BabelTransformer> {
  * The Jest transformer the recorder gives TypeScript fixtures: Node's `module.stripTypeScriptTypes`
  * first, then `babel-jest`, which is Jest's default transform, so `jest.mock` calls are hoisted as
  * in a real project. Jest loads it as a factory (`createTransformer`), so it can be async.
- * @public
+ * @internal
  */
 const transformer: { readonly createTransformer: () => Promise<BabelTransformer> } = {
   createTransformer: create,

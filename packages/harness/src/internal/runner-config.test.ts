@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { jestConfig, vitestConfigSource } from './runner-config.ts'
+import { jestConfig, runnerEnv, vitestConfigSource } from './runner-config.ts'
 
 test('the Jest config runs *.test.ts except the Vitest-only files, with locations and a local cache', () => {
   const config = jestConfig('/work/x', '/repo/src/jest-transform.ts')
@@ -30,4 +30,53 @@ test('the Vitest config is a plain-object module with globals, task locations an
     },
   })
   assert.ok(source.endsWith('\n'))
+})
+
+test('runnerEnv makes the run quiet, UTC and CI-style, and drops what a parent runner leaks in', () => {
+  const env = runnerEnv({
+    PATH: '/usr/bin',
+    CI: '',
+    TZ: 'America/New_York',
+    FORCE_COLOR: '1',
+    NODE_ENV: 'test',
+    NODE_TEST_CONTEXT: 'child-v8',
+    JEST_WORKER_ID: '3',
+    VITEST: 'true',
+  })
+  assert.equal(env.PATH, '/usr/bin')
+  assert.equal(env.CI, '1')
+  assert.equal(env.NO_COLOR, '1')
+  assert.equal(env.TZ, 'UTC')
+  for (const name of ['FORCE_COLOR', 'NODE_ENV', 'NODE_TEST_CONTEXT', 'JEST_WORKER_ID', 'VITEST']) {
+    assert.equal(name in env, false, name)
+  }
+})
+
+test('runnerEnv pins the locale: LANG and LC_ALL are C.UTF-8 and no other locale variable survives', () => {
+  const base = {
+    LANG: 'de_DE.UTF-8',
+    LC_ALL: 'fr_FR.UTF-8',
+    LC_TIME: 'ja_JP.UTF-8',
+    LC_COLLATE: 'sv_SE.UTF-8',
+    LC_NUMERIC: 'de_DE.UTF-8',
+    LANGUAGE: 'de:en',
+    LCX: 'kept',
+  }
+  const env = runnerEnv(base)
+  assert.equal(env.LANG, 'C.UTF-8')
+  assert.equal(env.LC_ALL, 'C.UTF-8')
+  assert.deepEqual(
+    Object.keys(env)
+      .filter((name) => name.startsWith('LC_') || name === 'LANGUAGE')
+      .sort(),
+    ['LC_ALL'],
+  )
+  assert.equal(env.LCX, 'kept')
+  assert.equal(base.LANG, 'de_DE.UTF-8', 'the base environment is not modified')
+})
+
+test('runnerEnv lets a fixture override its own variables, last', () => {
+  const env = runnerEnv({ PATH: '/bin' }, { TZ: 'Asia/Tokyo', EXTRA: '1' })
+  assert.equal(env.TZ, 'Asia/Tokyo')
+  assert.equal(env.EXTRA, '1')
 })

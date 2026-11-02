@@ -163,6 +163,13 @@ expectTypeOf<RecordOutcome>().toEqualTypeOf<
   'written' | 'unchanged' | 'matches' | 'drift' | 'missing'
 >()
 expectTypeOf<HarnessErrorCode>().toExtend<string>()
+expectTypeOf<
+  'HARNESS_RUN_INCOMPLETE' | 'HARNESS_GOLDEN_LEAKS_PATH' | 'HARNESS_DUPLICATE_TEST_KEY'
+>().toExtend<HarnessErrorCode>()
+// @ts-expect-error 'HARNESS_NOPE' is not a harness error code
+const noSuchCode: HarnessErrorCode = 'HARNESS_NOPE'
+void noSuchCode
+expectTypeOf<ParityReport['counts']['excluded']>().toEqualTypeOf<number>()
 expectTypeOf(toGolden).parameter(0).toEqualTypeOf<NormalizedRun>()
 expectTypeOf(toGolden).returns.toEqualTypeOf<Golden>()
 expectTypeOf(serializeGolden).returns.toEqualTypeOf<string>()

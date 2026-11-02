@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import path from 'node:path'
 import { HarnessError } from './errors.ts'
-import { findFixtures, readFixture } from './fixture.ts'
+import { defaultFixturesRoot, findFixtures, readFixture } from './fixture.ts'
 import { parseCommandLine, USAGE } from './internal/cli-args.ts'
+import { findStaleGoldens } from './internal/stale-goldens.ts'
 import { recordFixture } from './record.ts'
 
 // provino-harness record [--check] [--keep] [<fixture dir>...]
@@ -24,6 +26,7 @@ async function main(argv: readonly string[]): Promise<number> {
   }
 
   let failed = false
+  const produced = new Set<string>()
   for (const dir of dirs) {
     const fixture = await readFixture(dir)
     for (const runner of fixture.manifest.runners) {
@@ -31,6 +34,7 @@ async function main(argv: readonly string[]): Promise<number> {
         check: command.check,
         keepWorkDir: command.keepWorkDir,
       })
+      produced.add(result.goldenPath)
       console.log(`${result.outcome.padEnd(9)} ${result.fixture} (${runner})`)
       if (result.workDir !== undefined) console.log(`          kept ${result.workDir}`)
       if (result.outcome === 'drift') {
@@ -43,6 +47,19 @@ async function main(argv: readonly string[]): Promise<number> {
     }
   }
   if (failed) console.error('goldens are out of date: run `pnpm provino-harness record`')
+
+  // A golden no fixture and runner produced would never be checked again: a runner dropped from
+  // `fixture.json`, a fixture that lost its manifest, a stray file. Only a full check can say so.
+  if (command.check) {
+    const roots = command.fixtures.length > 0 ? command.fixtures : [defaultFixturesRoot()]
+    const stale = await findStaleGoldens(roots, produced)
+    for (const file of stale)
+      console.log(`${'stale'.padEnd(9)} ${path.relative(process.cwd(), file)}`)
+    if (stale.length > 0) {
+      console.error('stale goldens: delete them, or restore the fixture and runner they belong to')
+      failed = true
+    }
+  }
   return failed ? 1 : 0
 }
 

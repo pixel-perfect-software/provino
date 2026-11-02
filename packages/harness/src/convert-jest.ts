@@ -9,7 +9,14 @@ import type {
 } from '@provino/types'
 import type { JestConvertOptions } from './convert-options.ts'
 import { HarnessError } from './errors.ts'
-import { assembleFile, contextOf, type RawFile, runOf, skipReasonOf } from './internal/convert.ts'
+import {
+  assembleFile,
+  contextOf,
+  NO_ERROR_MESSAGE,
+  type RawFile,
+  runOf,
+  skipReasonOf,
+} from './internal/convert.ts'
 import { finiteNumber, isRecord, prop } from './internal/guards.ts'
 import { normalizeError } from './normalize.ts'
 
@@ -61,10 +68,11 @@ function convertAssertion(
 ): NormalizedTest {
   const status = mapStatus(assertion.status)
   const ctx = contextOf(options)
-  const messages = assertion.failureMessages ?? []
+  // Jest's types say strings; a thrown non-Error can leave a null in the JSON.
+  const messages: readonly (string | null)[] = assertion.failureMessages ?? []
   const details = prop(assertion, 'failureDetails')
   const errors: NormalizedError[] = messages.map((message, index) =>
-    normalizeError(message, ctx, matcherName(details, index), options.fired),
+    normalizeError(message ?? NO_ERROR_MESSAGE, ctx, matcherName(details, index), options.fired),
   )
   const passingAssertions = finiteNumber(prop(assertion, 'numPassingAsserts'))
   const invocations = finiteNumber(prop(assertion, 'invocations'))
@@ -96,7 +104,6 @@ function rawFile(file: JestFile, options: JestConvertOptions): RawFile {
       path: file.testFilePath,
       status,
       message: file.failureMessage ?? execError?.message ?? '',
-      hasExecError: execError !== undefined,
       ...(duration === undefined ? {} : { durationMs: duration }),
       tests: (allocate) => file.testResults.map((a) => convertAssertion(a, allocate, options)),
     }
@@ -107,7 +114,6 @@ function rawFile(file: JestFile, options: JestConvertOptions): RawFile {
     path: file.name,
     status: file.status === 'focused' ? 'passed' : file.status,
     message: file.message,
-    hasExecError: false,
     ...(duration === undefined ? {} : { durationMs: duration }),
     tests: (allocate) => file.assertionResults.map((a) => convertAssertion(a, allocate, options)),
   }
