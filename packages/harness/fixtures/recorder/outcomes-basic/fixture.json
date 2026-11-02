@@ -1,0 +1,4 @@
+{
+  "description": "The recorder's self-test: a pass, a failing toBe, a skip, a todo, an each with a duplicate title, and a describe whose beforeEach throws.",
+  "runners": ["jest", "vitest"]
+}

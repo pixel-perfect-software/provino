@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "recorder/outcomes-basic",
+  "files": [
+    {
+      "file": "outcomes.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "outcomes.test.ts",
+            "path": [
+              "outcomes",
+              "passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 9,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "outcomes.test.ts",
+            "path": [
+              "outcomes",
+              "fails on toBe"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 3 to be 4 // Object.is equality",
+              "userFrame": "<root>/outcomes.test.ts:14:40"
+            }
+          ],
+          "location": {
+            "line": 13,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "outcomes.test.ts",
+            "path": [
+              "outcomes",
+              "is skipped"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "location": {
+            "line": 17,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "outcomes.test.ts",
+            "path": [
+              "outcomes",
+              "is a todo"
+            ],
+            "dupIndex": 0
+          },
+          "status": "todo",
+          "errors": [],
+          "location": {
+            "line": 19,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "outcomes.test.ts",
+            "path": [
+              "outcomes",
+              "shares a title"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 21,
+            "column": 18
+          }
+        },
+        {
+          "id": {
+            "file": "outcomes.test.ts",
+            "path": [
+              "outcomes",
+              "shares a title"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 21,
+            "column": 18
+          }
+        },
+        {
+          "id": {
+            "file": "outcomes.test.ts",
+            "path": [
+              "outcomes",
+              "with a beforeEach that throws",
+              "never gets to run"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: setup failed",
+              "userFrame": "<root>/outcomes.test.ts:27:13"
+            }
+          ],
+          "location": {
+            "line": 30,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "outcomes.test.ts",
+            "path": [
+              "outcomes",
+              "with a beforeEach that throws",
+              "is not run either"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: setup failed",
+              "userFrame": "<root>/outcomes.test.ts:27:13"
+            }
+          ],
+          "location": {
+            "line": 32,
+            "column": 5
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false
+}
