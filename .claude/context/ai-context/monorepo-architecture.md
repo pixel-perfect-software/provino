@@ -8,7 +8,7 @@ Many small **source** packages with enforced boundaries, published as few **inst
 
 ## Package map
 
-Dependencies point **down** the layers only. Same-layer edges are allowed only where listed. Any edge not listed fails CI (dependency-cruiser, generated from the `packages.json` manifest in B03).
+Dependencies point **down** the layers only. Same-layer edges are allowed only where listed. Any edge not listed fails CI. The machine-readable map is `tooling/boundaries/packages.json` (B03): `pnpm boundaries` checks it against the workspace and runs the dependency-cruiser rules generated from it. A change to the map goes in both this table and the manifest.
 
 | Layer | Package | Runs in | Owns | May depend on |
 |---|---|---|---|---|
@@ -35,9 +35,15 @@ Dependencies point **down** the layers only. Same-layer edges are allowed only w
 | 6 | `provino` | both | CLI bin, public subpaths (`.`, `/globals`, `/config`, `/node`, `/reporters`, `/environment`, `/plugin`, `/jest`, `/vitest`) | all public packages |
 | dev | `@provino/harness`, `@provino/bench` | dev | Differential harness, golden recorders, benchmarks, kill-check | types and helpers from any `@provino/*`; **run** Provino only via `provino/node` (DECISIONS S4); real Jest/Vitest as subjects |
 
-Added by §6, created only when their phase arrives: `@provino/vitest-compat` and `@provino/jest-globals` (Phase 2 facades), `@provino/eslint-plugin` and `@provino/codemod-lazy` (Phase 4), `@provino/dialect-node-test` (Phase 4, private), the `provino-site` app (T12.18). `@provino/env-shared` only if two environment packages share `populateGlobal`. List them all in the B03 manifest from day one so the lint knows them.
+Added by §6, created only when their phase arrives: `@provino/vitest-compat` and `@provino/jest-globals` (Phase 2 facades), `@provino/eslint-plugin` and `@provino/codemod-lazy` (Phase 4), `@provino/dialect-node-test` (Phase 4, private), the `provino-site` app (T12.18). `@provino/env-shared` only if two environment packages share `populateGlobal`. All are listed in the manifest already (`dir` is `null` for `provino-site` until T12.18 places it).
+
+**Subpath entries.** A manifest node named `<package>/<entry>` (`@provino/orchestrator/worker`, `@provino/snapshot/runtime`, `@provino/dialect-jest/node`, …) owns `packages/<package>/src/<entry>/**` and has its own rules; the package node owns the rest. Put a subpath entry's code in that directory.
+
+**Policy slices** (10): Track 1's nine plus `coverage`. B03's merge record is `docs/plan/bundles/B03.md`.
 
 ## Dependency rules (enforced in CI by B03)
+
+Rule names, as CI prints them: dependency-cruiser `boundary-<node>`, `neutral-no-dialect`, `public-entry-only`, `not-to-unresolvable`, `no-circular`; Biome plugins `neutral-no-dialect-compare`, `slice-discipline`; manifest checks `manifest-*`.
 
 1. **Layers point down.** dependency-cruiser `forbidden` rules are generated from the manifest.
 2. **No dialect knowledge in neutral packages.** `core`, `lazy`, `mock`, `timers`, `expect`, `snapshot`, `loader`, `orchestrator`, `reporters` and `config` never import `@provino/dialect-*` and never compare against `'jest'` or `'vitest'` (a Biome GritQL plugin, D11).
@@ -45,7 +51,7 @@ Added by §6, created only when their phase arrives: `@provino/vitest-compat` an
 4. **Public entry only.** Cross-package imports go through `exports`. Deep imports fail.
 5. **Coordinator and worker never import each other's packages**, except through `@provino/types` and `ModuleRef` strings. This is why snapshot, coverage and the dialects split into `/node` and `/runtime`.
 6. **Core does not import the loader.** The worker entry injects `ImportFile`, so core also runs with no loader in unit tests.
-7. **No cycles, no hidden globals.** State lives in an explicit `WorkerContext` or in core's AsyncLocalStorage.
+7. **No cycles, no hidden globals.** A cycle made only of type-only imports is allowed (contract types refer to each other; DECISIONS P2). State lives in an explicit `WorkerContext` or in core's AsyncLocalStorage.
 
 ## Cross-thread contracts
 
