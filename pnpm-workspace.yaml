@@ -12,9 +12,17 @@ catalog:
   "@types/node": 22.20.5
   # The TypeScript 6 API, as tsc6, for tools that need it (dependency-cruiser, API Extractor).
   "@typescript/typescript6": 6.0.2
+  dependency-cruiser: 18.7.0
   expect-type: 1.4.0
   tsdown: 0.23.2
   turbo: 2.11.10
   typescript: 7.0.2
   # The type-test job also runs on TypeScript 5.9.
   typescript-5.9: npm:typescript@5.9.3
+
+# dependency-cruiser loads `typescript` at runtime to parse .ts files, and 18.7 can't use the
+# TypeScript 7 API yet (Track 1 §Spikes). Give it the TypeScript 6 API under that name.
+packageExtensions:
+  dependency-cruiser@18:
+    dependencies:
+      typescript: npm:@typescript/typescript6@6.0.2
