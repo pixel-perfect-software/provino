@@ -9,7 +9,7 @@ paths:
 
 # Test, type-test and fixture rules
 
-- **Unit tests use `node:test` + `node:assert/strict`** (DECISIONS S1), next to the source as `*.test.ts`. Use the test command in `CLAUDE.md`; it carries the strip-types and source-condition flags. Jest and Vitest are never our own runner; they appear only as *subjects* in the harness and bench.
+- **Unit tests use `node:test` + `node:assert/strict`** (DECISIONS S1), next to the source as `*.test.ts`. Use the test command in `CLAUDE.md`; it carries the source-condition flag. On Node below 22.18, set `NODE_OPTIONS=--experimental-strip-types` (S1; CI's 22.15 leg does). Jest and Vitest are never our own runner; they appear only as *subjects* in the harness and bench.
 - **Type tests** (`*.test-d.ts`) use `expect-type` and must pass on TypeScript 7.0.2 and 5.9.3. Every misuse case is a `@ts-expect-error` line. Where the research gives the expected error text, assert a substring of the message so the error can't be a different one.
 - **Goldens are recorded, never hand-edited.** Ground-truth observations and message/snapshot goldens come from running real Jest 30.5 / Vitest 5.0 through the recorder (one fixture format, T12.1). To change a golden, re-record it and explain why in the commit.
 - **Determinism is a requirement.** Recorders must produce byte-identical output twice in a row. Seed anything random, and normalise paths, timings and PIDs through the harness's normalisation rules.
