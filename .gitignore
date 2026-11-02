@@ -1,0 +1,18 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+
+# research, plan and decisions: the private provino-planning repo, cloned here (see CLAUDE.md)
+/docs
+
+# upstream reference clones (DECISIONS S3)
+.refs/
+
+# Claude Code personal files
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Claude Code session state: one per checkout or worktree
+.claude/context/ai-context/handoff.md
