@@ -16,6 +16,7 @@ function manifest(nodes: Readonly<Record<string, Readonly<Record<string, unknown
   return parseManifest({
     slices: { core: 'CorePolicy', mock: 'MockPolicy' },
     wholePolicyTypes: ['Policy'],
+    wholePolicyValues: ['neutralPolicy'],
     nodes,
   })
 }
@@ -58,6 +59,62 @@ describe('the real manifest', () => {
     ]) {
       assert.ok(names.has(name), name)
     }
+  })
+})
+
+describe('the rules the real manifest must keep (CLAUDE.md non-negotiables 1 and 3)', async () => {
+  const real = await loadManifest(manifestPath)
+  const top = real.nodes.filter((n) => n.parent === undefined)
+  const node = (name: string) => real.nodes.find((n) => n.name === name) ?? assert.fail(name)
+  const reaches = (from: string, to: string): boolean =>
+    allowedDeps(real, node(from)).some((dep) => dep.name === to || dep.parent === to)
+
+  test('the neutral packages are exactly the ten in non-negotiable 1', () => {
+    const neutral = top.filter((n) => n.neutral).map((n) => n.name.replace('@provino/', ''))
+    assert.deepEqual(neutral.sort(), [
+      'config',
+      'core',
+      'expect',
+      'lazy',
+      'loader',
+      'mock',
+      'orchestrator',
+      'reporters',
+      'snapshot',
+      'timers',
+    ])
+  })
+
+  test('only policy, config, orchestrator, the dialects and non-shipped packages skip slice discipline', () => {
+    const exempt = top.filter((n) => n.slices === 'all' && typeof n.layer === 'number')
+    assert.deepEqual(exempt.map((n) => n.name).sort(), [
+      '@provino/config',
+      '@provino/dialect-jest',
+      '@provino/dialect-node-test',
+      '@provino/dialect-vitest',
+      '@provino/orchestrator',
+      '@provino/policy',
+      '@provino/types',
+    ])
+  })
+
+  test('no neutral node may import a dialect', () => {
+    const dialects = real.nodes.filter((n) => n.name.startsWith('@provino/dialect-'))
+    for (const from of real.nodes.filter((n) => n.neutral)) {
+      for (const to of dialects)
+        assert.ok(!reaches(from.name, to.name), `${from.name} → ${to.name}`)
+    }
+  })
+
+  test('core imports neither the loader nor lazy; lazy builds on core', () => {
+    assert.ok(!reaches('@provino/core', '@provino/loader'))
+    assert.ok(!reaches('@provino/core', '@provino/lazy'))
+    assert.ok(reaches('@provino/lazy', '@provino/core'))
+  })
+
+  test("the orchestrator's coordinator and worker entries never import each other", () => {
+    assert.ok(!reaches('@provino/orchestrator', '@provino/orchestrator/worker'))
+    assert.ok(!reaches('@provino/orchestrator/worker', '@provino/orchestrator'))
   })
 })
 
@@ -139,6 +196,13 @@ describe('validateManifest', () => {
   test('malformed fields throw, naming the field', () => {
     assert.throws(() => manifest({ a: node(1, 'nowhere') }), /nodes\["a"\]\.runsIn/)
     assert.throws(() => manifest({ a: node(-1, 'both') }), /nodes\["a"\]\.layer/)
+  })
+
+  test('an unknown key throws, so a typo like "neutal" cannot switch a lint off', () => {
+    assert.throws(
+      () => manifest({ a: node(1, 'both', [], { neutal: true }) }),
+      /unknown key "neutal"/,
+    )
   })
 })
 

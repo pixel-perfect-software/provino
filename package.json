@@ -25,7 +25,7 @@
     "lint": "biome check --formatter-enabled=false",
     "format": "biome format --write",
     "format:check": "biome format",
-    "boundaries": "node tooling/boundaries/src/cli.ts check && depcruise --config .dependency-cruiser.json packages tooling",
+    "boundaries": "node tooling/boundaries/src/cli.ts check",
     "boundaries:write": "node tooling/boundaries/src/cli.ts write",
     "deps:check": "autd check",
     "deps:update": "autd update"

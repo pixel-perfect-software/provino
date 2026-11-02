@@ -1,7 +1,7 @@
 {
   "plugins": [
     {
-      "path": "../grit/neutral-no-dialect-compare.grit",
+      "path": "../grit/neutral-no-dialect-name.grit",
       "resolutionKind": "config",
       "includes": [
         "packages/config/**",
@@ -13,49 +13,63 @@
         "packages/orchestrator/**",
         "packages/reporters/**",
         "packages/snapshot/**",
-        "packages/timers/**"
+        "packages/timers/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
       ]
     },
     {
       "path": "./slice-discipline.core.grit",
       "resolutionKind": "config",
       "includes": [
-        "packages/core/**"
+        "packages/core/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
       ]
     },
     {
       "path": "./slice-discipline.coverage.grit",
       "resolutionKind": "config",
       "includes": [
-        "packages/coverage/**"
+        "packages/coverage/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
       ]
     },
     {
       "path": "./slice-discipline.expect.grit",
       "resolutionKind": "config",
       "includes": [
-        "packages/expect/**"
+        "packages/expect/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
       ]
     },
     {
       "path": "./slice-discipline.lazy.grit",
       "resolutionKind": "config",
       "includes": [
-        "packages/lazy/**"
+        "packages/lazy/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
       ]
     },
     {
       "path": "./slice-discipline.mock+module.grit",
       "resolutionKind": "config",
       "includes": [
-        "packages/mock/**"
+        "packages/mock/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
       ]
     },
     {
       "path": "./slice-discipline.module.grit",
       "resolutionKind": "config",
       "includes": [
-        "packages/loader/**"
+        "packages/loader/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
       ]
     },
     {
@@ -75,28 +89,36 @@
         "packages/resolver/**",
         "packages/rpc/**",
         "packages/transform/**",
-        "packages/vitest-compat/**"
+        "packages/vitest-compat/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
       ]
     },
     {
       "path": "./slice-discipline.report.grit",
       "resolutionKind": "config",
       "includes": [
-        "packages/reporters/**"
+        "packages/reporters/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
       ]
     },
     {
       "path": "./slice-discipline.snapshot.grit",
       "resolutionKind": "config",
       "includes": [
-        "packages/snapshot/**"
+        "packages/snapshot/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
       ]
     },
     {
       "path": "./slice-discipline.timers.grit",
       "resolutionKind": "config",
       "includes": [
-        "packages/timers/**"
+        "packages/timers/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
       ]
     }
   ]

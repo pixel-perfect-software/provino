@@ -3,11 +3,12 @@
   "forbidden": [
     {
       "name": "neutral-no-dialect",
-      "comment": "Neutral packages never import a dialect (CLAUDE.md non-negotiable 1).",
+      "comment": "Neutral packages never import a dialect (CLAUDE.md non-negotiable 1). A second guard beside boundary-*, so a manifest edit that allows the edge still fails.",
       "severity": "error",
       "from": {
         "path": [
-          "^packages/snapshot/(?!(?:src/runtime|src/node)/)",
+          "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
+          "^packages/snapshot/test/",
           "^packages/snapshot/src/runtime/",
           "^packages/snapshot/src/node/",
           "^packages/mock/",
@@ -18,7 +19,8 @@
           "^packages/lazy/",
           "^packages/config/",
           "^packages/reporters/",
-          "^packages/orchestrator/(?!(?:src/worker)/)",
+          "^packages/orchestrator/(?!(?:src/worker|test)/)",
+          "^packages/orchestrator/test/",
           "^packages/orchestrator/src/worker/"
         ]
       },
@@ -144,8 +146,8 @@
         "pathNot": [
           "^packages/transform/",
           "^packages/types/",
-          "^packages/resolver/",
           "^@provino/types$",
+          "^packages/resolver/",
           "^@provino/resolver$"
         ]
       }
@@ -155,16 +157,40 @@
       "comment": "@provino/snapshot (layer 2, runs in both) may import only: @provino/policy, @provino/types.",
       "severity": "error",
       "from": {
-        "path": "^packages/snapshot/(?!(?:src/runtime|src/node)/)"
+        "path": "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)"
       },
       "to": {
         "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
         "pathNot": [
-          "^packages/snapshot/(?!(?:src/runtime|src/node)/)",
+          "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
           "^packages/types/",
-          "^packages/policy/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-snapshot-tests",
+      "comment": "@provino/snapshot's tests may import the package's own entries and what they may import.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/snapshot/test/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/snapshot/",
+          "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
+          "^@provino/snapshot$",
+          "^packages/types/",
+          "^@provino/types$",
+          "^packages/policy/",
+          "^@provino/policy$",
+          "^packages/snapshot/src/runtime/",
+          "^@provino/snapshot/runtime$",
+          "^packages/snapshot/src/node/",
+          "^@provino/snapshot/node$"
         ]
       }
     },
@@ -180,10 +206,10 @@
         "pathNot": [
           "^packages/snapshot/src/runtime/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/snapshot/(?!(?:src/runtime|src/node)/)",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
           "^@provino/snapshot$"
         ]
       }
@@ -200,10 +226,10 @@
         "pathNot": [
           "^packages/snapshot/src/node/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/snapshot/(?!(?:src/runtime|src/node)/)",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
           "^@provino/snapshot$"
         ]
       }
@@ -213,14 +239,36 @@
       "comment": "@provino/coverage (layer 2, runs in both) may import only: @provino/types.",
       "severity": "error",
       "from": {
-        "path": "^packages/coverage/(?!(?:src/runtime|src/node)/)"
+        "path": "^packages/coverage/(?!(?:src/runtime|src/node|test)/)"
       },
       "to": {
         "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
         "pathNot": [
-          "^packages/coverage/(?!(?:src/runtime|src/node)/)",
+          "^packages/coverage/(?!(?:src/runtime|src/node|test)/)",
           "^packages/types/",
           "^@provino/types$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-coverage-tests",
+      "comment": "@provino/coverage's tests may import the package's own entries and what they may import.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/coverage/test/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/coverage/",
+          "^packages/coverage/(?!(?:src/runtime|src/node|test)/)",
+          "^@provino/coverage$",
+          "^packages/types/",
+          "^@provino/types$",
+          "^packages/coverage/src/runtime/",
+          "^@provino/coverage/runtime$",
+          "^packages/coverage/src/node/",
+          "^@provino/coverage/node$"
         ]
       }
     },
@@ -236,8 +284,8 @@
         "pathNot": [
           "^packages/coverage/src/runtime/",
           "^packages/types/",
-          "^packages/coverage/(?!(?:src/runtime|src/node)/)",
           "^@provino/types$",
+          "^packages/coverage/(?!(?:src/runtime|src/node|test)/)",
           "^@provino/coverage$"
         ]
       }
@@ -254,8 +302,8 @@
         "pathNot": [
           "^packages/coverage/src/node/",
           "^packages/types/",
-          "^packages/coverage/(?!(?:src/runtime|src/node)/)",
           "^@provino/types$",
+          "^packages/coverage/(?!(?:src/runtime|src/node|test)/)",
           "^@provino/coverage$"
         ]
       }
@@ -272,8 +320,8 @@
         "pathNot": [
           "^packages/mock/",
           "^packages/types/",
-          "^packages/policy/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$"
         ]
       }
@@ -290,8 +338,8 @@
         "pathNot": [
           "^packages/timers/",
           "^packages/types/",
-          "^packages/policy/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$"
         ]
       }
@@ -308,10 +356,10 @@
         "pathNot": [
           "^packages/expect/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/snapshot/src/runtime/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/snapshot/src/runtime/",
           "^@provino/snapshot/runtime$"
         ]
       }
@@ -360,14 +408,14 @@
         "pathNot": [
           "^packages/loader/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/resolver/",
-          "^packages/transform/",
-          "^packages/mock/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/resolver/",
           "^@provino/resolver$",
+          "^packages/transform/",
           "^@provino/transform$",
+          "^packages/mock/",
           "^@provino/mock$"
         ]
       }
@@ -384,8 +432,8 @@
         "pathNot": [
           "^packages/core/",
           "^packages/types/",
-          "^packages/policy/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$"
         ]
       }
@@ -418,8 +466,8 @@
         "pathNot": [
           "^packages/env-jsdom/",
           "^packages/types/",
-          "^packages/env-shared/",
           "^@provino/types$",
+          "^packages/env-shared/",
           "^@provino/env-shared$"
         ]
       }
@@ -436,8 +484,8 @@
         "pathNot": [
           "^packages/env-happy-dom/",
           "^packages/types/",
-          "^packages/env-shared/",
           "^@provino/types$",
+          "^packages/env-shared/",
           "^@provino/env-shared$"
         ]
       }
@@ -454,8 +502,8 @@
         "pathNot": [
           "^packages/lazy/",
           "^packages/types/",
-          "^packages/core/",
           "^@provino/types$",
+          "^packages/core/",
           "^@provino/core$"
         ]
       }
@@ -472,10 +520,10 @@
         "pathNot": [
           "^packages/config/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/transform/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/transform/",
           "^@provino/transform$"
         ]
       }
@@ -501,28 +549,78 @@
       "comment": "@provino/orchestrator (layer 5, runs in coordinator) may import only: @provino/config, @provino/coverage/node, @provino/policy, @provino/reporters, @provino/resolver, @provino/rpc, @provino/snapshot/node, @provino/types.",
       "severity": "error",
       "from": {
-        "path": "^packages/orchestrator/(?!(?:src/worker)/)"
+        "path": "^packages/orchestrator/(?!(?:src/worker|test)/)"
       },
       "to": {
         "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
         "pathNot": [
-          "^packages/orchestrator/(?!(?:src/worker)/)",
+          "^packages/orchestrator/(?!(?:src/worker|test)/)",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/rpc/",
-          "^packages/config/",
-          "^packages/reporters/",
-          "^packages/resolver/",
-          "^packages/snapshot/src/node/",
-          "^packages/coverage/src/node/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/rpc/",
           "^@provino/rpc$",
+          "^packages/config/",
           "^@provino/config$",
+          "^packages/reporters/",
           "^@provino/reporters$",
+          "^packages/resolver/",
           "^@provino/resolver$",
+          "^packages/snapshot/src/node/",
           "^@provino/snapshot/node$",
+          "^packages/coverage/src/node/",
           "^@provino/coverage/node$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-orchestrator-tests",
+      "comment": "@provino/orchestrator's tests may import the package's own entries and what they may import.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/orchestrator/test/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/orchestrator/",
+          "^packages/orchestrator/(?!(?:src/worker|test)/)",
+          "^@provino/orchestrator$",
+          "^packages/types/",
+          "^@provino/types$",
+          "^packages/policy/",
+          "^@provino/policy$",
+          "^packages/rpc/",
+          "^@provino/rpc$",
+          "^packages/config/",
+          "^@provino/config$",
+          "^packages/reporters/",
+          "^@provino/reporters$",
+          "^packages/resolver/",
+          "^@provino/resolver$",
+          "^packages/snapshot/src/node/",
+          "^@provino/snapshot/node$",
+          "^packages/coverage/src/node/",
+          "^@provino/coverage/node$",
+          "^packages/orchestrator/src/worker/",
+          "^@provino/orchestrator/worker$",
+          "^packages/loader/",
+          "^@provino/loader$",
+          "^packages/core/",
+          "^@provino/core$",
+          "^packages/lazy/",
+          "^@provino/lazy$",
+          "^packages/expect/",
+          "^@provino/expect$",
+          "^packages/mock/",
+          "^@provino/mock$",
+          "^packages/timers/",
+          "^@provino/timers$",
+          "^packages/snapshot/src/runtime/",
+          "^@provino/snapshot/runtime$",
+          "^packages/coverage/src/runtime/",
+          "^@provino/coverage/runtime$"
         ]
       }
     },
@@ -538,26 +636,26 @@
         "pathNot": [
           "^packages/orchestrator/src/worker/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/rpc/",
-          "^packages/loader/",
-          "^packages/core/",
-          "^packages/lazy/",
-          "^packages/expect/",
-          "^packages/mock/",
-          "^packages/timers/",
-          "^packages/snapshot/src/runtime/",
-          "^packages/coverage/src/runtime/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/rpc/",
           "^@provino/rpc$",
+          "^packages/loader/",
           "^@provino/loader$",
+          "^packages/core/",
           "^@provino/core$",
+          "^packages/lazy/",
           "^@provino/lazy$",
+          "^packages/expect/",
           "^@provino/expect$",
+          "^packages/mock/",
           "^@provino/mock$",
+          "^packages/timers/",
           "^@provino/timers$",
+          "^packages/snapshot/src/runtime/",
           "^@provino/snapshot/runtime$",
+          "^packages/coverage/src/runtime/",
           "^@provino/coverage/runtime$"
         ]
       }
@@ -567,16 +665,56 @@
       "comment": "@provino/dialect-jest (layer 5, runs in both) may import only: @provino/policy, @provino/types.",
       "severity": "error",
       "from": {
-        "path": "^packages/dialect-jest/(?!(?:src/node|src/runtime)/)"
+        "path": "^packages/dialect-jest/(?!(?:src/node|src/runtime|test)/)"
       },
       "to": {
         "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
         "pathNot": [
-          "^packages/dialect-jest/(?!(?:src/node|src/runtime)/)",
+          "^packages/dialect-jest/(?!(?:src/node|src/runtime|test)/)",
           "^packages/types/",
-          "^packages/policy/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-dialect-jest-tests",
+      "comment": "@provino/dialect-jest's tests may import the package's own entries and what they may import.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/dialect-jest/test/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/dialect-jest/",
+          "^packages/dialect-jest/(?!(?:src/node|src/runtime|test)/)",
+          "^@provino/dialect-jest$",
+          "^packages/types/",
+          "^@provino/types$",
+          "^packages/policy/",
+          "^@provino/policy$",
+          "^packages/dialect-jest/src/node/",
+          "^@provino/dialect-jest/node$",
+          "^packages/config/",
+          "^@provino/config$",
+          "^packages/resolver/",
+          "^@provino/resolver$",
+          "^packages/transform/",
+          "^@provino/transform$",
+          "^packages/dialect-jest/src/runtime/",
+          "^@provino/dialect-jest/runtime$",
+          "^packages/core/",
+          "^@provino/core$",
+          "^packages/lazy/",
+          "^@provino/lazy$",
+          "^packages/expect/",
+          "^@provino/expect$",
+          "^packages/mock/",
+          "^@provino/mock$",
+          "^packages/timers/",
+          "^@provino/timers$"
         ]
       }
     },
@@ -592,16 +730,16 @@
         "pathNot": [
           "^packages/dialect-jest/src/node/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/config/",
-          "^packages/resolver/",
-          "^packages/transform/",
-          "^packages/dialect-jest/(?!(?:src/node|src/runtime)/)",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/config/",
           "^@provino/config$",
+          "^packages/resolver/",
           "^@provino/resolver$",
+          "^packages/transform/",
           "^@provino/transform$",
+          "^packages/dialect-jest/(?!(?:src/node|src/runtime|test)/)",
           "^@provino/dialect-jest$"
         ]
       }
@@ -618,20 +756,20 @@
         "pathNot": [
           "^packages/dialect-jest/src/runtime/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/core/",
-          "^packages/lazy/",
-          "^packages/expect/",
-          "^packages/mock/",
-          "^packages/timers/",
-          "^packages/dialect-jest/(?!(?:src/node|src/runtime)/)",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/core/",
           "^@provino/core$",
+          "^packages/lazy/",
           "^@provino/lazy$",
+          "^packages/expect/",
           "^@provino/expect$",
+          "^packages/mock/",
           "^@provino/mock$",
+          "^packages/timers/",
           "^@provino/timers$",
+          "^packages/dialect-jest/(?!(?:src/node|src/runtime|test)/)",
           "^@provino/dialect-jest$"
         ]
       }
@@ -641,16 +779,56 @@
       "comment": "@provino/dialect-vitest (layer 5, runs in both) may import only: @provino/policy, @provino/types.",
       "severity": "error",
       "from": {
-        "path": "^packages/dialect-vitest/(?!(?:src/node|src/runtime)/)"
+        "path": "^packages/dialect-vitest/(?!(?:src/node|src/runtime|test)/)"
       },
       "to": {
         "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
         "pathNot": [
-          "^packages/dialect-vitest/(?!(?:src/node|src/runtime)/)",
+          "^packages/dialect-vitest/(?!(?:src/node|src/runtime|test)/)",
           "^packages/types/",
-          "^packages/policy/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-dialect-vitest-tests",
+      "comment": "@provino/dialect-vitest's tests may import the package's own entries and what they may import.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/dialect-vitest/test/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/dialect-vitest/",
+          "^packages/dialect-vitest/(?!(?:src/node|src/runtime|test)/)",
+          "^@provino/dialect-vitest$",
+          "^packages/types/",
+          "^@provino/types$",
+          "^packages/policy/",
+          "^@provino/policy$",
+          "^packages/dialect-vitest/src/node/",
+          "^@provino/dialect-vitest/node$",
+          "^packages/config/",
+          "^@provino/config$",
+          "^packages/resolver/",
+          "^@provino/resolver$",
+          "^packages/transform/",
+          "^@provino/transform$",
+          "^packages/dialect-vitest/src/runtime/",
+          "^@provino/dialect-vitest/runtime$",
+          "^packages/core/",
+          "^@provino/core$",
+          "^packages/lazy/",
+          "^@provino/lazy$",
+          "^packages/expect/",
+          "^@provino/expect$",
+          "^packages/mock/",
+          "^@provino/mock$",
+          "^packages/timers/",
+          "^@provino/timers$"
         ]
       }
     },
@@ -666,16 +844,16 @@
         "pathNot": [
           "^packages/dialect-vitest/src/node/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/config/",
-          "^packages/resolver/",
-          "^packages/transform/",
-          "^packages/dialect-vitest/(?!(?:src/node|src/runtime)/)",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/config/",
           "^@provino/config$",
+          "^packages/resolver/",
           "^@provino/resolver$",
+          "^packages/transform/",
           "^@provino/transform$",
+          "^packages/dialect-vitest/(?!(?:src/node|src/runtime|test)/)",
           "^@provino/dialect-vitest$"
         ]
       }
@@ -692,20 +870,20 @@
         "pathNot": [
           "^packages/dialect-vitest/src/runtime/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/core/",
-          "^packages/lazy/",
-          "^packages/expect/",
-          "^packages/mock/",
-          "^packages/timers/",
-          "^packages/dialect-vitest/(?!(?:src/node|src/runtime)/)",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/core/",
           "^@provino/core$",
+          "^packages/lazy/",
           "^@provino/lazy$",
+          "^packages/expect/",
           "^@provino/expect$",
+          "^packages/mock/",
           "^@provino/mock$",
+          "^packages/timers/",
           "^@provino/timers$",
+          "^packages/dialect-vitest/(?!(?:src/node|src/runtime|test)/)",
           "^@provino/dialect-vitest$"
         ]
       }
@@ -715,16 +893,42 @@
       "comment": "@provino/dialect-node-test (layer 5, runs in both) may import only: @provino/policy, @provino/types.",
       "severity": "error",
       "from": {
-        "path": "^packages/dialect-node-test/(?!(?:src/runtime)/)"
+        "path": "^packages/dialect-node-test/(?!(?:src/runtime|test)/)"
       },
       "to": {
         "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
         "pathNot": [
-          "^packages/dialect-node-test/(?!(?:src/runtime)/)",
+          "^packages/dialect-node-test/(?!(?:src/runtime|test)/)",
           "^packages/types/",
-          "^packages/policy/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-dialect-node-test-tests",
+      "comment": "@provino/dialect-node-test's tests may import the package's own entries and what they may import.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/dialect-node-test/test/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/dialect-node-test/",
+          "^packages/dialect-node-test/(?!(?:src/runtime|test)/)",
+          "^@provino/dialect-node-test$",
+          "^packages/types/",
+          "^@provino/types$",
+          "^packages/policy/",
+          "^@provino/policy$",
+          "^packages/dialect-node-test/src/runtime/",
+          "^@provino/dialect-node-test/runtime$",
+          "^packages/core/",
+          "^@provino/core$",
+          "^packages/mock/",
+          "^@provino/mock$"
         ]
       }
     },
@@ -740,14 +944,14 @@
         "pathNot": [
           "^packages/dialect-node-test/src/runtime/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/core/",
-          "^packages/mock/",
-          "^packages/dialect-node-test/(?!(?:src/runtime)/)",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/core/",
           "^@provino/core$",
+          "^packages/mock/",
           "^@provino/mock$",
+          "^packages/dialect-node-test/(?!(?:src/runtime|test)/)",
           "^@provino/dialect-node-test$"
         ]
       }
@@ -764,78 +968,78 @@
         "pathNot": [
           "^packages/provino/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/rpc/",
-          "^packages/resolver/",
-          "^packages/native/",
-          "^packages/native-[^/]+/",
-          "^packages/eslint-plugin/",
-          "^packages/transform/",
-          "^packages/snapshot/(?!(?:src/runtime|src/node)/)",
-          "^packages/snapshot/src/runtime/",
-          "^packages/snapshot/src/node/",
-          "^packages/coverage/(?!(?:src/runtime|src/node)/)",
-          "^packages/coverage/src/runtime/",
-          "^packages/coverage/src/node/",
-          "^packages/mock/",
-          "^packages/timers/",
-          "^packages/expect/",
-          "^packages/env-shared/",
-          "^packages/codemod-lazy/",
-          "^packages/loader/",
-          "^packages/core/",
-          "^packages/env-node/",
-          "^packages/env-jsdom/",
-          "^packages/env-happy-dom/",
-          "^packages/lazy/",
-          "^packages/config/",
-          "^packages/reporters/",
-          "^packages/orchestrator/(?!(?:src/worker)/)",
-          "^packages/orchestrator/src/worker/",
-          "^packages/dialect-jest/(?!(?:src/node|src/runtime)/)",
-          "^packages/dialect-jest/src/node/",
-          "^packages/dialect-jest/src/runtime/",
-          "^packages/dialect-vitest/(?!(?:src/node|src/runtime)/)",
-          "^packages/dialect-vitest/src/node/",
-          "^packages/dialect-vitest/src/runtime/",
-          "^packages/dialect-node-test/(?!(?:src/runtime)/)",
-          "^packages/dialect-node-test/src/runtime/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/rpc/",
           "^@provino/rpc$",
+          "^packages/resolver/",
           "^@provino/resolver$",
+          "^packages/native/",
           "^@provino/native$",
+          "^packages/native-[^/]+/",
           "^@provino/native-[^/]+$",
+          "^packages/eslint-plugin/",
           "^@provino/eslint-plugin$",
+          "^packages/transform/",
           "^@provino/transform$",
+          "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
           "^@provino/snapshot$",
+          "^packages/snapshot/src/runtime/",
           "^@provino/snapshot/runtime$",
+          "^packages/snapshot/src/node/",
           "^@provino/snapshot/node$",
+          "^packages/coverage/(?!(?:src/runtime|src/node|test)/)",
           "^@provino/coverage$",
+          "^packages/coverage/src/runtime/",
           "^@provino/coverage/runtime$",
+          "^packages/coverage/src/node/",
           "^@provino/coverage/node$",
+          "^packages/mock/",
           "^@provino/mock$",
+          "^packages/timers/",
           "^@provino/timers$",
+          "^packages/expect/",
           "^@provino/expect$",
+          "^packages/env-shared/",
           "^@provino/env-shared$",
+          "^packages/codemod-lazy/",
           "^@provino/codemod-lazy$",
+          "^packages/loader/",
           "^@provino/loader$",
+          "^packages/core/",
           "^@provino/core$",
+          "^packages/env-node/",
           "^@provino/env-node$",
+          "^packages/env-jsdom/",
           "^@provino/env-jsdom$",
+          "^packages/env-happy-dom/",
           "^@provino/env-happy-dom$",
+          "^packages/lazy/",
           "^@provino/lazy$",
+          "^packages/config/",
           "^@provino/config$",
+          "^packages/reporters/",
           "^@provino/reporters$",
+          "^packages/orchestrator/(?!(?:src/worker|test)/)",
           "^@provino/orchestrator$",
+          "^packages/orchestrator/src/worker/",
           "^@provino/orchestrator/worker$",
+          "^packages/dialect-jest/(?!(?:src/node|src/runtime|test)/)",
           "^@provino/dialect-jest$",
+          "^packages/dialect-jest/src/node/",
           "^@provino/dialect-jest/node$",
+          "^packages/dialect-jest/src/runtime/",
           "^@provino/dialect-jest/runtime$",
+          "^packages/dialect-vitest/(?!(?:src/node|src/runtime|test)/)",
           "^@provino/dialect-vitest$",
+          "^packages/dialect-vitest/src/node/",
           "^@provino/dialect-vitest/node$",
+          "^packages/dialect-vitest/src/runtime/",
           "^@provino/dialect-vitest/runtime$",
+          "^packages/dialect-node-test/(?!(?:src/runtime|test)/)",
           "^@provino/dialect-node-test$",
+          "^packages/dialect-node-test/src/runtime/",
           "^@provino/dialect-node-test/runtime$"
         ]
       }
@@ -852,14 +1056,14 @@
         "pathNot": [
           "^packages/vitest-compat/",
           "^packages/types/",
-          "^packages/dialect-vitest/(?!(?:src/node|src/runtime)/)",
-          "^packages/dialect-vitest/src/node/",
-          "^packages/dialect-vitest/src/runtime/",
-          "^packages/provino/",
           "^@provino/types$",
+          "^packages/dialect-vitest/(?!(?:src/node|src/runtime|test)/)",
           "^@provino/dialect-vitest$",
+          "^packages/dialect-vitest/src/node/",
           "^@provino/dialect-vitest/node$",
+          "^packages/dialect-vitest/src/runtime/",
           "^@provino/dialect-vitest/runtime$",
+          "^packages/provino/",
           "^provino$"
         ]
       }
@@ -876,8 +1080,8 @@
         "pathNot": [
           "^packages/jest-globals/",
           "^packages/types/",
-          "^packages/dialect-jest/src/runtime/",
           "^@provino/types$",
+          "^packages/dialect-jest/src/runtime/",
           "^@provino/dialect-jest/runtime$"
         ]
       }
@@ -894,84 +1098,84 @@
         "pathNot": [
           "^packages/harness/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/rpc/",
-          "^packages/resolver/",
-          "^packages/native/",
-          "^packages/native-[^/]+/",
-          "^packages/eslint-plugin/",
-          "^packages/transform/",
-          "^packages/snapshot/(?!(?:src/runtime|src/node)/)",
-          "^packages/snapshot/src/runtime/",
-          "^packages/snapshot/src/node/",
-          "^packages/coverage/(?!(?:src/runtime|src/node)/)",
-          "^packages/coverage/src/runtime/",
-          "^packages/coverage/src/node/",
-          "^packages/mock/",
-          "^packages/timers/",
-          "^packages/expect/",
-          "^packages/env-shared/",
-          "^packages/codemod-lazy/",
-          "^packages/loader/",
-          "^packages/core/",
-          "^packages/env-node/",
-          "^packages/env-jsdom/",
-          "^packages/env-happy-dom/",
-          "^packages/lazy/",
-          "^packages/config/",
-          "^packages/reporters/",
-          "^packages/orchestrator/(?!(?:src/worker)/)",
-          "^packages/orchestrator/src/worker/",
-          "^packages/dialect-jest/(?!(?:src/node|src/runtime)/)",
-          "^packages/dialect-jest/src/node/",
-          "^packages/dialect-jest/src/runtime/",
-          "^packages/dialect-vitest/(?!(?:src/node|src/runtime)/)",
-          "^packages/dialect-vitest/src/node/",
-          "^packages/dialect-vitest/src/runtime/",
-          "^packages/dialect-node-test/(?!(?:src/runtime)/)",
-          "^packages/dialect-node-test/src/runtime/",
-          "^packages/provino/",
-          "^packages/vitest-compat/",
-          "^packages/jest-globals/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/rpc/",
           "^@provino/rpc$",
+          "^packages/resolver/",
           "^@provino/resolver$",
+          "^packages/native/",
           "^@provino/native$",
+          "^packages/native-[^/]+/",
           "^@provino/native-[^/]+$",
+          "^packages/eslint-plugin/",
           "^@provino/eslint-plugin$",
+          "^packages/transform/",
           "^@provino/transform$",
+          "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
           "^@provino/snapshot$",
+          "^packages/snapshot/src/runtime/",
           "^@provino/snapshot/runtime$",
+          "^packages/snapshot/src/node/",
           "^@provino/snapshot/node$",
+          "^packages/coverage/(?!(?:src/runtime|src/node|test)/)",
           "^@provino/coverage$",
+          "^packages/coverage/src/runtime/",
           "^@provino/coverage/runtime$",
+          "^packages/coverage/src/node/",
           "^@provino/coverage/node$",
+          "^packages/mock/",
           "^@provino/mock$",
+          "^packages/timers/",
           "^@provino/timers$",
+          "^packages/expect/",
           "^@provino/expect$",
+          "^packages/env-shared/",
           "^@provino/env-shared$",
+          "^packages/codemod-lazy/",
           "^@provino/codemod-lazy$",
+          "^packages/loader/",
           "^@provino/loader$",
+          "^packages/core/",
           "^@provino/core$",
+          "^packages/env-node/",
           "^@provino/env-node$",
+          "^packages/env-jsdom/",
           "^@provino/env-jsdom$",
+          "^packages/env-happy-dom/",
           "^@provino/env-happy-dom$",
+          "^packages/lazy/",
           "^@provino/lazy$",
+          "^packages/config/",
           "^@provino/config$",
+          "^packages/reporters/",
           "^@provino/reporters$",
+          "^packages/orchestrator/(?!(?:src/worker|test)/)",
           "^@provino/orchestrator$",
+          "^packages/orchestrator/src/worker/",
           "^@provino/orchestrator/worker$",
+          "^packages/dialect-jest/(?!(?:src/node|src/runtime|test)/)",
           "^@provino/dialect-jest$",
+          "^packages/dialect-jest/src/node/",
           "^@provino/dialect-jest/node$",
+          "^packages/dialect-jest/src/runtime/",
           "^@provino/dialect-jest/runtime$",
+          "^packages/dialect-vitest/(?!(?:src/node|src/runtime|test)/)",
           "^@provino/dialect-vitest$",
+          "^packages/dialect-vitest/src/node/",
           "^@provino/dialect-vitest/node$",
+          "^packages/dialect-vitest/src/runtime/",
           "^@provino/dialect-vitest/runtime$",
+          "^packages/dialect-node-test/(?!(?:src/runtime|test)/)",
           "^@provino/dialect-node-test$",
+          "^packages/dialect-node-test/src/runtime/",
           "^@provino/dialect-node-test/runtime$",
+          "^packages/provino/",
           "^provino$",
+          "^packages/vitest-compat/",
           "^@provino/vitest-compat$",
+          "^packages/jest-globals/",
           "^@provino/jest-globals$"
         ]
       }
@@ -988,84 +1192,84 @@
         "pathNot": [
           "^packages/bench/",
           "^packages/types/",
-          "^packages/policy/",
-          "^packages/rpc/",
-          "^packages/resolver/",
-          "^packages/native/",
-          "^packages/native-[^/]+/",
-          "^packages/eslint-plugin/",
-          "^packages/transform/",
-          "^packages/snapshot/(?!(?:src/runtime|src/node)/)",
-          "^packages/snapshot/src/runtime/",
-          "^packages/snapshot/src/node/",
-          "^packages/coverage/(?!(?:src/runtime|src/node)/)",
-          "^packages/coverage/src/runtime/",
-          "^packages/coverage/src/node/",
-          "^packages/mock/",
-          "^packages/timers/",
-          "^packages/expect/",
-          "^packages/env-shared/",
-          "^packages/codemod-lazy/",
-          "^packages/loader/",
-          "^packages/core/",
-          "^packages/env-node/",
-          "^packages/env-jsdom/",
-          "^packages/env-happy-dom/",
-          "^packages/lazy/",
-          "^packages/config/",
-          "^packages/reporters/",
-          "^packages/orchestrator/(?!(?:src/worker)/)",
-          "^packages/orchestrator/src/worker/",
-          "^packages/dialect-jest/(?!(?:src/node|src/runtime)/)",
-          "^packages/dialect-jest/src/node/",
-          "^packages/dialect-jest/src/runtime/",
-          "^packages/dialect-vitest/(?!(?:src/node|src/runtime)/)",
-          "^packages/dialect-vitest/src/node/",
-          "^packages/dialect-vitest/src/runtime/",
-          "^packages/dialect-node-test/(?!(?:src/runtime)/)",
-          "^packages/dialect-node-test/src/runtime/",
-          "^packages/provino/",
-          "^packages/vitest-compat/",
-          "^packages/jest-globals/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$",
+          "^packages/rpc/",
           "^@provino/rpc$",
+          "^packages/resolver/",
           "^@provino/resolver$",
+          "^packages/native/",
           "^@provino/native$",
+          "^packages/native-[^/]+/",
           "^@provino/native-[^/]+$",
+          "^packages/eslint-plugin/",
           "^@provino/eslint-plugin$",
+          "^packages/transform/",
           "^@provino/transform$",
+          "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
           "^@provino/snapshot$",
+          "^packages/snapshot/src/runtime/",
           "^@provino/snapshot/runtime$",
+          "^packages/snapshot/src/node/",
           "^@provino/snapshot/node$",
+          "^packages/coverage/(?!(?:src/runtime|src/node|test)/)",
           "^@provino/coverage$",
+          "^packages/coverage/src/runtime/",
           "^@provino/coverage/runtime$",
+          "^packages/coverage/src/node/",
           "^@provino/coverage/node$",
+          "^packages/mock/",
           "^@provino/mock$",
+          "^packages/timers/",
           "^@provino/timers$",
+          "^packages/expect/",
           "^@provino/expect$",
+          "^packages/env-shared/",
           "^@provino/env-shared$",
+          "^packages/codemod-lazy/",
           "^@provino/codemod-lazy$",
+          "^packages/loader/",
           "^@provino/loader$",
+          "^packages/core/",
           "^@provino/core$",
+          "^packages/env-node/",
           "^@provino/env-node$",
+          "^packages/env-jsdom/",
           "^@provino/env-jsdom$",
+          "^packages/env-happy-dom/",
           "^@provino/env-happy-dom$",
+          "^packages/lazy/",
           "^@provino/lazy$",
+          "^packages/config/",
           "^@provino/config$",
+          "^packages/reporters/",
           "^@provino/reporters$",
+          "^packages/orchestrator/(?!(?:src/worker|test)/)",
           "^@provino/orchestrator$",
+          "^packages/orchestrator/src/worker/",
           "^@provino/orchestrator/worker$",
+          "^packages/dialect-jest/(?!(?:src/node|src/runtime|test)/)",
           "^@provino/dialect-jest$",
+          "^packages/dialect-jest/src/node/",
           "^@provino/dialect-jest/node$",
+          "^packages/dialect-jest/src/runtime/",
           "^@provino/dialect-jest/runtime$",
+          "^packages/dialect-vitest/(?!(?:src/node|src/runtime|test)/)",
           "^@provino/dialect-vitest$",
+          "^packages/dialect-vitest/src/node/",
           "^@provino/dialect-vitest/node$",
+          "^packages/dialect-vitest/src/runtime/",
           "^@provino/dialect-vitest/runtime$",
+          "^packages/dialect-node-test/(?!(?:src/runtime|test)/)",
           "^@provino/dialect-node-test$",
+          "^packages/dialect-node-test/src/runtime/",
           "^@provino/dialect-node-test/runtime$",
+          "^packages/provino/",
           "^provino$",
+          "^packages/vitest-compat/",
           "^@provino/vitest-compat$",
+          "^packages/jest-globals/",
           "^@provino/jest-globals$"
         ]
       }
@@ -1082,8 +1286,8 @@
         "pathNot": [
           "^tooling/boundaries/",
           "^packages/types/",
-          "^packages/policy/",
           "^@provino/types$",
+          "^packages/policy/",
           "^@provino/policy$"
         ]
       }
@@ -1114,14 +1318,15 @@
     },
     {
       "name": "no-circular",
-      "comment": "No dependency cycles (monorepo-architecture.md, rule 7). A cycle made only of type-only imports erases at compile time, so it is allowed: contract types refer to each other.",
+      "comment": "No runtime dependency cycles (monorepo-architecture.md rule 7, DECISIONS D15). A cycle made only of type imports (`import type`, `import(\"…\").T`) erases at compile time, so it is allowed.",
       "severity": "error",
       "from": {},
       "to": {
         "circular": true,
         "viaOnly": {
           "dependencyTypesNot": [
-            "type-only"
+            "type-only",
+            "type-import"
           ]
         }
       }

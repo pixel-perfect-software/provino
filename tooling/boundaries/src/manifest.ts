@@ -35,6 +35,8 @@ export interface Manifest {
   readonly slices: Readonly<Record<string, string>>
   /** Type names that carry the whole policy. */
   readonly wholePolicyTypes: readonly string[]
+  /** `@provino/policy` exports that hand out the whole policy (`neutralPolicy`, `resolvePolicy`). */
+  readonly wholePolicyValues: readonly string[]
   readonly nodes: readonly ManifestNode[]
 }
 
@@ -52,6 +54,18 @@ export interface Problem {
  * @public
  */
 export const SHIPPED_WILDCARD = '@provino/*'
+
+const NODE_KEYS: ReadonlySet<string> = new Set([
+  'dir',
+  'layer',
+  'runsIn',
+  'deps',
+  'slices',
+  'neutral',
+  'compositionRoot',
+  'phase',
+  'note',
+])
 
 const RUNS_IN: readonly RunsIn[] = ['types', 'both', 'worker', 'coordinator', 'external', 'dev']
 
@@ -89,11 +103,18 @@ export function parseManifest(json: unknown): Manifest {
   const wholePolicyTypes = list(root.wholePolicyTypes, 'wholePolicyTypes').map((type, i) =>
     text(type, `wholePolicyTypes[${i}]`),
   )
+  const wholePolicyValues = list(root.wholePolicyValues, 'wholePolicyValues').map((name, i) =>
+    text(name, `wholePolicyValues[${i}]`),
+  )
   const raw = record(root.nodes, 'nodes')
   const names = new Set(Object.keys(raw))
   const nodes = Object.entries(raw).map(([name, value]): ManifestNode => {
     const at = `nodes["${name}"]`
     const node = record(value, at)
+    for (const key of Object.keys(node)) {
+      // A typo such as "neutal" would otherwise switch a lint off without a word.
+      if (!NODE_KEYS.has(key)) throw new TypeError(`${at}: unknown key "${key}"`)
+    }
     const layer = node.layer
     if (
       !(layer === 'dev' || layer === 'tooling' || (Number.isInteger(layer) && Number(layer) >= 0))
@@ -119,7 +140,7 @@ export function parseManifest(json: unknown): Manifest {
       parent: parentOf(name, names),
     }
   })
-  return { slices, wholePolicyTypes, nodes }
+  return { slices, wholePolicyTypes, wholePolicyValues, nodes }
 }
 
 /**

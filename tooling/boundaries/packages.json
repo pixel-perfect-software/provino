@@ -5,8 +5,9 @@
     "A node named <package>/<entry> is a subpath entry with its own rules; it owns <dir>/** and",
     "its parent owns the rest of the package. deps lists the nodes a node may import, and",
     "\"@provino/*\" means every shipped node in a lower layer (any layer, for dev and tooling).",
-    "slices lists the policy slice types the package may import (\"all\" = exempt). neutral",
-    "turns on the no-dialect-string lint. After editing, run `pnpm boundaries:write`."
+    "slices lists the policy slice types the package may import (\"all\" = exempt); a restricted",
+    "package also may not use wholePolicyValues, which hand out every slice. Tests are exempt from",
+    "both. neutral turns on the no-dialect-name lint. After editing, run `pnpm boundaries:write`."
   ],
   "slices": {
     "core": "CorePolicy",
@@ -21,6 +22,14 @@
     "coverage": "CoveragePolicy"
   },
   "wholePolicyTypes": ["Policy", "PolicySlices", "PolicyOverrides", "SerializedPolicy"],
+  "wholePolicyValues": [
+    "neutralPolicy",
+    "resolvePolicy",
+    "serializePolicy",
+    "diffPolicy",
+    "formatPolicyDiff",
+    "defineDialect"
+  ],
   "nodes": {
     "@provino/types": {
       "dir": "packages/types",

@@ -7,6 +7,12 @@ or {
   `PolicySlices`,
   `PolicyOverrides`,
   `SerializedPolicy`,
+  `neutralPolicy`,
+  `resolvePolicy`,
+  `serializePolicy`,
+  `diffPolicy`,
+  `formatPolicyDiff`,
+  `defineDialect`,
   `CorePolicy`,
   `LazyPolicy`,
   `MockPolicy`,
@@ -19,6 +25,6 @@ or {
   JsNamedImportSpecifier(name = $name),
   JsExportNamedFromSpecifier(source_name = $name)
 } as $hit where {
-  or { $name <: undefined, $name <: r"(?:Policy|PolicySlices|PolicyOverrides|SerializedPolicy|CorePolicy|LazyPolicy|MockPolicy|TimersPolicy|ModulePolicy|ExpectPolicy|OrchestratorPolicy|ReportPolicy|CoveragePolicy)" },
-  register_diagnostic(span = $hit, message = "slice-discipline: this package may import only its own policy slice type (SnapshotPolicy); other slices and the whole Policy belong to other packages. See monorepo-architecture.md, rule 3.")
+  or { $name <: undefined, $name <: r"(?:Policy|PolicySlices|PolicyOverrides|SerializedPolicy|neutralPolicy|resolvePolicy|serializePolicy|diffPolicy|formatPolicyDiff|defineDialect|CorePolicy|LazyPolicy|MockPolicy|TimersPolicy|ModulePolicy|ExpectPolicy|OrchestratorPolicy|ReportPolicy|CoveragePolicy)" },
+  register_diagnostic(span = $hit, message = "slice-discipline: this package may use only its own policy slice type (SnapshotPolicy); other slices, the whole Policy and the values that hand it out (neutralPolicy, resolvePolicy, …) belong to other packages. See monorepo-architecture.md, rule 3.")
 }

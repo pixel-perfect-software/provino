@@ -1,6 +1,7 @@
 node_modules/
 dist/
-coverage/
+# Coverage reports go to the root (anchored, so packages/coverage/ stays tracked and linted).
+/coverage/
 *.tsbuildinfo
 .DS_Store
 
