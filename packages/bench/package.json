@@ -1,0 +1,34 @@
+{
+  "name": "@provino/bench",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Provino's benchmark protocol (Track 12 R5): interleaved warm and cold runs, tree RSS, bootstrap CIs, BenchRecord output, and the synthetic suite generators.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "bin": {
+    "provino-bench": "./src/cli.ts"
+  },
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\"",
+    "bench": "node --conditions=provino-source src/cli.ts"
+  },
+  "dependencies": {
+    "@provino/types": "workspace:*"
+  },
+  "devDependencies": {
+    "date-fns": "catalog:",
+    "jest": "catalog:",
+    "lodash": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

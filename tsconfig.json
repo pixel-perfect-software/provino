@@ -12,6 +12,12 @@
     },
     {
       "path": "tooling/boundaries"
+    },
+    {
+      "path": "packages/harness"
+    },
+    {
+      "path": "packages/bench"
     }
   ]
 }
