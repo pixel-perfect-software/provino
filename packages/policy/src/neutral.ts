@@ -1,0 +1,198 @@
+import type { EnvironmentConditions, FormatEachTitle, Policy, SnapshotKey } from '@provino/types'
+import { deepFreeze } from './internal/objects.ts'
+import { moduleRef } from './module-ref.ts'
+
+const BEHAVIOURS = '@provino/policy/behaviours'
+
+/**
+ * The neutral dialect's policy: what Provino does with no dialect, and the base every layer
+ * overrides. These are Provino's own choices, not Jest's or Vitest's ("better by default",
+ * DECISIONS D7): mistakes fail loudly, state doesn't leak between tests, setup and teardown are
+ * symmetric, and ESM semantics come first. Unit tests pin each value (`neutral.test.ts`).
+ * @public
+ */
+export const neutralPolicy: Policy = deepFreeze({
+  core: {
+    // Teardown unwinds setup, like a stack.
+    hookOrder: {
+      beforeAll: 'declaration',
+      beforeEach: 'declaration',
+      afterEach: 'reverse',
+      afterAll: 'reverse',
+    },
+    eachHooksForConcurrent: true,
+    firstArg: 'context',
+    // A generator test whose body never runs would pass silently.
+    allowGeneratorFns: false,
+    timeouts: { test: 5000, hook: 10000, teardown: 10000, catchSyncOverrun: true },
+    nameSeparator: ' > ',
+    testNamePatternFlags: '',
+    // RSpec-style: an example without a body is pending.
+    missingTestFn: 'todo',
+    // Collection stays synchronous and deterministic.
+    asyncDescribe: 'throw',
+    nonPromiseReturn: 'fail',
+    formatEachTitle: moduleRef<FormatEachTitle>(BEHAVIOURS, 'formatEachTitle'),
+    eachTitleTruncate: null,
+    retry: { timing: 'immediate', logErrorsBeforeRetry: true, keepEarlierErrors: true },
+    // A `.only` committed by mistake must not shrink a CI run.
+    allowOnly: 'not-in-ci',
+    maxConcurrency: 5,
+    // An unawaited assertion would otherwise pass silently.
+    unawaitedAsyncAssertion: 'fail',
+    hookReturnsCleanup: true,
+    // The neutral API is imported, not global.
+    injectGlobals: false,
+    doneDeprecatedMessage: null,
+    collect: {
+      describeBody: 'immediate',
+      describeReturnValue: 'error',
+      lateRegistration: 'fail-file',
+      emptyDescribe: 'allow',
+    },
+    hooks: {
+      // Run as much teardown as possible.
+      afterError: 'continue',
+      // Every affected test reports the failure; nothing is skipped silently.
+      beforeAllError: 'attach-to-tests',
+      nestedHooksAfterBeforeAllError: 'skip',
+      afterAllError: 'fail-suite',
+      timeoutCountsTestTimeout: false,
+      skippedBlock: 'none',
+    },
+    concurrency: { grouping: 'consecutive', limitHooks: true },
+    errors: { lateErrors: 'fail-owner', hasAssertionsWhenFailed: 'skip' },
+    // An explicit skip wins over `.only`.
+    focus: { scope: 'file', insideSkip: 'skipped' },
+    status: { todoUnderSkip: 'todo' },
+    orderHooks: null,
+  },
+  lazy: { readInBeforeAll: 'error' },
+  mock: {
+    resetTo: 'original-impl',
+    defaultName: 'fn()',
+    // Calls, spies and stubs never leak into the next test.
+    between: {
+      order: ['restore', 'reset', 'clear', 'unstubEnvs', 'unstubGlobals'],
+      clear: true,
+      reset: false,
+      restore: true,
+      unstubEnvs: true,
+      unstubGlobals: true,
+    },
+    classMockPrototype: 'chain-to-impl',
+    spyNameFromMethod: true,
+    functionName: 'impl-or-Mock',
+    newCall: 'construct',
+    valueShorthandsThrowOnNew: true,
+    fnOfMockReturnsSame: true,
+    copyStaticProps: true,
+    settledResults: true,
+    lastCallKey: 'always',
+    clearReplacesStateObject: false,
+    mockPropertyWritable: false,
+    withImplementationReturnsMock: true,
+    getImplPrefersOnce: true,
+    spyReportsBridgeImpl: false,
+    isMockAcceptsObjects: false,
+    spyInstall: 'define',
+    messages: {},
+  },
+  timers: {
+    // Faking microtasks breaks promises.
+    toFakeDefault: 'all-but-microtasks',
+    loopLimit: 10000,
+    fakeTemporal: true,
+    legacyAvailable: false,
+    enableGlobally: false,
+    optionNames: 'to-fake',
+    notFaked: 'throw',
+    setSystemTimeWithoutFakes: 'fake-date-only',
+    advanceToNextTimerHonorsSteps: true,
+    facadeReturns: 'facade',
+  },
+  module: {
+    factoryShape: 'namespace',
+    rootMocksAutoApply: false,
+    automock: false,
+    actual: 'async-import',
+    resetModulesBetween: false,
+    injectCjsGlobals: true,
+    interopDefault: 'babel',
+    resetModulesClearsMocks: false,
+    awaitFactory: true,
+    // A missing export would otherwise read as `undefined`.
+    missingFactoryExport: 'throw',
+    resetModulesReRunsFactory: true,
+    requireVirtualFlag: false,
+    automockShape: 'deep',
+    unmockedPathPatterns: [],
+  },
+  snapshot: {
+    header: '// Provino Snapshot v1',
+    key: moduleRef<SnapshotKey>(BEHAVIOURS, 'snapshotKey'),
+    keyJoin: ' > ',
+    hintJoin: ': ',
+    dirName: '__snapshots__',
+    extension: '.snap',
+    format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null },
+    serializers: [],
+    obsolete: { failLocal: false, failCI: true },
+    ciUpdate: 'none',
+    updateEnvVar: null,
+    throwErrorBody: 'message',
+    inline: { indent: 'call', formatter: 'none' },
+    resolvePath: null,
+  },
+  expect: {
+    matcherNamespace: 'provino',
+    pollFailsOnTimeout: true,
+    diffContextLines: 5,
+    valueFormatter: 'pretty-format',
+    matcherTable: null,
+    errorShape: 'assertion-error',
+    equality: { errors: 'assert', invalidDate: 'equal' },
+    soft: true,
+    poll: { enabled: true, intervalMs: 50, timeoutMs: 1000 },
+    requireAssertions: false,
+    expand: false,
+  },
+  orchestrator: {
+    include: ['**/*.{test,spec}.?(c|m)[jt]s?(x)'],
+    exclude: ['**/node_modules/**', '**/dist/**'],
+    bail: { checkAfter: 'test' },
+    watchDefault: 'never',
+    watch: { initialRun: 'all' },
+    passWithNoTests: false,
+    exitCodes: { failure: 1, noTests: 1, unhandled: 1 },
+    unhandledErrors: 'fail-run',
+    coverageProvider: 'v8',
+    coverageReporters: ['text', 'html', 'json'],
+    slowTestThresholdMs: 300,
+    // DOM globals would leak between files in a shared realm.
+    isolationDefault: {
+      default: 'registry',
+      byEnvironment: { jsdom: 'realm', 'happy-dom': 'realm' },
+    },
+    envDefault: 'node',
+    environmentPragmas: ['provino-environment'],
+    environmentConditions: moduleRef<EnvironmentConditions>(BEHAVIOURS, 'environmentConditions'),
+    pool: { default: 'forks' },
+    runInBand: { auto: false },
+    shard: { fallback: 'sha1-slice' },
+    sequence: { unknownFirst: true },
+    globalSetup: { signature: 'project-with-teardown' },
+  },
+  report: {
+    displaySeparator: ' > ',
+    defaultReporters: ['default'],
+    failureTitleBullet: null,
+    resultStatusSkipped: 'skipped',
+  },
+  coverage: {
+    thresholdGrouping: 'all-files',
+    globThresholdScope: 'aggregate',
+    includeUntestedByDefault: true,
+    reportsDirectory: 'coverage',
+  },
+})

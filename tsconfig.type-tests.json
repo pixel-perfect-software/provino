@@ -1,4 +1,11 @@
 {
   "files": [],
-  "references": [{ "path": "packages/types/test" }]
+  "references": [
+    {
+      "path": "packages/types/test"
+    },
+    {
+      "path": "packages/policy/test"
+    }
+  ]
 }

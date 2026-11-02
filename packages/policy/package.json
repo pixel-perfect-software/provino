@@ -1,0 +1,39 @@
+{
+  "name": "@provino/policy",
+  "version": "0.0.0",
+  "description": "Provino's policy runtime: neutral defaults, layer resolution, dialect definitions, behaviour loading, serialization and policy diffs.",
+  "homepage": "https://github.com/pixel-perfect-software/provino#readme",
+  "bugs": {
+    "url": "https://github.com/pixel-perfect-software/provino/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pixel-perfect-software/provino.git",
+    "directory": "packages/policy"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts"
+    },
+    "./behaviours": {
+      "provino-source": "./src/behaviours.ts",
+      "types": "./dist/behaviours.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@provino/types": "workspace:*"
+  }
+}
