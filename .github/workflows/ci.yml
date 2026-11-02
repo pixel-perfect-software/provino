@@ -87,8 +87,12 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .tool-versions
-      - run: pnpm install --frozen-lockfile
+      - id: install
+        run: pnpm install --frozen-lockfile
+      # Each check runs even when an earlier one failed, so one run reports every problem.
       - run: pnpm lint
-      - run: pnpm format:check
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm format:check
       # Manifest vs workspace vs generated config, then dependency-cruiser (DECISIONS D11).
-      - run: pnpm boundaries
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm boundaries
