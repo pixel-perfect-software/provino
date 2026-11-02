@@ -8,7 +8,13 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/*.md", "!.dependency-cruiser.json", "!tooling/boundaries/generated"]
+    "includes": [
+      "**",
+      "!**/*.md",
+      "!pnpm-lock.yaml",
+      "!.dependency-cruiser.json",
+      "!tooling/boundaries/generated"
+    ]
   },
   "formatter": {
     "enabled": true,
