@@ -182,8 +182,11 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
     options: {
       doNotFollow: { path: 'node_modules' },
       // Build output isn't cruised. Every exports entry resolves to src/ through provino-source
-      // first (`workspace-exports` checks), so no edge lands in dist/.
-      exclude: { path: '(^|/)(?:node_modules|dist|\\.tsc|\\.turbo)/' },
+      // first (`workspace-exports` checks), so no edge lands in dist/. Neither is generated or
+      // scratch output: bench suites, bench records and recorder work dirs (all git-ignored).
+      exclude: {
+        path: '(^|/)(?:node_modules|dist|\\.tsc|\\.turbo|\\.suites|\\.results|\\.record)/',
+      },
       tsPreCompilationDeps: true,
       combinedDependencies: false,
       enhancedResolveOptions: {
