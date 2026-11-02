@@ -35,18 +35,21 @@ Track 1 §How we start → Toolchain gives version **ranges** (checked 2026-10-3
 
 ## Commands
 
-B01 fills this table. Keep it current: a wrong command here costs every session.
+Keep this table current: a wrong command here costs every session. Run everything from the root.
 
-| Task                  | Command                      |
-| --------------------- | ---------------------------- |
-| Install               | _B01_                        |
-| Typecheck             | _B01_                        |
-| Unit tests            | _B01_                        |
-| Type tests            | _B01_                        |
-| Lint                  | _B01_                        |
-| Format / format check | _B01_                        |
-| Custom lint rules     | _B03_ (Biome GritQL plugins) |
-| Boundaries            | _B03_                        |
+| Task                  | Command                                                                       |
+| --------------------- | ----------------------------------------------------------------------------- |
+| Install               | `pnpm install` (CI: `pnpm install --frozen-lockfile`)                         |
+| Typecheck             | `pnpm typecheck` (`tsc -b`, TS 7)                                             |
+| Unit tests            | `pnpm test` (Turborepo, cached); one package: `pnpm test --filter @provino/x` |
+| Type tests            | `pnpm test:types` (TS 7.0.2) and `pnpm test:types:ts5.9`                      |
+| Lint                  | `pnpm lint` (Biome rules + import order); fix with `pnpm lint --write`        |
+| Format / format check | `pnpm format` / `pnpm format:check` (Biome; Markdown is excluded)             |
+| Custom lint rules     | _B03_ (Biome GritQL plugins)                                                  |
+| Boundaries            | _B03_                                                                         |
+
+- **Node below 22.18** (the 22.15 floor) needs `NODE_OPTIONS=--experimental-strip-types` for `pnpm test`; CI's 22.15 leg sets it. Node 24+ strips types by default.
+- **A new package** adds itself to the root `tsconfig.json` references (and `packages/<name>/test` to `tsconfig.type-tests.json`), gives its `exports` a `provino-source` condition pointing at `src/`, and uses `catalog:` for shared dev tools.
 
 ## Git
 

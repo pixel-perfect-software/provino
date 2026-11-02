@@ -1,0 +1,20 @@
+packages:
+  - packages/*
+
+# Install only versions published at least 7 days ago (10080 minutes).
+minimumReleaseAge: 10080
+
+# Exact pins, shared by every package that uses them: reference with "catalog:".
+# Pin the newest version that is at least 7 days old on the day you install it.
+catalog:
+  "@biomejs/biome": 2.6.3
+  # Node 22.15 is the floor, so type against the 22.x API.
+  "@types/node": 22.20.5
+  # The TypeScript 6 API, as tsc6, for tools that need it (dependency-cruiser, API Extractor).
+  "@typescript/typescript6": 6.0.2
+  expect-type: 1.4.0
+  tsdown: 0.23.2
+  turbo: 2.11.10
+  typescript: 7.0.2
+  # The type-test job also runs on TypeScript 5.9.
+  typescript-5.9: npm:typescript@5.9.3
