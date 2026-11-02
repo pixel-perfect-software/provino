@@ -1,0 +1,6 @@
+{
+  "$schema": "./node_modules/@pixel-perfect-software/always-up-to-date/schema/config.schema.json",
+  "beyondRange": "minor",
+  "cooldown": "7 days",
+  "rules": {}
+}
