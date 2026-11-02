@@ -5,7 +5,7 @@ Package boundaries for the whole repo, generated from one manifest. Private; nev
 ## Files
 
 - `packages.json`: **the manifest**, and the only file to edit by hand. One node per package or subpath entry: `dir`, `layer`, `runsIn`, `deps`, `slices`, `neutral`, `compositionRoot`. Its `$comment` explains the fields.
-- `generated/` and the root `.dependency-cruiser.json`: written by `pnpm boundaries:write`. Never edit them; `pnpm boundaries` fails when they drift from the manifest. Biome skips them (`biome.json` → `files.includes`).
+- `generated/` and the root `.dependency-cruiser.json`: written by `pnpm boundaries:write`. Never edit them; `pnpm boundaries` fails when they drift from the manifest. Biome skips them (`biome.json` → `files.includes`), and `.gitattributes` marks them `linguist-generated`, so GitHub collapses them in PR diffs.
 - `grit/neutral-no-dialect-compare.grit`: hand-written. Which packages it covers comes from the manifest's `neutral` flags.
 - `src/manifest.ts` (parse + validate), `src/workspace.ts` (workspace vs manifest), `src/generate.ts` (the generated files), `src/cli.ts` (`check` | `write`).
 

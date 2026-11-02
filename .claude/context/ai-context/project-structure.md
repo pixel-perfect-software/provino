@@ -14,6 +14,7 @@ provino/
 ├── turbo.json                    # per-package tasks: test (via transit), build, bench, record
 ├── biome.json                    # lint and format (D11); Markdown excluded; extends the generated plugin list
 ├── .dependency-cruiser.json      # generated from tooling/boundaries/packages.json; never hand-edit
+├── .gitattributes                # marks generated files linguist-generated (collapsed in PR diffs)
 ├── .tool-versions                # asdf: Node and pnpm for local dev
 ├── .claude/
 │   ├── context/ai-context/       # registry, architecture, structure, handoff.md (gitignored)

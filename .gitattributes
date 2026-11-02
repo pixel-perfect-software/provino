@@ -1,0 +1,4 @@
+# Generated from tooling/boundaries/packages.json by `pnpm boundaries:write`; never edit by hand.
+# GitHub collapses them in PR diffs. `pnpm boundaries` fails if they drift from the manifest.
+/.dependency-cruiser.json linguist-generated=true
+/tooling/boundaries/generated/** linguist-generated=true
