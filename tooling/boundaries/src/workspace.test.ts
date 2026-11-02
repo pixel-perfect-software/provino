@@ -1,15 +1,13 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { after, describe, test } from 'node:test'
-import { fileURLToPath } from 'node:url'
-import { loadManifest, parseManifest } from './manifest.ts'
+import { describe, test } from 'node:test'
+import { loadManifest } from './manifest.ts'
+import { MANIFEST_PATH, ROOT } from './paths.ts'
+import { manifestOf, scratchDir } from './test-support.ts'
+import { matches } from './text.ts'
 import {
   checkWorkspace,
   ignoredDirs,
-  matches,
   pluginSuppressions,
   readWorkspace,
   type Workspace,
@@ -17,30 +15,21 @@ import {
   workspaceRoots,
 } from './workspace.ts'
 
-const root = fileURLToPath(new URL('../../../', import.meta.url))
-const scratch: string[] = []
-after(() => Promise.all(scratch.map((dir) => rm(dir, { recursive: true, force: true }))))
-
-const m = parseManifest({
-  slices: {},
-  wholePolicyTypes: [],
-  wholePolicyValues: [],
-  nodes: {
-    '@provino/types': { dir: 'packages/types', layer: 0, runsIn: 'types', deps: [], slices: [] },
-    '@provino/core': {
-      dir: 'packages/core',
-      layer: 3,
-      runsIn: 'worker',
-      deps: ['@provino/types'],
-      slices: [],
-    },
-    '@provino/native-*': {
-      dir: 'packages/native-*',
-      layer: 1,
-      runsIn: 'both',
-      deps: [],
-      slices: [],
-    },
+const m = manifestOf({
+  '@provino/types': { dir: 'packages/types', layer: 0, runsIn: 'types', deps: [], slices: [] },
+  '@provino/core': {
+    dir: 'packages/core',
+    layer: 3,
+    runsIn: 'worker',
+    deps: ['@provino/types'],
+    slices: [],
+  },
+  '@provino/native-*': {
+    dir: 'packages/native-*',
+    layer: 1,
+    runsIn: 'both',
+    deps: [],
+    slices: [],
   },
 })
 
@@ -57,6 +46,7 @@ function pkg(
     unitTests: 0,
     hasTsconfig: true,
     hasTypeTests: false,
+    files: [],
     ...overrides,
   }
 }
@@ -77,15 +67,15 @@ const rules = (problems: readonly { rule: string }[]): string[] => problems.map(
 
 describe('the real workspace', () => {
   test('matches the real manifest and the repo conventions', async () => {
-    const manifest = await loadManifest(new URL('../packages.json', import.meta.url))
-    const workspace = await readWorkspace(root)
+    const manifest = await loadManifest(MANIFEST_PATH)
+    const workspace = await readWorkspace(ROOT)
     assert.deepEqual(checkWorkspace(manifest, workspace), [])
-    assert.deepEqual(ignoredDirs(root, manifest), [])
-    assert.deepEqual(await pluginSuppressions(root, workspace), [])
+    assert.deepEqual(ignoredDirs(ROOT, manifest), [])
+    assert.deepEqual(await pluginSuppressions(ROOT, workspace), [])
   })
 
   test('reads its roots from pnpm-workspace.yaml', async () => {
-    assert.deepEqual((await readWorkspace(root)).roots, ['packages', 'tooling'])
+    assert.deepEqual((await readWorkspace(ROOT)).roots, ['packages', 'tooling'])
   })
 })
 
@@ -114,6 +104,38 @@ describe('checkWorkspace', () => {
         "@provino/types depends on @provino/core in package.json, but the manifest doesn't allow it",
       ],
     )
+  })
+
+  test('a package.json dep on a package is allowed when the manifest allows one of its entries', () => {
+    const entries = manifestOf({
+      '@provino/snapshot': {
+        dir: 'packages/snapshot',
+        layer: 2,
+        runsIn: 'both',
+        deps: [],
+        slices: [],
+      },
+      '@provino/snapshot/node': {
+        dir: 'packages/snapshot/src/node',
+        layer: 2,
+        runsIn: 'coordinator',
+        deps: [],
+        slices: [],
+      },
+      '@provino/orchestrator': {
+        dir: 'packages/orchestrator',
+        layer: 5,
+        runsIn: 'coordinator',
+        deps: ['@provino/snapshot/node'],
+        slices: [],
+      },
+    })
+    const orchestrator = pkg({
+      dir: 'packages/orchestrator',
+      name: '@provino/orchestrator',
+      deps: ['@provino/snapshot'],
+    })
+    assert.deepEqual(checkWorkspace(entries, ws([orchestrator])), [])
   })
 
   test('pattern nodes match their packages', () => {
@@ -161,11 +183,8 @@ describe('checkWorkspace', () => {
   })
 
   test('a placed dir outside the workspace roots is reported', () => {
-    const outside = parseManifest({
-      slices: {},
-      wholePolicyTypes: [],
-      wholePolicyValues: [],
-      nodes: { site: { dir: 'apps/site', layer: 'dev', runsIn: 'dev', deps: [], slices: [] } },
+    const outside = manifestOf({
+      site: { dir: 'apps/site', layer: 'dev', runsIn: 'dev', deps: [], slices: [] },
     })
     assert.deepEqual(rules(checkWorkspace(outside, ws([]))), ['manifest-dir'])
   })
@@ -193,30 +212,20 @@ describe('workspaceRoots', () => {
 
 describe('repo hygiene checks', () => {
   async function gitRepo(files: Readonly<Record<string, string>>): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), 'provino-ws-'))
-    scratch.push(dir)
+    const dir = await scratchDir('ws', files)
     spawnSync('git', ['init', '-q'], { cwd: dir })
-    for (const [path, content] of Object.entries(files)) {
-      await mkdir(join(dir, path, '..'), { recursive: true })
-      await writeFile(join(dir, path), content)
-    }
     return dir
   }
 
   test('a placed dir that git ignores is reported (Biome would never lint it)', async () => {
     const dir = await gitRepo({ '.gitignore': 'coverage/\n' })
-    const coverage = parseManifest({
-      slices: {},
-      wholePolicyTypes: [],
-      wholePolicyValues: [],
-      nodes: {
-        '@provino/coverage': {
-          dir: 'packages/coverage',
-          layer: 2,
-          runsIn: 'both',
-          deps: [],
-          slices: [],
-        },
+    const coverage = manifestOf({
+      '@provino/coverage': {
+        dir: 'packages/coverage',
+        layer: 2,
+        runsIn: 'both',
+        deps: [],
+        slices: [],
       },
     })
     assert.deepEqual(rules(ignoredDirs(dir, coverage)), ['workspace-ignored-dir'])
@@ -229,7 +238,8 @@ describe('repo hygiene checks', () => {
       'packages/core/src/ok.ts':
         '// biome-ignore lint/suspicious/noExplicitAny: reason\nexport {}\n',
     })
-    const workspace = ws([pkg({ dir: 'packages/core', name: '@provino/core' })])
+    const files = ['src/a.ts', 'src/b.ts', 'src/ok.ts']
+    const workspace = ws([pkg({ dir: 'packages/core', name: '@provino/core', files })])
     const problems = await pluginSuppressions(dir, workspace)
     assert.deepEqual(
       problems.map((p) => p.message.split(' ')[0]),

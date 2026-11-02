@@ -43,7 +43,7 @@ Added by §6, created only when their phase arrives: `@provino/vitest-compat` an
 
 ## Dependency rules (enforced in CI by B03)
 
-Rule names, as CI prints them: dependency-cruiser `boundary-<node>` (plus `boundary-<package>-tests` for a package with subpath entries), `neutral-no-dialect`, `public-entry-only`, `not-to-unresolvable`, `no-circular`; Biome plugins `neutral-no-dialect-name`, `slice-discipline` (both skip `*.test.ts` and `*.test-d.ts`); the `pnpm boundaries` checks `manifest-*`, `workspace-*` and `no-plugin-suppression`.
+Rule names, as CI prints them: dependency-cruiser `boundary-<node>` (a package with subpath entries also gets `boundary-<package>-test` for its `test/` dir), `neutral-no-dialect`, `public-entry-only`, `not-to-unresolvable`, `no-circular`; Biome plugins `neutral-no-dialect-name`, `slice-discipline` (both skip `*.test.ts` and `*.test-d.ts`); the `pnpm boundaries` checks `manifest-*`, `workspace-*` and `no-plugin-suppression`.
 
 1. **Layers point down.** dependency-cruiser `forbidden` rules are generated from the manifest.
 2. **No dialect knowledge in neutral packages.** `core`, `lazy`, `mock`, `timers`, `expect`, `snapshot`, `loader`, `orchestrator`, `reporters` and `config` never import `@provino/dialect-*` and never name `'jest'` or `'vitest'` in a string, template literal or object key (a Biome GritQL plugin, D11).

@@ -3,18 +3,11 @@
 // manifest edit) fails here and not silently in CI.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { after, describe, test } from 'node:test'
-import { fileURLToPath } from 'node:url'
-
-const root = fileURLToPath(new URL('../../../', import.meta.url))
-// The tools' JS entries, run with this Node, so the tests also work where .bin holds .cmd shims.
-const BIOME = join(root, 'node_modules/@biomejs/biome/bin/biome')
-const DEPCRUISE = join(root, 'node_modules/dependency-cruiser/bin/dependency-cruiser.mjs')
-const scratch: string[] = []
-after(() => Promise.all(scratch.map((dir) => rm(dir, { recursive: true, force: true }))))
+import { cp, mkdir, symlink, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { describe, test } from 'node:test'
+import { BIOME_BIN, DEPCRUISE_BIN, ROOT } from './paths.ts'
+import { scratchDir, writeFiles } from './test-support.ts'
 
 interface Result {
   readonly code: number | null
@@ -39,16 +32,12 @@ function run(entry: string, args: readonly string[], cwd: string): Promise<Resul
 
 /** A scratch dir with the repo's Biome config and plugins, plus `files`. */
 async function workspace(files: Readonly<Record<string, string>>): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'provino-planted-'))
-  scratch.push(dir)
-  await cp(join(root, 'biome.json'), join(dir, 'biome.json'))
+  const dir = await scratchDir('planted')
+  await cp(join(ROOT, 'biome.json'), join(dir, 'biome.json'))
   for (const sub of ['tooling/boundaries/generated', 'tooling/boundaries/grit']) {
-    await cp(join(root, sub), join(dir, sub), { recursive: true })
+    await cp(join(ROOT, sub), join(dir, sub), { recursive: true })
   }
-  for (const [path, content] of Object.entries(files)) {
-    await mkdir(dirname(join(dir, path)), { recursive: true })
-    await writeFile(join(dir, path), content)
-  }
+  await writeFiles(dir, files)
   return dir
 }
 
@@ -72,13 +61,14 @@ async function linkPackages(dir: string, names: readonly string[]): Promise<void
 }
 
 const biome = (dir: string, path: string): Promise<Result> =>
-  run(BIOME, ['lint', '--vcs-enabled=false', path], dir)
+  run(BIOME_BIN, ['lint', '--vcs-enabled=false', path], dir)
 const depcruise = (dir: string): Promise<Result> =>
-  run(DEPCRUISE, ['--config', join(root, '.dependency-cruiser.json'), 'packages'], dir)
+  run(DEPCRUISE_BIN, ['--config', join(ROOT, '.dependency-cruiser.json'), 'packages'], dir)
 const count = (output: string, rule: string): number =>
   output.match(new RegExp(`× ${rule}`, 'g'))?.length ?? 0
 
-describe('Biome GritQL plugins', () => {
+// Every case has its own scratch dir, so the cases run at once (about 3x faster).
+describe('Biome GritQL plugins', { concurrency: true }, () => {
   test('slice-discipline: `import type { MockPolicy }` in @provino/core fails, naming the rule', async () => {
     const path = 'packages/core/src/planted.ts'
     const dir = await workspace({
@@ -166,7 +156,7 @@ describe('Biome GritQL plugins', () => {
   })
 })
 
-describe('dependency-cruiser rules', () => {
+describe('dependency-cruiser rules', { concurrency: true }, () => {
   test("`import '@provino/dialect-jest'` in @provino/core fails neutral-no-dialect and boundary-core", async () => {
     const dir = await workspace({
       'packages/core/src/planted.ts': "import '@provino/dialect-jest'\n",

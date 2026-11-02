@@ -1,8 +1,15 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { allowedDeps, type Manifest, type ManifestNode, type Problem } from './manifest.ts'
+import { join, relative, sep } from 'node:path'
+import {
+  type Manifest,
+  type ManifestNode,
+  type Problem,
+  packageReach,
+  problem,
+} from './manifest.ts'
+import { compare, matches } from './text.ts'
 
 /**
  * A workspace package as its files declare it.
@@ -22,6 +29,8 @@ export interface WorkspacePackage {
   readonly unitTests: number
   readonly hasTsconfig: boolean
   readonly hasTypeTests: boolean
+  /** Its source files, relative to `dir`, without build output or dependencies. */
+  readonly files: readonly string[]
 }
 
 /**
@@ -51,36 +60,23 @@ const SKIP_DIRS: ReadonlySet<string> = new Set(['node_modules', 'dist', '.tsc', 
 export async function readWorkspace(root: string): Promise<Workspace> {
   const pnpmWorkspaceYaml = await readFile(join(root, 'pnpm-workspace.yaml'), 'utf8')
   const roots = workspaceRoots(pnpmWorkspaceYaml)
+  const dirs = (
+    await Promise.all(
+      roots.map(async (base) =>
+        (
+          await readdir(join(root, base), { withFileTypes: true }).catch(() => [])
+        )
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => `${base}/${entry.name}`),
+      ),
+    )
+  ).flat()
   const packages: WorkspacePackage[] = []
   const unreadable: { dir: string; error: string }[] = []
-  for (const base of roots) {
-    const entries = await readdir(join(root, base), { withFileTypes: true }).catch(() => [])
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const dir = `${base}/${entry.name}`
-      const text = await readFile(join(root, dir, 'package.json'), 'utf8').catch(() => undefined)
-      if (text === undefined) continue
-      let json: Readonly<Record<string, unknown>>
-      try {
-        json = asRecord(JSON.parse(text))
-      } catch (err) {
-        unreadable.push({ dir, error: err instanceof Error ? err.message : String(err) })
-        continue
-      }
-      const deps = DEP_FIELDS.flatMap((field) => Object.keys(asRecord(json[field])))
-      const scripts = asRecord(json.scripts)
-      packages.push({
-        dir,
-        name: String(json.name),
-        deps: [...new Set(deps)].sort(),
-        exports: json.exports,
-        testScript: typeof scripts.test === 'string' ? scripts.test : undefined,
-        unitTests: (await listFiles(join(root, dir, 'src'))).filter((f) => f.endsWith('.test.ts'))
-          .length,
-        hasTsconfig: existsSync(join(root, dir, 'tsconfig.json')),
-        hasTypeTests: existsSync(join(root, dir, 'test/tsconfig.json')),
-      })
-    }
+  for (const result of await Promise.all(dirs.map((dir) => readPackage(root, dir)))) {
+    if (result === undefined) continue
+    if ('error' in result) unreadable.push(result)
+    else packages.push(result)
   }
   return {
     roots,
@@ -89,6 +85,35 @@ export async function readWorkspace(root: string): Promise<Workspace> {
     sourceProjects: await references(join(root, 'tsconfig.json')),
     typeTestProjects: await references(join(root, 'tsconfig.type-tests.json')),
     pnpmWorkspaceYaml,
+  }
+}
+
+/** A package dir: its package, its parse error, or `undefined` when it has no package.json. */
+async function readPackage(
+  root: string,
+  dir: string,
+): Promise<WorkspacePackage | { dir: string; error: string } | undefined> {
+  const text = await readFile(join(root, dir, 'package.json'), 'utf8').catch(() => undefined)
+  if (text === undefined) return undefined
+  let json: Readonly<Record<string, unknown>>
+  try {
+    json = asRecord(JSON.parse(text))
+  } catch (err) {
+    return { dir, error: err instanceof Error ? err.message : String(err) }
+  }
+  const scripts = asRecord(json.scripts)
+  const files = await listFiles(join(root, dir))
+  const deps = DEP_FIELDS.flatMap((field) => Object.keys(asRecord(json[field])))
+  return {
+    dir,
+    name: String(json.name),
+    deps: [...new Set(deps)].sort(compare),
+    exports: json.exports,
+    testScript: typeof scripts.test === 'string' ? scripts.test : undefined,
+    unitTests: files.filter((file) => file.startsWith('src/') && file.endsWith('.test.ts')).length,
+    hasTsconfig: existsSync(join(root, dir, 'tsconfig.json')),
+    hasTypeTests: existsSync(join(root, dir, 'test/tsconfig.json')),
+    files,
   }
 }
 
@@ -109,112 +134,133 @@ export function workspaceRoots(yaml: string): readonly string[] {
 }
 
 /**
- * Whether a manifest name or dir pattern (with `*`) matches a value.
- * @public
- */
-export function matches(pattern: string, value: string): boolean {
-  if (!pattern.includes('*')) return pattern === value
-  const re = new RegExp(`^${pattern.split('*').map(escapeRegex).join('[^/]+')}$`)
-  return re.test(value)
-}
-
-/**
  * Checks the workspace against the manifest and the repo's conventions: every package is listed
  * under its own name, depends only on what the manifest allows, resolves source through
  * `provino-source`, is in both solution tsconfigs, and has the tests its test script runs.
  * @public
  */
 export function checkWorkspace(manifest: Manifest, workspace: Workspace): readonly Problem[] {
-  const problems: Problem[] = []
-  const report = (rule: string, message: string): void => {
-    problems.push({ rule, message })
-  }
   const tops = manifest.nodes.filter((node) => node.parent === undefined)
-  const packageOf = (name: string): ManifestNode | undefined =>
-    tops.find((node) => matches(node.name, name))
+  const outsideRoots = (node: ManifestNode): boolean =>
+    node.dir !== null && !workspace.roots.some((base) => node.dir?.startsWith(`${base}/`))
+  return [
+    ...workspace.unreadable.map(({ dir, error }) =>
+      problem('workspace-package-json', `${dir}/package.json doesn't parse: ${error}`),
+    ),
+    ...manifest.nodes
+      .filter(outsideRoots)
+      .map((node) =>
+        problem('manifest-dir', `${node.name}: dir "${node.dir}" is outside the workspace roots`),
+      ),
+    ...workspace.packages.flatMap((pkg) => checkPackage(manifest, tops, workspace, pkg)),
+    ...checkTs6Pin(workspace.pnpmWorkspaceYaml),
+  ]
+}
 
-  for (const { dir, error } of workspace.unreadable) {
-    report('workspace-package-json', `${dir}/package.json doesn't parse: ${error}`)
-  }
-  for (const node of manifest.nodes) {
-    if (node.dir !== null && !workspace.roots.some((base) => node.dir?.startsWith(`${base}/`))) {
-      report('manifest-dir', `${node.name}: dir "${node.dir}" is outside the workspace roots`)
-    }
-  }
-
-  for (const pkg of workspace.packages) {
-    const node = tops.find((candidate) => candidate.dir !== null && matches(candidate.dir, pkg.dir))
-    if (node === undefined) {
-      report(
+function checkPackage(
+  manifest: Manifest,
+  tops: readonly ManifestNode[],
+  workspace: Workspace,
+  pkg: WorkspacePackage,
+): readonly Problem[] {
+  const node = tops.find((top) => top.dir !== null && matches(top.dir, pkg.dir))
+  if (node === undefined) {
+    return [
+      problem(
         'manifest-unknown-package',
         `${pkg.dir} (${pkg.name}) is not in tooling/boundaries/packages.json`,
-      )
-      continue
-    }
-    if (!matches(node.name, pkg.name)) {
-      report(
+      ),
+    ]
+  }
+  const problems: Problem[] = []
+  if (!matches(node.name, pkg.name)) {
+    problems.push(
+      problem(
         'manifest-name',
         `${pkg.dir} is named "${pkg.name}", but the manifest lists it as "${node.name}"`,
-      )
-    }
-    // A package may depend on what any of its entries may import, at package granularity.
-    const entries = manifest.nodes.filter((n) => n === node || n.parent === node.name)
-    const allowed = new Set(
-      entries.flatMap((entry) =>
-        allowedDeps(manifest, entry).map((dep) => packageOf(dep.name)?.name ?? dep.name),
       ),
     )
-    for (const dep of pkg.deps) {
-      const target = packageOf(dep)
-      if (target === undefined || target === node || allowed.has(target.name)) continue
-      report(
-        'manifest-deps',
-        `${pkg.name} depends on ${dep} in package.json, but the manifest doesn't allow it`,
-      )
-    }
-    for (const [subpath, target] of Object.entries(asRecord(pkg.exports))) {
-      // Without provino-source first, tools resolve the package to dist/, which isn't cruised.
-      if (Object.keys(asRecord(target))[0] !== 'provino-source') {
-        report(
-          'workspace-exports',
-          `${pkg.name}: exports["${subpath}"] must list "provino-source" first`,
-        )
-      }
-    }
-    if (pkg.hasTsconfig && !workspace.sourceProjects.has(pkg.dir)) {
-      report(
-        'workspace-tsconfig',
-        `${pkg.dir} is missing from tsconfig.json references, so \`pnpm typecheck\` skips it`,
-      )
-    }
-    if (pkg.hasTypeTests && !workspace.typeTestProjects.has(`${pkg.dir}/test`)) {
-      report(
-        'workspace-tsconfig',
-        `${pkg.dir}/test is missing from tsconfig.type-tests.json references, so \`pnpm test:types\` skips it`,
-      )
-    }
-    // `node --test` passes when its glob matches nothing, so an empty run would look green.
-    if (pkg.testScript?.includes('node --test') && pkg.unitTests === 0) {
-      report(
+  }
+  problems.push(...checkDeps(manifest, tops, node, pkg), ...checkExports(pkg))
+  problems.push(...checkTsconfigs(workspace, pkg))
+  // `node --test` passes when its glob matches nothing, so an empty run would look green.
+  if (pkg.testScript?.includes('node --test') && pkg.unitTests === 0) {
+    problems.push(
+      problem(
         'workspace-tests',
         `${pkg.name}'s test script runs node --test, but src/ has no *.test.ts`,
-      )
-    }
-  }
-
-  const catalogTs6 = /^\s+"@typescript\/typescript6":\s*(\S+)\s*$/m.exec(
-    workspace.pnpmWorkspaceYaml,
-  )?.[1]
-  const extensionTs6 = /typescript:\s*npm:@typescript\/typescript6@(\S+)/.exec(
-    workspace.pnpmWorkspaceYaml,
-  )?.[1]
-  if (catalogTs6 !== extensionTs6) {
-    report(
-      'workspace-ts6-pin',
-      `pnpm-workspace.yaml pins @typescript/typescript6 ${catalogTs6} in the catalog but ${extensionTs6} in packageExtensions`,
+      ),
     )
   }
   return problems
+}
+
+/** package.json deps must be allowed by the package or one of its entries. */
+function checkDeps(
+  manifest: Manifest,
+  tops: readonly ManifestNode[],
+  node: ManifestNode,
+  pkg: WorkspacePackage,
+): readonly Problem[] {
+  // An entry (`@provino/snapshot/node`) is allowed through its package (`@provino/snapshot`).
+  const allowed = new Set(packageReach(manifest, node).map((dep) => dep.parent ?? dep.name))
+  return pkg.deps
+    .filter((dep) => {
+      const target = tops.find((top) => matches(top.name, dep))
+      return target !== undefined && target !== node && !allowed.has(target.name)
+    })
+    .map((dep) =>
+      problem(
+        'manifest-deps',
+        `${pkg.name} depends on ${dep} in package.json, but the manifest doesn't allow it`,
+      ),
+    )
+}
+
+/** Without provino-source first, tools resolve the package to dist/, which isn't cruised. */
+function checkExports(pkg: WorkspacePackage): readonly Problem[] {
+  return Object.entries(asRecord(pkg.exports))
+    .filter(([, target]) => Object.keys(asRecord(target))[0] !== 'provino-source')
+    .map(([subpath]) =>
+      problem(
+        'workspace-exports',
+        `${pkg.name}: exports["${subpath}"] must list "provino-source" first`,
+      ),
+    )
+}
+
+function checkTsconfigs(workspace: Workspace, pkg: WorkspacePackage): readonly Problem[] {
+  const problems: Problem[] = []
+  if (pkg.hasTsconfig && !workspace.sourceProjects.has(pkg.dir)) {
+    problems.push(
+      problem(
+        'workspace-tsconfig',
+        `${pkg.dir} is missing from tsconfig.json references, so \`pnpm typecheck\` skips it`,
+      ),
+    )
+  }
+  if (pkg.hasTypeTests && !workspace.typeTestProjects.has(`${pkg.dir}/test`)) {
+    problems.push(
+      problem(
+        'workspace-tsconfig',
+        `${pkg.dir}/test is missing from tsconfig.type-tests.json references, so \`pnpm test:types\` skips it`,
+      ),
+    )
+  }
+  return problems
+}
+
+/** The catalog and packageExtensions each name @typescript/typescript6's version. */
+function checkTs6Pin(yaml: string): readonly Problem[] {
+  const catalog = /^\s+"@typescript\/typescript6":\s*(\S+)\s*$/m.exec(yaml)?.[1]
+  const extension = /typescript:\s*npm:@typescript\/typescript6@(\S+)/.exec(yaml)?.[1]
+  if (catalog === extension) return []
+  return [
+    problem(
+      'workspace-ts6-pin',
+      `pnpm-workspace.yaml pins @typescript/typescript6 ${catalog} in the catalog but ${extension} in packageExtensions`,
+    ),
+  ]
 }
 
 /**
@@ -233,10 +279,12 @@ export function ignoredDirs(root: string, manifest: Manifest): readonly Problem[
   const ignored = new Set(result.stdout.split('\n').filter((line) => line !== ''))
   return probes
     .filter((probe) => ignored.has(probe.path))
-    .map(({ node }) => ({
-      rule: 'workspace-ignored-dir',
-      message: `${node.name}: git ignores ${node.dir}, so Biome never lints it (check .gitignore)`,
-    }))
+    .map(({ node }) =>
+      problem(
+        'workspace-ignored-dir',
+        `${node.name}: git ignores ${node.dir}, so Biome never lints it (check .gitignore)`,
+      ),
+    )
 }
 
 const SOURCE_FILE = /\.(?:[cm]?[jt]sx?)$/
@@ -255,37 +303,22 @@ export async function pluginSuppressions(
   root: string,
   workspace: Workspace,
 ): Promise<readonly Problem[]> {
-  const problems: Problem[] = []
-  for (const pkg of workspace.packages) {
-    for (const file of await listFiles(join(root, pkg.dir))) {
-      if (!SOURCE_FILE.test(file)) continue
-      const text = await readFile(join(root, pkg.dir, file), 'utf8')
-      const line = text.split('\n').findIndex((l) => PLUGIN_SUPPRESSION.test(l))
-      if (line !== -1) {
-        problems.push({
-          rule: 'no-plugin-suppression',
-          message: `${pkg.dir}/${file}:${line + 1} suppresses the boundary lints; fix the code or change the manifest`,
-        })
-      }
-    }
-  }
-  return problems
-}
-
-/**
- * Escapes RegExp syntax in a literal path or name.
- * @public
- */
-export function escapeRegex(text: string): string {
-  return text.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
-}
-
-/**
- * Compares strings by code unit, so generated output never depends on the locale.
- * @public
- */
-export function compare(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0
+  const scans = workspace.packages.flatMap((pkg) =>
+    pkg.files
+      .filter((file) => SOURCE_FILE.test(file))
+      .map(async (file): Promise<readonly Problem[]> => {
+        const lines = (await readFile(join(root, pkg.dir, file), 'utf8')).split('\n')
+        const line = lines.findIndex((text) => PLUGIN_SUPPRESSION.test(text))
+        if (line === -1) return []
+        return [
+          problem(
+            'no-plugin-suppression',
+            `${pkg.dir}/${file}:${line + 1} suppresses the boundary lints; fix the code or change the manifest`,
+          ),
+        ]
+      }),
+  )
+  return (await Promise.all(scans)).flat()
 }
 
 async function references(path: string): Promise<ReadonlySet<string>> {
@@ -294,13 +327,14 @@ async function references(path: string): Promise<ReadonlySet<string>> {
   return new Set(refs.map((ref: unknown) => String(asRecord(ref).path)))
 }
 
-/** Files under `dir`, relative to it, skipping build output and dependencies. */
+/** Files under `dir`, relative to it with `/` separators, skipping build output and dependencies. */
 async function listFiles(dir: string): Promise<readonly string[]> {
   const entries = await readdir(dir, { withFileTypes: true, recursive: true }).catch(() => [])
   return entries
     .filter((entry) => entry.isFile())
-    .map((entry) => join(entry.parentPath, entry.name).slice(dir.length + 1))
-    .filter((file) => !file.split('/').some((part) => SKIP_DIRS.has(part)))
+    .map((entry) => relative(dir, join(entry.parentPath, entry.name)).split(sep))
+    .filter((parts) => !parts.some((part) => SKIP_DIRS.has(part)))
+    .map((parts) => parts.join('/'))
     .sort(compare)
 }
 

@@ -1,10 +1,13 @@
 import { readFile } from 'node:fs/promises'
+import { isDeepStrictEqual } from 'node:util'
+
+const RUNS_IN = ['types', 'both', 'worker', 'coordinator', 'external', 'dev'] as const
 
 /**
  * Where a node's code runs. `external` code runs inside another tool (a linter, a codemod).
  * @public
  */
-export type RunsIn = 'types' | 'both' | 'worker' | 'coordinator' | 'external' | 'dev'
+export type RunsIn = (typeof RUNS_IN)[number]
 
 /**
  * One manifest node: a package, or a subpath entry with its own rules.
@@ -22,7 +25,7 @@ export interface ManifestNode {
   readonly slices: readonly string[] | 'all'
   readonly neutral: boolean
   readonly compositionRoot: boolean
-  /** The node this one is a subpath entry of, if any. */
+  /** The package this node is a subpath entry (or the `test/` dir) of, if any. */
   readonly parent: string | undefined
 }
 
@@ -50,6 +53,14 @@ export interface Problem {
 }
 
 /**
+ * Builds a `Problem`.
+ * @public
+ */
+export function problem(rule: string, message: string): Problem {
+  return { rule, message }
+}
+
+/**
  * `deps` wildcard: every shipped node in a lower layer (any layer, for dev and tooling nodes).
  * @public
  */
@@ -66,8 +77,6 @@ const NODE_KEYS: ReadonlySet<string> = new Set([
   'phase',
   'note',
 ])
-
-const RUNS_IN: readonly RunsIn[] = ['types', 'both', 'worker', 'coordinator', 'external', 'dev']
 
 /** What each kind of node may import, by the target's `runsIn`. */
 const REACHABLE: Readonly<Record<RunsIn, readonly RunsIn[]>> = {
@@ -89,58 +98,46 @@ export async function loadManifest(path: string | URL): Promise<Manifest> {
 }
 
 /**
- * Parses manifest JSON. Throws a `TypeError` naming the first malformed field.
+ * Parses manifest JSON. Throws a `TypeError` naming the first malformed field, including an
+ * unknown node key (a typo such as `"neutal"` would otherwise switch a lint off without a word).
  * @public
  */
 export function parseManifest(json: unknown): Manifest {
   const root = record(json, 'manifest')
-  const slices = Object.fromEntries(
-    Object.entries(record(root.slices, 'slices')).map(([name, type]) => [
-      name,
-      text(type, `slices.${name}`),
-    ]),
-  )
-  const wholePolicyTypes = list(root.wholePolicyTypes, 'wholePolicyTypes').map((type, i) =>
-    text(type, `wholePolicyTypes[${i}]`),
-  )
-  const wholePolicyValues = list(root.wholePolicyValues, 'wholePolicyValues').map((name, i) =>
-    text(name, `wholePolicyValues[${i}]`),
-  )
   const raw = record(root.nodes, 'nodes')
   const names = new Set(Object.keys(raw))
-  const nodes = Object.entries(raw).map(([name, value]): ManifestNode => {
-    const at = `nodes["${name}"]`
-    const node = record(value, at)
-    for (const key of Object.keys(node)) {
-      // A typo such as "neutal" would otherwise switch a lint off without a word.
-      if (!NODE_KEYS.has(key)) throw new TypeError(`${at}: unknown key "${key}"`)
-    }
-    const layer = node.layer
-    if (
-      !(layer === 'dev' || layer === 'tooling' || (Number.isInteger(layer) && Number(layer) >= 0))
-    ) {
-      throw new TypeError(`${at}.layer must be a whole number, "dev" or "tooling"`)
-    }
-    const runsIn = text(node.runsIn, `${at}.runsIn`)
-    if (!isRunsIn(runsIn)) throw new TypeError(`${at}.runsIn must be one of ${RUNS_IN.join(', ')}`)
-    const dir = node.dir === null ? null : text(node.dir, `${at}.dir`)
-    const slicesField = node.slices
-    return {
-      name,
-      dir,
-      layer: layer === 'dev' || layer === 'tooling' ? layer : Number(layer),
-      runsIn,
-      deps: list(node.deps, `${at}.deps`).map((dep, i) => text(dep, `${at}.deps[${i}]`)),
-      slices:
-        slicesField === 'all'
-          ? 'all'
-          : list(slicesField, `${at}.slices`).map((s, i) => text(s, `${at}.slices[${i}]`)),
-      neutral: flag(node.neutral, `${at}.neutral`),
-      compositionRoot: flag(node.compositionRoot, `${at}.compositionRoot`),
-      parent: parentOf(name, names),
-    }
-  })
-  return { slices, wholePolicyTypes, wholePolicyValues, nodes }
+  return {
+    slices: Object.fromEntries(
+      Object.entries(record(root.slices, 'slices')).map(([name, type]) => [
+        name,
+        text(type, `slices.${name}`),
+      ]),
+    ),
+    wholePolicyTypes: texts(root.wholePolicyTypes, 'wholePolicyTypes'),
+    wholePolicyValues: texts(root.wholePolicyValues, 'wholePolicyValues'),
+    nodes: Object.entries(raw).map(([name, value]) => parseNode(name, value, names)),
+  }
+}
+
+function parseNode(name: string, value: unknown, names: ReadonlySet<string>): ManifestNode {
+  const at = `nodes["${name}"]`
+  const node = record(value, at)
+  for (const key of Object.keys(node)) {
+    if (!NODE_KEYS.has(key)) throw new TypeError(`${at}: unknown key "${key}"`)
+  }
+  const runsIn = text(node.runsIn, `${at}.runsIn`)
+  if (!isRunsIn(runsIn)) throw new TypeError(`${at}.runsIn must be one of ${RUNS_IN.join(', ')}`)
+  return {
+    name,
+    dir: node.dir === null ? null : text(node.dir, `${at}.dir`),
+    layer: layerOf(node.layer, at),
+    runsIn,
+    deps: texts(node.deps, `${at}.deps`),
+    slices: node.slices === 'all' ? 'all' : texts(node.slices, `${at}.slices`),
+    neutral: flag(node.neutral, `${at}.neutral`),
+    compositionRoot: flag(node.compositionRoot, `${at}.compositionRoot`),
+    parent: parentOf(name, names),
+  }
 }
 
 /**
@@ -149,83 +146,82 @@ export function parseManifest(json: unknown): Manifest {
  * @public
  */
 export function validateManifest(manifest: Manifest): readonly Problem[] {
-  const problems: Problem[] = []
   const byName = new Map(manifest.nodes.map((node) => [node.name, node]))
-  const sliceNames = new Set(Object.keys(manifest.slices))
-  const report = (rule: string, message: string): void => {
-    problems.push({ rule, message })
-  }
-
-  for (const node of manifest.nodes) {
-    if (node.slices !== 'all') {
-      for (const slice of node.slices) {
-        if (!sliceNames.has(slice))
-          report('manifest-slices', `${node.name}: unknown slice "${slice}"`)
-      }
-    }
-    if (node.parent !== undefined) {
-      const parent = byName.get(node.parent)
-      if (parent !== undefined) checkSubpath(node, parent, report)
-    }
-    for (const dep of node.deps) {
-      if (dep === SHIPPED_WILDCARD) continue
-      const target = byName.get(dep)
-      if (target === undefined) {
-        report('manifest-deps', `${node.name}: depends on "${dep}", which is not in the manifest`)
-      } else if (target === node) {
-        report('manifest-deps', `${node.name}: lists itself as a dependency`)
-      } else {
-        checkEdge(node, target, report)
-      }
-    }
-  }
-  return problems
+  return manifest.nodes.flatMap((node) => {
+    const parent = node.parent === undefined ? undefined : byName.get(node.parent)
+    return [
+      ...(node.slices === 'all' ? [] : node.slices)
+        .filter((slice) => !Object.hasOwn(manifest.slices, slice))
+        .map((slice) => problem('manifest-slices', `${node.name}: unknown slice "${slice}"`)),
+      ...(parent === undefined ? [] : checkSubpath(node, parent)),
+      ...node.deps.flatMap((dep) => {
+        if (dep === SHIPPED_WILDCARD) return []
+        const target = byName.get(dep)
+        if (target === undefined) {
+          return [
+            problem(
+              'manifest-deps',
+              `${node.name}: depends on "${dep}", which is not in the manifest`,
+            ),
+          ]
+        }
+        if (target === node)
+          return [problem('manifest-deps', `${node.name}: lists itself as a dependency`)]
+        return checkEdge(node, target)
+      }),
+    ]
+  })
 }
 
-function checkSubpath(
-  node: ManifestNode,
-  parent: ManifestNode,
-  report: (rule: string, message: string) => void,
-): void {
+function checkSubpath(node: ManifestNode, parent: ManifestNode): readonly Problem[] {
+  const out: Problem[] = []
   if (node.dir !== null && parent.dir !== null && !node.dir.startsWith(`${parent.dir}/`)) {
-    report(
-      'manifest-subpath',
-      `${node.name}: dir "${node.dir}" is outside ${parent.name}'s "${parent.dir}"`,
+    out.push(
+      problem(
+        'manifest-subpath',
+        `${node.name}: dir "${node.dir}" is outside ${parent.name}'s "${parent.dir}"`,
+      ),
     )
   }
-  const sameSlices = JSON.stringify(node.slices) === JSON.stringify(parent.slices)
-  if (!sameSlices || node.neutral !== parent.neutral) {
-    report(
-      'manifest-subpath',
-      `${node.name}: slices and neutral must match ${parent.name}'s (one lint config per package)`,
+  if (!isDeepStrictEqual(node.slices, parent.slices) || node.neutral !== parent.neutral) {
+    out.push(
+      problem(
+        'manifest-subpath',
+        `${node.name}: slices and neutral must match ${parent.name}'s (one lint config per package)`,
+      ),
     )
   }
+  return out
 }
 
-function checkEdge(
-  from: ManifestNode,
-  to: ManifestNode,
-  report: (rule: string, message: string) => void,
-): void {
+function checkEdge(from: ManifestNode, to: ManifestNode): readonly Problem[] {
+  const out: Problem[] = []
   if (typeof from.layer === 'number') {
     if (typeof to.layer !== 'number') {
-      report(
-        'manifest-layer',
-        `${from.name}: a shipped package can't depend on ${to.layer} package ${to.name}`,
+      out.push(
+        problem(
+          'manifest-layer',
+          `${from.name}: a shipped package can't depend on ${to.layer} package ${to.name}`,
+        ),
       )
     } else if (to.layer > from.layer) {
-      report(
-        'manifest-layer',
-        `${from.name} (layer ${from.layer}) can't depend on ${to.name} (layer ${to.layer}): layers point down`,
+      out.push(
+        problem(
+          'manifest-layer',
+          `${from.name} (layer ${from.layer}) can't depend on ${to.name} (layer ${to.layer}): layers point down`,
+        ),
       )
     }
   }
   if (!from.compositionRoot && !REACHABLE[from.runsIn].includes(to.runsIn)) {
-    report(
-      'manifest-runs-in',
-      `${from.name} (runs in ${from.runsIn}) can't depend on ${to.name} (runs in ${to.runsIn})`,
+    out.push(
+      problem(
+        'manifest-runs-in',
+        `${from.name} (runs in ${from.runsIn}) can't depend on ${to.name} (runs in ${to.runsIn})`,
+      ),
     )
   }
+  return out
 }
 
 /**
@@ -233,22 +229,70 @@ function checkEdge(
  * @public
  */
 export function allowedDeps(manifest: Manifest, node: ManifestNode): readonly ManifestNode[] {
+  const lowerShipped = (target: ManifestNode): boolean =>
+    typeof target.layer === 'number' &&
+    (typeof node.layer !== 'number' || target.layer < node.layer)
   const out = new Map<string, ManifestNode>()
   for (const dep of node.deps) {
-    if (dep === SHIPPED_WILDCARD) {
-      for (const target of manifest.nodes) {
-        const shipped = typeof target.layer === 'number'
-        const reachable =
-          typeof node.layer !== 'number' ||
-          (typeof target.layer === 'number' && target.layer < node.layer)
-        if (shipped && reachable && target !== node) out.set(target.name, target)
-      }
-    } else {
-      const target = manifest.nodes.find((candidate) => candidate.name === dep)
-      if (target !== undefined) out.set(target.name, target)
-    }
+    const found =
+      dep === SHIPPED_WILDCARD
+        ? manifest.nodes.filter(lowerShipped)
+        : manifest.nodes.filter((target) => target.name === dep)
+    for (const target of found) out.set(target.name, target)
   }
   return [...out.values()]
+}
+
+/**
+ * A package's subpath entries (and, after `withTestNodes`, its `test/` node).
+ * @public
+ */
+export function entriesOf(manifest: Manifest, node: ManifestNode): readonly ManifestNode[] {
+  return manifest.nodes.filter((child) => child.parent === node.name)
+}
+
+/**
+ * Everything a package may import across all its entries: the package node's own allowed deps
+ * plus each entry's.
+ * @public
+ */
+export function packageReach(manifest: Manifest, node: ManifestNode): readonly ManifestNode[] {
+  const reach = new Map<string, ManifestNode>()
+  for (const entry of [node, ...entriesOf(manifest, node)]) {
+    for (const dep of allowedDeps(manifest, entry)) reach.set(dep.name, dep)
+  }
+  return [...reach.values()]
+}
+
+/**
+ * The manifest with a `<package>/test` node for each placed package that has subpath entries.
+ * Those tests import the package's entries, which the package node itself may not, so they get
+ * the package's whole reach plus its entries. A package without entries keeps its tests.
+ * @public
+ */
+export function withTestNodes(manifest: Manifest): Manifest {
+  const tests = manifest.nodes.flatMap((node): ManifestNode[] => {
+    const entries = entriesOf(manifest, node)
+    if (node.parent !== undefined || node.dir === null || entries.length === 0) return []
+    const deps = [node, ...entries, ...packageReach(manifest, node)].map((dep) => dep.name)
+    return [
+      {
+        ...node,
+        name: `${node.name}/test`,
+        dir: `${node.dir}/test`,
+        runsIn: 'dev',
+        deps: [...new Set(deps)],
+        parent: node.name,
+      },
+    ]
+  })
+  return { ...manifest, nodes: [...manifest.nodes, ...tests] }
+}
+
+function layerOf(value: unknown, at: string): ManifestNode['layer'] {
+  if (value === 'dev' || value === 'tooling') return value
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value
+  throw new TypeError(`${at}.layer must be a whole number, "dev" or "tooling"`)
 }
 
 function parentOf(name: string, names: ReadonlySet<string>): string | undefined {
@@ -269,9 +313,9 @@ function record(value: unknown, at: string): Readonly<Record<string, unknown>> {
   return value as Readonly<Record<string, unknown>>
 }
 
-function list(value: unknown, at: string): readonly unknown[] {
+function texts(value: unknown, at: string): readonly string[] {
   if (!Array.isArray(value)) throw new TypeError(`${at} must be an array`)
-  return value
+  return value.map((item, i) => text(item, `${at}[${i}]`))
 }
 
 function text(value: unknown, at: string): string {

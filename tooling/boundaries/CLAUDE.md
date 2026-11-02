@@ -7,7 +7,7 @@ Package boundaries for the whole repo, generated from one manifest. Private; nev
 - `packages.json`: **the manifest**, and the only file to edit by hand. One node per package or subpath entry: `dir`, `layer`, `runsIn`, `deps`, `slices`, `neutral`, `compositionRoot`. Its `$comment` explains the fields.
 - `generated/` and the root `.dependency-cruiser.json`: written by `pnpm boundaries:write`. Never edit them; `pnpm boundaries` fails when they drift from the manifest. Biome skips them (`biome.json` → `files.includes`), and `.gitattributes` marks them `linguist-generated`, so GitHub collapses them in PR diffs.
 - `grit/neutral-no-dialect-name.grit`: hand-written. Which packages it covers comes from the manifest's `neutral` flags.
-- `src/manifest.ts` (parse + validate), `src/workspace.ts` (workspace vs manifest and repo conventions), `src/generate.ts` (the generated files), `src/cli.ts` (`check` | `write`).
+- `src/manifest.ts` (parse, validate, expand), `src/workspace.ts` (workspace vs manifest and repo conventions), `src/generate.ts` (the generated files), `src/cli.ts` (`check` | `write`), `src/text.ts` and `src/paths.ts` (shared helpers), `src/test-support.ts` (test helpers; not a test file).
 
 ## What `pnpm boundaries` checks
 
@@ -24,7 +24,7 @@ Every check runs, then dependency-cruiser does, so one run reports everything.
 - **New dependency between packages:** add it to `deps` (layers point down; worker and coordinator never meet), then add it to `package.json`. A package.json dep the manifest doesn't allow fails `manifest-deps`.
 - **New policy slice:** add it to `slices` (it must match `neutralPolicy`'s keys; a test checks).
 - **New rule:** generate it in `src/generate.ts` (or add a check to `src/workspace.ts`), and add a planted case to `src/planted.test.ts` or `src/workspace.test.ts` that fails without it.
-- **Tests of a subpath entry** go in the package's `test/`: the `boundary-<package>-tests` rule lets them import every entry.
+- **Tests of a subpath entry** go in the package's `test/`: the manifest gives that dir its own `<package>/test` node (`withTestNodes`), which may import every entry.
 
 ## Gotchas
 

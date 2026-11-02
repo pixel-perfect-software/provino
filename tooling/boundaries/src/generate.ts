@@ -1,7 +1,14 @@
-import { allowedDeps, type Manifest, type ManifestNode } from './manifest.ts'
-import { compare, escapeRegex } from './workspace.ts'
+import { posix } from 'node:path'
+import {
+  allowedDeps,
+  entriesOf,
+  type Manifest,
+  type ManifestNode,
+  withTestNodes,
+} from './manifest.ts'
+import { compare, escapeRegex, wildcardSource } from './text.ts'
 
-/** Repo-relative paths of the files the generator owns. */
+/** Repo-relative paths of the files the generator owns, and of the hand-written plugin. */
 export const DEPCRUISE_CONFIG: string = '.dependency-cruiser.json'
 export const GENERATED_DIR: string = 'tooling/boundaries/generated'
 export const BIOME_PLUGINS: string = `${GENERATED_DIR}/biome-plugins.json`
@@ -24,7 +31,7 @@ export function generate(
   roots: readonly string[],
 ): ReadonlyMap<string, string> {
   const files = new Map<string, string>()
-  files.set(DEPCRUISE_CONFIG, json(depcruiseConfig(manifest, roots)))
+  files.set(DEPCRUISE_CONFIG, json(depcruiseConfig(withTestNodes(manifest), roots)))
   const groups = sliceGroups(manifest)
   for (const group of groups) {
     files.set(`${GENERATED_DIR}/${group.file}`, sliceGrit(manifest, group))
@@ -34,7 +41,6 @@ export function generate(
 }
 
 interface SliceGroup {
-  readonly key: string
   readonly file: string
   readonly allowed: readonly string[]
   readonly dirs: readonly string[]
@@ -51,14 +57,14 @@ function sliceGroups(manifest: Manifest): readonly SliceGroup[] {
     group.dirs.push(`${node.dir}/**`)
     groups.set(key, group)
   }
-  return [...groups.entries()]
-    .sort(([a], [b]) => compare(a, b))
-    .map(([key, group]) => ({
-      key,
+  return [...groups.keys()].sort(compare).map((key) => {
+    const group = groups.get(key) ?? { allowed: [], dirs: [] }
+    return {
       file: `slice-discipline.${key}.grit`,
       allowed: group.allowed,
       dirs: group.dirs.sort(compare),
-    }))
+    }
+  })
 }
 
 function sliceGrit(manifest: Manifest, group: SliceGroup): string {
@@ -102,7 +108,7 @@ function biomePlugins(manifest: Manifest, groups: readonly SliceGroup[]): unknow
   return {
     plugins: [
       {
-        path: '../grit/neutral-no-dialect-name.grit',
+        path: posix.relative(GENERATED_DIR, NEUTRAL_PLUGIN),
         resolutionKind: 'config',
         includes: [...neutralDirs, ...NOT_TESTS],
       },
@@ -115,13 +121,18 @@ function biomePlugins(manifest: Manifest, groups: readonly SliceGroup[]): unknow
   }
 }
 
+/** One boundary rule before the shared fields are added. */
+interface RuleSpec {
+  readonly name: string
+  readonly comment: string
+  readonly from: string
+  readonly allowed: readonly string[]
+}
+
 function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown {
   const placed = manifest.nodes.filter((node) => node.dir !== null)
   const rootsPattern = roots.map(escapeRegex).join('|')
   const workspaceTarget = `^(?:${rootsPattern})/|^@provino/|^provino(?:-|/|$)`
-  const neutral = placed
-    .filter((node) => node.neutral)
-    .flatMap((node) => [owned(manifest, node), ...testsOwned(manifest, node)])
   return {
     $schema:
       'https://raw.githubusercontent.com/sverweij/dependency-cruiser/main/src/schema/configuration.schema.json',
@@ -131,10 +142,19 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
         comment:
           'Neutral packages never import a dialect (CLAUDE.md non-negotiable 1). A second guard beside boundary-*, so a manifest edit that allows the edge still fails.',
         severity: 'error',
-        from: { path: neutral },
+        from: { path: placed.filter((node) => node.neutral).map((node) => owned(manifest, node)) },
         to: { path: DIALECT_TARGET },
       },
-      ...placed.flatMap((node) => boundaryRules(manifest, node, workspaceTarget)),
+      ...placed.map((node) => {
+        const spec = boundaryRule(manifest, node)
+        return {
+          name: spec.name,
+          comment: spec.comment,
+          severity: 'error',
+          from: { path: spec.from },
+          to: { path: workspaceTarget, pathNot: [...new Set(spec.allowed)] },
+        }
+      }),
       {
         name: 'public-entry-only',
         comment:
@@ -176,104 +196,43 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
   }
 }
 
-/**
- * The node's rule, plus one for its package's `test/` dir when the package has subpath entries:
- * those tests import the entries, which the package node itself may not.
- */
-function boundaryRules(manifest: Manifest, node: ManifestNode, workspaceTarget: string): unknown[] {
+/** What a node's files may import: its own files, and each allowed node, resolved or not. */
+function boundaryRule(manifest: Manifest, node: ManifestNode): RuleSpec {
   const deps = allowedDeps(manifest, node)
-  const layer = typeof node.layer === 'number' ? `layer ${node.layer}` : node.layer
-  const rules = [
-    rule(
-      ruleName(node.name),
-      `${node.name} (${layer}, runs in ${node.runsIn}) may import only: ${list(deps)}.`,
-      owned(manifest, node),
-      [owned(manifest, node), ...deps.flatMap((dep) => targets(manifest, dep))],
-      workspaceTarget,
-    ),
-  ]
-  const [tests] = testsOwned(manifest, node)
-  if (tests !== undefined) {
-    const entries = manifest.nodes.filter((entry) => entry.parent === node.name)
-    const reach = [node, ...entries].flatMap((n) => [n, ...allowedDeps(manifest, n)])
-    rules.push(
-      rule(
-        `${ruleName(node.name)}-tests`,
-        `${node.name}'s tests may import the package's own entries and what they may import.`,
-        tests,
-        [`^${pattern(String(node.dir))}/`, ...reach.flatMap((dep) => targets(manifest, dep))],
-        workspaceTarget,
-      ),
-    )
-  }
-  return rules
-}
-
-function rule(
-  name: string,
-  comment: string,
-  from: string,
-  allowed: readonly string[],
-  workspaceTarget: string,
-): unknown {
-  return {
-    name,
-    comment,
-    severity: 'error',
-    from: { path: from },
-    to: { path: workspaceTarget, pathNot: [...new Set(allowed)] },
-  }
-}
-
-/** Where an import of `node` may land: its files once resolved, or its name if unresolved. */
-function targets(manifest: Manifest, node: ManifestNode): readonly string[] {
-  const name = `^${pattern(node.name)}$`
-  return node.dir === null ? [name] : [owned(manifest, node), name]
-}
-
-function ruleName(name: string): string {
-  return `boundary-${name
-    .replace(/^@provino\//, '')
-    .replaceAll('/', '-')
-    .replaceAll('*', 'x')}`
-}
-
-function list(deps: readonly ManifestNode[]): string {
   const names = deps.map((dep) => dep.name).sort(compare)
-  return names.length === 0 ? 'no workspace package' : names.join(', ')
-}
-
-/** Subpath entries of a node, as dirs relative to its dir. */
-function entryDirs(manifest: Manifest, node: ManifestNode): readonly string[] {
-  const dir = String(node.dir)
-  return manifest.nodes
-    .filter((child) => child.parent === node.name && child.dir !== null)
-    .map((child) => String(child.dir).slice(dir.length + 1))
-}
-
-/**
- * The files a node owns: its dir, minus its subpath entries' dirs and, when it has entries, its
- * `test/` dir (which gets its own rule).
- */
-function owned(manifest: Manifest, node: ManifestNode): string {
-  if (node.dir === null) throw new Error(`${node.name} has no dir`)
-  const entries = entryDirs(manifest, node)
-  const except = entries.length === 0 ? [] : [...entries, 'test']
-  const lookahead = except.length === 0 ? '' : `(?!(?:${except.map(escapeRegex).join('|')})/)`
-  return `^${pattern(node.dir)}/${lookahead}`
-}
-
-/** The `test/` dir of a package with subpath entries, as a one-item list (else empty). */
-function testsOwned(manifest: Manifest, node: ManifestNode): readonly string[] {
-  if (node.dir === null || node.parent !== undefined || entryDirs(manifest, node).length === 0) {
-    return []
+  const layer = typeof node.layer === 'number' ? `layer ${node.layer}` : node.layer
+  return {
+    name: `boundary-${node.name
+      .replace(/^@provino\//, '')
+      .replaceAll('/', '-')
+      .replaceAll('*', 'x')}`,
+    comment: `${node.name} (${layer}, runs in ${node.runsIn}) may import only: ${
+      names.length === 0 ? 'no workspace package' : names.join(', ')
+    }.`,
+    from: owned(manifest, node),
+    allowed: [
+      owned(manifest, node),
+      ...deps.flatMap((dep) => [
+        ...(dep.dir === null ? [] : [owned(manifest, dep)]),
+        `^${wildcardSource(dep.name)}$`,
+      ]),
+    ],
   }
-  return [`^${pattern(node.dir)}/test/`]
 }
 
-/** A manifest name or dir as a RegExp source; `*` matches one path segment. */
-function pattern(text: string): string {
-  return text.split('*').map(escapeRegex).join('[^/]+')
+/** The files a node owns: its dir, minus the dirs of its subpath entries and `test/` node. */
+function owned(manifest: Manifest, node: ManifestNode): string {
+  const dir = dirOf(node)
+  const children = entriesOf(manifest, node)
+    .filter((child) => child.dir !== null)
+    .map((child) => escapeRegex(dirOf(child).slice(dir.length + 1)))
+  const except = children.length === 0 ? '' : `(?!(?:${children.join('|')})/)`
+  return `^${wildcardSource(dir)}/${except}`
+}
+
+function dirOf(node: ManifestNode): string {
+  if (node.dir === null) throw new Error(`${node.name} has no dir`)
+  return node.dir
 }
 
 function json(value: unknown): string {

@@ -8,7 +8,6 @@
       "from": {
         "path": [
           "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
-          "^packages/snapshot/test/",
           "^packages/snapshot/src/runtime/",
           "^packages/snapshot/src/node/",
           "^packages/mock/",
@@ -20,8 +19,9 @@
           "^packages/config/",
           "^packages/reporters/",
           "^packages/orchestrator/(?!(?:src/worker|test)/)",
-          "^packages/orchestrator/test/",
-          "^packages/orchestrator/src/worker/"
+          "^packages/orchestrator/src/worker/",
+          "^packages/snapshot/test/",
+          "^packages/orchestrator/test/"
         ]
       },
       "to": {
@@ -171,30 +171,6 @@
       }
     },
     {
-      "name": "boundary-snapshot-tests",
-      "comment": "@provino/snapshot's tests may import the package's own entries and what they may import.",
-      "severity": "error",
-      "from": {
-        "path": "^packages/snapshot/test/"
-      },
-      "to": {
-        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
-        "pathNot": [
-          "^packages/snapshot/",
-          "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
-          "^@provino/snapshot$",
-          "^packages/types/",
-          "^@provino/types$",
-          "^packages/policy/",
-          "^@provino/policy$",
-          "^packages/snapshot/src/runtime/",
-          "^@provino/snapshot/runtime$",
-          "^packages/snapshot/src/node/",
-          "^@provino/snapshot/node$"
-        ]
-      }
-    },
-    {
       "name": "boundary-snapshot-runtime",
       "comment": "@provino/snapshot/runtime (layer 2, runs in worker) may import only: @provino/policy, @provino/snapshot, @provino/types.",
       "severity": "error",
@@ -247,28 +223,6 @@
           "^packages/coverage/(?!(?:src/runtime|src/node|test)/)",
           "^packages/types/",
           "^@provino/types$"
-        ]
-      }
-    },
-    {
-      "name": "boundary-coverage-tests",
-      "comment": "@provino/coverage's tests may import the package's own entries and what they may import.",
-      "severity": "error",
-      "from": {
-        "path": "^packages/coverage/test/"
-      },
-      "to": {
-        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
-        "pathNot": [
-          "^packages/coverage/",
-          "^packages/coverage/(?!(?:src/runtime|src/node|test)/)",
-          "^@provino/coverage$",
-          "^packages/types/",
-          "^@provino/types$",
-          "^packages/coverage/src/runtime/",
-          "^@provino/coverage/runtime$",
-          "^packages/coverage/src/node/",
-          "^@provino/coverage/node$"
         ]
       }
     },
@@ -575,56 +529,6 @@
       }
     },
     {
-      "name": "boundary-orchestrator-tests",
-      "comment": "@provino/orchestrator's tests may import the package's own entries and what they may import.",
-      "severity": "error",
-      "from": {
-        "path": "^packages/orchestrator/test/"
-      },
-      "to": {
-        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
-        "pathNot": [
-          "^packages/orchestrator/",
-          "^packages/orchestrator/(?!(?:src/worker|test)/)",
-          "^@provino/orchestrator$",
-          "^packages/types/",
-          "^@provino/types$",
-          "^packages/policy/",
-          "^@provino/policy$",
-          "^packages/rpc/",
-          "^@provino/rpc$",
-          "^packages/config/",
-          "^@provino/config$",
-          "^packages/reporters/",
-          "^@provino/reporters$",
-          "^packages/resolver/",
-          "^@provino/resolver$",
-          "^packages/snapshot/src/node/",
-          "^@provino/snapshot/node$",
-          "^packages/coverage/src/node/",
-          "^@provino/coverage/node$",
-          "^packages/orchestrator/src/worker/",
-          "^@provino/orchestrator/worker$",
-          "^packages/loader/",
-          "^@provino/loader$",
-          "^packages/core/",
-          "^@provino/core$",
-          "^packages/lazy/",
-          "^@provino/lazy$",
-          "^packages/expect/",
-          "^@provino/expect$",
-          "^packages/mock/",
-          "^@provino/mock$",
-          "^packages/timers/",
-          "^@provino/timers$",
-          "^packages/snapshot/src/runtime/",
-          "^@provino/snapshot/runtime$",
-          "^packages/coverage/src/runtime/",
-          "^@provino/coverage/runtime$"
-        ]
-      }
-    },
-    {
       "name": "boundary-orchestrator-worker",
       "comment": "@provino/orchestrator/worker (layer 5, runs in worker) may import only: @provino/core, @provino/coverage/runtime, @provino/expect, @provino/lazy, @provino/loader, @provino/mock, @provino/policy, @provino/rpc, @provino/snapshot/runtime, @provino/timers, @provino/types.",
       "severity": "error",
@@ -675,46 +579,6 @@
           "^@provino/types$",
           "^packages/policy/",
           "^@provino/policy$"
-        ]
-      }
-    },
-    {
-      "name": "boundary-dialect-jest-tests",
-      "comment": "@provino/dialect-jest's tests may import the package's own entries and what they may import.",
-      "severity": "error",
-      "from": {
-        "path": "^packages/dialect-jest/test/"
-      },
-      "to": {
-        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
-        "pathNot": [
-          "^packages/dialect-jest/",
-          "^packages/dialect-jest/(?!(?:src/node|src/runtime|test)/)",
-          "^@provino/dialect-jest$",
-          "^packages/types/",
-          "^@provino/types$",
-          "^packages/policy/",
-          "^@provino/policy$",
-          "^packages/dialect-jest/src/node/",
-          "^@provino/dialect-jest/node$",
-          "^packages/config/",
-          "^@provino/config$",
-          "^packages/resolver/",
-          "^@provino/resolver$",
-          "^packages/transform/",
-          "^@provino/transform$",
-          "^packages/dialect-jest/src/runtime/",
-          "^@provino/dialect-jest/runtime$",
-          "^packages/core/",
-          "^@provino/core$",
-          "^packages/lazy/",
-          "^@provino/lazy$",
-          "^packages/expect/",
-          "^@provino/expect$",
-          "^packages/mock/",
-          "^@provino/mock$",
-          "^packages/timers/",
-          "^@provino/timers$"
         ]
       }
     },
@@ -793,46 +657,6 @@
       }
     },
     {
-      "name": "boundary-dialect-vitest-tests",
-      "comment": "@provino/dialect-vitest's tests may import the package's own entries and what they may import.",
-      "severity": "error",
-      "from": {
-        "path": "^packages/dialect-vitest/test/"
-      },
-      "to": {
-        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
-        "pathNot": [
-          "^packages/dialect-vitest/",
-          "^packages/dialect-vitest/(?!(?:src/node|src/runtime|test)/)",
-          "^@provino/dialect-vitest$",
-          "^packages/types/",
-          "^@provino/types$",
-          "^packages/policy/",
-          "^@provino/policy$",
-          "^packages/dialect-vitest/src/node/",
-          "^@provino/dialect-vitest/node$",
-          "^packages/config/",
-          "^@provino/config$",
-          "^packages/resolver/",
-          "^@provino/resolver$",
-          "^packages/transform/",
-          "^@provino/transform$",
-          "^packages/dialect-vitest/src/runtime/",
-          "^@provino/dialect-vitest/runtime$",
-          "^packages/core/",
-          "^@provino/core$",
-          "^packages/lazy/",
-          "^@provino/lazy$",
-          "^packages/expect/",
-          "^@provino/expect$",
-          "^packages/mock/",
-          "^@provino/mock$",
-          "^packages/timers/",
-          "^@provino/timers$"
-        ]
-      }
-    },
-    {
       "name": "boundary-dialect-vitest-node",
       "comment": "@provino/dialect-vitest/node (layer 5, runs in coordinator) may import only: @provino/config, @provino/dialect-vitest, @provino/policy, @provino/resolver, @provino/transform, @provino/types.",
       "severity": "error",
@@ -907,32 +731,6 @@
       }
     },
     {
-      "name": "boundary-dialect-node-test-tests",
-      "comment": "@provino/dialect-node-test's tests may import the package's own entries and what they may import.",
-      "severity": "error",
-      "from": {
-        "path": "^packages/dialect-node-test/test/"
-      },
-      "to": {
-        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
-        "pathNot": [
-          "^packages/dialect-node-test/",
-          "^packages/dialect-node-test/(?!(?:src/runtime|test)/)",
-          "^@provino/dialect-node-test$",
-          "^packages/types/",
-          "^@provino/types$",
-          "^packages/policy/",
-          "^@provino/policy$",
-          "^packages/dialect-node-test/src/runtime/",
-          "^@provino/dialect-node-test/runtime$",
-          "^packages/core/",
-          "^@provino/core$",
-          "^packages/mock/",
-          "^@provino/mock$"
-        ]
-      }
-    },
-    {
       "name": "boundary-dialect-node-test-runtime",
       "comment": "@provino/dialect-node-test/runtime (layer 5, runs in worker) may import only: @provino/core, @provino/dialect-node-test, @provino/mock, @provino/policy, @provino/types.",
       "severity": "error",
@@ -958,7 +756,7 @@
     },
     {
       "name": "boundary-provino",
-      "comment": "provino (layer 6, runs in both) may import only: @provino/codemod-lazy, @provino/config, @provino/core, @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/dialect-jest, @provino/dialect-jest/node, @provino/dialect-jest/runtime, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/env-happy-dom, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/eslint-plugin, @provino/expect, @provino/lazy, @provino/loader, @provino/mock, @provino/native, @provino/native-*, @provino/orchestrator, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/resolver, @provino/rpc, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/timers, @provino/transform, @provino/types.",
+      "comment": "provino (layer 6, runs in both) may import only: @provino/codemod-lazy, @provino/config, @provino/core, @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/coverage/test, @provino/dialect-jest, @provino/dialect-jest/node, @provino/dialect-jest/runtime, @provino/dialect-jest/test, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/dialect-node-test/test, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/dialect-vitest/test, @provino/env-happy-dom, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/eslint-plugin, @provino/expect, @provino/lazy, @provino/loader, @provino/mock, @provino/native, @provino/native-*, @provino/orchestrator, @provino/orchestrator/test, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/resolver, @provino/rpc, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/snapshot/test, @provino/timers, @provino/transform, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/provino/"
@@ -1040,7 +838,19 @@
           "^packages/dialect-node-test/(?!(?:src/runtime|test)/)",
           "^@provino/dialect-node-test$",
           "^packages/dialect-node-test/src/runtime/",
-          "^@provino/dialect-node-test/runtime$"
+          "^@provino/dialect-node-test/runtime$",
+          "^packages/snapshot/test/",
+          "^@provino/snapshot/test$",
+          "^packages/coverage/test/",
+          "^@provino/coverage/test$",
+          "^packages/orchestrator/test/",
+          "^@provino/orchestrator/test$",
+          "^packages/dialect-jest/test/",
+          "^@provino/dialect-jest/test$",
+          "^packages/dialect-vitest/test/",
+          "^@provino/dialect-vitest/test$",
+          "^packages/dialect-node-test/test/",
+          "^@provino/dialect-node-test/test$"
         ]
       }
     },
@@ -1088,7 +898,7 @@
     },
     {
       "name": "boundary-harness",
-      "comment": "@provino/harness (dev, runs in dev) may import only: @provino/codemod-lazy, @provino/config, @provino/core, @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/dialect-jest, @provino/dialect-jest/node, @provino/dialect-jest/runtime, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/env-happy-dom, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/eslint-plugin, @provino/expect, @provino/jest-globals, @provino/lazy, @provino/loader, @provino/mock, @provino/native, @provino/native-*, @provino/orchestrator, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/resolver, @provino/rpc, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/timers, @provino/transform, @provino/types, @provino/vitest-compat, provino.",
+      "comment": "@provino/harness (dev, runs in dev) may import only: @provino/codemod-lazy, @provino/config, @provino/core, @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/coverage/test, @provino/dialect-jest, @provino/dialect-jest/node, @provino/dialect-jest/runtime, @provino/dialect-jest/test, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/dialect-node-test/test, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/dialect-vitest/test, @provino/env-happy-dom, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/eslint-plugin, @provino/expect, @provino/jest-globals, @provino/lazy, @provino/loader, @provino/mock, @provino/native, @provino/native-*, @provino/orchestrator, @provino/orchestrator/test, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/resolver, @provino/rpc, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/snapshot/test, @provino/timers, @provino/transform, @provino/types, @provino/vitest-compat, provino.",
       "severity": "error",
       "from": {
         "path": "^packages/harness/"
@@ -1176,13 +986,25 @@
           "^packages/vitest-compat/",
           "^@provino/vitest-compat$",
           "^packages/jest-globals/",
-          "^@provino/jest-globals$"
+          "^@provino/jest-globals$",
+          "^packages/snapshot/test/",
+          "^@provino/snapshot/test$",
+          "^packages/coverage/test/",
+          "^@provino/coverage/test$",
+          "^packages/orchestrator/test/",
+          "^@provino/orchestrator/test$",
+          "^packages/dialect-jest/test/",
+          "^@provino/dialect-jest/test$",
+          "^packages/dialect-vitest/test/",
+          "^@provino/dialect-vitest/test$",
+          "^packages/dialect-node-test/test/",
+          "^@provino/dialect-node-test/test$"
         ]
       }
     },
     {
       "name": "boundary-bench",
-      "comment": "@provino/bench (dev, runs in dev) may import only: @provino/codemod-lazy, @provino/config, @provino/core, @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/dialect-jest, @provino/dialect-jest/node, @provino/dialect-jest/runtime, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/env-happy-dom, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/eslint-plugin, @provino/expect, @provino/jest-globals, @provino/lazy, @provino/loader, @provino/mock, @provino/native, @provino/native-*, @provino/orchestrator, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/resolver, @provino/rpc, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/timers, @provino/transform, @provino/types, @provino/vitest-compat, provino.",
+      "comment": "@provino/bench (dev, runs in dev) may import only: @provino/codemod-lazy, @provino/config, @provino/core, @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/coverage/test, @provino/dialect-jest, @provino/dialect-jest/node, @provino/dialect-jest/runtime, @provino/dialect-jest/test, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/dialect-node-test/test, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/dialect-vitest/test, @provino/env-happy-dom, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/eslint-plugin, @provino/expect, @provino/jest-globals, @provino/lazy, @provino/loader, @provino/mock, @provino/native, @provino/native-*, @provino/orchestrator, @provino/orchestrator/test, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/resolver, @provino/rpc, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/snapshot/test, @provino/timers, @provino/transform, @provino/types, @provino/vitest-compat, provino.",
       "severity": "error",
       "from": {
         "path": "^packages/bench/"
@@ -1270,7 +1092,19 @@
           "^packages/vitest-compat/",
           "^@provino/vitest-compat$",
           "^packages/jest-globals/",
-          "^@provino/jest-globals$"
+          "^@provino/jest-globals$",
+          "^packages/snapshot/test/",
+          "^@provino/snapshot/test$",
+          "^packages/coverage/test/",
+          "^@provino/coverage/test$",
+          "^packages/orchestrator/test/",
+          "^@provino/orchestrator/test$",
+          "^packages/dialect-jest/test/",
+          "^@provino/dialect-jest/test$",
+          "^packages/dialect-vitest/test/",
+          "^@provino/dialect-vitest/test$",
+          "^packages/dialect-node-test/test/",
+          "^@provino/dialect-node-test/test$"
         ]
       }
     },
@@ -1289,6 +1123,208 @@
           "^@provino/types$",
           "^packages/policy/",
           "^@provino/policy$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-snapshot-test",
+      "comment": "@provino/snapshot/test (layer 2, runs in dev) may import only: @provino/policy, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/types.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/snapshot/test/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/snapshot/test/",
+          "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
+          "^@provino/snapshot$",
+          "^packages/snapshot/src/runtime/",
+          "^@provino/snapshot/runtime$",
+          "^packages/snapshot/src/node/",
+          "^@provino/snapshot/node$",
+          "^packages/types/",
+          "^@provino/types$",
+          "^packages/policy/",
+          "^@provino/policy$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-coverage-test",
+      "comment": "@provino/coverage/test (layer 2, runs in dev) may import only: @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/types.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/coverage/test/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/coverage/test/",
+          "^packages/coverage/(?!(?:src/runtime|src/node|test)/)",
+          "^@provino/coverage$",
+          "^packages/coverage/src/runtime/",
+          "^@provino/coverage/runtime$",
+          "^packages/coverage/src/node/",
+          "^@provino/coverage/node$",
+          "^packages/types/",
+          "^@provino/types$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-orchestrator-test",
+      "comment": "@provino/orchestrator/test (layer 5, runs in dev) may import only: @provino/config, @provino/core, @provino/coverage/node, @provino/coverage/runtime, @provino/expect, @provino/lazy, @provino/loader, @provino/mock, @provino/orchestrator, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/resolver, @provino/rpc, @provino/snapshot/node, @provino/snapshot/runtime, @provino/timers, @provino/types.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/orchestrator/test/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/orchestrator/test/",
+          "^packages/orchestrator/(?!(?:src/worker|test)/)",
+          "^@provino/orchestrator$",
+          "^packages/orchestrator/src/worker/",
+          "^@provino/orchestrator/worker$",
+          "^packages/types/",
+          "^@provino/types$",
+          "^packages/policy/",
+          "^@provino/policy$",
+          "^packages/rpc/",
+          "^@provino/rpc$",
+          "^packages/config/",
+          "^@provino/config$",
+          "^packages/reporters/",
+          "^@provino/reporters$",
+          "^packages/resolver/",
+          "^@provino/resolver$",
+          "^packages/snapshot/src/node/",
+          "^@provino/snapshot/node$",
+          "^packages/coverage/src/node/",
+          "^@provino/coverage/node$",
+          "^packages/loader/",
+          "^@provino/loader$",
+          "^packages/core/",
+          "^@provino/core$",
+          "^packages/lazy/",
+          "^@provino/lazy$",
+          "^packages/expect/",
+          "^@provino/expect$",
+          "^packages/mock/",
+          "^@provino/mock$",
+          "^packages/timers/",
+          "^@provino/timers$",
+          "^packages/snapshot/src/runtime/",
+          "^@provino/snapshot/runtime$",
+          "^packages/coverage/src/runtime/",
+          "^@provino/coverage/runtime$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-dialect-jest-test",
+      "comment": "@provino/dialect-jest/test (layer 5, runs in dev) may import only: @provino/config, @provino/core, @provino/dialect-jest, @provino/dialect-jest/node, @provino/dialect-jest/runtime, @provino/expect, @provino/lazy, @provino/mock, @provino/policy, @provino/resolver, @provino/timers, @provino/transform, @provino/types.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/dialect-jest/test/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/dialect-jest/test/",
+          "^packages/dialect-jest/(?!(?:src/node|src/runtime|test)/)",
+          "^@provino/dialect-jest$",
+          "^packages/dialect-jest/src/node/",
+          "^@provino/dialect-jest/node$",
+          "^packages/dialect-jest/src/runtime/",
+          "^@provino/dialect-jest/runtime$",
+          "^packages/types/",
+          "^@provino/types$",
+          "^packages/policy/",
+          "^@provino/policy$",
+          "^packages/config/",
+          "^@provino/config$",
+          "^packages/resolver/",
+          "^@provino/resolver$",
+          "^packages/transform/",
+          "^@provino/transform$",
+          "^packages/core/",
+          "^@provino/core$",
+          "^packages/lazy/",
+          "^@provino/lazy$",
+          "^packages/expect/",
+          "^@provino/expect$",
+          "^packages/mock/",
+          "^@provino/mock$",
+          "^packages/timers/",
+          "^@provino/timers$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-dialect-vitest-test",
+      "comment": "@provino/dialect-vitest/test (layer 5, runs in dev) may import only: @provino/config, @provino/core, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/expect, @provino/lazy, @provino/mock, @provino/policy, @provino/resolver, @provino/timers, @provino/transform, @provino/types.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/dialect-vitest/test/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/dialect-vitest/test/",
+          "^packages/dialect-vitest/(?!(?:src/node|src/runtime|test)/)",
+          "^@provino/dialect-vitest$",
+          "^packages/dialect-vitest/src/node/",
+          "^@provino/dialect-vitest/node$",
+          "^packages/dialect-vitest/src/runtime/",
+          "^@provino/dialect-vitest/runtime$",
+          "^packages/types/",
+          "^@provino/types$",
+          "^packages/policy/",
+          "^@provino/policy$",
+          "^packages/config/",
+          "^@provino/config$",
+          "^packages/resolver/",
+          "^@provino/resolver$",
+          "^packages/transform/",
+          "^@provino/transform$",
+          "^packages/core/",
+          "^@provino/core$",
+          "^packages/lazy/",
+          "^@provino/lazy$",
+          "^packages/expect/",
+          "^@provino/expect$",
+          "^packages/mock/",
+          "^@provino/mock$",
+          "^packages/timers/",
+          "^@provino/timers$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-dialect-node-test-test",
+      "comment": "@provino/dialect-node-test/test (layer 5, runs in dev) may import only: @provino/core, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/mock, @provino/policy, @provino/types.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/dialect-node-test/test/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/dialect-node-test/test/",
+          "^packages/dialect-node-test/(?!(?:src/runtime|test)/)",
+          "^@provino/dialect-node-test$",
+          "^packages/dialect-node-test/src/runtime/",
+          "^@provino/dialect-node-test/runtime$",
+          "^packages/types/",
+          "^@provino/types$",
+          "^packages/policy/",
+          "^@provino/policy$",
+          "^packages/core/",
+          "^@provino/core$",
+          "^packages/mock/",
+          "^@provino/mock$"
         ]
       }
     },

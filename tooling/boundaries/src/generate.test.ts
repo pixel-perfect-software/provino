@@ -2,14 +2,13 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { fileURLToPath } from 'node:url'
 import { BIOME_PLUGINS, DEPCRUISE_CONFIG, generate } from './generate.ts'
 import { loadManifest } from './manifest.ts'
+import { MANIFEST_PATH, ROOT } from './paths.ts'
 import { readWorkspace } from './workspace.ts'
 
-const root = fileURLToPath(new URL('../../../', import.meta.url))
-const manifest = await loadManifest(join(root, 'tooling/boundaries/packages.json'))
-const { roots } = await readWorkspace(root)
+const manifest = await loadManifest(MANIFEST_PATH)
+const { roots } = await readWorkspace(ROOT)
 const files = generate(manifest, roots)
 
 interface Rule {
@@ -28,7 +27,7 @@ const allows = (name: string, path: string): boolean =>
 
 test('the generated files on disk are current (else run `pnpm boundaries:write`)', async () => {
   for (const [path, content] of files) {
-    const onDisk = await readFile(join(root, path), 'utf8')
+    const onDisk = await readFile(join(ROOT, path), 'utf8')
     assert.equal(onDisk.replaceAll('\r\n', '\n'), content, path)
   }
 })
@@ -38,7 +37,7 @@ test("a package's rule owns its files but not its subpath entries' files or thei
   assert.ok(!from('boundary-orchestrator').test('packages/orchestrator/src/worker/entry.ts'))
   assert.ok(!from('boundary-orchestrator').test('packages/orchestrator/test/run.test-d.ts'))
   assert.ok(from('boundary-orchestrator-worker').test('packages/orchestrator/src/worker/entry.ts'))
-  assert.ok(from('boundary-orchestrator-tests').test('packages/orchestrator/test/run.test-d.ts'))
+  assert.ok(from('boundary-orchestrator-test').test('packages/orchestrator/test/run.test-d.ts'))
   assert.ok(!from('boundary-snapshot').test('packages/snapshot/src/runtime/state.ts'))
   assert.ok(from('boundary-snapshot').test('packages/snapshot/src/runtime-utils/x.ts'))
   assert.ok(from('boundary-native-x').test('packages/native-linux-x64/index.ts'))
@@ -49,9 +48,9 @@ test("a package's rule owns its files but not its subpath entries' files or thei
 
 test("a package's tests may import its own entries; the package itself may not", () => {
   const runtime = 'packages/snapshot/src/runtime/index.ts'
-  assert.ok(allows('boundary-snapshot-tests', runtime))
+  assert.ok(allows('boundary-snapshot-test', runtime))
   assert.ok(!allows('boundary-snapshot', runtime))
-  assert.ok(!allows('boundary-snapshot-tests', 'packages/dialect-jest/src/index.ts'))
+  assert.ok(!allows('boundary-snapshot-test', 'packages/dialect-jest/src/index.ts'))
 })
 
 test('placed nodes get a rule; unplaced ones (dir null) do not', () => {

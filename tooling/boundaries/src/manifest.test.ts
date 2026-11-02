@@ -1,24 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { fileURLToPath } from 'node:url'
 import { neutralPolicy } from '@provino/policy'
-import {
-  allowedDeps,
-  loadManifest,
-  type Manifest,
-  parseManifest,
-  validateManifest,
-} from './manifest.ts'
-
-const manifestPath = fileURLToPath(new URL('../packages.json', import.meta.url))
+import { allowedDeps, loadManifest, type Manifest, validateManifest } from './manifest.ts'
+import { MANIFEST_PATH } from './paths.ts'
+import { manifestOf } from './test-support.ts'
 
 function manifest(nodes: Readonly<Record<string, Readonly<Record<string, unknown>>>>): Manifest {
-  return parseManifest({
-    slices: { core: 'CorePolicy', mock: 'MockPolicy' },
-    wholePolicyTypes: ['Policy'],
-    wholePolicyValues: ['neutralPolicy'],
-    nodes,
-  })
+  return manifestOf(nodes, { core: 'CorePolicy', mock: 'MockPolicy' })
 }
 
 const node = (
@@ -37,16 +25,16 @@ const node = (
 
 describe('the real manifest', () => {
   test('has no problems', async () => {
-    assert.deepEqual(validateManifest(await loadManifest(manifestPath)), [])
+    assert.deepEqual(validateManifest(await loadManifest(MANIFEST_PATH)), [])
   })
 
   test("its slices are exactly the neutral policy's slices", async () => {
-    const { slices } = await loadManifest(manifestPath)
+    const { slices } = await loadManifest(MANIFEST_PATH)
     assert.deepEqual(Object.keys(slices).sort(), Object.keys(neutralPolicy).sort())
   })
 
   test('lists every package build-plan §6 added to the map', async () => {
-    const names = new Set((await loadManifest(manifestPath)).nodes.map((n) => n.name))
+    const names = new Set((await loadManifest(MANIFEST_PATH)).nodes.map((n) => n.name))
     for (const name of [
       '@provino/eslint-plugin',
       '@provino/codemod-lazy',
@@ -63,11 +51,11 @@ describe('the real manifest', () => {
 })
 
 describe('the rules the real manifest must keep (CLAUDE.md non-negotiables 1 and 3)', async () => {
-  const real = await loadManifest(manifestPath)
+  const real = await loadManifest(MANIFEST_PATH)
   const top = real.nodes.filter((n) => n.parent === undefined)
-  const node = (name: string) => real.nodes.find((n) => n.name === name) ?? assert.fail(name)
+  const nodeNamed = (name: string) => real.nodes.find((n) => n.name === name) ?? assert.fail(name)
   const reaches = (from: string, to: string): boolean =>
-    allowedDeps(real, node(from)).some((dep) => dep.name === to || dep.parent === to)
+    allowedDeps(real, nodeNamed(from)).some((dep) => dep.name === to || dep.parent === to)
 
   test('the neutral packages are exactly the ten in non-negotiable 1', () => {
     const neutral = top.filter((n) => n.neutral).map((n) => n.name.replace('@provino/', ''))
