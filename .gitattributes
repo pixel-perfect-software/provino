@@ -1,0 +1,5 @@
+# Generated from tooling/boundaries/packages.json by `pnpm boundaries:write`; never edit by hand.
+# GitHub collapses them in PR diffs, and they stay LF on every checkout, so the drift check in
+# `pnpm boundaries` compares like with like.
+/.dependency-cruiser.json linguist-generated=true text eol=lf
+/tooling/boundaries/generated/** linguist-generated=true text eol=lf

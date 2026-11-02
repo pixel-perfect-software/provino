@@ -1,6 +1,6 @@
 # Project structure
 
-Current state after B01 (2026-11-02): the workspace is scaffolded, with one empty, types-only package. Update this file whenever a top-level directory is added.
+Current state after B03 (2026-11-02): `@provino/types` holds the contracts, `@provino/policy` the policy runtime, `@provino/core` is an empty stub, and `tooling/boundaries` checks package boundaries. Update this file whenever a top-level directory is added.
 
 ```
 provino/
@@ -12,7 +12,9 @@ provino/
 ├── tsconfig.json                 # solution: references every package's src project (`tsc -b`)
 ├── tsconfig.type-tests.json      # solution: references every packages/<name>/test project
 ├── turbo.json                    # per-package tasks: test (via transit), build, bench, record
-├── biome.json                    # lint and format (D11); Markdown excluded
+├── biome.json                    # lint and format (D11); Markdown excluded; extends the generated plugin list
+├── .dependency-cruiser.json      # generated from tooling/boundaries/packages.json; never hand-edit
+├── .gitattributes                # marks generated files linguist-generated (collapsed in PR diffs)
 ├── .tool-versions                # asdf: Node and pnpm for local dev
 ├── .claude/
 │   ├── context/ai-context/       # registry, architecture, structure, handoff.md (gitignored)
@@ -21,7 +23,11 @@ provino/
 │   ├── plan/                     # PLAN.md (status), DECISIONS.md (overrides research), bundles/<id>.md
 │   └── research/                 # frozen research snapshots; reference only, never edit
 ├── packages/                     # one dir per package, named without the @provino/ scope
-│   └── types/                    # @provino/types (B01: empty, types only)
+│   ├── types/                    # @provino/types: policy surface, CloneSafe, Dialect, extension and config contracts
+│   ├── policy/                   # @provino/policy: neutralPolicy, resolvePolicy, callBehaviour, serializePolicy, diffPolicy
+│   └── core/                     # @provino/core: empty stub until B07
+├── tooling/                      # private workspace tools, never published (pnpm-workspace `tooling/*`)
+│   └── boundaries/               # provino-boundaries: packages.json manifest, generator, GritQL plugins
 ├── .refs/                        # gitignored upstream clones at pinned tags (DECISIONS S3)
 └── .github/workflows/ci.yml      # Node 22.15/24/26 typecheck + test; type tests on TS 7.0.2 and 5.9.3; lint
 ```

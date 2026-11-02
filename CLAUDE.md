@@ -45,10 +45,11 @@ Keep this table current: a wrong command here costs every session. Run everythin
 | Type tests            | `pnpm test:types` (TS 7.0.2) and `pnpm test:types:ts5.9`                      |
 | Lint                  | `pnpm lint` (Biome rules + import order); fix with `pnpm lint --write`        |
 | Format / format check | `pnpm format` / `pnpm format:check` (Biome; Markdown is excluded)             |
-| Custom lint rules     | _B03_ (Biome GritQL plugins)                                                  |
-| Boundaries            | _B03_                                                                         |
+| Custom lint rules     | part of `pnpm lint` (Biome GritQL plugins `neutral-no-dialect-name`, `slice-discipline`; tests are exempt) |
+| Boundaries            | `pnpm boundaries` (manifest check, then dependency-cruiser); after editing `tooling/boundaries/packages.json`, `pnpm boundaries:write` |
+| Dependency updates    | `pnpm deps:check` (report only); `pnpm deps:update` runs only when Tyler asks (autd, D14) |
 
-- **Node below 22.18** (the 22.15 floor) needs `NODE_OPTIONS=--experimental-strip-types` for `pnpm test`; CI's 22.15 leg sets it. Node 24+ strips types by default.
+- **Node below 22.18** (the 22.15 floor) needs `NODE_OPTIONS=--experimental-strip-types` for `pnpm test` and `pnpm boundaries`; CI's 22.15 leg sets it. Node 24+ strips types by default.
 - **A new package** adds itself to the root `tsconfig.json` references (and `packages/<name>/test` to `tsconfig.type-tests.json`), gives its `exports` a `provino-source` condition pointing at `src/`, and uses `catalog:` for shared dev tools.
 
 ## Git

@@ -1,0 +1,16 @@
+// Neutral packages never name a runner (CLAUDE.md non-negotiable 1): no 'jest' or 'vitest' as a
+// string, a template literal or an object key, so no `=== 'jest'`, `case 'vitest':`,
+// `['jest'].includes(x)`, `Object.is(x, 'jest')` or `{ jest: … }[x]`. Read a typed policy key the
+// dialect supplies instead. Which packages are neutral comes from packages.json, through the
+// generated biome-plugins.json; their tests are exempt. Imports of a runner's module are the
+// dependency-cruiser rules' job.
+language js
+
+or {
+  JsStringLiteralExpression(),
+  JsTemplateExpression(),
+  JsLiteralMemberName()
+} as $name where {
+  $name <: r"['\"`]?(?:jest|vitest)['\"`]?",
+  register_diagnostic(span=$name, message="neutral-no-dialect-name: neutral packages never name 'jest' or 'vitest'; read a typed policy key the dialect supplies instead (CLAUDE.md non-negotiable 1).")
+}

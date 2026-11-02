@@ -1,3 +1,61 @@
-// @provino/types: types only, so this module has no runtime exports.
-// T1.2 (B03) adds the contracts.
-export {}
+// @provino/types: the shared contracts. Types only, so this module has no runtime exports.
+export type { CloneLeaf, CloneSafe } from './clone-safe.ts'
+export type {
+  BaseConfig,
+  ConfigEnv,
+  DialectKeys,
+  PluginKeys,
+  ProjectConfig,
+  ProvinoConfigInput,
+  ReservedConfigKey,
+} from './config.ts'
+export type {
+  ApiModule,
+  ConfigReader,
+  ConfigReadResult,
+  DetectContext,
+  Diagnostic,
+  Dialect,
+  DialectName,
+  DialectPolicyFactory,
+  DialectRegistry,
+  FlagSpec,
+  LoaderPolicies,
+  ReporterAdapter,
+} from './dialect.ts'
+export type {
+  Contribution,
+  ContributionContracts,
+  ContributionKind,
+  ContributionPlacement,
+  CoverageProvider,
+  Environment,
+  EnvironmentContext,
+  EnvironmentInstance,
+  FileSpec,
+  Matcher,
+  MatcherResult,
+  MatcherSet,
+  PluginRegistry,
+  Pool,
+  PoolWorker,
+  PoolWorkerOptions,
+  ProvinoPlugin,
+  ReporterV1,
+  Resolver,
+  RunsIn,
+  Sequencer,
+  SnapshotSerializer,
+  Transformer,
+  TransformInput,
+  TransformOutput,
+  WatchPlugin,
+} from './extensions.ts'
+export type {
+  FactoryReferenceRule,
+  HoistArgRule,
+  HoistPolicy,
+  MockObjectMatcher,
+} from './hoist.ts'
+export type { IsolationTier } from './isolation.ts'
+export type * from './policy/index.ts'

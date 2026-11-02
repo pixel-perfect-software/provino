@@ -1,0 +1,125 @@
+{
+  "plugins": [
+    {
+      "path": "../grit/neutral-no-dialect-name.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/config/**",
+        "packages/core/**",
+        "packages/expect/**",
+        "packages/lazy/**",
+        "packages/loader/**",
+        "packages/mock/**",
+        "packages/orchestrator/**",
+        "packages/reporters/**",
+        "packages/snapshot/**",
+        "packages/timers/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./slice-discipline.core.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/core/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./slice-discipline.coverage.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/coverage/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./slice-discipline.expect.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/expect/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./slice-discipline.lazy.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/lazy/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./slice-discipline.mock+module.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/mock/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./slice-discipline.module.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/loader/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./slice-discipline.none.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/codemod-lazy/**",
+        "packages/env-happy-dom/**",
+        "packages/env-jsdom/**",
+        "packages/env-node/**",
+        "packages/env-shared/**",
+        "packages/eslint-plugin/**",
+        "packages/jest-globals/**",
+        "packages/native-*/**",
+        "packages/native/**",
+        "packages/provino/**",
+        "packages/resolver/**",
+        "packages/rpc/**",
+        "packages/transform/**",
+        "packages/vitest-compat/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./slice-discipline.report.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/reporters/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./slice-discipline.snapshot.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/snapshot/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./slice-discipline.timers.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/timers/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    }
+  ]
+}

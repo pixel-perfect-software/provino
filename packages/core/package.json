@@ -1,0 +1,33 @@
+{
+  "name": "@provino/core",
+  "version": "0.0.0",
+  "description": "Provino's test runtime: collector, executor, hooks, test context and the current-test lookup.",
+  "homepage": "https://github.com/pixel-perfect-software/provino#readme",
+  "bugs": {
+    "url": "https://github.com/pixel-perfect-software/provino/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pixel-perfect-software/provino.git",
+    "directory": "packages/core"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "dependencies": {
+    "@provino/policy": "workspace:*",
+    "@provino/types": "workspace:*"
+  }
+}

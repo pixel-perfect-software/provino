@@ -20,7 +20,9 @@ Tier 1 is project-wide. Read a Tier 1 file only when the task needs it; `.claude
 
 ## Tier 2 — Component
 
-_None yet. When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (under ~150 lines) and list it here, alphabetically._
+When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (under ~150 lines) and list it here, alphabetically.
+
+- `tooling/boundaries/CLAUDE.md`: the package manifest, what is generated from it, and how to add a package or rule.
 
 ## Reference (read when named)
 
