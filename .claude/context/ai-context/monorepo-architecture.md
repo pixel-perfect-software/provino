@@ -51,7 +51,7 @@ Rule names, as CI prints them: dependency-cruiser `boundary-<node>`, `neutral-no
 4. **Public entry only.** Cross-package imports go through `exports`. Deep imports fail.
 5. **Coordinator and worker never import each other's packages**, except through `@provino/types` and `ModuleRef` strings. This is why snapshot, coverage and the dialects split into `/node` and `/runtime`.
 6. **Core does not import the loader.** The worker entry injects `ImportFile`, so core also runs with no loader in unit tests.
-7. **No cycles, no hidden globals.** A cycle made only of type-only imports is allowed (contract types refer to each other; DECISIONS P2). State lives in an explicit `WorkerContext` or in core's AsyncLocalStorage.
+7. **No cycles, no hidden globals.** A cycle made only of type-only imports is allowed (contract types refer to each other; DECISIONS D15). State lives in an explicit `WorkerContext` or in core's AsyncLocalStorage.
 
 ## Cross-thread contracts
 
