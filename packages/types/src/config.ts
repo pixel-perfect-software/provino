@@ -4,18 +4,28 @@ import type { Dialect, DialectName, DialectRegistry } from './dialect.ts'
 import type { PluginRegistry, ProvinoPlugin } from './extensions.ts'
 import type { IsolationTier } from './isolation.ts'
 
+/** The keys `ProjectConfig` adds to `BaseConfig`, apart from dialect and plugin options. */
+interface ProjectKeys {
+  readonly name?: string
+  readonly root?: string
+  /** The project-wide dialect. Without one: the highest `detect` score, else neutral. */
+  readonly dialect?: DialectName
+  /** Further dialects whose imports this project also serves. */
+  readonly alsoServe?: readonly DialectName[]
+}
+
+/** The keys only the top-level config has. */
+interface TopLevelKeys {
+  readonly projects?: readonly (ProjectConfig | string)[]
+}
+
 /**
  * Config keys a dialect or plugin can't use as its name. Such a dialect or plugin gets no
- * options key in config, so pick another name.
+ * options key in config, so pick another name. Derived from the config interfaces, so a new
+ * config key is reserved automatically.
  * @public
  */
-export type ReservedConfigKey =
-  | keyof BaseConfig
-  | 'name'
-  | 'root'
-  | 'dialect'
-  | 'alsoServe'
-  | 'projects'
+export type ReservedConfigKey = keyof BaseConfig | keyof ProjectKeys | keyof TopLevelKeys
 
 /**
  * Each registered dialect's options, under its name (`jest: { … }`).
@@ -57,22 +67,13 @@ export interface BaseConfig {
  * One project's config.
  * @public
  */
-export interface ProjectConfig extends BaseConfig, DialectKeys, PluginKeys {
-  readonly name?: string
-  readonly root?: string
-  /** The project-wide dialect. Without one: the highest `detect` score, else neutral. */
-  readonly dialect?: DialectName
-  /** Further dialects whose imports this project also serves. */
-  readonly alsoServe?: readonly DialectName[]
-}
+export interface ProjectConfig extends BaseConfig, ProjectKeys, DialectKeys, PluginKeys {}
 
 /**
  * The top-level config in `provino.config.ts`.
  * @public
  */
-export interface ProvinoConfigInput extends ProjectConfig {
-  readonly projects?: readonly (ProjectConfig | string)[]
-}
+export interface ProvinoConfigInput extends ProjectConfig, TopLevelKeys {}
 
 /**
  * What a config function receives.
