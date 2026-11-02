@@ -1,24 +1,46 @@
 # Project structure
 
-Current state on 2026-11-02: docs and Claude Code context only. B01 scaffolds the workspace. Update this file whenever a top-level directory is added.
+Current state after B01 (2026-11-02): the workspace is scaffolded, with one empty, types-only package. Update this file whenever a top-level directory is added.
 
 ```
 provino/
 ├── CLAUDE.md                     # always-loaded standards; keep under ~150 lines
-├── LICENSE                       # MIT (DECISIONS D2)
-├── package.json                  # becomes the private workspace root in B01
+├── LICENSE                       # MIT (DECISIONS D2); each published package carries a copy
+├── package.json                  # private workspace root `provino-monorepo`; root scripts only
+├── pnpm-workspace.yaml           # packages/*, minimumReleaseAge, the catalog of exact pins
+├── tsconfig.base.json            # strict flags shared by every package (extended, never referenced)
+├── tsconfig.json                 # solution: references every package's src project (`tsc -b`)
+├── tsconfig.type-tests.json      # solution: references every packages/<name>/test project
+├── turbo.json                    # per-package tasks: test (via transit), build, bench, record
+├── biome.json                    # lint and format (D11); Markdown excluded
+├── .tool-versions                # asdf: Node and pnpm for local dev
 ├── .claude/
 │   ├── context/ai-context/       # registry, architecture, structure, handoff.md (gitignored)
 │   └── rules/                    # path-scoped rules; load only when matching files are touched
 ├── docs/                         # private provino-planning repo, gitignored here (CLAUDE.md)
 │   ├── plan/                     # PLAN.md (status), DECISIONS.md (overrides research), bundles/<id>.md
 │   └── research/                 # frozen research snapshots; reference only, never edit
-├── packages/                     # B01+: one dir per package, named without the @provino/ scope
+├── packages/                     # one dir per package, named without the @provino/ scope
+│   └── types/                    # @provino/types (B01: empty, types only)
 ├── .refs/                        # gitignored upstream clones at pinned tags (DECISIONS S3)
-└── .github/workflows/            # B01: CI on Node 22.15, 24, 26
+└── .github/workflows/ci.yml      # Node 22.15/24/26 typecheck + test; type tests on TS 7.0.2 and 5.9.3; lint
 ```
 
-Planned, not yet created: `packages/*` (see `monorepo-architecture.md`), the `provino-site` app (T12.18 places it), `compat/*.snap.md` (T12.20), `crates/provino_native` (Phase 3).
+Gitignored build output: `packages/*/.tsc/` (declarations from `tsc -b`; project references need emit) and `.turbo/`.
+
+Planned, not yet created: the other `packages/*` (see `monorepo-architecture.md`), the `provino-site` app (T12.18 places it), `compat/*.snap.md` (T12.20), `crates/provino_native` (Phase 3).
+
+## Inside a package
+
+```
+packages/<name>/
+├── package.json        # exports: "provino-source" → ./src/…ts first, then types/import → ./dist/…
+├── tsconfig.json       # extends ../../tsconfig.base.json; include ["src"] (unit tests included)
+├── src/                # source, plus *.test.ts unit tests next to it
+└── test/
+    ├── tsconfig.json   # type-test project; references ".."
+    └── *.test-d.ts     # expect-type tests
+```
 
 ## Where things go
 
