@@ -37,12 +37,20 @@ expectTypeOf<CloneSafe<Leaves>>().toEqualTypeOf<Leaves>()
 
 // A ModuleRef's phantom `__fn` is not a function property.
 expectTypeOf<ModuleRef<SnapshotKey>>().toExtend<CloneSafe<ModuleRef<SnapshotKey>>>()
-// Contribution options are checked: closures don't cross.
+// CloneSafe tells a contribution with clone-safe options from one with a closure (the
+// Contribution type itself can't; see its TSDoc).
 expectTypeOf<Contribution<'environment', { readonly url: string }>>().toExtend<
   CloneSafe<Contribution<'environment', { readonly url: string }>>
 >()
 expectTypeOf<Contribution<'environment', { readonly f: () => void }>>().not.toExtend<
   CloneSafe<Contribution<'environment', { readonly f: () => void }>>
+>()
+// SharedArrayBuffer clones (it is how workers share Atomics state).
+expectTypeOf<SharedArrayBuffer>().toExtend<CloneSafe<SharedArrayBuffer>>()
+// A plain Error clones; one with extra fields loses them, so it is rejected.
+expectTypeOf<TypeError>().toExtend<CloneSafe<TypeError>>()
+expectTypeOf<Error & { readonly code: string }>().not.toExtend<
+  CloneSafe<Error & { readonly code: string }>
 >()
 
 class Counter {
@@ -66,3 +74,18 @@ send(new Counter())
 send(new Map([['k', () => {}]]))
 // @ts-expect-error a ModuleRef-shaped object with an extra closure
 send({ module: 'm', export: 'e', run: () => {} })
+// @ts-expect-error a ModuleRef whose phantom __fn is actually set
+send({ module: 'm', export: 'e', __fn: () => {} })
+class PlainData {
+  x = 1
+}
+// @ts-expect-error a constructor, even of a class with no methods
+send(PlainData)
+// @ts-expect-error an Error-shaped object with a method
+send({ name: 'E', message: 'm', run: () => {} })
+// @ts-expect-error a function as a Map key
+send(new Map([[() => {}, 1]]))
+// @ts-expect-error a function in a Set
+send(new Set([() => {}]))
+// @ts-expect-error a function in an array
+send([() => 1])

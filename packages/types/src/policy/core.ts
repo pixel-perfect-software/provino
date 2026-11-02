@@ -62,7 +62,8 @@ export interface CorePolicy {
   readonly allowGeneratorFns: boolean
   /**
    * Default timeouts in ms, and whether a synchronous overrun of the test timeout fails the test.
-   * Jest: test 5000, hook 5000, teardown n/a, catchSyncOverrun `false`.
+   * Jest: test 5000, hook 5000, catchSyncOverrun `false`; Jest has no teardown timeout, so B14
+   * picks the value that reproduces its behaviour.
    * Vitest: 5000 / 10000 / 10000, catchSyncOverrun `true`.
    * unverified: track-01 L184, track-05 L315, track-05 L318, track-11 L514
    */

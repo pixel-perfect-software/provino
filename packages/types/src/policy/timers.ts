@@ -11,7 +11,7 @@ export interface TimersPolicy {
   readonly toFakeDefault: 'all' | 'all-but-microtasks'
   /** `runAllTimers` loop limit. Jest: 100000. Vitest: 10000. unverified: track-01 L203, track-04 L349 */
   readonly loopLimit: number
-  /** Whether `Temporal` is faked. Jest: via sinon 15.4. Vitest: `true`. unverified: track-01 L204 */
+  /** Whether `Temporal` is faked. Jest: `true` if its @sinonjs/fake-timers 15.4 fakes it (Track 1 says "via sinon 15.4"; B14 confirms). Vitest: `true`. unverified: track-01 L204 */
   readonly fakeTemporal: boolean
   /** Whether legacy fake timers exist. Jest: `true`. Vitest: `false`. unverified: track-01 L205 */
   readonly legacyAvailable: boolean

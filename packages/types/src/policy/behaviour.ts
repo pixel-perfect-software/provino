@@ -45,17 +45,21 @@ export type PolicyAtom =
 
 /**
  * A policy layer: any key may be left out, at any depth. Atoms (arrays, refs, functions, …)
- * replace the lower layer's value whole.
+ * replace the lower layer's value whole, and so does a record (an index-signature object such
+ * as `mock.messages`): a layer that sets one gives all of its entries.
  * @public
  */
 export type DeepPartial<T> = T extends PolicyAtom
   ? T
-  : { readonly [K in keyof T]?: DeepPartial<T[K]> }
+  : string extends keyof T
+    ? T
+    : { readonly [K in keyof T]?: DeepPartial<T[K]> }
 
 /**
- * What survives a trip to the worker: closures are dropped from the type and `ModuleRef`s kept.
- * Distributive, so `Behaviour<F>` becomes `ModuleRef<F>` (a non-distributive version keeps the
- * closure arm; Track 1 §Spikes).
+ * What survives a trip to the worker: a `Behaviour<F>` key becomes `ModuleRef<F>` (its closure
+ * arm is removed), and a key typed only as a function becomes `never`. Distributive: a
+ * non-distributive version keeps the closure arm (Track 1 §Spikes). Arrays, `Map`s and `Set`s
+ * are atoms and pass through unchanged, so a policy key never holds behaviour inside one.
  * @public
  */
 export type DataOnly<T> = T extends AnyFunction

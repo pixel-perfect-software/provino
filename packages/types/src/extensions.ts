@@ -21,11 +21,12 @@ export interface MatcherResult {
 }
 
 /**
- * One matcher: `(received, ...expected) → { pass, message }`.
+ * One matcher: `(received, ...expected) → { pass, message }`. Parameters are `never` so a
+ * matcher may type them (`(received: number, floor: number) => …`).
  * @public
  */
 export type Matcher = (
-  received: unknown,
+  received: never,
   ...expected: never[]
 ) => MatcherResult | Promise<MatcherResult>
 
@@ -238,16 +239,26 @@ export interface ContributionPlacement {
 }
 
 /**
- * One extension, registered by module so it can load in the process it runs in. `options` must
- * be clone-safe, since they cross to the worker with the module name.
+ * One extension, registered by module so it loads in the process it runs in. `runsIn` is fixed
+ * by `kind` (an `environment` always runs in the worker), even in a list of mixed kinds. Which
+ * export of `module` holds the contract is set by the owning track (B04, B08).
+ *
+ * `options` cross to that process with the module name, so they must be clone-safe. The type
+ * can't require that (a `CloneSafe` bound on `Options` is circular); the function that builds
+ * contributions (`definePlugin`, T1.4) checks it with `Options & CloneSafe<Options>`.
  * @public
  */
-export interface Contribution<Kind extends ContributionKind = ContributionKind, Options = unknown> {
-  readonly kind: Kind
-  readonly runsIn: ContributionPlacement[Kind]
-  readonly module: string
-  readonly options: Options
-}
+export type Contribution<
+  Kind extends ContributionKind = ContributionKind,
+  Options = unknown,
+> = Kind extends ContributionKind
+  ? {
+      readonly kind: Kind
+      readonly runsIn: ContributionPlacement[Kind]
+      readonly module: string
+      readonly options: Options
+    }
+  : never
 
 /**
  * A plugin: a bundle of contributions plus three coordinator hooks.

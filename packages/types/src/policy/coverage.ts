@@ -9,8 +9,9 @@ export interface CoveragePolicy {
   /** Whether a glob threshold applies per file or to the glob's total. Jest: `per-file`. Vitest: `aggregate` (unless `perFile`). unverified: track-08 L518 */
   readonly globThresholdScope: 'per-file' | 'aggregate'
   /**
-   * Whether files no test loaded are reported. Jest: when `collectCoverageFrom` is set. Vitest:
-   * when `include` is set. unverified: track-08 L521
+   * Whether files no test loaded are reported once an include list is configured
+   * (`collectCoverageFrom` in Jest, `coverage.include` in Vitest). Jest: `true`. Vitest: `true`.
+   * unverified: track-08 L521
    */
   readonly includeUntestedByDefault: boolean
   /** Report output directory. Jest: `coverage`. Vitest: `./coverage`. unverified: track-08 L520 */

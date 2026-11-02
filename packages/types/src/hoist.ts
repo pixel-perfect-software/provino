@@ -2,10 +2,12 @@
 // `Dialect.loader.hoist`; @provino/transform applies every served dialect's policy to a file.
 
 /**
- * Which arguments a hoisted call accepts.
+ * Which arguments a hoisted call accepts. `path-factory-options` is `(path, factory?, options?)`
+ * with a literal path (Track 3 calls it `'jest-mock'`; renamed so neutral code never names a
+ * runner).
  * @public
  */
-export type HoistArgRule = 'any' | 'one-string' | 'no-args' | 'jest-mock'
+export type HoistArgRule = 'any' | 'one-string' | 'no-args' | 'path-factory-options'
 
 /**
  * How a mock object is recognised: an unshadowed global (`jest`), any binding with a name

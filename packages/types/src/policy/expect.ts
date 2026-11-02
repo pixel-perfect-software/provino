@@ -14,7 +14,7 @@ export type MatcherTableFactory = () => MatcherSet
 export interface ExpectPolicy {
   /** The namespace in matcher messages and the global matcher slot. Jest: `'jest'`. Vitest: `'vitest'`. unverified: track-01 L221 */
   readonly matcherNamespace: string
-  /** Whether `expect.poll` fails on timeout. Jest: n/a. Vitest: `true`. unverified: track-01 L222 */
+  /** Whether `expect.poll` fails on timeout. Jest: no `expect.poll` (any value; `poll.enabled` is off). Vitest: `true`. unverified: track-01 L222 */
   readonly pollFailsOnTimeout: boolean
   /** Lines of context in diffs. Jest: 5. Vitest: 5. unverified: track-01 L223 */
   readonly diffContextLines: number

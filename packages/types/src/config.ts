@@ -5,16 +5,36 @@ import type { PluginRegistry, ProvinoPlugin } from './extensions.ts'
 import type { IsolationTier } from './isolation.ts'
 
 /**
+ * Config keys a dialect or plugin can't use as its name. Such a dialect or plugin gets no
+ * options key in config, so pick another name.
+ * @public
+ */
+export type ReservedConfigKey =
+  | keyof BaseConfig
+  | 'name'
+  | 'root'
+  | 'dialect'
+  | 'alsoServe'
+  | 'projects'
+
+/**
  * Each registered dialect's options, under its name (`jest: { … }`).
  * @public
  */
-export type DialectKeys = { readonly [N in DialectName]?: DialectRegistry[N] }
+export type DialectKeys = {
+  readonly [N in DialectName as N extends ReservedConfigKey ? never : N]?: DialectRegistry[N]
+}
 
 /**
- * Each registered plugin's options, under its name.
+ * Each registered plugin's options, under its name. A plugin named like a dialect yields to the
+ * dialect.
  * @public
  */
-export type PluginKeys = { readonly [N in keyof PluginRegistry & string]?: PluginRegistry[N] }
+export type PluginKeys = {
+  readonly [N in keyof PluginRegistry & string as N extends ReservedConfigKey | DialectName
+    ? never
+    : N]?: PluginRegistry[N]
+}
 
 /**
  * Config keys every project accepts.

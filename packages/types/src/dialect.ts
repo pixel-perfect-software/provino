@@ -102,7 +102,9 @@ export interface ReporterAdapter {
 
 /**
  * Builds a dialect's policy from its options. Bivariant in `Options`, so every dialect is
- * assignable to `Dialect` (a dialect list holds dialects with different option types).
+ * assignable to `Dialect` (a dialect list holds dialects with different option types). The cost:
+ * through a plain `Dialect`, the factory accepts any argument, so callers must validate
+ * `config[name]` with the dialect's `options` schema before calling it.
  * @public
  */
 export type DialectPolicyFactory<Options> = {

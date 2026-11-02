@@ -7,6 +7,7 @@ export type {
   PluginKeys,
   ProjectConfig,
   ProvinoConfigInput,
+  ReservedConfigKey,
 } from './config.ts'
 export type {
   ApiModule,
