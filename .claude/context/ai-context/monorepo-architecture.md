@@ -43,11 +43,11 @@ Added by §6, created only when their phase arrives: `@provino/vitest-compat` an
 
 ## Dependency rules (enforced in CI by B03)
 
-Rule names, as CI prints them: dependency-cruiser `boundary-<node>`, `neutral-no-dialect`, `public-entry-only`, `not-to-unresolvable`, `no-circular`; Biome plugins `neutral-no-dialect-compare`, `slice-discipline`; manifest checks `manifest-*`.
+Rule names, as CI prints them: dependency-cruiser `boundary-<node>` (plus `boundary-<package>-tests` for a package with subpath entries), `neutral-no-dialect`, `public-entry-only`, `not-to-unresolvable`, `no-circular`; Biome plugins `neutral-no-dialect-name`, `slice-discipline` (both skip `*.test.ts` and `*.test-d.ts`); the `pnpm boundaries` checks `manifest-*`, `workspace-*` and `no-plugin-suppression`.
 
 1. **Layers point down.** dependency-cruiser `forbidden` rules are generated from the manifest.
-2. **No dialect knowledge in neutral packages.** `core`, `lazy`, `mock`, `timers`, `expect`, `snapshot`, `loader`, `orchestrator`, `reporters` and `config` never import `@provino/dialect-*` and never compare against `'jest'` or `'vitest'` (a Biome GritQL plugin, D11).
-3. **Slice discipline.** A package imports only its own `*Policy` slice type, and its public functions take that slice, never the whole `Policy`. Exempt: `policy`, `config`, `orchestrator` (it ships `SerializedPolicy`) and the dialects.
+2. **No dialect knowledge in neutral packages.** `core`, `lazy`, `mock`, `timers`, `expect`, `snapshot`, `loader`, `orchestrator`, `reporters` and `config` never import `@provino/dialect-*` and never name `'jest'` or `'vitest'` in a string, template literal or object key (a Biome GritQL plugin, D11).
+3. **Slice discipline.** A package imports only its own `*Policy` slice type, and its public functions take that slice, never the whole `Policy`. It also never uses the `@provino/policy` values that hand out every slice (`neutralPolicy`, `resolvePolicy`, …); its tests may. Exempt: `policy`, `config`, `orchestrator` (it ships `SerializedPolicy`) and the dialects.
 4. **Public entry only.** Cross-package imports go through `exports`. Deep imports fail.
 5. **Coordinator and worker never import each other's packages**, except through `@provino/types` and `ModuleRef` strings. This is why snapshot, coverage and the dialects split into `/node` and `/runtime`.
 6. **Core does not import the loader.** The worker entry injects `ImportFile`, so core also runs with no loader in unit tests.
