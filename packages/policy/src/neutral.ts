@@ -8,7 +8,8 @@ const BEHAVIOURS = '@provino/policy/behaviours'
  * The neutral dialect's policy: what Provino does with no dialect, and the base every layer
  * overrides. These are Provino's own choices, not Jest's or Vitest's ("better by default",
  * DECISIONS D7): mistakes fail loudly, state doesn't leak between tests, setup and teardown are
- * symmetric, and ESM semantics come first. Unit tests pin each value (`neutral.test.ts`).
+ * symmetric, and ESM semantics come first. `neutral.test.ts` pins the choices that matter most;
+ * a comment beside a value gives its reason where it isn't obvious.
  * @public
  */
 export const neutralPolicy: Policy = deepFreeze({

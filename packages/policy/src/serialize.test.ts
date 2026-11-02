@@ -61,6 +61,14 @@ describe('serializePolicy', () => {
     assert.throws(() => structuredClone(policy), { name: 'DataCloneError' })
   })
 
+  test('a closure inside an array is found too, with its index', () => {
+    const policy = resolvePolicy({ snapshot: { serializers: [(() => 'x') as unknown as string] } })
+    assert.throws(() => serializePolicy(policy), {
+      code: 'POLICY_CLOSURE_NOT_SERIALIZABLE',
+      path: 'snapshot.serializers[0]',
+    })
+  })
+
   test('the neutral policy itself is clone-safe', () => {
     assert.deepEqual(structuredClone(neutralPolicy), serializePolicy(neutralPolicy))
   })

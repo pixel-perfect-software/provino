@@ -1,7 +1,6 @@
 import { inspect, isDeepStrictEqual } from 'node:util'
 import type { Policy } from '@provino/types'
-import { isPlainObject, joinPath } from './internal/objects.ts'
-import { isModuleRef } from './module-ref.ts'
+import { isGroup, joinPath } from './internal/objects.ts'
 
 /**
  * One policy key whose value differs between two policies.
@@ -35,12 +34,8 @@ function walk(a: unknown, b: unknown, path: string, out: PolicyDifference[]): vo
   if (!isDeepStrictEqual(a, b)) out.push({ path, a, b })
 }
 
-function isGroup(value: unknown): value is Readonly<Record<string, unknown>> {
-  return isPlainObject(value) && !isModuleRef(value)
-}
-
 /**
- * Prints `diffPolicy` rows as an aligned key-by-key table.
+ * Prints `diffPolicy` rows as an aligned key-by-key table, one line per key.
  * @public
  */
 export function formatPolicyDiff(
@@ -61,5 +56,5 @@ export function formatPolicyDiff(
 
 function show(value: unknown): string {
   if (typeof value === 'function') return `[closure ${value.name || 'anonymous'}]`
-  return inspect(value, { depth: 4, breakLength: Infinity })
+  return inspect(value, { depth: 4, breakLength: Infinity, compact: true })
 }

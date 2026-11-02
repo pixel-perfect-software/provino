@@ -89,6 +89,15 @@ describe('callBehaviour', () => {
     )
     assert.equal(await callBehaviour(loader, ref), 'ok')
   })
+
+  test('a relative ref or a null behaviour fails with a PolicyError, not a stray TypeError', async () => {
+    const loader = createBehaviourLoader({ importModule: async () => ({ f: () => 1 }) })
+    await assert.rejects(callBehaviour(loader, moduleRef<() => number>('./x.ts', 'f')), {
+      code: 'POLICY_BEHAVIOUR_LOAD_FAILED',
+    })
+    const nothing = null as unknown as ModuleRef<() => number>
+    await assert.rejects(callBehaviour(loader, nothing), { code: 'POLICY_BEHAVIOUR_NOT_FUNCTION' })
+  })
 })
 
 describe('the default importer', () => {

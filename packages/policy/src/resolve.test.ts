@@ -77,31 +77,42 @@ describe('resolvePolicy merge rules', () => {
     assert.equal(p.core.eachTitleTruncate, null)
   })
 
-  test('open records take new keys', () => {
+  test('a record replaces the lower record whole, so a layer can drop entries', () => {
     const p = resolvePolicy({
       orchestrator: { isolationDefault: { byEnvironment: { edge: 'process' } } },
       mock: { messages: { MOCK_NOT_FUNCTION: 'not a function' } },
     })
-    assert.deepEqual(p.orchestrator.isolationDefault.byEnvironment, {
-      ...neutralPolicy.orchestrator.isolationDefault.byEnvironment,
-      edge: 'process',
-    })
-    assert.equal(p.mock.messages.MOCK_NOT_FUNCTION, 'not a function')
+    assert.deepEqual(p.orchestrator.isolationDefault.byEnvironment, { edge: 'process' })
+    assert.equal(p.orchestrator.isolationDefault.default, 'registry')
+    assert.deepEqual(p.mock.messages, { MOCK_NOT_FUNCTION: 'not a function' })
+    const none = resolvePolicy({ orchestrator: { isolationDefault: { byEnvironment: {} } } })
+    assert.deepEqual(none.orchestrator.isolationDefault.byEnvironment, {})
   })
 
-  test('layers and the neutral policy are left unchanged', () => {
-    const layer = { core: { nameSeparator: '/' } } as const
-    const before = structuredClone(layer)
-    resolvePolicy(layer)
-    assert.deepEqual(layer, before)
+  test("a layer's arrays and objects are copied: never aliased, never frozen", () => {
+    const include = ['a']
+    const order = ['clear' as const]
+    const p = resolvePolicy({ orchestrator: { include }, mock: { between: { order } } })
+    assert.deepEqual(p.orchestrator.include, ['a'])
+    assert.notEqual(p.orchestrator.include, include)
+    assert.ok(!Object.isFrozen(include) && !Object.isFrozen(order))
+    include.push('b')
+    assert.deepEqual(p.orchestrator.include, ['a'])
+  })
+
+  test('the neutral policy is left unchanged', () => {
+    resolvePolicy({ core: { nameSeparator: '/' } })
     assert.equal(neutralPolicy.core.nameSeparator, ' > ')
   })
 
-  test('the result is deeply frozen', () => {
-    const p = resolvePolicy(project)
-    assert.ok(Object.isFrozen(p))
-    assert.ok(Object.isFrozen(p.core.hookOrder))
-    assert.ok(Object.isFrozen(p.mock.between.order))
+  test('the result is deeply frozen, merged groups included', () => {
+    const p = resolvePolicy({
+      core: { hookOrder: { afterAll: 'declaration' } },
+      timers: { loopLimit: 7 },
+    })
+    for (const value of [p, p.core, p.core.hookOrder, p.timers, p.orchestrator.include]) {
+      assert.ok(Object.isFrozen(value))
+    }
   })
 })
 
@@ -128,5 +139,36 @@ describe('resolvePolicy errors', () => {
       code: 'POLICY_INVALID_LAYER',
       path: 'core.hookOrder',
     })
+  })
+
+  test('a group where a value belongs throws POLICY_INVALID_LAYER', () => {
+    const layer = JSON.parse('{"core":{"timeouts":{"test":{"ms":1}}}}') as PolicyOverrides
+    assert.throws(() => resolvePolicy(layer), {
+      code: 'POLICY_INVALID_LAYER',
+      path: 'core.timeouts.test',
+    })
+  })
+
+  test('a non-object record throws POLICY_INVALID_LAYER', () => {
+    const layer = JSON.parse('{"mock":{"messages":["x"]}}') as PolicyOverrides
+    assert.throws(() => resolvePolicy(layer), {
+      code: 'POLICY_INVALID_LAYER',
+      path: 'mock.messages',
+    })
+  })
+
+  test('inherited names are unknown keys, so a JSON layer cannot reach the prototype', () => {
+    for (const key of ['toString', 'constructor', 'hasOwnProperty', '__proto__']) {
+      const layer = JSON.parse(`{"core":{"${key}":{}}}`) as PolicyOverrides
+      assert.throws(() => resolvePolicy(layer), {
+        code: 'POLICY_UNKNOWN_KEY',
+        path: `core.${key}`,
+      })
+    }
+    // In a record, `__proto__` is just a key: it stays data and the prototype is untouched.
+    const record = JSON.parse('{"mock":{"messages":{"__proto__":"x"}}}') as PolicyOverrides
+    const p = resolvePolicy(record)
+    assert.equal(Object.getPrototypeOf(p.mock.messages), Object.prototype)
+    assert.ok(Object.hasOwn(p.mock.messages, '__proto__'))
   })
 })

@@ -1,23 +1,27 @@
 import type { Policy, PolicyOverrides } from '@provino/types'
 import { PolicyError } from './errors.ts'
-import { deepFreeze, isPlainObject, joinPath } from './internal/objects.ts'
-import { isModuleRef } from './module-ref.ts'
+import { copyValue, deepFreeze, isGroup, isPlainObject, joinPath } from './internal/objects.ts'
 import { neutralPolicy } from './neutral.ts'
 
-/** Objects whose keys are data, not a fixed shape: a layer may add keys to them. */
-const OPEN_RECORDS: ReadonlySet<string> = new Set([
+/**
+ * Keys typed as records (`Readonly<Record<string, …>>`): their keys are data, not a fixed shape.
+ * A layer that sets one replaces it whole, like an array.
+ */
+const RECORDS: ReadonlySet<string> = new Set([
   'mock.messages',
   'orchestrator.isolationDefault.byEnvironment',
 ])
 
 /**
  * Resolves policy layers over `neutralPolicy`, lowest first: `resolvePolicy(dialect, project,
- * facade)`. Objects merge key by key; arrays, `ModuleRef`s, functions and other values replace
- * the lower layer's value whole. Inputs are not changed; the result is a new, deeply frozen
- * policy.
+ * facade)`. Groups of keys merge key by key. Every other value (an array, a record, a
+ * `ModuleRef`, a function, a primitive) replaces the lower layer's value whole. The result is a
+ * new, deeply frozen policy; layers are copied, never frozen or changed.
  *
- * Throws `PolicyError` `POLICY_UNKNOWN_KEY` for a key the policy doesn't have, and
- * `POLICY_INVALID_LAYER` for a value where a group of keys belongs.
+ * Checks keys and shape, not leaf types: `POLICY_UNKNOWN_KEY` for a key the policy doesn't have,
+ * `POLICY_INVALID_LAYER` for a value where a group belongs or a group where a value belongs.
+ * A wrong leaf type (`maxConcurrency: 'lots'`) gets through, so config readers validate values
+ * before layering them (T1.4).
  * @public
  */
 export function resolvePolicy(...layers: readonly (PolicyOverrides | undefined)[]): Policy {
@@ -25,26 +29,25 @@ export function resolvePolicy(...layers: readonly (PolicyOverrides | undefined)[
   for (const layer of layers) {
     if (layer !== undefined) resolved = merge(resolved, layer, '')
   }
-  // Every layer was checked against neutralPolicy's shape, so the result is a Policy.
+  // Every layer was checked against neutralPolicy's keys and group shape (see above).
   return deepFreeze(resolved as Policy)
 }
 
 function merge(base: unknown, layer: unknown, path: string): unknown {
-  if (!isPlainObject(layer) || isModuleRef(layer)) {
-    if (isGroup(base)) {
-      throw new PolicyError(
-        'POLICY_INVALID_LAYER',
-        `policy key "${path}" is a group of keys; a layer must give it an object`,
-        { path },
-      )
-    }
-    return layer
+  if (RECORDS.has(path)) {
+    if (!isPlainObject(layer)) throw invalid(path, 'a record; a layer must give it an object')
+    return copyValue(layer)
   }
-  if (!isGroup(base)) return layer
+  if (!isGroup(base)) {
+    if (isGroup(layer)) throw invalid(path, 'a value; a layer must not give it a group of keys')
+    return copyValue(layer)
+  }
+  if (!isGroup(layer)) throw invalid(path, 'a group of keys; a layer must give it an object')
   const out: Record<string, unknown> = { ...base }
   for (const [key, value] of Object.entries(layer)) {
     const keyPath = joinPath(path, key)
-    if (!(key in base) && !OPEN_RECORDS.has(path)) {
+    // Own keys only: `toString` or `__proto__` from a JSON layer is unknown, not inherited.
+    if (!Object.hasOwn(base, key)) {
       throw new PolicyError('POLICY_UNKNOWN_KEY', `unknown policy key "${keyPath}"`, {
         path: keyPath,
       })
@@ -54,6 +57,6 @@ function merge(base: unknown, layer: unknown, path: string): unknown {
   return out
 }
 
-function isGroup(value: unknown): value is Readonly<Record<string, unknown>> {
-  return isPlainObject(value) && !isModuleRef(value)
+function invalid(path: string, what: string): PolicyError {
+  return new PolicyError('POLICY_INVALID_LAYER', `policy key "${path}" is ${what}`, { path })
 }

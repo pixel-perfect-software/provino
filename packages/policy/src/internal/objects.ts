@@ -6,6 +6,49 @@ export function isPlainObject(value: unknown): value is Readonly<Record<string, 
 }
 
 /**
+ * Whether a value is a `ModuleRef`: a plain object with string `module` and `export` and no other
+ * own keys.
+ * @internal
+ */
+export function isRefShaped(value: unknown): boolean {
+  return (
+    isPlainObject(value) &&
+    Object.keys(value).length === 2 &&
+    typeof value.module === 'string' &&
+    typeof value.export === 'string'
+  )
+}
+
+/**
+ * Whether a value is a group of policy keys: a plain object that isn't a `ModuleRef`.
+ * @internal
+ */
+export function isGroup(value: unknown): value is Readonly<Record<string, unknown>> {
+  return isPlainObject(value) && !isRefShaped(value)
+}
+
+/**
+ * Copies plain objects and arrays all the way down, so a result never aliases a caller's value.
+ * Other values (functions, RegExps, primitives) are shared as they are.
+ * @internal
+ */
+export function copyValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(copyValue)
+  if (!isPlainObject(value)) return value
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    // defineProperty, so a `__proto__` key stays data instead of setting the prototype.
+    Object.defineProperty(out, key, {
+      value: copyValue(item),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
+  }
+  return out
+}
+
+/**
  * Freezes plain objects and arrays all the way down. Other objects (RegExp, Map, …) are left
  * as they are.
  * @internal

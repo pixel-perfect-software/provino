@@ -46,7 +46,8 @@ export function createBehaviourLoader(options: BehaviourLoaderOptions = {}): Beh
     let pending = modules.get(specifier)
     if (pending === undefined) {
       pending = importModule(specifier)
-      // A failed import is not cached, so a later call can try again.
+      // Drop a failed import from this cache. Node caches a module whose evaluation threw, so a
+      // retry rethrows; dropping it still lets a custom importer (or a missing file) retry.
       pending.catch(() => modules.delete(specifier))
       modules.set(specifier, pending)
     }
@@ -54,6 +55,13 @@ export function createBehaviourLoader(options: BehaviourLoaderOptions = {}): Beh
   }
 
   async function loadRef<Fn extends AnyFunction>(ref: ModuleRef<Fn>): Promise<Fn> {
+    if (ref.module.startsWith('./') || ref.module.startsWith('../')) {
+      // A relative specifier would resolve against this file, not the dialect that wrote it.
+      throw new PolicyError(
+        'POLICY_BEHAVIOUR_LOAD_FAILED',
+        `"${ref.module}" is relative; build refs with import.meta.resolve()`,
+      )
+    }
     let namespace: Readonly<Record<string, unknown>>
     try {
       namespace = await importOnce(ref.module)
@@ -75,7 +83,14 @@ export function createBehaviourLoader(options: BehaviourLoaderOptions = {}): Beh
 
   return {
     load<Fn extends AnyFunction>(behaviour: Behaviour<Fn>): Promise<Fn> {
-      return typeof behaviour === 'function' ? Promise.resolve(behaviour) : loadRef(behaviour)
+      if (typeof behaviour === 'function') return Promise.resolve(behaviour)
+      // A nullable behaviour key (`orderHooks`, …) must be checked before it is loaded.
+      if (behaviour === null || typeof behaviour !== 'object') {
+        return Promise.reject(
+          new PolicyError('POLICY_BEHAVIOUR_NOT_FUNCTION', `not a behaviour: ${String(behaviour)}`),
+        )
+      }
+      return loadRef(behaviour)
     },
   }
 }

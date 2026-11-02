@@ -4,12 +4,14 @@
 import { inspect } from 'node:util'
 import type { EnvironmentConditions, FormatEachTitle, SnapshotKey } from '@provino/types'
 
-const PLACEHOLDER = /%[%#$sdifjoOp]|\$([A-Za-z_][\w.]*)/g
+// `$name` or `$a.b`; a path never ends in a dot, so `$value.` keeps its period.
+const PLACEHOLDER = /%[%#$sdifjoOp]|\$([A-Za-z_]\w*(?:\.\w+)*)/g
 
 /**
  * Formats a `.each` title. `%s %d %i %f %j %o %O %p` take the row's values in order, `%#` is the
  * row index, `%$` the 1-based row number and `%%` a percent sign. `$name` (or `$a.b`) reads a
- * key of an object row. Strings print bare; other values print as `util.inspect` does.
+ * key of an object row. Strings print bare; other values print on one line as `util.inspect`
+ * does. A value `%j` can't encode (a cycle) prints as `[Circular]`, so a title never throws.
  * @public
  */
 export const formatEachTitle: FormatEachTitle = (template, row, index) => {
@@ -51,18 +53,35 @@ function readPath(row: unknown, path: string): unknown {
   return value
 }
 
+const INSPECT = { depth: 2, breakLength: Infinity, compact: true } as const
+
 function show(value: unknown, kind: string): string {
   switch (kind) {
     case 's':
-      return typeof value === 'string' ? value : inspect(value, { depth: 2, breakLength: Infinity })
+      return typeof value === 'string' ? value : inspect(value, INSPECT)
     case 'd':
     case 'i':
-      return String(kind === 'i' ? Math.trunc(Number(value)) : Number(value))
-    case 'f':
-      return String(Number(value))
+    case 'f': {
+      if (typeof value === 'bigint') return `${value}n`
+      const n = typeof value === 'symbol' ? Number.NaN : Number(value)
+      return String(kind === 'i' ? Math.trunc(n) : n)
+    }
     case 'j':
-      return JSON.stringify(value) ?? 'undefined'
+      return toJson(value)
     default:
-      return inspect(value, { depth: 2, breakLength: Infinity })
+      return inspect(value, INSPECT)
+  }
+}
+
+function toJson(value: unknown): string {
+  try {
+    return (
+      JSON.stringify(value, (_key, item: unknown) =>
+        typeof item === 'bigint' ? `${item}n` : item,
+      ) ?? 'undefined'
+    )
+  } catch (err) {
+    if (err instanceof TypeError && /circular/i.test(err.message)) return '[Circular]'
+    throw err
   }
 }

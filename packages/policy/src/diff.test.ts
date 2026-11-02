@@ -6,8 +6,19 @@ import { moduleRef } from './module-ref.ts'
 import { neutralPolicy } from './neutral.ts'
 import { resolvePolicy } from './resolve.ts'
 
-test('identical policies have no differences', () => {
-  assert.deepEqual(diffPolicy(neutralPolicy, resolvePolicy()), [])
+test('equal policies have no differences, even as separate objects', () => {
+  const copy = resolvePolicy({ core: { nameSeparator: ' > ' } })
+  assert.notEqual(copy, neutralPolicy)
+  assert.deepEqual(diffPolicy(neutralPolicy, copy), [])
+})
+
+test('a key on one side only is listed, from either side', () => {
+  const a = resolvePolicy({ mock: { messages: { ONLY_A: 'a' } } })
+  const b = resolvePolicy({ mock: { messages: { ONLY_B: 'b' } } })
+  assert.deepEqual(diffPolicy(a, b), [
+    { path: 'mock.messages.ONLY_A', a: 'a', b: undefined },
+    { path: 'mock.messages.ONLY_B', a: undefined, b: 'b' },
+  ])
 })
 
 test('every differing key is listed by path, in key order', () => {
@@ -38,6 +49,14 @@ test('refs compare by module and export; closures by identity', () => {
     diffPolicy(neutralPolicy, resolvePolicy({ snapshot: { key } })).map((row) => row.path),
     ['snapshot.key'],
   )
+})
+
+test('formatPolicyDiff keeps a long array on one line', () => {
+  const exclude = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
+  const table = formatPolicyDiff(
+    diffPolicy(neutralPolicy, resolvePolicy({ orchestrator: { exclude } })),
+  )
+  assert.equal(table.split('\n').length, 2, table)
 })
 
 test('formatPolicyDiff prints an aligned key-by-key table', () => {

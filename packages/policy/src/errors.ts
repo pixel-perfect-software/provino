@@ -11,7 +11,9 @@ export type PolicyErrorCode =
 
 /**
  * An error from `@provino/policy`. `path` is the policy key it concerns (`core.hookOrder`), when
- * there is one.
+ * there is one. `structuredClone` keeps only `name`, `message`, `stack` and `cause`, so a worker
+ * sends it to the coordinator as a serialized error record that carries `code` and `path` (the
+ * RPC layer's `SerializedError`, B09), not as this class.
  * @public
  */
 export class PolicyError extends Error {
