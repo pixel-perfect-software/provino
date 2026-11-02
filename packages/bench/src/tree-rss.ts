@@ -102,15 +102,28 @@ export function sumTreeRssMib(table: readonly ProcessEntry[], rootPid: number): 
 }
 
 /**
- * Makes a reader that lists processes with one call of `command` (`ps` on macOS and other
- * non-Linux systems). The argument list is `ps`'s BSD/POSIX form; `command` is a test seam.
+ * How long a `ps` call may take before it is killed. A normal call takes tens of milliseconds.
  * @public
  */
-export function createPsReader(command = 'ps'): ProcessTableReader {
+export const PS_TIMEOUT_MS = 5000
+
+/**
+ * Makes a reader that lists processes with one call of `command` (`ps` on macOS and other
+ * non-Linux systems). The argument list is `ps`'s BSD/POSIX form. A call that takes longer than
+ * `options.timeoutMs` (default `PS_TIMEOUT_MS`) is killed and counts as a failed read, so a stuck
+ * `ps` can't hold up `RssSampler.stop()`. `command` and `timeoutMs` are test seams.
+ * @public
+ */
+export function createPsReader(
+  command = 'ps',
+  options?: { readonly timeoutMs?: number },
+): ProcessTableReader {
   return async () => {
     try {
       const { stdout } = await execFileAsync(command, ['-A', '-o', 'pid=,ppid=,rss='], {
         maxBuffer: 64 * 1024 * 1024,
+        timeout: options?.timeoutMs ?? PS_TIMEOUT_MS,
+        killSignal: 'SIGKILL',
       })
       return parsePsOutput(stdout)
     } catch (cause) {

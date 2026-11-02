@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import type { BenchSubject } from '@provino/types'
@@ -8,6 +9,7 @@ import type { ExecOutcome, ExecRequest } from './exec.ts'
 import {
   type BenchSpec,
   type BenchSubjectSpec,
+  cacheDirProblem,
   DEFAULT_COLD_RUNS,
   DEFAULT_WARM_RUNS,
   type RunEvent,
@@ -131,7 +133,12 @@ test('the request carries the subject’s argv, cwd and env', async (t) => {
     coldRuns: 1,
     exec,
   })
-  assert.deepEqual(calls[0]?.request, { argv: ['A'], cwd: dir, env: { WHO: 'A' } })
+  assert.deepEqual(calls[0]?.request, {
+    argv: ['A'],
+    cwd: dir,
+    env: { WHO: 'A' },
+    timeoutMs: 30 * 60_000,
+  })
 })
 
 test('cold runs find their own cache dirs deleted, warm runs find them kept', async (t) => {
@@ -279,4 +286,206 @@ test('a bad spec is rejected before anything runs or is deleted', async (t) => {
   }
   assert.equal(calls.length, 0)
   assert.ok(await exists(join(dir, 'A-tool')))
+})
+
+test('the per-run timeout defaults to 30 minutes and can be set', async (t) => {
+  const dir = await scratch(t)
+  const { calls, exec } = fakeExec(dir)
+  await runBench({
+    benchId: 'app-1',
+    subjects: [subjectSpec('A', dir)],
+    warmRuns: 1,
+    coldRuns: 1,
+    timeoutMs: 90_000,
+    exec,
+  })
+  assert.ok(calls.length > 0)
+  assert.ok(calls.every((call) => call.request.timeoutMs === 90_000))
+})
+
+test('a bad timeout is rejected before anything runs', async (t) => {
+  const dir = await scratch(t)
+  const { calls, exec } = fakeExec(dir)
+  for (const timeoutMs of [0, -5, 1.5, Number.NaN, 2 ** 31]) {
+    await assert.rejects(
+      runBench({ benchId: 'x', subjects: [subjectSpec('A', dir)], timeoutMs, exec }),
+      (error) => error instanceof BenchError && error.code === 'BENCH_INVALID_SPEC',
+      String(timeoutMs),
+    )
+  }
+  assert.equal(calls.length, 0)
+})
+
+// A run that could not be started is still a run: it is kept as a failure, so the other runs of the
+// session are not thrown away with it.
+test('a run that cannot be spawned is kept as a failed run, with a warning, and the bench carries on', async (t) => {
+  const dir = await scratch(t)
+  const { exec } = fakeExec(dir)
+  const events: RunEvent[] = []
+  let started = 0
+  const results = await runBench({
+    benchId: 'app-1',
+    subjects: [subjectSpec('A', dir), subjectSpec('B', dir)],
+    warmRuns: 3,
+    coldRuns: 2,
+    exec: async (request) => {
+      started += 1
+      // the 5th run is A's second warm run (1-2 are the warm-ups, then A B A B ...)
+      if (started === 5) {
+        throw new BenchError('BENCH_EXEC_FAILED', 'could not run A', {
+          cause: new Error('spawn /bin/sh EMFILE'),
+        })
+      }
+      return exec(request)
+    },
+    onRun: (event) => events.push(event),
+  })
+  const [warmA, coldA, warmB, coldB] = results
+  assert.ok(warmA && coldA && warmB && coldB)
+  assert.equal(warmA.ok, false)
+  assert.deepEqual([coldA.ok, warmB.ok, coldB.ok], [true, true, true])
+  assert.equal(warmA.wall.runs, 3, 'the failed run is a sample, not a gap')
+  assert.equal(coldA.wall.runs, 2)
+  assert.equal(events.length, 2 + 6 + 4, 'every run was reported and none repeated')
+  const failed = events[4]?.outcome
+  assert.ok(failed && failed.exitCode !== 0)
+  assert.ok(
+    failed.warnings?.some(
+      (warning) => warning.includes('could not run A') && warning.includes('EMFILE'),
+    ),
+    String(failed.warnings),
+  )
+})
+
+test('a spawn failure in the real exec is kept too, for every run', async (t) => {
+  const dir = await scratch(t)
+  const spec = { ...subjectSpec('A', dir), cwd: join(dir, 'does-not-exist') }
+  const results = await runBench({
+    benchId: 'app-1',
+    subjects: [spec],
+    warmRuns: 2,
+    coldRuns: 1,
+  })
+  assert.deepEqual(
+    results.map((result) => [result.cache, result.ok, result.wall.runs]),
+    [
+      ['warm', false, 2],
+      ['cold', false, 1],
+    ],
+  )
+})
+
+test('an error from exec that is not a failure to run still ends the bench', async (t) => {
+  const dir = await scratch(t)
+  for (const error of [
+    new BenchError('BENCH_UNSUPPORTED_PLATFORM', 'no sh'),
+    new TypeError('bug'),
+  ]) {
+    await assert.rejects(
+      runBench({
+        benchId: 'x',
+        subjects: [subjectSpec('A', dir)],
+        exec: async () => {
+          throw error
+        },
+      }),
+      (thrown) => thrown === error,
+    )
+  }
+})
+
+test('a cache dir that cannot be deleted before a cold run is a BenchError naming the path', async (t) => {
+  const dir = await scratch(t)
+  await writeFile(join(dir, 'not-a-dir'), 'x')
+  const stuck = join(dir, 'not-a-dir', 'cache')
+  const { exec } = fakeExec(dir)
+  const spec: BenchSubjectSpec = {
+    ...subjectSpec('A', dir),
+    caches: [{ kind: 'jest', path: stuck }],
+  }
+  await assert.rejects(
+    runBench({ benchId: 'x', subjects: [spec], warmRuns: 1, coldRuns: 1, exec }),
+    (error) =>
+      error instanceof BenchError &&
+      error.code === 'BENCH_CACHE_CLEAR_FAILED' &&
+      error.message.includes(stuck) &&
+      error.cause instanceof Error,
+  )
+})
+
+// The guard runs before any deletion. Every path below is under a scratch directory or does not
+// exist, so a guard that fails to reject cannot delete anything that matters.
+test('cache dirs that could be a project, a home directory or a disk are refused before anything runs', async (t) => {
+  const dir = await scratch(t)
+  const home = join(dir, 'home')
+  const work = join(dir, 'work')
+  await mkdir(join(home, 'proj'), { recursive: true })
+  await mkdir(work)
+  const previousHome = process.env.HOME
+  process.env.HOME = home
+  t.after(() => {
+    if (previousHome === undefined) delete process.env.HOME
+    else process.env.HOME = previousHome
+  })
+  assert.equal(homedir(), home)
+
+  const { calls, exec } = fakeExec(dir)
+  // Each case trips one rule: the cwd is somewhere else unless the case is about the cwd.
+  const elsewhere = '/bench-guard-cwd/a/b/c'
+  const cases: [string, string, string][] = [
+    ['a .. segment', `${dir}/x/../A-tool`, elsewhere],
+    ['the subject’s own cwd', work, work],
+    ['an ancestor of the subject’s cwd', work, join(work, 'inner')],
+    ['the home directory', home, elsewhere],
+    ['a directory that holds the home directory', dir, elsewhere],
+    ['a path directly under the root', '/bench-guard-probe', elsewhere],
+    ['a path two levels under the root', '/bench-guard-probe/cache', elsewhere],
+  ]
+  for (const [name, path, cwd] of cases) {
+    await assert.rejects(
+      runBench({
+        benchId: 'x',
+        subjects: [{ ...subjectSpec('A', dir), cwd, caches: [{ kind: 'jest', path }] }],
+        exec,
+      }),
+      (error) => error instanceof BenchError && error.code === 'BENCH_INVALID_SPEC',
+      name,
+    )
+  }
+  assert.equal(calls.length, 0)
+  assert.ok(await exists(join(home, 'proj')), 'nothing was deleted')
+  assert.ok(await exists(work))
+})
+
+test('each cache dir rule gives its own reason', () => {
+  const home = '/data/people/staff/me'
+  const cwd = '/data/work/suite/jest'
+  const problem = (path: string) => cacheDirProblem(path, { cwd, home })
+  // allowed: next to the cwd, under it, and elsewhere deep enough
+  assert.equal(problem('/data/work/suite/.cache/jest'), undefined)
+  assert.equal(problem('/data/work/suite/jest/.cache'), undefined)
+  assert.equal(problem(`${home}/.cache/provino`), undefined)
+  assert.equal(problem('/a/b/c'), undefined)
+  // refused
+  assert.match(problem('cache') ?? '', /absolute/)
+  assert.match(problem('/data/work/../people/staff/me/x') ?? '', /\.\. segment/)
+  assert.match(problem('/data/work/suite/.cache/..') ?? '', /\.\. segment/)
+  assert.match(problem('/') ?? '', /too close to the filesystem root/)
+  assert.match(problem('/tmp') ?? '', /too close to the filesystem root/)
+  assert.match(problem('/a/b') ?? '', /too close to the filesystem root/)
+  assert.match(problem('/data/work/suite/jest') ?? '', /working directory/)
+  assert.match(problem('/data/work/suite') ?? '', /working directory/)
+  assert.match(problem(home) ?? '', /home directory/)
+  assert.match(problem('/data/people/staff') ?? '', /home directory/)
+  // a trailing slash or a doubled one is the same directory
+  assert.match(problem('/data/work/suite/jest/') ?? '', /working directory/)
+  assert.match(problem('/data//people//staff//me') ?? '', /home directory/)
+  // a sibling whose name starts with the cwd's is not the cwd
+  assert.equal(problem('/data/work/suite/jest-cache'), undefined)
+  assert.equal(problem(`${home}-backup/x`), undefined)
+})
+
+test('the home directory defaults to os.homedir()', () => {
+  assert.match(cacheDirProblem(homedir(), { cwd: '/a/b/c/d' }) ?? '', /home directory|too close/)
+  assert.match(cacheDirProblem(`${homedir()}/..`, { cwd: '/a/b/c/d' }) ?? '', /\.\. segment/)
 })

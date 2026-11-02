@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import type { BenchLabel, BenchRecord, BenchResult, RunEnvironment, RunRef } from '@provino/types'
 import { BenchError } from './errors.ts'
+import { DEFAULT_COLD_RUNS, DEFAULT_WARM_RUNS } from './run-bench.ts'
 import { ratioCi } from './stats.ts'
 import { RESULTS_DIR } from './suites.ts'
 
@@ -90,7 +91,8 @@ function table(rows: readonly (readonly string[])[]): string[] {
 /**
  * A plain-text summary of a record. Every line starts with the label in brackets. Where a Jest
  * result exists for the same suite and cache state, each other runner gets a median ratio against
- * it with a bootstrap 95% CI.
+ * it with a bootstrap 95% CI. It warns when a result has fewer runs than the R5 protocol, and it
+ * names the commit, saying `dirty` when the tree had uncommitted changes.
  * @public
  */
 export function formatSummary(record: BenchRecord): string {
@@ -154,6 +156,24 @@ export function formatSummary(record: BenchRecord): string {
         `${tag} WARNING: ${result.subject.runner} ${result.cache} had a failing run, so it is not a speed result`,
       )
     }
+  }
+  const short = record.results.some(
+    (result) =>
+      result.wall.runs < (result.cache === 'warm' ? DEFAULT_WARM_RUNS : DEFAULT_COLD_RUNS),
+  )
+  if (short) {
+    out.push(
+      `${tag} WARNING: fewer runs than the R5 protocol (${DEFAULT_WARM_RUNS} warm, ${DEFAULT_COLD_RUNS} cold); treat these numbers as a smoke test`,
+    )
+  }
+  const commit = record.ref.sha.slice(0, 7)
+  if (record.ref.dirty) {
+    out.push(`${tag} commit ${commit} (dirty: uncommitted changes when the bench started)`)
+    out.push(
+      `${tag} WARNING: the working tree was dirty, so commit ${commit} does not describe the code measured`,
+    )
+  } else {
+    out.push(`${tag} commit ${commit} (clean)`)
   }
   out.push(`${tag} label ${record.label}: ${LABEL_NOTES[record.label]}`)
   return out.join('\n')

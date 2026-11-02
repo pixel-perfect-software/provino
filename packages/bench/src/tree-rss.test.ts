@@ -118,6 +118,28 @@ test('the ps reader runs the command once and parses its output', async (t) => {
   )
 })
 
+test('a ps that hangs is stopped after the timeout instead of hanging the sampler', async (t) => {
+  const dir = await mkdtemp(join(process.env.TMPDIR ?? '/tmp', 'bench-ps-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const stuckPs = join(dir, 'ps')
+  await writeFile(stuckPs, '#!/bin/sh\nexec sleep 20\n')
+  await chmod(stuckPs, 0o755)
+  const started = performance.now()
+  await assert.rejects(
+    createPsReader(stuckPs, { timeoutMs: 150 })(),
+    (error) => error instanceof BenchError && error.code === 'BENCH_PROCESS_TABLE_UNAVAILABLE',
+  )
+  assert.ok(performance.now() - started < 10_000)
+
+  // and a sampler on top of it can be stopped
+  const sampler = startRssSampler(1, {
+    intervalMs: 0,
+    read: createPsReader(stuckPs, { timeoutMs: 150 }),
+  })
+  const result = await sampler.stop()
+  assert.equal(result.peakMib, undefined)
+})
+
 test('treeRss reads the table once and sums the tree', async () => {
   let reads = 0
   const mib = await treeRss(100, async () => {

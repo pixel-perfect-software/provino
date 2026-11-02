@@ -41,7 +41,7 @@ function result(
 function record(results: BenchResult[], label: BenchRecord['label'] = 'local'): BenchRecord {
   return buildRecord({
     label,
-    ref: { sha: 'a'.repeat(40), date: '2026-11-02T10:00:00.000Z' },
+    ref: { sha: 'a'.repeat(40), date: '2026-11-02T10:00:00.000Z', dirty: false },
     environment,
     machineId: `${label}-darwin-arm64`,
     results,
@@ -69,7 +69,7 @@ test('the default machine id is label, platform and arch, never a hostname', () 
 })
 
 test('the default output is stamped to the second and named for the suite and commit', () => {
-  const ref = { sha: `abc1234${'0'.repeat(33)}`, date: '2026-11-02T10:11:12.345Z' }
+  const ref = { sha: `abc1234${'0'.repeat(33)}`, date: '2026-11-02T10:11:12.345Z', dirty: false }
   assert.equal(
     defaultOutPath(ref, 'app-500', '/out'),
     '/out/2026-11-02T10-11-12Z-app-500-abc1234.json',
@@ -134,5 +134,47 @@ test('the footer says what the label means', () => {
   assert.match(
     formatSummary(record([result('jest', 'warm', [1])], 'pinned')),
     /\[pinned\] .*dedicated/,
+  )
+})
+
+function runs(runner: 'jest' | 'vitest', cache: 'warm' | 'cold', count: number): BenchResult {
+  return result(
+    runner,
+    cache,
+    Array.from({ length: count }, (_, index) => 100 + index),
+  )
+}
+
+test('a summary of fewer runs than the R5 protocol warns, whatever the label', () => {
+  const warning = /\[local\] WARNING: fewer runs than the R5 protocol \(10 warm, 5 cold\)/
+  assert.match(formatSummary(record([runs('jest', 'warm', 9), runs('jest', 'cold', 5)])), warning)
+  assert.match(formatSummary(record([runs('jest', 'warm', 10), runs('jest', 'cold', 4)])), warning)
+  assert.match(formatSummary(record([runs('jest', 'warm', 1)])), warning)
+  assert.match(
+    formatSummary(record([runs('jest', 'warm', 2), runs('jest', 'cold', 1)], 'desktop')),
+    /\[desktop\] WARNING: fewer runs than the R5 protocol/,
+  )
+  const full = formatSummary(record([runs('jest', 'warm', 10), runs('jest', 'cold', 5)]))
+  assert.doesNotMatch(full, /fewer runs/)
+})
+
+test('the summary names the commit and says when the tree was dirty', () => {
+  const dirty = buildRecord({
+    label: 'local',
+    ref: { sha: 'abcdef0'.padEnd(40, '1'), date: '2026-11-02T10:00:00.000Z', dirty: true },
+    environment,
+    machineId: 'local-darwin-arm64',
+    results: [result('jest', 'warm', [1])],
+  })
+  const text = formatSummary(dirty)
+  assert.match(
+    text,
+    /\[local\] commit abcdef0 \(dirty: uncommitted changes when the bench started\)/,
+  )
+  assert.match(text, /\[local\] WARNING: .*dirty/)
+  assert.ok(text.split('\n').every((line) => line.startsWith('[local] ')))
+  assert.match(
+    formatSummary(record([result('jest', 'warm', [1])])),
+    /\[local\] commit aaaaaaa \(clean\)/,
   )
 })

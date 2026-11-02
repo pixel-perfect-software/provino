@@ -47,6 +47,7 @@ test('run defaults to 10 warm runs, 5 cold runs and the local label', () => {
   assert.equal(parsed.label, 'local')
   assert.equal(parsed.out, undefined)
   assert.equal(parsed.machineId, undefined)
+  assert.equal(parsed.timeoutMs, 30 * 60_000)
 })
 
 test('run takes every option', () => {
@@ -58,21 +59,31 @@ test('run takes every option', () => {
     '--runner',
     'vitest',
     '--warm',
-    '2',
+    '12',
     '--cold',
-    '1',
+    '6',
     '--label',
     'desktop',
     '--out',
     'x.json',
     '--machine-id',
     'box-1',
+    '--timeout',
+    '45',
   ])
   assert.equal(parsed.command, 'run')
   if (parsed.command !== 'run') return
   assert.deepEqual(
-    [parsed.runners.join(), parsed.warm, parsed.cold, parsed.label, parsed.out, parsed.machineId],
-    ['jest,vitest', 2, 1, 'desktop', 'x.json', 'box-1'],
+    [
+      parsed.runners.join(),
+      parsed.warm,
+      parsed.cold,
+      parsed.label,
+      parsed.out,
+      parsed.machineId,
+      parsed.timeoutMs,
+    ],
+    ['jest,vitest', 12, 6, 'desktop', 'x.json', 'box-1', 45 * 60_000],
   )
 })
 
@@ -87,6 +98,98 @@ test('usage errors have a stable code', () => {
   usageError(['run'])
   usageError(['bench', 'app-5'])
   usageError(['generate', 'app-5', 'extra'])
+})
+
+test('run counts are plain positive integers, not whatever Number() accepts', () => {
+  for (const bad of [
+    '1e21',
+    '1e1',
+    ' 7',
+    '7 ',
+    '+7',
+    '0x10',
+    '1.0',
+    '07',
+    '-1',
+    '0',
+    '',
+    '99999999999999999999',
+  ]) {
+    usageError(['run', 'app-5', '--runner', 'jest', '--warm', bad])
+    usageError(['run', 'app-5', '--runner', 'jest', '--cold', bad])
+  }
+  const parsed = parseCli(['run', 'app-5', '--runner', 'jest', '--warm', '12', '--cold', '3'])
+  assert.deepEqual(parsed.command === 'run' && [parsed.warm, parsed.cold], [12, 3])
+})
+
+function protocolError(argv: string[]): void {
+  assert.throws(
+    () => parseCli(argv),
+    (error) =>
+      error instanceof BenchError &&
+      error.code === 'BENCH_USAGE' &&
+      /at least 10 warm and 5 cold/.test(error.message),
+    argv.join(' '),
+  )
+}
+
+test('desktop and pinned records need the R5 protocol: at least 10 warm and 5 cold runs', () => {
+  for (const label of ['desktop', 'pinned']) {
+    const base = ['run', 'app-5', '--runner', 'jest', '--label', label]
+    protocolError([...base, '--warm', '1', '--cold', '1'])
+    protocolError([...base, '--warm', '9', '--cold', '5'])
+    protocolError([...base, '--warm', '10', '--cold', '4'])
+    protocolError([...base, '--warm', '2'])
+    protocolError([...base, '--cold', '2'])
+    const exact = parseCli([...base, '--warm', '10', '--cold', '5'])
+    assert.equal(exact.command === 'run' && exact.label, label)
+    assert.equal(parseCli(base).command, 'run')
+  }
+})
+
+test('a local run below the protocol is allowed; the summary warns about it', () => {
+  const parsed = parseCli(['run', 'app-5', '--runner', 'jest', '--warm', '1', '--cold', '1'])
+  assert.deepEqual(parsed.command === 'run' && [parsed.label, parsed.warm, parsed.cold], [
+    'local',
+    1,
+    1,
+  ])
+})
+
+test('--timeout is whole minutes, at least one, and small enough for a timer', () => {
+  const timeout = (value: string) =>
+    parseCli(['run', 'app-5', '--runner', 'jest', '--timeout', value])
+  assert.equal((timeout('1') as { timeoutMs: number }).timeoutMs, 60_000)
+  assert.equal((timeout('35791') as { timeoutMs: number }).timeoutMs, 35791 * 60_000)
+  for (const bad of ['0', '1.5', '1e1', 'soon', '', '35792']) {
+    usageError(['run', 'app-5', '--runner', 'jest', '--timeout', bad])
+  }
+})
+
+test('an empty --out or --machine-id is rejected', () => {
+  for (const flag of ['--out', '--machine-id']) {
+    for (const empty of ['', '   ']) {
+      usageError(['run', 'app-5', '--runner', 'jest', flag, empty])
+    }
+  }
+})
+
+test('an option that does not apply to the command is rejected rather than ignored', () => {
+  usageError(['generate', 'app-5', '--runner', 'jest'])
+  usageError(['generate', 'app-5', '--label', 'pinned'])
+  usageError(['generate', 'app-5', '--warm', '3'])
+  usageError(['check', 'app-5', '--runner', 'jest', '--label', 'pinned'])
+  usageError(['check', 'app-5', '--runner', 'jest', '--warm', '3'])
+  usageError(['check', 'app-5', '--runner', 'jest', '--cold', '3'])
+  usageError(['check', 'app-5', '--runner', 'jest', '--out', 'x.json'])
+  usageError(['check', 'app-5', '--runner', 'jest', '--machine-id', 'x'])
+  usageError(['check', 'app-5', '--runner', 'jest', '--timeout', '5'])
+  assert.equal(parseCli(['check', 'app-5', '--runner', 'jest']).command, 'check')
+  assert.equal(parseCli(['generate', 'app-5']).command, 'generate')
+  assert.throws(
+    () => parseCli(['check', 'app-5', '--runner', 'jest', '--label', 'pinned']),
+    (error) => error instanceof BenchError && /--label does not apply to check/.test(error.message),
+  )
 })
 
 test('an unknown suite is reported as such', () => {

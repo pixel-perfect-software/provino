@@ -5,6 +5,7 @@ import type {
   IsolationTier,
   NormalizedRun,
   NormalizedTest,
+  RunRef,
   SchemaVersion,
   TestStatus,
   WallStats,
@@ -41,3 +42,14 @@ void ci
 // Isolation reuses Provino's tiers.
 expectTypeOf<IsolationMode>().toEqualTypeOf<IsolationTier | 'runner-default'>()
 expectTypeOf<WallStats['samplesMs']>().toEqualTypeOf<readonly number[]>()
+
+// A run ref says whether the working tree was dirty when the bench started, so a record can never
+// claim a commit it did not measure. The field is required, boolean and read-only.
+expectTypeOf<RunRef['dirty']>().toEqualTypeOf<boolean>()
+expectTypeOf<BenchRecord['ref']>().toEqualTypeOf<RunRef>()
+// @ts-expect-error a run ref must say whether the tree was dirty
+const undeclared: RunRef = { sha: 'a', date: '2026-11-02T00:00:00.000Z' }
+void undeclared
+declare const ref: RunRef
+// @ts-expect-error a run ref is read-only
+ref.dirty = true

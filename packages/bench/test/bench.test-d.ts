@@ -108,7 +108,7 @@ expectTypeOf(parseLabel).returns.toEqualTypeOf<BenchLabel>()
 expectTypeOf(buildRecord).returns.toEqualTypeOf<BenchRecord>()
 buildRecord({
   label: 'local',
-  ref: { sha: 'a', date: '2026-11-02T00:00:00.000Z' },
+  ref: { sha: 'a', date: '2026-11-02T00:00:00.000Z', dirty: false },
   environment: readEnvironment({}),
   machineId: 'local-darwin-arm64',
   results: [],
@@ -116,6 +116,14 @@ buildRecord({
 buildRecord({
   // @ts-expect-error a bad label
   label: 'production',
+  ref: { sha: 'a', date: '2026-11-02T00:00:00.000Z', dirty: false },
+  environment: readEnvironment({}),
+  machineId: 'x',
+  results: [],
+})
+buildRecord({
+  label: 'local',
+  // @ts-expect-error a ref must say whether the tree was dirty
   ref: { sha: 'a', date: '2026-11-02T00:00:00.000Z' },
   environment: readEnvironment({}),
   machineId: 'x',

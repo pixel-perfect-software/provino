@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { arch, availableParallelism, cpus, platform, release, totalmem } from 'node:os'
-import type { RunEnvironment, RunRef } from '@provino/types'
+import type { BenchLabel, RunEnvironment, RunRef } from '@provino/types'
 import { BenchError } from './errors.ts'
 
 /**
@@ -35,26 +35,50 @@ export function readEnvironment(
   }
 }
 
-/**
- * The commit under `cwd` and the time of the run. `now` is a test seam.
- * @public
- */
-export function readRunRef(options?: { readonly cwd?: string; readonly now?: Date }): RunRef {
-  let sha: string
+function git(cwd: string | undefined, args: readonly string[], what: string): string {
   try {
-    sha = execFileSync('git', ['rev-parse', 'HEAD'], {
-      cwd: options?.cwd,
+    return execFileSync('git', args, {
+      cwd,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim()
+    })
   } catch (cause) {
     throw new BenchError(
       'BENCH_GIT_UNAVAILABLE',
-      'could not read the commit with git rev-parse HEAD',
+      `could not read ${what} with git ${args.join(' ')}`,
       {
         cause,
       },
     )
   }
-  return { sha, date: (options?.now ?? new Date()).toISOString() }
+}
+
+/**
+ * The commit under `cwd`, whether its working tree is dirty (`git status --porcelain` printed
+ * anything, untracked files included), and the time. Read this when the bench starts, before any
+ * run, so the record names the code that was measured and a git failure costs nothing. `now` is a
+ * test seam.
+ * @public
+ */
+export function readRunRef(options?: { readonly cwd?: string; readonly now?: Date }): RunRef {
+  const cwd = options?.cwd
+  const date = (options?.now ?? new Date()).toISOString()
+  const sha = git(cwd, ['rev-parse', 'HEAD'], 'the commit').trim()
+  const dirty = git(cwd, ['status', '--porcelain'], 'the working tree state').trim() !== ''
+  return { sha, date, dirty }
+}
+
+/**
+ * Refuses a `desktop` or `pinned` record on a dirty tree with `BENCH_DIRTY_TREE`: those labels
+ * name a commit that anyone can check out, which a dirty tree makes untrue. A `local` record may
+ * be dirty; its summary says so.
+ * @public
+ */
+export function requireCleanTree(label: BenchLabel, ref: RunRef): void {
+  if (label !== 'local' && ref.dirty) {
+    throw new BenchError(
+      'BENCH_DIRTY_TREE',
+      `refusing a ${label} run: the git working tree has uncommitted changes (git status --porcelain is not empty), so commit ${ref.sha.slice(0, 7)} would not describe the code measured. Commit or stash them, or use --label local`,
+    )
+  }
 }

@@ -8,15 +8,19 @@ export {
   type TestSummary,
 } from './check.ts'
 export { type CliCommand, parseCli, USAGE } from './cli-args.ts'
-export { type CliIo, runCli } from './commands.ts'
-export { isCi, readEnvironment, readRunRef } from './environment.ts'
+export { type CliDeps, type CliIo, runCli } from './commands.ts'
+export { isCi, readEnvironment, readRunRef, requireCleanTree } from './environment.ts'
 export { BenchError, type BenchErrorCode } from './errors.ts'
 export {
+  DEFAULT_RUN_TIMEOUT_MS,
   type ExecOutcome,
   type ExecProcess,
   type ExecRequest,
   execProcess,
+  exitOnSignals,
+  MAX_RUN_TIMEOUT_MS,
   parseTimes,
+  TIMEOUT_EXIT_CODE,
   TIMES_WRAPPER,
 } from './exec.ts'
 export {
@@ -53,6 +57,7 @@ export {
   type Flavour,
   type GeneratedFile,
 } from './generators/render.ts'
+export { prepareOutput, writeRecordFile } from './output.ts'
 export {
   BENCH_LABELS,
   buildRecord,
@@ -66,11 +71,14 @@ export {
   type BenchSubjectSpec,
   type CacheDir,
   type CacheKind,
+  cacheDirProblem,
   DEFAULT_COLD_RUNS,
   DEFAULT_WARM_RUNS,
+  MIN_CACHE_DIR_DEPTH,
   type RunEvent,
   type RunPhase,
   runBench,
+  SPAWN_FAILED_EXIT_CODE,
 } from './run-bench.ts'
 export {
   BOOTSTRAP_RESAMPLES,
@@ -114,6 +122,7 @@ export {
   createPsReader,
   type ProcessEntry,
   type ProcessTableReader,
+  PS_TIMEOUT_MS,
   parseProcStatus,
   parsePsOutput,
   processTree,

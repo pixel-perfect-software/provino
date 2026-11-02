@@ -18,8 +18,14 @@ export type BenchLabel = 'local' | 'desktop' | 'pinned'
  */
 export interface RunRef {
   readonly sha: string
-  /** ISO 8601. */
+  /** ISO 8601. When the bench started, not when it finished. */
   readonly date: string
+  /**
+   * True when `git status --porcelain` was non-empty when the bench started, so `sha` does not
+   * describe the code that was measured. The bench refuses `desktop` and `pinned` runs on a dirty
+   * tree.
+   */
+  readonly dirty: boolean
   readonly release?: string
 }
 
