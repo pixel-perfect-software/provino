@@ -1,16 +1,29 @@
-import type { Policy, PolicyOverrides } from '@provino/types'
+import type { Policy, PolicyAtom, PolicyOverrides } from '@provino/types'
 import { PolicyError } from './errors.ts'
 import { copyValue, deepFreeze, isGroup, isPlainObject, joinPath } from './internal/objects.ts'
 import { neutralPolicy } from './neutral.ts'
 
+/** Dotted paths of the keys in `T` typed as records (index signatures, such as `mock.messages`). */
+type RecordPaths<T, Prefix extends string = ''> = T extends PolicyAtom
+  ? never
+  : string extends keyof T
+    ? Prefix
+    : {
+        [K in keyof T & string]: RecordPaths<T[K], Prefix extends '' ? K : `${Prefix}.${K}`>
+      }[keyof T & string]
+
 /**
- * Keys typed as records (`Readonly<Record<string, …>>`): their keys are data, not a fixed shape.
- * A layer that sets one replaces it whole, like an array.
+ * The record keys: their keys are data, not a fixed shape, so a layer that sets one replaces it
+ * whole, like an array. The type check below fails, naming the path, if a record key in `Policy`
+ * is missing here.
  */
-const RECORDS: ReadonlySet<string> = new Set([
+const RECORD_PATHS = [
   'mock.messages',
   'orchestrator.isolationDefault.byEnvironment',
-])
+] as const satisfies readonly RecordPaths<Policy>[]
+type UnlistedRecord = Exclude<RecordPaths<Policy>, (typeof RECORD_PATHS)[number]>
+const _everyRecordListed: [UnlistedRecord] extends [never] ? true : UnlistedRecord = true
+const RECORDS: ReadonlySet<string> = new Set(RECORD_PATHS)
 
 /**
  * Resolves policy layers over `neutralPolicy`, lowest first: `resolvePolicy(dialect, project,

@@ -42,15 +42,14 @@ export function formatPolicyDiff(
   rows: readonly PolicyDifference[],
   labels: readonly [string, string] = ['a', 'b'],
 ): string {
-  const table = [['key', ...labels], ...rows.map((row) => [row.path, show(row.a), show(row.b)])]
-  const widths = [0, 1].map((col) => Math.max(...table.map((cells) => cells[col]?.length ?? 0)))
+  const table: (readonly [string, string, string])[] = [
+    ['key', ...labels],
+    ...rows.map((row) => [row.path, show(row.a), show(row.b)] as const),
+  ]
+  const keyWidth = Math.max(...table.map(([key]) => key.length))
+  const aWidth = Math.max(...table.map(([, a]) => a.length))
   return table
-    .map((cells) =>
-      cells
-        .map((cell, col) => (col < 2 ? cell.padEnd(widths[col] ?? 0) : cell))
-        .join('  ')
-        .trimEnd(),
-    )
+    .map(([key, a, b]) => `${key.padEnd(keyWidth)}  ${a.padEnd(aWidth)}  ${b}`.trimEnd())
     .join('\n')
 }
 

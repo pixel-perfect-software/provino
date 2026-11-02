@@ -7,7 +7,13 @@ import { PolicyError } from './errors.ts'
  * Imports a module by specifier and returns its namespace.
  * @public
  */
-export type ModuleImporter = (specifier: string) => Promise<Readonly<Record<string, unknown>>>
+export type ModuleImporter = (specifier: string) => Promise<ModuleNamespace>
+
+/**
+ * A module's exports by name.
+ * @public
+ */
+export type ModuleNamespace = Readonly<Record<string, unknown>>
 
 /**
  * Loads behaviour keys. A worker owns one loader (in its worker context), so each `ModuleRef`'s
@@ -40,9 +46,9 @@ const defaultImporter: ModuleImporter = (specifier) =>
  */
 export function createBehaviourLoader(options: BehaviourLoaderOptions = {}): BehaviourLoader {
   const importModule = options.importModule ?? defaultImporter
-  const modules = new Map<string, Promise<Readonly<Record<string, unknown>>>>()
+  const modules = new Map<string, Promise<ModuleNamespace>>()
 
-  function importOnce(specifier: string): Promise<Readonly<Record<string, unknown>>> {
+  function importOnce(specifier: string): Promise<ModuleNamespace> {
     let pending = modules.get(specifier)
     if (pending === undefined) {
       pending = importModule(specifier)
@@ -62,7 +68,7 @@ export function createBehaviourLoader(options: BehaviourLoaderOptions = {}): Beh
         `"${ref.module}" is relative; build refs with import.meta.resolve()`,
       )
     }
-    let namespace: Readonly<Record<string, unknown>>
+    let namespace: ModuleNamespace
     try {
       namespace = await importOnce(ref.module)
     } catch (cause) {
@@ -82,12 +88,13 @@ export function createBehaviourLoader(options: BehaviourLoaderOptions = {}): Beh
   }
 
   return {
-    load<Fn extends AnyFunction>(behaviour: Behaviour<Fn>): Promise<Fn> {
-      if (typeof behaviour === 'function') return Promise.resolve(behaviour)
+    async load<Fn extends AnyFunction>(behaviour: Behaviour<Fn>): Promise<Fn> {
+      if (typeof behaviour === 'function') return behaviour
       // A nullable behaviour key (`orderHooks`, …) must be checked before it is loaded.
       if (behaviour === null || typeof behaviour !== 'object') {
-        return Promise.reject(
-          new PolicyError('POLICY_BEHAVIOUR_NOT_FUNCTION', `not a behaviour: ${String(behaviour)}`),
+        throw new PolicyError(
+          'POLICY_BEHAVIOUR_NOT_FUNCTION',
+          `not a behaviour: ${String(behaviour)}`,
         )
       }
       return loadRef(behaviour)
@@ -106,5 +113,6 @@ export async function callBehaviour<Args extends readonly unknown[], Result>(
   ...args: Args
 ): Promise<Awaited<Result>> {
   const fn = await loader.load(behaviour)
+  // `await` unwraps a behaviour that returns a promise, matching the Awaited<Result> type.
   return await fn(...args)
 }

@@ -1,3 +1,5 @@
+import type { ModuleRef } from '@provino/types'
+
 /** @internal */
 export function isPlainObject(value: unknown): value is Readonly<Record<string, unknown>> {
   if (value === null || typeof value !== 'object') return false
@@ -7,10 +9,10 @@ export function isPlainObject(value: unknown): value is Readonly<Record<string, 
 
 /**
  * Whether a value is a `ModuleRef`: a plain object with string `module` and `export` and no other
- * own keys.
- * @internal
+ * own keys. Re-exported publicly from `module-ref.ts`.
+ * @public
  */
-export function isRefShaped(value: unknown): boolean {
+export function isModuleRef(value: unknown): value is ModuleRef {
   return (
     isPlainObject(value) &&
     Object.keys(value).length === 2 &&
@@ -24,7 +26,7 @@ export function isRefShaped(value: unknown): boolean {
  * @internal
  */
 export function isGroup(value: unknown): value is Readonly<Record<string, unknown>> {
-  return isPlainObject(value) && !isRefShaped(value)
+  return isPlainObject(value) && !isModuleRef(value)
 }
 
 /**

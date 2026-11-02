@@ -1,5 +1,6 @@
 import type { AnyFunction, ModuleRef } from '@provino/types'
-import { isRefShaped } from './internal/objects.ts'
+
+export { isModuleRef } from './internal/objects.ts'
 
 /**
  * Builds a `ModuleRef`. Pass an absolute path, a `file:` URL (`import.meta.resolve('./x.ts')`) or
@@ -11,13 +12,4 @@ export function moduleRef<Fn extends AnyFunction>(
   exportName: string,
 ): ModuleRef<Fn> {
   return Object.freeze({ module, export: exportName })
-}
-
-/**
- * Whether a value is a `ModuleRef`: a plain object with string `module` and `export` and no other
- * own keys.
- * @public
- */
-export function isModuleRef(value: unknown): value is ModuleRef {
-  return isRefShaped(value)
 }

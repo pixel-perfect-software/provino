@@ -1,4 +1,9 @@
-export type { BehaviourLoader, BehaviourLoaderOptions, ModuleImporter } from './behaviour-loader.ts'
+export type {
+  BehaviourLoader,
+  BehaviourLoaderOptions,
+  ModuleImporter,
+  ModuleNamespace,
+} from './behaviour-loader.ts'
 export { callBehaviour, createBehaviourLoader } from './behaviour-loader.ts'
 export { defineDialect } from './dialect.ts'
 export type { PolicyDifference } from './diff.ts'

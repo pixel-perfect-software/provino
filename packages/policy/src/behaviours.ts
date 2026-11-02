@@ -6,6 +6,9 @@ import type { EnvironmentConditions, FormatEachTitle, SnapshotKey } from '@provi
 
 // `$name` or `$a.b`; a path never ends in a dot, so `$value.` keeps its period.
 const PLACEHOLDER = /%[%#$sdifjoOp]|\$([A-Za-z_]\w*(?:\.\w+)*)/g
+const DOM_ENVIRONMENTS: ReadonlySet<string> = new Set(['jsdom', 'happy-dom'])
+// One line, whatever the value: a title with a newline breaks reporters and `-t` matching.
+const INSPECT = { depth: 2, breakLength: Infinity, compact: true } as const
 
 /**
  * Formats a `.each` title. `%s %d %i %f %j %o %O %p` take the row's values in order, `%#` is the
@@ -34,8 +37,6 @@ export const formatEachTitle: FormatEachTitle = (template, row, index) => {
  */
 export const snapshotKey: SnapshotKey = (fullName, count) => `${fullName} ${count}`
 
-const DOM_ENVIRONMENTS: ReadonlySet<string> = new Set(['jsdom', 'happy-dom'])
-
 /**
  * Export conditions for an environment: its own list if it has one, `['browser']` for the DOM
  * environments, otherwise `['node']`.
@@ -53,8 +54,8 @@ function readPath(row: unknown, path: string): unknown {
   return value
 }
 
-const INSPECT = { depth: 2, breakLength: Infinity, compact: true } as const
-
+// Not util.format: it parses '%i' like parseInt ('12abc' → 12), throws on a BigInt %j, and
+// prints %s/%o at depth 0, which the neutral titles shouldn't.
 function show(value: unknown, kind: string): string {
   switch (kind) {
     case 's':
@@ -62,6 +63,7 @@ function show(value: unknown, kind: string): string {
     case 'd':
     case 'i':
     case 'f': {
+      // %i truncates; %d and %f print the number as it is.
       if (typeof value === 'bigint') return `${value}n`
       const n = typeof value === 'symbol' ? Number.NaN : Number(value)
       return String(kind === 'i' ? Math.trunc(n) : n)
