@@ -8,7 +8,6 @@ provino/
 ├── LICENSE                       # MIT (DECISIONS D2)
 ├── package.json                  # becomes the private workspace root in B01
 ├── .claude/
-│   ├── settings.json             # shared permissions: publish and force-push denied; push and PRs ask
 │   ├── context/ai-context/       # registry, architecture, structure, handoff.md (gitignored)
 │   └── rules/                    # path-scoped rules; load only when matching files are touched
 ├── docs/                         # private provino-planning repo, gitignored here (CLAUDE.md)
