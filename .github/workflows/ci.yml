@@ -76,7 +76,7 @@ jobs:
       - run: pnpm ${{ matrix.script }}
 
   lint:
-    name: Lint and format
+    name: Lint, format and boundaries
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -90,3 +90,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm format:check
+      # Manifest vs workspace vs generated config, then dependency-cruiser (DECISIONS D11).
+      - run: pnpm boundaries

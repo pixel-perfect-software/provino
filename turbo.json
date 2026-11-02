@@ -14,7 +14,7 @@
     "test": {
       "dependsOn": ["transit"],
       "env": ["PROVINO_NODE"],
-      "passThroughEnv": ["NODE_OPTIONS"],
+      "passThroughEnv": ["NODE_OPTIONS", "TMPDIR"],
       "outputs": []
     },
     "bench": {

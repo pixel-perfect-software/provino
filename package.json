@@ -24,7 +24,9 @@
     "test:types:ts5.9": "node node_modules/typescript-5.9/bin/tsc -b tsconfig.type-tests.json",
     "lint": "biome check --formatter-enabled=false",
     "format": "biome format --write",
-    "format:check": "biome format"
+    "format:check": "biome format",
+    "boundaries": "node tooling/boundaries/src/cli.ts check && depcruise --config .dependency-cruiser.json packages tooling",
+    "boundaries:write": "node tooling/boundaries/src/cli.ts write"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

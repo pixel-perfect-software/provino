@@ -1,0 +1,103 @@
+{
+  "plugins": [
+    {
+      "path": "../grit/neutral-no-dialect-compare.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/config/**",
+        "packages/core/**",
+        "packages/expect/**",
+        "packages/lazy/**",
+        "packages/loader/**",
+        "packages/mock/**",
+        "packages/orchestrator/**",
+        "packages/reporters/**",
+        "packages/snapshot/**",
+        "packages/timers/**"
+      ]
+    },
+    {
+      "path": "./slice-discipline.core.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/core/**"
+      ]
+    },
+    {
+      "path": "./slice-discipline.coverage.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/coverage/**"
+      ]
+    },
+    {
+      "path": "./slice-discipline.expect.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/expect/**"
+      ]
+    },
+    {
+      "path": "./slice-discipline.lazy.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/lazy/**"
+      ]
+    },
+    {
+      "path": "./slice-discipline.mock+module.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/mock/**"
+      ]
+    },
+    {
+      "path": "./slice-discipline.module.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/loader/**"
+      ]
+    },
+    {
+      "path": "./slice-discipline.none.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/codemod-lazy/**",
+        "packages/env-happy-dom/**",
+        "packages/env-jsdom/**",
+        "packages/env-node/**",
+        "packages/env-shared/**",
+        "packages/eslint-plugin/**",
+        "packages/jest-globals/**",
+        "packages/native-*/**",
+        "packages/native/**",
+        "packages/provino/**",
+        "packages/resolver/**",
+        "packages/rpc/**",
+        "packages/transform/**",
+        "packages/vitest-compat/**"
+      ]
+    },
+    {
+      "path": "./slice-discipline.report.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/reporters/**"
+      ]
+    },
+    {
+      "path": "./slice-discipline.snapshot.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/snapshot/**"
+      ]
+    },
+    {
+      "path": "./slice-discipline.timers.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/timers/**"
+      ]
+    }
+  ]
+}

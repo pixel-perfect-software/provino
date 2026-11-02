@@ -1,0 +1,440 @@
+{
+  "$comment": [
+    "The package manifest: the source of truth for package boundaries (monorepo-architecture.md).",
+    "Every package the plan needs is listed, created or not; dir null means not placed yet.",
+    "A node named <package>/<entry> is a subpath entry with its own rules; it owns <dir>/** and",
+    "its parent owns the rest of the package. deps lists the nodes a node may import, and",
+    "\"@provino/*\" means every shipped node in a lower layer (any layer, for dev and tooling).",
+    "slices lists the policy slice types the package may import (\"all\" = exempt). neutral",
+    "turns on the no-dialect-string lint. After editing, run `pnpm boundaries:write`."
+  ],
+  "slices": {
+    "core": "CorePolicy",
+    "lazy": "LazyPolicy",
+    "mock": "MockPolicy",
+    "timers": "TimersPolicy",
+    "module": "ModulePolicy",
+    "snapshot": "SnapshotPolicy",
+    "expect": "ExpectPolicy",
+    "orchestrator": "OrchestratorPolicy",
+    "report": "ReportPolicy",
+    "coverage": "CoveragePolicy"
+  },
+  "wholePolicyTypes": ["Policy", "PolicySlices", "PolicyOverrides", "SerializedPolicy"],
+  "nodes": {
+    "@provino/types": {
+      "dir": "packages/types",
+      "layer": 0,
+      "runsIn": "types",
+      "deps": [],
+      "slices": "all"
+    },
+    "@provino/policy": {
+      "dir": "packages/policy",
+      "layer": 1,
+      "runsIn": "both",
+      "deps": ["@provino/types"],
+      "slices": "all"
+    },
+    "@provino/rpc": {
+      "dir": "packages/rpc",
+      "layer": 1,
+      "runsIn": "both",
+      "deps": ["@provino/types"],
+      "slices": []
+    },
+    "@provino/resolver": {
+      "dir": "packages/resolver",
+      "layer": 1,
+      "runsIn": "both",
+      "deps": ["@provino/types"],
+      "slices": []
+    },
+    "@provino/native": {
+      "dir": "packages/native",
+      "layer": 1,
+      "runsIn": "both",
+      "deps": ["@provino/types"],
+      "slices": [],
+      "phase": 3
+    },
+    "@provino/native-*": {
+      "dir": "packages/native-*",
+      "layer": 1,
+      "runsIn": "both",
+      "deps": [],
+      "slices": [],
+      "phase": 3,
+      "note": "Platform binary packages (@provino/native-<platform>)."
+    },
+    "@provino/eslint-plugin": {
+      "dir": "packages/eslint-plugin",
+      "layer": 1,
+      "runsIn": "external",
+      "deps": [],
+      "slices": [],
+      "phase": 4,
+      "note": "Runs inside the user's ESLint or oxlint (T6.11)."
+    },
+    "@provino/transform": {
+      "dir": "packages/transform",
+      "layer": 2,
+      "runsIn": "both",
+      "deps": ["@provino/types", "@provino/resolver"],
+      "slices": []
+    },
+    "@provino/snapshot": {
+      "dir": "packages/snapshot",
+      "layer": 2,
+      "runsIn": "both",
+      "deps": ["@provino/types", "@provino/policy"],
+      "slices": ["snapshot"],
+      "neutral": true
+    },
+    "@provino/snapshot/runtime": {
+      "dir": "packages/snapshot/src/runtime",
+      "layer": 2,
+      "runsIn": "worker",
+      "deps": ["@provino/types", "@provino/policy", "@provino/snapshot"],
+      "slices": ["snapshot"],
+      "neutral": true
+    },
+    "@provino/snapshot/node": {
+      "dir": "packages/snapshot/src/node",
+      "layer": 2,
+      "runsIn": "coordinator",
+      "deps": ["@provino/types", "@provino/policy", "@provino/snapshot"],
+      "slices": ["snapshot"],
+      "neutral": true
+    },
+    "@provino/coverage": {
+      "dir": "packages/coverage",
+      "layer": 2,
+      "runsIn": "both",
+      "deps": ["@provino/types"],
+      "slices": ["coverage"]
+    },
+    "@provino/coverage/runtime": {
+      "dir": "packages/coverage/src/runtime",
+      "layer": 2,
+      "runsIn": "worker",
+      "deps": ["@provino/types", "@provino/coverage"],
+      "slices": ["coverage"]
+    },
+    "@provino/coverage/node": {
+      "dir": "packages/coverage/src/node",
+      "layer": 2,
+      "runsIn": "coordinator",
+      "deps": ["@provino/types", "@provino/coverage"],
+      "slices": ["coverage"]
+    },
+    "@provino/mock": {
+      "dir": "packages/mock",
+      "layer": 2,
+      "runsIn": "worker",
+      "deps": ["@provino/types", "@provino/policy"],
+      "slices": ["mock", "module"],
+      "neutral": true
+    },
+    "@provino/timers": {
+      "dir": "packages/timers",
+      "layer": 2,
+      "runsIn": "worker",
+      "deps": ["@provino/types", "@provino/policy"],
+      "slices": ["timers"],
+      "neutral": true
+    },
+    "@provino/expect": {
+      "dir": "packages/expect",
+      "layer": 2,
+      "runsIn": "worker",
+      "deps": ["@provino/types", "@provino/policy", "@provino/snapshot/runtime"],
+      "slices": ["expect"],
+      "neutral": true
+    },
+    "@provino/env-shared": {
+      "dir": "packages/env-shared",
+      "layer": 2,
+      "runsIn": "worker",
+      "deps": ["@provino/types"],
+      "slices": [],
+      "note": "Only if both DOM environments share populateGlobal (build-plan §6)."
+    },
+    "@provino/codemod-lazy": {
+      "dir": "packages/codemod-lazy",
+      "layer": 2,
+      "runsIn": "external",
+      "deps": ["@provino/eslint-plugin"],
+      "slices": [],
+      "phase": 4,
+      "note": "A CLI codemod; shares detection logic with the lint rules (T6.12)."
+    },
+    "@provino/loader": {
+      "dir": "packages/loader",
+      "layer": 3,
+      "runsIn": "worker",
+      "deps": [
+        "@provino/types",
+        "@provino/policy",
+        "@provino/resolver",
+        "@provino/transform",
+        "@provino/mock"
+      ],
+      "slices": ["module"],
+      "neutral": true
+    },
+    "@provino/core": {
+      "dir": "packages/core",
+      "layer": 3,
+      "runsIn": "worker",
+      "deps": ["@provino/types", "@provino/policy"],
+      "slices": ["core"],
+      "neutral": true
+    },
+    "@provino/env-node": {
+      "dir": "packages/env-node",
+      "layer": 3,
+      "runsIn": "worker",
+      "deps": ["@provino/types"],
+      "slices": []
+    },
+    "@provino/env-jsdom": {
+      "dir": "packages/env-jsdom",
+      "layer": 3,
+      "runsIn": "worker",
+      "deps": ["@provino/types", "@provino/env-shared"],
+      "slices": []
+    },
+    "@provino/env-happy-dom": {
+      "dir": "packages/env-happy-dom",
+      "layer": 3,
+      "runsIn": "worker",
+      "deps": ["@provino/types", "@provino/env-shared"],
+      "slices": []
+    },
+    "@provino/lazy": {
+      "dir": "packages/lazy",
+      "layer": 4,
+      "runsIn": "worker",
+      "deps": ["@provino/types", "@provino/core"],
+      "slices": ["lazy"],
+      "neutral": true
+    },
+    "@provino/config": {
+      "dir": "packages/config",
+      "layer": 4,
+      "runsIn": "coordinator",
+      "deps": ["@provino/types", "@provino/policy", "@provino/transform"],
+      "slices": "all",
+      "neutral": true
+    },
+    "@provino/reporters": {
+      "dir": "packages/reporters",
+      "layer": 4,
+      "runsIn": "coordinator",
+      "deps": ["@provino/types"],
+      "slices": ["report"],
+      "neutral": true
+    },
+    "@provino/orchestrator": {
+      "dir": "packages/orchestrator",
+      "layer": 5,
+      "runsIn": "coordinator",
+      "deps": [
+        "@provino/types",
+        "@provino/policy",
+        "@provino/rpc",
+        "@provino/config",
+        "@provino/reporters",
+        "@provino/resolver",
+        "@provino/snapshot/node",
+        "@provino/coverage/node"
+      ],
+      "slices": "all",
+      "neutral": true
+    },
+    "@provino/orchestrator/worker": {
+      "dir": "packages/orchestrator/src/worker",
+      "layer": 5,
+      "runsIn": "worker",
+      "deps": [
+        "@provino/types",
+        "@provino/policy",
+        "@provino/rpc",
+        "@provino/loader",
+        "@provino/core",
+        "@provino/lazy",
+        "@provino/expect",
+        "@provino/mock",
+        "@provino/timers",
+        "@provino/snapshot/runtime",
+        "@provino/coverage/runtime"
+      ],
+      "slices": "all",
+      "neutral": true,
+      "note": "The worker entry (U1). Environments load by ModuleRef, not import. Never imports the coordinator entry."
+    },
+    "@provino/dialect-jest": {
+      "dir": "packages/dialect-jest",
+      "layer": 5,
+      "runsIn": "both",
+      "deps": ["@provino/types", "@provino/policy"],
+      "slices": "all"
+    },
+    "@provino/dialect-jest/node": {
+      "dir": "packages/dialect-jest/src/node",
+      "layer": 5,
+      "runsIn": "coordinator",
+      "deps": [
+        "@provino/types",
+        "@provino/policy",
+        "@provino/config",
+        "@provino/resolver",
+        "@provino/transform",
+        "@provino/dialect-jest"
+      ],
+      "slices": "all"
+    },
+    "@provino/dialect-jest/runtime": {
+      "dir": "packages/dialect-jest/src/runtime",
+      "layer": 5,
+      "runsIn": "worker",
+      "deps": [
+        "@provino/types",
+        "@provino/policy",
+        "@provino/core",
+        "@provino/lazy",
+        "@provino/expect",
+        "@provino/mock",
+        "@provino/timers",
+        "@provino/dialect-jest"
+      ],
+      "slices": "all"
+    },
+    "@provino/dialect-vitest": {
+      "dir": "packages/dialect-vitest",
+      "layer": 5,
+      "runsIn": "both",
+      "deps": ["@provino/types", "@provino/policy"],
+      "slices": "all"
+    },
+    "@provino/dialect-vitest/node": {
+      "dir": "packages/dialect-vitest/src/node",
+      "layer": 5,
+      "runsIn": "coordinator",
+      "deps": [
+        "@provino/types",
+        "@provino/policy",
+        "@provino/config",
+        "@provino/resolver",
+        "@provino/transform",
+        "@provino/dialect-vitest"
+      ],
+      "slices": "all"
+    },
+    "@provino/dialect-vitest/runtime": {
+      "dir": "packages/dialect-vitest/src/runtime",
+      "layer": 5,
+      "runsIn": "worker",
+      "deps": [
+        "@provino/types",
+        "@provino/policy",
+        "@provino/core",
+        "@provino/lazy",
+        "@provino/expect",
+        "@provino/mock",
+        "@provino/timers",
+        "@provino/dialect-vitest"
+      ],
+      "slices": "all"
+    },
+    "@provino/dialect-node-test": {
+      "dir": "packages/dialect-node-test",
+      "layer": 5,
+      "runsIn": "both",
+      "deps": ["@provino/types", "@provino/policy"],
+      "slices": "all",
+      "phase": 4,
+      "note": "Private third-dialect conformance check (T1.11)."
+    },
+    "@provino/dialect-node-test/runtime": {
+      "dir": "packages/dialect-node-test/src/runtime",
+      "layer": 5,
+      "runsIn": "worker",
+      "deps": [
+        "@provino/types",
+        "@provino/policy",
+        "@provino/core",
+        "@provino/mock",
+        "@provino/dialect-node-test"
+      ],
+      "slices": "all",
+      "phase": 4
+    },
+    "provino": {
+      "dir": "packages/provino",
+      "layer": 6,
+      "runsIn": "both",
+      "compositionRoot": true,
+      "deps": ["@provino/*"],
+      "slices": [],
+      "note": "The umbrella and CLI. Its subpaths split by process; the build pre-bundles the worker hot path."
+    },
+    "@provino/vitest-compat": {
+      "dir": "packages/vitest-compat",
+      "layer": 6,
+      "runsIn": "both",
+      "compositionRoot": true,
+      "deps": [
+        "@provino/types",
+        "@provino/dialect-vitest",
+        "@provino/dialect-vitest/node",
+        "@provino/dialect-vitest/runtime",
+        "provino"
+      ],
+      "slices": [],
+      "phase": 2,
+      "note": "npm alias package for `vitest` imports (T11)."
+    },
+    "@provino/jest-globals": {
+      "dir": "packages/jest-globals",
+      "layer": 6,
+      "runsIn": "worker",
+      "deps": ["@provino/types", "@provino/dialect-jest/runtime"],
+      "slices": [],
+      "phase": 2,
+      "note": "npm alias package for `@jest/globals` (T11)."
+    },
+    "@provino/harness": {
+      "dir": "packages/harness",
+      "layer": "dev",
+      "runsIn": "dev",
+      "deps": ["@provino/*", "provino"],
+      "slices": "all",
+      "note": "Runs Provino only through provino/node (DECISIONS S4)."
+    },
+    "@provino/bench": {
+      "dir": "packages/bench",
+      "layer": "dev",
+      "runsIn": "dev",
+      "deps": ["@provino/*", "provino"],
+      "slices": "all",
+      "note": "Runs Provino only through provino/node (DECISIONS S4)."
+    },
+    "provino-site": {
+      "dir": null,
+      "layer": "dev",
+      "runsIn": "dev",
+      "deps": [],
+      "slices": [],
+      "note": "The compatibility and benchmark site (DECISIONS D8); T12.18 places it."
+    },
+    "provino-boundaries": {
+      "dir": "tooling/boundaries",
+      "layer": "tooling",
+      "runsIn": "dev",
+      "deps": ["@provino/types", "@provino/policy"],
+      "slices": "all"
+    }
+  }
+}

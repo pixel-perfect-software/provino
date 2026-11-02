@@ -6,6 +6,12 @@
     },
     {
       "path": "packages/policy"
+    },
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "tooling/boundaries"
     }
   ]
 }
