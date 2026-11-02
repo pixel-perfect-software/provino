@@ -1,0 +1,178 @@
+/**
+ * The two source flavours every suite is generated in, from one model. `cjs` is CommonJS, which
+ * Jest runs at its defaults with no ESM flags. `esm` is ES modules, which `vi.mock` needs: it
+ * can't intercept `require`, and Vite can't inline CommonJS source.
+ * @public
+ */
+export type Flavour = 'cjs' | 'esm'
+
+/**
+ * The flavours in generation order.
+ * @public
+ */
+export const FLAVOURS: readonly Flavour[] = ['cjs', 'esm']
+
+/**
+ * The directory a flavour's tree lives in under the suite: `jest/` for CommonJS, `vitest/` for
+ * ESM.
+ * @public
+ */
+export const FLAVOUR_DIR: Readonly<Record<Flavour, string>> = { cjs: 'jest', esm: 'vitest' }
+
+/**
+ * One generated file. `path` is relative to the suite directory and uses `/`.
+ * @public
+ */
+export interface GeneratedFile {
+  readonly path: string
+  readonly contents: string
+}
+
+/**
+ * A module import, rendered as `require` or `import` depending on the flavour.
+ * @public
+ */
+export type Binding =
+  | { readonly kind: 'named'; readonly names: readonly string[]; readonly from: string }
+  | { readonly kind: 'default'; readonly name: string; readonly from: string }
+  | { readonly kind: 'namespace'; readonly name: string; readonly from: string }
+
+/**
+ * Renders one import for the flavour.
+ * @public
+ */
+export function renderImport(flavour: Flavour, binding: Binding): string {
+  const from = `'${binding.from}'`
+  switch (binding.kind) {
+    case 'named': {
+      const names = binding.names.join(', ')
+      return flavour === 'cjs'
+        ? `const { ${names} } = require(${from})`
+        : `import { ${names} } from ${from}`
+    }
+    case 'default':
+      return flavour === 'cjs'
+        ? `const ${binding.name} = require(${from})`
+        : `import ${binding.name} from ${from}`
+    case 'namespace':
+      return flavour === 'cjs'
+        ? `const ${binding.name} = require(${from})`
+        : `import * as ${binding.name} from ${from}`
+  }
+}
+
+/**
+ * Renders the export of already-declared names for the flavour.
+ * @public
+ */
+export function renderExports(flavour: Flavour, names: readonly string[]): string {
+  const list = names.join(', ')
+  return flavour === 'cjs' ? `module.exports = { ${list} }` : `export { ${list} }`
+}
+
+/**
+ * The `'use strict'` prologue CommonJS files start with, and nothing for ES modules.
+ * @public
+ */
+export function prologue(flavour: Flavour): readonly string[] {
+  return flavour === 'cjs' ? ["'use strict'", ''] : []
+}
+
+/**
+ * Joins lines into a file: LF endings and one trailing newline.
+ * @public
+ */
+export function lines(parts: readonly string[]): string {
+  return `${parts.join('\n')}\n`
+}
+
+/**
+ * Pads an index to a fixed width for file names, so names sort in order.
+ * @public
+ */
+export function pad(index: number, width: number): string {
+  return String(index).padStart(width, '0')
+}
+
+/**
+ * Pretty-printed JSON with a trailing newline.
+ * @public
+ */
+export function json(value: unknown): string {
+  return `${JSON.stringify(value, null, 2)}\n`
+}
+
+/**
+ * The files every suite shares, per flavour: the package manifest, the runner config, the setup
+ * file, and for the Jest tree a placeholder Provino config.
+ *
+ * The setup file registers a custom matcher with `expect.extend` and global `beforeEach` and
+ * `afterEach` hooks that count their calls. It uses only globals, so it is the same bytes in both
+ * flavours.
+ * @public
+ */
+export function commonFiles(suite: string, flavour: Flavour): readonly GeneratedFile[] {
+  const dir = FLAVOUR_DIR[flavour]
+  const file = (name: string, contents: string): GeneratedFile => ({
+    path: `${dir}/${name}`,
+    contents,
+  })
+  const setup = file(
+    'setup.js',
+    lines([
+      'globalThis.benchHooks = { before: 0, after: 0 }',
+      '',
+      'expect.extend({',
+      '  toBeWithinRange(received, floor, ceiling) {',
+      "    const pass = typeof received === 'number' && received >= floor && received <= ceiling",
+      '    return {',
+      '      pass,',
+      "      message: () => 'expected ' + received + (pass ? ' not' : '') + ' to be within ' + floor + ' and ' + ceiling,",
+      '    }',
+      '  },',
+      '})',
+      '',
+      'beforeEach(() => {',
+      '  globalThis.benchHooks.before += 1',
+      '})',
+      '',
+      'afterEach(() => {',
+      '  globalThis.benchHooks.after += 1',
+      '})',
+    ]),
+  )
+  if (flavour === 'cjs') {
+    return [
+      file('package.json', json({ name: `bench-${suite}-jest`, private: true, type: 'commonjs' })),
+      file(
+        'jest.config.json',
+        json({
+          testEnvironment: 'node',
+          testMatch: ['<rootDir>/tests/**/*.test.js'],
+          setupFilesAfterEnv: ['<rootDir>/setup.js'],
+          cacheDirectory: '<rootDir>/../.cache/jest',
+        }),
+      ),
+      file('provino.config.ts', lines(["export default { dialect: 'jest' }"])),
+      setup,
+    ]
+  }
+  return [
+    file('package.json', json({ name: `bench-${suite}-vitest`, private: true, type: 'module' })),
+    file(
+      'vitest.config.ts',
+      lines([
+        'export default {',
+        "  cacheDir: '../.cache/vite',",
+        '  test: {',
+        '    globals: true,',
+        "    environment: 'node',",
+        "    include: ['tests/**/*.test.js'],",
+        "    setupFiles: ['./setup.js'],",
+        '  },',
+        '}',
+      ]),
+    ),
+    setup,
+  ]
+}
