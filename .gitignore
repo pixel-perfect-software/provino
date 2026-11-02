@@ -16,3 +16,7 @@ CLAUDE.local.md
 
 # Claude Code session state: one per checkout or worktree
 .claude/context/ai-context/handoff.md
+
+# build output: tsc -b declarations, Turborepo cache
+.tsc/
+.turbo/

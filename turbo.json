@@ -1,0 +1,29 @@
+{
+  "$schema": "./node_modules/turbo/schema.json",
+  "ui": "stream",
+  "globalDependencies": ["tsconfig.base.json"],
+  "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.test.ts", "!**/*.test-d.ts"],
+      "outputs": ["dist/**"]
+    },
+    "test": {
+      "dependsOn": ["transit"],
+      "env": ["PROVINO_NODE"],
+      "passThroughEnv": ["NODE_OPTIONS"],
+      "outputs": []
+    },
+    "bench": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "record": {
+      "dependsOn": ["^build"],
+      "cache": false
+    }
+  }
+}

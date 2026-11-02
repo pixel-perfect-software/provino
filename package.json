@@ -1,6 +1,7 @@
 {
-  "name": "provino",
+  "name": "provino-monorepo",
   "version": "0.0.0",
+  "private": true,
   "description": "A fast, type-safe test runner for JavaScript and TypeScript. A drop-in replacement for Jest and Vitest, with RSpec-style lazy variables built in.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
@@ -11,10 +12,28 @@
     "url": "git+https://github.com/pixel-perfect-software/provino.git"
   },
   "license": "MIT",
-  "author": "",
-  "type": "commonjs",
-  "main": "index.js",
+  "type": "module",
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "typecheck": "tsc -b",
+    "test": "PROVINO_NODE=$(node -p process.version) turbo run test",
+    "test:types": "tsc -b tsconfig.type-tests.json",
+    "test:types:ts5.9": "node node_modules/typescript-5.9/bin/tsc -b tsconfig.type-tests.json",
+    "lint": "biome check --formatter-enabled=false",
+    "format": "biome format --write",
+    "format:check": "biome format"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript/typescript6": "catalog:",
+    "expect-type": "catalog:",
+    "tsdown": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "typescript-5.9": "catalog:"
   }
 }
