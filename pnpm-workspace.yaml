@@ -8,6 +8,7 @@ minimumReleaseAge: 10080
 # Pin the newest version that is at least 7 days old on the day you install it.
 catalog:
   "@biomejs/biome": 2.6.3
+  "@standard-schema/spec": 1.1.0
   # Node 22.15 is the floor, so type against the 22.x API.
   "@types/node": 22.20.5
   # The TypeScript 6 API, as tsc6, for tools that need it (dependency-cruiser, API Extractor).

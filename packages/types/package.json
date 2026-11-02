@@ -28,5 +28,8 @@
   },
   "scripts": {
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@standard-schema/spec": "catalog:"
   }
 }
