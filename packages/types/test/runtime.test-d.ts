@@ -71,6 +71,12 @@ api.each([{ a: 1 }, { a: 2 }])('row $a', (row) => {
 })
 // @ts-expect-error an object row is one argument
 api.each([{ a: 1 }])('row', (row, extra: number) => [row, extra])
+// A table mixing tuples and other rows spreads none of them: each row is one argument.
+api.each([[1, 2], 'x'] as const)('row', (row) => {
+  expectTypeOf(row).toEqualTypeOf<readonly [1, 2] | 'x'>()
+})
+// @ts-expect-error in a mixed table no row spreads, so there is no second argument
+api.each([[1, 2], 'x'] as const)('row', (row, second: 2) => [row, second])
 api.for([1, 2])('row %d', (row, ctx) => {
   expectTypeOf(row).toEqualTypeOf<1 | 2>()
   expectTypeOf(ctx).toEqualTypeOf<TestContext>()

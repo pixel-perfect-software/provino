@@ -25,7 +25,8 @@ export const neutralPolicy: Policy = deepFreeze({
     firstArg: 'context',
     // A generator test whose body never runs would pass silently.
     allowGeneratorFns: false,
-    timeouts: { test: 5000, hook: 10000, teardown: 10000, catchSyncOverrun: true },
+    // 0 conventionally means "no timeout".
+    timeouts: { test: 5000, hook: 10000, teardown: 10000, catchSyncOverrun: true, zero: 'none' },
     nameSeparator: ' > ',
     testNamePatternFlags: '',
     // RSpec-style: an example without a body is pending.
@@ -54,6 +55,8 @@ export const neutralPolicy: Policy = deepFreeze({
       nestedInTest: 'throw',
       // A todo's body is kept for later, as RSpec's pending examples are.
       todoWithFn: 'todo',
+      // A broken table fails loudly, but only its own test.
+      eachTableError: 'failing-test',
     },
     hooks: {
       // Run as much teardown as possible.
@@ -69,7 +72,10 @@ export const neutralPolicy: Policy = deepFreeze({
     errors: { lateErrors: 'fail-owner', hasAssertionsWhenFailed: 'skip' },
     // An explicit skip wins over `.only`.
     focus: { scope: 'file', insideSkip: 'skipped' },
-    status: { todoUnderSkip: 'todo' },
+    // `.failing` asserts the body fails; a hook error is still a failure.
+    status: { todoUnderSkip: 'todo', expectFail: 'body' },
+    // A test a helper registers points at the line in the test file.
+    locationFrame: 'test-file',
     orderHooks: null,
   },
   lazy: { readInBeforeAll: 'error' },
