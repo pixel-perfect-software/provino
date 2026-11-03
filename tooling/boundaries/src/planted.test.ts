@@ -239,6 +239,23 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
     assert.equal(code, 0, output)
   })
 
+  test('production code importing a test-support module fails test-support-only-in-tests', async () => {
+    const dir = await workspace({
+      'packages/core/src/internal/test-support.ts': 'export const help = 1\n',
+      'packages/core/src/planted.ts':
+        "import { help } from './internal/test-support.ts'\nexport const x = help\n",
+      'packages/core/src/ok.test.ts':
+        "import { help } from './internal/test-support.ts'\nexport const y = help\n",
+    })
+    const { output } = await depcruise(dir)
+    assert.match(
+      output,
+      /error test-support-only-in-tests: packages\/core\/src\/planted\.ts → packages\/core\/src\/internal\/test-support\.ts/,
+    )
+    // The test importing the same module is fine.
+    assert.doesNotMatch(output, /ok\.test\.ts/)
+  })
+
   test('a relative import into another package fails public-entry-only', async () => {
     const dir = await workspace({
       'packages/core/src/planted.ts': "import '../../policy/src/index.ts'\n",

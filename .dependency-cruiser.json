@@ -1331,6 +1331,18 @@
       }
     },
     {
+      "name": "test-support-only-in-tests",
+      "comment": "A test-support module is exempt from the boundary lints because only tests use it, so production code never imports one.",
+      "severity": "error",
+      "from": {
+        "path": "^(?:packages|tooling)/",
+        "pathNot": "\\.test\\.ts$|\\.test-d\\.ts$|(?:^|/)test-support\\.ts$"
+      },
+      "to": {
+        "path": "(?:^|/)test-support\\.ts$"
+      }
+    },
+    {
       "name": "public-entry-only",
       "comment": "Cross-package imports use the package name and its exports, never a relative path.",
       "severity": "error",

@@ -16,7 +16,7 @@
         "packages/timers/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
-        "!**/test-support.ts"
+        "!**/src/internal/test-support.ts"
       ]
     },
     {
@@ -26,7 +26,7 @@
         "packages/core/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
-        "!**/test-support.ts"
+        "!**/src/internal/test-support.ts"
       ]
     },
     {
@@ -36,7 +36,7 @@
         "packages/coverage/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
-        "!**/test-support.ts"
+        "!**/src/internal/test-support.ts"
       ]
     },
     {
@@ -46,7 +46,7 @@
         "packages/expect/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
-        "!**/test-support.ts"
+        "!**/src/internal/test-support.ts"
       ]
     },
     {
@@ -56,7 +56,7 @@
         "packages/lazy/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
-        "!**/test-support.ts"
+        "!**/src/internal/test-support.ts"
       ]
     },
     {
@@ -66,7 +66,7 @@
         "packages/mock/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
-        "!**/test-support.ts"
+        "!**/src/internal/test-support.ts"
       ]
     },
     {
@@ -76,7 +76,7 @@
         "packages/loader/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
-        "!**/test-support.ts"
+        "!**/src/internal/test-support.ts"
       ]
     },
     {
@@ -99,7 +99,7 @@
         "packages/vitest-compat/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
-        "!**/test-support.ts"
+        "!**/src/internal/test-support.ts"
       ]
     },
     {
@@ -109,7 +109,7 @@
         "packages/reporters/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
-        "!**/test-support.ts"
+        "!**/src/internal/test-support.ts"
       ]
     },
     {
@@ -119,7 +119,7 @@
         "packages/snapshot/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
-        "!**/test-support.ts"
+        "!**/src/internal/test-support.ts"
       ]
     },
     {
@@ -129,7 +129,7 @@
         "packages/timers/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
-        "!**/test-support.ts"
+        "!**/src/internal/test-support.ts"
       ]
     }
   ]

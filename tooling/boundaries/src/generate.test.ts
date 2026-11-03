@@ -68,7 +68,7 @@ test('the boundary lints skip test files and test-support modules', () => {
     assert.deepEqual(plugin.includes.slice(-3), [
       '!**/*.test.ts',
       '!**/*.test-d.ts',
-      '!**/test-support.ts',
+      '!**/src/internal/test-support.ts',
     ])
   }
 })
