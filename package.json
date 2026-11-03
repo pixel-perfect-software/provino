@@ -30,6 +30,7 @@
     "provino-bench": "node --conditions=provino-source packages/bench/src/cli.ts",
     "provino-harness": "node --conditions=provino-source packages/harness/src/cli.ts",
     "bench:resolve": "node --conditions=provino-source packages/resolver/bench/resolve-corpus.ts",
+    "bench:excalidraw": "node --conditions=provino-source packages/transform/bench/excalidraw.ts",
     "deps:check": "autd check",
     "deps:update": "autd update"
   },
