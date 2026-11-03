@@ -1,6 +1,6 @@
 # Project structure
 
-Current state after B03 (2026-11-02): `@provino/types` holds the contracts, `@provino/policy` the policy runtime, `@provino/core` is an empty stub, and `tooling/boundaries` checks package boundaries. Update this file whenever a top-level directory is added.
+Current state after B03 (2026-11-02): `@provino/types` holds the contracts, `@provino/policy` the policy runtime, `@provino/core` the test runtime (B07), and `tooling/boundaries` checks package boundaries. Update this file whenever a top-level directory is added.
 
 ```
 provino/
@@ -28,13 +28,13 @@ provino/
 │   ├── resolver/                 # @provino/resolver: createResolver over oxc-resolver; bench/ holds the Node ESM agreement check
 │   ├── transform/                # @provino/transform: createPipeline (Oxc), toModuleRunner (D10 guard); bench/ holds the excalidraw and runner-fuzz checks
 │   ├── loader/                   # @provino/loader: createLoader, the module-runner engine (none and registry tiers)
-│   ├── core/                     # @provino/core: empty stub until B07
+│   ├── core/                     # @provino/core: collector, executor, current test (B07)
 │   ├── harness/                  # @provino/harness (dev): result converters, golden-fixture recorder, parity diffs
 │   └── bench/                    # @provino/bench (dev): synthetic suites, provino-bench, and the loader benches (src/loader/)
 ├── tooling/                      # private workspace tools, never published (pnpm-workspace `tooling/*`)
 │   └── boundaries/               # provino-boundaries: packages.json manifest, generator, GritQL plugins
 ├── .refs/                        # gitignored upstream sources at pinned commits (DECISIONS S3); excalidraw/ is GitHub's tarball (the sandbox blocks nested git)
-└── .github/workflows/ci.yml      # Node 22.15/24/26 typecheck + test; type tests on TS 7.0.2 and 5.9.3; lint; bench suites and goldens; resolver/transform corpora
+└── .github/workflows/ci.yml      # Node 22.15/24/26 typecheck + test; type tests on TS 7.0.2 and 5.9.3; lint; recorded goldens on every push, bench suites when their inputs change; resolver/transform corpora
 ```
 
 Gitignored build output: `packages/*/.tsc/` (declarations from `tsc -b`; project references need emit) and `.turbo/`.

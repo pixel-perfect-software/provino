@@ -1,0 +1,4 @@
+{
+  "description": "Vitest-only onTestFinished and onTestFailed, global and on the test context, registered three at a time on a passing test and on failing tests (one nested under a describe with its own hooks). onTestFinished runs after afterEach and the beforeEach teardowns, in reverse registration order; onTestFailed runs only for failures, after onTestFinished, and follows sequence.hooks order. Both receive the test context.",
+  "runners": ["vitest", "vitest-list"]
+}

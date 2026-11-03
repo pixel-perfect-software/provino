@@ -1,0 +1,4 @@
+{
+  "description": "An empty describe with no hooks, next to a normal test. Jest ignores the empty describe. Vitest fails it ('No test found in suite') and still runs the other test.",
+  "runners": ["jest", "vitest"]
+}

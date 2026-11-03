@@ -1,0 +1,4 @@
+{
+  "description": "test() called from a beforeAll, after the run has started. Jest returns from the call and reports a file-level error ('Cannot add a test after tests have started running'). Vitest accepts the call silently and never runs the new test.",
+  "runners": ["jest", "vitest"]
+}

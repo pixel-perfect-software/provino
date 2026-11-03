@@ -5,6 +5,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 import type { NormalizedFile, NormalizedRun } from '@provino/types'
 import { HarnessError, type HarnessErrorCode } from '../errors.ts'
+import { serializeGolden, toGolden } from '../golden.ts'
 import { makeFile, makeRun, makeTest } from '../test-support.ts'
 import { assertNoPathLeak, assertRunComplete, commitGolden } from './recording.ts'
 
@@ -79,6 +80,140 @@ test('every problem is listed in one error', () => {
   )
 })
 
+const crashedFile: NormalizedFile = {
+  file: 'a.test.ts',
+  status: 'crashed',
+  tests: [],
+  fileError: { message: 'Missing second argument', raw: '' },
+}
+
+const MISSING_ARGUMENT = 'Missing second argument'
+
+test('expectCrash: a crashed file with the expected cause is the result', () => {
+  assertRunComplete(makeRun([crashedFile]), ['a.test.ts'], 'f (jest)', {
+    expectCrash: MISSING_ARGUMENT,
+  })
+  assertRunComplete(
+    makeRun([crashedFile, { ...crashedFile, file: 'b.test.ts' }]),
+    ['a.test.ts', 'b.test.ts'],
+    'f (jest)',
+    { expectCrash: 'second argument' },
+  )
+})
+
+test('expectCrash: a file that did not crash is HARNESS_EXPECTED_CRASH_MISSING and names it', () => {
+  assert.throws(
+    () =>
+      assertRunComplete(complete, ['a.test.ts', 'b.test.ts'], 'area/thing (jest)', {
+        expectCrash: MISSING_ARGUMENT,
+      }),
+    rejects(
+      'HARNESS_EXPECTED_CRASH_MISSING',
+      'area/thing (jest)',
+      'expectCrash',
+      'a.test.ts',
+      'b.test.ts',
+    ),
+  )
+  // A failed file with passing tests, and a file with no tests that did not fail, are not crashes.
+  const failedOutside = makeFile('a.test.ts', [makeTest('a.test.ts', ['t'])], 'failed')
+  for (const file of [failedOutside, makeFile('a.test.ts', [], 'passed')]) {
+    assert.throws(
+      () =>
+        assertRunComplete(makeRun([file]), ['a.test.ts'], 'f', { expectCrash: MISSING_ARGUMENT }),
+      rejects('HARNESS_EXPECTED_CRASH_MISSING', 'a.test.ts'),
+    )
+  }
+})
+
+test('expectCrash: a crash for another reason is HARNESS_EXPECTED_CRASH_MISMATCH', () => {
+  const otherReason: NormalizedFile = {
+    ...crashedFile,
+    fileError: {
+      message: "● Test suite failed to run\n\nCannot find module './x' from 'a.test.ts'",
+      raw: '',
+    },
+  }
+  assert.throws(
+    () =>
+      assertRunComplete(makeRun([otherReason]), ['a.test.ts'], 'area/thing (jest)', {
+        expectCrash: MISSING_ARGUMENT,
+      }),
+    rejects(
+      'HARNESS_EXPECTED_CRASH_MISMATCH',
+      'area/thing (jest)',
+      'a.test.ts',
+      JSON.stringify(MISSING_ARGUMENT),
+      "Cannot find module './x'",
+    ),
+  )
+  // The text is looked for as written: no case folding, no partial words.
+  assert.throws(
+    () =>
+      assertRunComplete(makeRun([crashedFile]), ['a.test.ts'], 'f', {
+        expectCrash: 'missing second argument',
+      }),
+    rejects('HARNESS_EXPECTED_CRASH_MISMATCH'),
+  )
+})
+
+test('expectCrash: a crash with no fileError is HARNESS_EXPECTED_CRASH_MISMATCH', () => {
+  const { fileError: _dropped, ...noError } = crashedFile
+  assert.throws(
+    () =>
+      assertRunComplete(makeRun([noError]), ['a.test.ts'], 'f (jest)', {
+        expectCrash: MISSING_ARGUMENT,
+      }),
+    rejects('HARNESS_EXPECTED_CRASH_MISMATCH', 'a.test.ts', 'no fileError'),
+  )
+})
+
+test('expectCrash: the mismatch names only the files that crashed for another reason', () => {
+  const other: NormalizedFile = {
+    ...crashedFile,
+    file: 'b.test.ts',
+    fileError: { message: 'SyntaxError: Unexpected token', raw: '' },
+  }
+  assert.throws(
+    () =>
+      assertRunComplete(makeRun([crashedFile, other]), ['a.test.ts', 'b.test.ts'], 'f', {
+        expectCrash: MISSING_ARGUMENT,
+      }),
+    (error: unknown) =>
+      rejects('HARNESS_EXPECTED_CRASH_MISMATCH', 'b.test.ts', 'SyntaxError')(error) &&
+      error instanceof Error &&
+      !error.message.includes('a.test.ts'),
+  )
+})
+
+test('expectCrash does not excuse a missing file or a run error', () => {
+  const options = { expectCrash: MISSING_ARGUMENT }
+  assert.throws(
+    () => assertRunComplete(makeRun([crashedFile]), ['a.test.ts', 'z.test.ts'], 'f', options),
+    rejects('HARNESS_RUN_INCOMPLETE', 'z.test.ts', 'missing'),
+  )
+  assert.throws(
+    () =>
+      assertRunComplete(
+        makeRun([crashedFile], { runErrors: [{ message: 'worker died', raw: '' }] }),
+        ['a.test.ts'],
+        'f',
+        options,
+      ),
+    rejects('HARNESS_RUN_INCOMPLETE', 'worker died'),
+  )
+})
+
+test('without expectCrash a crash is still unexpected', () => {
+  // `{ expectCrash: undefined }` is what the recorder passes for a profile without one.
+  for (const options of [undefined, {}, { expectCrash: undefined }]) {
+    assert.throws(
+      () => assertRunComplete(makeRun([crashedFile]), ['a.test.ts'], 'f', options),
+      rejects('HARNESS_RUN_INCOMPLETE', 'crashed', 'Missing second argument'),
+    )
+  }
+})
+
 test('assertNoPathLeak passes clean text and names the path it found', () => {
   assertNoPathLeak('{"message": "<root>/a.test.ts:3:4"}', ['/work/dir', '/Users/me'], 'f (jest)')
   assert.throws(
@@ -134,5 +269,22 @@ test('commitGolden in check mode never writes: missing, matches or drift', async
     assert.match(drift.diff ?? '', /\+ new/)
     await writeFile(target, 'new\n')
     assert.deepEqual(await check(), { outcome: 'matches' })
+  })
+})
+
+test('check mode sees a change in the trace alone as drift', async () => {
+  await withTempDir(async (dir) => {
+    const target = path.join(dir, '__goldens__', 'vitest-list.json')
+    const text = (trace?: string[]): string =>
+      serializeGolden(toGolden(complete, trace === undefined ? {} : { trace }))
+    await commitGolden(target, text(['beforeEach L1 #1', 'test L1']), false)
+    assert.deepEqual(await commitGolden(target, text(['beforeEach L1 #1', 'test L1']), true), {
+      outcome: 'matches',
+    })
+    const reordered = await commitGolden(target, text(['test L1', 'beforeEach L1 #1']), true)
+    assert.equal(reordered.outcome, 'drift')
+    assert.match(reordered.diff ?? '', /beforeEach L1 #1/)
+    assert.equal((await commitGolden(target, text(['beforeEach L1 #1']), true)).outcome, 'drift')
+    assert.equal((await commitGolden(target, text(), true)).outcome, 'drift')
   })
 })

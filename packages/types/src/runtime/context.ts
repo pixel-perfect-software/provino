@@ -41,10 +41,19 @@ export interface CurrentTest {
 }
 
 /**
- * The arguments a `.each` row spreads into: a tuple row spreads, any other row is one argument.
+ * Loads a test file for the runtime to collect. The worker passes the loader's import here
+ * (Track 1 §Module boundaries, rule 6), so the core never imports the loader.
  * @public
  */
-export type EachRowArgs<Row> = Row extends readonly unknown[] ? [...Row] : [Row]
+export type ImportFile = (path: string) => Promise<unknown>
+
+/**
+ * The arguments a `.each` row passes: when every row is a tuple they spread, otherwise each row is
+ * one argument (both runners decide for the whole table, not per row). The brackets stop the
+ * check distributing over a mixed table's union of row types.
+ * @public
+ */
+export type EachRowArgs<Row> = [Row] extends [readonly unknown[]] ? [...Row] : [Row]
 
 /**
  * `.each` (rows spread into arguments) and `.for` (the row and the context).

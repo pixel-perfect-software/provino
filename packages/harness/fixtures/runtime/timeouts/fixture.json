@@ -1,0 +1,4 @@
+{
+  "description": "Timeouts of 50 ms against bodies that wait 300 ms: a test over its timeout, a beforeEach over its timeout, a synchronous busy-wait overrun (Jest passes it, because no timer can fire while the thread is blocked; Vitest fails it on the elapsed time), and in Vitest a ctx.signal that aborts when the test times out. The late steps of the overrun bodies land inside the last test, which waits long enough to see them: neither runner cancels a body.",
+  "runners": ["jest", "vitest"]
+}

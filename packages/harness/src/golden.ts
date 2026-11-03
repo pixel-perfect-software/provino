@@ -15,7 +15,7 @@ import type {
   TestStatus,
   TraceEntry,
 } from '@provino/types'
-import type { FixtureRunner } from './fixture.ts'
+import type { FixtureProfile } from './fixture.ts'
 import { GOLDENS_DIR } from './fixture.ts'
 import { countersOf } from './internal/convert.ts'
 
@@ -75,6 +75,8 @@ export interface GoldenFile {
 export interface Golden {
   readonly schemaVersion: SchemaVersion
   readonly runner: RunnerId
+  /** The recording profile, only when it is not the runner's own (`vitest-list`). */
+  readonly profile?: FixtureProfile
   readonly runnerVersion: string
   /** The fixture id, `area/behaviour`. */
   readonly suite: string
@@ -85,6 +87,20 @@ export interface Golden {
   }
   readonly runErrors: readonly GoldenError[]
   readonly success: boolean
+  /**
+   * The steps the fixture's `trace(step)` calls recorded, in call order. Absent when nothing was
+   * traced. Not `files[].trace`, which is the result model's structured hook trace.
+   */
+  readonly trace?: readonly string[]
+}
+
+/**
+ * What a recording adds to a run's golden: the profile it ran under and the steps it traced.
+ * @public
+ */
+export interface GoldenExtras {
+  readonly profile?: FixtureProfile
+  readonly trace?: readonly string[]
 }
 
 function goldenError(error: NormalizedError): GoldenError {
@@ -126,14 +142,17 @@ function goldenFile(file: NormalizedFile): GoldenFile {
 
 /**
  * Projects a run onto what a golden keeps. The keys are built in a fixed order, so
- * `serializeGolden` is byte-stable.
+ * `serializeGolden` is byte-stable. `extras.profile` is kept only when it differs from the run's
+ * runner, and `extras.trace` only when it is not empty.
  * @public
  */
-export function toGolden(run: NormalizedRun): Golden {
+export function toGolden(run: NormalizedRun, extras: GoldenExtras = {}): Golden {
   const { snapshots } = run
+  const { profile, trace } = extras
   return {
     schemaVersion: run.schemaVersion,
     runner: run.runner,
+    ...(profile === undefined || profile === run.runner ? {} : { profile }),
     runnerVersion: run.runnerVersion,
     suite: run.suite,
     files: run.files.map(goldenFile),
@@ -142,6 +161,7 @@ export function toGolden(run: NormalizedRun): Golden {
       : { snapshots: { counters: countersOf(snapshots.counters), files: snapshots.files } }),
     runErrors: run.runErrors.map(goldenError),
     success: run.success,
+    ...(trace === undefined || trace.length === 0 ? {} : { trace }),
   }
 }
 
@@ -154,9 +174,9 @@ export function serializeGolden(golden: Golden): string {
 }
 
 /**
- * Where a fixture's golden for a runner lives: `<fixture>/__goldens__/<runner>.json`.
+ * Where a fixture's golden for a profile lives: `<fixture>/__goldens__/<profile>.json`.
  * @public
  */
-export function goldenPath(fixtureDir: string, runner: FixtureRunner): string {
-  return path.join(fixtureDir, GOLDENS_DIR, `${runner}.json`)
+export function goldenPath(fixtureDir: string, profile: FixtureProfile): string {
+  return path.join(fixtureDir, GOLDENS_DIR, `${profile}.json`)
 }

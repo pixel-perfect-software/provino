@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/around-hooks",
+  "files": [
+    {
+      "file": "around.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "around.vitest.test.ts",
+            "path": [
+              "test L1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 32,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "around.vitest.test.ts",
+            "path": [
+              "L2",
+              "test L2a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 37,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "around.vitest.test.ts",
+            "path": [
+              "L2",
+              "test L2b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 38,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "aroundAll L1 #1 setup",
+    "aroundAll L1 #2 setup",
+    "beforeAll L1",
+    "aroundEach L1 #1 setup",
+    "aroundEach L1 #2 setup",
+    "beforeEach L1",
+    "test L1",
+    "afterEach L1 #2",
+    "afterEach L1 #1",
+    "aroundEach L1 #2 teardown",
+    "aroundEach L1 #1 teardown",
+    "aroundAll L2 #1 setup",
+    "aroundAll L2 #2 setup",
+    "beforeAll L2",
+    "aroundEach L1 #1 setup",
+    "aroundEach L1 #2 setup",
+    "aroundEach L2 #1 setup",
+    "aroundEach L2 #2 setup",
+    "beforeEach L1",
+    "beforeEach L2",
+    "test L2a",
+    "afterEach L2 #2",
+    "afterEach L2 #1",
+    "afterEach L1 #2",
+    "afterEach L1 #1",
+    "aroundEach L2 #2 teardown",
+    "aroundEach L2 #1 teardown",
+    "aroundEach L1 #2 teardown",
+    "aroundEach L1 #1 teardown",
+    "aroundEach L1 #1 setup",
+    "aroundEach L1 #2 setup",
+    "aroundEach L2 #1 setup",
+    "aroundEach L2 #2 setup",
+    "beforeEach L1",
+    "beforeEach L2",
+    "test L2b",
+    "afterEach L2 #2",
+    "afterEach L2 #1",
+    "afterEach L1 #2",
+    "afterEach L1 #1",
+    "aroundEach L2 #2 teardown",
+    "aroundEach L2 #1 teardown",
+    "aroundEach L1 #2 teardown",
+    "aroundEach L1 #1 teardown",
+    "afterAll L2 #2",
+    "afterAll L2 #1",
+    "aroundAll L2 #2 teardown",
+    "aroundAll L2 #1 teardown",
+    "afterAll L1 #2",
+    "afterAll L1 #1",
+    "aroundAll L1 #2 teardown",
+    "aroundAll L1 #1 teardown"
+  ]
+}

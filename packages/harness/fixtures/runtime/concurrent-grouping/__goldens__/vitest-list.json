@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "profile": "vitest-list",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/concurrent-grouping",
+  "files": [
+    {
+      "file": "grouping.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "grouping.test.ts",
+            "path": [
+              "interleaved",
+              "s1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "grouping.test.ts",
+            "path": [
+              "interleaved",
+              "c1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 8,
+            "column": 8
+          }
+        },
+        {
+          "id": {
+            "file": "grouping.test.ts",
+            "path": [
+              "interleaved",
+              "s2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 13,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "grouping.test.ts",
+            "path": [
+              "interleaved",
+              "c2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 14,
+            "column": 8
+          }
+        },
+        {
+          "id": {
+            "file": "grouping.test.ts",
+            "path": [
+              "consecutive",
+              "c3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 25,
+            "column": 8
+          }
+        },
+        {
+          "id": {
+            "file": "grouping.test.ts",
+            "path": [
+              "consecutive",
+              "c4"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 30,
+            "column": 8
+          }
+        },
+        {
+          "id": {
+            "file": "grouping.test.ts",
+            "path": [
+              "consecutive",
+              "s3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 35,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "beforeEach interleaved",
+    "test s1",
+    "afterEach interleaved",
+    "beforeEach interleaved",
+    "test c1 start",
+    "test c1 end",
+    "afterEach interleaved",
+    "beforeEach interleaved",
+    "test s2",
+    "afterEach interleaved",
+    "beforeEach interleaved",
+    "test c2 start",
+    "test c2 end",
+    "afterEach interleaved",
+    "beforeEach consecutive",
+    "beforeEach consecutive",
+    "test c3 start",
+    "test c4 start",
+    "test c3 end",
+    "afterEach consecutive",
+    "test c4 end",
+    "afterEach consecutive",
+    "beforeEach consecutive",
+    "test s3",
+    "afterEach consecutive"
+  ]
+}

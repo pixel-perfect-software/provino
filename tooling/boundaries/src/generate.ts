@@ -20,7 +20,17 @@ const HEADER =
 
 const DIALECT_TARGET = '^packages/dialect-[^/]+/|^@provino/dialect-'
 /** The boundary lints check package code; a test may build a whole policy or name a runner. */
-const NOT_TESTS: readonly string[] = ['!**/*.test.ts', '!**/*.test-d.ts']
+// `src/internal/test-support.ts` is a test-helper module, not a test itself. Like the tests it
+// serves it may use the whole policy and name runners; `test-support-only-in-tests` keeps
+// production code from importing it.
+/** Test files and test-support modules: what `test-support-only-in-tests` lets import support. */
+const TEST_FILE = String.raw`\.test\.ts$|\.test-d\.ts$|(?:^|/)test-support\.ts$`
+const TEST_SUPPORT = String.raw`(?:^|/)test-support\.ts$`
+const NOT_TESTS: readonly string[] = [
+  '!**/*.test.ts',
+  '!**/*.test-d.ts',
+  '!**/src/internal/test-support.ts',
+]
 
 /**
  * Every generated file, by repo-relative path, as it should be on disk. `roots` are the
@@ -156,6 +166,14 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
           to: { path: workspaceTarget, pathNot: [...new Set(spec.allowed)] },
         }
       }),
+      {
+        name: 'test-support-only-in-tests',
+        comment:
+          'A test-support module is exempt from the boundary lints because only tests use it, so production code never imports one.',
+        severity: 'error',
+        from: { path: `^(?:${rootsPattern})/`, pathNot: TEST_FILE },
+        to: { path: TEST_SUPPORT },
+      },
       {
         name: 'public-entry-only',
         comment:

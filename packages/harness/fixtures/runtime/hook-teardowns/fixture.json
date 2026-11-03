@@ -1,0 +1,4 @@
+{
+  "description": "beforeEach and beforeAll hooks that return a function. Jest ignores the function. Vitest runs it as a teardown after that level's after-hooks, in sequence.hooks order ('stack' reverses, 'list' keeps declaration order).",
+  "runners": ["jest", "vitest", "vitest-list"]
+}

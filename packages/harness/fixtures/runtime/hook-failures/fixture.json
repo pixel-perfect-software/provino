@@ -1,0 +1,4 @@
+{
+  "description": "Hooks that throw, one kind per describe so the statuses differ per test. beforeAll throwing (with a nested describe below it): Jest fails the tests and still runs afterEach and afterAll, Vitest skips the subtree. beforeEach throwing with a second beforeEach after it, afterEach throwing with a sibling and parent afterEach hooks, and afterAll throwing with a second afterAll.",
+  "runners": ["jest", "vitest", "vitest-list"]
+}

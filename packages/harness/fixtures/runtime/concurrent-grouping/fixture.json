@@ -1,0 +1,4 @@
+{
+  "description": "Sequential and concurrent tests interleaved as s1 c1 s2 c2, with beforeEach and afterEach around them. Jest starts concurrent tests together and does not run beforeEach/afterEach for them; Vitest groups only consecutive concurrent tests and runs the each-hooks for them. A second describe has two consecutive concurrent tests.",
+  "runners": ["jest", "vitest", "vitest-list"]
+}

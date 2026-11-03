@@ -1,0 +1,4 @@
+{
+  "description": "Hook order for three nested levels with two hooks of each kind per level and tests at every level, including one after the nested describe. Jest and Vitest sequence.hooks 'list' run same-level after-hooks in declaration order; Vitest's default 'stack' reverses same-level afterEach and afterAll. Cross-level order is the same in all three.",
+  "runners": ["jest", "vitest", "vitest-list"]
+}

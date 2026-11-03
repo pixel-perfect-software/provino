@@ -8,11 +8,26 @@ import { convertJest } from './convert-jest.ts'
 import { convertVitest } from './convert-vitest.ts'
 import { readRunEnvironment } from './environment.ts'
 import { HarnessError } from './errors.ts'
-import { type Fixture, type FixtureRunner, readFixture, testFilesFor } from './fixture.ts'
+import {
+  type Fixture,
+  type FixtureProfile,
+  type FixtureRunner,
+  readFixture,
+  runnerOfProfile,
+  testFilesFor,
+} from './fixture.ts'
 import { goldenPath, type RecordOutcome, serializeGolden, toGolden } from './golden.ts'
 import { assertNoPathLeak, assertRunComplete, commitGolden } from './internal/recording.ts'
-import { jestConfig, runnerEnv, vitestConfigSource } from './internal/runner-config.ts'
+import {
+  jestConfig,
+  runnerEnv,
+  TRACE_ENV,
+  traceSetupSource,
+  vitestConfigSource,
+} from './internal/runner-config.ts'
+import { assertTraceFromOneFile, readTrace } from './internal/trace.ts'
 import { isNodeModules, walkFiles } from './internal/walk.ts'
+import { createWorkDirRegistry, REMOVE_TREE_OPTIONS } from './internal/work-dirs.ts'
 import { parseJestJson, parseVitestJson } from './parse-results.ts'
 import { runProcess } from './run-process.ts'
 import { resolveRunnerPackage } from './runner-package.ts'
@@ -35,7 +50,10 @@ export interface RecordOptions {
 export interface RecordResult {
   /** The fixture id, `area/behaviour`. */
   readonly fixture: string
+  /** The real runner behind the profile. */
   readonly runner: FixtureRunner
+  /** What was recorded: the runner, or one of its profiles (`vitest-list`). */
+  readonly profile: FixtureProfile
   readonly goldenPath: string
   readonly outcome: RecordOutcome
   /** For `drift`: the differing lines, `-` committed and `+` recorded. */
@@ -51,6 +69,11 @@ const PACKAGE_DIR = path.resolve(import.meta.dirname, '..')
 const REPO_ROOT = path.resolve(PACKAGE_DIR, '..', '..')
 const WORK_ROOT = path.join(PACKAGE_DIR, '.record')
 const TRANSFORMER_PATH = fileURLToPath(new URL('./jest-transform.ts', import.meta.url))
+
+// A signal ends the CLI through `process.exit` (`exitOnSignals`), which skips `recordRead`'s
+// cleanup, so the work directories on disk are also removed on exit. One per process, because
+// `exit` is.
+const workDirs = createWorkDirRegistry()
 
 /**
  * Every directory that names this machine. The runner's text is normalized against the work
@@ -98,28 +121,38 @@ async function copyFixture(fixture: Fixture, workDir: string): Promise<void> {
   }
 }
 
+/** A finished run and the steps the fixture traced while it ran. */
+interface Recording {
+  readonly run: NormalizedRun
+  readonly trace: readonly string[]
+}
+
 async function runUnderRunner(
   fixture: Fixture,
-  runner: FixtureRunner,
+  profile: FixtureProfile,
   paths: RecordPaths,
-): Promise<NormalizedRun> {
+): Promise<Recording> {
   const { workDir } = paths
+  const runner = runnerOfProfile(profile)
   const install = resolveRunnerPackage(runner, PACKAGE_DIR)
   const outDir = path.join(workDir, '.harness-out')
   await mkdir(outDir)
-  const outputFile = path.join(outDir, `${runner}.json`)
+  const outputFile = path.join(outDir, `${profile}.json`)
+  const setupFile = path.join(outDir, 'trace-setup.ts')
+  const traceFile = path.join(outDir, 'trace.txt')
+  await writeFile(setupFile, traceSetupSource())
 
   let args: string[]
   if (runner === 'jest') {
     const configFile = path.join(outDir, 'jest.config.json')
     await writeFile(
       configFile,
-      `${JSON.stringify(jestConfig(workDir, TRANSFORMER_PATH), null, 2)}\n`,
+      `${JSON.stringify(jestConfig(workDir, TRANSFORMER_PATH, setupFile), null, 2)}\n`,
     )
     args = [install.bin, '--ci', '--json', `--outputFile=${outputFile}`, '--config', configFile]
   } else {
     const configFile = path.join(workDir, 'vitest.config.ts')
-    await writeFile(configFile, vitestConfigSource(workDir))
+    await writeFile(configFile, vitestConfigSource(workDir, setupFile, profile))
     args = [
       install.bin,
       'run',
@@ -134,7 +167,7 @@ async function runUnderRunner(
   try {
     result = await runProcess(process.execPath, args, {
       cwd: workDir,
-      env: runnerEnv(process.env, fixture.manifest.env),
+      env: runnerEnv(process.env, { ...fixture.manifest.env, [TRACE_ENV]: traceFile }),
       timeoutMs: TIMEOUT_MS,
     })
   } catch (cause) {
@@ -175,23 +208,30 @@ async function runUnderRunner(
     runner === 'jest'
       ? convertJest(parseJestJson(json, outputFile), base)
       : convertVitest(parseVitestJson(json, outputFile), base)
-  assertRunComplete(run, testFilesFor(fixture.files, runner), `${fixture.id} (${runner})`)
-  return run
+  const label = `${fixture.id} (${profile})`
+  const testFiles = testFilesFor(fixture.files, profile)
+  assertRunComplete(run, testFiles, label, {
+    expectCrash: fixture.manifest.expectCrash?.[profile],
+  })
+  const trace = await readTrace(traceFile)
+  assertTraceFromOneFile(trace, testFiles, label)
+  return { run, trace }
 }
 
 /**
- * Records one fixture under one runner. Copies the fixture into a fresh directory, writes the
- * runner's config there, runs the pinned runner, converts and normalizes its JSON with that
- * directory as `<root>`, and writes `__goldens__/<runner>.json` next to the fixture. With
- * `check`, it compares with the committed golden instead and reports `drift` or `missing`.
+ * Records one fixture under one runner or profile. Copies the fixture into a fresh directory,
+ * writes the runner's config and the trace setup there, runs the pinned runner, converts and
+ * normalizes its JSON with that directory as `<root>`, and writes `__goldens__/<profile>.json`
+ * next to the fixture, with the steps the fixture traced. With `check`, it compares with the
+ * committed golden instead and reports `drift` or `missing`.
  * @public
  */
 export async function recordFixture(
   dir: string,
-  runner: FixtureRunner,
+  profile: FixtureProfile,
   options: RecordOptions = {},
 ): Promise<RecordResult> {
-  return recordRead(await readFixture(dir), runner, options)
+  return recordRead(await readFixture(dir), profile, options)
 }
 
 /**
@@ -201,28 +241,30 @@ export async function recordFixture(
  */
 export async function recordRead(
   fixture: Fixture,
-  runner: FixtureRunner,
+  profile: FixtureProfile,
   options: RecordOptions = {},
 ): Promise<RecordResult> {
-  if (!fixture.manifest.runners.includes(runner)) {
+  if (!fixture.manifest.runners.includes(profile)) {
     throw new HarnessError(
       'HARNESS_FIXTURE_RUNNER_NOT_LISTED',
-      `${fixture.id} does not list "${runner}" in its fixture.json`,
+      `${fixture.id} does not list "${profile}" in its fixture.json`,
       { path: fixture.dir },
     )
   }
 
   await mkdir(WORK_ROOT, { recursive: true })
   const workDir = await mkdtemp(
-    path.join(WORK_ROOT, `${fixture.id.replaceAll('/', '-')}-${runner}-`),
+    path.join(WORK_ROOT, `${fixture.id.replaceAll('/', '-')}-${profile}-`),
   )
   const keep = options.keepWorkDir === true
+  if (!keep) workDirs.track(workDir)
   let text: string
   try {
     await copyFixture(fixture, workDir)
     const paths = await recordPaths(workDir)
-    text = serializeGolden(toGolden(await runUnderRunner(fixture, runner, paths)))
-    assertNoPathLeak(text, Object.values(paths), `${fixture.id} (${runner})`)
+    const { run, trace } = await runUnderRunner(fixture, profile, paths)
+    text = serializeGolden(toGolden(run, { profile, trace }))
+    assertNoPathLeak(text, Object.values(paths), `${fixture.id} (${profile})`)
   } catch (error) {
     // A cleanup that fails must not replace the error that made it necessary.
     if (!keep) await removeWorkDir(workDir).catch(() => undefined)
@@ -230,17 +272,20 @@ export async function recordRead(
   }
   if (!keep) await removeWorkDir(workDir)
 
-  const target = goldenPath(fixture.dir, runner)
+  const target = goldenPath(fixture.dir, profile)
   const committed = await commitGolden(target, text, options.check === true)
   return {
     fixture: fixture.id,
-    runner,
+    runner: runnerOfProfile(profile),
+    profile,
     goldenPath: target,
     ...committed,
     ...(keep ? { workDir } : {}),
   }
 }
 
-function removeWorkDir(workDir: string): Promise<void> {
-  return rm(workDir, { recursive: true, force: true, maxRetries: 3 })
+/** Removes the work directory. If that fails, the exit hook tries again. */
+async function removeWorkDir(workDir: string): Promise<void> {
+  await rm(workDir, REMOVE_TREE_OPTIONS)
+  workDirs.forget(workDir)
 }

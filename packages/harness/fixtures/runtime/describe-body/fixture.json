@@ -1,0 +1,4 @@
+{
+  "description": "When describe bodies run. Jest calls each body immediately, so a body's statements come between the file's own. Vitest defers every body until the file has loaded, parents before children (file start, after describe A, file end, A body, ...).",
+  "runners": ["jest", "vitest"]
+}

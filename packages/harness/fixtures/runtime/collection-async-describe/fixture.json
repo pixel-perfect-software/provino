@@ -1,0 +1,5 @@
+{
+  "description": "An async describe callback that registers a test before and after an await. Jest runs the body up to the first await, then throws 'Returning a Promise from describe is not supported' and fails the file. Vitest awaits the body and collects both tests.",
+  "runners": ["jest", "vitest"],
+  "expectCrash": { "jest": "Returning a Promise from \"describe\" is not supported" }
+}

@@ -1,0 +1,5 @@
+{
+  "description": "A describe callback that returns a value. Jest throws 'A describe callback must not return a value' and fails the file. Vitest ignores the value.",
+  "runners": ["jest", "vitest"],
+  "expectCrash": { "jest": "A \"describe\" callback must not return a value" }
+}

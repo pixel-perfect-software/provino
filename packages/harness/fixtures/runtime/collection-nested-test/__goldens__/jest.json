@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/collection-nested-test",
+  "files": [
+    {
+      "file": "nested.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "nested.test.ts",
+            "path": [
+              "outer"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Tests cannot be nested. Test \"inner\" cannot run because it is nested within \"outer\".",
+              "userFrame": "<root>/nested.test.ts:3:3"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "nested.test.ts",
+            "path": [
+              "next"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "test outer start",
+    "test outer after inner call",
+    "test next"
+  ]
+}

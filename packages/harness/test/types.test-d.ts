@@ -8,6 +8,7 @@ import {
   diffRuns,
   type ExclusionRule,
   exitOnSignals,
+  type FixtureProfile,
   type FixtureRunner,
   type Golden,
   type GroupExit,
@@ -162,9 +163,13 @@ void noRoot
 
 // The fixture format and the recorder.
 expectTypeOf<FixtureRunner>().toEqualTypeOf<'jest' | 'vitest'>()
+expectTypeOf<FixtureProfile>().toEqualTypeOf<'jest' | 'vitest' | 'vitest-list'>()
+expectTypeOf<FixtureRunner>().toExtend<FixtureProfile>()
 expectTypeOf(recordFixture).returns.toEqualTypeOf<Promise<RecordResult>>()
 expectTypeOf(recordFixture).parameter(0).toEqualTypeOf<string>()
-expectTypeOf(recordFixture).parameter(1).toEqualTypeOf<FixtureRunner>()
+expectTypeOf(recordFixture).parameter(1).toEqualTypeOf<FixtureProfile>()
+expectTypeOf<RecordResult['runner']>().toEqualTypeOf<FixtureRunner>()
+expectTypeOf<RecordResult['profile']>().toEqualTypeOf<FixtureProfile>()
 expectTypeOf<RecordOptions['check']>().toEqualTypeOf<boolean | undefined>()
 expectTypeOf<RecordOptions['keepWorkDir']>().toEqualTypeOf<boolean | undefined>()
 // The deadline, the work root and the environment are the recorder's own.
@@ -188,6 +193,9 @@ expectTypeOf<Golden>().not.toHaveProperty('startedAt')
 expectTypeOf<Golden>().not.toHaveProperty('env')
 expectTypeOf<Golden['files'][number]['tests'][number]>().not.toHaveProperty('durationMs')
 expectTypeOf<Golden['runErrors'][number]>().not.toHaveProperty('raw')
+// The profile and the traced steps are optional, and the steps are plain strings.
+expectTypeOf<Golden['profile']>().toEqualTypeOf<FixtureProfile | undefined>()
+expectTypeOf<Golden['trace']>().toEqualTypeOf<readonly string[] | undefined>()
 
 // @ts-expect-error a recorder option the recorder does not have
 const badRecordOptions: RecordOptions = { timeoutMs: 1000 }
@@ -197,8 +205,15 @@ void badRecordOptions
 const mocha: FixtureRunner = 'mocha'
 void mocha
 
-// @ts-expect-error fixtures are recorded under jest or vitest only
+// @ts-expect-error 'vitest-list' is a recording profile, not a runner
+const vitestList: FixtureRunner = 'vitest-list'
+void vitestList
+
+// @ts-expect-error fixtures are recorded under jest, vitest or vitest-list only
 void recordFixture('/fixtures/a/b', 'bun')
+
+// @ts-expect-error the profile is vitest-list, not vitest-stack
+void recordFixture('/fixtures/a/b', 'vitest-stack')
 
 // The result files the runners write.
 expectTypeOf(parseJestJson).parameter(0).toEqualTypeOf<string>()

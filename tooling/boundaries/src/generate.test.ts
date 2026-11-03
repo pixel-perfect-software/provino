@@ -60,11 +60,15 @@ test('placed nodes get a rule; unplaced ones (dir null) do not', () => {
   assert.ok(!names.has('boundary-provino-site'))
 })
 
-test('the boundary lints skip test files', () => {
+test('the boundary lints skip test files and test-support modules', () => {
   const plugins = JSON.parse(files.get(BIOME_PLUGINS) ?? '{}') as {
     readonly plugins: readonly { readonly includes: readonly string[] }[]
   }
   for (const plugin of plugins.plugins) {
-    assert.deepEqual(plugin.includes.slice(-2), ['!**/*.test.ts', '!**/*.test-d.ts'])
+    assert.deepEqual(plugin.includes.slice(-3), [
+      '!**/*.test.ts',
+      '!**/*.test-d.ts',
+      '!**/src/internal/test-support.ts',
+    ])
   }
 })

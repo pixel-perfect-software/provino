@@ -167,6 +167,7 @@ export type {
   EachApi,
   EachRowArgs,
   Frame,
+  ImportFile,
   TestContext,
 } from './runtime/context.ts'
 export type {
@@ -178,6 +179,7 @@ export type {
   VisibleFrom,
 } from './runtime/definitions.ts'
 export type {
+  EventSink,
   RuntimeEvent,
   RuntimeEventOf,
   RuntimeEventType,

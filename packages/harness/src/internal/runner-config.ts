@@ -1,7 +1,7 @@
 // The config the recorder writes for each runner. Fixtures carry none, so this is the one place
 // that decides how Jest and Vitest are run for a golden.
 import path from 'node:path'
-import { GOLDENS_DIR } from '../fixture.ts'
+import { type FixtureProfile, GOLDENS_DIR } from '../fixture.ts'
 
 const LOCALE = 'C.UTF-8'
 const INHERITED_NOISE: ReadonlySet<string> = new Set([
@@ -12,10 +12,34 @@ const INHERITED_NOISE: ReadonlySet<string> = new Set([
   'VITEST',
 ])
 
+/**
+ * The environment variable that names the file `trace(step)` appends to. The recorder sets it, so
+ * a fixture's own `env` cannot move the trace.
+ */
+export const TRACE_ENV = 'PROVINO_TRACE_FILE'
+
+/**
+ * The source of the setup file both runners load before each test file. It installs
+ * `globalThis.trace(step)`, which appends the step and a newline to the file in `TRACE_ENV`.
+ * The append is synchronous, so steps land in call order even for concurrent tests. It needs no
+ * import (Jest runs it as CommonJS, Vitest as ESM) and its types are erasable.
+ */
+export function traceSetupSource(): string {
+  return [
+    "const fs = process.getBuiltinModule('node:fs')",
+    `const file = process.env.${TRACE_ENV}`,
+    `if (file === undefined) throw new Error('${TRACE_ENV} is not set')`,
+    'const target = globalThis as { trace?: (step: string) => void }',
+    "target.trace = (step: string) => fs.appendFileSync(file, String(step) + '\\n')",
+    '',
+  ].join('\n')
+}
+
 /** Anything a runner config can hold; JSON-safe by construction. */
 export interface JestConfigFile {
   readonly rootDir: string
   readonly transform: Readonly<Record<string, string>>
+  readonly setupFiles: readonly string[]
   readonly testMatch: readonly string[]
   readonly testPathIgnorePatterns: readonly string[]
   readonly testLocationInResults: true
@@ -25,12 +49,17 @@ export interface JestConfigFile {
 
 /**
  * Jest runs `*.test.ts` except `*.vitest.test.ts`. Types are stripped by the harness transformer,
- * which hands the result to `babel-jest`.
+ * which hands the result to `babel-jest`. `setupFile` is the trace setup (`traceSetupSource`).
  */
-export function jestConfig(workDir: string, transformerPath: string): JestConfigFile {
+export function jestConfig(
+  workDir: string,
+  transformerPath: string,
+  setupFile: string,
+): JestConfigFile {
   return {
     rootDir: workDir,
     transform: { '\\.[cm]?ts$': transformerPath },
+    setupFiles: [setupFile],
     testMatch: ['<rootDir>/**/*.test.ts'],
     testPathIgnorePatterns: ['/node_modules/', `/${GOLDENS_DIR}/`, '\\.vitest\\.test\\.ts$'],
     testLocationInResults: true,
@@ -42,8 +71,14 @@ export function jestConfig(workDir: string, transformerPath: string): JestConfig
 /**
  * The source of the Vitest config file: a plain object, so it needs no import. Vitest runs
  * `*.test.ts` except `*.jest.test.ts`, with globals on and task locations in the report.
+ * `setupFile` is the trace setup (`traceSetupSource`). The `vitest-list` profile adds
+ * `sequence.hooks: 'list'`; every other profile keeps Vitest's default (`stack`).
  */
-export function vitestConfigSource(workDir: string): string {
+export function vitestConfigSource(
+  workDir: string,
+  setupFile: string,
+  profile: FixtureProfile = 'vitest',
+): string {
   const config = {
     root: workDir,
     cacheDir: path.join(workDir, '.vite'),
@@ -52,6 +87,8 @@ export function vitestConfigSource(workDir: string): string {
       includeTaskLocation: true,
       include: ['**/*.test.ts'],
       exclude: ['**/node_modules/**', `**/${GOLDENS_DIR}/**`, '**/*.jest.test.ts'],
+      setupFiles: [setupFile],
+      ...(profile === 'vitest-list' ? { sequence: { hooks: 'list' } } : {}),
     },
   }
   return `export default ${JSON.stringify(config, null, 2)}\n`

@@ -1,0 +1,4 @@
+{
+  "description": "Only a beforeAll throws, with a second beforeAll after it, a beforeEach and a nested describe. Pins where each runner reports the error when no other test fails: Jest fails every test below with it, Vitest skips the subtree and reports the error on the file.",
+  "runners": ["jest", "vitest", "vitest-list"]
+}

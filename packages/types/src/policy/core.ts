@@ -72,6 +72,12 @@ export interface CorePolicy {
     readonly hook: number
     readonly teardown: number
     readonly catchSyncOverrun: boolean
+    /**
+     * What a timeout of `0` given to a test or hook means: the default timeout (Jest:
+     * `test.timeout || testTimeout`) or no deadline (Vitest). Added in B07's review; unverified
+     * until B14.
+     */
+    readonly zero: 'default' | 'none'
   }
   /**
    * Joins describe and test names into the full name used for filtering, `currentTestName` and
@@ -145,6 +151,26 @@ export interface CorePolicy {
     readonly lateRegistration: 'fail-file' | 'warn-drop'
     /** A describe with no tests. Jest: `fail-file-if-hooks`. Vitest: `fail-suite`. unverified: track-05 L312 */
     readonly emptyDescribe: 'fail-file-if-hooks' | 'fail-suite' | 'allow'
+    /**
+     * `test`, `describe` or a hook called inside a running test: the call records the error on
+     * that test and returns (`fail-test`), or throws (`throw`). Both fail the test; the body only
+     * goes on under `fail-test`. Jest: `fail-test`. Vitest: `throw`. Added in B07 from the runtime
+     * corpus (`collection-nested-test`); unverified until B14.
+     */
+    readonly nestedInTest: 'fail-test' | 'throw'
+    /**
+     * `test.todo(name, fn)`: a todo whose body never runs (`todo`), or an error at registration
+     * (`throw`). Jest: `throw`. Vitest: `todo`. Added in B07 from the runtime corpus
+     * (`collection-todo-with-fn`); unverified until B14.
+     */
+    readonly todoWithFn: 'throw' | 'todo'
+    /**
+     * An invalid `.each` table (a value count that doesn't fill its columns, an empty table, no
+     * test function): one failing test under the raw title, the rest of the file still running
+     * (Jest), or lenient (Vitest drops an incomplete trailing row and registers nothing for an
+     * empty table). Added in B07's review; unverified until B14.
+     */
+    readonly eachTableError: 'failing-test' | 'lenient'
   }
   /** Hook failure and edge cases (Track 5 `hooks.*`, Track 12 fuzzing). */
   readonly hooks: {
@@ -189,7 +215,20 @@ export interface CorePolicy {
   readonly status: {
     /** A `todo` test under a skipped describe. Jest: `skipped`. Vitest: `todo`. unverified: track-12 L528 */
     readonly todoUnderSkip: 'skipped' | 'todo'
+    /**
+     * What `.failing`/`.fails` reverses: the body's result only, so a hook error still fails the
+     * test (Jest), or the whole attempt's, hooks and callbacks included, once the attempt is over
+     * (Vitest). Under `attempt`, `onTestFailed` runs from the real result, before the reversal: it
+     * runs when the body threw (the test then passes). Added in B07's review; unverified until B14.
+     */
+    readonly expectFail: 'body' | 'attempt'
   }
+  /**
+   * Which stack frame becomes a task's location: the frame that called the API (Jest), or the
+   * first frame in the test file, so a test a helper registers points at the helper's call site
+   * (Vitest). Added in B07's review; unverified until B14.
+   */
+  readonly locationFrame: 'caller' | 'test-file'
   /** Custom hook ordering, or `null` to use `hookOrder` (Track 5's optional escape hatch). */
   readonly orderHooks: Behaviour<OrderHooks> | null
 }

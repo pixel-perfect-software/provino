@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/collection-test-after-start",
+  "files": [
+    {
+      "file": "after-start.test.ts",
+      "status": "failed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    Cannot add a test after tests have started running. Tests must be defined synchronously.",
+        "userFrame": "<root>/after-start.test.ts:4:5"
+      },
+      "tests": [
+        {
+          "id": {
+            "file": "after-start.test.ts",
+            "path": [
+              "late registration",
+              "registered early"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "beforeAll start",
+    "beforeAll end",
+    "test registered early"
+  ]
+}

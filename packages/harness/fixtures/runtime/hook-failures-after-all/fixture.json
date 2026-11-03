@@ -1,0 +1,4 @@
+{
+  "description": "Only an afterAll throws, with a second afterAll after it. The tests pass in both runners; the error is a file-level error in Jest and a suite failure in Vitest. 'stack' runs the second afterAll first, so the error comes last; Jest and 'list' stop or continue differently.",
+  "runners": ["jest", "vitest", "vitest-list"]
+}

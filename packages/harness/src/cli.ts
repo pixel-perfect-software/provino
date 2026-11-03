@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path'
 import { HarnessError } from './errors.ts'
-import { defaultFixturesRoot, findFixtures, readFixture } from './fixture.ts'
+import { defaultFixturesRoot, findFixtures, readFixture, resolveFixtureDirs } from './fixture.ts'
 import { parseCommandLine, USAGE } from './internal/cli-args.ts'
 import { findStaleGoldens } from './internal/stale-goldens.ts'
 import { recordRead } from './record.ts'
@@ -20,7 +20,8 @@ async function main(argv: readonly string[]): Promise<number> {
     throw error
   }
 
-  const dirs = command.fixtures.length > 0 ? command.fixtures : await findFixtures()
+  const dirs =
+    command.fixtures.length > 0 ? await resolveFixtureDirs(command.fixtures) : await findFixtures()
   if (dirs.length === 0) {
     console.error('no fixtures found')
     return 1
@@ -30,13 +31,13 @@ async function main(argv: readonly string[]): Promise<number> {
   const produced = new Set<string>()
   for (const dir of dirs) {
     const fixture = await readFixture(dir)
-    for (const runner of fixture.manifest.runners) {
-      const result = await recordRead(fixture, runner, {
+    for (const profile of fixture.manifest.runners) {
+      const result = await recordRead(fixture, profile, {
         check: command.check,
         keepWorkDir: command.keepWorkDir,
       })
       produced.add(result.goldenPath)
-      console.log(`${result.outcome.padEnd(9)} ${result.fixture} (${runner})`)
+      console.log(`${result.outcome.padEnd(9)} ${result.fixture} (${profile})`)
       if (result.workDir !== undefined) console.log(`          kept ${result.workDir}`)
       if (result.outcome === 'drift') {
         failed = true

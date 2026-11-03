@@ -1,6 +1,7 @@
 import { type ChildProcess, type StdioOptions, spawn } from 'node:child_process'
 import { constants } from 'node:os'
 import { performance } from 'node:perf_hooks'
+import { errorMessage } from './internal/guards.ts'
 
 /**
  * How `spawnInGroup` starts a process. `stdio` is the caller's: the bench reads a spare fd, the
@@ -102,7 +103,7 @@ export function spawnInGroup(
     } catch (error) {
       // A group that is already gone (ESRCH) is what the signal was for.
       if (!hasCode(error, 'ESRCH')) {
-        problems.push(`${signal} failed: ${error instanceof Error ? error.message : String(error)}`)
+        problems.push(`${signal} failed: ${errorMessage(error)}`)
       }
     }
   }
@@ -128,9 +129,11 @@ export function spawnInGroup(
   }
 
   // `detached` takes the group out of the terminal's foreground, so Ctrl-C no longer reaches it.
-  // `exitOnSignals` turns signals into a normal exit, and this ends the group on the way out.
+  // `exitOnSignals` turns signals into a normal exit, and this ends the group on the way out. It
+  // goes first among the `exit` listeners, so a caller's own cleanup (the recorder removing its
+  // work directory) never runs while the group is still writing.
   const onParentExit = (): void => signalGroup('SIGKILL')
-  process.on('exit', onParentExit)
+  process.prependListener('exit', onParentExit)
 
   const release = (): void => {
     clearTimeout(timeoutTimer)
