@@ -87,13 +87,17 @@ const crashedFile: NormalizedFile = {
   fileError: { message: 'Missing second argument', raw: '' },
 }
 
-test('expectCrash: a crashed file is the expected result, with no tests and a fileError', () => {
-  assertRunComplete(makeRun([crashedFile]), ['a.test.ts'], 'f (jest)', { expectCrash: true })
+const MISSING_ARGUMENT = 'Missing second argument'
+
+test('expectCrash: a crashed file with the expected cause is the result', () => {
+  assertRunComplete(makeRun([crashedFile]), ['a.test.ts'], 'f (jest)', {
+    expectCrash: MISSING_ARGUMENT,
+  })
   assertRunComplete(
     makeRun([crashedFile, { ...crashedFile, file: 'b.test.ts' }]),
     ['a.test.ts', 'b.test.ts'],
     'f (jest)',
-    { expectCrash: true },
+    { expectCrash: 'second argument' },
   )
 })
 
@@ -101,7 +105,7 @@ test('expectCrash: a file that did not crash is HARNESS_EXPECTED_CRASH_MISSING a
   assert.throws(
     () =>
       assertRunComplete(complete, ['a.test.ts', 'b.test.ts'], 'area/thing (jest)', {
-        expectCrash: true,
+        expectCrash: MISSING_ARGUMENT,
       }),
     rejects(
       'HARNESS_EXPECTED_CRASH_MISSING',
@@ -115,18 +119,77 @@ test('expectCrash: a file that did not crash is HARNESS_EXPECTED_CRASH_MISSING a
   const failedOutside = makeFile('a.test.ts', [makeTest('a.test.ts', ['t'])], 'failed')
   for (const file of [failedOutside, makeFile('a.test.ts', [], 'passed')]) {
     assert.throws(
-      () => assertRunComplete(makeRun([file]), ['a.test.ts'], 'f', { expectCrash: true }),
+      () =>
+        assertRunComplete(makeRun([file]), ['a.test.ts'], 'f', { expectCrash: MISSING_ARGUMENT }),
       rejects('HARNESS_EXPECTED_CRASH_MISSING', 'a.test.ts'),
     )
   }
 })
 
-test('expectCrash does not excuse a missing file or a run error', () => {
+test('expectCrash: a crash for another reason is HARNESS_EXPECTED_CRASH_MISMATCH', () => {
+  const otherReason: NormalizedFile = {
+    ...crashedFile,
+    fileError: {
+      message: "● Test suite failed to run\n\nCannot find module './x' from 'a.test.ts'",
+      raw: '',
+    },
+  }
   assert.throws(
     () =>
-      assertRunComplete(makeRun([crashedFile]), ['a.test.ts', 'z.test.ts'], 'f', {
-        expectCrash: true,
+      assertRunComplete(makeRun([otherReason]), ['a.test.ts'], 'area/thing (jest)', {
+        expectCrash: MISSING_ARGUMENT,
       }),
+    rejects(
+      'HARNESS_EXPECTED_CRASH_MISMATCH',
+      'area/thing (jest)',
+      'a.test.ts',
+      JSON.stringify(MISSING_ARGUMENT),
+      "Cannot find module './x'",
+    ),
+  )
+  // The text is looked for as written: no case folding, no partial words.
+  assert.throws(
+    () =>
+      assertRunComplete(makeRun([crashedFile]), ['a.test.ts'], 'f', {
+        expectCrash: 'missing second argument',
+      }),
+    rejects('HARNESS_EXPECTED_CRASH_MISMATCH'),
+  )
+})
+
+test('expectCrash: a crash with no fileError is HARNESS_EXPECTED_CRASH_MISMATCH', () => {
+  const { fileError: _dropped, ...noError } = crashedFile
+  assert.throws(
+    () =>
+      assertRunComplete(makeRun([noError]), ['a.test.ts'], 'f (jest)', {
+        expectCrash: MISSING_ARGUMENT,
+      }),
+    rejects('HARNESS_EXPECTED_CRASH_MISMATCH', 'a.test.ts', 'no fileError'),
+  )
+})
+
+test('expectCrash: the mismatch names only the files that crashed for another reason', () => {
+  const other: NormalizedFile = {
+    ...crashedFile,
+    file: 'b.test.ts',
+    fileError: { message: 'SyntaxError: Unexpected token', raw: '' },
+  }
+  assert.throws(
+    () =>
+      assertRunComplete(makeRun([crashedFile, other]), ['a.test.ts', 'b.test.ts'], 'f', {
+        expectCrash: MISSING_ARGUMENT,
+      }),
+    (error: unknown) =>
+      rejects('HARNESS_EXPECTED_CRASH_MISMATCH', 'b.test.ts', 'SyntaxError')(error) &&
+      error instanceof Error &&
+      !error.message.includes('a.test.ts'),
+  )
+})
+
+test('expectCrash does not excuse a missing file or a run error', () => {
+  const options = { expectCrash: MISSING_ARGUMENT }
+  assert.throws(
+    () => assertRunComplete(makeRun([crashedFile]), ['a.test.ts', 'z.test.ts'], 'f', options),
     rejects('HARNESS_RUN_INCOMPLETE', 'z.test.ts', 'missing'),
   )
   assert.throws(
@@ -135,14 +198,15 @@ test('expectCrash does not excuse a missing file or a run error', () => {
         makeRun([crashedFile], { runErrors: [{ message: 'worker died', raw: '' }] }),
         ['a.test.ts'],
         'f',
-        { expectCrash: true },
+        options,
       ),
     rejects('HARNESS_RUN_INCOMPLETE', 'worker died'),
   )
 })
 
-test('without expectCrash a crash is still unexpected, and expectCrash: false is the default', () => {
-  for (const options of [undefined, {}, { expectCrash: false }]) {
+test('without expectCrash a crash is still unexpected', () => {
+  // `{ expectCrash: undefined }` is what the recorder passes for a profile without one.
+  for (const options of [undefined, {}, { expectCrash: undefined }]) {
     assert.throws(
       () => assertRunComplete(makeRun([crashedFile]), ['a.test.ts'], 'f', options),
       rejects('HARNESS_RUN_INCOMPLETE', 'crashed', 'Missing second argument'),

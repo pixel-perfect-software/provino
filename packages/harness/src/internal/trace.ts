@@ -1,8 +1,7 @@
 // The step trace a fixture writes through the global `trace(step)` (see `runner-config.ts`): one
 // step per line in a file the recorder names, read after the run.
-import { readFile } from 'node:fs/promises'
 import { HarnessError } from '../errors.ts'
-import { isNotFound } from './guards.ts'
+import { readIfExists } from './guards.ts'
 
 /**
  * The steps in a trace file's text, one per line. The newline that ends the last step is not a
@@ -10,7 +9,6 @@ import { isNotFound } from './guards.ts'
  * @internal
  */
 export function parseTrace(text: string): string[] {
-  if (text === '') return []
   const lines = text.split('\n')
   if (lines.at(-1) === '') lines.pop()
   return lines
@@ -21,12 +19,8 @@ export function parseTrace(text: string): string[] {
  * @internal
  */
 export async function readTrace(file: string): Promise<string[]> {
-  try {
-    return parseTrace(await readFile(file, 'utf8'))
-  } catch (cause) {
-    if (isNotFound(cause)) return []
-    throw cause
-  }
+  const text = await readIfExists(file)
+  return text === undefined ? [] : parseTrace(text)
 }
 
 /**

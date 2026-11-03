@@ -1,6 +1,7 @@
 // Narrowing helpers for data that arrives as `unknown` (parsed JSON, fields the runners' own
 // types don't declare), and the few small helpers every module shares. Nothing here casts: a value
 // is checked, then it is typed.
+import { readFile } from 'node:fs/promises'
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -9,6 +10,21 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 /** Whether a file-system error says the path does not exist. */
 export function isNotFound(error: unknown): boolean {
   return isRecord(error) && error.code === 'ENOENT'
+}
+
+/** The text of a file, or `undefined` if it does not exist. Any other failure is thrown. */
+export async function readIfExists(file: string): Promise<string | undefined> {
+  try {
+    return await readFile(file, 'utf8')
+  } catch (cause) {
+    if (isNotFound(cause)) return undefined
+    throw cause
+  }
+}
+
+/** The text of a caught value: an `Error`'s message, else the value as a string. */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 /** Reads one property from an object whose type doesn't declare it. */

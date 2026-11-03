@@ -179,6 +179,23 @@ test('the library installs no signal handler, and removes its exit hook when it 
   assert.deepEqual(after, before)
 })
 
+test('its exit hook runs before the listeners that were there first', {
+  timeout: 15_000,
+}, async () => {
+  // A caller's cleanup (the recorder removing its work directory) must not run while the group it
+  // started is still alive, so the group is killed first.
+  const earlier = (): void => undefined
+  process.on('exit', earlier)
+  try {
+    const { exited } = spawnInGroup(...node(''), { ...base, stdio: ['ignore', 'ignore', 'ignore'] })
+    const listeners = process.listeners('exit')
+    assert.ok(listeners.indexOf(earlier) > 0, 'the hook of the group is registered ahead of it')
+    await exited
+  } finally {
+    process.off('exit', earlier)
+  }
+})
+
 test('if this process exits first, the group it started is killed', {
   timeout: 15_000,
 }, async () => {

@@ -27,6 +27,7 @@ import {
 } from './internal/runner-config.ts'
 import { assertTraceFromOneFile, readTrace } from './internal/trace.ts'
 import { isNodeModules, walkFiles } from './internal/walk.ts'
+import { createWorkDirRegistry, REMOVE_TREE_OPTIONS } from './internal/work-dirs.ts'
 import { parseJestJson, parseVitestJson } from './parse-results.ts'
 import { runProcess } from './run-process.ts'
 import { resolveRunnerPackage } from './runner-package.ts'
@@ -68,6 +69,11 @@ const PACKAGE_DIR = path.resolve(import.meta.dirname, '..')
 const REPO_ROOT = path.resolve(PACKAGE_DIR, '..', '..')
 const WORK_ROOT = path.join(PACKAGE_DIR, '.record')
 const TRANSFORMER_PATH = fileURLToPath(new URL('./jest-transform.ts', import.meta.url))
+
+// A signal ends the CLI through `process.exit` (`exitOnSignals`), which skips `recordRead`'s
+// cleanup, so the work directories on disk are also removed on exit. One per process, because
+// `exit` is.
+const workDirs = createWorkDirRegistry()
 
 /**
  * Every directory that names this machine. The runner's text is normalized against the work
@@ -205,7 +211,7 @@ async function runUnderRunner(
   const label = `${fixture.id} (${profile})`
   const testFiles = testFilesFor(fixture.files, profile)
   assertRunComplete(run, testFiles, label, {
-    expectCrash: fixture.manifest.expectCrash?.includes(profile) === true,
+    expectCrash: fixture.manifest.expectCrash?.[profile],
   })
   const trace = await readTrace(traceFile)
   assertTraceFromOneFile(trace, testFiles, label)
@@ -251,6 +257,7 @@ export async function recordRead(
     path.join(WORK_ROOT, `${fixture.id.replaceAll('/', '-')}-${profile}-`),
   )
   const keep = options.keepWorkDir === true
+  if (!keep) workDirs.track(workDir)
   let text: string
   try {
     await copyFixture(fixture, workDir)
@@ -277,6 +284,8 @@ export async function recordRead(
   }
 }
 
-function removeWorkDir(workDir: string): Promise<void> {
-  return rm(workDir, { recursive: true, force: true, maxRetries: 3 })
+/** Removes the work directory. If that fails, the exit hook tries again. */
+async function removeWorkDir(workDir: string): Promise<void> {
+  await rm(workDir, REMOVE_TREE_OPTIONS)
+  workDirs.forget(workDir)
 }

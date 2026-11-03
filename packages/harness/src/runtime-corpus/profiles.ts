@@ -25,7 +25,8 @@ const jest: CorePolicy = {
   // unverified: track-01 L183
   allowGeneratorFns: true,
   // unverified: track-05 L315, L318 (runtime corpus `timeouts` agrees on catchSyncOverrun)
-  timeouts: { test: 5000, hook: 5000, teardown: 5000, catchSyncOverrun: false },
+  // unverified: jest-circus 30.5 `test.timeout || testTimeout` (B07 review) for `zero`
+  timeouts: { test: 5000, hook: 5000, teardown: 5000, catchSyncOverrun: false, zero: 'default' },
   // unverified: track-05 L321
   nameSeparator: ' ',
   // unverified: track-01 L186
@@ -61,6 +62,8 @@ const jest: CorePolicy = {
     nestedInTest: 'fail-test',
     // unverified: track-05 L57 (runtime corpus `collection-todo-with-fn` agrees)
     todoWithFn: 'throw',
+    // unverified: jest-each 30.5 registers one failing test for a bad table (B07 review)
+    eachTableError: 'failing-test',
   },
   hooks: {
     // unverified: track-05 L314 (runtime corpus `hook-failures` agrees)
@@ -76,14 +79,20 @@ const jest: CorePolicy = {
     // unverified: track-12 L528
     skippedBlock: 'run-before-all',
   },
-  // unverified: track-05 L317 (runtime corpus `concurrent-grouping` agrees)
-  concurrency: { grouping: 'hoist-to-first', limitHooks: false },
+  concurrency: {
+    // unverified: track-05 L317 (runtime corpus `concurrent-grouping` agrees)
+    grouping: 'hoist-to-first',
+    // unverified: track-05 L317
+    limitHooks: false,
+  },
   // unverified: track-05 L320
   errors: { lateErrors: 'fail-owner', hasAssertionsWhenFailed: 'skip' },
   // unverified: track-12 L528
   focus: { scope: 'file', insideSkip: 'runs' },
-  // unverified: track-12 L528
-  status: { todoUnderSkip: 'skipped' },
+  // unverified: track-12 L528; expectFail from jest-circus 30.5 `_callCircusTest` (B07 review)
+  status: { todoUnderSkip: 'skipped', expectFail: 'body' },
+  // unverified: jest-circus 30.5 takes the caller frame (B07 review)
+  locationFrame: 'caller',
 }
 
 /** Vitest 5.0's `core` values with `sequence.hooks: 'stack'` (its default). */
@@ -103,7 +112,7 @@ const vitestStack: CorePolicy = {
   // unverified: track-01 L183
   allowGeneratorFns: false,
   // unverified: track-05 L315, L318 (runtime corpus `timeouts` agrees on catchSyncOverrun)
-  timeouts: { test: 5000, hook: 10000, teardown: 10000, catchSyncOverrun: true },
+  timeouts: { test: 5000, hook: 10000, teardown: 10000, catchSyncOverrun: true, zero: 'none' },
   // unverified: track-05 L321
   nameSeparator: ' > ',
   // unverified: track-01 L186
@@ -139,6 +148,8 @@ const vitestStack: CorePolicy = {
     nestedInTest: 'throw',
     // unverified: track-05 L57 (runtime corpus `collection-todo-with-fn` agrees)
     todoWithFn: 'todo',
+    // unverified: Vitest 5.0 drops an incomplete trailing row (B07 review)
+    eachTableError: 'lenient',
   },
   hooks: {
     // unverified: track-05 L314 (runtime corpus `hook-failures` agrees)
@@ -147,21 +158,29 @@ const vitestStack: CorePolicy = {
     beforeAllError: 'skip-subtree',
     // unverified: track-12 L528
     nestedHooksAfterBeforeAllError: 'skip',
-    // unverified: track-05 L314
+    // unverified: track-05 L314 (runtime corpus `hook-failures-after-all` agrees)
     afterAllError: 'fail-suite',
     // unverified: not in the research; Vitest gives hooks their own timeout
     timeoutCountsTestTimeout: false,
     // unverified: track-12 L528
     skippedBlock: 'none',
   },
-  // unverified: track-05 L317 (runtime corpus `concurrent-grouping` agrees)
-  concurrency: { grouping: 'consecutive', limitHooks: true },
+  concurrency: {
+    // unverified: track-05 L317 (runtime corpus `concurrent-grouping` agrees)
+    grouping: 'consecutive',
+    // unverified: track-05 L317
+    limitHooks: true,
+  },
   // unverified: track-05 L320
   errors: { lateErrors: 'report-run', hasAssertionsWhenFailed: 'check' },
   // unverified: track-12 L528
   focus: { scope: 'suite', insideSkip: 'skipped' },
-  // unverified: track-12 L528
-  status: { todoUnderSkip: 'todo' },
+  // unverified: track-12 L528; expectFail from Vitest 5.0 `runTest` (B07 review)
+  status: { todoUnderSkip: 'todo', expectFail: 'attempt' },
+  // unverified: Vitest 5.0 `findTestFileStackTrace` (B07 review)
+  locationFrame: 'test-file',
+  // unverified: track-01 L191
+  eachTitleTruncate: 40,
 }
 
 /** Vitest 5.0 with `sequence.hooks: 'list'`: after-hooks in declaration order. */
