@@ -80,6 +80,8 @@ export interface LoaderOptions {
   readonly resolver: Resolver
   readonly transformer: ModuleTransformer
   readonly policy: ModulePolicy
+  /** Environment export conditions for resolution (Track 8); the call kind adds its own. Default `['node']`. */
+  readonly conditions?: readonly string[]
   /** Modules always loaded per file (Vitest `server.deps.inline`). */
   readonly inline?: readonly (string | RegExp)[]
   /** Default 400. */

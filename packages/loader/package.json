@@ -1,0 +1,40 @@
+{
+  "name": "@provino/loader",
+  "version": "0.0.0",
+  "description": "Provino's module loader: a two-phase module-runner engine with a fresh module registry per test file, and node_modules shared natively.",
+  "homepage": "https://github.com/pixel-perfect-software/provino#readme",
+  "bugs": {
+    "url": "https://github.com/pixel-perfect-software/provino/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pixel-perfect-software/provino.git",
+    "directory": "packages/loader"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@provino/transform": "workspace:*",
+    "@provino/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@provino/resolver": "workspace:*",
+    "@provino/policy": "workspace:*"
+  }
+}

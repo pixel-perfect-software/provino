@@ -7,6 +7,7 @@ export type TransformErrorCode =
   | 'TRANSFORM_OPTION_UNSUPPORTED'
   | 'TRANSFORM_UNSUPPORTED_FILE'
   | 'TRANSFORM_TSCONFIG_INVALID'
+  | 'TRANSFORM_RUNNER_FAILED'
 
 /**
  * A transform error with a stable code.

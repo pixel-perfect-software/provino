@@ -12,6 +12,8 @@ minimumReleaseAgeExclude:
 # rebuild from source when a prebuilt binary is missing, so they never run here.
 allowBuilds:
   "@parcel/watcher": false
+  # @swc/core's postinstall only checks that its platform binary installed.
+  "@swc/core": false
   unrs-resolver: false
 
 # Exact pins, shared by every package that uses them: reference with "catalog:".
@@ -20,6 +22,9 @@ catalog:
   "@biomejs/biome": 2.6.3
   # Jest 30.5 and Vitest 5.0: subjects of the dev packages (harness, bench), never our runner.
   "@jest/test-result": 30.5.2
+  # The Spike A loader fixture's Jest baseline uses @swc/jest (Track 2, bench-e2e).
+  "@swc/core": 1.16.20
+  "@swc/jest": 0.2.39
   # Type tests only: real Jest transformers must assign to JestTransformer (Track 3, T3.1).
   "@jest/transform": 30.5.2
   # Source-map composition in @provino/transform (Track 3 R1).
@@ -36,13 +41,18 @@ catalog:
   # date-fns, lodash and zod: libraries the generated bench suites import (Track 12 R5).
   date-fns: 4.4.0
   dependency-cruiser: 18.7.0
+  # The Spike A loader fixture's shared node_modules (Track 2): ESM, CJS, ESM + wasm, and expect.
+  es-module-lexer: 3.0.4
+  expect: 30.5.2
   expect-type: 1.4.0
   jest: 30.5.2
   lodash: 4.18.1
+  magic-string: 1.4.5
   # Oxc (Track 3): the resolver, and the transform pipeline with its parser.
   oxc-parser: 0.156.0
   oxc-resolver: 11.24.2
   oxc-transform: 0.156.0
+  pretty-format: 30.5.1
   tsdown: 0.23.2
   turbo: 2.11.10
   typescript: 7.0.2

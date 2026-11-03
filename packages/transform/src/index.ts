@@ -2,5 +2,7 @@
 // `TransformRequest`, `Pipeline`) live in @provino/types.
 export type { TransformErrorCode } from './errors.ts'
 export { TransformError } from './errors.ts'
+export type { ModuleRunnerOutput } from './module-runner.ts'
+export { toModuleRunner } from './module-runner.ts'
 export type { CreatePipeline, PipelineJsxOptions, PipelineOptions } from './pipeline.ts'
 export { createPipeline } from './pipeline.ts'
