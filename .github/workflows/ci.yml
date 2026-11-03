@@ -148,3 +148,7 @@ jobs:
             | tar -xz -C .refs/excalidraw --strip-components=1
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm bench:excalidraw
+      # T2.4: 10,000 generated TS files through the pipeline and the guarded module-runner transform,
+      # with no process abort and every failure reported per file.
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm bench:runner-fuzz
