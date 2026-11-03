@@ -31,5 +31,8 @@
   },
   "dependencies": {
     "@standard-schema/spec": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/transform": "catalog:"
   }
 }

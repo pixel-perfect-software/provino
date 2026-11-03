@@ -212,6 +212,9 @@ catalogs:
     '@jest/test-result':
       specifier: 30.5.2
       version: 30.5.2
+    '@jest/transform':
+      specifier: 30.5.2
+      version: 30.5.2
     '@pixel-perfect-software/always-up-to-date':
       specifier: 3.3.0
       version: 3.3.0
@@ -362,6 +365,10 @@ importers:
       '@standard-schema/spec':
         specifier: 'catalog:'
         version: 1.1.0
+    devDependencies:
+      '@jest/transform':
+        specifier: 'catalog:'
+        version: 30.5.2(supports-color@8.1.1)
 
   tooling/boundaries:
     devDependencies:

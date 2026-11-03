@@ -20,6 +20,8 @@ catalog:
   "@biomejs/biome": 2.6.3
   # Jest 30.5 and Vitest 5.0: subjects of the dev packages (harness, bench), never our runner.
   "@jest/test-result": 30.5.2
+  # Type tests only: real Jest transformers must assign to JestTransformer (Track 3, T3.1).
+  "@jest/transform": 30.5.2
   # autd: dependency updates (DECISIONS D14); config in .always-up-to-date.json.
   "@pixel-perfect-software/always-up-to-date": 3.3.0
   "@standard-schema/spec": 1.1.0
