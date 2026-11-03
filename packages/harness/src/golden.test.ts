@@ -114,9 +114,52 @@ test('optional fields that are absent stay absent', () => {
   assert.equal('snapshots' in plain, false)
 })
 
-test('goldenPath is <fixture>/__goldens__/<runner>.json', () => {
+test('goldenPath is <fixture>/__goldens__/<profile>.json', () => {
   assert.equal(goldenPath('/f/area/x', 'jest'), '/f/area/x/__goldens__/jest.json')
   assert.equal(goldenPath('/f/area/x', 'vitest'), '/f/area/x/__goldens__/vitest.json')
+  assert.equal(goldenPath('/f/area/x', 'vitest-list'), '/f/area/x/__goldens__/vitest-list.json')
+})
+
+const vitestRun: NormalizedRun = { ...run, runner: 'vitest', runnerVersion: '5.0.5' }
+
+test('a golden has a profile only when it is not the runner itself', () => {
+  assert.equal('profile' in toGolden(vitestRun), false)
+  assert.equal('profile' in toGolden(vitestRun, { profile: 'vitest' }), false)
+  assert.equal('profile' in toGolden(run, { profile: 'jest' }), false)
+  const list = toGolden(vitestRun, { profile: 'vitest-list' })
+  assert.equal(list.runner, 'vitest')
+  assert.equal(list.profile, 'vitest-list')
+})
+
+test('a golden has a trace only when something was traced, and the steps keep their order', () => {
+  assert.equal('trace' in toGolden(run), false)
+  assert.equal('trace' in toGolden(run, { trace: [] }), false)
+  const steps = ['test L3a', 'beforeEach L2 #1', '', 'afterAll L1 #2']
+  assert.deepEqual(toGolden(run, { trace: steps }).trace, steps)
+})
+
+test('profile follows the runner and trace comes last, whatever the order of the extras', () => {
+  const golden = toGolden(vitestRun, { trace: ['a'], profile: 'vitest-list' })
+  assert.deepEqual(Object.keys(golden), [
+    'schemaVersion',
+    'runner',
+    'profile',
+    'runnerVersion',
+    'suite',
+    'files',
+    'snapshots',
+    'runErrors',
+    'success',
+    'trace',
+  ])
+  const text = serializeGolden(golden)
+  assert.ok(text.endsWith('  "trace": [\n    "a"\n  ]\n}\n'))
+  assert.equal(text, serializeGolden(toGolden(vitestRun, { profile: 'vitest-list', trace: ['a'] })))
+})
+
+test('extras cannot add a field the golden does not list', () => {
+  const sneaky = { trace: ['a'], extra: 'leak' }
+  assert.equal(serializeGolden(toGolden(run, sneaky)).includes('leak'), false)
 })
 
 test('a field no golden level lists does not get through, at any level', () => {

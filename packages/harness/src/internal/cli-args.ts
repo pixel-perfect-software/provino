@@ -9,7 +9,7 @@ export interface RecordCommand {
   /** Compare with the committed goldens instead of writing them. */
   readonly check: boolean
   readonly keepWorkDir: boolean
-  /** Fixture directories. Empty means every fixture under `fixtures/`. */
+  /** Fixture directories, or directories of fixtures. Empty means every fixture under `fixtures/`. */
   readonly fixtures: readonly string[]
 }
 
@@ -19,8 +19,9 @@ export interface RecordCommand {
  */
 export const USAGE = `Usage: provino-harness record [--check] [--keep] [<fixture dir>...]
 
-  record   Run Jest and Vitest over each fixture and write __goldens__/<runner>.json.
-           With no directory, every fixture under packages/harness/fixtures/.
+  record   Run Jest and Vitest over each fixture and write __goldens__/<profile>.json.
+           A directory is a fixture or holds fixtures (fixtures/runtime). With no directory,
+           every fixture under packages/harness/fixtures/.
 
   --check  Compare with the committed goldens instead of writing them; exit 1 on drift.
   --keep   Keep the work directories under packages/harness/.record/.

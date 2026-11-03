@@ -17,18 +17,34 @@ function quoted(text: string): string {
 }
 
 /**
+ * What `assertRunComplete` allows beyond a plain run.
+ * @internal
+ */
+export interface CompleteOptions {
+  /** Every file must crash at collection (`fixture.json`'s `expectCrash`), and none may do so otherwise. */
+  readonly expectCrash?: boolean
+}
+
+/**
  * A golden must show every test file the fixture hands the runner, and show it ran. Otherwise a
  * crashed file, an empty `describe` or a transform error is recorded as if it were a result.
  * Throws `HARNESS_RUN_INCOMPLETE` unless the run's files are exactly `expectedFiles`, none is
  * `crashed` or has no tests, and the run has no run-level errors.
+ *
+ * With `expectCrash` the rule for crashes inverts: a `crashed` file is the result (its `fileError`
+ * is recorded), and a file that did not crash throws `HARNESS_EXPECTED_CRASH_MISSING`. A missing
+ * file and run-level errors are still `HARNESS_RUN_INCOMPLETE`.
  * @internal
  */
 export function assertRunComplete(
   run: NormalizedRun,
   expectedFiles: readonly string[],
   label: string,
+  options: CompleteOptions = {},
 ): void {
+  const expectCrash = options.expectCrash === true
   const problems: string[] = []
+  const notCrashed: string[] = []
   const ran = new Set(run.files.map((file) => file.file))
   for (const file of expectedFiles) {
     if (!ran.has(file)) problems.push(`missing result file: ${file} (the runner never reported it)`)
@@ -36,7 +52,9 @@ export function assertRunComplete(
   const expected = new Set(expectedFiles)
   for (const file of run.files) {
     if (!expected.has(file.file)) problems.push(`unexpected result file: ${file.file}`)
-    if (file.status === 'crashed') {
+    if (expectCrash) {
+      if (file.status !== 'crashed') notCrashed.push(file.file)
+    } else if (file.status === 'crashed') {
       const reason = file.fileError?.message ?? '(no message)'
       problems.push(`${file.file} crashed before running its tests:\n${quoted(reason)}`)
     } else if (file.tests.length === 0) {
@@ -46,11 +64,18 @@ export function assertRunComplete(
   for (const error of run.runErrors) {
     problems.push(`run error:\n${quoted(error.message)}`)
   }
-  if (problems.length === 0) return
-  throw new HarnessError(
-    'HARNESS_RUN_INCOMPLETE',
-    `${label} did not run to completion, so it is not recorded:\n  - ${problems.join('\n  - ')}`,
-  )
+  if (problems.length > 0) {
+    throw new HarnessError(
+      'HARNESS_RUN_INCOMPLETE',
+      `${label} did not run to completion, so it is not recorded:\n  - ${problems.join('\n  - ')}`,
+    )
+  }
+  if (notCrashed.length > 0) {
+    throw new HarnessError(
+      'HARNESS_EXPECTED_CRASH_MISSING',
+      `${label} lists this runner in "expectCrash", but ${notCrashed.join(', ')} did not crash at collection; remove it from "expectCrash" or fix the fixture`,
+    )
+  }
 }
 
 /**

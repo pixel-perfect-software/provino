@@ -74,3 +74,12 @@ test('only a goldens directory’s own json files count, not what is nested insi
     assert.deepEqual(await findStaleGoldens([root], new Set()), [direct])
   })
 })
+
+test('vitest-list.json is a golden: stale until the run produces it', async () => {
+  await withTempDir(async (root) => {
+    const jest = await put(root, 'a/b/__goldens__/jest.json')
+    const list = await put(root, 'a/b/__goldens__/vitest-list.json')
+    assert.deepEqual(await findStaleGoldens([root], new Set([jest])), [list])
+    assert.deepEqual(await findStaleGoldens([root], new Set([jest, list])), [])
+  })
+})

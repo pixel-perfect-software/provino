@@ -1,14 +1,28 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { test } from 'node:test'
-import { jestConfig, runnerEnv, vitestConfigSource } from './runner-config.ts'
+import {
+  jestConfig,
+  runnerEnv,
+  TRACE_ENV,
+  traceSetupSource,
+  vitestConfigSource,
+} from './runner-config.ts'
 
 test('the Jest config runs *.test.ts except the Vitest-only files, with locations and a local cache', () => {
-  const config = jestConfig('/work/x', '/repo/src/jest-transform.ts')
+  const config = jestConfig(
+    '/work/x',
+    '/repo/src/jest-transform.ts',
+    '/work/x/.harness-out/trace-setup.ts',
+  )
   assert.equal(config.rootDir, '/work/x')
   assert.deepEqual(config.transform, { '\\.[cm]?ts$': '/repo/src/jest-transform.ts' })
   assert.deepEqual(config.testMatch, ['<rootDir>/**/*.test.ts'])
   assert.ok(config.testPathIgnorePatterns.includes('\\.vitest\\.test\\.ts$'))
   assert.equal(config.testLocationInResults, true)
+  assert.deepEqual(config.setupFiles, ['/work/x/.harness-out/trace-setup.ts'])
   assert.equal(config.cacheDirectory, '/work/x/.jest-cache')
   assert.equal(config.watchman, false)
   const ignored = new RegExp(config.testPathIgnorePatterns[2] ?? '')
@@ -17,7 +31,7 @@ test('the Jest config runs *.test.ts except the Vitest-only files, with location
 })
 
 test('the Vitest config is a plain-object module with globals, task locations and a local cache', () => {
-  const source = vitestConfigSource('/work/x')
+  const source = vitestConfigSource('/work/x', '/work/x/.harness-out/trace-setup.ts')
   assert.match(source, /^export default \{/)
   assert.deepEqual(JSON.parse(source.replace(/^export default /, '')), {
     root: '/work/x',
@@ -27,9 +41,53 @@ test('the Vitest config is a plain-object module with globals, task locations an
       includeTaskLocation: true,
       include: ['**/*.test.ts'],
       exclude: ['**/node_modules/**', '**/__goldens__/**', '**/*.jest.test.ts'],
+      setupFiles: ['/work/x/.harness-out/trace-setup.ts'],
     },
   })
   assert.ok(source.endsWith('\n'))
+})
+
+test('only the vitest-list profile sets sequence.hooks, and to list', () => {
+  const testOptions = (profile?: 'vitest' | 'vitest-list'): Record<string, unknown> => {
+    const source = vitestConfigSource('/work/x', '/work/x/setup.ts', profile)
+    return JSON.parse(source.replace(/^export default /, '')).test
+  }
+  assert.equal('sequence' in testOptions(), false)
+  assert.equal('sequence' in testOptions('vitest'), false)
+  assert.deepEqual(testOptions('vitest-list').sequence, { hooks: 'list' })
+  assert.deepEqual(
+    { ...testOptions('vitest-list'), sequence: undefined },
+    { ...testOptions('vitest'), sequence: undefined },
+  )
+})
+
+test('the trace setup appends one line per call, in call order, to the file named by the environment', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'harness-trace-setup-'))
+  const saved = process.env[TRACE_ENV]
+  const target = globalThis as { trace?: (step: string) => void }
+  try {
+    const traceFile = path.join(dir, 'trace.txt')
+    const setupFile = path.join(dir, 'trace-setup.ts')
+    await writeFile(setupFile, traceSetupSource())
+    process.env[TRACE_ENV] = traceFile
+    await import(setupFile)
+    assert.equal(typeof target.trace, 'function')
+    target.trace?.('beforeEach L2 #1')
+    target.trace?.('test L3a')
+    target.trace?.('peak 5')
+    assert.equal(await readFile(traceFile, 'utf8'), 'beforeEach L2 #1\ntest L3a\npeak 5\n')
+  } finally {
+    delete target.trace
+    if (saved === undefined) delete process.env[TRACE_ENV]
+    else process.env[TRACE_ENV] = saved
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('the trace setup has no import or require, so Jest can run it as CommonJS and Vitest as ESM', () => {
+  const source = traceSetupSource()
+  assert.doesNotMatch(source, /^\s*import\b|\brequire\(|\bexport\b/m)
+  assert.match(source, new RegExp(`process\\.env\\.${TRACE_ENV}`))
 })
 
 test('runnerEnv makes the run quiet, UTC and CI-style, and drops what a parent runner leaks in', () => {

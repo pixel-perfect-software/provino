@@ -1,11 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { HarnessError } from './errors.ts'
-import { compareStrings, isRecord } from './internal/guards.ts'
+import { compareStrings, isNotFound, isRecord } from './internal/guards.ts'
 import { isNodeModules, walkFiles } from './internal/walk.ts'
 
 /**
- * A runner a fixture can be recorded under.
+ * A runner the recorder can run.
  * @public
  */
 export type FixtureRunner = 'jest' | 'vitest'
@@ -17,16 +17,37 @@ export type FixtureRunner = 'jest' | 'vitest'
 export const FIXTURE_RUNNERS: readonly FixtureRunner[] = ['jest', 'vitest']
 
 /**
+ * What a fixture is recorded as: a runner, or one of its recording profiles. `vitest-list` is
+ * Vitest with `sequence.hooks: 'list'`; its golden is `__goldens__/vitest-list.json`.
+ * @public
+ */
+export type FixtureProfile = FixtureRunner | 'vitest-list'
+
+/**
+ * The real runner behind a profile, which picks the package, the test files and the converter.
+ * @public
+ */
+export function runnerOfProfile(profile: FixtureProfile): FixtureRunner {
+  return profile === 'jest' ? 'jest' : 'vitest'
+}
+
+/**
  * A fixture's `fixture.json`.
  * @public
  */
 export interface FixtureManifest {
   /** What behaviour the fixture pins down. */
   readonly description: string
-  /** The runners it is recorded under. */
-  readonly runners: readonly FixtureRunner[]
+  /** The runners and profiles it is recorded under. */
+  readonly runners: readonly FixtureProfile[]
   /** Environment variables for the runner process, on top of the recorder's own. */
   readonly env?: Readonly<Record<string, string>>
+  /**
+   * Profiles (a subset of `runners`) whose test files must crash at collection, e.g. Jest on
+   * `test(name)` with no function. The crash's `fileError` is recorded; without the crash, or
+   * with one for a profile not listed here, recording fails.
+   */
+  readonly expectCrash?: readonly FixtureProfile[]
 }
 
 /**
@@ -54,10 +75,10 @@ export const GOLDENS_DIR = '__goldens__'
  */
 export const MANIFEST_FILE = 'fixture.json'
 
-const KNOWN_KEYS: ReadonlySet<string> = new Set(['description', 'runners', 'env'])
+const KNOWN_KEYS: ReadonlySet<string> = new Set(['description', 'runners', 'env', 'expectCrash'])
 
-function isFixtureRunner(value: unknown): value is FixtureRunner {
-  return value === 'jest' || value === 'vitest'
+function isFixtureProfile(value: unknown): value is FixtureProfile {
+  return value === 'jest' || value === 'vitest' || value === 'vitest-list'
 }
 
 /**
@@ -87,12 +108,12 @@ export function parseFixtureManifest(
     if (!KNOWN_KEYS.has(key)) {
       throw new HarnessError(
         'HARNESS_FIXTURE_UNKNOWN_KEY',
-        `${source}: unknown key "${key}" (expected description, runners, env)`,
+        `${source}: unknown key "${key}" (expected description, runners, env, expectCrash)`,
         { path: source },
       )
     }
   }
-  const { description, runners, env } = value
+  const { description, runners, env, expectCrash } = value
   if (typeof description !== 'string' || description.trim() === '') {
     throw new HarnessError(
       'HARNESS_FIXTURE_BAD_DESCRIPTION',
@@ -100,10 +121,10 @@ export function parseFixtureManifest(
       { path: source },
     )
   }
-  if (!Array.isArray(runners) || runners.length === 0 || !runners.every(isFixtureRunner)) {
+  if (!Array.isArray(runners) || runners.length === 0 || !runners.every(isFixtureProfile)) {
     throw new HarnessError(
       'HARNESS_FIXTURE_BAD_RUNNERS',
-      `${source}: "runners" must be a non-empty array of "jest" | "vitest"`,
+      `${source}: "runners" must be a non-empty array of "jest" | "vitest" | "vitest-list"`,
       { path: source },
     )
   }
@@ -114,7 +135,17 @@ export function parseFixtureManifest(
       { path: source },
     )
   }
-  if (env === undefined) return { description, runners }
+  return {
+    description,
+    runners,
+    ...(env === undefined ? {} : { env: parseEnv(env, source) }),
+    ...(expectCrash === undefined
+      ? {}
+      : { expectCrash: parseExpectCrash(expectCrash, runners, source) }),
+  }
+}
+
+function parseEnv(env: unknown, source: string): Record<string, string> {
   if (!isRecord(env) || !Object.values(env).every((v) => typeof v === 'string')) {
     throw new HarnessError(
       'HARNESS_FIXTURE_BAD_ENV',
@@ -126,7 +157,32 @@ export function parseFixtureManifest(
   for (const [name, entry] of Object.entries(env)) {
     if (typeof entry === 'string') stringEnv[name] = entry
   }
-  return { description, runners, env: stringEnv }
+  return stringEnv
+}
+
+/** `expectCrash` is a non-empty, duplicate-free subset of the fixture's own `runners`. */
+function parseExpectCrash(
+  expectCrash: unknown,
+  runners: readonly FixtureProfile[],
+  source: string,
+): readonly FixtureProfile[] {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_EXPECT_CRASH', `${source}: "expectCrash" ${reason}`, {
+      path: source,
+    })
+  if (!Array.isArray(expectCrash) || expectCrash.length === 0) {
+    throw bad('must be a non-empty array of "jest" | "vitest" | "vitest-list"')
+  }
+  const profiles: FixtureProfile[] = []
+  for (const entry of expectCrash) {
+    if (!isFixtureProfile(entry)) {
+      throw bad('must be a non-empty array of "jest" | "vitest" | "vitest-list"')
+    }
+    if (!runners.includes(entry)) throw bad(`lists "${entry}", which "runners" does not`)
+    if (profiles.includes(entry)) throw bad(`lists "${entry}" twice`)
+    profiles.push(entry)
+  }
+  return profiles
 }
 
 /**
@@ -144,10 +200,12 @@ export function runnersForTestFile(file: string): readonly FixtureRunner[] | und
 }
 
 /**
- * The test files a runner runs, from a fixture's file list.
+ * The test files a profile runs, from a fixture's file list. A profile runs the files of its
+ * runner: `vitest-list` runs what `vitest` runs.
  * @public
  */
-export function testFilesFor(files: readonly string[], runner: FixtureRunner): readonly string[] {
+export function testFilesFor(files: readonly string[], profile: FixtureProfile): readonly string[] {
+  const runner = runnerOfProfile(profile)
   return files.filter((file) => runnersForTestFile(file)?.includes(runner) === true)
 }
 
@@ -189,11 +247,12 @@ export async function readFixture(
   }
   const manifest = parseFixtureManifest(text, manifestPath)
   const files = await listFiles(absolute)
-  for (const runner of manifest.runners) {
-    if (testFilesFor(files, runner).length === 0) {
+  for (const profile of manifest.runners) {
+    if (testFilesFor(files, profile).length === 0) {
+      const runner = runnerOfProfile(profile)
       throw new HarnessError(
         'HARNESS_FIXTURE_NO_TESTS',
-        `${absolute} lists "${runner}" but has no test file for it (*.test.ts or *.${runner}.test.ts)`,
+        `${absolute} lists "${profile}" but has no test file for it (*.test.ts or *.${runner}.test.ts)`,
         { path: absolute },
       )
     }
@@ -223,4 +282,36 @@ export async function findFixtures(root: string = defaultFixturesRoot()): Promis
     .filter((dir) => !isNested(dir))
     .map((dir) => path.join(base, dir))
     .toSorted(compareStrings)
+}
+
+/**
+ * Turns the directories named on the command line into fixture directories: a fixture itself, or a
+ * directory with fixtures under it (`fixtures/runtime`). The result is in argument order, sorted
+ * within each argument, without repeats. An argument with no `fixture.json` in or under it is
+ * `HARNESS_FIXTURE_NOT_FOUND`.
+ * @public
+ */
+export async function resolveFixtureDirs(args: readonly string[]): Promise<string[]> {
+  const found = new Set<string>()
+  for (const arg of args) {
+    const root = path.resolve(arg)
+    let dirs: string[]
+    try {
+      dirs = await findFixtures(root)
+    } catch (cause) {
+      if (!isNotFound(cause)) throw cause
+      dirs = []
+    }
+    if (dirs.length === 0) {
+      throw new HarnessError(
+        'HARNESS_FIXTURE_NOT_FOUND',
+        `no ${MANIFEST_FILE} in or under ${root}`,
+        {
+          path: root,
+        },
+      )
+    }
+    for (const dir of dirs) found.add(dir)
+  }
+  return [...found]
 }
