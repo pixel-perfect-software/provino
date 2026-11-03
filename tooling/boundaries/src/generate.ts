@@ -6,6 +6,7 @@ import {
   type ManifestNode,
   withTestNodes,
 } from './manifest.ts'
+import { SKIPPED_DIRS } from './paths.ts'
 import { compare, escapeRegex, wildcardSource } from './text.ts'
 
 /** Repo-relative paths of the files the generator owns, and of the hand-written plugin. */
@@ -183,10 +184,8 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
       doNotFollow: { path: 'node_modules' },
       // Build output isn't cruised. Every exports entry resolves to src/ through provino-source
       // first (`workspace-exports` checks), so no edge lands in dist/. Neither is generated or
-      // scratch output: bench suites, bench records and recorder work dirs (all git-ignored).
-      exclude: {
-        path: '(^|/)(?:node_modules|dist|\\.tsc|\\.turbo|\\.suites|\\.results|\\.record)/',
-      },
+      // scratch output (SKIPPED_DIRS, shared with the workspace walk).
+      exclude: { path: `(^|/)(?:${SKIPPED_DIRS.map(escapeRegex).join('|')})/` },
       tsPreCompilationDeps: true,
       combinedDependencies: false,
       enhancedResolveOptions: {

@@ -25,3 +25,19 @@ export const DEPCRUISE_BIN: string = join(
 )
 /** @public */
 export const BIOME_BIN: string = join(ROOT, 'node_modules/@biomejs/biome/bin/biome')
+
+/**
+ * Directories the boundary checks never walk or cruise: dependencies, build output, and generated
+ * or scratch output (bench suites and records, recorder work dirs; all git-ignored). The workspace
+ * walk and dependency-cruiser's exclude both come from this one list.
+ * @public
+ */
+export const SKIPPED_DIRS: readonly string[] = [
+  'node_modules',
+  'dist',
+  '.tsc',
+  '.turbo',
+  '.suites',
+  '.results',
+  '.record',
+]

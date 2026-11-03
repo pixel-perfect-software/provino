@@ -248,6 +248,28 @@ describe('repo hygiene checks', () => {
   })
 })
 
+test('the workspace walk skips generated suites, bench records and recorder work dirs', async () => {
+  const dir = await scratchDir('walk', {
+    'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+    'tsconfig.json': '{ "references": [] }\n',
+    'tsconfig.type-tests.json': '{ "references": [] }\n',
+    'packages/bench/package.json': '{ "name": "@provino/bench" }\n',
+    'packages/bench/src/a.ts': 'export {}\n',
+    'packages/bench/.suites/app-5/jest/test/a.test.js': "test('x', () => {})\n",
+    'packages/bench/.results/record.json': '{}\n',
+    'packages/harness/package.json': '{ "name": "@provino/harness" }\n',
+    'packages/harness/.record/work/a.test.ts': 'export {}\n',
+  })
+  const workspace = await readWorkspace(dir)
+  assert.deepEqual(
+    workspace.packages.map((p) => [p.dir, p.files]),
+    [
+      ['packages/bench', ['package.json', 'src/a.ts']],
+      ['packages/harness', ['package.json']],
+    ],
+  )
+})
+
 test('matches: `*` is one path segment', () => {
   assert.ok(matches('packages/native-*', 'packages/native-darwin-arm64'))
   assert.ok(!matches('packages/native-*', 'packages/native-a/b'))
