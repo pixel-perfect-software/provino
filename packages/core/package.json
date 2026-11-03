@@ -26,8 +26,17 @@
   "engines": {
     "node": "^22.15.0 || >=24"
   },
+  "scripts": {
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+  },
   "dependencies": {
     "@provino/policy": "workspace:*",
     "@provino/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@sinonjs/fake-timers": "catalog:",
+    "@types/jsdom": "catalog:",
+    "@types/sinonjs__fake-timers": "catalog:",
+    "jsdom": "catalog:"
   }
 }
