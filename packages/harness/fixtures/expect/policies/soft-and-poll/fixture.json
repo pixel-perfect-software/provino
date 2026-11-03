@@ -1,0 +1,4 @@
+{
+  "description": "Vitest's expect.soft and expect.poll: soft failures that let the test go on and fail it at the end (alone, before a passing hard assertion, before a failing one), soft assertions that all pass, a poll that passes on its third call, a poll that rejects after its 100 ms timeout, and an unawaited poll.",
+  "runners": ["vitest"]
+}

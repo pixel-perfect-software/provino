@@ -10,6 +10,12 @@
     },
     {
       "path": "../policy"
+    },
+    {
+      "path": "../expect"
+    },
+    {
+      "path": "../dialect-jest"
     }
   ]
 }

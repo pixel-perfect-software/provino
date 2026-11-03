@@ -1,0 +1,301 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "expect/policies/removed-aliases",
+  "files": [
+    {
+      "file": "removed-aliases.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "removed-aliases.test.ts",
+            "path": [
+              "aliases removed in Jest 30",
+              "toBeCalled"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(...).toBeCalled is not a function",
+              "userFrame": "<root>/removed-aliases.test.ts:21:32"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "removed-aliases.test.ts",
+            "path": [
+              "aliases removed in Jest 30",
+              "toBeCalledTimes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(...).toBeCalledTimes is not a function",
+              "userFrame": "<root>/removed-aliases.test.ts:25:32"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "removed-aliases.test.ts",
+            "path": [
+              "aliases removed in Jest 30",
+              "toBeCalledWith"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(...).toBeCalledWith is not a function",
+              "userFrame": "<root>/removed-aliases.test.ts:29:32"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 28,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "removed-aliases.test.ts",
+            "path": [
+              "aliases removed in Jest 30",
+              "lastCalledWith"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(...).lastCalledWith is not a function",
+              "userFrame": "<root>/removed-aliases.test.ts:33:32"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "removed-aliases.test.ts",
+            "path": [
+              "aliases removed in Jest 30",
+              "nthCalledWith"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(...).nthCalledWith is not a function",
+              "userFrame": "<root>/removed-aliases.test.ts:37:32"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 36,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "removed-aliases.test.ts",
+            "path": [
+              "aliases removed in Jest 30",
+              "toReturn"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(...).toReturn is not a function",
+              "userFrame": "<root>/removed-aliases.test.ts:41:34"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "removed-aliases.test.ts",
+            "path": [
+              "aliases removed in Jest 30",
+              "toReturnTimes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(...).toReturnTimes is not a function",
+              "userFrame": "<root>/removed-aliases.test.ts:45:34"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 44,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "removed-aliases.test.ts",
+            "path": [
+              "aliases removed in Jest 30",
+              "toReturnWith"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(...).toReturnWith is not a function",
+              "userFrame": "<root>/removed-aliases.test.ts:49:34"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 48,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "removed-aliases.test.ts",
+            "path": [
+              "aliases removed in Jest 30",
+              "lastReturnedWith"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(...).lastReturnedWith is not a function",
+              "userFrame": "<root>/removed-aliases.test.ts:53:34"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 52,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "removed-aliases.test.ts",
+            "path": [
+              "aliases removed in Jest 30",
+              "nthReturnedWith"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(...).nthReturnedWith is not a function",
+              "userFrame": "<root>/removed-aliases.test.ts:57:34"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 56,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "removed-aliases.test.ts",
+            "path": [
+              "aliases removed in Jest 30",
+              "toThrowError"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(...).toThrowError is not a function",
+              "userFrame": "<root>/removed-aliases.test.ts:63:8"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "removed-aliases.test.ts",
+            "path": [
+              "aliases removed in Jest 30",
+              "toHaveBeenCalled is the control"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 66,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false
+}

@@ -1,0 +1,4 @@
+{
+  "description": "Failure messages of toThrow: a function that does not throw, a message string or regex that does not match, another error class, an error object, an asymmetric matcher, a thrown non-error, a non-function received, and .not with the thrown error's stack. Each test makes one failing assertion.",
+  "runners": ["jest", "vitest"]
+}

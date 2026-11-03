@@ -1,0 +1,4 @@
+{
+  "description": "Failure messages of toBeTruthy, toBeFalsy, toBeNull, toBeUndefined, toBeDefined and toBeInstanceOf (a named class, an anonymous class, a primitive received, a non-function expected), with their .not voices. Each test makes one failing assertion.",
+  "runners": ["jest", "vitest"]
+}

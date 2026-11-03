@@ -31,9 +31,12 @@
   "devDependencies": {
     "@jest/test-result": "catalog:",
     "@provino/core": "workspace:*",
+    "@provino/dialect-jest": "workspace:*",
+    "@provino/expect": "workspace:*",
     "@provino/policy": "workspace:*",
     "babel-jest": "catalog:",
     "jest": "catalog:",
+    "jest-mock": "catalog:",
     "vitest": "catalog:"
   }
 }

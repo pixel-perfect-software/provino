@@ -1,0 +1,4 @@
+{
+  "description": "Failure messages of the four number comparisons, toBeCloseTo (default and given precision), toBeNaN and bigint operands, with their .not voices and the matcher errors for a non-number received. Each test makes one failing assertion.",
+  "runners": ["jest", "vitest"]
+}

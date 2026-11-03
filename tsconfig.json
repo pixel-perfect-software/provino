@@ -33,6 +33,12 @@
     },
     {
       "path": "packages/loader"
+    },
+    {
+      "path": "packages/expect"
+    },
+    {
+      "path": "packages/dialect-jest"
     }
   ]
 }

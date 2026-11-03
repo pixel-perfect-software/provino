@@ -24,6 +24,12 @@
     },
     {
       "path": "packages/core/test"
+    },
+    {
+      "path": "packages/expect/test"
+    },
+    {
+      "path": "packages/dialect-jest/test"
     }
   ]
 }

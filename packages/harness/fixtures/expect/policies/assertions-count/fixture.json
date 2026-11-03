@@ -1,0 +1,4 @@
+{
+  "description": "expect.assertions(n) and expect.hasAssertions() in sequential tests: met, missed, exceeded, zero, none made, counts across 20 ms awaits and an awaited .resolves, and a count check on a test that already failed an assertion.",
+  "runners": ["jest", "vitest"]
+}

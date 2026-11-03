@@ -19,6 +19,15 @@
     },
     {
       "path": "../transform"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../expect"
+    },
+    {
+      "path": "../dialect-jest"
     }
   ]
 }

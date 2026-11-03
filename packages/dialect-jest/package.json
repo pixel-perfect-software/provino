@@ -1,0 +1,51 @@
+{
+  "name": "@provino/dialect-jest",
+  "version": "0.0.0",
+  "description": "Provino's Jest 30.5 dialect: Jest's policy values and API, so a Jest project runs on Provino unchanged.",
+  "homepage": "https://github.com/pixel-perfect-software/provino#readme",
+  "bugs": {
+    "url": "https://github.com/pixel-perfect-software/provino/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pixel-perfect-software/provino.git",
+    "directory": "packages/dialect-jest"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts"
+    },
+    "./runtime": {
+      "provino-source": "./src/runtime/index.ts",
+      "types": "./dist/runtime/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@jest/expect-utils": "catalog:",
+    "@jest/get-type": "catalog:",
+    "@provino/expect": "workspace:*",
+    "@provino/policy": "workspace:*",
+    "@provino/types": "workspace:*",
+    "jest-matcher-utils": "catalog:",
+    "jest-message-util": "catalog:",
+    "jest-util": "catalog:"
+  },
+  "devDependencies": {
+    "@provino/core": "workspace:*",
+    "expect": "catalog:",
+    "jest-mock": "catalog:"
+  }
+}

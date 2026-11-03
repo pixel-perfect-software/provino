@@ -1,0 +1,361 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "expect/messages/numbers",
+  "files": [
+    {
+      "file": "numbers.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "comparisons",
+              "toBeGreaterThan with a smaller received"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 1 to be greater than 2",
+              "userFrame": "<root>/numbers.test.ts:3:15"
+            }
+          ],
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "comparisons",
+              "toBeGreaterThanOrEqual with a smaller received"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 1 to be greater than or equal to 2",
+              "userFrame": "<root>/numbers.test.ts:7:15"
+            }
+          ],
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "comparisons",
+              "toBeLessThan with a larger received"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 3 to be less than 2",
+              "userFrame": "<root>/numbers.test.ts:11:15"
+            }
+          ],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "comparisons",
+              "toBeLessThanOrEqual with a larger received"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 3 to be less than or equal to 2",
+              "userFrame": "<root>/numbers.test.ts:15:15"
+            }
+          ],
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "comparisons",
+              "not.toBeGreaterThan with a larger received"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 3 to be not greater than 2",
+              "userFrame": "<root>/numbers.test.ts:19:19"
+            }
+          ],
+          "location": {
+            "line": 18,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "comparisons",
+              "not.toBeLessThanOrEqual with an equal received"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 2 to be not less than or equal to 2",
+              "userFrame": "<root>/numbers.test.ts:23:19"
+            }
+          ],
+          "location": {
+            "line": 22,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "comparisons",
+              "toBeGreaterThan with bigint operands"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 10 to be greater than 20",
+              "userFrame": "<root>/numbers.test.ts:27:17"
+            }
+          ],
+          "location": {
+            "line": 26,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "comparisons",
+              "toBeLessThan with a bigint received and a number expected"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 5 to be less than 3",
+              "userFrame": "<root>/numbers.test.ts:31:16"
+            }
+          ],
+          "location": {
+            "line": 30,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "comparisons",
+              "toBeGreaterThan with a string received is a matcher error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: actual value must be number or bigint, received \"string\"",
+              "userFrame": "<root>/numbers.test.ts:35:17"
+            }
+          ],
+          "location": {
+            "line": 34,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "toBeCloseTo",
+              "toBeCloseTo with the default precision"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 0.3 to be close to 0.31, received difference is 0.010000000000000009, but expected 0.005",
+              "userFrame": "<root>/numbers.test.ts:41:17"
+            }
+          ],
+          "location": {
+            "line": 40,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "toBeCloseTo",
+              "toBeCloseTo with precision 5"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 0.12345 to be close to 0.1235, received difference is 0.00004999999999999449, but expected 0.000005",
+              "userFrame": "<root>/numbers.test.ts:45:21"
+            }
+          ],
+          "location": {
+            "line": 44,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "toBeCloseTo",
+              "not.toBeCloseTo with a float sum"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 0.30000000000000004 to not be close to 0.3, received difference is 5.551115123125783e-17, but expected 0.005",
+              "userFrame": "<root>/numbers.test.ts:49:27"
+            }
+          ],
+          "location": {
+            "line": 48,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "toBeCloseTo",
+              "toBeCloseTo with a string received is a matcher error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected '0.3' to be close to 0.4, received difference is 0.10000000000000003, but expected 0.005",
+              "userFrame": "<root>/numbers.test.ts:54:19"
+            }
+          ],
+          "location": {
+            "line": 53,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "toBeNaN",
+              "toBeNaN with a number"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 1 to be NaN",
+              "userFrame": "<root>/numbers.test.ts:60:15"
+            }
+          ],
+          "location": {
+            "line": 59,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "numbers.test.ts",
+            "path": [
+              "toBeNaN",
+              "not.toBeNaN with NaN"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected NaN not to be NaN",
+              "userFrame": "<root>/numbers.test.ts:64:28"
+            }
+          ],
+          "location": {
+            "line": 63,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false
+}

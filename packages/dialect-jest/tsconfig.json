@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src"],
+  "exclude": ["src/runtime/vendor"],
+  "references": [
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../policy"
+    },
+    {
+      "path": "../expect"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "src/runtime/vendor"
+    }
+  ]
+}

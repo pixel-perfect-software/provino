@@ -1,0 +1,4 @@
+{
+  "description": "Failure messages of the ten spy matchers (called, times, with, last and nth called with, returned, returned times, returned with, last and nth returned with), their .not voices, a named mock, a spyOn method, and a plain function received. The jest.fn cases have vi.fn twins with the same titles; each test makes one failing assertion.",
+  "runners": ["jest", "vitest"]
+}
