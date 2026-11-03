@@ -5,6 +5,7 @@
 import { equals } from '@jest/expect-utils'
 import type { AsymmetricMatcherLike, EqualityTester, MatcherState } from '@provino/types'
 import type { MatcherContext } from './context.ts'
+import { freshCounters } from './internal/counters.ts'
 import { readSlot } from './internal/slot-read.ts'
 
 /**
@@ -45,10 +46,4 @@ export abstract class AsymmetricMatcher<T> implements AsymmetricMatcherLike {
 }
 
 /** The state outside any engine: no slot in this realm. */
-const EMPTY_STATE: Readonly<MatcherState> = {
-  assertionCalls: 0,
-  expectedAssertionsNumber: null,
-  isExpectingAssertions: false,
-  numPassingAsserts: 0,
-  suppressedErrors: [],
-}
+const EMPTY_STATE: Readonly<MatcherState> = freshCounters()

@@ -7,17 +7,19 @@
  */
 
 // provino: the asymmetric form `expect.extend` registers, extracted from `setMatchers` in
-// expect/src/jestMatchersObject.ts (L79-L107) so the engine can build it for any custom matcher;
-// the class body is unchanged.
+// expect/src/jestMatchersObject.ts (L79-L107) so the engine can build it for any custom matcher.
+// As in Jest, the class is made once per registration (here, per call of `createCustomMatcher`)
+// and every instance shares it; the class body is unchanged.
 import {AsymmetricMatcher} from './asymmetricMatchers.ts'; // provino: .ts extension (Node ESM)
 import type {RawMatcherFn, SyncExpectationResult} from './types.ts'; // provino: .ts extension (Node ESM)
 
 export const createCustomMatcher = (
   key: string,
   matcher: RawMatcherFn,
+): ((
   inverse: boolean,
-  sample: [unknown, ...Array<unknown>],
-): AsymmetricMatcher<[unknown, ...Array<unknown>]> => {
+  sample: ReadonlyArray<unknown>,
+) => AsymmetricMatcher<[unknown, ...Array<unknown>]>) => {
   class CustomMatcher extends AsymmetricMatcher<[unknown, ...Array<unknown>]> {
     constructor(inverse = false, ...sample: [unknown, ...Array<unknown>]) {
       super(sample, inverse);
@@ -46,5 +48,6 @@ export const createCustomMatcher = (
     }
   }
 
-  return new CustomMatcher(inverse, ...sample);
+  return (inverse, sample) =>
+    new CustomMatcher(inverse, ...(sample as [unknown, ...Array<unknown>]));
 };

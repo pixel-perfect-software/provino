@@ -72,9 +72,14 @@ test('the default exec measures wall, CPU and exit code of a real process', asyn
   assert.ok(outcome.cpuSysMs !== undefined && outcome.cpuSysMs >= 0, `sys ${outcome.cpuSysMs} ms`)
 })
 
+// Long enough that the 25 ms sampler sees the child after Node has loaded: with `spin`'s 150 ms, a
+// slow runner (CI's Node 22.15 leg, run 41720304210) can take every sample before that, at under
+// 2 MiB.
+const longSpin = ['-e', 'const t = performance.now(); while (performance.now() - t < 750);']
+
 test('the default exec reports tree RSS where the process table is readable, and says why not where it is not', async () => {
   const outcome = await execProcess({
-    argv: [process.execPath, ...spin],
+    argv: [process.execPath, ...longSpin],
     cwd: process.cwd(),
     env: {},
   })

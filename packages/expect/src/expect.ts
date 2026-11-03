@@ -36,7 +36,8 @@ import type { StateSource } from './state.ts'
  * @public
  */
 export class MatcherResultError extends Error {
-  declare matcherResult?: Omit<MatcherResult, 'message'> & { readonly message: string }
+  // A field, not a declaration: like Jest's, every instance has it as an own key, set or not.
+  matcherResult: (Omit<MatcherResult, 'message'> & { readonly message: string }) | undefined
 }
 
 /**
@@ -50,6 +51,25 @@ export interface CreateExpectOptions {
   readonly source: StateSource
   /** The registry the slot was installed with; a fresh one when there is no slot. */
   readonly registry?: MatcherRegistry
+}
+
+/**
+ * Jest's flag for built-in matchers (`$$jest-internal-matcher`), set on the matcher function itself.
+ * Their failures are re-anchored at the caller, and they're called without the external trap.
+ */
+const INTERNAL_MATCHER_FLAG: unique symbol = Symbol.for('$$jest-internal-matcher')
+
+const isInternal = (matcher: Matcher): boolean =>
+  Reflect.get(matcher, INTERNAL_MATCHER_FLAG) === true
+
+/** A matcher call under `.resolves`/`.rejects`: see `makeThrowingMatcher`. */
+interface Settled {
+  /** The state of the test that called the matcher. */
+  readonly state: MatcherState
+  /** The settle callback the call's errors are anchored above. */
+  readonly above: Caller
+  /** The error a failure reuses, made when the matcher was called (Jest's `innerErr`). */
+  readonly error: MatcherResultError
 }
 
 /** A matcher as the engine calls it. */
@@ -75,55 +95,63 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   const registry = options.registry ?? createMatcherRegistry()
   registry.utils = table.utils
   const { messages } = table
-  /** Built-ins: their stack frames are re-anchored like Jest's internal matchers. */
-  const internal = new WeakSet<Matcher>()
+  /** The table's promise forms: dialect code, so their errors are re-anchored like built-ins'. */
+  const promiseForms = new WeakSet<Matcher>(Object.values(table.promiseMatchers))
 
   const getState = (): MatcherState => source.current()
 
+  /**
+   * One call of a matcher. `settled` is set under `.resolves`/`.rejects`; a direct call reads the
+   * state now and anchors above `throwingMatcher`, as Jest does.
+   */
   const makeThrowingMatcher = (
     matcher: Matcher,
     isNot: boolean,
     promise: PromiseVoice,
     actual: unknown,
-    err?: MatcherResultError,
+    settled?: Settled,
   ) =>
     function throwingMatcher(...args: unknown[]): unknown {
       let throws = true
-      const state = getState()
+      const internal = isInternal(matcher)
+      const state = settled?.state ?? getState()
+      const above: Caller = settled?.above ?? throwingMatcher
       const matcherContext: MatcherContext = {
         ...state,
         customTesters: registry.customEqualityTesters,
         // When throws is disabled, the failure is added to the state instead of thrown (snapshot
-        // matchers log every failure of a test).
+        // matchers log every failure of a test). Jest's `() => (throws = false)` returns false.
         dontThrow: () => {
           throws = false
+          return false
         },
         equals,
         utils: registry.utils,
-        error: err,
+        error: settled?.error,
         isNot,
         promise,
       }
 
-      const processResult = (result: unknown, asyncError?: MatcherResultError): void => {
-        const valid = anchored(
-          () => validateResult(result, messages.invalidResult),
-          throwingMatcher,
-        )
+      const processResult = (
+        result: unknown,
+        at: Caller,
+        asyncError?: MatcherResultError,
+      ): void => {
+        // Inline, not `anchored(...)`: this runs on every assertion, and a closure costs.
+        let valid: ValidResult
+        try {
+          valid = validateResult(result, messages.invalidResult)
+        } catch (error) {
+          throw anchor(error, at)
+        }
         state.assertionCalls++
         if ((valid.pass && isNot) || (!valid.pass && !isNot)) {
-          const message = anchored(() => getMessage(valid, messages.noMessage), throwingMatcher)
-          let error: MatcherResultError
-          if (err) {
-            error = err
-            error.message = message
-          } else if (asyncError) {
-            error = asyncError
-            error.message = message
-          } else {
-            error = new MatcherResultError(message)
-            Error.captureStackTrace(error, throwingMatcher)
-          }
+          const message = getMessage(valid, messages.noMessage, at)
+          // The error made at the call (settled or async) takes the message; a sync failure gets
+          // its own. Assigning keeps Jest's key order (`matcherResult`, then `message`).
+          let error = settled?.error ?? asyncError
+          if (error) error.message = message
+          else error = anchor(new MatcherResultError(message), at)
           // The result travels with the error, so a reporter can show its own diff.
           error.matcherResult = { ...valid, message }
           if (throws) throw error
@@ -133,15 +161,17 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
         }
       }
 
+      // Built-ins are re-anchored like Jest's internal matchers; so are the table's promise forms
+      // under `.resolves`/`.rejects`, whose frames in Jest are in `node_modules`.
       const handleError = (error: unknown): never => {
         if (
-          internal.has(matcher) &&
+          (internal || promiseForms.has(matcher)) &&
           typeof error === 'object' &&
           error !== null &&
           !(error instanceof MatcherResultError) &&
           Reflect.get(error, 'name') !== 'PrettyFormatPluginError'
         ) {
-          Error.captureStackTrace(error, throwingMatcher)
+          Error.captureStackTrace(error, above)
         }
         throw error
       }
@@ -149,22 +179,23 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
       const callable = matcher as unknown as Callable
       let potentialResult: unknown
       try {
-        potentialResult = internal.has(matcher)
+        potentialResult = internal
           ? callable.call(matcherContext, actual, ...args)
           : // The frame name lets an inline snapshot find the custom matcher's call (Jest's trap).
             (function __EXTERNAL_MATCHER_TRAP__() {
               return callable.call(matcherContext, actual, ...args)
             })()
         if (isPromise(potentialResult)) {
-          const asyncError = new MatcherResultError()
-          Error.captureStackTrace(asyncError, throwingMatcher)
+          const asyncError = capturedError(above)
           // The thenable's own `then`, then `catch` on what it returns, as Jest does: the number of
-          // ticks before the result lands decides races with the test's end.
-          return (
-            potentialResult.then((result) => processResult(result, asyncError)) as Promise<void>
-          ).catch(handleError)
+          // ticks before the result lands decides races with the test's end. The result is
+          // checked in a callback the user's stack isn't under, so its errors anchor above it.
+          const chained = potentialResult.then(function onMatcherResult(result) {
+            processResult(result, onMatcherResult, asyncError)
+          })
+          return anchored(() => (chained as Promise<void>).catch(handleError), above)
         }
-        return processResult(potentialResult)
+        return processResult(potentialResult, above)
       } catch (error) {
         return handleError(error)
       }
@@ -177,51 +208,85 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   ) =>
     function settledMatcher(...args: unknown[]): PromiseLike<unknown> {
       const call: MatcherCall = { matcherName, isNot, promise }
+      // The state of the test that made the call, not of whatever runs the settle callback.
+      const state = getState()
       const actualWrapper: unknown = typeof actual === 'function' ? actual() : actual
       if (!isPromise(actualWrapper)) {
         throw anchor(new MatcherResultError(messages.notAPromise(call, actual)), settledMatcher)
       }
-      const innerErr = new MatcherResultError()
-      Error.captureStackTrace(innerErr, settledMatcher)
+      const error = capturedError(settledMatcher)
       const outerErr = outer ?? new MatcherResultError()
+      const wrong = (message: string): never => {
+        outerErr.message = message
+        throw outerErr
+      }
+      const settle = (value: unknown, above: Caller): unknown =>
+        makeThrowingMatcher(matcher, isNot, promise, value, { state, above, error })(...args)
       return actualWrapper.then(
-        (result) => {
-          if (promise === 'rejects') {
-            outerErr.message = messages.resolvedInsteadOfRejected(call, result)
-            throw outerErr
-          }
-          return makeThrowingMatcher(matcher, isNot, promise, result, innerErr)(...args)
+        function onResolved(result) {
+          if (promise === 'rejects') wrong(messages.resolvedInsteadOfRejected(call, result))
+          return settle(result, onResolved)
         },
-        (reason: unknown) => {
-          if (promise === 'resolves') {
-            outerErr.message = messages.rejectedInsteadOfResolved(call, reason)
-            throw outerErr
-          }
-          return makeThrowingMatcher(matcher, isNot, promise, reason, innerErr)(...args)
+        function onRejected(reason: unknown) {
+          if (promise === 'resolves') wrong(messages.rejectedInsteadOfResolved(call, reason))
+          return settle(reason, onRejected)
         },
       )
     }
 
+  /** What Jest's plain expectation object has as own keys, for this voice. */
+  const keysOf = ({ isNot, promise }: Target): string[] => {
+    const names = Object.keys(registry.matchers)
+    if (isNot) return names
+    return promise === '' ? ['not', 'rejects', 'resolves', ...names] : ['not', ...names]
+  }
+
+  /** `keysOf(target).includes(key)`, without building the list (`in` and descriptors per key). */
+  const hasKey = ({ isNot, promise }: Target, key: string): boolean =>
+    (key === 'not' && !isNot) ||
+    ((key === 'resolves' || key === 'rejects') && !isNot && promise === '') ||
+    Object.prototype.propertyIsEnumerable.call(registry.matchers, key)
+
+  function get(target: Target, key: string | symbol, receiver: unknown): unknown {
+    if (typeof key !== 'string') return undefined
+    if (key === 'not') {
+      if (target.isNot) return undefined
+      const { actual, promise, outer } = target
+      return assertion({ actual, isNot: true, promise, outer })
+    }
+    if (key === 'resolves' || key === 'rejects') {
+      if (target.isNot || target.promise !== '') return undefined
+      // `expect()` made it for a promise or a function; another thenable gets one now, while
+      // the user's line is still on the stack.
+      const outer = target.outer ?? capturedError(get)
+      return assertion({ actual: target.actual, isNot: false, promise: key, outer })
+    }
+    const matcher = registry.matchers[key]
+    // Anything else reads as on Jest's plain object: `Object.prototype`'s members, or undefined.
+    if (matcher === undefined) return Reflect.get(Object.prototype, key, receiver)
+    if (target.promise === '') return makeThrowingMatcher(matcher, target.isNot, '', target.actual)
+    // Own keys only: a custom matcher named like an `Object.prototype` method is still itself.
+    const promiseForm = Object.hasOwn(table.promiseMatchers, key)
+      ? table.promiseMatchers[key]
+      : undefined
+    return makeSettledMatcher(key, promiseForm ?? matcher, target)
+  }
+
   const handler: ProxyHandler<Target> = {
-    get(target, key) {
-      if (typeof key !== 'string') return undefined
-      if (key === 'not') return target.isNot ? undefined : assertion({ ...target, isNot: true })
-      if (key === 'resolves' || key === 'rejects') {
-        if (target.isNot || target.promise !== '') return undefined
-        // `expect()` made it for a promise or a function; another thenable gets one now, while
-        // the user's line is still on the stack.
-        let { outer } = target
-        if (outer === undefined) {
-          outer = new MatcherResultError()
-          Error.captureStackTrace(outer, handler.get)
-        }
-        return assertion({ ...target, promise: key, outer })
+    get,
+    // Enumeration sees Jest's keys (wrappers such as jest-expect-message walk them), at no cost to
+    // property access.
+    ownKeys: (target) => keysOf(target),
+    has: (target, key) =>
+      (typeof key === 'string' && hasKey(target, key)) || key in Object.prototype,
+    getOwnPropertyDescriptor(target, key) {
+      if (typeof key !== 'string' || !hasKey(target, key)) return undefined
+      return {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: get(target, key, target),
       }
-      const matcher = registry.matchers[key]
-      if (matcher === undefined) return undefined
-      if (target.promise === '')
-        return makeThrowingMatcher(matcher, target.isNot, '', target.actual)
-      return makeSettledMatcher(key, table.promiseMatchers[key] ?? matcher, target)
     },
   }
 
@@ -233,11 +298,8 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     // Jest makes the error a wrong settlement throws in `expect()` itself (index.ts L117), so it
     // points at the `expect(` call. Only a promise or a function can reach `.resolves`/`.rejects`,
     // so only they pay for a stack here; the check reads no property of the value.
-    let outer: MatcherResultError | undefined
-    if (typeof actual === 'function' || types.isPromise(actual)) {
-      outer = new MatcherResultError()
-      Error.captureStackTrace(outer, expect)
-    }
+    const outer =
+      typeof actual === 'function' || types.isPromise(actual) ? capturedError(expect) : undefined
     return assertion({ actual, isNot: false, promise: '', outer })
   }
 
@@ -252,22 +314,24 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     })
   }
 
-  const register = (matchers: MatcherSet, isInternal: boolean, caller: Caller): void => {
-    for (const name of Object.keys(matchers)) {
+  /** Jest's `setMatchers` (jestMatchersObject.ts L56–L117), key by key. */
+  const register = (matchers: MatcherSet, internal: boolean, caller: Caller): void => {
+    for (const name of anchored(() => Object.keys(matchers), caller)) {
       const matcher = matchers[name]
       if (typeof matcher !== 'function') {
         throw anchor(new TypeError(messages.invalidMatcher(name, matcher)), caller)
       }
-      if (isInternal) {
-        internal.add(matcher)
-      } else {
-        internal.delete(matcher)
-        defineAsymmetric(expect, name, (...sample: unknown[]) =>
-          table.customAsymmetric(name, matcher, false, sample),
-        )
-        defineAsymmetric(not, name, (...sample: unknown[]) =>
-          table.customAsymmetric(name, matcher, true, sample),
-        )
+      // The flag goes on the function, non-writable, as in Jest: registering a built-in again as
+      // a custom matcher, or a frozen function, throws Jest's TypeError.
+      anchored(
+        () => Object.defineProperty(matcher, INTERNAL_MATCHER_FLAG, { value: internal }),
+        caller,
+      )
+      if (!internal) {
+        // One builder per registration, like Jest's one `CustomMatcher` class per key.
+        const build = table.customAsymmetric(name, matcher)
+        defineAsymmetric(expect, name, (...sample: unknown[]) => build(false, sample))
+        defineAsymmetric(not, name, (...sample: unknown[]) => build(true, sample))
       }
     }
     Object.assign(registry.matchers, matchers)
@@ -285,8 +349,7 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   }
 
   function assertions(expected: number): void {
-    const error = new Error()
-    Error.captureStackTrace(error, assertions)
+    const error = anchor(new Error(), assertions)
     Object.assign(getState(), {
       expectedAssertionsNumber: expected,
       expectedAssertionsNumberError: error,
@@ -294,13 +357,8 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   }
 
   function hasAssertions(...args: unknown[]): void {
-    const error = new Error()
-    Error.captureStackTrace(error, hasAssertions)
-    try {
-      messages.ensureNoExpected(args[0], '.hasAssertions')
-    } catch (cause) {
-      throw anchor(cause, hasAssertions)
-    }
+    const error = anchor(new Error(), hasAssertions)
+    anchored(() => messages.ensureNoExpected(args[0], '.hasAssertions'), hasAssertions)
     Object.assign(getState(), { isExpectingAssertions: true, isExpectingAssertionsError: error })
   }
 
@@ -358,17 +416,18 @@ interface ValidResult {
   readonly [key: string]: unknown
 }
 
-/** Jest's `_validateResult`: `{ pass: boolean, message?: string | function }`. */
+/**
+ * Jest's `_validateResult` (index.ts L422–L438): `{ pass: boolean, message?: string | function }`.
+ * Its expression is kept as written, so a `null` result reads `.pass` and throws V8's
+ * `Cannot read properties of null (reading 'pass')`, as in Jest.
+ */
 function validateResult(result: unknown, invalid: (result: unknown) => string): ValidResult {
+  const shaped = result as { readonly pass?: unknown; readonly message?: unknown }
   if (
     typeof result !== 'object' ||
-    result === null ||
-    typeof Reflect.get(result, 'pass') !== 'boolean'
+    typeof shaped.pass !== 'boolean' ||
+    (shaped.message && typeof shaped.message !== 'string' && typeof shaped.message !== 'function')
   ) {
-    throw new Error(invalid(result))
-  }
-  const message: unknown = Reflect.get(result, 'message')
-  if (message && typeof message !== 'string' && typeof message !== 'function') {
     throw new Error(invalid(result))
   }
   return result as ValidResult
@@ -377,10 +436,17 @@ function validateResult(result: unknown, invalid: (result: unknown) => string): 
 /**
  * Jest's `getMessage`: `(message && message()) || noMessage`. A string `message` passes
  * validation and then throws `message is not a function` here, as in Jest; the name `message` is
- * kept for that text.
+ * kept for that text, and only that error, thrown from this frame, is anchored above `above`. An
+ * error a custom matcher's own `message` throws keeps its frames, as in Jest.
  */
-function getMessage(result: ValidResult, noMessage: () => string): string {
-  const message = result.message as (() => string) | undefined
+function getMessage(result: ValidResult, noMessage: () => string, above: Caller): string {
+  const raw: unknown = result.message
+  if (raw && typeof raw !== 'function') {
+    // Calling it throws V8's `message is not a function`, from this frame.
+    const message = raw as () => string
+    return anchored(() => message(), above)
+  }
+  const message = raw as (() => string) | undefined
   // biome-ignore lint/complexity/useOptionalChain: Jest's `&&` lets a falsy `message` (`''`, `false`) mean "no message"; `?.()` would call it
   return (message && message()) || noMessage()
 }
@@ -391,6 +457,26 @@ type Caller = (...args: never[]) => unknown
 /** Re-anchors an error the engine throws so its top frame is the user's call. */
 function anchor<E>(error: E, above: Caller): E {
   if (typeof error === 'object' && error !== null) Error.captureStackTrace(error, above)
+  return error
+}
+
+/**
+ * An empty `MatcherResultError` whose stack starts above `above`. The constructor's own stack is
+ * switched off, since `captureStackTrace` replaces it anyway: on `expect(fn)`, `expect(promise)` and
+ * every `.resolves`/`.rejects` call that halves the cost. The header is still taken lazily, so a
+ * message set later shows in it.
+ */
+function capturedError(above: Caller): MatcherResultError {
+  if (!Object.hasOwn(Error, 'stackTraceLimit')) return anchor(new MatcherResultError(), above)
+  const limit = Error.stackTraceLimit
+  Error.stackTraceLimit = 0
+  let error: MatcherResultError
+  try {
+    error = new MatcherResultError()
+  } finally {
+    Error.stackTraceLimit = limit
+  }
+  Error.captureStackTrace(error, above)
   return error
 }
 

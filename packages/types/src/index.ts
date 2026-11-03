@@ -64,6 +64,7 @@ export type {
   AsymmetricFactories,
   AsymmetricFactory,
   AsymmetricMatcherLike,
+  CustomAsymmetricBuilder,
   EqualityTester,
   ExpectMessages,
   ExpectStatic,

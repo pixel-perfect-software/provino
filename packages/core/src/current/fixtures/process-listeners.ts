@@ -9,6 +9,7 @@ const frame = (name: string): Frame => ({
   hook: null,
   fileId: name as TaskId,
   attempt: 0,
+  repeat: 0,
 })
 const seen = (): string => currentTest.get()?.fileId ?? '-'
 const results: Record<string, string> = {}

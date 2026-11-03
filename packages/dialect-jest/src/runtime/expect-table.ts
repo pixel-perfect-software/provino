@@ -4,7 +4,7 @@
 // `toThrowError`, …, #14632), so none is registered: calling one throws V8's
 // `expect(...).toBeCalled is not a function`, as in Jest. The snapshot matchers come with T7.10.
 import { iterableEquality, subsetEquality } from '@jest/expect-utils'
-import type { ExpectTable, Matcher, MatcherSet } from '@provino/types'
+import type { ExpectTable } from '@provino/types'
 import * as matcherUtils from 'jest-matcher-utils'
 import {
   any,
@@ -39,7 +39,7 @@ import type { RawMatcherFn } from './vendor/jest-expect/types.ts'
 export function jestExpectTable(): ExpectTable {
   return {
     // The order Jest registers them in (`expect/src/index.ts` L459–L461).
-    matchers: { ...matchers, ...spyMatchers, ...toThrowMatchers } satisfies MatcherSet,
+    matchers: { ...matchers, ...spyMatchers, ...toThrowMatchers },
     // `getPromiseMatcher` (index.ts L92–L103): under `.resolves`/`.rejects`, `toThrow` reads the
     // settled value as the thrown one. It is a fresh function, so it isn't flagged internal.
     promiseMatchers: { toThrow: createThrowMatcher('toThrow', true) },
@@ -65,12 +65,7 @@ export function jestExpectTable(): ExpectTable {
     // What `makeThrowingMatcher` gives matchers as `this.utils` (index.ts L284–L288).
     utils: { ...matcherUtils, iterableEquality, subsetEquality },
     messages,
-    customAsymmetric: (name: string, matcher: Matcher, inverse: boolean, sample) =>
-      createCustomMatcher(
-        name,
-        matcher as unknown as RawMatcherFn,
-        inverse,
-        sample as [unknown, ...unknown[]],
-      ),
+    customAsymmetric: (name, matcher) =>
+      createCustomMatcher(name, matcher as unknown as RawMatcherFn),
   }
 }

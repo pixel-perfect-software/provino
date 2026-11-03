@@ -7,7 +7,7 @@ import { runScript } from '../internal/test-support.ts'
 import { currentTest, usesAsyncContextFrame } from './current-test.ts'
 
 function frame(name: string): Frame {
-  return { test: null, hook: null, fileId: name as TaskId, attempt: 0 }
+  return { test: null, hook: null, fileId: name as TaskId, attempt: 0, repeat: 0 }
 }
 
 describe('currentTest.run and get', () => {

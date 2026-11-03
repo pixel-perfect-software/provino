@@ -7,20 +7,27 @@ The neutral `expect` engine (Track 7 R1). It owns the front end, the per-test ma
 | Module | Role |
 |---|---|
 | `src/expect.ts` | `createExpect({ policy, table, source, registry? })`. `expect(x)` returns a Proxy that resolves `not`/`resolves`/`rejects` and the matcher name on access (spike F). A call follows Jest's `makeThrowingMatcher` (`expect/src/index.ts` L275–L395) step by step. `MatcherResultError` is the `errorShape: 'matcher-result'` error (Jest's `JestAssertionError`). |
-| `src/state.ts` | `createStateSource(currentTest, { nameSeparator, expand })`: the file's state, plus one state per test attempt, keyed by test id and refreshed when the attempt number changes. It takes `@provino/types`' `CurrentTest`, so core is never imported. |
-| `src/slot.ts` | `installMatchersSlot(source, registry)`: `globalThis[Symbol.for('$$jest-matchers-object')]`, configurable. Its `matchers` and `customEqualityTesters` are the registry's own objects, and its `state` getter returns `source.current()`. |
+| `src/state.ts` | `createStateSource(currentTest, { nameSeparator, expand })`: the file's state, plus one state per run of a test, keyed by test id, `frame.repeat` and `frame.attempt`. A run's state is never replaced, so a timed-out attempt still running counts into its own. A one-entry cache of the last frame makes the lookup about 12 ns. `stateOf(testId, { attempt, repeat })` names the run. It takes `@provino/types`' `CurrentTest`, so core is never imported. |
+| `src/slot.ts` | `installMatchersSlot(source, registry)`: `globalThis[Symbol.for('$$jest-matchers-object')]`, configurable. Its `matchers` and `customEqualityTesters` are the registry's own objects, and its `state` getter returns `source.current()`. Its own keys are Jest's three; a non-enumerable `utils` getter serves the asymmetric base. |
 | `src/asymmetric.ts` | The `AsymmetricMatcher` base (T7.4), for Provino and user code; Jest's vendored built-ins keep their own base. `getMatcherContext()` reads whichever slot the realm has. |
 | `src/context.ts` | `MatcherContext`, a matcher's `this`. |
-| `src/internal/slot-read.ts` | Reading the slot without owning it. |
+| `src/internal/slot-read.ts`, `counters.ts` | Reading the slot without owning it; a state's fresh counters. |
 
 ## Rules that aren't obvious
 
-- **Every error the engine makes or rethrows is anchored with `Error.captureStackTrace` above its own frames.** Our source runs from `packages/*/src`, which the harness reads as user code (only `node_modules/` frames are internal). Without the anchor, `userFrame` would point into the engine. The expect corpus compares `userFrame`, so a missing anchor fails it.
+- **Every error the engine makes or rethrows is anchored with `Error.captureStackTrace` above its own frames.** Our source runs from `packages/*/src`, which the harness reads as user code (only `node_modules/` frames are internal). Without the anchor, `userFrame` would point into the engine. The expect corpus compares `userFrame`, so a missing anchor fails it. Each path has its own anchor:
+  - a direct call anchors above `throwingMatcher`;
+  - `.resolves`/`.rejects` anchor above the named settle callback (`onResolved`/`onRejected`);
+  - an async matcher's result anchors above `onMatcherResult`.
+
+  An error a custom matcher throws itself (including from its `message` thunk) keeps its frames, as in Jest. The exception is a matcher library in `node_modules` run from source, where the external trap frame shows (DIVERGENCES DV6).
 - **The error a wrong settlement throws** (`.resolves` on a rejection, `.rejects` on a resolution) is made in `expect()`, as Jest does, so it points at the `expect(` column. Only a function or a native promise (`util.types.isPromise`, which reads no property of the value) pays for that stack. Any other thenable gets its error when `.resolves`/`.rejects` is read.
 - **Jest's tick counts are kept:** a thenable's own `.then`, then `.catch` on what it returns, with no `Promise.resolve` wrapping. Extra ticks would change races with a test's end (the policy corpus' unawaited cases).
 - **`getMessage` keeps Jest's `(message && message())`.** A falsy `message` means "no message", and a string one throws `message is not a function`. The local is named `message` so V8 prints that text.
 - **The state is per attempt, not one global.** A new attempt copies the file state (so `expand`, `testPath` and keys set in `beforeAll` carry over) and resets the counters. A key a test sets with `setState` stays in that attempt, where Jest would leak it to later tests (B08 notes).
-- **Built-in matchers are tracked in a `WeakSet`**, not with Jest's `$$jest-internal-matcher` property on the function. The table's `promiseMatchers` aren't internal, because Jest's `getPromiseMatcher` returns fresh, unflagged functions.
+- **Built-ins carry Jest's `$$jest-internal-matcher` flag on the function**, defined non-writable as `setMatchers` does. Registering a built-in again with `extend`, or a frozen function, throws Jest's TypeError. The table's `promiseMatchers` aren't flagged, because Jest's `getPromiseMatcher` returns fresh, unflagged functions. Their errors are still re-anchored, since in Jest their frames are in `node_modules`.
+- **The Proxy enumerates like Jest's plain object:** `ownKeys`/`has`/`getOwnPropertyDescriptor` report `not`, `rejects`, `resolves` and the matcher names, and other names read through to `Object.prototype`. Wrappers such as jest-expect-message walk those keys. `.not` and matchers are new objects on each read (DIVERGENCES DV4).
+- **`.resolves`/`.rejects` capture the state when the matcher is called,** not when the promise settles. A settle callback running outside the test's async context still counts into the test.
 
 ## The worker's boot order (U1)
 
@@ -30,7 +37,7 @@ The neutral `expect` engine (Track 7 R1). It owns the front end, the per-test ma
 4. `createExpect({ policy, table, source, registry })`.
 5. Per file, `source.startFile(testPath)`, then the setup files and the test file.
 
-Per test, `source.stateOf(testId)` gives the counts the result needs (`numPassingAsserts`). Core reports 0 until U1 wires this.
+Per test, `source.stateOf(testId, { attempt, repeat })` (from the last `test-attempt-end`) gives the counts the result needs (`numPassingAsserts`). Core reports 0 until U1 wires this.
 
 ## Not built yet
 

@@ -26,7 +26,10 @@ export interface Frame {
   readonly test: TestTask | null
   readonly hook: { readonly kind: RuntimeHookKind; readonly ownerId: TaskId } | null
   readonly fileId: TaskId
+  /** The retry attempt, from 0. */
   readonly attempt: number
+  /** The repeat (`repeats`), from 0; each repeat's attempts start at 0 again. 0 for suite hooks. */
+  readonly repeat: number
 }
 
 /**

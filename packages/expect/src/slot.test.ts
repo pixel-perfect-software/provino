@@ -30,6 +30,10 @@ test('the slot is a configurable property sharing the registry`s objects', () =>
   assert.equal(slotValue().matchers, registry.matchers)
   assert.equal(slotValue().customEqualityTesters, registry.customEqualityTesters)
   assert.equal(MATCHERS_SLOT, Symbol.for('$$jest-matchers-object'))
+  // Jest's three own keys; `utils` is ours and not enumerable.
+  assert.deepEqual(Object.keys(slotValue()), ['matchers', 'customEqualityTesters', 'state'])
+  registry.utils = { tag: 'later' }
+  assert.deepEqual(slotValue().utils, { tag: 'later' })
 })
 
 test('the slot`s state follows the current test', () => {

@@ -1,5 +1,6 @@
 // Test helpers (not a test file). A neutral matcher table and a hand-driven current-test lookup,
 // so the engine is tested without any dialect.
+import { describe, test } from 'node:test'
 import { iterableEquality, subsetEquality } from '@jest/expect-utils'
 import { neutralPolicy } from '@provino/policy'
 import type {
@@ -109,6 +110,9 @@ export function testTable(): ExpectTable {
       toBe(this: Self, received: unknown, expected: unknown) {
         return { pass: received === expected, message: () => `settled toBe: ${String(received)}` }
       },
+      toThrowNow(this: Self) {
+        throw new Error('promise form blew up')
+      },
     },
     asymmetric: {
       anything: () =>
@@ -131,7 +135,7 @@ export function testTable(): ExpectTable {
         if (expected !== undefined) throw new Error(`${name} takes no argument`)
       },
     },
-    customAsymmetric: (name, matcher, inverse, sample) =>
+    customAsymmetric: (name, matcher) => (inverse, sample) =>
       new TestCustom(name, matcher, inverse, sample),
   }
 }
@@ -141,16 +145,17 @@ export let lastContext: MatcherContext | undefined
 
 /** A current-test lookup the test moves by hand. */
 export interface ManualCurrentTest extends CurrentTest {
-  /** Makes `test` (attempt `attempt`) current; `null` leaves no test running. */
-  enter(test: TestTask | null, attempt?: number): void
+  /** Makes `test` (attempt `attempt` of repeat `repeat`) current; `null` leaves no test running. */
+  enter(test: TestTask | null, attempt?: number, repeat?: number): void
 }
 
 /** A `CurrentTest` whose frame the test sets. */
 export function manualCurrentTest(): ManualCurrentTest {
   let frame: Frame | undefined
   return {
-    enter(test, attempt = 0) {
-      frame = test === null ? undefined : { test, hook: null, fileId: 'f' as TaskId, attempt }
+    enter(test, attempt = 0, repeat = 0) {
+      frame =
+        test === null ? undefined : { test, hook: null, fileId: 'f' as TaskId, attempt, repeat }
     },
     get: () => frame,
     run: (next, fn) => {
@@ -236,6 +241,22 @@ export interface InteropEngine {
   toMatchObject(received: object, expected: object): void
 }
 
+/** The part of any engine's `expect(x)` the interop cases call. */
+export interface AssertionLike {
+  toEqual(expected: unknown): void
+  toMatchObject(expected: object): void
+  readonly not: { toEqual(expected: unknown): void }
+}
+
+/** Adapts an engine's `expect` (Jest's, Vitest's on Chai, ours) to the interop cases. */
+export function interopEngine(expect: (received: unknown) => AssertionLike): InteropEngine {
+  return {
+    toEqual: (received, expected) => expect(received).toEqual(expected),
+    notToEqual: (received, expected) => expect(received).not.toEqual(expected),
+    toMatchObject: (received, expected) => expect(received).toMatchObject(expected),
+  }
+}
+
 /** An asymmetric matcher with a value it matches and one it doesn't. */
 export interface InteropSubject {
   readonly name: string
@@ -244,6 +265,18 @@ export interface InteropSubject {
   readonly bad: unknown
   /** Text a failing message shows for it, when the engine prints asymmetric matchers. */
   readonly printed?: string
+}
+
+/** One `describe` per subject, one test per spike C case. */
+export function defineInteropSuite(
+  engine: InteropEngine,
+  subjects: readonly InteropSubject[],
+): void {
+  for (const subject of subjects) {
+    describe(subject.name, () => {
+      for (const [name, run] of interopCases(engine, subject)) test(name, run)
+    })
+  }
 }
 
 /**

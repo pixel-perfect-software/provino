@@ -16,7 +16,7 @@
 | `jest-expect/asymmetricMatchers.ts` | `asymmetricMatchers.ts` | copied, patched |
 | `jest-expect/print.ts` | `print.ts` | copied unchanged |
 | `jest-expect/types.ts` | `types.ts` | copied, patched (the other files import it) |
-| `jest-expect/customMatcher.ts` | `jestMatchersObject.ts` L79–L107 | extracted: `expect.extend`'s asymmetric `CustomMatcher`, its class body unchanged, wrapped in a factory |
+| `jest-expect/customMatcher.ts` | `jestMatchersObject.ts` L79–L107 | extracted: `expect.extend`'s asymmetric `CustomMatcher`, its class body unchanged, in a factory called once per registration, so every instance shares one class as in Jest |
 | `jest-expect/messages.ts` | `index.ts` L107, L161, L182–L192, L205–L213, L256–L264, L430–L435, L451; `jestMatchersObject.ts` L66, L135 | extracted: the engine's own failure text, each expression Jest's, as functions |
 | `jest-expect/jestMatchersObject.ts` | none | **Provino's own file**, standing in for Jest's: `@provino/expect` owns the slot, so this only reads it |
 

@@ -17,12 +17,13 @@ import type {
   TaskState,
   TestTask,
 } from '@provino/types'
+import { installGlobals } from '../internal/globals.ts'
 
 /**
  * A task state as the result model names it. `no-result` is a task the core never reported an
  * ending for (or left `queued` or `running`): no golden has that status, so it never matches.
  */
-type Reported = 'passed' | 'failed' | 'skipped' | 'todo' | 'no-result'
+export type Reported = 'passed' | 'failed' | 'skipped' | 'todo' | 'no-result'
 
 /** A test as the comparison sees it. */
 export interface CoreTest {
@@ -73,27 +74,18 @@ export async function runUnderCore(
     // The recorder runs both runners with `CI=1`.
     ci: true,
   })
-  const scope = globalThis as unknown as Record<string, unknown>
-  const saved = new Map<string, unknown>()
   // Like the recorder's `trace`, it returns nothing: a test arrow that returns its result must not
   // trip `nonPromiseReturn`.
-  const installed: Record<string, unknown> = {
+  const restore = installGlobals({
     trace: (step: string): void => {
       trace.push(step)
     },
     ...runtime.api,
-  }
-  for (const [name, value] of Object.entries(installed)) {
-    saved.set(name, scope[name])
-    scope[name] = value
-  }
+  })
   try {
     await runtime.runFile(file)
   } finally {
-    for (const [name, value] of saved) {
-      if (value === undefined) delete scope[name]
-      else scope[name] = value
-    }
+    restore()
     await runtime.dispose()
   }
   return summarizeRun(events, trace)
@@ -107,7 +99,7 @@ function findEvent<Type extends RuntimeEventType>(
 }
 
 /** The result model's name for a task's final state. */
-function reported(state: TaskState | undefined): Reported {
+export function reported(state: TaskState | undefined): Reported {
   switch (state) {
     case 'pass':
       return 'passed'

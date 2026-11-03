@@ -164,14 +164,23 @@ export interface ExpectTable {
   /** `this.utils` inside matchers and asymmetric matchers. */
   readonly utils: object
   readonly messages: ExpectMessages
-  /** The asymmetric form `expect.extend` registers for a custom matcher (`expect.toBeWithin(…)`). */
-  customAsymmetric(
-    name: string,
-    matcher: Matcher,
-    inverse: boolean,
-    sample: readonly unknown[],
-  ): AsymmetricMatcherLike
+  /**
+   * The asymmetric form `expect.extend` registers for a custom matcher (`expect.toBeWithin(…)`):
+   * called once per registration, it returns the builder `expect.toBeWithin` and
+   * `expect.not.toBeWithin` call. Jest makes one class per registration, so instances share a
+   * constructor and `toStrictEqual` treats two of them as equal.
+   */
+  customAsymmetric(name: string, matcher: Matcher): CustomAsymmetricBuilder
 }
+
+/**
+ * Builds one instance of a custom matcher's asymmetric form: `inverse` for `expect.not`.
+ * @public
+ */
+export type CustomAsymmetricBuilder = (
+  inverse: boolean,
+  sample: readonly unknown[],
+) => AsymmetricMatcherLike
 
 /**
  * The built-in matchers, by the return type `R` (`void`, or `Promise<void>` under

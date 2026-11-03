@@ -17,7 +17,7 @@ const A = frame('A')
 const B = frame('B')
 
 function frame(name: string): Frame {
-  return { test: null, hook: null, fileId: name as TaskId, attempt: 0 }
+  return { test: null, hook: null, fileId: name as TaskId, attempt: 0, repeat: 0 }
 }
 
 /** Which test the lookup sees: `'A'`, `'B'` or `'-'` for none. */

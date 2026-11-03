@@ -13,7 +13,13 @@ import {
   MATCHERS_SLOT,
 } from '@provino/expect'
 import { neutralPolicy } from '@provino/policy'
-import { runInterleaved } from './internal/test-support.ts'
+import {
+  COUNT,
+  countedCorrectly,
+  countingBody,
+  runInterleaved,
+  SEED,
+} from './internal/test-support.ts'
 
 test('50/50 with unmodified expect@30.5.2 loaded after our slot', async () => {
   const source = createStateSource(currentTest, {
@@ -28,21 +34,10 @@ test('50/50 with unmodified expect@30.5.2 loaded after our slot', async () => {
     assert.equal(Object.getOwnPropertyDescriptor(globalThis, MATCHERS_SLOT)?.value, ours?.value)
     assert.equal(typeof registry.matchers.toBe, 'function', 'Jest registered into our registry')
 
-    const { counted, peak } = await runInterleaved(50, 20261103, async (n, pause) => {
-      expect.assertions(n)
-      for (let i = 0; i < n; i++) {
-        await pause()
-        expect(i).toBe(i)
-      }
-      await pause()
-      const { assertionCalls, expectedAssertionsNumber } = expect.getState()
-      return { assertionCalls, expectedAssertionsNumber }
-    })
-    assert.equal(peak, 50)
-    const correct = counted.filter(
-      (c) => c.assertionCalls === c.n && c.expectedAssertionsNumber === c.n,
-    )
-    assert.equal(correct.length, 50, `${correct.length}/50 counted correctly`)
+    const { counted, peak } = await runInterleaved(COUNT, SEED, countingBody(expect))
+    assert.equal(peak, COUNT)
+    const correct = countedCorrectly(counted)
+    assert.equal(correct.length, COUNT, `${correct.length}/${COUNT} counted correctly`)
   } finally {
     slot.uninstall()
   }
