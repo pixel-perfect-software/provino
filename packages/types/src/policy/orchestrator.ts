@@ -2,10 +2,11 @@ import type { IsolationTier } from '../isolation.ts'
 import type { Behaviour } from './behaviour.ts'
 
 /**
- * Worker pool kinds (Track 9).
+ * Worker pool kinds (Track 9): child processes, worker threads, or in the coordinator's own
+ * process (`inline`, Jest's `--runInBand`).
  * @public
  */
-export type PoolKind = 'forks' | 'threads'
+export type PoolKind = 'forks' | 'threads' | 'inline'
 
 /**
  * The environment a test file asks for, as the coordinator sees it.

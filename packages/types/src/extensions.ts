@@ -1,9 +1,14 @@
-// Track 1 §Extension points: the ten contracts at v0. Each owning track replaces its contract's
-// v0 shape with the full one (B04: Environment, CoverageProvider, Transformer, Resolver, Pool,
-// ReporterV1, Sequencer, WatchPlugin; B08: MatcherSet, SnapshotSerializer). Contribution and
-// ProvinoPlugin are Track 1's and stay.
+// Track 1 §Extension points: ten contracts, each owned by a track. B04 replaced the v0 shapes
+// with the owners' types (environment and coverage: Track 8; resolver: Track 3; pool, reporter
+// and sequencer: Track 9). `Transformer` keeps Track 1's shape on Track 3's records, since Track 3
+// defines no user transformer beyond Jest's. `MatcherSet` and `SnapshotSerializer` are v0 until
+// B08, `WatchPlugin` until T9.11. Contribution and ProvinoPlugin are Track 1's and stay.
 import type { ProjectConfig } from './config.ts'
-import type { ModuleRef } from './policy/behaviour.ts'
+import type { CoverageProvider } from './coverage.ts'
+import type { Environment } from './environment.ts'
+import type { Reporter, Sequencer, TransportFactory } from './orchestrator.ts'
+import type { Resolver } from './resolve.ts'
+import type { SourceMapV3, TransformRequest } from './transform.ts'
 
 /**
  * Where code runs: a test worker, the coordinator, or either.
@@ -48,143 +53,25 @@ export interface SnapshotSerializer {
 }
 
 /**
- * What an environment's `setup` receives (Track 8 owns the full contract).
- * @public
- */
-export interface EnvironmentContext {
-  readonly options: Readonly<Record<string, unknown>>
-}
-
-/**
- * A set-up environment.
- * @public
- */
-export interface EnvironmentInstance {
-  readonly global: object
-  reset?(): void | Promise<void>
-  teardown(): void | Promise<void>
-}
-
-/**
- * A test environment such as node or jsdom (Track 8 owns the full contract). Runs in the worker.
- * @public
- */
-export interface Environment {
-  readonly name: string
-  readonly scope: 'file' | 'worker'
-  setup(context: EnvironmentContext): EnvironmentInstance | Promise<EnvironmentInstance>
-}
-
-/**
- * A file handed to a transformer.
- * @public
- */
-export interface TransformInput {
-  readonly filename: string
-  readonly source: string
-}
-
-/**
  * A transformer's output.
- * @public
+ * @beta
  */
-export interface TransformOutput {
+export interface TransformerOutput {
   readonly code: string
-  readonly map: string | null
+  readonly map: SourceMapV3 | null
   readonly format: 'esm' | 'cjs'
 }
 
 /**
- * A source transformer (Track 3 owns the full contract). Runs in either process.
- * @public
+ * A source transformer a plugin contributes. Runs in either process.
+ * @beta
  */
 export interface Transformer {
+  /** Files it handles. */
   readonly filter: RegExp
-  cacheKey(input: TransformInput): string
-  transform(input: TransformInput): TransformOutput | Promise<TransformOutput>
-}
-
-/**
- * A module resolver (Track 3 owns the full contract). Runs in either process. Returns `null`
- * when it can't resolve the specifier.
- * @public
- */
-export interface Resolver {
-  resolve(
-    specifier: string,
-    from: string,
-    conditions: readonly string[],
-  ): string | null | Promise<string | null>
-}
-
-/**
- * Options for one pool worker.
- * @public
- */
-export interface PoolWorkerOptions {
-  readonly id: number
-  readonly entry: string
-}
-
-/**
- * One worker in a pool.
- * @public
- */
-export interface PoolWorker {
-  send(message: unknown): void
-  on(event: 'message' | 'error' | 'exit', listener: (value: unknown) => void): void
-  start(): Promise<void>
-  stop(): Promise<void>
-}
-
-/**
- * A worker pool (Track 9 owns the full contract). Runs in the coordinator.
- * @public
- */
-export interface Pool {
-  createWorker(options: PoolWorkerOptions): PoolWorker
-}
-
-/**
- * A reporter (Track 9 owns the full contract and the event types). Runs in the coordinator.
- * @public
- */
-export interface ReporterV1<Event = unknown, Summary = unknown> {
-  readonly version: 'v1'
-  onEvent(event: Event): void | Promise<void>
-  onEnd(summary: Summary): void | Promise<void>
-}
-
-/**
- * A test file the sequencer orders.
- * @public
- */
-export interface FileSpec {
-  readonly file: string
-  readonly project: string
-}
-
-/**
- * Orders and shards test files (Track 9 owns the full contract). Runs in the coordinator.
- * @public
- */
-export interface Sequencer {
-  sort(specs: readonly FileSpec[]): readonly FileSpec[] | Promise<readonly FileSpec[]>
-  shard?(
-    specs: readonly FileSpec[],
-    shard: { readonly index: number; readonly count: number },
-  ): readonly FileSpec[]
-}
-
-/**
- * A coverage provider (Track 8 owns the full contract): a worker-side collector, loaded by
- * `ModuleRef`, and coordinator-side merge and report.
- * @public
- */
-export interface CoverageProvider {
-  readonly collector: ModuleRef
-  merge(results: readonly unknown[]): unknown
-  report(merged: unknown): void | Promise<void>
+  /** Everything besides the source that changes the output. */
+  cacheKey(request: TransformRequest): string
+  transform(request: TransformRequest): TransformerOutput | Promise<TransformerOutput>
 }
 
 /**
@@ -203,11 +90,12 @@ export interface WatchPlugin {
  * @public
  */
 export interface ContributionContracts {
-  readonly environment: Environment
+  /** Any environment; its options are checked by the environment itself. */
+  readonly environment: Environment<string, unknown, object>
   readonly transformer: Transformer
   readonly resolver: Resolver
-  readonly pool: Pool
-  readonly reporter: ReporterV1
+  readonly pool: TransportFactory
+  readonly reporter: Reporter
   readonly sequencer: Sequencer
   readonly 'snapshot-serializer': SnapshotSerializer
   readonly matchers: MatcherSet

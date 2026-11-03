@@ -1,12 +1,15 @@
 import type {
   BenchLabel,
   BenchRecord,
+  HarnessEvent,
   IsolationMode,
   IsolationTier,
   NormalizedRun,
   NormalizedTest,
   RunRef,
+  RuntimeEvent,
   SchemaVersion,
+  SkipReason,
   TestStatus,
   WallStats,
 } from '@provino/types'
@@ -53,3 +56,15 @@ void undeclared
 declare const ref: RunRef
 // @ts-expect-error a run ref is read-only
 ref.dirty = true
+
+// Track 12's harness events are a subset of the one RuntimeEvent union, with the fields the
+// normalized-json reporter needs (build-plan §6 "One event model").
+expectTypeOf<HarnessEvent>().toExtend<RuntimeEvent>()
+type HarnessOf<T extends HarnessEvent['type']> = Extract<HarnessEvent, { type: T }>
+expectTypeOf<HarnessOf<'hook-start'>['ordinal']>().toEqualTypeOf<number>()
+expectTypeOf<HarnessOf<'hook-end'>['error']>().not.toBeAny()
+expectTypeOf<HarnessOf<'test-end'>['result']['passingAssertions']>().toEqualTypeOf<number>()
+expectTypeOf<HarnessOf<'test-end'>['result']['skipReason']>().toEqualTypeOf<
+  SkipReason | undefined
+>()
+expectTypeOf<NormalizedTest['skipReason']>().toEqualTypeOf<SkipReason | undefined>()

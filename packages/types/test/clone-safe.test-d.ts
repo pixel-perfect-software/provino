@@ -4,6 +4,7 @@ import type {
   JsonValue,
   ModuleRef,
   Policy,
+  SerializedError,
   SerializedPolicy,
   SnapshotKey,
 } from '@provino/types'
@@ -67,6 +68,7 @@ interface PlainErrorRecord {
   readonly code: string
 }
 expectTypeOf<PlainErrorRecord>().toExtend<CloneSafe<PlainErrorRecord>>()
+expectTypeOf<SerializedError>().toExtend<CloneSafe<SerializedError>>()
 // A plain record still may not hide a closure.
 interface BadRecord {
   readonly __record?: never

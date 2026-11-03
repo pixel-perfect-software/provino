@@ -1,6 +1,9 @@
 // The result model (Track 12 §Types and public API). Every runner's output converts to a
 // NormalizedRun: the harness converts Jest and Vitest JSON, and Provino's `normalized-json`
-// reporter writes it natively. Rebuilt from the track doc; the spike's source no longer exists.
+// reporter writes it natively from the runtime's events (`HarnessEvent`). Rebuilt from the track
+// doc; the spike's source no longer exists.
+import type { RuntimeEvent } from './runtime/events.ts'
+import type { SkipReason } from './runtime/tree.ts'
 
 /**
  * The result-model schema version. This package exports types only, so the runtime constant is
@@ -20,18 +23,6 @@ export type RunnerId = 'jest' | 'vitest' | 'provino:jest' | 'provino:vitest' | (
  * @public
  */
 export type TestStatus = 'passed' | 'failed' | 'skipped' | 'todo' | 'notRun'
-
-/**
- * Why a test was skipped, when the runner says so.
- * @public
- */
-export type SkipReason =
-  | 'modifier'
-  | 'only-filter'
-  | 'name-filter'
-  | 'condition'
-  | 'dynamic'
-  | 'unknown'
 
 /**
  * A test's identity across runners: its file, its title path, and its index among tests with the
@@ -209,3 +200,31 @@ export interface NormalizedRun {
   readonly runErrors: readonly NormalizedError[]
   readonly success: boolean
 }
+
+/**
+ * The runtime events the `normalized-json` reporter turns into a `NormalizedRun` (Track 12's
+ * "What Track 5 must emit"). Not a second event model: a subset of `RuntimeEvent`, read with the
+ * task tree from `file-collect-end`.
+ *
+ * - Hooks: `hook-start`/`hook-end` give the owner (`ownerId`), `ordinal`, the test an each-hook
+ *   ran for (`testId`) and the outcome (`error`).
+ * - Tests: `TestTask.fullName` and `dupIndex` give the identity; `test-attempt-start` the
+ *   attempt; `test-end`'s `TaskResult` the status, `skipReason`, errors, `passingAssertions` and
+ *   duration.
+ * - Console: `taskId` ties a line to its test.
+ * @public
+ */
+export type HarnessEvent = Extract<
+  RuntimeEvent,
+  {
+    readonly type:
+      | 'file-collect-end'
+      | 'hook-start'
+      | 'hook-end'
+      | 'test-attempt-start'
+      | 'test-end'
+      | 'console'
+      | 'unhandled-error'
+      | 'file-end'
+  }
+>
