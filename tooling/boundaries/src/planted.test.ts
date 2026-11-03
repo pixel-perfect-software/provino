@@ -111,8 +111,10 @@ describe('Biome GritQL plugins', { concurrency: true }, () => {
     assert.equal(count((await biome(dir, path)).output, 'slice-discipline'), 4)
   })
 
-  test("slice-discipline allows a package's own slice, exempt packages and tests", async () => {
+  test("slice-discipline allows a package's own slice, exempt packages, tests and test support", async () => {
     const dir = await workspace({
+      'packages/core/src/internal/test-support.ts':
+        "import { neutralPolicy } from '@provino/policy'\nexport const c = neutralPolicy.core\n",
       'packages/core/src/ok.ts':
         "import type { CorePolicy } from '@provino/types'\nexport type P = CorePolicy\n",
       'packages/core/src/ok.test.ts':

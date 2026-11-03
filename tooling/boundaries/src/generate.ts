@@ -20,7 +20,9 @@ const HEADER =
 
 const DIALECT_TARGET = '^packages/dialect-[^/]+/|^@provino/dialect-'
 /** The boundary lints check package code; a test may build a whole policy or name a runner. */
-const NOT_TESTS: readonly string[] = ['!**/*.test.ts', '!**/*.test-d.ts']
+// `test-support.ts` is the repo's name for a test-helper module (not a test file itself); like the
+// tests it serves, it may use the whole policy and name runners.
+const NOT_TESTS: readonly string[] = ['!**/*.test.ts', '!**/*.test-d.ts', '!**/test-support.ts']
 
 /**
  * Every generated file, by repo-relative path, as it should be on disk. `roots` are the

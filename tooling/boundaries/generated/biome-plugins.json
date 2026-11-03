@@ -15,7 +15,8 @@
         "packages/snapshot/**",
         "packages/timers/**",
         "!**/*.test.ts",
-        "!**/*.test-d.ts"
+        "!**/*.test-d.ts",
+        "!**/test-support.ts"
       ]
     },
     {
@@ -24,7 +25,8 @@
       "includes": [
         "packages/core/**",
         "!**/*.test.ts",
-        "!**/*.test-d.ts"
+        "!**/*.test-d.ts",
+        "!**/test-support.ts"
       ]
     },
     {
@@ -33,7 +35,8 @@
       "includes": [
         "packages/coverage/**",
         "!**/*.test.ts",
-        "!**/*.test-d.ts"
+        "!**/*.test-d.ts",
+        "!**/test-support.ts"
       ]
     },
     {
@@ -42,7 +45,8 @@
       "includes": [
         "packages/expect/**",
         "!**/*.test.ts",
-        "!**/*.test-d.ts"
+        "!**/*.test-d.ts",
+        "!**/test-support.ts"
       ]
     },
     {
@@ -51,7 +55,8 @@
       "includes": [
         "packages/lazy/**",
         "!**/*.test.ts",
-        "!**/*.test-d.ts"
+        "!**/*.test-d.ts",
+        "!**/test-support.ts"
       ]
     },
     {
@@ -60,7 +65,8 @@
       "includes": [
         "packages/mock/**",
         "!**/*.test.ts",
-        "!**/*.test-d.ts"
+        "!**/*.test-d.ts",
+        "!**/test-support.ts"
       ]
     },
     {
@@ -69,7 +75,8 @@
       "includes": [
         "packages/loader/**",
         "!**/*.test.ts",
-        "!**/*.test-d.ts"
+        "!**/*.test-d.ts",
+        "!**/test-support.ts"
       ]
     },
     {
@@ -91,7 +98,8 @@
         "packages/transform/**",
         "packages/vitest-compat/**",
         "!**/*.test.ts",
-        "!**/*.test-d.ts"
+        "!**/*.test-d.ts",
+        "!**/test-support.ts"
       ]
     },
     {
@@ -100,7 +108,8 @@
       "includes": [
         "packages/reporters/**",
         "!**/*.test.ts",
-        "!**/*.test-d.ts"
+        "!**/*.test-d.ts",
+        "!**/test-support.ts"
       ]
     },
     {
@@ -109,7 +118,8 @@
       "includes": [
         "packages/snapshot/**",
         "!**/*.test.ts",
-        "!**/*.test-d.ts"
+        "!**/*.test-d.ts",
+        "!**/test-support.ts"
       ]
     },
     {
@@ -118,7 +128,8 @@
       "includes": [
         "packages/timers/**",
         "!**/*.test.ts",
-        "!**/*.test-d.ts"
+        "!**/*.test-d.ts",
+        "!**/test-support.ts"
       ]
     }
   ]
