@@ -143,6 +143,7 @@ export type {
   ResolveKind,
   ResolveResult,
   Resolver,
+  ResolverOptions,
 } from './resolve.ts'
 export type {
   ConsoleEntry,

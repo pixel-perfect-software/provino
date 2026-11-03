@@ -68,6 +68,8 @@ export type TransformErrorCode =
   | 'UNSUPPORTED_SYNTAX'
   /** A hosted Jest transformer or Vite plugin threw. */
   | 'TRANSFORMER_FAILED'
+  /** A tsconfig `extends` entry can't be found. The rest of the config still applies, as in tsc. */
+  | 'TSCONFIG_EXTENDS_NOT_FOUND'
 
 /**
  * A problem found while transforming.

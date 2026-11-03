@@ -18,6 +18,18 @@
     },
     {
       "path": "packages/bench"
+    },
+    {
+      "path": "packages/resolver"
+    },
+    {
+      "path": "packages/transform"
+    },
+    {
+      "path": "packages/resolver/bench"
+    },
+    {
+      "path": "packages/transform/bench"
     }
   ]
 }

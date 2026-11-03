@@ -22,6 +22,8 @@ catalog:
   "@jest/test-result": 30.5.2
   # Type tests only: real Jest transformers must assign to JestTransformer (Track 3, T3.1).
   "@jest/transform": 30.5.2
+  # Source-map composition in @provino/transform (Track 3 R1).
+  "@jridgewell/remapping": 2.3.5
   # autd: dependency updates (DECISIONS D14); config in .always-up-to-date.json.
   "@pixel-perfect-software/always-up-to-date": 3.3.0
   "@standard-schema/spec": 1.1.0
@@ -37,6 +39,10 @@ catalog:
   expect-type: 1.4.0
   jest: 30.5.2
   lodash: 4.18.1
+  # Oxc (Track 3): the resolver, and the transform pipeline with its parser.
+  oxc-parser: 0.156.0
+  oxc-resolver: 11.24.2
+  oxc-transform: 0.156.0
   tsdown: 0.23.2
   turbo: 2.11.10
   typescript: 7.0.2
