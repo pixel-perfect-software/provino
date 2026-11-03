@@ -4,6 +4,7 @@ import { stripVTControlCharacters } from 'node:util'
 import { createBehaviourLoader, isModuleRef } from '@provino/policy'
 import { jestExpectPolicy } from '../expect-policy.ts'
 import { jestExpectTable } from './expect-table.ts'
+import { setUpJestExpect } from './internal/test-support.ts'
 
 /** Jest 30.5's instance matchers (Track 7 F2) without the 4 snapshot ones (T7.10). */
 const JEST_MATCHERS = [
@@ -111,4 +112,23 @@ test('the messages are Jest`s', () => {
     ),
     'expect(received).resolves.toBe()\n\nReceived promise rejected instead of resolved\nRejected to value: 1',
   )
+})
+
+test('extend`s asymmetric forms share one class per registration, as in Jest', (t) => {
+  const { expect } = setUpJestExpect(t)
+  expect.extend({
+    toBeWithin: (received: number, low: number, high: number) => ({
+      pass: received >= low && received <= high,
+      message: () => '',
+    }),
+  })
+  // `extend` adds the names at runtime, so `expect` reads them as `unknown`.
+  type Builder = (low: number, high: number) => object
+  const within = expect.toBeWithin as Builder
+  const notWithin = expect.not.toBeWithin as Builder
+  const a = within(1, 2)
+  const b = within(1, 2)
+  assert.equal(a.constructor, b.constructor)
+  assert.equal(notWithin(1, 2).constructor, a.constructor)
+  expect({ x: a }).toStrictEqual({ x: b })
 })

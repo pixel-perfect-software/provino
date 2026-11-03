@@ -12,37 +12,31 @@ import {
 import type { MatcherState } from '@provino/types'
 import { jestExpectPolicy } from '../expect-policy.ts'
 import { jestExpectTable } from './expect-table.ts'
-import { type CountingBody, runInterleaved, setUpJestExpect } from './internal/test-support.ts'
+import {
+  COUNT,
+  type CountingBody,
+  countedCorrectly,
+  countingBody,
+  runInterleaved,
+  SEED,
+  setUpJestExpect,
+} from './internal/test-support.ts'
 
-const COUNT = 50
-const SEED = 20261103
-
-test('50/50 interleaved tests count their own assertions', async () => {
-  const { expect, slot } = setUpJestExpect()
-  try {
-    const body: CountingBody = async (n, pause) => {
-      expect.assertions(n)
-      for (let i = 0; i < n; i++) {
-        await pause()
-        expect(i).toBe(i)
-      }
-      await pause()
-      // What third-party code reading the slot sees, and what `expect.getState()` says, agree.
-      const viaSlot = (Reflect.get(globalThis, MATCHERS_SLOT) as { state: MatcherState }).state
-      assert.equal(viaSlot, expect.getState())
-      const { assertionCalls, expectedAssertionsNumber } = expect.getState()
-      return { assertionCalls, expectedAssertionsNumber }
-    }
-    const { counted, peak } = await runInterleaved(COUNT, SEED, body)
-    assert.equal(peak, COUNT, 'every test was running at once')
-    const correct = counted.filter(
-      (c) => c.assertionCalls === c.n && c.expectedAssertionsNumber === c.n,
-    )
-    assert.equal(counted.length, COUNT)
-    assert.equal(correct.length, COUNT, `${correct.length}/${COUNT} counted correctly`)
-  } finally {
-    slot.uninstall()
+test('50/50 interleaved tests count their own assertions', async (t) => {
+  const { expect } = setUpJestExpect(t)
+  const counting = countingBody(expect)
+  const body: CountingBody = async (n, pause) => {
+    const result = await counting(n, pause)
+    // What third-party code reading the slot sees, and what `expect.getState()` says, agree.
+    const viaSlot = (Reflect.get(globalThis, MATCHERS_SLOT) as { state: MatcherState }).state
+    assert.equal(viaSlot, expect.getState())
+    return result
   }
+  const { counted, peak } = await runInterleaved(COUNT, SEED, body)
+  assert.equal(peak, COUNT, 'every test was running at once')
+  const correct = countedCorrectly(counted)
+  assert.equal(counted.length, COUNT)
+  assert.equal(correct.length, COUNT, `${correct.length}/${COUNT} counted correctly`)
 })
 
 test('control: one shared state, reset as each test starts (as in Jest), miscounts', async () => {
@@ -65,19 +59,11 @@ test('control: one shared state, reset as each test starts (as in Jest), miscoun
     source,
     registry: createMatcherRegistry(),
   })
+  const counting = countingBody(expect)
   const { counted } = await runInterleaved(COUNT, SEED, async (n, pause) => {
     Object.assign(shared, { assertionCalls: 0, expectedAssertionsNumber: null })
-    expect.assertions(n)
-    for (let i = 0; i < n; i++) {
-      await pause()
-      expect(i).toBe(i)
-    }
-    await pause()
-    const { assertionCalls, expectedAssertionsNumber } = expect.getState()
-    return { assertionCalls, expectedAssertionsNumber }
+    return counting(n, pause)
   })
-  const wrong = counted.filter(
-    (c) => c.assertionCalls !== c.n || c.expectedAssertionsNumber !== c.n,
-  )
-  assert.ok(wrong.length > COUNT / 2, `only ${wrong.length}/${COUNT} miscounted`)
+  const wrong = counted.length - countedCorrectly(counted).length
+  assert.ok(wrong > COUNT / 2, `only ${wrong}/${COUNT} miscounted`)
 })
