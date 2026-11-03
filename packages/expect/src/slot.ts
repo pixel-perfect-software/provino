@@ -6,7 +6,6 @@
 // non-configurable; ours is configurable, so a realm teardown can drop it.
 import type { EqualityTester, Matcher, MatcherState } from '@provino/types'
 import { ExpectError } from './errors.ts'
-import { REGISTRY } from './internal/slot-read.ts'
 import type { StateSource } from './state.ts'
 
 /**
@@ -52,6 +51,11 @@ export interface MatchersSlot {
   readonly matchers: Record<string, Matcher>
   readonly customEqualityTesters: EqualityTester[]
   readonly state: MatcherState
+  /**
+   * `this.utils`, for the asymmetric base. Ours only, and not enumerable, so the slot's own keys
+   * stay Jest's three.
+   */
+  readonly utils?: object
 }
 
 /**
@@ -74,7 +78,8 @@ export function installMatchersSlot(source: StateSource, registry: MatcherRegist
       return source.current()
     },
   }
-  Object.defineProperty(slot, REGISTRY, { value: registry })
+  // A getter: `createExpect` sets the registry's `utils` after the slot is installed.
+  Object.defineProperty(slot, 'utils', { get: () => registry.utils })
   Object.defineProperty(globalThis, MATCHERS_SLOT, { value: slot, configurable: true })
   return {
     uninstall(): void {

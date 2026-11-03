@@ -1,9 +1,11 @@
 // Per-test matcher state (T7.2, Track 7 R1). Jest keeps one global `MatcherState`, so
-// `expect.assertions(n)` miscounts under `test.concurrent` (spike P4/P5). Here every test attempt
-// gets its own state, found through the current-test lookup, so the global `expect` counts each
-// test separately. Outside a test (suite hooks, a file's top level) the file's state is current,
-// as Jest's one state would be.
-import type { CurrentTest, MatcherState, TestTask } from '@provino/types'
+// `expect.assertions(n)` miscounts under `test.concurrent` (spike P4/P5). Here every run of a test
+// (each retry attempt of each repeat) gets its own state, found through the current-test lookup,
+// so the global `expect` counts each run separately. A run's state is never replaced: a timed-out
+// attempt whose body is still running keeps counting into its own. Outside a test (suite hooks, a
+// file's top level) the file's state is current, as Jest's one state would be.
+import type { CurrentTest, Frame, MatcherState, TestTask } from '@provino/types'
+import { freshCounters } from './internal/counters.ts'
 
 /**
  * Options for `createStateSource`.
@@ -29,14 +31,24 @@ export interface StateSource {
    * Starts a file: a fresh file state with `testPath`, and the last file's test states dropped.
    */
   startFile(testPath: string | undefined): void
-  /** The state of a test's latest attempt, if that attempt read or counted any. */
-  stateOf(testId: string): MatcherState | undefined
+  /**
+   * The state of one run of a test (its attempt and repeat, as `test-attempt-end` reports them),
+   * if that run read or counted any.
+   */
+  stateOf(testId: string, run: TestRun): MatcherState | undefined
 }
 
-interface Entry {
+/**
+ * Which run of a test: the retry attempt and the repeat, both from 0.
+ * @public
+ */
+export interface TestRun {
   readonly attempt: number
-  readonly state: MatcherState
+  readonly repeat: number
 }
+
+/** A run's key among a test's runs: a number, so the per-assertion lookup builds no string. */
+const runKey = ({ attempt, repeat }: TestRun): number => repeat * 1_048_576 + attempt
 
 /**
  * Builds the state source from the worker's current-test lookup (core's `currentTest`). Typed by
@@ -49,17 +61,32 @@ export function createStateSource(
 ): StateSource {
   const { nameSeparator, expand } = options
   let fileState = newFileState(expand, undefined)
-  let tests = new Map<string, Entry>()
+  /** Each test's runs, by `runKey`. */
+  let tests = new Map<string, Map<number, MatcherState>>()
+  // The last frame looked up and its state: a test body's assertions share one frame object, and
+  // a run's state is never replaced, so this hit needs no invalidation within a file.
+  let lastFrame: Frame | undefined
+  let lastState = fileState
 
   return {
     current(): MatcherState {
       const frame = currentTest.get()
-      const test = frame?.test
-      if (frame === undefined || test == null) return fileState
-      const entry = tests.get(test.id)
-      if (entry !== undefined && entry.attempt === frame.attempt) return entry.state
-      const state = newAttemptState(fileState, test, nameSeparator)
-      tests.set(test.id, { attempt: frame.attempt, state })
+      if (frame?.test == null) return fileState
+      if (frame === lastFrame) return lastState
+      const { test } = frame
+      let runs = tests.get(test.id)
+      if (runs === undefined) {
+        runs = new Map()
+        tests.set(test.id, runs)
+      }
+      const key = runKey(frame)
+      let state = runs.get(key)
+      if (state === undefined) {
+        state = newAttemptState(fileState, test, nameSeparator)
+        runs.set(key, state)
+      }
+      lastFrame = frame
+      lastState = state
       return state
     },
     file(): MatcherState {
@@ -68,33 +95,17 @@ export function createStateSource(
     startFile(testPath: string | undefined): void {
       fileState = newFileState(expand, testPath)
       tests = new Map()
+      lastFrame = undefined
     },
-    stateOf(testId: string): MatcherState | undefined {
-      return tests.get(testId)?.state
+    stateOf(testId: string, run: TestRun): MatcherState | undefined {
+      return tests.get(testId)?.get(runKey(run))
     },
-  }
-}
-
-function counters(): Pick<
-  MatcherState,
-  | 'assertionCalls'
-  | 'expectedAssertionsNumber'
-  | 'isExpectingAssertions'
-  | 'numPassingAsserts'
-  | 'suppressedErrors'
-> {
-  return {
-    assertionCalls: 0,
-    expectedAssertionsNumber: null,
-    isExpectingAssertions: false,
-    numPassingAsserts: 0,
-    suppressedErrors: [],
   }
 }
 
 function newFileState(expand: boolean, testPath: string | undefined): MatcherState {
   return {
-    ...counters(),
+    ...freshCounters(),
     expand,
     ...(testPath === undefined ? {} : { testPath }),
   }
@@ -115,5 +126,5 @@ function newAttemptState(
     isExpectingAssertionsError: _expecting,
     ...carried
   } = fileState
-  return { ...carried, ...counters(), currentTestName: test.fullName.join(nameSeparator) }
+  return { ...carried, ...freshCounters(), currentTestName: test.fullName.join(nameSeparator) }
 }

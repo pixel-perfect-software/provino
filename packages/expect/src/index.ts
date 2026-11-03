@@ -12,4 +12,9 @@ export {
   type MatchersSlot,
   type SlotHandle,
 } from './slot.ts'
-export { createStateSource, type StateSource, type StateSourceOptions } from './state.ts'
+export {
+  createStateSource,
+  type StateSource,
+  type StateSourceOptions,
+  type TestRun,
+} from './state.ts'

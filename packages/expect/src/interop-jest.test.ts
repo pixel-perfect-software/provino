@@ -1,22 +1,18 @@
 // Spike C, both ways, against Jest 30.5.2's own `expect` (T7.4). Its own process (`node --test`
 // runs each file in one): Jest's `expect` defines the realm's slot when it loads, non-configurable,
 // so our slot is never installed here, and our engine runs without one.
-import { describe, test } from 'node:test'
+import { describe } from 'node:test'
 import { expect as jestExpect } from 'expect'
 import {
-  type InteropEngine,
+  defineInteropSuite,
   type InteropSubject,
-  interopCases,
+  interopEngine,
   isFortyTwo,
   StartsWith,
   testEngine,
 } from './internal/test-support.ts'
 
-const jest: InteropEngine = {
-  toEqual: (received, expected) => jestExpect(received).toEqual(expected),
-  notToEqual: (received, expected) => jestExpect(received).not.toEqual(expected),
-  toMatchObject: (received, expected) => jestExpect(received).toMatchObject(expected),
-}
+const jest = interopEngine(jestExpect)
 
 describe('ours inside Jest`s expect', () => {
   const subjects: InteropSubject[] = [
@@ -42,20 +38,12 @@ describe('ours inside Jest`s expect', () => {
       printed: 'IsFortyTwo',
     },
   ]
-  for (const subject of subjects) {
-    describe(subject.name, () => {
-      for (const [name, run] of interopCases(jest, subject)) test(name, run)
-    })
-  }
+  defineInteropSuite(jest, subjects)
 })
 
 describe('Jest`s inside our expect', () => {
   const { expect } = testEngine()
-  const ours: InteropEngine = {
-    toEqual: (received, expected) => expect(received).toEqual(expected),
-    notToEqual: (received, expected) => expect(received).not.toEqual(expected),
-    toMatchObject: (received, expected) => expect(received).toMatchObject(expected),
-  }
+  const ours = interopEngine(expect)
   jestExpect.extend({
     toBeEven: (received: number) => ({ pass: received % 2 === 0, message: () => '' }),
   })
@@ -96,9 +84,5 @@ describe('Jest`s inside our expect', () => {
     },
     { name: 'a custom matcher`s asymmetric form', matcher: toBeEven(), good: 2, bad: 3 },
   ]
-  for (const subject of subjects) {
-    describe(subject.name, () => {
-      for (const [name, run] of interopCases(ours, subject)) test(name, run)
-    })
-  }
+  defineInteropSuite(ours, subjects)
 })
