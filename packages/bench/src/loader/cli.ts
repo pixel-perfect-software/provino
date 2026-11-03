@@ -14,6 +14,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { resolveRunnerPackage, runProcess } from '@provino/harness'
+import { parseLimit } from '../internal/limits.ts'
+import { median } from '../stats.ts'
 import { FIXTURE_FILES, TESTS_PER_FILE, writeLoaderFixture } from './fixture.ts'
 import { createFixtureLoader, type LoaderTier, runFixture } from './run.ts'
 
@@ -28,13 +30,8 @@ const { positionals, values: args } = parseArgs({
 })
 const command = positionals[0]
 
-function median(values: readonly number[]): number {
-  const sorted = [...values].sort((a, b) => a - b)
-  const mid = sorted.length >> 1
-  return sorted.length % 2 === 1
-    ? (sorted[mid] ?? 0)
-    : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
-}
+// Parsed before any run, so a mistyped bar fails at once.
+const maxOverheadMs = parseLimit('max-overhead-ms', args['max-overhead-ms'])
 
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'provino-loader-fixture-')))
 const lines: string[] = []
@@ -76,10 +73,10 @@ try {
       `  registry ${registry.toFixed(0)} ms for ${FIXTURE_FILES} files`,
       `  registry overhead ${overhead.toFixed(2)} ms/file`,
     )
-    const max = args['max-overhead-ms']
-    if (max !== undefined && overhead > Number(max)) {
+    // Written `!(measured <= bar)` so a NaN measurement fails the bar instead of passing it.
+    if (maxOverheadMs !== undefined && !(overhead <= maxOverheadMs)) {
       ok = false
-      lines.push(`FAIL overhead ${overhead.toFixed(2)} ms/file is above ${max}`)
+      lines.push(`FAIL overhead ${overhead.toFixed(2)} ms/file is above ${maxOverheadMs}`)
     }
   } else if (command === 'e2e') {
     const entry = fileURLToPath(new URL('entry.ts', import.meta.url))

@@ -8,14 +8,14 @@
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { runProcess } from '@provino/harness'
+import { parseLimit, readSample } from '../internal/limits.ts'
+import { median } from '../stats.ts'
 
 const RUNS = 5
 const ENGINES = ['provino', 'jest'] as const
 type Engine = (typeof ENGINES)[number]
-interface Sample {
-  readonly toBe: number
-  readonly toEqual: number
-}
+const KEYS = ['toBe', 'toEqual'] as const
+type Sample = Record<(typeof KEYS)[number], number>
 
 const { values: args } = parseArgs({
   options: {
@@ -24,12 +24,10 @@ const { values: args } = parseArgs({
   },
 })
 
-function median(values: readonly number[]): number {
-  const sorted = [...values].sort((a, b) => a - b)
-  const mid = sorted.length >> 1
-  return sorted.length % 2 === 1
-    ? (sorted[mid] ?? 0)
-    : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
+// Parsed before any run, so a mistyped bar fails at once.
+const bars = {
+  toBe: parseLimit('max-tobe-us', args['max-tobe-us']),
+  toEqual: parseLimit('max-toequal-us', args['max-toequal-us']),
 }
 
 const entry = fileURLToPath(new URL('entry.ts', import.meta.url))
@@ -43,12 +41,13 @@ for (let run = 0; run < RUNS; run++) {
       ['--conditions=provino-source', entry, engine],
       { cwd: process.cwd(), env: process.env, timeoutMs: 120_000 },
     )
-    // The sample is the output's one JSON line; stderr (warnings) shares the tail.
-    const line = result.output.split('\n').find((text) => text.startsWith('{'))
-    if (result.exitCode !== 0 || line === undefined) {
+    // The sample is the output's `PROVINO_SAMPLE` line with both timings; stderr (warnings) shares
+    // the tail.
+    const sample = readSample(result.output, KEYS)
+    if (result.exitCode !== 0 || sample === undefined) {
       throw new Error(`bench:expect ${engine} exited ${result.exitCode}:\n${result.output}`)
     }
-    samples[engine].push(JSON.parse(line) as Sample)
+    samples[engine].push(sample)
   }
 }
 
@@ -59,19 +58,20 @@ const medians = (engine: Engine) => ({
 })
 const provino = medians('provino')
 const jest = medians('jest')
+// `toBe` is padded to the width of `toEqual`, plus two spaces.
+const labelWidth = Math.max(...KEYS.map((key) => key.length)) + 2
 const lines = [
   `expect bench (local, Node ${process.version}, ${RUNS} interleaved runs per engine, median per call)`,
-  `  toBe     provino ${us(provino.toBe)}   jest ${us(jest.toBe)}   jest/provino ${(jest.toBe / provino.toBe).toFixed(1)}×`,
-  `  toEqual  provino ${us(provino.toEqual)}   jest ${us(jest.toEqual)}   jest/provino ${(jest.toEqual / provino.toEqual).toFixed(1)}×`,
+  ...KEYS.map(
+    (key) =>
+      `  ${key.padEnd(labelWidth)}provino ${us(provino[key])}   jest ${us(jest[key])}   jest/provino ${(jest[key] / provino[key]).toFixed(1)}×`,
+  ),
 ]
 let ok = true
-for (const [flag, key] of [
-  ['max-tobe-us', 'toBe'],
-  ['max-toequal-us', 'toEqual'],
-] as const) {
-  const bar = args[flag]
-  if (bar === undefined) continue
-  if (provino[key] / 1000 > Number(bar)) {
+for (const key of KEYS) {
+  const bar = bars[key]
+  // Written `!(measured <= bar)` so a NaN measurement fails the bar instead of passing it.
+  if (bar !== undefined && !(provino[key] / 1000 <= bar)) {
     ok = false
     lines.push(`FAIL provino ${key} is ${us(provino[key])}; the bar is ≤ ${bar} µs`)
   }
