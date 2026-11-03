@@ -23,13 +23,18 @@ provino/
 │   ├── plan/                     # PLAN.md (status), DECISIONS.md (overrides research), bundles/<id>.md
 │   └── research/                 # frozen research snapshots; reference only, never edit
 ├── packages/                     # one dir per package, named without the @provino/ scope
-│   ├── types/                    # @provino/types: policy surface, CloneSafe, Dialect, extension and config contracts
+│   ├── types/                    # @provino/types: contracts only (policy, tree and events, loader, transform, resolver, environment, coverage, orchestrator, result model)
 │   ├── policy/                   # @provino/policy: neutralPolicy, resolvePolicy, callBehaviour, serializePolicy, diffPolicy
-│   └── core/                     # @provino/core: empty stub until B07
+│   ├── resolver/                 # @provino/resolver: createResolver over oxc-resolver; bench/ holds the Node ESM agreement check
+│   ├── transform/                # @provino/transform: createPipeline (Oxc), toModuleRunner (D10 guard); bench/ holds the excalidraw and runner-fuzz checks
+│   ├── loader/                   # @provino/loader: createLoader, the module-runner engine (none and registry tiers)
+│   ├── core/                     # @provino/core: empty stub until B07
+│   ├── harness/                  # @provino/harness (dev): result converters, golden-fixture recorder, parity diffs
+│   └── bench/                    # @provino/bench (dev): synthetic suites, provino-bench, and the loader benches (src/loader/)
 ├── tooling/                      # private workspace tools, never published (pnpm-workspace `tooling/*`)
 │   └── boundaries/               # provino-boundaries: packages.json manifest, generator, GritQL plugins
-├── .refs/                        # gitignored upstream clones at pinned tags (DECISIONS S3)
-└── .github/workflows/ci.yml      # Node 22.15/24/26 typecheck + test; type tests on TS 7.0.2 and 5.9.3; lint
+├── .refs/                        # gitignored upstream sources at pinned commits (DECISIONS S3); excalidraw/ is GitHub's tarball (the sandbox blocks nested git)
+└── .github/workflows/ci.yml      # Node 22.15/24/26 typecheck + test; type tests on TS 7.0.2 and 5.9.3; lint; bench suites and goldens; resolver/transform corpora
 ```
 
 Gitignored build output: `packages/*/.tsc/` (declarations from `tsc -b`; project references need emit) and `.turbo/`.
@@ -43,6 +48,8 @@ packages/<name>/
 ├── package.json        # exports: "provino-source" → ./src/…ts first, then types/import → ./dist/…
 ├── tsconfig.json       # extends ../../tsconfig.base.json; include ["src"] (unit tests included)
 ├── src/                # source, plus *.test.ts unit tests next to it
+├── bench/              # optional: corpus and benchmark scripts, their own tsconfig project (referenced from the root tsconfig.json)
+├── fixtures/           # optional: committed fixture data (e.g. transform's excalidraw.json manifest)
 └── test/
     ├── tsconfig.json   # type-test project; references ".."
     └── *.test-d.ts     # expect-type tests
