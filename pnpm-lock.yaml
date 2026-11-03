@@ -429,6 +429,12 @@ importers:
       '@jest/test-result':
         specifier: 'catalog:'
         version: 30.5.2
+      '@provino/core':
+        specifier: workspace:*
+        version: link:../core
+      '@provino/policy':
+        specifier: workspace:*
+        version: link:../policy
       babel-jest:
         specifier: 'catalog:'
         version: 30.5.2(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1)
