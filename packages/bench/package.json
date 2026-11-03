@@ -23,12 +23,22 @@
   },
   "dependencies": {
     "@provino/harness": "workspace:*",
+    "@provino/loader": "workspace:*",
+    "@provino/policy": "workspace:*",
+    "@provino/resolver": "workspace:*",
+    "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*"
   },
   "devDependencies": {
+    "@swc/core": "catalog:",
+    "@swc/jest": "catalog:",
     "date-fns": "catalog:",
+    "es-module-lexer": "catalog:",
+    "expect": "catalog:",
     "jest": "catalog:",
     "lodash": "catalog:",
+    "magic-string": "catalog:",
+    "pretty-format": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
   }

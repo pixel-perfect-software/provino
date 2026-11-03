@@ -32,6 +32,7 @@
     "bench:resolve": "node --conditions=provino-source packages/resolver/bench/resolve-corpus.ts",
     "bench:excalidraw": "node --conditions=provino-source packages/transform/bench/excalidraw.ts",
     "bench:runner-fuzz": "node --conditions=provino-source packages/transform/bench/runner-fuzz.ts",
+    "bench:loader": "node --conditions=provino-source packages/bench/src/loader/cli.ts",
     "deps:check": "autd check",
     "deps:update": "autd update"
   },
