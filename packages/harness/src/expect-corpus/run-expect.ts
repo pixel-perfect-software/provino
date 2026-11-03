@@ -11,16 +11,26 @@ import {
   createMatcherRegistry,
   createStateSource,
   installMatchersSlot,
+  type TestRun,
 } from '@provino/expect'
 import { createBehaviourLoader } from '@provino/policy'
-import type { CorePolicy, RuntimeEvent, SerializedError, TaskId, TestTask } from '@provino/types'
+import type {
+  CorePolicy,
+  MatcherState,
+  RuntimeEvent,
+  SerializedError,
+  TaskId,
+  TestTask,
+} from '@provino/types'
 import { ModuleMocker } from 'jest-mock'
+import { installGlobals } from '../internal/globals.ts'
+import { type Reported, reported } from '../runtime-corpus/run-core.ts'
 
 /** A test as the comparison sees it. */
 export interface ExpectTest {
   readonly path: readonly string[]
   readonly dupIndex: number
-  readonly status: 'passed' | 'failed' | 'skipped' | 'todo' | 'no-result'
+  readonly status: Reported
   /**
    * Each failure as Jest's `failureMessages` holds it: the error's `stack`, or its message when
    * there is none (jest-circus `getErrorStack`).
@@ -52,8 +62,6 @@ export async function runExpectFile(
   const registry = createMatcherRegistry()
   const slot = installMatchersSlot(source, registry)
   const events: RuntimeEvent[] = []
-  const scope = globalThis as unknown as Record<string, unknown>
-  const saved = new Map<string, unknown>()
   try {
     if (jestExpectPolicy.matcherTable === null) throw new Error('the Jest dialect has a table')
     const table = (await behaviours.load(jestExpectPolicy.matcherTable))()
@@ -67,61 +75,63 @@ export async function runExpectFile(
       rootDir,
       ci: true,
     })
-    const installed: Record<string, unknown> = {
+    const restore = installGlobals({
       ...runtime.api,
       expect,
       jest: { fn: mocker.fn.bind(mocker), spyOn: mocker.spyOn.bind(mocker) },
-    }
-    for (const [name, value] of Object.entries(installed)) {
-      saved.set(name, scope[name])
-      scope[name] = value
-    }
-    source.startFile(file)
+    })
     try {
-      await runtime.runFile(file)
+      source.startFile(file)
+      try {
+        await runtime.runFile(file)
+      } finally {
+        await runtime.dispose()
+      }
     } finally {
-      await runtime.dispose()
+      restore()
     }
   } finally {
-    for (const [name, value] of saved) {
-      if (value === undefined) delete scope[name]
-      else scope[name] = value
-    }
     slot.uninstall()
   }
 
+  return summarizeExpectRun(events, (id, run) => source.stateOf(id, run))
+}
+
+/**
+ * Reduces what core emitted for one file to the tests a golden compares. A test's passing count is
+ * its deciding run's: the last `test-attempt-end` (Jest counts `numPassingAsserts` for it). A test
+ * that ran but reported no attempt throws, rather than reading as 0 passing assertions.
+ */
+export function summarizeExpectRun(
+  events: readonly RuntimeEvent[],
+  stateOf: (id: TaskId, run: TestRun) => MatcherState | undefined,
+): ExpectTest[] {
   const tests = new Map<TaskId, TestTask>()
+  const lastRun = new Map<TaskId, TestRun>()
   for (const event of events) {
-    if (event.type !== 'file-collect-end') continue
-    for (const task of event.tasks) if (task.type === 'test') tests.set(task.id, task)
+    if (event.type === 'file-collect-end') {
+      for (const task of event.tasks) if (task.type === 'test') tests.set(task.id, task)
+    } else if (event.type === 'test-attempt-end') {
+      lastRun.set(event.id, event)
+    }
   }
   const results: ExpectTest[] = []
   for (const event of events) {
     if (event.type !== 'test-end') continue
     const task = tests.get(event.id)
     if (task === undefined) continue
+    const status = reported(event.result.state)
+    const run = lastRun.get(event.id)
+    if (run === undefined && status !== 'skipped' && status !== 'todo') {
+      throw new Error(`expect corpus: ${task.fullName.join(' › ')} ended with no attempt`)
+    }
     results.push({
       path: task.fullName,
       dupIndex: task.dupIndex,
-      status: statusOf(event.result.state),
+      status,
       failures: event.result.errors.map(failureText),
-      passingAssertions: source.stateOf(event.id)?.numPassingAsserts ?? 0,
+      passingAssertions: run === undefined ? 0 : (stateOf(event.id, run)?.numPassingAsserts ?? 0),
     })
   }
   return results
-}
-
-function statusOf(state: string): ExpectTest['status'] {
-  switch (state) {
-    case 'pass':
-      return 'passed'
-    case 'fail':
-      return 'failed'
-    case 'skip':
-      return 'skipped'
-    case 'todo':
-      return 'todo'
-    default:
-      return 'no-result'
-  }
 }

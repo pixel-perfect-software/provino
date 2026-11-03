@@ -19,7 +19,7 @@ Dev-only (private). Turns Jest and Vitest output into the neutral result model, 
 | `src/cli.ts`                               | `provino-harness record [--check] [--keep] [<fixture dir>...]`                                                     |
 | `src/runtime-corpus.test.ts`, `src/runtime-corpus/` | B07's corpus check: `profiles` (the `CorePolicy` per recording profile), `run-core` (one file through `@provino/core`, reduced to what a golden records), `compare` (the assertions) |
 | `src/expect-corpus.test.ts`, `src/expect-corpus/` | B08's message check: `run-expect` (one file through `@provino/core` with the Jest dialect's `expect`, in the worker's boot order) |
-| `src/internal/`                            | `stack` (a failure's text parsed into message lines and frames), `paths`, `keys` (the test key's title path), `convert` (what both converters share), `recording` (completeness, leak guard, golden I/O), `stale-goldens`, `walk` (the one directory walk), `text-diff`, `runner-config` (configs plus the trace setup), `trace` (read the trace, one-file check), `work-dirs` (removes live work directories on exit), `guards` |
+| `src/internal/`                            | `stack` (a failure's text parsed into message lines and frames), `paths`, `keys` (the test key's title path), `convert` (what both converters share), `recording` (completeness, leak guard, golden I/O), `stale-goldens`, `walk` (the one directory walk), `text-diff`, `runner-config` (configs plus the trace setup), `trace` (read the trace, one-file check), `work-dirs` (removes live work directories on exit), `globals` (the corpus runners' install and restore of test globals), `guards` |
 
 ## Fixture format
 
