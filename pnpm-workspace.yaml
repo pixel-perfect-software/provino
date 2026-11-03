@@ -27,10 +27,18 @@ minimumReleaseAgeExclude:
   - "@inquirer/select@5.2.8"
   - "@inquirer/type@4.2.1"
 
+# Jest 30's haste map and resolver ship prebuilt native bindings; their install scripts only
+# rebuild from source when a prebuilt binary is missing, so they never run here.
+allowBuilds:
+  "@parcel/watcher": false
+  unrs-resolver: false
+
 # Exact pins, shared by every package that uses them: reference with "catalog:".
 # Pin the newest version that is at least 7 days old on the day you install it.
 catalog:
   "@biomejs/biome": 2.6.3
+  # Jest 30.5 and Vitest 5.0: subjects of the dev packages (harness, bench), never our runner.
+  "@jest/test-result": 30.5.2
   # autd: dependency updates (DECISIONS D14); config in .always-up-to-date.json.
   "@pixel-perfect-software/always-up-to-date": 3.3.0
   "@standard-schema/spec": 1.1.0
@@ -38,13 +46,21 @@ catalog:
   "@types/node": 22.20.5
   # The TypeScript 6 API, as tsc6, for tools that need it (dependency-cruiser, API Extractor).
   "@typescript/typescript6": 6.0.2
+  # The recorder's Jest transform runs after type stripping (Jest's default transform).
+  babel-jest: 30.5.2
+  # date-fns, lodash and zod: libraries the generated bench suites import (Track 12 R5).
+  date-fns: 4.4.0
   dependency-cruiser: 18.7.0
   expect-type: 1.4.0
+  jest: 30.5.2
+  lodash: 4.18.1
   tsdown: 0.23.2
   turbo: 2.11.10
   typescript: 7.0.2
   # The type-test job also runs on TypeScript 5.9.
   typescript-5.9: npm:typescript@5.9.3
+  vitest: 5.0.5
+  zod: 4.6.7
 
 # dependency-cruiser loads `typescript` at runtime to parse .ts files, and 18.7 can't use the
 # TypeScript 7 API yet (Track 1 §Spikes). Give it the TypeScript 6 API under that name.

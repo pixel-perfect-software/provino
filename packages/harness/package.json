@@ -1,0 +1,37 @@
+{
+  "name": "@provino/harness",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Provino's differential harness: result converters for Jest and Vitest, normalization, parity diffs, the golden-fixture recorder and site data types.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts"
+    },
+    "./site": {
+      "provino-source": "./src/site.ts",
+      "types": "./dist/site.d.ts"
+    }
+  },
+  "bin": {
+    "provino-harness": "./src/cli.ts"
+  },
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\"",
+    "record": "node --conditions=provino-source src/cli.ts record"
+  },
+  "dependencies": {
+    "@provino/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@jest/test-result": "catalog:",
+    "babel-jest": "catalog:",
+    "jest": "catalog:",
+    "vitest": "catalog:"
+  }
+}

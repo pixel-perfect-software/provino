@@ -13,7 +13,8 @@
       "!**/*.md",
       "!pnpm-lock.yaml",
       "!.dependency-cruiser.json",
-      "!tooling/boundaries/generated"
+      "!tooling/boundaries/generated",
+      "!**/__goldens__"
     ]
   },
   "formatter": {

@@ -47,6 +47,8 @@ Keep this table current: a wrong command here costs every session. Run everythin
 | Format / format check | `pnpm format` / `pnpm format:check` (Biome; Markdown is excluded)             |
 | Custom lint rules     | part of `pnpm lint` (Biome GritQL plugins `neutral-no-dialect-name`, `slice-discipline`; tests are exempt) |
 | Boundaries            | `pnpm boundaries` (manifest check, then dependency-cruiser); after editing `tooling/boundaries/packages.json`, `pnpm boundaries:write` |
+| Bench suites          | `pnpm provino-bench check <suite> --runner jest --runner vitest` (suites: `app-N`, `mock-heavy-N`, `isolate-heavy`); `pnpm provino-bench run --runner jest <suite>` writes a `local` BenchRecord to `packages/bench/.results/`|
+| Record goldens        | `pnpm provino-harness record [<fixture dir>...]` (real Jest 30.5 / Vitest 5.0); `--check` fails on drift |
 | Dependency updates    | `pnpm deps:check` (report only); `pnpm deps:update` runs only when Tyler asks (autd, D14) |
 
 - **Node below 22.18** (the 22.15 floor) needs `NODE_OPTIONS=--experimental-strip-types` for `pnpm test` and `pnpm boundaries`; CI's 22.15 leg sets it. Node 24+ strips types by default.

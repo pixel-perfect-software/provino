@@ -27,6 +27,8 @@
     "format:check": "biome format",
     "boundaries": "node tooling/boundaries/src/cli.ts check",
     "boundaries:write": "node tooling/boundaries/src/cli.ts write",
+    "provino-bench": "node --conditions=provino-source packages/bench/src/cli.ts",
+    "provino-harness": "node --conditions=provino-source packages/harness/src/cli.ts",
     "deps:check": "autd check",
     "deps:update": "autd update"
   },

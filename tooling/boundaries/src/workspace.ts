@@ -9,6 +9,7 @@ import {
   packageReach,
   problem,
 } from './manifest.ts'
+import { SKIPPED_DIRS } from './paths.ts'
 import { compare, matches } from './text.ts'
 
 /**
@@ -51,7 +52,7 @@ export interface Workspace {
 }
 
 const DEP_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
-const SKIP_DIRS: ReadonlySet<string> = new Set(['node_modules', 'dist', '.tsc', '.turbo'])
+const SKIP_DIRS: ReadonlySet<string> = new Set(SKIPPED_DIRS)
 
 /**
  * Reads the workspace under `root`. Packages are sorted by directory.

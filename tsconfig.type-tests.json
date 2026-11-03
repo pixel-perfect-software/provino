@@ -6,6 +6,12 @@
     },
     {
       "path": "packages/policy/test"
+    },
+    {
+      "path": "packages/harness/test"
+    },
+    {
+      "path": "packages/bench/test"
     }
   ]
 }

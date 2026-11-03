@@ -1,4 +1,13 @@
 // @provino/types: the shared contracts. Types only, so this module has no runtime exports.
+export type {
+  BenchLabel,
+  BenchRecord,
+  BenchResult,
+  BenchSubject,
+  IsolationMode,
+  RunRef,
+  WallStats,
+} from './bench.ts'
 export type { CloneLeaf, CloneSafe } from './clone-safe.ts'
 export type {
   BaseConfig,
@@ -59,3 +68,20 @@ export type {
 } from './hoist.ts'
 export type { IsolationTier } from './isolation.ts'
 export type * from './policy/index.ts'
+export type {
+  ConsoleEntry,
+  FileStatus,
+  NormalizedError,
+  NormalizedFile,
+  NormalizedRun,
+  NormalizedTest,
+  RunEnvironment,
+  RunnerId,
+  SchemaVersion,
+  SkipReason,
+  SnapshotCounters,
+  SnapshotFileState,
+  TestIdentity,
+  TestStatus,
+  TraceEntry,
+} from './result.ts'
