@@ -1,6 +1,6 @@
 # Project structure
 
-Current state after B03 (2026-11-02): `@provino/types` holds the contracts, `@provino/policy` the policy runtime, `@provino/core` is an empty stub, and `tooling/boundaries` checks package boundaries. Update this file whenever a top-level directory is added.
+Current state after B03 (2026-11-02): `@provino/types` holds the contracts, `@provino/policy` the policy runtime, `@provino/core` the test runtime (B07), and `tooling/boundaries` checks package boundaries. Update this file whenever a top-level directory is added.
 
 ```
 provino/
@@ -28,7 +28,7 @@ provino/
 │   ├── resolver/                 # @provino/resolver: createResolver over oxc-resolver; bench/ holds the Node ESM agreement check
 │   ├── transform/                # @provino/transform: createPipeline (Oxc), toModuleRunner (D10 guard); bench/ holds the excalidraw and runner-fuzz checks
 │   ├── loader/                   # @provino/loader: createLoader, the module-runner engine (none and registry tiers)
-│   ├── core/                     # @provino/core: empty stub until B07
+│   ├── core/                     # @provino/core: collector, executor, current test (B07)
 │   ├── harness/                  # @provino/harness (dev): result converters, golden-fixture recorder, parity diffs
 │   └── bench/                    # @provino/bench (dev): synthetic suites, provino-bench, and the loader benches (src/loader/)
 ├── tooling/                      # private workspace tools, never published (pnpm-workspace `tooling/*`)

@@ -50,7 +50,7 @@ Keep this table current: a wrong command here costs every session. Run everythin
 | Bench suites          | `pnpm provino-bench check <suite> --runner jest --runner vitest` (suites: `app-N`, `mock-heavy-N`, `isolate-heavy`); `pnpm provino-bench run --runner jest <suite>` writes a `local` BenchRecord to `packages/bench/.results/`|
 | Resolver / transform corpora | `pnpm bench:resolve` (agreement with Node ESM; `--max-warm-us 15` adds the timing bar); `pnpm bench:excalidraw` (needs `.refs/excalidraw`, see `docs/plan/bundles/B05.md`; `--max-median-ms 0.5` adds the timing bar) |
 | Loader checks         | `pnpm bench:loader check` (Spike A fixture, 600/600 and 0 isolation violations); `pnpm bench:loader isolation [--max-overhead-ms 1]`; `pnpm bench:loader e2e` (vs Jest + @swc/jest, a signal only); `pnpm bench:runner-fuzz` (10,000 generated TS files through the guarded runner transform) |
-| Record goldens        | `pnpm provino-harness record [<fixture dir>...]` (real Jest 30.5 / Vitest 5.0); `--check` fails on drift |
+| Record goldens        | `pnpm provino-harness record [<fixture dir>...]` (real Jest 30.5 / Vitest 5.0); `--check` fails on drift. The runtime corpus alone: `pnpm record:runtime [--check]` |
 | Dependency updates    | `pnpm deps:check` (report only); `pnpm deps:update` runs only when Tyler asks (autd, D14) |
 
 - **Node below 22.18** (the 22.15 floor) needs `NODE_OPTIONS=--experimental-strip-types` for `pnpm test` and `pnpm boundaries`; CI's 22.15 leg sets it. Node 24+ strips types by default.
