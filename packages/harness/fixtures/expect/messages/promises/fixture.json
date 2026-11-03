@@ -1,0 +1,4 @@
+{
+  "description": "Failure messages of awaited .resolves and .rejects: a wrong resolved or rejected value, a promise that rejected instead of resolving and the reverse, a non-promise received, and .resolves.not / .rejects.not. Each test makes one failing assertion.",
+  "runners": ["jest", "vitest"]
+}

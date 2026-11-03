@@ -1,0 +1,399 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "expect/messages/containment",
+  "files": [
+    {
+      "file": "containment.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toContain",
+              "toContain array without the item"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toContain(expected) // indexOf\n\nExpected value: 4\nReceived array: [1, 2, 3]",
+              "userFrame": "<root>/containment.test.ts:3:23"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toContain",
+              "toContain string without the substring"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toContain(expected) // indexOf\n\nExpected substring: \"planet\"\nReceived string:    \"hello world\"",
+              "userFrame": "<root>/containment.test.ts:7:27"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toContain",
+              "toContain an equal object hints toContainEqual"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toContain(expected) // indexOf\n\nExpected value: {\"a\": 1}\nReceived array: [{\"a\": 1}]\n\nLooks like you wanted to test for object/array equality with the stricter `toContain` matcher. You probably need to use `toContainEqual` instead.",
+              "userFrame": "<root>/containment.test.ts:11:24"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toContain",
+              "not.toContain array with the item"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).not.toContain(expected) // indexOf\n\nExpected value: not 2\nReceived array:     [1, 2, 3]",
+              "userFrame": "<root>/containment.test.ts:15:27"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toContain",
+              "not.toContain string with the substring"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).not.toContain(expected) // indexOf\n\nExpected substring: not \"world\"\nReceived string:        \"hello world\"",
+              "userFrame": "<root>/containment.test.ts:19:31"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 18,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toContain",
+              "toContain with a null received is a matcher error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toContain(expected) // indexOf\n\nMatcher error: received value must not be null nor undefined\n\nReceived has value: null",
+              "userFrame": "<root>/containment.test.ts:23:18"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toContainEqual",
+              "toContainEqual without an equal item"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toContainEqual(expected) // deep equality\n\nExpected value: {\"a\": 2}\nReceived array: [{\"a\": 1}, {\"b\": 2}]",
+              "userFrame": "<root>/containment.test.ts:29:34"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 28,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toContainEqual",
+              "not.toContainEqual with an equal item"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).not.toContainEqual(expected) // deep equality\n\nExpected value: not {\"a\": 1}\nReceived array:     [{\"a\": 1}]",
+              "userFrame": "<root>/containment.test.ts:33:28"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toHaveLength",
+              "toHaveLength array of another length"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toHaveLength(expected)\n\nExpected length: 3\nReceived length: 2\nReceived array:  [1, 2]",
+              "userFrame": "<root>/containment.test.ts:39:20"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 38,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toHaveLength",
+              "toHaveLength string of another length"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toHaveLength(expected)\n\nExpected length: 2\nReceived length: 3\nReceived string: \"abc\"",
+              "userFrame": "<root>/containment.test.ts:43:19"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 42,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toHaveLength",
+              "not.toHaveLength the same length"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).not.toHaveLength(expected)\n\nExpected length: not 1\nReceived array:      [1]",
+              "userFrame": "<root>/containment.test.ts:47:21"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 46,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toHaveLength",
+              "toHaveLength with a number received is a matcher error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(received).toHaveLength(expected)\n\nMatcher error: received value must have a length property whose value must be a number\n\nReceived has type:  number\nReceived has value: 5",
+              "userFrame": "<root>/containment.test.ts:51:15"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 50,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toMatch",
+              "toMatch a regex that does not match"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toMatch(expected)\n\nExpected pattern: /d/\nReceived string:  \"abc\"",
+              "userFrame": "<root>/containment.test.ts:57:19"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 56,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toMatch",
+              "toMatch a string that is not a substring"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toMatch(expected)\n\nExpected substring: \"xyz\"\nReceived string:    \"abc\"",
+              "userFrame": "<root>/containment.test.ts:61:19"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toMatch",
+              "not.toMatch a regex that matches"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).not.toMatch(expected)\n\nExpected pattern: not /b/\nReceived string:      \"abc\"",
+              "userFrame": "<root>/containment.test.ts:65:23"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "containment.test.ts",
+            "path": [
+              "toMatch",
+              "toMatch with a number received is a matcher error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: expect(received).toMatch(expected)\n\nMatcher error: received value must be a string\n\nReceived has type:  number\nReceived has value: 1",
+              "userFrame": "<root>/containment.test.ts:69:15"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 68,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false
+}

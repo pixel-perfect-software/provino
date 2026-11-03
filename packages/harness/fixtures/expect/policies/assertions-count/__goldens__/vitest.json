@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "expect/policies/assertions-count",
+  "files": [
+    {
+      "file": "assertions-count.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "assertions-count.test.ts",
+            "path": [
+              "expect.assertions",
+              "assertions(2) met"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assertions-count.test.ts",
+            "path": [
+              "expect.assertions",
+              "assertions(2) missed with one made"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expected number of assertions to be 2, but got 1"
+            }
+          ],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assertions-count.test.ts",
+            "path": [
+              "expect.assertions",
+              "assertions(1) exceeded with two made"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expected number of assertions to be 1, but got 2"
+            }
+          ],
+          "location": {
+            "line": 15,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assertions-count.test.ts",
+            "path": [
+              "expect.assertions",
+              "assertions(0) with none made"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assertions-count.test.ts",
+            "path": [
+              "expect.assertions",
+              "assertions(3) counted across awaits"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 25,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assertions-count.test.ts",
+            "path": [
+              "expect.assertions",
+              "assertions(2) missed after a failed assertion"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 1 to be 2 // Object.is equality",
+              "userFrame": "<root>/assertions-count.test.ts:35:15"
+            }
+          ],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assertions-count.test.ts",
+            "path": [
+              "expect.hasAssertions",
+              "hasAssertions with none made"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expected any number of assertion, but got none",
+              "userFrame": "<root>/assertions-count.test.ts:41:12"
+            }
+          ],
+          "location": {
+            "line": 40,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assertions-count.test.ts",
+            "path": [
+              "expect.hasAssertions",
+              "hasAssertions with one made"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 44,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assertions-count.test.ts",
+            "path": [
+              "expect.hasAssertions",
+              "hasAssertions with one made after an await"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 49,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false
+}

@@ -30,6 +30,7 @@
     "provino-bench": "node --conditions=provino-source packages/bench/src/cli.ts",
     "provino-harness": "node --conditions=provino-source packages/harness/src/cli.ts",
     "record:runtime": "node --conditions=provino-source packages/harness/src/cli.ts record packages/harness/fixtures/runtime",
+    "record:expect": "node --conditions=provino-source packages/harness/src/cli.ts record packages/harness/fixtures/expect",
     "bench:resolve": "node --conditions=provino-source packages/resolver/bench/resolve-corpus.ts",
     "bench:excalidraw": "node --conditions=provino-source packages/transform/bench/excalidraw.ts",
     "bench:runner-fuzz": "node --conditions=provino-source packages/transform/bench/runner-fuzz.ts",

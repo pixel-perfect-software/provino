@@ -1,0 +1,273 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "expect/messages/objects",
+  "files": [
+    {
+      "file": "objects.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "toHaveProperty",
+              "toHaveProperty a missing dotted path"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected { a: { b: 1 } } to have property \"a.c\"",
+              "userFrame": "<root>/objects.test.ts:3:29"
+            }
+          ],
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "toHaveProperty",
+              "toHaveProperty a path with a wrong value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected { a: { b: 1 } } to have property \"a.b\" with value 2",
+              "userFrame": "<root>/objects.test.ts:7:29"
+            }
+          ],
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "toHaveProperty",
+              "toHaveProperty an array path with a wrong value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected { a: { b: [ 1, 2 ] } } to have property \"a.b.1\" with value 3",
+              "userFrame": "<root>/objects.test.ts:11:34"
+            }
+          ],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "toHaveProperty",
+              "toHaveProperty a missing array path"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected { a: {} } to have property \"a.x.y\"",
+              "userFrame": "<root>/objects.test.ts:15:23"
+            }
+          ],
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "toHaveProperty",
+              "not.toHaveProperty an existing path"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected { a: 1 } to not have property \"a\"",
+              "userFrame": "<root>/objects.test.ts:19:26"
+            }
+          ],
+          "location": {
+            "line": 18,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "toHaveProperty",
+              "not.toHaveProperty an existing path and value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected { a: { b: 'x' } } to not have property \"a.b\" with value 'x'",
+              "userFrame": "<root>/objects.test.ts:23:35"
+            }
+          ],
+          "location": {
+            "line": 22,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "toMatchObject",
+              "toMatchObject nested diff"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected { a: 1, b: { c: 2, d: 3 } } to match object { b: { c: 5 } }\n(2 matching properties omitted from actual)",
+              "userFrame": "<root>/objects.test.ts:29:41"
+            }
+          ],
+          "location": {
+            "line": 28,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "toMatchObject",
+              "toMatchObject arrays of objects"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected [ { a: 1 }, { b: 2 } ] to match object [ { a: 1 }, { b: 3 } ]",
+              "userFrame": "<root>/objects.test.ts:33:34"
+            }
+          ],
+          "location": {
+            "line": 32,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "toMatchObject",
+              "toMatchObject a missing property"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected { a: 1 } to match object { a: 1, z: true }",
+              "userFrame": "<root>/objects.test.ts:37:22"
+            }
+          ],
+          "location": {
+            "line": 36,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "toMatchObject",
+              "not.toMatchObject a subset"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected { a: 1, b: 2 } to not match object { a: 1 }",
+              "userFrame": "<root>/objects.test.ts:41:32"
+            }
+          ],
+          "location": {
+            "line": 40,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "toMatchObject",
+              "toMatchObject with a number received is a matcher error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected 1 to match object { a: 1 }",
+              "userFrame": "<root>/objects.test.ts:45:15"
+            }
+          ],
+          "location": {
+            "line": 44,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false
+}
