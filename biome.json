@@ -14,7 +14,8 @@
       "!pnpm-lock.yaml",
       "!.dependency-cruiser.json",
       "!tooling/boundaries/generated",
-      "!**/__goldens__"
+      "!**/__goldens__",
+      "!**/vendor"
     ]
   },
   "formatter": {
