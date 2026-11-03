@@ -1,5 +1,5 @@
-// A small line diff for drift reports. Goldens are a few hundred lines, so a full LCS table is
-// fine; past MAX_CELLS it falls back to comparing line by line.
+// A small line diff for drift reports. Lines both texts start and end with are set aside first, so
+// the LCS table covers only what changed; past MAX_CELLS that falls back to comparing line by line.
 
 interface Op {
   readonly mark: ' ' | '-' | '+'
@@ -9,7 +9,8 @@ interface Op {
 const MAX_CELLS = 4_000_000
 const CONTEXT = 1
 
-function diffLines(a: readonly string[], b: readonly string[]): Op[] {
+/** The LCS diff of two line lists, or a position-by-position comparison past MAX_CELLS. */
+function diffChanged(a: readonly string[], b: readonly string[]): Op[] {
   if ((a.length + 1) * (b.length + 1) > MAX_CELLS) {
     const ops: Op[] = []
     for (let i = 0; i < Math.max(a.length, b.length); i++) {
@@ -51,6 +52,25 @@ function diffLines(a: readonly string[], b: readonly string[]): Op[] {
     }
   }
   return ops
+}
+
+function diffLines(a: readonly string[], b: readonly string[]): Op[] {
+  let start = 0
+  while (start < a.length && start < b.length && a[start] === b[start]) start++
+  let end = 0
+  while (
+    end < a.length - start &&
+    end < b.length - start &&
+    a[a.length - 1 - end] === b[b.length - 1 - end]
+  ) {
+    end++
+  }
+  const same = (lines: readonly string[]): Op[] => lines.map((line) => ({ mark: ' ', line }))
+  return [
+    ...same(a.slice(0, start)),
+    ...diffChanged(a.slice(start, a.length - end), b.slice(start, b.length - end)),
+    ...same(a.slice(a.length - end)),
+  ]
 }
 
 /**

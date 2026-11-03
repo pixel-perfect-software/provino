@@ -1,7 +1,8 @@
-import { readdir, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { HarnessError } from './errors.ts'
 import { compareStrings, isRecord } from './internal/guards.ts'
+import { isNodeModules, walkFiles } from './internal/walk.ts'
 
 /**
  * A runner a fixture can be recorded under.
@@ -150,18 +151,12 @@ export function testFilesFor(files: readonly string[], runner: FixtureRunner): r
   return files.filter((file) => runnersForTestFile(file)?.includes(runner) === true)
 }
 
-async function listFiles(dir: string, prefix = ''): Promise<string[]> {
-  const out: string[] = []
-  for (const entry of await readdir(path.join(dir, prefix), { withFileTypes: true })) {
-    const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`
-    if (entry.isDirectory()) {
-      if (entry.name === GOLDENS_DIR || entry.name === 'node_modules') continue
-      out.push(...(await listFiles(dir, relative)))
-    } else if (entry.isFile() && relative !== MANIFEST_FILE) {
-      out.push(relative)
-    }
-  }
-  return out.toSorted(compareStrings)
+/** Every file a fixture hands the runner: all but the manifest and what the recorder writes. */
+function listFiles(dir: string): Promise<string[]> {
+  return walkFiles(dir, {
+    skipDir: (relative) => path.posix.basename(relative) === GOLDENS_DIR || isNodeModules(relative),
+    keep: (relative) => relative !== MANIFEST_FILE,
+  })
 }
 
 /**
@@ -215,18 +210,17 @@ export async function readFixture(
  * @public
  */
 export async function findFixtures(root: string = defaultFixturesRoot()): Promise<string[]> {
-  const found: string[] = []
-  const walk = async (dir: string): Promise<void> => {
-    const entries = await readdir(dir, { withFileTypes: true })
-    if (entries.some((entry) => entry.isFile() && entry.name === MANIFEST_FILE)) {
-      found.push(dir)
-      return
-    }
-    for (const entry of entries) {
-      if (entry.isDirectory() && entry.name !== 'node_modules')
-        await walk(path.join(dir, entry.name))
-    }
-  }
-  await walk(path.resolve(root))
-  return found.toSorted(compareStrings)
+  const base = path.resolve(root)
+  const manifests = await walkFiles(base, {
+    skipDir: isNodeModules,
+    keep: (relative) => path.posix.basename(relative) === MANIFEST_FILE,
+  })
+  const dirs = manifests.map((manifest) => path.posix.dirname(manifest))
+  // A fixture's own subdirectories are not searched: a manifest inside one belongs to the fixture.
+  const isNested = (dir: string): boolean =>
+    dirs.some((parent) => parent !== dir && (parent === '.' || dir.startsWith(`${parent}/`)))
+  return dirs
+    .filter((dir) => !isNested(dir))
+    .map((dir) => path.join(base, dir))
+    .toSorted(compareStrings)
 }

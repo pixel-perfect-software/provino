@@ -1,32 +1,22 @@
-import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { GOLDENS_DIR } from '../fixture.ts'
-import { compareStrings, isRecord } from './guards.ts'
-
-async function entriesOf(dir: string) {
-  try {
-    return await readdir(dir, { withFileTypes: true })
-  } catch (cause) {
-    if (isRecord(cause) && cause.code === 'ENOENT') return []
-    throw cause
-  }
-}
+import { compareStrings, isNotFound } from './guards.ts'
+import { isNodeModules, walkFiles } from './walk.ts'
 
 /** Every `__goldens__/*.json` under a directory, skipping `node_modules`. */
 async function goldenFiles(dir: string): Promise<string[]> {
-  const out: string[] = []
-  for (const entry of await entriesOf(dir)) {
-    const full = path.join(dir, entry.name)
-    if (!entry.isDirectory() || entry.name === 'node_modules') continue
-    if (entry.name === GOLDENS_DIR) {
-      for (const golden of await entriesOf(full)) {
-        if (golden.isFile() && golden.name.endsWith('.json')) out.push(path.join(full, golden.name))
-      }
-    } else {
-      out.push(...(await goldenFiles(full)))
-    }
+  try {
+    const found = await walkFiles(dir, {
+      // The goldens directory is entered, but nothing inside it is: its subdirectories hold none.
+      skipDir: (relative) =>
+        isNodeModules(relative) || relative.split('/').slice(0, -1).includes(GOLDENS_DIR),
+      keep: (relative) => relative.endsWith('.json') && relative.split('/').at(-2) === GOLDENS_DIR,
+    })
+    return found.map((relative) => path.join(dir, relative))
+  } catch (cause) {
+    if (isNotFound(cause)) return []
+    throw cause
   }
-  return out
 }
 
 /**

@@ -1,5 +1,5 @@
 export { convertJest } from './convert-jest.ts'
-export type { ConvertOptions, JestConvertOptions, VitestConvertOptions } from './convert-options.ts'
+export type { JestConvertOptions, VitestConvertOptions } from './convert-options.ts'
 export { convertVitest } from './convert-vitest.ts'
 export type {
   DiffKind,
@@ -13,25 +13,20 @@ export type {
   RunIdentity,
 } from './diff.ts'
 export { diffRuns } from './diff.ts'
+export { readRunEnvironment } from './environment.ts'
 export type { HarnessErrorCode } from './errors.ts'
 export { HarnessError } from './errors.ts'
-export type { Fixture, FixtureManifest, FixtureRunner } from './fixture.ts'
-export {
-  defaultFixturesRoot,
-  FIXTURE_RUNNERS,
-  findFixtures,
-  GOLDENS_DIR,
-  MANIFEST_FILE,
-  parseFixtureManifest,
-  readFixture,
-  runnersForTestFile,
-  testFilesFor,
-} from './fixture.ts'
-export type { Golden, GoldenError, GoldenFile, GoldenTest } from './golden.ts'
-export { goldenPath, serializeGolden, toGolden } from './golden.ts'
+export type { FixtureRunner } from './fixture.ts'
+export type { Golden, RecordOutcome } from './golden.ts'
 export type { NormalizeContext, Rule } from './normalize.ts'
 export { normalizeError, normalizeText, rules, testKey } from './normalize.ts'
 export { parseJestJson, parseVitestJson } from './parse-results.ts'
-export type { RecordOptions, RecordOutcome, RecordResult } from './record.ts'
+export type { RecordOptions, RecordResult } from './record.ts'
 export { recordFixture } from './record.ts'
+export type { ProcessOptions, ProcessResult } from './run-process.ts'
+export { runProcess } from './run-process.ts'
+export type { RunnerPackage } from './runner-package.ts'
+export { resolveRunnerPackage } from './runner-package.ts'
 export { SCHEMA_VERSION } from './schema.ts'
+export type { GroupExit, GroupedChild, SpawnInGroupOptions } from './spawn-in-group.ts'
+export { exitOnSignals, spawnInGroup } from './spawn-in-group.ts'

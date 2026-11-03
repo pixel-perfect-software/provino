@@ -1,6 +1,7 @@
 // The config the recorder writes for each runner. Fixtures carry none, so this is the one place
 // that decides how Jest and Vitest are run for a golden.
 import path from 'node:path'
+import { GOLDENS_DIR } from '../fixture.ts'
 
 const LOCALE = 'C.UTF-8'
 const INHERITED_NOISE: ReadonlySet<string> = new Set([
@@ -31,7 +32,7 @@ export function jestConfig(workDir: string, transformerPath: string): JestConfig
     rootDir: workDir,
     transform: { '\\.[cm]?ts$': transformerPath },
     testMatch: ['<rootDir>/**/*.test.ts'],
-    testPathIgnorePatterns: ['/node_modules/', '/__goldens__/', '\\.vitest\\.test\\.ts$'],
+    testPathIgnorePatterns: ['/node_modules/', `/${GOLDENS_DIR}/`, '\\.vitest\\.test\\.ts$'],
     testLocationInResults: true,
     cacheDirectory: path.join(workDir, '.jest-cache'),
     watchman: false,
@@ -50,7 +51,7 @@ export function vitestConfigSource(workDir: string): string {
       globals: true,
       includeTaskLocation: true,
       include: ['**/*.test.ts'],
-      exclude: ['**/node_modules/**', '**/__goldens__/**', '**/*.jest.test.ts'],
+      exclude: ['**/node_modules/**', `**/${GOLDENS_DIR}/**`, '**/*.jest.test.ts'],
     },
   }
   return `export default ${JSON.stringify(config, null, 2)}\n`

@@ -145,3 +145,31 @@ test('findFixtures returns every directory with a fixture.json, sorted, and does
     )
   })
 })
+
+test('findFixtures: a root that is itself a fixture is the only one, and node_modules is not searched', async () => {
+  await withTempDir(async (root) => {
+    await put(root, 'fixture.json', '{}')
+    await put(root, 'inner/fixture.json', '{}')
+    assert.deepEqual(await findFixtures(root), [root])
+  })
+  await withTempDir(async (root) => {
+    await put(root, 'node_modules/pkg/fixture.json', '{}')
+    await put(root, 'a/fixture.json', '{}')
+    assert.deepEqual(
+      (await findFixtures(root)).map((dir) => path.relative(root, dir)),
+      ['a'],
+    )
+  })
+})
+
+test('readFixture does not list files in node_modules or nested goldens directories', async () => {
+  await withTempDir(async (root) => {
+    await put(root, 'area/thing/fixture.json', JSON.stringify(VALID))
+    await put(root, 'area/thing/a.test.ts', '')
+    await put(root, 'area/thing/sub/node_modules/x.ts', '')
+    await put(root, 'area/thing/sub/__goldens__/jest.json', '{}')
+    await put(root, 'area/thing/sub/b.ts', '')
+    const fixture = await readFixture(path.join(root, 'area/thing'), root)
+    assert.deepEqual(fixture.files, ['a.test.ts', 'sub/b.ts'])
+  })
+})

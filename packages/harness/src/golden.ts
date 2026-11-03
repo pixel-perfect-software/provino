@@ -17,6 +17,14 @@ import type {
 } from '@provino/types'
 import type { FixtureRunner } from './fixture.ts'
 import { GOLDENS_DIR } from './fixture.ts'
+import { countersOf } from './internal/convert.ts'
+
+/**
+ * What happened to a golden: `written` and `unchanged` when recording; `matches`, `drift` and
+ * `missing` when checking.
+ * @public
+ */
+export type RecordOutcome = 'written' | 'unchanged' | 'matches' | 'drift' | 'missing'
 
 /**
  * A failure as a golden keeps it: no `raw`, because the runner's own text carries stack frames
@@ -88,35 +96,19 @@ function goldenError(error: NormalizedError): GoldenError {
   }
 }
 
-function goldenConsole(entries: readonly ConsoleEntry[]): ConsoleEntry[] {
-  return entries.map((entry) => ({
-    stream: entry.stream,
-    ...(entry.level === undefined ? {} : { level: entry.level }),
-    text: entry.text,
-  }))
-}
-
-function goldenTrace(entries: readonly TraceEntry[]): TraceEntry[] {
-  return entries.map((entry) => ({
-    kind: entry.kind,
-    owner: [...entry.owner],
-    ...(entry.label === undefined ? {} : { label: entry.label }),
-    ...(entry.outcome === undefined ? {} : { outcome: entry.outcome }),
-  }))
-}
-
+// A golden keeps a field list of its own at each level that drops something (`raw`, `durationMs`,
+// `startedAt`, `env`): that fixes the key order and keeps a future producer's extra fields out.
+// A part that is already the right shape is passed through.
 function goldenTest(test: NormalizedTest): GoldenTest {
   return {
-    id: { file: test.id.file, path: [...test.id.path], dupIndex: test.id.dupIndex },
+    id: test.id,
     status: test.status,
     ...(test.skipReason === undefined ? {} : { skipReason: test.skipReason }),
     errors: test.errors.map(goldenError),
     ...(test.passingAssertions === undefined ? {} : { passingAssertions: test.passingAssertions }),
     ...(test.retries === undefined ? {} : { retries: test.retries }),
-    ...(test.location === undefined
-      ? {}
-      : { location: { line: test.location.line, column: test.location.column } }),
-    ...(test.console === undefined ? {} : { console: goldenConsole(test.console) }),
+    ...(test.location === undefined ? {} : { location: test.location }),
+    ...(test.console === undefined ? {} : { console: test.console }),
     ...(test.expectedToFail === undefined ? {} : { expectedToFail: test.expectedToFail }),
   }
 }
@@ -127,8 +119,8 @@ function goldenFile(file: NormalizedFile): GoldenFile {
     status: file.status,
     ...(file.fileError === undefined ? {} : { fileError: goldenError(file.fileError) }),
     tests: file.tests.map(goldenTest),
-    ...(file.console === undefined ? {} : { console: goldenConsole(file.console) }),
-    ...(file.trace === undefined ? {} : { trace: goldenTrace(file.trace) }),
+    ...(file.console === undefined ? {} : { console: file.console }),
+    ...(file.trace === undefined ? {} : { trace: file.trace }),
   }
 }
 
@@ -138,32 +130,16 @@ function goldenFile(file: NormalizedFile): GoldenFile {
  * @public
  */
 export function toGolden(run: NormalizedRun): Golden {
-  const { counters, files } = run.snapshots ?? {}
+  const { snapshots } = run
   return {
     schemaVersion: run.schemaVersion,
     runner: run.runner,
     runnerVersion: run.runnerVersion,
     suite: run.suite,
     files: run.files.map(goldenFile),
-    ...(counters === undefined || files === undefined
+    ...(snapshots === undefined
       ? {}
-      : {
-          snapshots: {
-            counters: {
-              added: counters.added,
-              matched: counters.matched,
-              unmatched: counters.unmatched,
-              updated: counters.updated,
-              unchecked: counters.unchecked,
-              total: counters.total,
-              filesAdded: counters.filesAdded,
-              filesRemoved: counters.filesRemoved,
-              filesUnmatched: counters.filesUnmatched,
-              filesUpdated: counters.filesUpdated,
-            },
-            files: files.map((f) => ({ file: f.file, sha256: f.sha256 })),
-          },
-        }),
+      : { snapshots: { counters: countersOf(snapshots.counters), files: snapshots.files } }),
     runErrors: run.runErrors.map(goldenError),
     success: run.success,
   }

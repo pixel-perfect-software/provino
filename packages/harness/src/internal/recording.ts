@@ -4,7 +4,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { NormalizedRun } from '@provino/types'
 import { HarnessError } from '../errors.ts'
-import { isRecord } from './guards.ts'
+import type { RecordOutcome } from '../golden.ts'
+import { isNotFound } from './guards.ts'
 import { lineDiff } from './text-diff.ts'
 
 function quoted(text: string): string {
@@ -72,47 +73,33 @@ export function assertNoPathLeak(text: string, forbidden: readonly string[], lab
   }
 }
 
-/** @internal */
-export type CommitOutcome = 'written' | 'unchanged' | 'matches' | 'drift' | 'missing'
-
-/** @internal */
-export interface Commit {
-  readonly outcome: CommitOutcome
-  readonly diff?: string
-  /** The kept work directory, when there is one. */
-  readonly workDir?: string
-}
-
 async function readIfExists(file: string): Promise<string | undefined> {
   try {
     return await readFile(file, 'utf8')
   } catch (cause) {
-    if (isRecord(cause) && cause.code === 'ENOENT') return undefined
+    if (isNotFound(cause)) return undefined
     throw cause
   }
 }
 
 /**
- * Writes the golden, or with `check` compares it with the committed one and writes nothing.
- * `workDir` is passed through to the result, whatever the outcome.
+ * Writes the golden, or with `check` compares it with the committed one and writes nothing. `diff`
+ * is the differing lines, for `drift`.
  * @internal
  */
-export async function commitGolden(options: {
-  readonly target: string
-  readonly text: string
-  readonly check: boolean
-  readonly workDir: string | undefined
-}): Promise<Commit> {
-  const { target, text } = options
-  const kept = options.workDir === undefined ? {} : { workDir: options.workDir }
+export async function commitGolden(
+  target: string,
+  text: string,
+  check: boolean,
+): Promise<{ readonly outcome: RecordOutcome; readonly diff?: string }> {
   const committed = await readIfExists(target)
-  if (options.check) {
-    if (committed === undefined) return { outcome: 'missing', ...kept }
-    if (committed === text) return { outcome: 'matches', ...kept }
-    return { outcome: 'drift', diff: lineDiff(committed, text), ...kept }
+  if (check) {
+    if (committed === undefined) return { outcome: 'missing' }
+    if (committed === text) return { outcome: 'matches' }
+    return { outcome: 'drift', diff: lineDiff(committed, text) }
   }
-  if (committed === text) return { outcome: 'unchanged', ...kept }
+  if (committed === text) return { outcome: 'unchanged' }
   await mkdir(path.dirname(target), { recursive: true })
   await writeFile(target, text)
-  return { outcome: 'written', ...kept }
+  return { outcome: 'written' }
 }

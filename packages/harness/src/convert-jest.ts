@@ -1,28 +1,24 @@
 import type { AggregatedResult, FormattedTestResults } from '@jest/test-result'
-import type {
-  NormalizedError,
-  NormalizedRun,
-  NormalizedTest,
-  SnapshotCounters,
-  TestIdentity,
-  TestStatus,
-} from '@provino/types'
+import type { NormalizedRun, NormalizedTest, TestIdentity, TestStatus } from '@provino/types'
 import type { JestConvertOptions } from './convert-options.ts'
 import { HarnessError } from './errors.ts'
 import {
   assembleFile,
-  contextOf,
-  NO_ERROR_MESSAGE,
+  assembleTest,
+  type Conversion,
+  countersOf,
+  errorOf,
+  jsonFile,
   type RawFile,
   runOf,
-  skipReasonOf,
+  startConversion,
 } from './internal/convert.ts'
 import { finiteNumber, isRecord, prop } from './internal/guards.ts'
-import { normalizeError } from './normalize.ts'
 
 type JestFile =
   | AggregatedResult['testResults'][number]
   | FormattedTestResults['testResults'][number]
+type Allocate = (titles: readonly string[]) => TestIdentity
 type AnyAssertion =
   | AggregatedResult['testResults'][number]['testResults'][number]
   | FormattedTestResults['testResults'][number]['assertionResults'][number]
@@ -63,36 +59,26 @@ function matcherName(details: unknown, index: number): string | undefined {
 
 function convertAssertion(
   assertion: AnyAssertion,
-  allocate: (titles: readonly string[]) => TestIdentity,
-  options: JestConvertOptions,
+  allocate: Allocate,
+  conversion: Conversion,
 ): NormalizedTest {
-  const status = mapStatus(assertion.status)
-  const ctx = contextOf(options)
-  // Jest's types say strings; a thrown non-Error can leave a null in the JSON.
-  const messages: readonly (string | null)[] = assertion.failureMessages ?? []
   const details = prop(assertion, 'failureDetails')
-  const errors: NormalizedError[] = messages.map((message, index) =>
-    normalizeError(message ?? NO_ERROR_MESSAGE, ctx, matcherName(details, index), options.fired),
-  )
   const passingAssertions = finiteNumber(prop(assertion, 'numPassingAsserts'))
   const invocations = finiteNumber(prop(assertion, 'invocations'))
-  const skipReason = skipReasonOf(status)
-  const location = assertion.location
-  const duration = finiteNumber(assertion.duration)
-  return {
-    id: allocate([...assertion.ancestorTitles, assertion.title]),
-    status,
-    ...(skipReason === undefined ? {} : { skipReason }),
-    errors,
-    ...(passingAssertions === undefined ? {} : { passingAssertions }),
-    ...(invocations !== undefined && invocations > 1 ? { retries: invocations - 1 } : {}),
-    ...(duration === undefined ? {} : { durationMs: duration }),
-    ...(location ? { location: { line: location.line, column: location.column } } : {}),
-    ...(prop(assertion, 'failing') === true ? { expectedToFail: true } : {}),
-  }
+  return assembleTest(assertion, allocate, conversion, {
+    status: mapStatus(assertion.status),
+    matcherOf: (index) => matcherName(details, index),
+    extra: {
+      ...(passingAssertions === undefined ? {} : { passingAssertions }),
+      ...(invocations !== undefined && invocations > 1 ? { retries: invocations - 1 } : {}),
+      ...(prop(assertion, 'failing') === true ? { expectedToFail: true } : {}),
+    },
+  })
 }
 
-function rawFile(file: JestFile, options: JestConvertOptions): RawFile {
+function rawFile(file: JestFile, conversion: Conversion): RawFile {
+  const convert = (assertion: AnyAssertion, allocate: Allocate): NormalizedTest =>
+    convertAssertion(assertion, allocate, conversion)
   if ('testFilePath' in file) {
     // The reporter shape (`AggregatedResult`): the status is derived the way Jest's own
     // `formatTestResults` derives it.
@@ -105,34 +91,11 @@ function rawFile(file: JestFile, options: JestConvertOptions): RawFile {
       status,
       message: file.failureMessage ?? execError?.message ?? '',
       ...(duration === undefined ? {} : { durationMs: duration }),
-      tests: (allocate) => file.testResults.map((a) => convertAssertion(a, allocate, options)),
+      tests: (allocate) => file.testResults.map((a) => convert(a, allocate)),
     }
   }
   // The `--json` shape. `focused` means every test passed but some did not run.
-  const duration = finiteNumber(file.endTime - file.startTime)
-  return {
-    path: file.name,
-    status: file.status === 'focused' ? 'passed' : file.status,
-    message: file.message,
-    ...(duration === undefined ? {} : { durationMs: duration }),
-    tests: (allocate) => file.assertionResults.map((a) => convertAssertion(a, allocate, options)),
-  }
-}
-
-function countersOf(input: AggregatedResult | FormattedTestResults): SnapshotCounters {
-  const s = input.snapshot
-  return {
-    added: s.added,
-    matched: s.matched,
-    unmatched: s.unmatched,
-    updated: s.updated,
-    unchecked: s.unchecked,
-    total: s.total,
-    filesAdded: s.filesAdded,
-    filesRemoved: s.filesRemoved,
-    filesUnmatched: s.filesUnmatched,
-    filesUpdated: s.filesUpdated,
-  }
+  return jsonFile(file, file.status === 'focused' ? 'passed' : file.status, convert)
 }
 
 /**
@@ -146,24 +109,18 @@ export function convertJest(
   input: AggregatedResult | FormattedTestResults,
   opts: JestConvertOptions,
 ): NormalizedRun {
-  const files = input.testResults.map((file) => assembleFile(rawFile(file, opts), opts))
+  const conversion = startConversion(opts)
+  const files = input.testResults.map((file) => assembleFile(rawFile(file, conversion), conversion))
   const runExecError = 'runExecError' in input ? input.runExecError : undefined
   const runErrors = runExecError
-    ? [
-        normalizeError(
-          runExecError.stack ?? runExecError.message,
-          contextOf(opts),
-          undefined,
-          opts.fired,
-        ),
-      ]
+    ? [errorOf(runExecError.stack ?? runExecError.message, conversion)]
     : []
   return runOf(
     {
       runner: 'jest',
       files,
       startTime: input.startTime,
-      counters: countersOf(input),
+      counters: countersOf(input.snapshot),
       runErrors,
       success: input.success,
     },

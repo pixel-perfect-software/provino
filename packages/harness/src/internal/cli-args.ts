@@ -6,7 +6,6 @@ import { HarnessError } from '../errors.ts'
  * @internal
  */
 export interface RecordCommand {
-  readonly command: 'record'
   /** Compare with the committed goldens instead of writing them. */
   readonly check: boolean
   readonly keepWorkDir: boolean
@@ -59,5 +58,5 @@ export function parseCommandLine(argv: readonly string[]): RecordCommand {
       command === undefined ? 'missing command' : `unknown command "${command}"`,
     )
   }
-  return { command, check: values.check, keepWorkDir: values.keep, fixtures }
+  return { check: values.check, keepWorkDir: values.keep, fixtures }
 }

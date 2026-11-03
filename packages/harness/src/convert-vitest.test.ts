@@ -226,6 +226,6 @@ test('a describe path and a title that print the same get distinct test keys', (
   )
   assert.deepEqual(
     converted.files[0]?.tests.map((t) => `${t.id.path.join('/')}#${t.id.dupIndex}`),
-    ['a/b#0', 'a › b#1'],
+    ['a/b#0', 'a › b#0'],
   )
 })

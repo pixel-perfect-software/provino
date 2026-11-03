@@ -1,24 +1,15 @@
-import type {
-  NormalizedError,
-  NormalizedRun,
-  NormalizedTest,
-  SnapshotCounters,
-  TestIdentity,
-  TestStatus,
-} from '@provino/types'
+import type { NormalizedRun, TestStatus } from '@provino/types'
 import type { JsonTestResults } from 'vitest/node'
 import type { VitestConvertOptions } from './convert-options.ts'
 import { HarnessError } from './errors.ts'
 import {
   assembleFile,
-  contextOf,
-  NO_ERROR_MESSAGE,
-  type RawFile,
+  assembleTest,
+  countersOf,
+  jsonFile,
   runOf,
-  skipReasonOf,
+  startConversion,
 } from './internal/convert.ts'
-import { finiteNumber } from './internal/guards.ts'
-import { normalizeError } from './normalize.ts'
 
 type VitestFile = JsonTestResults['testResults'][number]
 type VitestAssertion = VitestFile['assertionResults'][number]
@@ -44,73 +35,30 @@ function mapStatus(status: VitestAssertion['status']): TestStatus {
   }
 }
 
-function convertAssertion(
-  assertion: VitestAssertion,
-  allocate: (titles: readonly string[]) => TestIdentity,
-  options: VitestConvertOptions,
-): NormalizedTest {
-  const status = mapStatus(assertion.status)
-  const ctx = contextOf(options)
-  // The JSON has the message text only: no matcher name, so `matcher` stays absent. Vitest writes
-  // `e.stack || e.message`, which is nothing at all for `throw { status: 404 }`, and JSON makes
-  // that a null.
-  const messages: readonly (string | null)[] = assertion.failureMessages ?? []
-  const errors: NormalizedError[] = messages.map((message) =>
-    normalizeError(message ?? NO_ERROR_MESSAGE, ctx, undefined, options.fired),
-  )
-  const skipReason = skipReasonOf(status)
-  const duration = finiteNumber(assertion.duration)
-  const location = assertion.location
-  return {
-    id: allocate([...assertion.ancestorTitles, assertion.title]),
-    status,
-    ...(skipReason === undefined ? {} : { skipReason }),
-    errors,
-    ...(duration === undefined ? {} : { durationMs: duration }),
-    ...(location ? { location: { line: location.line, column: location.column } } : {}),
-  }
-}
-
-function rawFile(file: VitestFile, options: VitestConvertOptions): RawFile {
-  const duration = finiteNumber(file.endTime - file.startTime)
-  return {
-    path: file.name,
-    status: file.status,
-    message: file.message,
-    ...(duration === undefined ? {} : { durationMs: duration }),
-    tests: (allocate) => file.assertionResults.map((a) => convertAssertion(a, allocate, options)),
-  }
-}
-
-function countersOf(input: JsonTestResults): SnapshotCounters {
-  const s = input.snapshot
-  return {
-    added: s.added,
-    matched: s.matched,
-    unmatched: s.unmatched,
-    updated: s.updated,
-    unchecked: s.unchecked,
-    total: s.total,
-    filesAdded: s.filesAdded,
-    filesRemoved: s.filesRemoved,
-    filesUnmatched: s.filesUnmatched,
-    filesUpdated: s.filesUpdated,
-  }
-}
-
 /**
  * Converts Vitest's `--reporter=json` output to a `NormalizedRun`. Vitest's `pending` becomes
  * `notRun`. A failed file with no tests becomes `crashed` with a `fileError`. The JSON has no
- * console output, matcher names or assertion counts, so those fields are absent.
+ * console output, matcher names or assertion counts, so those fields are absent. A failure's text
+ * is `e.stack || e.message`, which is nothing at all for `throw { status: 404 }`, and JSON makes
+ * that a null.
  * @public
  */
 export function convertVitest(input: JsonTestResults, opts: VitestConvertOptions): NormalizedRun {
+  const conversion = startConversion(opts)
+  const files = input.testResults.map((file) =>
+    assembleFile(
+      jsonFile(file, file.status, (assertion, allocate) =>
+        assembleTest(assertion, allocate, conversion, { status: mapStatus(assertion.status) }),
+      ),
+      conversion,
+    ),
+  )
   return runOf(
     {
       runner: 'vitest',
-      files: input.testResults.map((file) => assembleFile(rawFile(file, opts), opts)),
+      files,
       startTime: input.startTime,
-      counters: countersOf(input),
+      counters: countersOf(input.snapshot),
       runErrors: [],
       success: input.success,
     },

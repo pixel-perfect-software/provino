@@ -8,7 +8,7 @@ import type {
   TraceEntry,
 } from '@provino/types'
 import { HarnessError } from './errors.ts'
-import { compareStrings } from './internal/guards.ts'
+import { compareStrings, escapeRegExp } from './internal/guards.ts'
 import { testKey } from './normalize.ts'
 
 /**
@@ -175,12 +175,6 @@ export interface ParityReport {
   readonly expiredExclusions: readonly ExpiredExclusion[]
 }
 
-type Scope = 'test' | 'file' | 'snapshot'
-
-interface RawDiff extends ParityDiff {
-  readonly scope: Scope
-}
-
 const STATUS_FAMILY: ReadonlySet<DiffKind> = new Set<DiffKind>(['status', 'missing-in-candidate'])
 const MESSAGE_FAMILY: ReadonlySet<DiffKind> = new Set<DiffKind>([
   'error-count',
@@ -188,6 +182,9 @@ const MESSAGE_FAMILY: ReadonlySet<DiffKind> = new Set<DiffKind>([
   'matcher',
   'user-frame',
 ])
+
+const SNAPSHOT_FAMILY: ReadonlySet<DiffKind> = new Set<DiffKind>(['snapshot'])
+const FILE_STATUS_FAMILY: ReadonlySet<DiffKind> = new Set<DiffKind>(['file-status'])
 
 const KIND_ORDER: readonly DiffKind[] = [
   'file-status',
@@ -221,9 +218,7 @@ function checkDate(value: string, label: string): string {
 
 function globToRegExp(glob: string): RegExp {
   const source = [...glob]
-    .map((char) =>
-      char === '*' ? '.*' : char === '?' ? '.' : char.replace(/[.+^${}()|[\]\\]/g, '\\$&'),
-    )
+    .map((char) => (char === '*' ? '.*' : char === '?' ? '.' : escapeRegExp(char)))
     .join('')
   return new RegExp(`^${source}$`, 's')
 }
@@ -256,7 +251,7 @@ function compileRules(
 }
 
 function matchRule(
-  diff: RawDiff,
+  diff: ParityDiff,
   rules: readonly CompiledRule[],
   pair: readonly [RunnerId, RunnerId],
 ): string | undefined {
@@ -269,16 +264,16 @@ function matchRule(
   return undefined
 }
 
-function pushError(
-  out: RawDiff[],
+/** Records a diff. A `ref`, `cand` or `index` that is `undefined` is left off. */
+function add(
+  out: ParityDiff[],
   key: string,
   kind: DiffKind,
-  ref: string | undefined,
-  cand: string | undefined,
+  ref?: string,
+  cand?: string,
   index?: number,
 ): void {
   out.push({
-    scope: 'test',
     key,
     kind,
     ...(ref === undefined ? {} : { ref }),
@@ -288,14 +283,14 @@ function pushError(
 }
 
 function diffErrors(
-  out: RawDiff[],
+  out: ParityDiff[],
   key: string,
   ref: readonly NormalizedError[],
   cand: readonly NormalizedError[],
   mode: DiffOptions['messageMode'],
 ): void {
   if (ref.length !== cand.length) {
-    pushError(out, key, 'error-count', String(ref.length), String(cand.length))
+    add(out, key, 'error-count', String(ref.length), String(cand.length))
     return
   }
   if (mode === 'none') return
@@ -303,7 +298,7 @@ function diffErrors(
     const c = cand[index]
     if (c === undefined) return
     if (mode === 'exact' && r.message !== c.message) {
-      pushError(out, key, 'message', r.message, c.message, index)
+      add(out, key, 'message', r.message, c.message, index)
     }
     // A runner that reports no matcher name (Vitest's JSON) can't disagree about it.
     if (
@@ -312,10 +307,10 @@ function diffErrors(
       c.matcher !== undefined &&
       r.matcher !== c.matcher
     ) {
-      pushError(out, key, 'matcher', r.matcher, c.matcher, index)
+      add(out, key, 'matcher', r.matcher, c.matcher, index)
     }
     if (r.userFrame !== c.userFrame) {
-      pushError(out, key, 'user-frame', r.userFrame, c.userFrame, index)
+      add(out, key, 'user-frame', r.userFrame, c.userFrame, index)
     }
   })
 }
@@ -344,13 +339,13 @@ function joined(lines: readonly string[]): string {
 }
 
 function diffTest(
-  out: RawDiff[],
+  out: ParityDiff[],
   key: string,
   r: NormalizedTest,
   c: NormalizedTest,
   options: DiffOptions,
 ): void {
-  if (r.status !== c.status) pushError(out, key, 'status', r.status, c.status)
+  if (r.status !== c.status) add(out, key, 'status', r.status, c.status)
   if (r.status === 'failed' && c.status === 'failed') {
     diffErrors(out, key, r.errors, c.errors, options.messageMode)
   }
@@ -360,13 +355,7 @@ function diffTest(
     c.passingAssertions !== undefined &&
     r.passingAssertions !== c.passingAssertions
   ) {
-    pushError(
-      out,
-      key,
-      'passing-assertions',
-      String(r.passingAssertions),
-      String(c.passingAssertions),
-    )
+    add(out, key, 'passing-assertions', String(r.passingAssertions), String(c.passingAssertions))
   }
 }
 
@@ -377,7 +366,7 @@ function diffTest(
  * in sequence.
  */
 function diffConsole(
-  out: RawDiff[],
+  out: ParityDiff[],
   rf: NormalizedFile,
   cf: NormalizedFile,
   tests: ReadonlyMap<string, NormalizedTest>,
@@ -392,26 +381,20 @@ function diffConsole(
       const ref = consoleLines(r.console)
       const cand = consoleLines(c.console)
       if (!sameSequence(ref, cand)) {
-        out.push({ scope: 'test', key, kind: 'console', ref: joined(ref), cand: joined(cand) })
+        add(out, key, 'console', joined(ref), joined(cand))
       }
     }
     const ref = consoleLines(rf.console)
     const cand = consoleLines(cf.console)
     if (!sameSequence(ref, cand)) {
-      out.push({
-        scope: 'file',
-        key: rf.file,
-        kind: 'console',
-        ref: joined(ref),
-        cand: joined(cand),
-      })
+      add(out, rf.file, 'console', joined(ref), joined(cand))
     }
     return
   }
   const ref = fileConsole(rf).toSorted(compareStrings)
   const cand = fileConsole(cf).toSorted(compareStrings)
   if (!sameSequence(ref, cand)) {
-    out.push({ scope: 'file', key: rf.file, kind: 'console', ref: joined(ref), cand: joined(cand) })
+    add(out, rf.file, 'console', joined(ref), joined(cand))
   }
 }
 
@@ -437,25 +420,17 @@ function indexTests(
   return tests
 }
 
-function diffSnapshots(out: RawDiff[], ref: NormalizedRun, cand: NormalizedRun): void {
+function diffSnapshots(out: ParityDiff[], ref: NormalizedRun, cand: NormalizedRun): void {
   const candFiles = new Map((cand.snapshots?.files ?? []).map((f) => [f.file, f.sha256]))
   const refFiles = new Set<string>()
   for (const file of ref.snapshots?.files ?? []) {
     refFiles.add(file.file)
     const sha = candFiles.get(file.file)
-    if (sha !== file.sha256) {
-      out.push({
-        scope: 'snapshot',
-        key: file.file,
-        kind: 'snapshot',
-        ref: file.sha256,
-        ...(sha === undefined ? {} : { cand: sha }),
-      })
-    }
+    if (sha !== file.sha256) add(out, file.file, 'snapshot', file.sha256, sha)
   }
   // A file only the candidate left is reported, not counted.
   for (const [file, sha] of candFiles) {
-    if (!refFiles.has(file)) out.push({ scope: 'snapshot', key: file, kind: 'snapshot', cand: sha })
+    if (!refFiles.has(file)) add(out, file, 'snapshot', undefined, sha)
   }
 }
 
@@ -466,16 +441,6 @@ function sortDiffs<T extends ParityDiff>(diffs: readonly T[]): T[] {
       KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) ||
       (a.index ?? 0) - (b.index ?? 0),
   )
-}
-
-function publicDiff(diff: RawDiff): ParityDiff {
-  return {
-    key: diff.key,
-    kind: diff.kind,
-    ...(diff.ref === undefined ? {} : { ref: diff.ref }),
-    ...(diff.cand === undefined ? {} : { cand: diff.cand }),
-    ...(diff.index === undefined ? {} : { index: diff.index }),
-  }
 }
 
 function share(matched: number, total: number): number {
@@ -499,7 +464,7 @@ export function diffRuns(
   today: string = new Date().toISOString().slice(0, 10),
 ): ParityReport {
   const { active, expired } = compileRules(options.exclusions, checkDate(today, 'today'))
-  const raw: RawDiff[] = []
+  const raw: ParityDiff[] = []
   const refTests = indexTests(ref, 'reference')
   const candTests = indexTests(cand, 'candidate')
   const candFiles = new Map(cand.files.map((f) => [f.file, f]))
@@ -507,69 +472,45 @@ export function diffRuns(
 
   for (const [key, r] of refTests) {
     const c = candTests.get(key)
-    if (c === undefined) pushError(raw, key, 'missing-in-candidate', r.status, undefined)
+    if (c === undefined) add(raw, key, 'missing-in-candidate', r.status, undefined)
     else diffTest(raw, key, r, c, options)
   }
   for (const [key, c] of candTests) {
-    if (!refTests.has(key)) pushError(raw, key, 'missing-in-reference', undefined, c.status)
+    if (!refTests.has(key)) add(raw, key, 'missing-in-reference', undefined, c.status)
   }
 
   for (const rf of ref.files) {
     const cf = candFiles.get(rf.file)
     if (cf === undefined) {
-      raw.push({
-        scope: 'file',
-        key: rf.file,
-        kind: 'file-status',
-        ref: rf.status,
-        cand: 'missing',
-      })
+      add(raw, rf.file, 'file-status', rf.status, 'missing')
       continue
     }
     if (rf.status !== cf.status) {
-      raw.push({
-        scope: 'file',
-        key: rf.file,
-        kind: 'file-status',
-        ref: rf.status,
-        cand: cf.status,
-      })
+      add(raw, rf.file, 'file-status', rf.status, cf.status)
     }
     if (options.compareConsole) diffConsole(raw, rf, cf, candTests)
     if (options.compareTrace) {
       const refTrace = traceLines(rf.trace)
       const candTrace = traceLines(cf.trace)
       if (!sameSequence(refTrace, candTrace)) {
-        raw.push({
-          scope: 'file',
-          key: rf.file,
-          kind: 'trace',
-          ref: joined(refTrace),
-          cand: joined(candTrace),
-        })
+        add(raw, rf.file, 'trace', joined(refTrace), joined(candTrace))
       }
     }
   }
   for (const cf of cand.files) {
     if (!refFileNames.has(cf.file)) {
-      raw.push({
-        scope: 'file',
-        key: cf.file,
-        kind: 'file-status',
-        ref: 'missing',
-        cand: cf.status,
-      })
+      add(raw, cf.file, 'file-status', 'missing', cf.status)
     }
   }
   diffSnapshots(raw, ref, cand)
 
   const pair = [ref.runner, cand.runner] as const
-  const failing: RawDiff[] = []
+  const failing: ParityDiff[] = []
   const excluded: ExcludedDiff[] = []
   for (const diff of raw) {
     const ruleId = matchRule(diff, active, pair)
     if (ruleId === undefined) failing.push(diff)
-    else excluded.push({ ...publicDiff(diff), ruleId })
+    else excluded.push({ ...diff, ruleId })
   }
 
   const keysOf = (diffs: readonly ParityDiff[], family: ReadonlySet<DiffKind>): Set<string> =>
@@ -590,14 +531,13 @@ export function diffRuns(
   })
   const messageMatched = failedInBoth.filter(([key]) => !messageFailing.has(key)).length
 
-  const snapshotRef = (ref.snapshots?.files ?? []).filter(
-    (f) => !excluded.some((d) => d.kind === 'snapshot' && d.key === f.file),
-  )
-  const snapshotFailing = new Set(failing.filter((d) => d.kind === 'snapshot').map((d) => d.key))
+  const snapshotExcluded = keysOf(excluded, SNAPSHOT_FAMILY)
+  const snapshotRef = (ref.snapshots?.files ?? []).filter((f) => !snapshotExcluded.has(f.file))
+  const snapshotFailing = keysOf(failing, SNAPSHOT_FAMILY)
   const snapshotMatched = snapshotRef.filter((f) => !snapshotFailing.has(f.file)).length
 
   const allFiles = new Set([...refFileNames, ...candFiles.keys()])
-  const fileFailing = new Set(failing.filter((d) => d.kind === 'file-status').map((d) => d.key))
+  const fileFailing = keysOf(failing, FILE_STATUS_FAMILY)
 
   return {
     reference: identityOf(ref),
@@ -620,7 +560,7 @@ export function diffRuns(
       files: allFiles.size,
       filesMatched: allFiles.size - fileFailing.size,
     },
-    diffs: sortDiffs(failing.map(publicDiff)),
+    diffs: sortDiffs(failing),
     excluded: sortDiffs(excluded),
     expiredExclusions: expired,
   }

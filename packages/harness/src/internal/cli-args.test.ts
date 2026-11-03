@@ -9,7 +9,6 @@ function usageError(error: unknown): boolean {
 
 test('record with no arguments means every fixture', () => {
   assert.deepEqual(parseCommandLine(['record']), {
-    command: 'record',
     check: false,
     keepWorkDir: false,
     fixtures: [],
@@ -20,7 +19,6 @@ test('record takes --check, --keep and fixture directories in any order', () => 
   assert.deepEqual(
     parseCommandLine(['record', '--check', 'fixtures/a/b', '--keep', 'fixtures/c/d']),
     {
-      command: 'record',
       check: true,
       keepWorkDir: true,
       fixtures: ['fixtures/a/b', 'fixtures/c/d'],

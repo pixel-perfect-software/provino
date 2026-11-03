@@ -4,7 +4,8 @@ import { HarnessError } from './errors.ts'
 import { defaultFixturesRoot, findFixtures, readFixture } from './fixture.ts'
 import { parseCommandLine, USAGE } from './internal/cli-args.ts'
 import { findStaleGoldens } from './internal/stale-goldens.ts'
-import { recordFixture } from './record.ts'
+import { recordRead } from './record.ts'
+import { exitOnSignals } from './spawn-in-group.ts'
 
 // provino-harness record [--check] [--keep] [<fixture dir>...]
 async function main(argv: readonly string[]): Promise<number> {
@@ -30,7 +31,7 @@ async function main(argv: readonly string[]): Promise<number> {
   for (const dir of dirs) {
     const fixture = await readFixture(dir)
     for (const runner of fixture.manifest.runners) {
-      const result = await recordFixture(dir, runner, {
+      const result = await recordRead(fixture, runner, {
         check: command.check,
         keepWorkDir: command.keepWorkDir,
       })
@@ -62,6 +63,10 @@ async function main(argv: readonly string[]): Promise<number> {
   }
   return failed ? 1 : 0
 }
+
+// Each runner is spawned in its own process group, which Ctrl-C no longer reaches; a signal must
+// end this process normally so those groups are taken down with it.
+exitOnSignals()
 
 try {
   process.exitCode = await main(process.argv.slice(2))

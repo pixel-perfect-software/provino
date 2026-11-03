@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  createNormalizer,
   type NormalizeContext,
   normalizeError,
   normalizeText,
@@ -523,4 +524,70 @@ test('normalizeError strips colour, code frames and durations from the message',
 test('testKey joins the path with › and appends the duplicate index', () => {
   assert.equal(testKey({ file: 'a.test.ts', path: ['a', 'b'], dupIndex: 0 }), 'a.test.ts::a › b#0')
   assert.equal(testKey({ file: 'x/y.test.ts', path: ['only'], dupIndex: 2 }), 'x/y.test.ts::only#2')
+})
+
+test('testKey escapes the separator and the escape character inside a title', () => {
+  const key = (path: readonly string[]) => testKey({ file: 'a.test.ts', path, dupIndex: 0 })
+  assert.equal(key(['a', 'b']), 'a.test.ts::a › b#0')
+  assert.equal(key(['a › b']), 'a.test.ts::a \\› b#0')
+  assert.equal(key(['a\\', 'b']), 'a.test.ts::a\\\\ › b#0')
+  assert.equal(key(['a\\› b']), 'a.test.ts::a\\\\\\› b#0')
+  // Titles without either character are printed as they are, whatever else they hold.
+  assert.equal(key(['a - b', 'c: d (1)', '日本語 #2']), 'a.test.ts::a - b › c: d (1) › 日本語 #2#0')
+})
+
+test('testKey gives different title paths different keys', () => {
+  const pieces = ['a', 'b', ' ', '›', '\\', '\\›', ' › ', '›b', 'a›', '']
+  const paths: string[][] = []
+  const grow = (path: string[], depth: number): void => {
+    if (path.length > 0) paths.push(path)
+    if (depth === 0) return
+    for (const piece of pieces) grow([...path, piece], depth - 1)
+  }
+  grow([], 3)
+  const keys = new Map<string, string>()
+  for (const path of paths) {
+    const key = testKey({ file: 'a.test.ts', path, dupIndex: 0 })
+    const other = keys.get(key)
+    assert.equal(other, undefined, `${JSON.stringify(path)} and ${other} share ${key}`)
+    keys.set(key, JSON.stringify(path))
+  }
+  assert.equal(keys.size, paths.length)
+})
+
+test('every rule has a scope, and the path rules are the ones that touch frames', () => {
+  assert.deepEqual(
+    rules.map((r) => [r.id, r.scope]),
+    [
+      ['ansi', 'path'],
+      ['crlf', 'path'],
+      ['file-url', 'path'],
+      ['root', 'path'],
+      ['windows-separators', 'path'],
+      ['code-frames', 'message'],
+      ['durations', 'message'],
+      ['placeholders', 'message'],
+      ['stack', 'stack'],
+    ],
+  )
+})
+
+test('a very long line with no closing parenthesis is read in linear time', {
+  timeout: 1_000,
+}, () => {
+  const line = `    at ${'a (b '.repeat(18_000)}`
+  const error = normalizeError(`Error: x\n${line}`, ctx)
+  assert.equal(error.message, `Error: x\n${line}`.trim())
+  assert.equal(error.userFrame, undefined)
+})
+
+test('a context is compiled once and can normalize many failures', () => {
+  const normalizer = createNormalizer({ rootDir: '/work/fixture' })
+  const fired = new Set<string>()
+  for (const file of ['a', 'b', 'c']) {
+    const raw = `Error: x\n    at run (/work/fixture/${file}.test.ts:1:2)`
+    assert.deepEqual(normalizer.error(raw, 'toBe', fired), normalizeError(raw, ctx, 'toBe'))
+    assert.equal(normalizer.text(raw), normalizeText(raw, ctx))
+  }
+  assert.deepEqual([...fired].sort(), ['root', 'stack'])
 })

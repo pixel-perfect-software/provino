@@ -25,10 +25,13 @@ test('toRelativePath: Windows paths are made relative with Windows rules on any 
   )
 })
 
-test('identityAllocator counts duplicates over the text the test key prints', () => {
+test('identityAllocator counts duplicates over the same title path, not over how it prints', () => {
   const allocate = identityAllocator('a.test.ts')
   assert.equal(allocate(['a', 'b']).dupIndex, 0)
+  assert.equal(allocate(['a › b']).dupIndex, 0, 'one title that looks like a path is another path')
+  assert.equal(allocate(['a', 'b']).dupIndex, 1)
   assert.equal(allocate(['a › b']).dupIndex, 1)
-  assert.equal(allocate(['a', 'b']).dupIndex, 2)
   assert.equal(allocate(['a', 'c']).dupIndex, 0)
+  assert.equal(allocate(['a\\', 'b']).dupIndex, 0, 'a backslash is not an escape of the separator')
+  assert.equal(allocate(['a\\ › b']).dupIndex, 0)
 })

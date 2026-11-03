@@ -349,7 +349,7 @@ test('a describe path and a title that print the same get distinct test keys', (
     convertOptions(),
   )
   const keys = (run.files[0]?.tests ?? []).map((t) => testKey(t.id))
-  assert.deepEqual(keys, ['a.test.ts::a › b#0', 'a.test.ts::a › b#1', 'a.test.ts::a › b#2'])
+  assert.deepEqual(keys, ['a.test.ts::a › b#0', 'a.test.ts::a \\› b#0', 'a.test.ts::a › b#1'])
 })
 
 test('a null entry in failureMessages is one error with a placeholder message', () => {

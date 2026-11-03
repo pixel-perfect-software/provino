@@ -1,5 +1,8 @@
 import type { NormalizedError, TestIdentity } from '@provino/types'
+import { escapeRegExp } from './internal/guards.ts'
 import { pathText } from './internal/keys.ts'
+import { PATH_LEFT_CLASS, ROOT_PLACEHOLDER, WINDOWS_ABSOLUTE } from './internal/paths.ts'
+import { messageOf, parseStack, userFrameOf } from './internal/stack.ts'
 
 /**
  * Where a run happened, so machine-specific paths can be replaced with `<root>`.
@@ -14,10 +17,14 @@ export interface NormalizeContext {
 
 /**
  * One normalization rule (Track 12 F2). Rules are pure and run in the order of `rules`.
+ * `scope` is where it runs: `path` rules on the whole text, stack included (frames are paths);
+ * `message` rules on the text that is left once the stack is split off; the `stack` rule is the
+ * split itself, which reduces the stack to its first user frame.
  * @public
  */
 export interface Rule {
   readonly id: string
+  readonly scope: 'path' | 'message' | 'stack'
   readonly apply: (s: string, ctx: NormalizeContext) => string
 }
 
@@ -50,43 +57,23 @@ const DURATION_SUMMARY = new RegExp(
 
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi
 const HEX_ADDRESS = /\b0x[0-9a-f]{8,}\b/gi
-// The left boundary keeps `<root>/test/tmp/helper.ts` from being read as a temp path.
-const TMP_PATH =
-  /(?<![\w$.@~%+\-/\\>])(?:\/private)?(?:\/tmp\/|\/var\/folders\/[^/\s]+\/[^/\s]+\/[A-Za-z]\/)[^/\s:'"`()<>]+/g
 
 // A path right after the root, with a boundary on each side, so `/home/me/work/fixture` and
 // `/work/fixture@1` are not the root. A space only ends the root when it does not start another
-// path segment (`/work/fixture copy/a`).
-const ROOT_LEFT = String.raw`(?<![\w$.@~%+\-/\\])`
+// path segment (`/work/fixture copy/a`). A temp path needs the same left boundary, and `>` too, which
+// keeps `<root>/test/tmp/helper.ts` from being read as a temp path.
+const PATH_LEFT = `(?<![${PATH_LEFT_CLASS}])`
 const ROOT_RIGHT = String.raw`(?=$|[\r\n/\\'"\x60:),;\]}>]|\.(?!\w)|[ \t](?![^\s/]+/))`
-
-// After a drive letter, `\a\b.ts` is a Windows path; after `<root>` it is one only when the root
-// itself is. Only those are converted, so a printed string like "a\nb" keeps its backslash.
-const WINDOWS_ROOT = /^(?:[A-Za-z]:[\\/]|\\\\)/
-const WINDOWS_TAIL = String.raw`((?:\\[^\\\s:'"\x60()<>|*?]+)+)`
-const WINDOWS_AFTER_DRIVE = new RegExp(String.raw`((?<!\w)[A-Za-z]:)${WINDOWS_TAIL}`, 'g')
-const WINDOWS_AFTER_DRIVE_OR_ROOT = new RegExp(
-  String.raw`(<root>|(?<!\w)[A-Za-z]:)${WINDOWS_TAIL}`,
+const TMP_PATH = new RegExp(
+  String.raw`(?<![${PATH_LEFT_CLASS}>])(?:\/private)?(?:\/tmp\/|\/var\/folders\/[^/\s]+\/[^/\s]+\/[A-Za-z]\/)[^/\s:'"\x60()<>]+`,
   'g',
 )
 
-// A V8 frame: `at <fn> (<location>)` or `at <location>`. A location ends in `:<line>:<col>` or is
-// `<anonymous>`, `native` or `index <n>`.
-const FRAME_START = /^[ \t]+at[ \t]+(\S.*)$/
-const FRAME_WITH_FUNCTION = /^(.+?) \((.*)\)$/
-const LINE_AND_COLUMN = /:\d+:\d+$/
-const NON_FILE_LOCATION = /^(?:<anonymous>|native|index \d+)$/
-const FRAME_LOCATION = /^(.+):(\d+):(\d+)$/
+// After a drive letter, `\a\b.ts` is a Windows path; after `<root>` it is one only when a root
+// itself is. Only those are converted, so a printed string like "a\nb" keeps its backslash.
+const WINDOWS_TAIL = String.raw`((?:\\[^\\\s:'"\x60()<>|*?]+)+)`
+
 const ERROR_NAME = /^((?:[A-Za-z_$][\w$]*)?(?:Error|Exception))(?=:|\s|$)/
-
-// Already rooted: a path, `<root>`, a drive, a UNC path, or a URL.
-const ROOTED = /^(?:[/<\\]|[A-Za-z]:|[A-Za-z][A-Za-z0-9+.-]*:\/)/
-
-const INTERNAL_FRAME = [/node:/, /node_modules[\\/]/, /jest-circus/, /vitest\/dist/]
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
 
 function decodePath(path: string): string {
   let decoded = path
@@ -98,40 +85,33 @@ function decodePath(path: string): string {
   return decoded.replace(/^\/([A-Za-z]:)/, '$1')
 }
 
-function trimTrailingSeparators(root: string): string {
-  return root.replace(/[\\/]+$/, '')
+/** What a context turns into once: the patterns its roots need. */
+interface Compiled {
+  /** One pattern per root, longest first, so a nested root wins over its parent. */
+  readonly rootPatterns: readonly RegExp[]
+  /** A drive letter followed by backslash segments, and `<root>` too when a root is Windows. */
+  readonly windowsPaths: RegExp
 }
 
-function configuredRoots(ctx: NormalizeContext): string[] {
-  return [ctx.rootDir, ...(ctx.extraRoots ?? [])]
-}
-
-function rootsOf(ctx: NormalizeContext): string[] {
-  const seen = new Set<string>()
-  for (const root of configuredRoots(ctx)) {
-    const trimmed = trimTrailingSeparators(root)
+function compile(ctx: NormalizeContext): Compiled {
+  const configured = [ctx.rootDir, ...(ctx.extraRoots ?? [])]
+  const roots = new Set<string>()
+  for (const root of configured) {
+    const trimmed = root.replace(/[\\/]+$/, '')
     if (trimmed === '') continue
-    seen.add(trimmed)
-    seen.add(trimmed.replace(/\\/g, '/'))
+    roots.add(trimmed)
+    roots.add(trimmed.replace(/\\/g, '/'))
   }
-  // Longest first, so a nested root wins over its parent.
-  return [...seen].sort((a, b) => b.length - a.length)
-}
-
-function replaceRoots(s: string, ctx: NormalizeContext): string {
-  let out = s
-  for (const root of rootsOf(ctx)) {
-    out = out.replace(new RegExp(`${ROOT_LEFT}${escapeRegExp(root)}${ROOT_RIGHT}`, 'g'), '<root>')
+  const afterRoot = configured.some((root) => WINDOWS_ABSOLUTE.test(root))
+  return {
+    rootPatterns: [...roots]
+      .sort((a, b) => b.length - a.length)
+      .map((root) => new RegExp(`${PATH_LEFT}${escapeRegExp(root)}${ROOT_RIGHT}`, 'g')),
+    windowsPaths: new RegExp(
+      String.raw`(${afterRoot ? `${ROOT_PLACEHOLDER}|` : ''}(?<!\w)[A-Za-z]:)${WINDOWS_TAIL}`,
+      'g',
+    ),
   }
-  return out
-}
-
-function convertWindowsSeparators(s: string, ctx: NormalizeContext): string {
-  const afterRoot = configuredRoots(ctx).some((root) => WINDOWS_ROOT.test(root))
-  return s.replace(
-    afterRoot ? WINDOWS_AFTER_DRIVE_OR_ROOT : WINDOWS_AFTER_DRIVE,
-    (_match, head: string, tail: string) => `${head}${tail.replace(/\\/g, '/')}`,
-  )
 }
 
 /**
@@ -162,179 +142,156 @@ function removeCodeFrames(text: string): string {
   return out.join('\n')
 }
 
-interface ParsedFrame {
-  readonly line: string
-  readonly location: string
-}
-
-/**
- * The file an `eval at fn (origin), <anonymous>:l:c` frame was called from. Evals nest, so this
- * follows the innermost origin. `undefined` when the location isn't an eval, or isn't well formed.
- */
-function evalOrigin(location: string): string | undefined {
-  let current = location
-  while (current.startsWith('eval at ')) {
-    const open = current.indexOf(' (')
-    const close = current.lastIndexOf('), ')
-    if (open === -1 || close <= open) return undefined
-    current = current.slice(open + 2, close)
-  }
-  return current === location ? undefined : current
-}
-
-function isLocation(text: string): boolean {
-  return LINE_AND_COLUMN.test(text) || NON_FILE_LOCATION.test(text)
-}
-
-function parseFrame(line: string): ParsedFrame | undefined {
-  const start = FRAME_START.exec(line)
-  const body = start?.[1]?.trimEnd()
-  if (body === undefined) return undefined
-  const withFunction = FRAME_WITH_FUNCTION.exec(body)
-  const location = withFunction?.[2] ?? body.replace(/^async\s+/, '')
-  if (!isLocation(location)) return undefined
-  return { line, location: evalOrigin(location) ?? location }
-}
-
-/**
- * A frame is internal if it matches `node:` (which includes `node:internal`), `node_modules/`,
- * `jest-circus` or `vitest/dist`, or if its location is `<anonymous>` (with or without a position)
- * or an eval whose origin can't be read. The check is on the location, not the function name:
- * `Object.<anonymous> (file:9:26)` is the user's own frame.
- */
-function isInternalFrame(frame: ParsedFrame): boolean {
-  if (frame.location.startsWith('<anonymous>') || frame.location.startsWith('eval at ')) return true
-  return INTERNAL_FRAME.some((pattern) => pattern.test(frame.line))
-}
-
-/** `<root>/a.test.ts:7:23` for a user frame; Jest prints file-level paths relative to the root. */
-function userFrameOf(frames: readonly ParsedFrame[]): string | undefined {
-  for (const frame of frames) {
-    if (isInternalFrame(frame) || !FRAME_LOCATION.test(frame.location)) continue
-    return ROOTED.test(frame.location) ? frame.location : `<root>/${frame.location}`
-  }
-  return undefined
-}
-
-interface SplitStack {
-  /** Everything but the stacks, untrimmed. */
-  readonly head: string
-  readonly frames: readonly ParsedFrame[]
-}
-
-const CAUSE_SEPARATOR = /^(?:\[cause\]|Caused by):/
-
-/**
- * Splits a failure into its message and its stacks. In V8's layout a stack is the run of frame
- * lines that ends the text (blank lines after it don't count). Jest chains an error's cause after
- * a `[cause]:` line, so a run followed by one of those ends a stack too. A frame-shaped line
- * anywhere else, such as one printed in a diff, stays in the message.
- */
-function splitStack(text: string): SplitStack {
-  const lines = text.split('\n')
-  const frames: ParsedFrame[] = []
-  const stackLines = new Set<number>()
-  let i = 0
-  while (i < lines.length) {
-    const first = parseFrame(lines[i] ?? '')
-    if (first === undefined) {
-      i++
-      continue
-    }
-    const run: ParsedFrame[] = [first]
-    let end = i + 1
-    for (
-      let next = parseFrame(lines[end] ?? '');
-      next !== undefined;
-      next = parseFrame(lines[end] ?? '')
-    ) {
-      run.push(next)
-      end++
-    }
-    let after = end
-    while (after < lines.length && (lines[after] ?? '').trim() === '') after++
-    if (after === lines.length || CAUSE_SEPARATOR.test(lines[after] ?? '')) {
-      frames.push(...run)
-      for (let line = i; line < end; line++) stackLines.add(line)
-    }
-    i = end
-  }
-  return { head: lines.filter((_line, index) => !stackLines.has(index)).join('\n'), frames }
-}
-
 function tidy(message: string): string {
   return message.replace(/\n{3,}/g, '\n\n').trim()
 }
 
-function stackRule(s: string): string {
-  const { head, frames } = splitStack(s)
-  if (frames.length === 0) return s
-  const message = tidy(head)
-  const userFrame = userFrameOf(frames)
-  return userFrame === undefined ? message : `${message}\nat ${userFrame}`
+/** The message, then `at <user frame>` when the stack has one. */
+function withUserFrame(message: string, userFrame: string | undefined): string {
+  const tidied = tidy(message)
+  return userFrame === undefined ? tidied : `${tidied}\nat ${userFrame}`
 }
+
+/** A rule as the normalizer runs it: against a context that is already compiled. */
+interface RuleSpec {
+  readonly id: string
+  readonly scope: Rule['scope']
+  readonly run: (s: string, compiled: Compiled) => string
+}
+
+const STACK_RULE_ID = 'stack'
+
+const SPECS: readonly RuleSpec[] = [
+  { id: 'ansi', scope: 'path', run: (s) => s.replace(ANSI, '') },
+  { id: 'crlf', scope: 'path', run: (s) => s.replace(/\r\n/g, '\n') },
+  {
+    id: 'file-url',
+    scope: 'path',
+    run: (s) => s.replace(FILE_URL, (_match, path: string) => decodePath(`/${path}`)),
+  },
+  {
+    id: 'root',
+    scope: 'path',
+    run: (s, { rootPatterns }) =>
+      rootPatterns.reduce((out, pattern) => out.replace(pattern, ROOT_PLACEHOLDER), s),
+  },
+  {
+    id: 'windows-separators',
+    scope: 'path',
+    run: (s, { windowsPaths }) =>
+      s.replace(
+        windowsPaths,
+        (_match, head: string, tail: string) => `${head}${tail.replace(/\\/g, '/')}`,
+      ),
+  },
+  { id: 'code-frames', scope: 'message', run: removeCodeFrames },
+  {
+    id: 'durations',
+    scope: 'message',
+    run: (s) => s.replace(DURATION_IN_PARENS, '(<dur>)').replace(DURATION_SUMMARY, '$1<dur>'),
+  },
+  {
+    id: 'placeholders',
+    scope: 'message',
+    run: (s) => s.replace(UUID, '<uuid>').replace(HEX_ADDRESS, '<addr>').replace(TMP_PATH, '<tmp>'),
+  },
+  {
+    id: STACK_RULE_ID,
+    scope: 'stack',
+    run: (s) => {
+      const segments = parseStack(s)
+      if (segments.every((segment) => segment.frames.length === 0)) return s
+      return withUserFrame(messageOf(segments), userFrameOf(segments))
+    },
+  },
+]
 
 /**
  * The nine normalization rules of Track 12 F2, in order. Each has an id, so a run can report which
  * rules fired and a new kind of noise shows up as "rule X fired on 0 tests".
  * @public
  */
-export const rules: readonly Rule[] = [
-  { id: 'ansi', apply: (s) => s.replace(ANSI, '') },
-  { id: 'crlf', apply: (s) => s.replace(/\r\n/g, '\n') },
-  {
-    id: 'file-url',
-    apply: (s) => s.replace(FILE_URL, (_match, path: string) => decodePath(`/${path}`)),
-  },
-  { id: 'root', apply: replaceRoots },
-  { id: 'windows-separators', apply: convertWindowsSeparators },
-  { id: 'code-frames', apply: removeCodeFrames },
-  {
-    id: 'durations',
-    apply: (s) => s.replace(DURATION_IN_PARENS, '(<dur>)').replace(DURATION_SUMMARY, '$1<dur>'),
-  },
-  {
-    id: 'placeholders',
-    apply: (s) =>
-      s.replace(UUID, '<uuid>').replace(HEX_ADDRESS, '<addr>').replace(TMP_PATH, '<tmp>'),
-  },
-  { id: 'stack', apply: stackRule },
-]
+export const rules: readonly Rule[] = SPECS.map(({ id, scope, run }) => ({
+  id,
+  scope,
+  apply: (s, ctx) => run(s, compile(ctx)),
+}))
 
-const STACK_RULE_ID = 'stack'
 // Frames are paths, so only the path rules may touch them; the stack is split off before the rest
 // run, which then see the message alone. A frame in `test/tmp/` or `10s.test.ts` stays as it is.
-const PATH_RULES: readonly Rule[] = rules.filter((rule) =>
-  ['ansi', 'crlf', 'file-url', 'root', 'windows-separators'].includes(rule.id),
-)
-const MESSAGE_RULES: readonly Rule[] = rules.filter((rule) =>
-  ['code-frames', 'durations', 'placeholders'].includes(rule.id),
-)
+const PATH_RULES: readonly RuleSpec[] = SPECS.filter((rule) => rule.scope === 'path')
+const MESSAGE_RULES: readonly RuleSpec[] = SPECS.filter((rule) => rule.scope === 'message')
 
 function applyRules(
-  list: readonly Rule[],
+  list: readonly RuleSpec[],
   s: string,
-  ctx: NormalizeContext,
+  compiled: Compiled,
   fired: Set<string> | undefined,
 ): string {
   let out = s
   for (const rule of list) {
-    const next = rule.apply(out, ctx)
+    const next = rule.run(out, compiled)
     if (next !== out) fired?.add(rule.id)
     out = next
   }
   return out
 }
 
+interface Split {
+  /** Everything but the stacks, untidied. */
+  readonly message: string
+  readonly userFrame: string | undefined
+  readonly hasStack: boolean
+}
+
 /** Path rules on the whole text, then the stack split off, then the message rules on the message. */
-function normalizeParts(
-  text: string,
-  ctx: NormalizeContext,
-  fired: Set<string> | undefined,
-): SplitStack {
-  const { head, frames } = splitStack(applyRules(PATH_RULES, text, ctx, fired))
-  if (frames.length > 0) fired?.add(STACK_RULE_ID)
-  return { head: applyRules(MESSAGE_RULES, head, ctx, fired), frames }
+function split(text: string, compiled: Compiled, fired: Set<string> | undefined): Split {
+  const segments = parseStack(applyRules(PATH_RULES, text, compiled, fired))
+  const hasStack = segments.some((segment) => segment.frames.length > 0)
+  if (hasStack) fired?.add(STACK_RULE_ID)
+  return {
+    message: applyRules(MESSAGE_RULES, messageOf(segments), compiled, fired),
+    userFrame: userFrameOf(segments),
+    hasStack,
+  }
+}
+
+/**
+ * Normalizes text and failures against one context, which is compiled once.
+ * @internal
+ */
+export interface Normalizer {
+  /** See `normalizeText`. */
+  readonly text: (s: string, fired?: Set<string>) => string
+  /** See `normalizeError`. */
+  readonly error: (raw: string, matcher?: string, fired?: Set<string>) => NormalizedError
+}
+
+/**
+ * A normalizer for one context. `normalizeText` and `normalizeError` compile their context on
+ * every call; a converter normalizes many failures in one run, so it makes one of these instead.
+ * @internal
+ */
+export function createNormalizer(ctx: NormalizeContext): Normalizer {
+  const compiled = compile(ctx)
+  return {
+    text(s, fired) {
+      const { message, userFrame, hasStack } = split(s, compiled, fired)
+      return hasStack ? withUserFrame(message, userFrame) : message
+    },
+    error(raw, matcher, fired) {
+      const { message: untidied, userFrame } = split(raw, compiled, fired)
+      const message = tidy(untidied)
+      const name = ERROR_NAME.exec(message)?.[1]
+      return {
+        ...(name === undefined ? {} : { name }),
+        message,
+        ...(matcher === undefined ? {} : { matcher }),
+        ...(userFrame === undefined ? {} : { userFrame }),
+        raw,
+      }
+    },
+  }
 }
 
 /**
@@ -344,11 +301,7 @@ function normalizeParts(
  * @public
  */
 export function normalizeText(s: string, ctx: NormalizeContext, fired?: Set<string>): string {
-  const { head, frames } = normalizeParts(s, ctx, fired)
-  if (frames.length === 0) return head
-  const message = tidy(head)
-  const userFrame = userFrameOf(frames)
-  return userFrame === undefined ? message : `${message}\nat ${userFrame}`
+  return createNormalizer(ctx).text(s, fired)
 }
 
 /**
@@ -363,22 +316,13 @@ export function normalizeError(
   matcher?: string,
   fired?: Set<string>,
 ): NormalizedError {
-  const { head, frames } = normalizeParts(raw, ctx, fired)
-  const message = tidy(head)
-  const name = ERROR_NAME.exec(message)?.[1]
-  const userFrame = userFrameOf(frames)
-  return {
-    ...(name === undefined ? {} : { name }),
-    message,
-    ...(matcher === undefined ? {} : { matcher }),
-    ...(userFrame === undefined ? {} : { userFrame }),
-    raw,
-  }
+  return createNormalizer(ctx).error(raw, matcher, fired)
 }
 
 /**
  * The key a test is compared by across runners: `file::a › b#0`, with its title path joined by
- * ` › ` and its duplicate index after `#`.
+ * ` › ` and its duplicate index after `#`. A `\` or `›` inside a title is escaped with `\`, so two
+ * tests with different title paths never share a key.
  * @public
  */
 export function testKey(id: TestIdentity): string {

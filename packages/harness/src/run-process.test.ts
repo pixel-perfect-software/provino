@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { runProcess } from './run-process.ts'
+import { type ProcessOptions, runProcess } from './run-process.ts'
 
 // The children are inline scripts run by this same Node. They print READY once they are set up,
 // and the tests abort the deadline on that signal, so nothing here depends on how fast a machine
@@ -34,10 +34,14 @@ function abortOn(marker: string): { signal: AbortSignal; onOutput: (chunk: strin
 
 const baseOptions = { cwd: process.cwd(), env: process.env }
 
+/** `node <args>`: the children here are inline scripts run by this same Node. */
+const runNode = (args: readonly string[], options: ProcessOptions) =>
+  runProcess(process.execPath, args, options)
+
 test('a process that exits on its own reports its exit code and output', {
   timeout: 15_000,
 }, async () => {
-  const result = await runProcess(
+  const result = await runNode(
     ['-e', "console.log('out'); console.error('err'); process.exit(3)"],
     {
       ...baseOptions,
@@ -55,7 +59,7 @@ test('the deadline terminates the whole process group, not only the child', {
   timeout: 15_000,
 }, async () => {
   const { signal, onOutput } = abortOn('GRAND-UP')
-  const result = await runProcess(['-e', GROUP], {
+  const result = await runNode(['-e', GROUP], {
     ...baseOptions,
     deadline: signal,
     onOutput,
@@ -70,7 +74,7 @@ test('a child that ignores SIGTERM is killed after the grace period', {
   timeout: 15_000,
 }, async () => {
   const { signal, onOutput } = abortOn('READY')
-  const result = await runProcess(
+  const result = await runNode(
     [
       '-e',
       `process.on('SIGTERM', () => console.log('IGNORED')); console.log('READY'); ${SPIN_FOREVER}`,
@@ -83,7 +87,7 @@ test('a child that ignores SIGTERM is killed after the grace period', {
 })
 
 test('a deadline that is already past still ends the run', { timeout: 15_000 }, async () => {
-  const result = await runProcess(['-e', SPIN_FOREVER], {
+  const result = await runNode(['-e', SPIN_FOREVER], {
     ...baseOptions,
     deadline: AbortSignal.abort(),
     killGraceMs: 20,
@@ -102,7 +106,7 @@ test('a detached grandchild that keeps the output pipes open does not hold the r
   `
   let seen = ''
   try {
-    const result = await runProcess(['-e', script], {
+    const result = await runNode(['-e', script], {
       ...baseOptions,
       deadline: new AbortController().signal,
       stdioGraceMs: 50,
@@ -132,7 +136,7 @@ test('a timed-out run does not wait for a detached grandchild that holds the pip
   const controller = new AbortController()
   let seen = ''
   try {
-    const result = await runProcess(['-e', script], {
+    const result = await runNode(['-e', script], {
       ...baseOptions,
       deadline: controller.signal,
       stdioGraceMs: 50,
@@ -150,7 +154,7 @@ test('a timed-out run does not wait for a detached grandchild that holds the pip
 })
 
 test('the output tail keeps the end of long output', { timeout: 15_000 }, async () => {
-  const result = await runProcess(['-e', "process.stdout.write('x'.repeat(10000) + 'END')"], {
+  const result = await runNode(['-e', "process.stdout.write('x'.repeat(10000) + 'END')"], {
     ...baseOptions,
     deadline: new AbortController().signal,
   })

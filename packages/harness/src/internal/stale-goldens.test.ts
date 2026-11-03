@@ -64,3 +64,13 @@ test('only the given roots are scanned, and a root that does not exist is not an
     assert.deepEqual(stale, [two])
   })
 })
+
+test('only a goldens directory’s own json files count, not what is nested inside one', async () => {
+  await withTempDir(async (root) => {
+    const direct = await put(root, '__goldens__/jest.json')
+    await put(root, '__goldens__/nested/__goldens__/jest.json')
+    await put(root, '__goldens__/nested/other.json')
+    await put(root, 'loose.json')
+    assert.deepEqual(await findStaleGoldens([root], new Set()), [direct])
+  })
+})

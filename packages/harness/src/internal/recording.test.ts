@@ -112,11 +112,11 @@ async function withTempDir(use: (dir: string) => Promise<void>): Promise<void> {
 test('commitGolden writes a new golden, then reports it unchanged', async () => {
   await withTempDir(async (dir) => {
     const target = path.join(dir, '__goldens__', 'jest.json')
-    const args = { target, text: '{"a":1}\n', check: false, workDir: undefined }
-    assert.deepEqual(await commitGolden(args), { outcome: 'written' })
+    const record = (text: string) => commitGolden(target, text, false)
+    assert.deepEqual(await record('{"a":1}\n'), { outcome: 'written' })
     assert.equal(await readFile(target, 'utf8'), '{"a":1}\n')
-    assert.deepEqual(await commitGolden(args), { outcome: 'unchanged' })
-    assert.deepEqual(await commitGolden({ ...args, text: '{"a":2}\n' }), { outcome: 'written' })
+    assert.deepEqual(await record('{"a":1}\n'), { outcome: 'unchanged' })
+    assert.deepEqual(await record('{"a":2}\n'), { outcome: 'written' })
     assert.equal(await readFile(target, 'utf8'), '{"a":2}\n')
   })
 })
@@ -124,35 +124,15 @@ test('commitGolden writes a new golden, then reports it unchanged', async () => 
 test('commitGolden in check mode never writes: missing, matches or drift', async () => {
   await withTempDir(async (dir) => {
     const target = path.join(dir, '__goldens__', 'jest.json')
-    const args = { target, text: 'new\n', check: true, workDir: undefined }
-    assert.deepEqual(await commitGolden(args), { outcome: 'missing' })
+    const check = () => commitGolden(target, 'new\n', true)
+    assert.deepEqual(await check(), { outcome: 'missing' })
     await mkdir(path.dirname(target), { recursive: true })
     await writeFile(target, 'old\n')
-    const drift = await commitGolden(args)
+    const drift = await check()
     assert.equal(drift.outcome, 'drift')
     assert.match(drift.diff ?? '', /- old/)
     assert.match(drift.diff ?? '', /\+ new/)
     await writeFile(target, 'new\n')
-    assert.deepEqual(await commitGolden(args), { outcome: 'matches' })
-  })
-})
-
-test('commitGolden reports the kept work directory for every outcome, check mode included', async () => {
-  await withTempDir(async (dir) => {
-    const target = path.join(dir, 'g.json')
-    const workDir = '/work/kept'
-    const outcomes: string[] = []
-    for (const [check, text] of [
-      [true, 'a\n'],
-      [false, 'a\n'],
-      [false, 'a\n'],
-      [true, 'a\n'],
-      [true, 'b\n'],
-    ] as const) {
-      const result = await commitGolden({ target, text, check, workDir })
-      assert.equal(result.workDir, workDir, `${check ? 'check' : 'record'} ${result.outcome}`)
-      outcomes.push(result.outcome)
-    }
-    assert.deepEqual(outcomes, ['missing', 'written', 'unchanged', 'matches', 'drift'])
+    assert.deepEqual(await check(), { outcome: 'matches' })
   })
 })
