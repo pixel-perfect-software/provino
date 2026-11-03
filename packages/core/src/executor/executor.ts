@@ -424,7 +424,7 @@ export class Executor {
         teardowns.push(fn)
       },
     }
-    const frame: Frame = { test: task, hook: null, fileId: run.fileId, attempt }
+    const frame: Frame = { test: task, hook: null, fileId: run.fileId, attempt, repeat }
     const state: AttemptState = {
       test,
       ctx: createTestContext(task, () => state),
@@ -777,16 +777,16 @@ export class Executor {
   ): Store {
     const hook = { kind, ownerId: owner.id }
     if (attempt !== undefined) {
-      const { test, attempt: index } = attempt.frame
+      // The attempt's frame with this hook: every other field (test, attempt, repeat) carries over.
       return newStore({
-        frame: { test, hook, fileId: run.fileId, attempt: index },
+        frame: { ...attempt.frame, hook },
         lazy: attempt.lazy,
         attempt,
         hook: kind,
       })
     }
     return newStore({
-      frame: { test: null, hook, fileId: run.fileId, attempt: 0 },
+      frame: { test: null, hook, fileId: run.fileId, attempt: 0, repeat: 0 },
       lazy: {
         kind: 'suite',
         hook: kind === 'afterAll' || kind === 'teardown' ? 'afterAll' : 'beforeAll',
