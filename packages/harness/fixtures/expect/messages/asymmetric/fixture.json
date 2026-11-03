@@ -1,4 +1,0 @@
-{
-  "description": "Failure messages of toEqual against asymmetric matchers: any (a primitive and a class), anything, objectContaining, arrayContaining, stringContaining, stringMatching, closeTo, and the expect.not forms; Jest only: arrayOf and not.arrayOf. Each test makes one failing assertion.",
-  "runners": ["jest", "vitest"]
-}

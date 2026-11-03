@@ -1,4 +1,0 @@
-{
-  "description": "Vitest's test-context expect under test.concurrent (P6/P7): the bodies of assertions-concurrent, but each test counts with its own expect, so the three that meet their count pass and the two that miss it fail.",
-  "runners": ["vitest"]
-}

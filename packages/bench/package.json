@@ -22,9 +22,6 @@
     "bench": "node --conditions=provino-source src/cli.ts"
   },
   "dependencies": {
-    "@provino/core": "workspace:*",
-    "@provino/dialect-jest": "workspace:*",
-    "@provino/expect": "workspace:*",
     "@provino/harness": "workspace:*",
     "@provino/loader": "workspace:*",
     "@provino/policy": "workspace:*",

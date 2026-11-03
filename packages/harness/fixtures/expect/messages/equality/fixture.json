@@ -1,4 +1,0 @@
-{
-  "description": "Failure messages of toBe, toEqual and toStrictEqual: labelled scalars, the toStrictEqual/toEqual hints for objects, -0, Object/Array/Map/Set diffs, class against literal, undefined properties, a long diff collapsed into @@ hunks, and the .not voices. Each test makes one failing assertion; three make passing ones first, so passingAssertions is pinned.",
-  "runners": ["jest", "vitest"]
-}

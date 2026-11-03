@@ -1,4 +1,0 @@
-{
-  "description": "The global expect's assertions(n) and hasAssertions() under test.concurrent (P4/P5): five concurrent tests whose bodies wait 20, 40, 60, 80 and 100 ms. Each is right on its own (three met, two missed), but both runners share one counter across them, so the recorded outcomes are not the per-test ones.",
-  "runners": ["jest", "vitest"]
-}

@@ -1,12 +1,11 @@
-import type { ExpectTable } from '../expect.ts'
+import type { MatcherSet } from '../extensions.ts'
 import type { Behaviour } from './behaviour.ts'
 
 /**
- * Returns the matcher table a dialect's `expect` exposes (`@provino/expect` loads it once per
- * worker).
+ * Returns the matchers a dialect's `expect` exposes.
  * @public
  */
-export type MatcherTableFactory = () => ExpectTable
+export type MatcherTableFactory = () => MatcherSet
 
 /**
  * The `expect` slice, read by `@provino/expect` (Track 7).

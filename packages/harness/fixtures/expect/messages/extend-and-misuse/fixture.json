@@ -1,4 +1,0 @@
-{
-  "description": "Failures of expect.extend matchers: with a message, with .not, through this.utils, without a message, as an asymmetric matcher (and expect.not), async, returning an invalid result, and throwing. Jest only: expect(a, b) and a removed Jest 30 alias (toBeCalled is not a function); Vitest only: the expect(a, message) prefix. Each test makes one failing assertion.",
-  "runners": ["jest", "vitest"]
-}

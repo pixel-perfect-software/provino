@@ -1,4 +1,0 @@
-{
-  "description": "The matcher aliases Jest 30 removed (toBeCalled, toBeCalledTimes, toBeCalledWith, lastCalledWith, nthCalledWith, toReturn, toReturnTimes, toReturnWith, lastReturnedWith, nthReturnedWith, toThrowError): each assertion would pass, so Jest fails it with a TypeError (is not a function) and Vitest 5, which keeps them, passes it. toHaveBeenCalled is the control.",
-  "runners": ["jest", "vitest"]
-}

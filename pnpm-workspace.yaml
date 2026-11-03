@@ -20,10 +20,6 @@ allowBuilds:
 # Pin the newest version that is at least 7 days old on the day you install it.
 catalog:
   "@biomejs/biome": 2.6.3
-  # The Jest dialect's expect (B08): the leaves the vendored matchers import, at exactly the
-  # versions expect@30.5.2 depends on (DECISIONS D18).
-  "@jest/expect-utils": 30.5.2
-  "@jest/get-type": 30.5.0
   # Jest 30.5 and Vitest 5.0: subjects of the dev packages (harness, bench), never our runner.
   "@jest/test-result": 30.5.2
   # The Spike A loader fixture's Jest baseline uses @swc/jest (Track 2, bench-e2e).
@@ -42,8 +38,6 @@ catalog:
   # Node 22.15 is the floor, so type against the 22.x API.
   "@types/node": 22.20.5
   "@types/sinonjs__fake-timers": 15.0.1
-  # Interop tests only: our asymmetric matchers inside Vitest's expect, and its inside ours (T7.4).
-  "@vitest/expect": 5.0.5
   # The TypeScript 6 API, as tsc6, for tools that need it (dependency-cruiser, API Extractor).
   "@typescript/typescript6": 6.0.2
   # The recorder's Jest transform runs after type stripping (Jest's default transform).
@@ -56,12 +50,6 @@ catalog:
   expect: 30.5.2
   expect-type: 1.4.0
   jest: 30.5.2
-  # jest-matcher-utils, jest-message-util and jest-util: the Jest dialect's expect (D18, above).
-  jest-matcher-utils: 30.5.2
-  jest-message-util: 30.5.1
-  # The expect corpus check's jest.fn, until @provino/mock (B13a).
-  jest-mock: 30.5.2
-  jest-util: 30.5.1
   # jsdom (Track 8's version): the propagation test's DOM rows, later the jsdom environment.
   jsdom: 30.1.3
   lodash: 4.18.1

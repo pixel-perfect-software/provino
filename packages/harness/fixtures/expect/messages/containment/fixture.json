@@ -1,4 +1,0 @@
-{
-  "description": "Failure messages of toContain (array, string, an object item with the toContainEqual hint, a null received), toContainEqual, toHaveLength (array, string, a matcher error) and toMatch (regex, string, a matcher error), with their .not voices. Each test makes one failing assertion.",
-  "runners": ["jest", "vitest"]
-}

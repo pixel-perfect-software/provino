@@ -1,4 +1,0 @@
-{
-  "description": "Unawaited .resolves and .rejects assertions (F7, P1/P2): one of each that would pass, which Jest passes and Vitest 5 fails as not awaited, and one of each that fails while the test is still waiting 50 ms, which fails in both. An awaited assertion is the control.",
-  "runners": ["jest", "vitest"]
-}
