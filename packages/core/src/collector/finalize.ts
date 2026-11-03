@@ -18,8 +18,12 @@ import type {
   TestTask,
 } from '@provino/types'
 import { CoreError } from '../errors.ts'
-import type { FileState, SuiteNode, TestNode } from '../internal/model.ts'
-import { parseSite } from './location.ts'
+import type { FileState, NodeSkipReason, SuiteNode, TestNode } from '../internal/model.ts'
+import { parseSite, toPath } from './location.ts'
+import { walk } from './nodes.ts'
+
+/** Every node below the file root, depth first, parents before children: what each pass walks. */
+type Nodes = ReadonlyArray<SuiteNode | TestNode>
 
 /** Filters and settings that shape a collected file. */
 export interface FinalizeOptions {
@@ -28,21 +32,23 @@ export interface FinalizeOptions {
   readonly ci: boolean
   readonly testNamePattern: RegExp | undefined
   readonly testIds: ReadonlySet<string> | undefined
-  /** Location filter: lines of tests or suites to run (Vitest's `file:line`). */
+  /** Location filter: lines of tests or suites in the test file to run (Vitest's `file:line`). */
   readonly lines: ReadonlySet<number> | undefined
 }
 
 /** Assigns ids and full names, interprets modes, and returns the file's task list. */
 export function finalize(file: FileState, options: FinalizeOptions): TaskNode[] {
+  const testFile = toPath(file.path)
+  const nodes = walk(file.root)
   assignIds(file, options.projectName)
-  assignNames(file.root, [])
-  parseLocations(file.root)
+  assignNames(file.root)
+  parseLocations(file.root, nodes, testFile, options.policy.locationFrame === 'test-file')
   if (options.policy.focus.scope === 'file') interpretFileScope(file.root, options)
-  else interpretSuiteScope(file.root, options)
-  applyLineFilter(file, options.lines)
-  blockOnly(file.root, options)
-  checkEmpty(file, options.policy)
-  return toTasks(file, options.projectName)
+  else interpretSuiteScope(file.root, nodes, options)
+  applyLineFilter(file, testFile, options)
+  blockOnly(nodes, options)
+  checkEmpty(file, nodes, options.policy)
+  return toTasks(file, nodes, options.projectName)
 }
 
 /** A file's task id: a hash of the project name and its relative path (stable across runs). */
@@ -61,29 +67,61 @@ function assignIds(file: FileState, projectName: string): void {
   visit(file.root)
 }
 
-function assignNames(suite: SuiteNode, path: readonly string[]): void {
-  const counts = new Map<string, number>()
-  const visit = (node: SuiteNode, prefix: readonly string[]): void => {
-    for (const child of node.children) {
-      const names = [...prefix, child.name]
-      if (child.type !== 'test') {
-        visit(child, names)
-        continue
-      }
-      const key = JSON.stringify(names)
-      const seen = counts.get(key) ?? 0
-      counts.set(key, seen + 1)
-      child.fullName = names
-      child.dupIndex = seen
-    }
-  }
-  visit(suite, path)
+/**
+ * One full-name path in `assignNames`' trie: how many tests have exactly this full name, and the
+ * paths one name longer. Same-named sibling suites share an entry, so their tests count together.
+ */
+interface NameEntry {
+  tests: number
+  next: Map<string, NameEntry> | undefined
 }
 
-function parseLocations(suite: SuiteNode): void {
-  for (const child of suite.children) {
-    child.location = parseSite(child.site)
-    if (child.type !== 'test') parseLocations(child)
+/** Each test's full name, and `dupIndex`: how many earlier tests have the same full name. */
+function assignNames(root: SuiteNode): void {
+  const visit = (suite: SuiteNode, prefix: readonly string[], entry: NameEntry): void => {
+    for (const child of suite.children) {
+      const names = [...prefix, child.name]
+      entry.next ??= new Map()
+      let next = entry.next.get(child.name)
+      if (next === undefined) {
+        next = { tests: 0, next: undefined }
+        entry.next.set(child.name, next)
+      }
+      if (child.type !== 'test') {
+        visit(child, names, next)
+        continue
+      }
+      child.fullName = names
+      child.dupIndex = next.tests++
+    }
+  }
+  visit(root, [], { tests: 0, next: undefined })
+}
+
+/**
+ * Parses every node's and hook's captured site, then drops the hooks' sites. A location is its
+ * site's first frame in the test file under `locationFrame: 'test-file'`, else its first frame.
+ */
+function parseLocations(
+  root: SuiteNode,
+  nodes: Nodes,
+  testFile: string,
+  inTestFile: boolean,
+): void {
+  const paths = new Map<string, string>()
+  const inFile = inTestFile ? testFile : undefined
+  const parseHooks = (suite: SuiteNode): void => {
+    for (const hooks of Object.values(suite.hooks)) {
+      for (const hook of hooks) {
+        hook.location = parseSite(hook.site, inFile, paths)
+        hook.site = null
+      }
+    }
+  }
+  parseHooks(root)
+  for (const node of nodes) {
+    node.location = parseSite(node.site, inFile, paths)
+    if (node.type !== 'test') parseHooks(node)
   }
 }
 
@@ -121,21 +159,29 @@ function interpretFileScope(root: SuiteNode, options: FinalizeOptions): void {
   }
   define(root, undefined)
 
-  const run = (suite: SuiteNode, ancestorSkipped: boolean): void => {
+  /** `ancestorReason`: why the nearest skipped ancestor is skipped, when one is. */
+  const run = (suite: SuiteNode, ancestorReason: NodeSkipReason | undefined): void => {
     const own = effective.get(suite)
-    const skipped = own === 'skip' || (policy.focus.insideSkip === 'skipped' && ancestorSkipped)
+    const skipped =
+      own === 'skip' || (policy.focus.insideSkip === 'skipped' && ancestorReason !== undefined)
     suite.mode = skipped ? 'skip' : 'run'
-    if (skipped && suite.skipReason === undefined) suite.skipReason = 'modifier'
+    // A suite skipped by its own modifier keeps that reason; one skipped with an ancestor (a
+    // `describe.skipIf(true)` above it) takes the ancestor's, as its tests do.
+    if (skipped) suite.skipReason = skipReasonFor(suite, ancestorReason)
     for (const child of suite.children) {
       if (child.type !== 'test') {
-        run(child, skipped)
+        run(child, skipped ? suite.skipReason : undefined)
         continue
       }
       const mode = effective.get(child)
-      let reason: TestNode['skipReason']
-      if (skipped || mode === 'skip') reason = child.skipReason ?? 'modifier'
-      else if (focused && mode === undefined) reason = 'only-filter'
-      else reason = matchesFilters(child, options)
+      let reason: NodeSkipReason | undefined
+      if (skipped || mode === 'skip') {
+        reason = skipReasonFor(child, suite.skipReason)
+      } else if (focused && mode === undefined) {
+        reason = 'only-filter'
+      } else {
+        reason = matchesFilters(child, options)
+      }
       if (reason === undefined) {
         child.mode = mode === 'todo' ? 'todo' : 'run'
       } else if (
@@ -150,11 +196,22 @@ function interpretFileScope(root: SuiteNode, options: FinalizeOptions): void {
       }
     }
   }
-  run(root, false)
+  run(root, undefined)
+}
+
+/**
+ * A skipped node's reason: its own (set at registration for its own `.skip` or `skipIf`), else the
+ * skipped ancestor's.
+ */
+function skipReasonFor(
+  node: SuiteNode | TestNode,
+  ancestorReason: NodeSkipReason | undefined,
+): NodeSkipReason {
+  return node.skipReason ?? ancestorReason ?? 'modifier'
 }
 
 /** `focus.scope: 'suite'`: Vitest's `interpretTaskModes`. */
-function interpretSuiteScope(root: SuiteNode, options: FinalizeOptions): void {
+function interpretSuiteScope(root: SuiteNode, nodes: Nodes, options: FinalizeOptions): void {
   const { policy } = options
   const containsOnly = new Map<SuiteNode, boolean>()
   const scan = (suite: SuiteNode): boolean => {
@@ -167,13 +224,13 @@ function interpretSuiteScope(root: SuiteNode, options: FinalizeOptions): void {
     return found
   }
   const onlyMode = scan(root)
-  for (const node of walk(root)) node.mode = node.declared ?? 'run'
+  for (const node of nodes) node.mode = node.declared ?? 'run'
 
   /** Skips (or todos) everything below `suite`; skipped tasks take the suite's reason. */
   const skipAll = (
     suite: SuiteNode,
     mode: 'skip' | 'todo',
-    reason: NonNullable<TestNode['skipReason']> = 'modifier',
+    reason: NodeSkipReason = 'modifier',
   ): void => {
     for (const child of suite.children) {
       const keep =
@@ -194,6 +251,8 @@ function interpretSuiteScope(root: SuiteNode, options: FinalizeOptions): void {
         child.mode = 'skip'
         child.skipReason ??= reason
       }
+      // A child already skipped has its own `.skip` (or a `skip` option it inherited), and the
+      // reason registration gave it.
       if (child.type !== 'test') skipAll(child, mode, reason)
     }
   }
@@ -207,9 +266,7 @@ function interpretSuiteScope(root: SuiteNode, options: FinalizeOptions): void {
         ? child.mode === 'only' || childContainsOnly
         : suiteIsOnly || child.mode === 'only'
       if (onlyMode) {
-        if (child.type !== 'test' && (include || childContainsOnly)) {
-          if (child.mode === 'only') child.mode = 'run'
-        } else if (child.mode === 'run' && !include) {
+        if (child.mode === 'run' && !(include || childContainsOnly)) {
           child.mode = 'skip'
           child.skipReason = 'only-filter'
         } else if (child.mode === 'only') {
@@ -217,14 +274,12 @@ function interpretSuiteScope(root: SuiteNode, options: FinalizeOptions): void {
         }
       }
       if (child.type === 'test') {
-        if (child.mode === 'skip') child.skipReason ??= 'modifier'
         const reason = matchesFilters(child, options)
         if (reason !== undefined && child.mode !== 'skip') {
           child.mode = 'skip'
           child.skipReason = reason
         }
       } else if (child.mode === 'skip') {
-        child.skipReason ??= 'modifier'
         skipAll(child, 'skip', child.skipReason)
       } else if (child.mode === 'todo') {
         skipAll(child, 'todo')
@@ -236,19 +291,29 @@ function interpretSuiteScope(root: SuiteNode, options: FinalizeOptions): void {
   traverse(root, false)
 }
 
-/** The location filter: tests (or suites) on the given lines run; the rest are skipped. */
-function applyLineFilter(file: FileState, lines: ReadonlySet<number> | undefined): void {
+/**
+ * The location filter, as Vitest's `file:line` (`interpretTaskModes`): a task on one of the lines
+ * runs, whatever focus made it, and so does everything under a matched suite; every other test is
+ * skipped. Only locations in the test file count, and the walk never enters a skipped or todo
+ * suite, so a line inside one is "not found".
+ */
+function applyLineFilter(file: FileState, testFile: string, options: FinalizeOptions): void {
+  const { lines } = options
   if (lines === undefined || lines.size === 0) return
   const matched = new Set<number>()
   const visit = (suite: SuiteNode, inMatch: boolean): void => {
     for (const child of suite.children) {
-      const line = child.location?.line
+      const line = child.location?.file === testFile ? child.location.line : undefined
       const hit = line !== undefined && lines.has(line)
-      if (hit && line !== undefined) matched.add(line)
-      if (child.type !== 'test') visit(child, inMatch || hit)
-      else if (!(inMatch || hit) && child.mode === 'run') {
+      if (hit) matched.add(line)
+      if (hit || inMatch) {
+        runMatched(child, options)
+      } else if (child.type === 'test' && child.mode !== 'skip') {
         child.mode = 'skip'
         child.skipReason = 'name-filter'
+      }
+      if (child.type !== 'test' && child.mode !== 'skip' && child.mode !== 'todo') {
+        visit(child, inMatch || hit)
       }
     }
   }
@@ -262,11 +327,21 @@ function applyLineFilter(file: FileState, lines: ReadonlySet<number> | undefined
   }
 }
 
-/** `allowOnly: 'not-in-ci'` on CI: every `.only` task fails before it runs. */
-function blockOnly(root: SuiteNode, options: FinalizeOptions): void {
+/** A task the line filter selected runs, unless the name or id filters leave it out. */
+function runMatched(node: SuiteNode | TestNode, options: FinalizeOptions): void {
+  node.mode = 'run'
+  node.skipReason = node.type === 'test' ? matchesFilters(node, options) : undefined
+  if (node.skipReason !== undefined) node.mode = 'skip'
+}
+
+/**
+ * `allowOnly: 'not-in-ci'` on CI: every `.only` task that would run fails before it runs. One in a
+ * skipped or todo subtree is left alone: Vitest never walks there, so its check never fires.
+ */
+function blockOnly(nodes: Nodes, options: FinalizeOptions): void {
   if (options.policy.allowOnly === 'always' || !options.ci) return
-  for (const node of walk(root)) {
-    if (node.declared !== 'only') continue
+  for (const node of nodes) {
+    if (node.declared !== 'only' || node.mode === 'skip' || node.mode === 'todo') continue
     node.blocked = new CoreError(
       'CORE_ONLY_NOT_ALLOWED',
       'Unexpected .only modifier. Remove it or allow `.only` to bypass this error',
@@ -274,47 +349,66 @@ function blockOnly(root: SuiteNode, options: FinalizeOptions): void {
   }
 }
 
-function hasTests(suite: SuiteNode): boolean {
-  return suite.children.some((child) => child.type === 'test' || hasTests(child))
+/** The suites with a test somewhere below them: each test marks its ancestors, once each. */
+function suitesWithTests(nodes: Nodes): ReadonlySet<SuiteNode> {
+  const found = new Set<SuiteNode>()
+  for (const node of nodes) {
+    if (node.type !== 'test') continue
+    for (let suite: SuiteNode | null = node.parent; suite !== null && !found.has(suite); ) {
+      found.add(suite)
+      suite = suite.parent
+    }
+  }
+  return found
 }
 
 /** `collect.emptyDescribe`: a describe with no tests. */
-function checkEmpty(file: FileState, policy: CorePolicy): void {
+function checkEmpty(file: FileState, nodes: Nodes, policy: CorePolicy): void {
   const rule = policy.collect.emptyDescribe
   if (rule === 'allow') return
-  for (const node of walk(file.root)) {
-    if (node.type === 'test' || hasTests(node)) continue
-    if (rule === 'fail-suite') {
-      if (node.mode === 'run') {
-        node.emptyError = new CoreError(
-          'CORE_EMPTY_DESCRIBE',
-          `No test found in suite ${node.name}`,
-        )
-      }
-      continue
-    }
+  const withTests = suitesWithTests(nodes)
+  if (rule === 'fail-suite') {
+    failEmptySuites(file.root, withTests)
+    return
+  }
+  for (const node of nodes) {
+    if (node.type === 'test' || withTests.has(node)) continue
     for (const kind of ['beforeAll', 'beforeEach', 'afterEach', 'afterAll'] as const) {
-      for (const _hook of node.hooks[kind]) {
-        file.errors.push(
-          new CoreError(
-            'CORE_EMPTY_DESCRIBE',
-            `Invalid: ${kind}() may not be used in a describe block containing no tests.`,
-          ),
-        )
-      }
+      file.errors.push(
+        ...node.hooks[kind].map(
+          () =>
+            new CoreError(
+              'CORE_EMPTY_DESCRIBE',
+              `Invalid: ${kind}() may not be used in a describe block containing no tests.`,
+            ),
+        ),
+      )
     }
   }
 }
 
-/** Every node below `suite`, depth first, parents before children. */
-export function* walk(suite: SuiteNode): Generator<SuiteNode | TestNode> {
+/**
+ * `fail-suite` (Vitest), children first: a running describe none of whose children runs collapses
+ * to skip (`interpretTaskModes`), and a running describe with no test below it fails.
+ */
+function failEmptySuites(suite: SuiteNode, withTests: ReadonlySet<SuiteNode>): void {
   for (const child of suite.children) {
-    yield child
-    if (child.type !== 'test') yield* walk(child)
+    if (child.type === 'test') continue
+    failEmptySuites(child, withTests)
+    if (child.mode !== 'run') continue
+    if (child.children.length > 0 && child.children.every((node) => node.mode !== 'run')) {
+      child.mode = 'skip'
+    } else if (!withTests.has(child)) {
+      child.emptyError = new CoreError(
+        'CORE_EMPTY_DESCRIBE',
+        `No test found in suite ${child.name}`,
+      )
+    }
   }
 }
 
-function toTasks(file: FileState, projectName: string): TaskNode[] {
+/** The clone-safe task list, file first; each node keeps its own task for the executor. */
+function toTasks(file: FileState, nodes: Nodes, projectName: string): TaskNode[] {
   const root = file.root
   const fileTask: FileTask = {
     type: 'file',
@@ -330,8 +424,9 @@ function toTasks(file: FileState, projectName: string): TaskNode[] {
     projectName,
     children: root.children.map((child) => child.id),
   }
+  root.task = fileTask
   const tasks: TaskNode[] = [fileTask]
-  for (const node of walk(root)) {
+  for (const node of nodes) {
     const base = {
       id: node.id,
       parentId: node.parent?.id ?? null,
@@ -351,6 +446,7 @@ function toTasks(file: FileState, projectName: string): TaskNode[] {
         concurrent: node.concurrent === true,
         shuffle: node.shuffle,
       }
+      node.task = suite
       tasks.push(suite)
       continue
     }
@@ -368,6 +464,7 @@ function toTasks(file: FileState, projectName: string): TaskNode[] {
       retry: node.retry,
       repeats: node.repeats,
     }
+    node.task = test
     tasks.push(test)
   }
   return tasks

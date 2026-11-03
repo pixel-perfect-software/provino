@@ -1,5 +1,5 @@
-// `aroundEach` and `aroundAll`: nesting order, the three error classes, and the separate setup and
-// teardown timeouts (on a fake clock).
+// `aroundEach` and `aroundAll`: nesting order, the three error classes, the separate setup and
+// teardown timeouts (on a fake clock), and the `LazyHost` teardowns an `aroundEach` adds.
 import assert from 'node:assert/strict'
 import { beforeEach, describe, test } from 'node:test'
 import FakeTimers, { type Clock } from '@sinonjs/fake-timers'
@@ -10,6 +10,9 @@ import {
   runScript,
   type Script,
   type ScriptRun,
+  settle,
+  timersOf,
+  trackRefs,
   watch,
 } from '../internal/test-support.ts'
 
@@ -89,6 +92,22 @@ describe('aroundEach order', () => {
       test('t', () => {})
     })
     assert.equal(seen, 't')
+  })
+
+  test('the hook receives the innermost suite of the test third, as Vitest passes it', async () => {
+    let seen: string | undefined
+    await runScript(({ describe, test, aroundEach }) => {
+      aroundEach(async (runTest, _ctx, suite) => {
+        seen = suite.name
+        await runTest()
+      })
+      describe('outer', () => {
+        describe('inner', () => {
+          test('t', () => {})
+        })
+      })
+    })
+    assert.equal(seen, 'inner')
   })
 
   test('runs again for each attempt of a retried test', async () => {
@@ -378,5 +397,116 @@ describe('around hook timeouts', () => {
     }
     await runScript(run, {}, clockOptions(clock))
     assert.equal(clock.countTimers(), 0)
+  })
+
+  test('a phase timer does not hold the process open', async () => {
+    const started = Promise.withResolvers<void>()
+    const tracked = trackRefs(timersOf(clock))
+    const running = runScript(
+      ({ test, aroundEach }) => {
+        aroundEach(async () => {
+          started.resolve()
+          await hang()
+        }, 100)
+        test('t', () => {})
+      },
+      {},
+      { realTimers: tracked.timers, now: () => clock.now },
+    )
+    await reached(started.promise, running)
+    assert.equal(tracked.created(), 1)
+    assert.equal(tracked.refed(), 0)
+    await clock.tickAsync(100)
+    await running
+  })
+
+  test('a hook that does not await runTest leaves no timer behind, and never aborts the finished test', async () => {
+    const bodyDone = Promise.withResolvers<void>()
+    let signal: AbortSignal | undefined
+    const running = runScript(
+      ({ test, aroundEach }) => {
+        aroundEach((runTest) => {
+          void runTest()
+        }, 100)
+        test('t', (ctx) => {
+          signal = ctx.signal
+          bodyDone.resolve()
+        })
+      },
+      {},
+      clockOptions(clock),
+    )
+    await running
+    // The body runs on after the hook has returned; give it, and what follows it, time to end.
+    await Promise.race([bodyDone.promise, settle().then(settle).then(settle)])
+    await settle()
+    assert.ok(signal)
+    assert.equal(clock.countTimers(), 0)
+    await clock.tickAsync(100)
+    assert.equal(signal.aborted, false)
+  })
+})
+
+describe('LazyHost teardowns added in aroundEach', () => {
+  test('one added before runTest runs after the hook has finished, the body ones before it', async () => {
+    const run = await runScript(({ test, aroundEach }, step, runtime) => {
+      aroundEach(async (runTest, ctx) => {
+        runtime.lazyHost.runOf(ctx)?.addTeardown(() => step('around teardown'))
+        await runTest()
+        step('around hook after runTest')
+      })
+      test('t', (ctx) => {
+        runtime.lazyHost.runOf(ctx)?.addTeardown(() => step('body teardown'))
+        step('body')
+      })
+    })
+    assert.deepEqual(run.trace, [
+      'body',
+      'body teardown',
+      'around hook after runTest',
+      'around teardown',
+    ])
+  })
+
+  test('one added by a hook that then throws before runTest still runs', async () => {
+    const run = await runScript(({ test, aroundEach }, step, runtime) => {
+      aroundEach((_runTest, ctx) => {
+        runtime.lazyHost.runOf(ctx)?.addTeardown(() => step('teardown'))
+        throw new Error('setup failed')
+      })
+      test('t', () => step('body'))
+    })
+    assert.deepEqual(run.trace, ['teardown'])
+    assert.equal(run.states.t, 'fail')
+  })
+
+  test('one added after runTest returned still runs, in the cleanup state', async () => {
+    let state: string | undefined
+    const run = await runScript(({ test, aroundEach }, step, runtime) => {
+      aroundEach(async (runTest, ctx) => {
+        await runTest()
+        const handle = runtime.lazyHost.runOf(ctx)
+        handle?.addTeardown(() => {
+          state = handle.state
+          step('teardown')
+        })
+      })
+      test('t', () => {})
+    })
+    assert.deepEqual(run.trace, ['teardown'])
+    assert.equal(state, 'cleanup')
+  })
+
+  test('one that throws fails the test', async () => {
+    const run = await runScript(({ test, aroundEach }, _step, runtime) => {
+      aroundEach(async (runTest, ctx) => {
+        runtime.lazyHost.runOf(ctx)?.addTeardown(() => {
+          throw new Error('teardown failed')
+        })
+        await runTest()
+      })
+      test('t', () => {})
+    })
+    assert.deepEqual(run.errors.t, ['teardown failed'])
   })
 })

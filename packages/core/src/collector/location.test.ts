@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { locateMarker } from '../internal/test-support.ts'
-import { captureSite, parseSite, type Site } from './location.ts'
+import { CALLER_FRAMES, captureSite, parseSite, type Site, TEST_FILE_FRAMES } from './location.ts'
 
 describe('captureSite', () => {
   test('is null when locations are off', () => {
@@ -25,10 +25,23 @@ describe('captureSite', () => {
     assert.equal(Error.stackTraceLimit, before)
   })
 
-  test('keeps only a few frames, so reading it is cheap', () => {
+  /** The number of frames a site kept, captured from below `depth` nested calls. */
+  const framesKept = (frames: number, depth: number): number => {
+    const nest = (left: number): Site | null =>
+      left === 0 ? captureSite(captureSite, true, frames) : nest(left - 1)
+    const stack = nest(depth)?.stack ?? ''
+    return stack.split('\n').filter((line) => line.trim().startsWith('at ')).length
+  }
+
+  test('keeps only a few frames by default, so reading it is cheap', () => {
     const site = captureSite(captureSite, true)
     const frames = (site?.stack ?? '').split('\n').filter((line) => line.trim().startsWith('at '))
-    assert.ok(frames.length <= 3, `${frames.length} frames kept`)
+    assert.ok(frames.length <= CALLER_FRAMES, `${frames.length} frames kept`)
+  })
+
+  test('keeps the frames it is asked for, so the test file can be found below a helper', () => {
+    assert.equal(framesKept(TEST_FILE_FRAMES, 20), TEST_FILE_FRAMES)
+    assert.equal(framesKept(CALLER_FRAMES, 20), CALLER_FRAMES)
   })
 })
 
@@ -77,6 +90,38 @@ describe('parseSite', () => {
   test('is null when no frame has a position', () => {
     assert.equal(parseSite(stack('    at new Promise (<anonymous>)')), null)
     assert.equal(parseSite({ stack: 'Error' }), null)
+  })
+
+  describe('with the test file', () => {
+    const testFile = '/project/a.test.ts'
+
+    test('reads the first frame in the test file, past a helper in another file', () => {
+      const site = stack(
+        '    at helper (/project/helpers.ts:3:5)',
+        '    at Object.<anonymous> (/project/a.test.ts:10:1)',
+      )
+      assert.deepEqual(parseSite(site, testFile), { file: testFile, line: 10, column: 1 })
+    })
+
+    test('matches a file: URL whose query a loader added', () => {
+      const site = stack(
+        '    at helper (file:///project/helpers.ts?core-run=3:3:5)',
+        '    at file:///project/a.test.ts?core-run=3:10:1',
+      )
+      assert.deepEqual(parseSite(site, testFile), { file: testFile, line: 10, column: 1 })
+    })
+
+    test('falls back to the first frame when no frame is in the test file', () => {
+      const site = stack(
+        '    at helper (/project/helpers.ts:3:5)',
+        '    at other (/project/other.ts:1:1)',
+      )
+      assert.deepEqual(parseSite(site, testFile), {
+        file: '/project/helpers.ts',
+        line: 3,
+        column: 5,
+      })
+    })
   })
 
   test('keeps a path that is not a file: URL as it is', () => {

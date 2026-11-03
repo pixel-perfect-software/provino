@@ -4,14 +4,20 @@
 // is set on its own over the neutral base.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
+import type { FileState } from '../internal/model.ts'
 import {
+  type CoreOverrides,
   locateMarker,
+  policyWith,
   runScript,
   type Script,
   type ScriptRun,
   testNamed,
 } from '../internal/test-support.ts'
-import { fileIdOf } from './finalize.ts'
+import { createApi, type RuntimeApi } from './api.ts'
+import { Collector } from './collector.ts'
+import { type FinalizeOptions, fileIdOf, finalize } from './finalize.ts'
+import { newFileState, walk } from './nodes.ts'
 
 const SCOPES = ['file', 'suite'] as const
 
@@ -93,6 +99,40 @@ describe('collect.emptyDescribe', () => {
     const run = await runScript(script, { collect: { emptyDescribe: 'fail-suite' } })
     assert.equal(run.suites['skipped and empty']?.state, 'skip')
   })
+
+  test('fail-suite collapses a describe none of whose children runs to skip, instead of failing it', async () => {
+    const run = await runScript(
+      ({ describe, test }) => {
+        describe('holds a skipped describe', () => {
+          describe.skip('empty', () => {})
+        })
+        describe('holds skipped tests', () => {
+          test.skip('s', () => {})
+          test.todo('later')
+        })
+        test('real', () => {})
+      },
+      { collect: { emptyDescribe: 'fail-suite' } },
+    )
+    assert.equal(run.suites['holds a skipped describe']?.state, 'skip')
+    assert.deepEqual(run.suites['holds a skipped describe']?.errors, [])
+    assert.equal(run.suites['holds skipped tests']?.state, 'skip')
+    assert.equal(run.file.state, 'pass')
+  })
+
+  test('fail-suite still fails a describe that only holds an empty describe that runs', async () => {
+    const run = await runScript(
+      ({ describe, test }) => {
+        describe('outer', () => {
+          describe('inner', () => {})
+        })
+        test('real', () => {})
+      },
+      { collect: { emptyDescribe: 'fail-suite' } },
+    )
+    assert.equal(run.suites['outer > inner']?.errors[0]?.code, 'CORE_EMPTY_DESCRIBE')
+    assert.equal(run.suites.outer?.errors[0]?.code, 'CORE_EMPTY_DESCRIBE')
+  })
 })
 
 describe('allowOnly', () => {
@@ -137,6 +177,25 @@ describe('allowOnly', () => {
     assert.equal(run.states['focused > inside'], 'skip')
     assert.deepEqual(run.trace, [])
   })
+
+  for (const scope of SCOPES) {
+    test(`${scope} scope: not-in-ci with ci true leaves a .only in a skipped describe alone, since it never runs`, async () => {
+      const run = await runScript(
+        ({ describe, test }) => {
+          describe.skip('skipped', () => {
+            describe.only('focused', () => {
+              test('t', () => {})
+            })
+          })
+        },
+        { allowOnly: 'not-in-ci', focus: { scope, insideSkip: 'skipped' } },
+        { ci: true },
+      )
+      assert.equal(run.suites['skipped > focused']?.state, 'skip')
+      assert.deepEqual(run.suites['skipped > focused']?.errors, [])
+      assert.deepEqual(run.file.errors, [])
+    })
+  }
 
   test('not-in-ci with ci true leaves a file with no .only alone', async () => {
     const run = await runScript(
@@ -313,6 +372,30 @@ describe('status.todoUnderSkip', () => {
   }
 })
 
+describe('skip reasons under a skipped describe', () => {
+  for (const scope of SCOPES) {
+    test(`${scope} scope: tests under describe.skipIf(true) take its reason, condition; their own .skip stays modifier`, async () => {
+      const run = await runScript(
+        ({ describe, test }) => {
+          describe.skipIf(true)('conditional', () => {
+            test('t', () => {})
+            test.skip('own skip', () => {})
+            describe('inner', () => {
+              test('u', () => {})
+            })
+          })
+        },
+        { focus: { scope } },
+      )
+      assert.deepEqual(skipReasons(run), {
+        'conditional > t': 'condition',
+        'conditional > own skip': 'modifier',
+        'conditional > inner > u': 'condition',
+      })
+    })
+  }
+})
+
 describe('nameSeparator and testNamePatternFlags', () => {
   const script: Script = ({ describe, test }) => {
     describe('outer', () => {
@@ -422,56 +505,181 @@ describe('testIds', () => {
 
 describe('lines', () => {
   const file = import.meta.filename
-  const script: Script = ({ describe, test }, step) => {
-    // @marker:first
-    test('first', () => step('first'))
-    // @marker:second
-    test('second', () => step('second'))
-    // @marker:suite
-    describe('suite', () => {
-      test('in suite 1', () => step('in suite 1'))
-      test('in suite 2', () => step('in suite 2'))
-    })
-  }
   const lineOf = (marker: string, token: string): number =>
     locateMarker(file, `// @marker:${marker}`, token).line
 
-  test('a line that holds a test runs that test and skips the rest, with the reason name-filter', async () => {
-    const run = await runScript(script, {}, { locations: true, lines: [lineOf('first', 'test(')] })
-    assert.deepEqual(run.states, {
-      first: 'pass',
-      second: 'skip',
-      'suite > in suite 1': 'skip',
-      'suite > in suite 2': 'skip',
+  /**
+   * Collects `script` as the file at `path` (this test file unless given) and finalizes it with
+   * `lines`. The runtime's test files are inline scripts at another path, so this drives the
+   * collector directly: a location only counts when it is in the test file.
+   */
+  const collectLines = async (
+    script: (api: RuntimeApi) => void,
+    lines: readonly number[],
+    options: {
+      readonly overrides?: CoreOverrides
+      readonly path?: string
+      readonly finalize?: Partial<FinalizeOptions>
+    } = {},
+  ): Promise<{
+    readonly file: FileState
+    readonly modes: Record<string, string>
+    readonly reasons: Record<string, string | undefined>
+  }> => {
+    const policy = policyWith(options.overrides)
+    const collector = new Collector({
+      policy,
+      formatEachTitle: (name) => name,
+      locations: true,
+      onLateRegistration: () => {},
     })
-    assert.equal(skipReasons(run).second, 'name-filter')
-    assert.equal(run.file.state, 'pass')
+    const state = newFileState(
+      options.path ?? file,
+      'finalize.test.ts',
+      new AbortController().signal,
+    )
+    await collector.collect(state, async () => script(createApi(collector)))
+    collector.close(state)
+    finalize(state, {
+      policy,
+      projectName: '',
+      ci: false,
+      testNamePattern: undefined,
+      testIds: undefined,
+      lines: new Set(lines),
+      ...options.finalize,
+    })
+    const modes: Record<string, string> = {}
+    const reasons: Record<string, string | undefined> = {}
+    for (const node of walk(state.root)) {
+      if (node.type !== 'test') continue
+      const name = node.fullName.join(' > ')
+      modes[name] = node.mode
+      reasons[name] = node.skipReason
+    }
+    return { file: state, modes, reasons }
+  }
+
+  const script = ({ describe, test }: RuntimeApi): void => {
+    // @marker:first
+    test('first', () => {})
+    // @marker:second
+    test('second', () => {})
+    // @marker:suite
+    describe('suite', () => {
+      test('in suite 1', () => {})
+      test('in suite 2', () => {})
+    })
+  }
+
+  for (const scope of SCOPES) {
+    const overrides = { focus: { scope } }
+
+    test(`${scope} scope: a line that holds a test runs that test and skips the rest, with the reason name-filter`, async () => {
+      const run = await collectLines(script, [lineOf('first', 'test(')], { overrides })
+      assert.deepEqual(run.modes, {
+        first: 'run',
+        second: 'skip',
+        'suite > in suite 1': 'skip',
+        'suite > in suite 2': 'skip',
+      })
+      assert.equal(run.reasons.second, 'name-filter')
+      assert.deepEqual(run.file.errors, [])
+    })
+
+    test(`${scope} scope: a line that holds a describe runs every test inside it`, async () => {
+      const run = await collectLines(script, [lineOf('suite', 'describe(')], { overrides })
+      assert.deepEqual(run.modes, {
+        first: 'skip',
+        second: 'skip',
+        'suite > in suite 1': 'run',
+        'suite > in suite 2': 'run',
+      })
+    })
+
+    test(`${scope} scope: a matched test runs even when its own .skip or a .only elsewhere would skip it`, async () => {
+      const run = await collectLines(
+        ({ test }) => {
+          test.only('focused', () => {})
+          // @marker:skipped-on-line
+          test.skip('skipped', () => {})
+        },
+        [lineOf('skipped-on-line', 'test.skip(')],
+        { overrides },
+      )
+      assert.deepEqual(run.modes, { focused: 'skip', skipped: 'run' })
+      assert.equal(run.reasons.skipped, undefined)
+    })
+
+    test(`${scope} scope: a matched describe.skip runs, with everything under it`, async () => {
+      const run = await collectLines(
+        ({ describe, test }) => {
+          // @marker:skipped-describe
+          describe.skip('skipped', () => {
+            test('t', () => {})
+            test.skip('own skip', () => {})
+          })
+        },
+        [lineOf('skipped-describe', 'describe.skip(')],
+        { overrides },
+      )
+      assert.deepEqual(run.modes, { 'skipped > t': 'run', 'skipped > own skip': 'run' })
+    })
+
+    test(`${scope} scope: a line inside a skipped describe is not found`, async () => {
+      const run = await collectLines(
+        ({ describe, test }) => {
+          describe.skip('skipped', () => {
+            // @marker:inside-skip
+            test('t', () => {})
+          })
+        },
+        [lineOf('inside-skip', 'test(')],
+        { overrides },
+      )
+      assert.equal(run.modes['skipped > t'], 'skip')
+      assert.match(
+        (run.file.errors[0] as Error | undefined)?.message ?? '',
+        /No test found in .* in line \d+/,
+      )
+    })
+  }
+
+  test('a matched test the name pattern leaves out is still skipped', async () => {
+    const run = await collectLines(script, [lineOf('suite', 'describe(')], {
+      finalize: { testNamePattern: /in suite 1/ },
+    })
+    assert.equal(run.modes['suite > in suite 1'], 'run')
+    assert.equal(run.modes['suite > in suite 2'], 'skip')
+    assert.equal(run.reasons['suite > in suite 2'], 'name-filter')
   })
 
-  test('a line that holds a describe runs every test inside it', async () => {
-    const run = await runScript(
-      script,
-      {},
-      { locations: true, lines: [lineOf('suite', 'describe(')] },
-    )
-    assert.deepEqual(run.states, {
-      first: 'skip',
-      second: 'skip',
-      'suite > in suite 1': 'pass',
-      'suite > in suite 2': 'pass',
+  test('a location in another file never matches', async () => {
+    const run = await collectLines(script, [lineOf('first', 'test(')], {
+      path: '/project/other.test.ts',
     })
+    assert.equal(run.modes.first, 'skip')
+    assert.deepEqual(
+      run.file.errors.map((error) => (error as { code?: string }).code),
+      ['CORE_INVALID_ARGUMENT'],
+    )
   })
 
   test('several lines run the union of their tests', async () => {
-    const lines = [lineOf('second', 'test('), lineOf('first', 'test(')]
-    const run = await runScript(script, {}, { locations: true, lines })
-    assert.equal(run.states.first, 'pass')
-    assert.equal(run.states.second, 'pass')
-    assert.equal(run.states['suite > in suite 1'], 'skip')
+    const run = await collectLines(script, [lineOf('second', 'test('), lineOf('first', 'test(')])
+    assert.equal(run.modes.first, 'run')
+    assert.equal(run.modes.second, 'run')
+    assert.equal(run.modes['suite > in suite 1'], 'skip')
   })
 
   test('a line with no test fails the file with CORE_INVALID_ARGUMENT naming the line', async () => {
-    const run = await runScript(script, {}, { locations: true, lines: [1] })
+    const run = await runScript(
+      ({ test }) => {
+        test('first', () => {})
+      },
+      {},
+      { locations: true, lines: [1] },
+    )
     assert.equal(run.file.state, 'fail')
     assert.deepEqual(fileCodes(run), ['CORE_INVALID_ARGUMENT'])
     assert.match(run.file.errors[0]?.message ?? '', /line 1\b/)
@@ -479,10 +687,9 @@ describe('lines', () => {
   })
 
   test('only the lines with no test are named, when others match', async () => {
-    const lines = [lineOf('first', 'test('), 1, 2]
-    const run = await runScript(script, {}, { locations: true, lines })
-    assert.match(run.file.errors[0]?.message ?? '', /lines 1, 2\b/)
-    assert.equal(run.states.first, 'pass')
+    const run = await collectLines(script, [lineOf('first', 'test('), 1, 2])
+    assert.match((run.file.errors[0] as Error | undefined)?.message ?? '', /lines 1, 2\b/)
+    assert.equal(run.modes.first, 'run')
   })
 })
 

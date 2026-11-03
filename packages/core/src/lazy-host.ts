@@ -7,7 +7,7 @@
 // 4. `run.slots` is a fresh map for every attempt (retry and repeat).
 import type { FileHandle, LazyFrame, LazyHost, SuiteHandle, TestRunHandle } from '@provino/types'
 import type { Collector } from './collector/collector.ts'
-import { walk } from './collector/finalize.ts'
+import { isOpen } from './collector/nodes.ts'
 import { currentStore } from './current/current-test.ts'
 import { CoreError } from './errors.ts'
 import type { SuiteNode } from './internal/model.ts'
@@ -26,12 +26,7 @@ export function createLazyHost(parts: HostParts): LazyHost {
   /** The suite node behind a handle: only suites of the file collecting now can take hooks. */
   const nodeOf = (handle: SuiteHandle): SuiteNode | undefined => {
     const file = collector.file
-    if (file === undefined) return undefined
-    if (file.root.handle === handle) return file.root
-    for (const node of walk(file.root)) {
-      if (node.type !== 'test' && node.handle === handle) return node
-    }
-    return undefined
+    return isOpen(file) ? file.suites.get(handle) : undefined
   }
   return {
     collecting(): SuiteHandle | undefined {
@@ -55,7 +50,7 @@ export function createLazyHost(parts: HostParts): LazyHost {
     },
     onCollected(fn: (file: FileHandle) => void): void {
       const file = collector.file
-      if (file === undefined || file.collected) {
+      if (!isOpen(file)) {
         throw new CoreError('CORE_INVALID_ARGUMENT', 'LazyHost.onCollected: no file is collecting')
       }
       file.onCollected.push(fn)

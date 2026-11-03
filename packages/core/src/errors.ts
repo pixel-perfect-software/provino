@@ -13,8 +13,10 @@ export type CoreErrorCode =
   | 'CORE_ASYNC_DESCRIBE'
   /** A `describe` callback returned a value (`collect.describeReturnValue: 'error'`). */
   | 'CORE_DESCRIBE_RETURN_VALUE'
-  /** A test declared without a function (`missingTestFn: 'throw'`). */
+  /** A test declared without a function (`missingTestFn: 'throw'`), or one that runs without one. */
   | 'CORE_MISSING_TEST_FN'
+  /** An invalid `.each` table's one failing test (`collect.eachTableError: 'failing-test'`). */
+  | 'CORE_INVALID_EACH_TABLE'
   /** `test.todo(name, fn)` where the policy forbids a body (`collect.todoWithFn: 'throw'`). */
   | 'CORE_TODO_WITH_FN'
   /** `describe`, `test` or a hook called inside a running test (`collect.nestedInTest`). */
@@ -35,7 +37,7 @@ export type CoreErrorCode =
   | 'CORE_TEST_CALLBACK_CONTEXT'
   /** An argument of the wrong shape (a non-function hook, options in the third position, …). */
   | 'CORE_INVALID_ARGUMENT'
-  /** `runFile` called while another file of the same runtime is collecting. */
+  /** `runFile` called while another file of the same runtime is collecting or running. */
   | 'CORE_BUSY'
 
 /**
@@ -79,63 +81,115 @@ export class AroundHookMultipleCallsError extends Error {
 }
 
 const MAX_DEPTH = 8
+/**
+ * The most errors one value serializes to. An error reached twice is written without its cause and
+ * errors, but a getter can hand out fresh errors on every read, which only a budget stops.
+ */
+const MAX_ERRORS = 1000
+
+/** One `serializeError` call's walk: the errors already expanded and the budget used. */
+interface Walk {
+  readonly seen: Set<object>
+  count: number
+}
 
 /**
  * Turns anything thrown into plain, clone-safe data: name, message, stack, `code`, the `cause`
- * chain and an `AggregateError`'s errors. A non-error value becomes an error whose message is its
- * string form.
+ * chain and an aggregate's errors (anything error-like with an `errors` array, so an
+ * `AggregateError` from another realm counts). A non-error value becomes an error whose message is
+ * its string form. Never throws: a field that can't be read (a throwing getter, a revoked proxy)
+ * is left out.
  * @public
  */
 export function serializeError(value: unknown): SerializedError {
-  return serialize(value, 0)
+  return serialize(value, 0, { seen: new Set(), count: 0 })
 }
 
-function serialize(value: unknown, depth: number): SerializedError {
-  if (!isErrorLike(value)) {
-    return { name: 'Error', message: describe(value) }
-  }
-  const name = typeof value.name === 'string' ? value.name : 'Error'
-  const message = typeof value.message === 'string' ? value.message : describe(value.message)
-  const stack = safeStack(value)
-  const code = (value as { code?: unknown }).code
-  const cause = (value as { cause?: unknown }).cause
-  const errors = value instanceof AggregateError ? value.errors : undefined
-  const deeper = depth < MAX_DEPTH
+function serialize(value: unknown, depth: number, walk: Walk): SerializedError {
+  walk.count++
+  if (!isErrorLike(value)) return { name: 'Error', message: describe(value) }
+  const own = ownFields(value)
+  if (depth >= MAX_DEPTH || walk.seen.has(value)) return own
+  walk.seen.add(value)
+  const cause = read(value, 'cause')
+  const errors = aggregated(value)
   return {
-    name,
-    message,
-    ...(stack === undefined ? {} : { stack }),
-    ...(typeof code === 'string' ? { code } : {}),
-    ...(cause !== undefined && deeper ? { cause: serialize(cause, depth + 1) } : {}),
-    ...(errors !== undefined && deeper
-      ? { errors: errors.map((error: unknown) => serialize(error, depth + 1)) }
-      : {}),
+    ...own,
+    ...(cause === undefined ? {} : { cause: serialize(cause, depth + 1, walk) }),
+    ...(errors === undefined ? {} : { errors: serializeAll(errors, depth + 1, walk) }),
   }
 }
 
-function isErrorLike(value: unknown): value is { name?: unknown; message?: unknown } {
-  return (
-    value instanceof Error ||
-    (typeof value === 'object' && value !== null && 'message' in value && 'stack' in value)
-  )
+function serializeAll(errors: readonly unknown[], depth: number, walk: Walk): SerializedError[] {
+  const serialized: SerializedError[] = []
+  for (const error of errors) {
+    if (walk.count >= MAX_ERRORS) break
+    serialized.push(serialize(error, depth, walk))
+  }
+  return serialized
 }
 
-function safeStack(value: object): string | undefined {
+function ownFields(value: object): SerializedError {
+  const name = read(value, 'name')
+  const message = read(value, 'message')
+  // A throwing `prepareStackTrace` makes `.stack` throw: the stack is then unknown, which is what
+  // the field's absence says.
+  const stack = read(value, 'stack')
+  const code = read(value, 'code')
+  return {
+    name: typeof name === 'string' ? name : 'Error',
+    message: typeof message === 'string' ? message : describe(message),
+    ...(typeof stack === 'string' ? { stack } : {}),
+    ...(typeof code === 'string' ? { code } : {}),
+  }
+}
+
+/**
+ * An aggregate's errors, copied into a plain array (up to the budget) so a getter or proxy is read
+ * once, and `undefined` when they can't be read.
+ */
+function aggregated(value: object): readonly unknown[] | undefined {
   try {
-    const stack = (value as { stack?: unknown }).stack
-    return typeof stack === 'string' ? stack : undefined
+    const errors = (value as { errors?: unknown }).errors
+    if (!Array.isArray(errors)) return undefined
+    const length = Math.min(errors.length, MAX_ERRORS)
+    return Array.from({ length }, (_, index): unknown => errors[index])
   } catch {
-    // A frozen prototype or a throwing `prepareStackTrace` makes `.stack` throw; the stack is
-    // then unknown, which is what the field's absence says.
     return undefined
   }
 }
 
+/** One property, or `undefined` when reading it throws (a getter, a proxy trap, a revoked proxy). */
+function read(value: object, key: string): unknown {
+  try {
+    return (value as Record<string, unknown>)[key]
+  } catch {
+    return undefined
+  }
+}
+
+function isErrorLike(value: unknown): value is object {
+  if (typeof value !== 'object' || value === null) return false
+  try {
+    return value instanceof Error || ('message' in value && 'stack' in value)
+  } catch {
+    return false
+  }
+}
+
+const FORMATS: ReadonlyArray<(value: unknown) => string> = [
+  String,
+  (value) => Object.prototype.toString.call(value),
+]
+
 function describe(value: unknown): string {
   if (typeof value === 'string') return value
-  try {
-    return String(value)
-  } catch {
-    return Object.prototype.toString.call(value)
+  for (const format of FORMATS) {
+    try {
+      return format(value)
+    } catch {
+      // `String` throws for an object with no `toString`, both for a revoked proxy.
+    }
   }
+  return `[${typeof value}]`
 }

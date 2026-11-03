@@ -7,6 +7,7 @@ import {
   createRuntime,
   currentTest,
   type HookSuite,
+  type RunFileOptions,
   type Runtime,
   type RuntimeApi,
   type RuntimeOptions,
@@ -39,6 +40,17 @@ expectTypeOf<RuntimeOptions['importFile']>().toEqualTypeOf<ImportFile>()
 createRuntime({ ...options, importFile: undefined })
 // @ts-expect-error exactOptionalPropertyTypes: `ci` is omitted, not undefined
 createRuntime({ ...options, ci: undefined })
+
+// A line filter belongs to one file, so it's a `runFile` option, not a runtime one.
+declare const runtime: Runtime
+expectTypeOf<Parameters<Runtime['runFile']>[1]>().toEqualTypeOf<RunFileOptions | undefined>()
+expectTypeOf<RunFileOptions['lines']>().toEqualTypeOf<readonly number[] | undefined>()
+void runtime.runFile('/a.test.ts', { lines: [3, 7] })
+void runtime.runFile('/a.test.ts')
+// @ts-expect-error `lines` moved to `runFile`: each file has its own
+createRuntime({ ...options, lines: [3] })
+// @ts-expect-error a line is a number
+void runtime.runFile('/a.test.ts', { lines: ['3'] })
 
 // Errors carry a stable code.
 expectTypeOf<CoreError['code']>().toEqualTypeOf<CoreErrorCode>()
@@ -99,6 +111,10 @@ test.each`
 // Describes: a body, options second, the same modifiers.
 describe('block', () => undefined)
 describe('options', { timeout: 100, concurrent: true }, () => undefined)
+// A number third is the timeout the describe's tests inherit (Vitest).
+describe('timeout', () => undefined, 100)
+// @ts-expect-error the timeout is a number of ms
+describe('bad timeout', () => undefined, '100')
 describe.each([['x']] as const)('each %s', (x) => {
   expectTypeOf(x).toEqualTypeOf<'x'>()
 })
@@ -113,8 +129,10 @@ beforeEach((ctx, suite) => {
   expectTypeOf(ctx).toEqualTypeOf<TestContext>()
   expectTypeOf(suite).toEqualTypeOf<HookSuite>()
 })
-aroundEach(async (runTest) => {
+aroundEach(async (runTest, ctx, suite) => {
   expectTypeOf(runTest).toEqualTypeOf<() => Promise<void>>()
+  expectTypeOf(ctx).toEqualTypeOf<TestContext>()
+  expectTypeOf(suite).toEqualTypeOf<HookSuite>()
   await runTest()
 })
 onTestFinished((ctx) => {

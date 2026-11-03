@@ -4,21 +4,25 @@ import type { TestContext, TestTask } from '@provino/types'
 import { CoreError } from '../errors.ts'
 import type { AttemptState, UserFn } from '../internal/model.ts'
 
-/** A context for one test attempt. `attempt` is filled in before the test runs. */
+const skip = (): never => {
+  throw new CoreError('CORE_NOT_IMPLEMENTED', '`ctx.skip` arrives with T5.8')
+}
+
+const annotate = (): Promise<void> =>
+  Promise.reject(new CoreError('CORE_NOT_IMPLEMENTED', '`ctx.annotate` arrives with T5.8'))
+
+/**
+ * A context for one test attempt. `attempt` returns the attempt the context belongs to; it is
+ * called only once the test runs, so the attempt can hold the context it is built with.
+ */
 export function createTestContext(task: TestTask, attempt: () => AttemptState): TestContext {
   const context: TestContext = {
     task,
     get signal(): AbortSignal {
       return attempt().controller.signal
     },
-    skip(): never {
-      throw new CoreError('CORE_NOT_IMPLEMENTED', '`ctx.skip` arrives with T5.8')
-    },
-    annotate(): Promise<void> {
-      return Promise.reject(
-        new CoreError('CORE_NOT_IMPLEMENTED', '`ctx.annotate` arrives with T5.8'),
-      )
-    },
+    skip,
+    annotate,
     onTestFinished(fn: (ctx: TestContext) => void | Promise<void>, timeoutMs?: number): void {
       addCallback(attempt(), 'onTestFinished', fn, timeoutMs)
     },

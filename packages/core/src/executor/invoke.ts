@@ -4,6 +4,7 @@
 import type { CorePolicy } from '@provino/types'
 import { CoreError } from '../errors.ts'
 import type { UserFn } from '../internal/model.ts'
+import { isThenable } from '../internal/thenable.ts'
 
 /** How a user function is called. */
 export interface Invocation {
@@ -18,7 +19,7 @@ export interface Invocation {
 }
 
 /** Whether the policy gives this function a `done` callback. */
-export function takesDone(policy: CorePolicy, fn: UserFn, argCount: number): boolean {
+function takesDone(policy: CorePolicy, fn: UserFn, argCount: number): boolean {
   return policy.firstArg === 'done-if-arity' && !isGenerator(fn) && fn.length > argCount
 }
 
@@ -47,29 +48,45 @@ export function invoke(policy: CorePolicy, call: Invocation): unknown {
 function invokeWithDone(call: Invocation): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     let called = false
+    let returnedThenable = false
+    const settle = (reason: unknown): void => {
+      if (reason === undefined || reason === null) resolve()
+      else reject(reason instanceof Error ? reason : new Error(`Failed: ${describe(reason)}`))
+    }
     const done = (reason?: unknown): void => {
       if (called) {
         reject(new CoreError('CORE_INVALID_ARGUMENT', '`done` was called more than once'))
         return
       }
       called = true
-      if (reason === undefined || reason === null) resolve()
-      else reject(reason instanceof Error ? reason : new Error(`Failed: ${describe(reason)}`))
+      // Wait until the function has returned: one that also returned a promise fails for that,
+      // even when it called `done` first (as jest-circus does).
+      queueMicrotask(() => {
+        if (!returnedThenable) settle(reason)
+      })
     }
     try {
       const result = Reflect.apply(call.fn, call.thisArg, [...call.args, done])
       if (isThenable(result)) {
-        reject(
-          new CoreError(
-            'CORE_INVALID_ARGUMENT',
-            'A function cannot both take a `done` callback and return a promise',
-          ),
-        )
+        returnedThenable = true
+        rejectAfter(result, reject)
       }
     } catch (error) {
       reject(error)
     }
   })
+}
+
+/**
+ * Fails a function that took `done` and returned a promise, once that promise settles: observing
+ * it keeps its rejection from going unhandled, and the rejection becomes the `cause`.
+ */
+function rejectAfter(returned: PromiseLike<unknown>, reject: (error: unknown) => void): void {
+  const message = 'A function cannot both take a `done` callback and return a promise'
+  Promise.resolve(returned).then(
+    () => reject(new CoreError('CORE_INVALID_ARGUMENT', message)),
+    (error: unknown) => reject(new CoreError('CORE_INVALID_ARGUMENT', message, { cause: error })),
+  )
 }
 
 function isGenerator(fn: UserFn): boolean {
@@ -89,15 +106,6 @@ async function drive(generator: Generator | AsyncGenerator): Promise<unknown> {
     }
   }
   return step.value
-}
-
-/** Whether a value is a thenable. */
-export function isThenable(value: unknown): value is PromiseLike<unknown> {
-  return (
-    (typeof value === 'object' || typeof value === 'function') &&
-    value !== null &&
-    typeof (value as { then?: unknown }).then === 'function'
-  )
 }
 
 function describe(value: unknown): string {

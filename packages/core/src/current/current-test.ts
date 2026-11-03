@@ -20,9 +20,25 @@ export function currentStore(): Store | undefined {
   return storage.getStore()
 }
 
-/** A store that only carries a `Frame` (what external callers of `currentTest.run` give). */
-function frameStore(frame: Frame): Store {
-  return { frame, lazy: undefined, collecting: undefined, attempt: undefined, hook: undefined }
+/** A store with `fields` set and every other field `undefined`. */
+export function newStore(fields: Partial<Store>): Store {
+  return {
+    frame: fields.frame,
+    lazy: fields.lazy,
+    collecting: fields.collecting,
+    attempt: fields.attempt,
+    hook: fields.hook,
+  }
+}
+
+const EMPTY_STORE: Store = newStore({})
+
+/**
+ * The current store with only its `Frame` replaced (what `currentTest.run` gives): the attempt,
+ * hook and lazy frame of the code calling it carry on.
+ */
+function withFrame(frame: Frame): Store {
+  return { ...(storage.getStore() ?? EMPTY_STORE), frame }
 }
 
 let running: Frame | undefined
@@ -55,7 +71,7 @@ export interface CurrentTestService extends CurrentTest {
  */
 export const currentTest: CurrentTestService = {
   run<R>(frame: Frame, fn: () => R): R {
-    return storage.run(frameStore(frame), fn)
+    return storage.run(withFrame(frame), fn)
   },
   get(): Frame | undefined {
     return storage.getStore()?.frame

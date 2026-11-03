@@ -2,6 +2,8 @@
 // classes carry stable names and codes.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
+import { runInNewContext } from 'node:vm'
+import type { SerializedError } from '@provino/types'
 import {
   AroundHookMultipleCallsError,
   AroundHookSetupError,
@@ -98,6 +100,89 @@ describe('serializeError of an AggregateError', () => {
     const error = new AggregateError([new Error('a', { cause: 'x' })], 'many', { cause: 'y' })
     const serialized = serializeError(error)
     assert.deepEqual(structuredClone(serialized), serialized)
+  })
+
+  test('an AggregateError from another realm keeps its errors', () => {
+    const foreign: unknown = runInNewContext('new AggregateError([new Error("a")], "many")')
+    assert.equal(foreign instanceof AggregateError, false)
+    assert.deepEqual(
+      serializeError(foreign).errors?.map((inner) => inner.message),
+      ['a'],
+    )
+  })
+
+  test('an aggregate that holds itself is expanded once, not once per path', () => {
+    const error = new AggregateError([], 'self')
+    for (let index = 0; index < 4; index++) error.errors.push(error)
+    const serialized = serializeError(error)
+    assert.equal(countErrors(serialized), 5)
+    assert.equal(serialized.errors?.[0]?.message, 'self')
+  })
+
+  test('an aggregate whose errors getter makes new ones on every read stops at a budget', () => {
+    const fresh = (): AggregateError => {
+      const error = new AggregateError([], 'fresh')
+      Object.defineProperty(error, 'errors', { get: () => [fresh(), fresh(), fresh(), fresh()] })
+      return error
+    }
+    const count = countErrors(serializeError(fresh()))
+    assert.ok(count > 1 && count <= 1000, `serialized ${count} errors`)
+  })
+})
+
+/** How many errors a serialized tree holds, causes and aggregated errors included. */
+function countErrors(error: SerializedError): number {
+  let count = 1
+  if (error.cause !== undefined) count += countErrors(error.cause)
+  for (const inner of error.errors ?? []) count += countErrors(inner)
+  return count
+}
+
+describe('serializeError never throws', () => {
+  test('for an error whose name and message getters throw', () => {
+    const error = new Error('x')
+    for (const key of ['name', 'message', 'code', 'cause', 'errors']) {
+      Object.defineProperty(error, key, {
+        get() {
+          throw new Error(`no ${key}`)
+        },
+      })
+    }
+    const serialized = serializeError(error)
+    assert.equal(serialized.name, 'Error')
+    assert.equal(typeof serialized.message, 'string')
+  })
+
+  test('for a revoked proxy', () => {
+    const { proxy, revoke } = Proxy.revocable(new Error('x'), {})
+    revoke()
+    assert.equal(serializeError(proxy).name, 'Error')
+  })
+
+  test('for a proxy whose every trap throws', () => {
+    const fail = (): never => {
+      throw new Error('trap')
+    }
+    const hostile = new Proxy(new Error('x'), {
+      get: fail,
+      has: fail,
+      getPrototypeOf: fail,
+      ownKeys: fail,
+      getOwnPropertyDescriptor: fail,
+    })
+    assert.equal(serializeError(hostile).name, 'Error')
+  })
+
+  test('for an aggregate whose errors are a proxy that throws on read', () => {
+    const error = new AggregateError([], 'many')
+    Object.defineProperty(error, 'errors', {
+      value: new Proxy([1, 2], {
+        get() {
+          throw new Error('trap')
+        },
+      }),
+    })
+    assert.equal(serializeError(error).message, 'many')
   })
 })
 

@@ -11,7 +11,7 @@ export type {
   TestApi,
   TestFunction,
 } from './collector/api.ts'
-export type { SuiteOptions, TestOptions } from './collector/collector.ts'
+export type { CommonOptions, SuiteOptions, TestOptions } from './collector/collector.ts'
 export { type CurrentTestService, currentTest } from './current/current-test.ts'
 export {
   AroundHookMultipleCallsError,
@@ -22,4 +22,9 @@ export {
   serializeError,
 } from './errors.ts'
 export type { RealTimers } from './executor/deadline.ts'
-export { createRuntime, type Runtime, type RuntimeOptions } from './runtime.ts'
+export {
+  createRuntime,
+  type RunFileOptions,
+  type Runtime,
+  type RuntimeOptions,
+} from './runtime.ts'

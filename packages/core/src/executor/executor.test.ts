@@ -585,6 +585,136 @@ describe('hooks.skippedBlock', () => {
   })
 })
 
+describe('status.expectFail', () => {
+  const throws = (message: string) => (): never => {
+    throw new Error(message)
+  }
+
+  for (const expectFail of ['body', 'attempt'] as const) {
+    test(`${expectFail}: a .fails test whose body throws passes, with no errors`, async () => {
+      const run = await runScript(
+        ({ test }) => {
+          test.fails('t', throws('body failed'))
+        },
+        { status: { expectFail } },
+      )
+      assert.equal(run.states.t, 'pass')
+      assert.deepEqual(run.errors.t, [])
+    })
+
+    test(`${expectFail}: a .fails test whose hooks and body all pass fails with CORE_EXPECTED_FAILURE`, async () => {
+      const run = await runScript(
+        ({ test, afterEach }) => {
+          afterEach(() => {})
+          test.fails('t', () => {})
+        },
+        { status: { expectFail } },
+      )
+      assert.equal(run.states.t, 'fail')
+      assert.equal(run.results.t?.errors[0]?.code, 'CORE_EXPECTED_FAILURE')
+    })
+  }
+
+  test('body: an afterEach error still fails a .fails test whose body passed, the body reversed', async () => {
+    const run = await runScript(
+      ({ test, afterEach }) => {
+        afterEach(throws('afterEach failed'))
+        test.fails('t', () => {})
+      },
+      { status: { expectFail: 'body' } },
+    )
+    assert.deepEqual(
+      run.results.t?.errors.map((error) => error.code ?? error.message),
+      ['CORE_EXPECTED_FAILURE', 'afterEach failed'],
+    )
+  })
+
+  test('attempt: an afterEach error alone makes a .fails test pass', async () => {
+    const run = await runScript(
+      ({ test, afterEach }) => {
+        afterEach(throws('afterEach failed'))
+        test.fails('t', () => {})
+      },
+      { status: { expectFail: 'attempt' } },
+    )
+    assert.equal(run.states.t, 'pass')
+  })
+
+  test('attempt: an error after the aroundEach ran the test counts too', async () => {
+    const run = await runScript(
+      ({ test, aroundEach }) => {
+        aroundEach(async (runTest) => {
+          await runTest()
+          throw new Error('around teardown failed')
+        })
+        test.fails('t', () => {})
+      },
+      { status: { expectFail: 'attempt' } },
+    )
+    assert.equal(run.states.t, 'pass')
+  })
+
+  test('attempt: onTestFailed runs from the real result, when the body threw, and the test passes', async () => {
+    const run = await runScript(
+      ({ test, onTestFailed }, step) => {
+        test.fails('t', () => {
+          onTestFailed(() => step('onTestFailed'))
+          throw new Error('body failed')
+        })
+      },
+      { status: { expectFail: 'attempt' } },
+    )
+    assert.deepEqual(run.trace, ['onTestFailed'])
+    assert.equal(run.states.t, 'pass')
+  })
+
+  test('attempt: onTestFailed is skipped when the body passed, and the test fails', async () => {
+    const run = await runScript(
+      ({ test, onTestFailed }, step) => {
+        test.fails('t', () => {
+          onTestFailed(() => step('onTestFailed'))
+        })
+      },
+      { status: { expectFail: 'attempt' } },
+    )
+    assert.deepEqual(run.trace, [])
+    assert.equal(run.results.t?.errors[0]?.code, 'CORE_EXPECTED_FAILURE')
+  })
+})
+
+describe('a blocked suite', () => {
+  test('skips what is inside it, a blocked .only test inside keeping its own error', async () => {
+    const run = await runScript(
+      ({ describe, test }) => {
+        describe.only('focused', () => {
+          test('sibling', () => {})
+          test.only('inner', () => {})
+        })
+      },
+      { allowOnly: 'not-in-ci' },
+      { ci: true },
+    )
+    assert.equal(run.states['focused > inner'], 'skip')
+    assert.deepEqual(
+      run.results['focused > inner']?.errors.map((error) => error.code),
+      ['CORE_ONLY_NOT_ALLOWED'],
+    )
+    assert.deepEqual(run.results['focused > sibling']?.errors, [])
+  })
+})
+
+describe('a test with no function', () => {
+  test('one that runs (a .only kept without a body) fails with CORE_MISSING_TEST_FN, after its beforeEach', async () => {
+    const run = await runScript(({ test, beforeEach }, step) => {
+      beforeEach(() => step('beforeEach'))
+      test.only('no body')
+    })
+    assert.equal(run.states['no body'], 'fail')
+    assert.equal(run.results['no body']?.errors[0]?.code, 'CORE_MISSING_TEST_FN')
+    assert.deepEqual(run.trace, ['beforeEach'])
+  })
+})
+
 describe('the event protocol', () => {
   test('one test with hooks emits start and end events in a fixed order, hooks inside the attempt', async () => {
     const run = await runScript(

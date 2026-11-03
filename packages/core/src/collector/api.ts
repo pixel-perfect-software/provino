@@ -1,19 +1,20 @@
 // The global API the dialects re-export (Track 5 §Module boundaries → `index.ts`): chainable
 // `describe`/`test` with `only`/`skip`/`todo`/`concurrent`/`fails`/`failing`, `skipIf`/`runIf`,
 // `.each`/`.for`, and the hooks. Neutral names only; Jest's `fit`/`xit` aliases are dialect code.
-import type { EachRowArgs, FileTask, FormatEachTitle, SuiteTask, TestContext } from '@provino/types'
+import type { EachRowArgs, FileTask, SuiteTask, TestContext } from '@provino/types'
 import { currentStore } from '../current/current-test.ts'
 import { CoreError } from '../errors.ts'
 import { addCallback } from '../executor/context.ts'
+import type { DeclaredHookKind } from '../internal/model.ts'
 import {
-  type AnyFunction,
   type Collector,
-  expandRows,
+  type EachTable,
   type Flags,
   formatName,
   type SuiteOptions,
   type TestOptions,
 } from './collector.ts'
+import type { StackMarker } from './location.ts'
 
 /**
  * A test body. Under `firstArg: 'context'` it receives the test context; the Jest dialect types
@@ -36,12 +37,16 @@ export interface EachFunction<Register> {
         fn: (row: Readonly<Record<string, unknown>>) => unknown,
         timeoutMs?: number,
       ) => void
-    : (name: string, body: (row: Readonly<Record<string, unknown>>) => unknown) => void
+    : (
+        name: string,
+        body: (row: Readonly<Record<string, unknown>>) => unknown,
+        timeoutMs?: number,
+      ) => void
   <const Row>(
     rows: readonly Row[],
   ): Register extends 'test'
     ? (name: string, fn: (...args: EachRowArgs<Row>) => unknown, timeoutMs?: number) => void
-    : (name: string, body: (...args: EachRowArgs<Row>) => unknown) => void
+    : (name: string, body: (...args: EachRowArgs<Row>) => unknown, timeoutMs?: number) => void
 }
 
 /**
@@ -59,8 +64,8 @@ export type ForFunction<Register> = <const Row>(
  * @public
  */
 export interface TestApi {
-  (name: string | AnyFunction, fn?: TestFunction, timeoutMs?: number): void
-  (name: string | AnyFunction, options: TestOptions, fn?: TestFunction): void
+  (name: string | StackMarker, fn?: TestFunction, timeoutMs?: number): void
+  (name: string | StackMarker, options: TestOptions, fn?: TestFunction): void
   readonly only: TestApi
   readonly skip: TestApi
   readonly todo: TestApi
@@ -82,12 +87,13 @@ export interface TestApi {
 export type SuiteBody = () => unknown
 
 /**
- * `describe`/`suite`: declares a block. Chain modifiers, or pass options second.
+ * `describe`/`suite`: declares a block. Chain modifiers, or pass options second. A timeout third
+ * is `{ timeout }`: the block's tests inherit it.
  * @public
  */
 export interface SuiteApi {
-  (name: string | AnyFunction, body?: SuiteBody): void
-  (name: string | AnyFunction, options: SuiteOptions, body?: SuiteBody): void
+  (name: string | StackMarker, body?: SuiteBody, timeoutMs?: number): void
+  (name: string | StackMarker, options: SuiteOptions, body?: SuiteBody): void
   readonly only: SuiteApi
   readonly skip: SuiteApi
   readonly todo: SuiteApi
@@ -118,9 +124,9 @@ export interface RuntimeApi {
   afterAll(fn: (suite: HookSuite) => unknown, timeoutMs?: number): void
   beforeEach(fn: (context: TestContext, suite: HookSuite) => unknown, timeoutMs?: number): void
   afterEach(fn: (context: TestContext, suite: HookSuite) => unknown, timeoutMs?: number): void
-  /** Wraps each test's hooks and body; call `runTest` exactly once. */
+  /** Wraps each test's hooks and body; call `runTest` exactly once. `suite` is the test's innermost. */
   aroundEach(
-    fn: (runTest: () => Promise<void>, context: TestContext) => unknown,
+    fn: (runTest: () => Promise<void>, context: TestContext, suite: HookSuite) => unknown,
     timeoutMs?: number,
   ): void
   /** Wraps a suite's hooks and tests; call `runSuite` exactly once. */
@@ -153,13 +159,18 @@ function parseArguments(second: unknown, third: unknown): Args {
   return { options: {}, fn: second, timeout: typeof third === 'number' ? third : undefined }
 }
 
+/** A describe's arguments: a number in the third position is `{ timeout }`, which its tests inherit (Vitest). */
+function suiteArguments(second: unknown, third: unknown): { options: SuiteOptions; body: unknown } {
+  const { options, fn, timeout } = parseArguments(second, third)
+  const suiteOptions = options as SuiteOptions
+  return { options: timeout === undefined ? suiteOptions : { ...suiteOptions, timeout }, body: fn }
+}
+
 /** Builds the global API over a collector. */
-export function createApi(collector: Collector, formatEachTitle: FormatEachTitle): RuntimeApi {
-  const test = makeTest(collector, formatEachTitle, {})
-  const describe = makeSuite(collector, formatEachTitle, {})
-  const hook = (
-    kind: 'beforeAll' | 'afterAll' | 'beforeEach' | 'afterEach' | 'aroundEach' | 'aroundAll',
-  ) =>
+export function createApi(collector: Collector): RuntimeApi {
+  const test = makeTest(collector, {})
+  const describe = makeSuite(collector, {})
+  const hook = (kind: DeclaredHookKind) =>
     function register(fn: unknown, timeoutMs?: number): void {
       collector.addHook(kind, fn, timeoutMs, register)
     }
@@ -186,120 +197,89 @@ export function createApi(collector: Collector, formatEachTitle: FormatEachTitle
 const TEST_MODIFIERS = ['only', 'skip', 'todo', 'concurrent', 'fails', 'failing'] as const
 const SUITE_MODIFIERS = ['only', 'skip', 'todo', 'concurrent'] as const
 
-function flagFor(modifier: (typeof TEST_MODIFIERS)[number]): Flags {
+type Modifier = (typeof TEST_MODIFIERS)[number]
+
+function flagFor(modifier: Modifier): Flags {
   return modifier === 'failing' ? { fails: true } : { [modifier]: true }
 }
 
-function makeTest(collector: Collector, format: FormatEachTitle, flags: Flags): TestApi {
-  const register = function test(name: unknown, second?: unknown, third?: unknown): void {
+function makeTest(collector: Collector, flags: Flags): TestApi {
+  const spec = (name: unknown, second: unknown, third: unknown, entry: StackMarker) => {
     const { options, fn, timeout } = parseArguments(second, third)
-    collector.addTest({
-      name: formatName(name),
-      fn,
-      options: options as TestOptions,
-      flags,
-      timeout,
-      entry: register,
-    })
+    return { name: formatName(name), fn, options: options as TestOptions, flags, timeout, entry }
   }
-  const each = (mode: 'each' | 'for') =>
-    function rows(cases: unknown, ...values: readonly unknown[]) {
-      const perRow = function each(name: unknown, second?: unknown, third?: unknown): void {
-        const { options, fn, timeout } = parseArguments(second, third)
-        for (const row of expandRows(format, cases, values, formatName(name), mode)) {
-          collector.addTest({
-            name: row.title,
-            fn,
-            options: options as TestOptions,
-            flags,
-            timeout,
-            entry: perRow,
-            each: { args: row.args, passContext: mode === 'for' },
-          })
-        }
-      }
-      return perRow
-    }
-  return chainable(register, TEST_MODIFIERS, (modifier) =>
-    makeTest(collector, format, { ...flags, ...flagFor(modifier) }),
-  )({
-    skipIf: (condition: unknown) =>
-      condition
-        ? makeTest(collector, format, { ...flags, conditionSkip: true })
-        : makeTest(collector, format, flags),
-    runIf: (condition: unknown) =>
-      condition
-        ? makeTest(collector, format, flags)
-        : makeTest(collector, format, { ...flags, conditionSkip: true }),
-    each: each('each'),
-    for: each('for'),
-  }) as TestApi
+  const register = function test(name: unknown, second?: unknown, third?: unknown): void {
+    collector.addTest(spec(name, second, third, register))
+  }
+  return chainable<TestApi>(
+    register,
+    TEST_MODIFIERS,
+    flags,
+    (next) => makeTest(collector, next),
+    (table, name, second, third, entry) =>
+      collector.addTestTable(spec(name, second, third, entry), table),
+  )
 }
 
-function makeSuite(collector: Collector, format: FormatEachTitle, flags: Flags): SuiteApi {
-  const register = function describe(name: unknown, second?: unknown, third?: unknown): void {
-    const { options, fn } = parseArguments(second, third)
-    collector.addSuite({
-      name: formatName(name),
-      body: fn,
-      options: options as SuiteOptions,
-      flags,
-      entry: register,
-    })
+function makeSuite(collector: Collector, flags: Flags): SuiteApi {
+  const spec = (name: unknown, second: unknown, third: unknown, entry: StackMarker) => {
+    const { options, body } = suiteArguments(second, third)
+    return { name: formatName(name), body, options, flags, entry }
   }
-  const each = (mode: 'each' | 'for') =>
-    function rows(cases: unknown, ...values: readonly unknown[]) {
-      const perRow = function each(name: unknown, second?: unknown, third?: unknown): void {
-        const { options, fn } = parseArguments(second, third)
-        for (const row of expandRows(format, cases, values, formatName(name), mode)) {
-          collector.addSuite({
-            name: row.title,
-            body: fn,
-            options: options as SuiteOptions,
-            flags,
-            entry: perRow,
-            each: { args: row.args },
-          })
-        }
-      }
-      return perRow
-    }
-  return chainable(register, SUITE_MODIFIERS, (modifier) =>
-    makeSuite(collector, format, { ...flags, [modifier]: true }),
-  )({
-    skipIf: (condition: unknown) =>
-      condition
-        ? makeSuite(collector, format, { ...flags, conditionSkip: true })
-        : makeSuite(collector, format, flags),
-    runIf: (condition: unknown) =>
-      condition
-        ? makeSuite(collector, format, flags)
-        : makeSuite(collector, format, { ...flags, conditionSkip: true }),
-    each: each('each'),
-    for: each('for'),
-  }) as SuiteApi
+  const register = function describe(name: unknown, second?: unknown, third?: unknown): void {
+    collector.addSuite(spec(name, second, third, register))
+  }
+  return chainable<SuiteApi>(
+    register,
+    SUITE_MODIFIERS,
+    flags,
+    (next) => makeSuite(collector, next),
+    (table, name, second, third, entry) =>
+      collector.addSuiteTable(spec(name, second, third, entry), table),
+  )
 }
 
 /**
- * Makes `register` chainable: each modifier is a lazy getter returning the API with that flag
- * set (built on first use, then cached), and `methods` are attached as they are.
+ * Makes `register` the chainable API: each modifier is a lazy getter returning the API with that
+ * flag added (built on first use, then cached); `skipIf`/`runIf` add `conditionSkip` when the
+ * condition says so; `each`/`for` return a function that registers one table (`addTable`).
  */
-function chainable<Modifier extends string, Api>(
-  register: AnyFunction,
+function chainable<Api>(
+  register: StackMarker,
   modifiers: readonly Modifier[],
-  next: (modifier: Modifier) => Api,
-): (methods: Record<string, unknown>) => AnyFunction {
-  return (methods) => {
-    for (const modifier of modifiers) {
-      let cached: Api | undefined
-      Object.defineProperty(register, modifier, {
-        enumerable: true,
-        get(): Api {
-          cached ??= next(modifier)
-          return cached
-        },
-      })
-    }
-    return Object.assign(register, methods)
+  flags: Flags,
+  make: (flags: Flags) => Api,
+  addTable: (
+    table: EachTable,
+    name: unknown,
+    second: unknown,
+    third: unknown,
+    entry: StackMarker,
+  ) => void,
+): Api {
+  for (const modifier of modifiers) {
+    let cached: Api | undefined
+    Object.defineProperty(register, modifier, {
+      enumerable: true,
+      get(): Api {
+        cached ??= make({ ...flags, ...flagFor(modifier) })
+        return cached
+      },
+    })
   }
+  const skipIf = (condition: unknown): Api =>
+    make(condition ? { ...flags, conditionSkip: true } : flags)
+  const rows = (mode: 'each' | 'for') =>
+    function rows(cases: unknown, ...values: readonly unknown[]) {
+      const perRow = function each(name: unknown, second?: unknown, third?: unknown): void {
+        addTable({ cases, values, mode }, name, second, third, perRow)
+      }
+      return perRow
+    }
+  return Object.assign(register, {
+    skipIf,
+    runIf: (condition: unknown): Api => skipIf(!condition),
+    each: rows('each'),
+    for: rows('for'),
+  }) as Api
 }

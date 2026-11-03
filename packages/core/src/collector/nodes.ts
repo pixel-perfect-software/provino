@@ -1,7 +1,7 @@
 // Constructors for the collector's suite nodes and file state, with the handles `LazyHost`
-// exposes (Track 6: slots per suite, teardowns and a signal per file).
+// exposes (Track 6: slots per suite, teardowns and a signal per file), and the tree helpers.
 import type { FileHandle, RunMode, SuiteHandle, TaskId } from '@provino/types'
-import type { FileState, InheritedOptions, SuiteNode, UserFn } from '../internal/model.ts'
+import type { FileState, InheritedOptions, SuiteNode, TestNode, UserFn } from '../internal/model.ts'
 import type { Site } from './location.ts'
 
 interface SuiteInit {
@@ -19,7 +19,7 @@ interface SuiteInit {
   readonly bodyArgs: readonly unknown[]
 }
 
-/** A new suite node and its `SuiteHandle`. */
+/** A new suite node and its `SuiteHandle`, registered in its file's `suites`. */
 export function newSuiteNode(init: SuiteInit): SuiteNode {
   const handle: SuiteHandle = {
     name: init.name,
@@ -27,7 +27,7 @@ export function newSuiteNode(init: SuiteInit): SuiteNode {
     file: init.file.handle,
     slots: new Map(),
   }
-  return {
+  const node: SuiteNode = {
     type: init.type,
     name: init.name,
     parent: init.parent,
@@ -35,7 +35,11 @@ export function newSuiteNode(init: SuiteInit): SuiteNode {
     site: init.site,
     declared: init.declared,
     mode: init.declared ?? 'run',
-    skipReason: init.conditionSkip ? 'condition' : undefined,
+    skipReason: init.conditionSkip
+      ? 'condition'
+      : init.declared === 'skip'
+        ? 'modifier'
+        : undefined,
     id: '' as TaskId,
     each: init.each,
     children: [],
@@ -53,22 +57,20 @@ export function newSuiteNode(init: SuiteInit): SuiteNode {
     body: init.body,
     bodyArgs: init.bodyArgs,
     handle,
+    task: undefined,
   }
+  init.file.suites.set(handle, node)
+  return node
 }
 
 /** A new file with its root suite. */
 export function newFileState(path: string, relativePath: string, signal: AbortSignal): FileState {
-  // The file, its root suite and their handles refer to each other: the getters close over
-  // `root`, which is assigned before anything can read them.
-  let root: SuiteNode | undefined
-  const rootNode = (): SuiteNode => {
-    if (root === undefined) throw new Error('unreachable: the root suite is read before it exists')
-    return root
-  }
+  // The file, its root suite and their handles refer to each other. The getters read `root`, which
+  // is assigned before anything calls them (`newSuiteNode` reads neither).
   const handle: FileHandle = {
     name: relativePath,
     get root(): SuiteHandle {
-      return rootNode().handle
+      return root.handle
     },
     slots: new Map(),
     teardowns: [],
@@ -78,14 +80,15 @@ export function newFileState(path: string, relativePath: string, signal: AbortSi
     path,
     relativePath,
     get root(): SuiteNode {
-      return rootNode()
+      return root
     },
     handle,
     errors: [],
     collected: false,
     onCollected: [],
+    suites: new WeakMap(),
   }
-  root = newSuiteNode({
+  const root = newSuiteNode({
     type: 'file',
     name: relativePath,
     parent: null,
@@ -100,4 +103,22 @@ export function newFileState(path: string, relativePath: string, signal: AbortSi
     bodyArgs: [],
   })
   return file
+}
+
+/** Whether a file is still collecting: registrations go into it, and `LazyHost` may change it. */
+export function isOpen(file: FileState | undefined): file is FileState {
+  return file !== undefined && !file.collected
+}
+
+/** Every node below `suite` in one list, depth first, parents before children. */
+export function walk(suite: SuiteNode): Array<SuiteNode | TestNode> {
+  const nodes: Array<SuiteNode | TestNode> = []
+  const visit = (parent: SuiteNode): void => {
+    for (const child of parent.children) {
+      nodes.push(child)
+      if (child.type !== 'test') visit(child)
+    }
+  }
+  visit(suite)
+  return nodes
 }

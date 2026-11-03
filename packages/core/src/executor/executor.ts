@@ -5,29 +5,28 @@
 //
 // One test attempt, in order: `aroundEach` (outer → inner) wraps `beforeEach` (parent → child),
 // the body, `afterEach` (child → parent), the teardowns `beforeEach` returned, `LazyHost`
-// teardowns (last first), `onTestFinished` (last first), then `onTestFailed` if it failed.
+// teardowns (last first), `onTestFinished` (last first), then `onTestFailed` if it failed. After
+// the around chain: the `LazyHost` teardowns the around hooks added, then, under
+// `status.expectFail: 'attempt'`, the reversal of a `.fails` test's result.
 import type {
   CorePolicy,
   EventSink,
   FileTask,
   Frame,
   HookKind,
-  LazyFrame,
   OrderHooks,
   RuntimeEvent,
   RuntimeHookKind,
   SkipReason,
+  SourceLocation,
   SuiteTask,
   TaskId,
-  TaskInfo,
-  TaskNode,
   TaskResult,
   TaskState,
   TestRunHandle,
   TestTask,
 } from '@provino/types'
-import { parseSite } from '../collector/location.ts'
-import { runInStore, setRunningFrame } from '../current/current-test.ts'
+import { newStore, runInStore, setRunningFrame } from '../current/current-test.ts'
 import { CoreError, serializeError } from '../errors.ts'
 import type {
   AttemptState,
@@ -35,12 +34,13 @@ import type {
   HookNode,
   Store,
   SuiteNode,
+  TestCallback,
   TestNode,
   UserFn,
 } from '../internal/model.ts'
 import { type AroundCall, runAround } from './around.ts'
 import { createTestContext } from './context.ts'
-import { type RealTimers, withDeadline } from './deadline.ts'
+import { type Deadlines, isBounded, type RealTimers, resolveTimeout } from './deadline.ts'
 import { invoke } from './invoke.ts'
 import { createLimiter, type Limiter, unlimited } from './limiter.ts'
 
@@ -49,6 +49,9 @@ export interface ExecutorConfig {
   readonly policy: CorePolicy
   readonly orderHooks: OrderHooks | undefined
   readonly sink: EventSink
+  /** Every user call's deadline. */
+  readonly deadlines: Deadlines
+  /** The timers the around hooks' phases use. */
   readonly timers: RealTimers
   readonly now: () => number
   /** Each test context's run, for `LazyHost.runOf`. */
@@ -62,7 +65,6 @@ export type Outcome = 'pass' | 'fail' | 'skip' | 'todo'
 interface FileRun {
   readonly file: FileState
   readonly fileId: TaskId
-  readonly tasks: ReadonlyMap<string, TaskNode>
 }
 
 /** What a suite passes to its children. */
@@ -84,30 +86,62 @@ interface Teardown {
 
 type Group = { readonly concurrent: boolean; readonly nodes: ReadonlyArray<SuiteNode | TestNode> }
 
+/** How a user call ended. */
+type CallResult =
+  | { readonly ok: true; readonly value: unknown }
+  | { readonly ok: false; readonly error: unknown }
+
+const PASSED: CallResult = { ok: true, value: undefined }
+
+/** One hook-like call, as its store and its `hook-start`/`hook-end` events describe it. */
+interface HookCall {
+  readonly kind: RuntimeHookKind
+  readonly owner: SuiteNode
+  readonly ordinal: number
+  readonly location: SourceLocation | null
+  /** The test attempt it belongs to; `undefined` for a suite hook. */
+  readonly attempt: AttemptState | undefined
+}
+
+/** The each-hooks every attempt of a test in one suite meets. Fixed once the file is collected. */
+interface EachHooks {
+  /** The levels with `beforeEach` hooks, from the file root down. */
+  readonly beforeEach: readonly SuiteNode[]
+  /** The levels with `afterEach` hooks, from the innermost suite up. */
+  readonly afterEach: readonly SuiteNode[]
+  /** Every level's `aroundEach` hooks, outermost first. */
+  readonly aroundEach: readonly HookNode[]
+}
+
+const NO_EACH_HOOKS: EachHooks = { beforeEach: [], afterEach: [], aroundEach: [] }
+
 /** Runs collected files. One per runtime. */
 export class Executor {
   readonly #config: ExecutorConfig
   readonly #policy: CorePolicy
+  readonly #deadlines: Deadlines
   /** `concurrency.limitHooks`: hooks and bodies share one `maxConcurrency` limit. */
   readonly #calls: Limiter
   /** With `limitHooks`, tests across groups share one `maxConcurrency` limit too (Vitest). */
   readonly #tests: Limiter
+  /** Each suite's `EachHooks`, built for its first test. */
+  readonly #eachHooks: WeakMap<SuiteNode, EachHooks> = new WeakMap()
 
   constructor(config: ExecutorConfig) {
     this.#config = config
     this.#policy = config.policy
+    this.#deadlines = config.deadlines
     const shared = config.policy.concurrency.limitHooks
     this.#calls = shared ? createLimiter(config.policy.maxConcurrency) : unlimited
     this.#tests = shared ? createLimiter(config.policy.maxConcurrency) : unlimited
   }
 
-  /** Runs a collected file. File-level errors land in `file.errors`; the root's outcome is returned. */
-  async runFile(file: FileState, tasks: readonly TaskNode[]): Promise<Outcome> {
-    const run: FileRun = {
-      file,
-      fileId: file.root.id,
-      tasks: new Map(tasks.map((task) => [task.id, task])),
-    }
+  /**
+   * Runs a collected (finalized) file. File-level errors land in `file.errors`; the root's outcome
+   * is returned. The file's own teardowns (`FileHandle.teardowns`) are the caller's to run.
+   */
+  async runFile(file: FileState): Promise<Outcome> {
+    const run: FileRun = { file, fileId: file.root.id }
     return this.#runSuite(run, file.root, { attached: [], skipHooks: false, concurrent: false })
   }
 
@@ -126,26 +160,9 @@ export class Executor {
       children = await this.#runSuiteBody(run, suite, scope, errors)
     }
     if (suite.emptyError !== undefined && suite.mode === 'run') errors.push(suite.emptyError)
-    const outcome: Outcome =
-      errors.length > 0 || children.includes('fail')
-        ? 'fail'
-        : children.includes('pass') || children.length === 0
-          ? suite.mode === 'skip'
-            ? 'skip'
-            : 'pass'
-          : suite.mode === 'todo'
-            ? 'todo'
-            : 'skip'
-    if (!isRoot) {
-      this.#emit({
-        type: 'suite-end',
-        id: suite.id,
-        result: this.#result(outcome, start, errors),
-        t: this.#now(),
-      })
-    } else {
-      run.file.errors.push(...errors)
-    }
+    const outcome = suiteOutcome(suite, errors, children)
+    if (isRoot) run.file.errors.push(...errors)
+    else this.#endTask('suite-end', suite.id, outcome, start, errors)
     return outcome
   }
 
@@ -155,7 +172,6 @@ export class Executor {
     scope: Scope,
     errors: unknown[],
   ): Promise<Outcome[]> {
-    const policy = this.#policy
     const hooks = !scope.skipHooks && this.#suiteRunsHooks(suite)
     const teardowns: Teardown[] = []
     let outcomes: Outcome[] = []
@@ -163,37 +179,11 @@ export class Executor {
     const inner = async (): Promise<void> => {
       ranInner = true
       try {
-        let attached = scope.attached
-        let skipHooks = scope.skipHooks
-        if (hooks) {
-          const stop = policy.hooks.beforeAllError === 'skip-subtree'
-          const failures = await this.#runLevel(run, suite, 'beforeAll', undefined, stop, teardowns)
-          if (failures.length > 0) {
-            if (stop) {
-              errors.push(...failures)
-              outcomes = this.#skipBelow(suite)
-              return
-            }
-            attached = [...attached, ...failures]
-            if (policy.hooks.nestedHooksAfterBeforeAllError === 'skip') skipHooks = true
-          }
-        }
-        outcomes = await this.#runChildren(run, suite, {
-          attached,
-          skipHooks,
-          concurrent: scope.concurrent,
-        })
+        const below = hooks ? await this.#runBeforeAll(run, suite, scope, teardowns, errors) : scope
+        outcomes =
+          below === undefined ? this.#skipBelow(suite) : await this.#runChildren(run, suite, below)
       } finally {
-        if (hooks) {
-          const abort = policy.hooks.afterError === 'abort-chain'
-          const failures = await this.#runLevel(run, suite, 'afterAll', undefined, abort, undefined)
-          if (!(abort && failures.length > 0)) {
-            failures.push(...(await this.#runTeardowns(run, teardowns, 'afterAll', undefined)))
-          }
-          if (policy.hooks.afterAllError === 'fail-suite') errors.push(...failures)
-          else run.file.errors.push(...failures)
-        }
-        if (suite.parent === null) await this.#fileTeardowns(run)
+        if (hooks) await this.#runAfterAll(run, suite, teardowns, errors)
       }
     }
     const around = hooks ? suite.hooks.aroundAll : []
@@ -214,6 +204,47 @@ export class Executor {
   }
 
   /**
+   * A suite's `beforeAll` hooks. Returns the scope its children run in, or `undefined` when a
+   * failure skips them (`beforeAllError: 'skip-subtree'`; the failure is then the suite's).
+   */
+  async #runBeforeAll(
+    run: FileRun,
+    suite: SuiteNode,
+    scope: Scope,
+    teardowns: Teardown[],
+    errors: unknown[],
+  ): Promise<Scope | undefined> {
+    const { beforeAllError, nestedHooksAfterBeforeAllError } = this.#policy.hooks
+    const stop = beforeAllError === 'skip-subtree'
+    const failures = await this.#runLevel(run, suite, 'beforeAll', undefined, stop, teardowns)
+    if (failures.length === 0) return scope
+    if (stop) {
+      errors.push(...failures)
+      return undefined
+    }
+    return {
+      attached: [...scope.attached, ...failures],
+      skipHooks: scope.skipHooks || nestedHooksAfterBeforeAllError === 'skip',
+      concurrent: scope.concurrent,
+    }
+  }
+
+  /**
+   * A suite's `afterAll` hooks, then the teardowns its `beforeAll` hooks returned. Their failures
+   * are the suite's or the file's (`hooks.afterAllError`).
+   */
+  async #runAfterAll(
+    run: FileRun,
+    suite: SuiteNode,
+    teardowns: readonly Teardown[],
+    errors: unknown[],
+  ): Promise<void> {
+    const failures = await this.#runAfter(run, [suite], 'afterAll', undefined, teardowns)
+    if (this.#policy.hooks.afterAllError === 'fail-suite') errors.push(...failures)
+    else run.file.errors.push(...failures)
+  }
+
+  /**
    * Whether a suite's own `beforeAll`/`afterAll`/`aroundAll` run. Never for a skipped suite. With
    * `skippedBlock: 'run-before-all'` (jest-circus's `hasEnabledTest`), when some test below isn't
    * skipped (a todo counts); with `'none'` (Vitest), when some test below will run, or the suite
@@ -223,18 +254,6 @@ export class Executor {
     if (suite.mode === 'skip') return false
     if (this.#policy.hooks.skippedBlock === 'run-before-all') return hasEnabledTest(suite)
     return runsSomething(suite)
-  }
-
-  async #fileTeardowns(run: FileRun): Promise<void> {
-    const teardowns = run.file.handle.teardowns
-    while (teardowns.length > 0) {
-      const teardown = teardowns.pop()
-      try {
-        await teardown?.()
-      } catch (error) {
-        run.file.errors.push(error)
-      }
-    }
   }
 
   async #runChildren(run: FileRun, suite: SuiteNode, scope: Scope): Promise<Outcome[]> {
@@ -293,23 +312,22 @@ export class Executor {
     return groups
   }
 
-  /** Reports every task below `suite` as skipped (a failed `beforeAll`, a blocked suite). */
+  /**
+   * Reports every task below `suite` as skipped (a failed `beforeAll`, a blocked suite). A task
+   * that is blocked itself keeps its error, as Vitest's `markTasksAsSkipped` keeps a task's result.
+   */
   #skipBelow(suite: SuiteNode): Outcome[] {
     const outcomes: Outcome[] = []
     for (const child of suite.children) {
       const t = this.#now()
+      const errors = child.blocked === undefined ? [] : [child.blocked]
       if (child.type !== 'test') {
         this.#emit({ type: 'suite-start', id: child.id, t })
         this.#skipBelow(child)
-        this.#emit({ type: 'suite-end', id: child.id, result: this.#result('skip', t, []), t })
+        this.#endTask('suite-end', child.id, 'skip', t, errors)
       } else {
         this.#emit({ type: 'test-start', id: child.id, t })
-        this.#emit({
-          type: 'test-end',
-          id: child.id,
-          result: this.#result('skip', t, [], { skipReason: 'unknown' }),
-          t,
-        })
+        this.#endTask('test-end', child.id, 'skip', t, errors, { skipReason: 'unknown' })
       }
       outcomes.push('skip')
     }
@@ -322,14 +340,9 @@ export class Executor {
     const start = this.#now()
     this.#emit({ type: 'test-start', id: test.id, t: start })
     if (test.mode === 'skip' || test.mode === 'todo') {
-      const extra: { skipReason?: SkipReason } =
-        test.mode === 'skip' ? { skipReason: test.skipReason ?? 'unknown' } : {}
-      this.#emit({
-        type: 'test-end',
-        id: test.id,
-        result: this.#result(test.mode, start, [], extra),
-        t: this.#now(),
-      })
+      const extra: ResultExtra | undefined =
+        test.mode === 'skip' ? { skipReason: test.skipReason ?? 'unknown' } : undefined
+      this.#endTask('test-end', test.id, test.mode, start, [], extra)
       return test.mode
     }
     if (
@@ -339,15 +352,9 @@ export class Executor {
       const error =
         test.blocked ??
         new CoreError('CORE_NOT_IMPLEMENTED', 'Deferred retries (`retry.timing`) arrive with T5.10')
-      this.#emit({
-        type: 'test-end',
-        id: test.id,
-        result: this.#result('fail', start, [error]),
-        t: this.#now(),
-      })
+      this.#endTask('test-end', test.id, 'fail', start, [error])
       return 'fail'
     }
-    const task = run.tasks.get(test.id) as TestTask
     const retryErrors: unknown[] = []
     const failures: unknown[] = []
     let attempts = 0
@@ -356,7 +363,7 @@ export class Executor {
       repeatIndex = repeat
       for (let attempt = 0; attempt <= test.retry; attempt++) {
         attempts++
-        const errors = await this.#runAttempt(run, test, task, attempt, repeat, scope)
+        const errors = await this.#runAttempt(run, test, attempt, repeat, scope)
         const willRetry = errors.length > 0 && attempt < test.retry
         this.#emit({
           type: 'test-attempt-end',
@@ -377,11 +384,10 @@ export class Executor {
       }
     }
     const outcome: Outcome = failures.length > 0 ? 'fail' : 'pass'
-    this.#emit({
-      type: 'test-end',
-      id: test.id,
-      result: this.#result(outcome, start, failures, { retryErrors, attempts, repeatIndex }),
-      t: this.#now(),
+    this.#endTask('test-end', test.id, outcome, start, failures, {
+      retryErrors,
+      attempts,
+      repeatIndex,
     })
     return outcome
   }
@@ -389,49 +395,43 @@ export class Executor {
   async #runAttempt(
     run: FileRun,
     test: TestNode,
-    task: TestTask,
     attempt: number,
     repeat: number,
     scope: Scope,
   ): Promise<unknown[]> {
-    const info: TaskInfo = {
-      name: test.name,
-      fullName: test.fullName.join(this.#policy.nameSeparator),
-      file: run.file.relativePath,
-      retry: attempt,
-      repeat,
-    }
-    let state: AttemptState | undefined
-    const current = (): AttemptState => {
-      if (state === undefined) throw new Error('unreachable: the attempt is read before it exists')
-      return state
-    }
-    const ctx = createTestContext(task, current)
+    // Set by `finalize` for every node of a collected file.
+    const task = test.task as TestTask
     const controller = new AbortController()
     const teardowns: Array<() => unknown> = []
+    // The handle and the context read the attempt through getters, so they can be part of it.
     const handle: TestRunHandle = {
       test: { suite: test.parent.handle },
-      ctx: { task: info },
+      ctx: {
+        task: {
+          name: test.name,
+          fullName: test.fullName.join(this.#policy.nameSeparator),
+          file: run.file.relativePath,
+          retry: attempt,
+          repeat,
+        },
+      },
       slots: new Map(),
       signal: controller.signal,
       get state(): 'running' | 'cleanup' | 'done' {
-        return current().state
+        return state.state
       },
       addTeardown(fn: () => unknown): void {
         teardowns.push(fn)
       },
     }
-    const lazy: LazyFrame = {
-      kind: 'test',
-      run: handle,
-      suite: test.parent.handle,
-      file: run.file.handle,
-    }
-    state = {
+    const frame: Frame = { test: task, hook: null, fileId: run.fileId, attempt }
+    const state: AttemptState = {
       test,
-      ctx,
+      ctx: createTestContext(task, () => state),
+      thisArg: this.#policy.firstArg === 'context' ? undefined : Object.create(null),
       run: handle,
-      lazy,
+      lazy: { kind: 'test', run: handle, suite: test.parent.handle, file: run.file.handle },
+      frame,
       state: 'running',
       controller,
       errors: [],
@@ -439,10 +439,10 @@ export class Executor {
       onFailed: [],
       teardowns,
       inCallbacks: false,
+      deadline: undefined,
     }
-    this.#config.runs.set(ctx, handle)
-    const frame: Frame = { test: task, hook: null, fileId: run.fileId, attempt }
-    const store: Store = { frame, lazy, collecting: undefined, attempt: state, hook: undefined }
+    this.#config.runs.set(state.ctx, handle)
+    const store = newStore({ frame, lazy: state.lazy, attempt: state })
     this.#emit({ type: 'test-attempt-start', id: test.id, attempt, repeat, t: this.#now() })
     setRunningFrame(scope.concurrent ? undefined : frame)
     try {
@@ -454,6 +454,7 @@ export class Executor {
     return state.errors
   }
 
+  /** The attempt, in its store: the around chain, or the attempt's steps on their own. */
   async #attemptBody(
     run: FileRun,
     test: TestNode,
@@ -463,141 +464,169 @@ export class Executor {
   ): Promise<void> {
     const policy = this.#policy
     const errors = attempt.errors
-    const eachHooks = !scope.skipHooks && (policy.eachHooksForConcurrent || !test.concurrent)
-    const chain = suiteChain(test.parent)
-    const deadline = policy.hooks.timeoutCountsTestTimeout
-      ? this.#now() + test.timeoutMs
-      : undefined
-    const inner = async (): Promise<void> => {
-      errors.push(...scope.attached)
-      const teardowns: Teardown[] = []
-      if (eachHooks && errors.length === 0) {
-        for (const suite of chain) {
-          const failures = await this.#runLevel(
-            run,
-            suite,
-            'beforeEach',
-            attempt,
-            true,
-            teardowns,
-            deadline,
-          )
-          if (failures.length > 0) {
-            errors.push(...failures)
-            break
-          }
-        }
-      }
-      if (errors.length === 0) {
-        const failures = await this.#runBody(test, attempt, store, deadline)
-        if (!test.expectFail) errors.push(...failures)
-        else if (failures.length === 0) {
-          errors.push(
-            new CoreError(
-              'CORE_EXPECTED_FAILURE',
-              'Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.',
-            ),
-          )
-        }
-      }
-      let aborted = false
-      if (eachHooks) {
-        const abort = policy.hooks.afterError === 'abort-chain'
-        for (const suite of [...chain].reverse()) {
-          const failures = await this.#runLevel(
-            run,
-            suite,
-            'afterEach',
-            attempt,
-            abort,
-            undefined,
-            deadline,
-          )
-          errors.push(...failures)
-          if (abort && failures.length > 0) {
-            aborted = true
-            break
-          }
-        }
-      }
-      if (!aborted) errors.push(...(await this.#runTeardowns(run, teardowns, 'afterEach', attempt)))
-      attempt.state = 'cleanup'
-      while (attempt.teardowns.length > 0) {
-        const teardown = attempt.teardowns.pop()
-        try {
-          await runInStore(store, async () => teardown?.())
-        } catch (error) {
-          errors.push(error)
-        }
-      }
-      attempt.inCallbacks = true
-      const finished = attempt.onFinished.toReversed()
-      errors.push(...(await this.#runCallbacks(run, attempt, store, finished, 'onTestFinished')))
-      if (errors.length > 0) {
-        const failed = this.#order(attempt.onFailed, 'afterEach')
-        errors.push(...(await this.#runCallbacks(run, attempt, store, failed, 'onTestFailed')))
-      }
-    }
-    const around = eachHooks ? chain.flatMap((suite) => suite.hooks.aroundEach) : []
-    if (around.length === 0) {
+    const eachHooks =
+      !scope.skipHooks && (policy.eachHooksForConcurrent || !test.concurrent)
+        ? this.#eachHooksOf(test.parent)
+        : NO_EACH_HOOKS
+    attempt.deadline = this.#attemptDeadline(test)
+    const inner = (): Promise<void> => this.#attemptSteps(run, test, attempt, eachHooks, scope)
+    if (eachHooks.aroundEach.length === 0) {
       await inner()
-      return
+    } else {
+      errors.push(
+        ...(await runAround(
+          eachHooks.aroundEach.map((hook) => this.#aroundCall(run, hook, attempt)),
+          () => runInStore(store, inner),
+          {
+            kind: 'aroundEach',
+            timers: this.#config.timers,
+            onTimeout: (error) => attempt.controller.abort(error),
+          },
+        )),
+      )
     }
-    errors.push(
-      ...(await runAround(
-        around.map((hook) => this.#aroundCall(run, hook, attempt)),
-        () => runInStore(store, inner),
-        {
-          kind: 'aroundEach',
-          timers: this.#config.timers,
-          onTimeout: (error) => attempt.controller.abort(error),
-        },
-      )),
-    )
+    // What the around hooks added, and whatever the steps never reached (a hook that threw first).
+    attempt.state = 'cleanup'
+    if (attempt.teardowns.length > 0) errors.push(...(await this.#runLazyTeardowns(attempt, 0)))
+    if (test.expectFail && policy.status.expectFail === 'attempt') reverseExpectFail(errors)
   }
 
-  async #runBody(
+  /** The attempt inside its around hooks: each-hooks and body, teardowns, then the callbacks. */
+  async #attemptSteps(
+    run: FileRun,
     test: TestNode,
     attempt: AttemptState,
-    store: Store,
-    deadline: number | undefined,
-  ): Promise<unknown[]> {
-    const fn = test.fn
-    if (fn === undefined) return []
+    eachHooks: EachHooks,
+    scope: Scope,
+  ): Promise<void> {
+    const errors = attempt.errors
+    // `LazyHost` teardowns added before this point came from the around hooks: they run after
+    // them (Vitest's fixture checkpoint).
+    const checkpoint = attempt.teardowns.length
+    errors.push(...scope.attached)
+    const teardowns: Teardown[] = []
+    if (errors.length === 0 && eachHooks.beforeEach.length > 0) {
+      await this.#runBeforeEach(run, eachHooks.beforeEach, attempt, teardowns)
+    }
+    if (errors.length === 0) await this.#runBody(test, attempt)
+    if (eachHooks.afterEach.length > 0 || teardowns.length > 0) {
+      await this.#runAfterEach(run, eachHooks.afterEach, attempt, teardowns)
+    }
+    attempt.state = 'cleanup'
+    if (attempt.teardowns.length > checkpoint) {
+      errors.push(...(await this.#runLazyTeardowns(attempt, checkpoint)))
+    }
+    attempt.inCallbacks = true
+    if (attempt.onFinished.length > 0) {
+      await this.#runCallbacks(run, attempt, attempt.onFinished.toReversed(), 'onTestFinished')
+    }
+    if (errors.length > 0) {
+      const failed = this.#order(attempt.onFailed, 'afterEach')
+      if (failed.length > 0) await this.#runCallbacks(run, attempt, failed, 'onTestFailed')
+    }
+  }
+
+  /** The `EachHooks` of a test in `suite`. Hooks never change once a file is collected. */
+  #eachHooksOf(suite: SuiteNode): EachHooks {
+    let found = this.#eachHooks.get(suite)
+    if (found === undefined) {
+      const chain = suiteChain(suite)
+      found = {
+        beforeEach: chain.filter((level) => level.hooks.beforeEach.length > 0),
+        afterEach: chain.toReversed().filter((level) => level.hooks.afterEach.length > 0),
+        aroundEach: chain.flatMap((level) => level.hooks.aroundEach),
+      }
+      this.#eachHooks.set(suite, found)
+    }
+    return found
+  }
+
+  /**
+   * With `hooks.timeoutCountsTestTimeout`, when the attempt's each-hooks and body must be done
+   * (`Infinity` for a test with no timeout); otherwise `undefined`, each call having its own.
+   */
+  #attemptDeadline(test: TestNode): number | undefined {
+    if (!this.#policy.hooks.timeoutCountsTestTimeout) return undefined
+    return isBounded(test.timeoutMs) ? this.#now() + test.timeoutMs : Number.POSITIVE_INFINITY
+  }
+
+  /**
+   * The bound on an each-hook or the body: what is left of the attempt's deadline (at least 1 ms,
+   * so a spent one still times out), or the call's own timeout when the attempt has none.
+   */
+  #timeoutFor(attempt: AttemptState | undefined, ownMs: number): number {
+    const deadline = attempt?.deadline
+    return deadline === undefined ? ownMs : Math.max(1, deadline - this.#now())
+  }
+
+  /** Each level's `beforeEach` hooks, parent first; the first level that fails ends them. */
+  async #runBeforeEach(
+    run: FileRun,
+    levels: readonly SuiteNode[],
+    attempt: AttemptState,
+    teardowns: Teardown[],
+  ): Promise<void> {
+    for (const suite of levels) {
+      const failures = await this.#runLevel(run, suite, 'beforeEach', attempt, true, teardowns)
+      if (failures.length > 0) {
+        attempt.errors.push(...failures)
+        return
+      }
+    }
+  }
+
+  /** Each level's `afterEach` hooks, innermost first, then the teardowns `beforeEach` returned. */
+  async #runAfterEach(
+    run: FileRun,
+    levels: readonly SuiteNode[],
+    attempt: AttemptState,
+    teardowns: readonly Teardown[],
+  ): Promise<void> {
+    attempt.errors.push(...(await this.#runAfter(run, levels, 'afterEach', attempt, teardowns)))
+  }
+
+  /**
+   * The body. A test that runs with no function fails. Under `status.expectFail: 'body'` a
+   * `.failing` test's result is reversed here (jest-circus), so a hook error still fails it.
+   */
+  async #runBody(test: TestNode, attempt: AttemptState): Promise<void> {
+    if (test.fn === undefined) {
+      attempt.errors.push(new CoreError('CORE_MISSING_TEST_FN', 'Test function is not found'))
+      return
+    }
+    const { fn } = test
     const policy = this.#policy
     const contextArgs =
       test.passContext && (test.rowArgs !== undefined || policy.firstArg === 'context')
         ? [attempt.ctx]
         : []
-    const timeoutMs = deadline === undefined ? test.timeoutMs : Math.max(1, deadline - this.#now())
+    // Taken before the limiter: time spent waiting for a slot counts against the attempt.
+    const timeoutMs = this.#timeoutFor(attempt, test.timeoutMs)
+    const failures: unknown[] = []
     try {
       await this.#calls.run(() =>
-        runInStore(store, () =>
-          withDeadline(
-            () =>
-              invoke(policy, {
-                fn,
-                thisArg: policy.firstArg === 'context' ? undefined : {},
-                args: test.rowArgs ?? [],
-                contextArgs,
-                isTest: true,
-              }),
-            {
-              timeoutMs,
-              catchSyncOverrun: policy.timeouts.catchSyncOverrun,
-              timers: this.#config.timers,
-              now: this.#config.now,
-              timeoutError: () =>
-                new CoreError('CORE_TIMEOUT', `Test timed out in ${test.timeoutMs}ms.`),
-              onTimeout: (error) => attempt.controller.abort(error),
-            },
-          ),
+        this.#deadlines.call(
+          () =>
+            invoke(policy, {
+              fn,
+              thisArg: attempt.thisArg,
+              args: test.rowArgs ?? [],
+              contextArgs,
+              isTest: true,
+            }),
+          { what: 'test', timeoutMs, namedMs: test.timeoutMs, attempt },
         ),
       )
-      return []
     } catch (error) {
-      return [error]
+      failures.push(error)
     }
+    if (test.expectFail && policy.status.expectFail === 'body') reverseExpectFail(failures)
+    attempt.errors.push(...failures)
+  }
+
+  /** Runs the attempt's `LazyHost` teardowns down to `keep`, last added first. */
+  #runLazyTeardowns(attempt: AttemptState, keep: number): Promise<unknown[]> {
+    return this.#deadlines.drain(attempt.teardowns, { keep, attempt })
   }
 
   // ---- hooks --------------------------------------------------------------------------------
@@ -606,242 +635,251 @@ export class Executor {
    * Runs one suite's hooks of one kind, in `hookOrder`. `stop`: the first failure ends the level
    * (sequential orders only). `teardowns` collects returned functions (`hookReturnsCleanup`).
    */
-  async #runLevel(
+  #runLevel(
     run: FileRun,
     suite: SuiteNode,
     kind: HookKind,
     attempt: AttemptState | undefined,
     stop: boolean,
-    teardowns: Teardown[] | undefined,
-    deadline?: number,
+    teardowns?: Teardown[],
   ): Promise<unknown[]> {
-    const hooks = suite.hooks[kind]
-    if (hooks.length === 0) return []
+    const keep = this.#policy.hookReturnsCleanup ? teardowns : undefined
+    return this.#runOrdered(
+      suite.hooks[kind],
+      kind,
+      stop,
+      (hook) => this.#callHook(run, hook, attempt),
+      keep === undefined
+        ? undefined
+        : (hook, value) => {
+            if (typeof value === 'function') {
+              keep.push({ fn: value as UserFn, owner: suite, ordinal: hook.ordinal })
+            }
+          },
+    )
+  }
+
+  /**
+   * `kind`'s hooks level by level, then the teardowns the matching before hooks returned. Under
+   * `afterError: 'abort-chain'` a level that fails ends it there.
+   */
+  async #runAfter(
+    run: FileRun,
+    levels: readonly SuiteNode[],
+    kind: 'afterEach' | 'afterAll',
+    attempt: AttemptState | undefined,
+    teardowns: readonly Teardown[],
+  ): Promise<unknown[]> {
+    const abort = this.#policy.hooks.afterError === 'abort-chain'
     const failures: unknown[] = []
-    const call = async (hook: HookNode): Promise<void> => {
-      const result = await this.#callHook(run, hook, attempt, deadline)
-      if (result.ok) {
-        if (teardowns !== undefined && this.#policy.hookReturnsCleanup) {
-          if (typeof result.value === 'function') {
-            teardowns.push({ fn: result.value as UserFn, owner: suite, ordinal: hook.ordinal })
-          }
-        }
-      } else {
-        failures.push(result.error)
-      }
+    for (const suite of levels) {
+      const level = await this.#runLevel(run, suite, kind, attempt, abort)
+      failures.push(...level)
+      if (abort && level.length > 0) return failures
+    }
+    if (teardowns.length > 0) {
+      failures.push(...(await this.#runTeardowns(run, teardowns, kind, attempt)))
+    }
+    return failures
+  }
+
+  /**
+   * Calls `items` in the order of `kind`'s hooks (`orderHooks`, else `hookOrder`; all at once
+   * when parallel), returning their failures. `stop`: the first failure ends a sequential run.
+   * `onValue` sees what each successful call returned.
+   */
+  async #runOrdered<T>(
+    items: readonly T[],
+    kind: HookKind,
+    stop: boolean,
+    call: (item: T) => Promise<CallResult>,
+    onValue?: (item: T, value: unknown) => void,
+  ): Promise<unknown[]> {
+    const failures: unknown[] = []
+    if (items.length === 0) return failures
+    const one = async (item: T): Promise<void> => {
+      const result = await call(item)
+      if (result.ok) onValue?.(item, result.value)
+      else failures.push(result.error)
     }
     if (this.#parallel(kind)) {
-      await Promise.all(hooks.map(call))
+      await Promise.all(items.map(one))
       return failures
     }
-    for (const hook of this.#order(hooks, kind)) {
-      await call(hook)
+    for (const item of this.#order(items, kind)) {
+      await one(item)
       if (stop && failures.length > 0) break
     }
     return failures
   }
 
-  async #callHook(
-    run: FileRun,
-    hook: HookNode,
-    attempt: AttemptState | undefined,
-    deadline: number | undefined,
-  ): Promise<{ ok: true; value: unknown } | { ok: false; error: unknown }> {
+  /**
+   * Calls a declared hook. An each-hook (one called with an attempt) gets the test's context and
+   * innermost suite, shares the attempt's `this` with the body, and is bounded by what is left of
+   * the attempt's deadline when it has one; a suite hook gets its own suite and a fresh `this`.
+   */
+  #callHook(run: FileRun, hook: HookNode, attempt: AttemptState | undefined): Promise<CallResult> {
     const policy = this.#policy
-    const each = hook.kind === 'beforeEach' || hook.kind === 'afterEach'
-    const suiteArg = this.#suiteTask(
+    const byContext = policy.firstArg === 'context'
+    const suiteArg = taskOf(attempt?.test.parent ?? hook.owner)
+    const contextArgs = !byContext
+      ? []
+      : attempt !== undefined
+        ? [attempt.ctx, suiteArg]
+        : [suiteArg]
+    const thisArg = attempt !== undefined ? attempt.thisArg : byContext ? undefined : {}
+    return this.#callUser(
       run,
-      each && attempt !== undefined ? attempt.test.parent : hook.owner,
+      {
+        kind: hook.kind,
+        owner: hook.owner,
+        ordinal: hook.ordinal,
+        location: hook.location,
+        attempt,
+      },
+      this.#timeoutFor(attempt, hook.timeoutMs ?? policy.timeouts.hook),
+      () => invoke(policy, { fn: hook.fn, thisArg, args: [], contextArgs, isTest: false }),
     )
-    const contextArgs =
-      policy.firstArg !== 'context'
-        ? []
-        : each && attempt !== undefined
-          ? [attempt.ctx, suiteArg]
-          : [suiteArg]
-    const timeoutMs =
-      each && deadline !== undefined
-        ? Math.max(1, deadline - this.#now())
-        : (hook.timeoutMs ?? policy.timeouts.hook)
-    return this.#callUser(run, {
-      kind: hook.kind,
-      owner: hook.owner,
-      ordinal: hook.ordinal,
-      location: parseSite(hook.site),
-      attempt,
-      timeoutMs,
-      call: () =>
-        invoke(policy, {
-          fn: hook.fn,
-          thisArg: policy.firstArg === 'context' ? undefined : {},
-          args: [],
-          contextArgs,
-          isTest: false,
-        }),
-    })
   }
 
   /** Calls one hook-like user function in its own store, with events, a deadline and the limiter. */
   async #callUser(
     run: FileRun,
-    spec: {
-      readonly kind: RuntimeHookKind
-      readonly owner: SuiteNode
-      readonly ordinal: number
-      readonly location: ReturnType<typeof parseSite>
-      readonly attempt: AttemptState | undefined
-      readonly timeoutMs: number
-      readonly call: () => unknown
-    },
-  ): Promise<{ ok: true; value: unknown } | { ok: false; error: unknown }> {
-    const { attempt, kind, owner } = spec
-    const testId = attempt?.test.id ?? null
-    const frame: Frame = {
-      test: attempt === undefined ? null : (run.tasks.get(attempt.test.id) as TestTask),
-      hook: { kind, ownerId: owner.id },
-      fileId: run.fileId,
-      attempt: attempt?.run.ctx.task.retry ?? 0,
-    }
-    const lazy: LazyFrame =
-      attempt === undefined
-        ? {
-            kind: 'suite',
-            hook: kind === 'afterAll' || kind === 'teardown' ? 'afterAll' : 'beforeAll',
-            suite: owner.handle,
-            file: run.file.handle,
-          }
-        : attempt.lazy
-    const store: Store = { frame, lazy, collecting: undefined, attempt, hook: kind }
-    this.#emit({
-      type: 'hook-start',
-      ownerId: owner.id,
-      testId,
-      kind,
-      ordinal: spec.ordinal,
-      location: spec.location,
-      t: this.#now(),
-    })
-    let outcome: { ok: true; value: unknown } | { ok: false; error: unknown }
+    spec: HookCall,
+    timeoutMs: number,
+    call: () => unknown,
+  ): Promise<CallResult> {
+    const { attempt } = spec
+    const store = this.#hookScope(run, spec.kind, spec.owner, attempt)
+    this.#emitHook(spec)
+    let result: CallResult
     try {
       const value = await this.#calls.run(() =>
-        runInStore(store, () =>
-          withDeadline(spec.call, {
-            timeoutMs: spec.timeoutMs,
-            catchSyncOverrun: this.#policy.timeouts.catchSyncOverrun,
-            timers: this.#config.timers,
-            now: this.#config.now,
-            timeoutError: () =>
-              new CoreError('CORE_TIMEOUT', `Hook timed out in ${spec.timeoutMs}ms.`),
-            ...(attempt === undefined
-              ? {}
-              : { onTimeout: (error: Error) => attempt.controller.abort(error) }),
-          }),
-        ),
+        runInStore(store, () => this.#deadlines.call(call, { what: 'hook', timeoutMs, attempt })),
       )
-      outcome = { ok: true, value }
+      result = { ok: true, value }
     } catch (error) {
-      outcome = { ok: false, error }
+      result = { ok: false, error }
     }
-    this.#emit({
-      type: 'hook-end',
-      ownerId: owner.id,
-      testId,
-      kind,
-      ordinal: spec.ordinal,
-      error: outcome.ok ? null : serializeError(outcome.error),
-      t: this.#now(),
+    this.#emitHook(spec, result)
+    return result
+  }
+
+  /**
+   * The store a hook-like call runs in: its own frame, with the attempt's lazy frame for a test's
+   * hook (LazyHost guarantee 1), or a `suite` lazy frame for a suite hook.
+   */
+  #hookScope(
+    run: FileRun,
+    kind: RuntimeHookKind,
+    owner: SuiteNode,
+    attempt: AttemptState | undefined,
+  ): Store {
+    const hook = { kind, ownerId: owner.id }
+    if (attempt !== undefined) {
+      const { test, attempt: index } = attempt.frame
+      return newStore({
+        frame: { test, hook, fileId: run.fileId, attempt: index },
+        lazy: attempt.lazy,
+        attempt,
+        hook: kind,
+      })
+    }
+    return newStore({
+      frame: { test: null, hook, fileId: run.fileId, attempt: 0 },
+      lazy: {
+        kind: 'suite',
+        hook: kind === 'afterAll' || kind === 'teardown' ? 'afterAll' : 'beforeAll',
+        suite: owner.handle,
+        file: run.file.handle,
+      },
+      hook: kind,
     })
-    return outcome
+  }
+
+  /** `hook-start` (with the hook's location), or `hook-end` once the call has its `result`. */
+  #emitHook(spec: HookCall, result?: CallResult): void {
+    const ownerId = spec.owner.id
+    const testId = spec.attempt?.test.id ?? null
+    const { kind, ordinal } = spec
+    if (result === undefined) {
+      const { location } = spec
+      this.#emit({ type: 'hook-start', ownerId, testId, kind, ordinal, location, t: this.#now() })
+      return
+    }
+    const error = result.ok ? null : serializeError(result.error)
+    this.#emit({ type: 'hook-end', ownerId, testId, kind, ordinal, error, t: this.#now() })
   }
 
   /** Runs the teardowns hooks returned, in the order of `hookOrder[after]`. */
-  async #runTeardowns(
+  #runTeardowns(
     run: FileRun,
     teardowns: readonly Teardown[],
     after: 'afterEach' | 'afterAll',
     attempt: AttemptState | undefined,
   ): Promise<unknown[]> {
-    if (teardowns.length === 0) return []
-    const failures: unknown[] = []
-    const abort = this.#policy.hooks.afterError === 'abort-chain'
-    const call = async (teardown: Teardown): Promise<void> => {
-      const result = await this.#callUser(run, {
-        kind: 'teardown',
-        owner: teardown.owner,
-        ordinal: teardown.ordinal,
-        location: null,
-        attempt,
-        timeoutMs: this.#policy.timeouts.teardown,
-        call: () => Reflect.apply(teardown.fn, undefined, []),
-      })
-      if (!result.ok) failures.push(result.error)
-    }
-    if (this.#parallel(after)) {
-      await Promise.all(teardowns.map(call))
-      return failures
-    }
-    for (const teardown of this.#order(teardowns, after)) {
-      await call(teardown)
-      if (abort && failures.length > 0) break
-    }
-    return failures
+    const stop = this.#policy.hooks.afterError === 'abort-chain'
+    return this.#runOrdered(teardowns, after, stop, (teardown) =>
+      this.#callUser(
+        run,
+        {
+          kind: 'teardown',
+          owner: teardown.owner,
+          ordinal: teardown.ordinal,
+          location: null,
+          attempt,
+        },
+        this.#policy.timeouts.teardown,
+        () => Reflect.apply(teardown.fn, undefined, []),
+      ),
+    )
   }
 
+  /**
+   * Runs `onTestFinished`/`onTestFailed` callbacks in the given order, adding their failures to
+   * the attempt's. A callback's timeout is the hook default when none is given (or `0` reads as
+   * the default).
+   */
   async #runCallbacks(
     run: FileRun,
     attempt: AttemptState,
-    _store: Store,
-    callbacks: ReadonlyArray<{ fn: UserFn; timeoutMs: number | undefined }>,
+    callbacks: readonly TestCallback[],
     kind: 'onTestFinished' | 'onTestFailed',
-  ): Promise<unknown[]> {
-    const failures: unknown[] = []
+  ): Promise<void> {
+    const { timeouts } = this.#policy
     for (const [ordinal, callback] of callbacks.entries()) {
-      const result = await this.#callUser(run, {
-        kind,
-        owner: attempt.test.parent,
-        ordinal,
-        location: null,
-        attempt,
-        timeoutMs: callback.timeoutMs ?? this.#policy.timeouts.hook,
-        call: () => Reflect.apply(callback.fn, undefined, [attempt.ctx]),
-      })
-      if (!result.ok) failures.push(result.error)
+      const result = await this.#callUser(
+        run,
+        { kind, owner: attempt.test.parent, ordinal, location: null, attempt },
+        resolveTimeout(timeouts, callback.timeoutMs) ?? timeouts.hook,
+        () => Reflect.apply(callback.fn, undefined, [attempt.ctx]),
+      )
+      if (!result.ok) attempt.errors.push(result.error)
     }
-    return failures
   }
 
   #aroundCall(run: FileRun, hook: HookNode, attempt: AttemptState | undefined): AroundCall {
-    const kind = hook.kind as 'aroundEach' | 'aroundAll'
-    const timeoutMs = hook.timeoutMs ?? this.#policy.timeouts.hook
-    const lazy: LazyFrame =
-      attempt === undefined
-        ? { kind: 'suite', hook: 'beforeAll', suite: hook.owner.handle, file: run.file.handle }
-        : attempt.lazy
-    const store: Store = {
-      frame: {
-        test: attempt === undefined ? null : (run.tasks.get(attempt.test.id) as TestTask),
-        hook: { kind, ownerId: hook.owner.id },
-        fileId: run.fileId,
-        attempt: attempt?.run.ctx.task.retry ?? 0,
-      },
-      lazy,
-      collecting: undefined,
+    const spec: HookCall = {
+      kind: hook.kind,
+      owner: hook.owner,
+      ordinal: hook.ordinal,
+      location: hook.location,
       attempt,
-      hook: kind,
     }
+    const store = this.#hookScope(run, hook.kind, hook.owner, attempt)
     return {
-      timeoutMs,
+      timeoutMs: hook.timeoutMs ?? this.#policy.timeouts.hook,
       invoke: async (inner) => {
-        const testId = attempt?.test.id ?? null
-        const base = { ownerId: hook.owner.id, testId, kind, ordinal: hook.ordinal }
-        this.#emit({ type: 'hook-start', ...base, location: parseSite(hook.site), t: this.#now() })
+        this.#emitHook(spec)
         try {
           const args =
-            attempt === undefined ? [inner, this.#suiteTask(run, hook.owner)] : [inner, attempt.ctx]
+            attempt === undefined
+              ? [inner, taskOf(hook.owner)]
+              : [inner, attempt.ctx, taskOf(attempt.test.parent)]
           await runInStore(store, () => Reflect.apply(hook.fn, undefined, args))
-          this.#emit({ type: 'hook-end', ...base, error: null, t: this.#now() })
+          this.#emitHook(spec, PASSED)
         } catch (error) {
-          this.#emit({ type: 'hook-end', ...base, error: serializeError(error), t: this.#now() })
+          this.#emitHook(spec, { ok: false, error })
           throw error
         }
       },
@@ -860,10 +898,6 @@ export class Executor {
     return this.#policy.hookOrder[kind] === 'reverse' ? items.toReversed() : items
   }
 
-  #suiteTask(run: FileRun, suite: SuiteNode): SuiteTask | FileTask {
-    return run.tasks.get(suite.id) as SuiteTask | FileTask
-  }
-
   #now(): number {
     return this.#config.now()
   }
@@ -872,30 +906,83 @@ export class Executor {
     this.#config.sink.emit(event)
   }
 
-  #result(
+  /** Emits a task's end event, its result and the event timed now. */
+  #endTask(
+    type: 'test-end' | 'suite-end',
+    id: TaskId,
     state: TaskState,
     start: number,
     errors: readonly unknown[],
-    extra: {
-      readonly skipReason?: SkipReason
-      readonly retryErrors?: readonly unknown[]
-      readonly attempts?: number
-      readonly repeatIndex?: number
-    } = {},
-  ): TaskResult {
-    return {
-      state,
-      durationMs: this.#now() - start,
-      startTime: start,
-      errors: errors.map(serializeError),
-      retryErrors: (extra.retryErrors ?? []).map(serializeError),
-      attempts: extra.attempts ?? 0,
-      repeatIndex: extra.repeatIndex ?? 0,
-      assertions: 0,
-      passingAssertions: 0,
-      ...(extra.skipReason === undefined ? {} : { skipReason: extra.skipReason }),
-    }
+    extra?: ResultExtra,
+  ): void {
+    const t = this.#now()
+    this.#emit({ type, id, result: taskResult(state, start, t, errors, extra), t })
   }
+}
+
+/** A result's optional parts; each defaults to none. */
+export interface ResultExtra {
+  readonly skipReason?: SkipReason
+  readonly retryErrors?: readonly unknown[]
+  readonly attempts?: number
+  readonly repeatIndex?: number
+}
+
+/** A task's (or a file's) result, its errors serialized. */
+export function taskResult(
+  state: TaskState,
+  start: number,
+  end: number,
+  errors: readonly unknown[],
+  extra: ResultExtra = {},
+): TaskResult {
+  return {
+    state,
+    durationMs: end - start,
+    startTime: start,
+    errors: errors.map(serializeError),
+    retryErrors: (extra.retryErrors ?? []).map(serializeError),
+    attempts: extra.attempts ?? 0,
+    repeatIndex: extra.repeatIndex ?? 0,
+    assertions: 0,
+    passingAssertions: 0,
+    ...(extra.skipReason === undefined ? {} : { skipReason: extra.skipReason }),
+  }
+}
+
+/** A suite's outcome, from its own errors and its children's outcomes. */
+function suiteOutcome(
+  suite: SuiteNode,
+  errors: readonly unknown[],
+  children: readonly Outcome[],
+): Outcome {
+  if (errors.length > 0 || children.includes('fail')) return 'fail'
+  if (children.includes('pass') || children.length === 0) {
+    return suite.mode === 'skip' ? 'skip' : 'pass'
+  }
+  return suite.mode === 'todo' ? 'todo' : 'skip'
+}
+
+/** A suite's clone-safe task (the `FileTask` for the root), set by `finalize`. */
+function taskOf(suite: SuiteNode): SuiteTask | FileTask {
+  return suite.task as SuiteTask | FileTask
+}
+
+function expectedFailure(): CoreError {
+  return new CoreError(
+    'CORE_EXPECTED_FAILURE',
+    'Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.',
+  )
+}
+
+/**
+ * A `.failing`/`.fails` result reversed in place: errors are dropped (the expected failure), and
+ * none becomes `CORE_EXPECTED_FAILURE`. `status.expectFail` picks whether it applies to the body
+ * (jest-circus) or the whole attempt (Vitest's `fails`).
+ */
+function reverseExpectFail(errors: unknown[]): void {
+  if (errors.length > 0) errors.length = 0
+  else errors.push(expectedFailure())
 }
 
 /** The suites from the file root down to `suite`. */

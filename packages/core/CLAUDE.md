@@ -6,13 +6,16 @@ The test runtime (Track 5): collector, executor, hooks, the test context and the
 
 | Module | Role |
 |---|---|
-| `src/runtime.ts` | `createRuntime(options)`: loads `formatEachTitle`/`orderHooks` through the `BehaviourLoader` first (so registration stays sync), wires the parts, `runFile(path)` (collect → finalize → run, events to the `EventSink`), `dispose()` (worker teardowns) |
+| `src/runtime.ts` | `createRuntime(options)`: loads `formatEachTitle`/`orderHooks` through the `BehaviourLoader` first (so registration stays sync), builds one `Deadlines`, wires the parts. `runFile(path, { lines? })` collects, runs the `onCollected` listeners, finalizes, runs, then always drains the file teardowns and emits `file-end`; a second `runFile` while one is active rejects with `CORE_BUSY`. `dispose()` drains the worker teardowns |
 | `src/collector/collector.ts` | Registration into a mutable tree (`internal/model.ts`): modes, options inheritance, immediate/deferred bodies, async bodies, nested and late registration |
 | `src/collector/finalize.ts` | After collection: ids, full names, `dupIndex`, the two **focus algorithms**, filters (name, ids, lines), `allowOnly`, `emptyDescribe`, the clone-safe `TaskNode` list |
 | `src/collector/api.ts` | The chainable global API (`RuntimeApi`): `describe`/`test` modifiers, `.each`/`.for`/tables, hooks |
 | `src/executor/executor.ts` | The suite walk, concurrency groups, the per-attempt pipeline, hooks, teardowns, callbacks |
 | `src/executor/around.ts` | `aroundEach`/`aroundAll` (Vitest 5.0's `callAroundHooks`) |
-| `src/executor/{deadline,limiter,invoke,context}.ts` | Real-timer deadlines, the `maxConcurrency` semaphore, calling user functions (`done`, generators, `nonPromiseReturn`), the `TestContext` |
+| `src/executor/deadline.ts` | The one owner of time limits: `createDeadlines` (every bounded call and teardown drain, the `CORE_TIMEOUT` messages, aborting the attempt's signal), `resolveTimeout` (`timeouts.zero`), `armDeadline`. A sync call takes no timer; 0, non-finite and > 2^31−1 ms mean no deadline |
+| `src/executor/{limiter,invoke,context}.ts` | The `maxConcurrency` semaphore, calling user functions (`done`, generators, `nonPromiseReturn`, Jest's shared `this`), the `TestContext` |
+| `src/collector/{nodes,location,each}.ts` | Node constructors and the flat `walk`; lazy locations (`locationFrame`); `.each` tables (`collect.eachTableError`) |
+| `src/internal/` | `model.ts` (the mutable tree, `Store`, `AttemptState`), `thenable.ts`, `test-support.ts` (test helpers; exempt from the boundary lints, importable only by tests) |
 | `src/current/current-test.ts` | The **only** `node:async_hooks` import: one `AsyncLocalStorage`, built when core loads (never lazily: Track 5 Spikes A), `currentTest`, the sync `running()` pointer |
 | `src/lazy-host.ts` | The `LazyHost` `@provino/lazy` builds on; its header lists the 4 guarantees |
 
@@ -23,7 +26,9 @@ The test runtime (Track 5): collector, executor, hooks, the test context and the
 - **Two focus algorithms** (`focus.scope`): `file` copies jest-circus 30.5 (describes pass their mode to tests that declare none, unless a describe.only has a direct test.only; `.only` anywhere narrows the whole file); `suite` copies Vitest 5.0's `interpretTaskModes`. The final mode is on the node (`mode`); `TaskNode.mode` keeps the declared one.
 - **A skipped suite** never runs its own hooks but still walks its children (so Jest's describe.only inside describe.skip runs). Whether a running suite's `beforeAll`/`afterAll` run is `hooks.skippedBlock`: `run-before-all` is jest-circus's `hasEnabledTest` (a todo counts); `none` is Vitest's suite collapse (an empty suite still runs its hooks).
 - **Collection failures** (an import that throws, an async describe under `asyncDescribe: 'throw'`, …) report no tasks and fail the file, as both runners do (`crashed` in a golden).
-- **Locations** are captured at registration with `Error.stackTraceLimit = 3` and parsed once when the tree is built; off with `locations: false`.
+- **Locations** are captured at registration (3 frames, or 10 under `locationFrame: 'test-file'`) and parsed once when the tree is built, hooks included; off with `locations: false`. `'caller'` takes the first frame (Jest), `'test-file'` the first frame in the test file (Vitest).
+- **`.failing`/`.fails`** (`status.expectFail`): `'body'` reverses the body's result in `#runBody`; `'attempt'` reverses the whole attempt after the around chain, and `onTestFailed` runs from the real result before that.
+- **Late registration** is the collector's call: it charges the suite's own file (`collect.lateRegistration`) and the runtime only emits the `unhandled-error` event.
 
 ## Testing
 
@@ -41,3 +46,5 @@ The test runtime (Track 5): collector, executor, hooks, the test context and the
 - Process-level error attribution (`errors.lateErrors`): T5.11. Bail and cancel: T5.12. `describe.shuffle`: T5.13. The overhead gate: T5.14. The definition table: T5.9. Tag filters.
 - Messages are neutral, not the dialects' text (timeouts, `.only` on CI, empty describes); the dialects own exact text (B14).
 - `aroundEach`/`aroundAll` don't take a `limitHooks` slot (Vitest holds one through each phase).
+- A bad `describe.each` table under `collect.eachTableError: 'failing-test'` registers one failing test; real Jest fails the whole file. B14 records a fixture and decides (fix, or DIVERGENCES).
+- The overhead target (≤ 5 µs per empty test with 3 hooks and ALS, T5.14) isn't met yet: 7.9 µs/test with locations off, 14.7 with them on (`local`, after the B07 cleanup). Stack capture at registration is most of the locations-on cost.

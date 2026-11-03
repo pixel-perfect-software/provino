@@ -7,7 +7,7 @@ import {
   AroundHookSetupError,
   AroundHookTeardownError,
 } from '../errors.ts'
-import type { RealTimers } from './deadline.ts'
+import { armDeadline, isBounded, type RealTimers } from './deadline.ts'
 
 /** One around hook, ready to call. */
 export interface AroundCall {
@@ -24,6 +24,13 @@ export interface AroundOptions {
   readonly onTimeout?: (error: Error) => void
 }
 
+/** A running phase's deadline. */
+interface Phase {
+  /** Rejects with the phase's timeout error when the phase runs out of time; never resolves. */
+  readonly expired: Promise<never>
+  readonly clear: () => void
+}
+
 /**
  * Runs `inner` wrapped by `hooks`, outermost first. Returns every error the hooks raised, in the
  * order they happened; errors from `inner` are its own business.
@@ -37,17 +44,40 @@ export async function runAround(
   const callback = options.kind === 'aroundEach' ? 'runTest()' : 'runSuite()'
   const target = options.kind === 'aroundEach' ? 'test' : 'suite'
 
+  /** A phase's deadline, or `undefined` when its timeout sets none. */
+  const phase = (
+    timeoutMs: number,
+    name: 'setup' | 'teardown',
+    onExpire?: () => void,
+  ): Phase | undefined => {
+    if (!isBounded(timeoutMs)) return undefined
+    const { promise, reject } = Promise.withResolvers<never>()
+    // A phase that expires after its hook has settled is raced by no one.
+    promise.catch(() => undefined)
+    const clear = armDeadline(timeoutMs, options.timers, () => {
+      const ErrorClass = name === 'setup' ? AroundHookSetupError : AroundHookTeardownError
+      const error = new ErrorClass(
+        `The ${name} phase of "${options.kind}" hook timed out after ${timeoutMs}ms.`,
+      )
+      onExpire?.()
+      options.onTimeout?.(error)
+      reject(error)
+    })
+    return { expired: promise, clear }
+  }
+
   const runFrom = async (index: number): Promise<void> => {
     const hook = hooks[index]
     if (hook === undefined) return inner()
     let used = false
     let setupTimedOut = false
+    /** The inner function has run and returned: the hook's code from here on is its teardown. */
+    let returned = false
     const usedSignal = Promise.withResolvers<void>()
     const returnedSignal = Promise.withResolvers<void>()
-    const setup = phaseTimer(hook.timeoutMs, options, 'setup', () => {
+    const setup = phase(hook.timeoutMs, 'setup', () => {
       setupTimedOut = true
     })
-    let teardown: PhaseTimer | undefined
     const use = async (): Promise<void> => {
       if (setupTimedOut) throw new Error('the setup phase already timed out')
       if (used) {
@@ -56,12 +86,12 @@ export async function runAround(
         )
       }
       used = true
-      setup.clear()
+      setup?.clear()
       usedSignal.resolve()
       await runFrom(index + 1).catch((error: unknown) => {
         errors.push(error)
       })
-      teardown = phaseTimer(hook.timeoutMs, options, 'teardown')
+      returned = true
       returnedSignal.resolve()
     }
     const completed = (async () => {
@@ -76,15 +106,27 @@ export async function runAround(
     // while the inner function still runs.
     completed.catch(() => undefined)
     try {
-      await Promise.race([usedSignal.promise, completed, setup.expired])
+      await Promise.race(
+        setup === undefined
+          ? [usedSignal.promise, completed]
+          : [usedSignal.promise, completed, setup.expired],
+      )
     } finally {
-      setup.clear()
+      setup?.clear()
     }
     await Promise.race([returnedSignal.promise, completed])
+    // Only a hook still running after its inner function returned has a teardown phase to time: one
+    // that didn't await the inner function has exited, and a timer armed for it would never be
+    // cleared, and would abort a test that has finished.
+    const teardown = returned ? phase(hook.timeoutMs, 'teardown') : undefined
+    if (teardown === undefined) {
+      await completed
+      return
+    }
     try {
-      await Promise.race([completed, teardown?.expired ?? completed])
+      await Promise.race([completed, teardown.expired])
     } finally {
-      teardown?.clear()
+      teardown.clear()
     }
   }
 
@@ -92,31 +134,4 @@ export async function runAround(
     errors.push(error)
   })
   return errors
-}
-
-interface PhaseTimer {
-  /** Rejects with the phase's timeout error when the phase runs out of time; never resolves. */
-  readonly expired: Promise<never>
-  clear(): void
-}
-
-function phaseTimer(
-  timeoutMs: number,
-  options: AroundOptions,
-  phase: 'setup' | 'teardown',
-  onExpire?: () => void,
-): PhaseTimer {
-  const { promise, reject } = Promise.withResolvers<never>()
-  promise.catch(() => undefined)
-  if (!(timeoutMs > 0 && Number.isFinite(timeoutMs))) return { expired: promise, clear: () => {} }
-  const timer = options.timers.setTimeout(() => {
-    const ErrorClass = phase === 'setup' ? AroundHookSetupError : AroundHookTeardownError
-    const error = new ErrorClass(
-      `The ${phase} phase of "${options.kind}" hook timed out after ${timeoutMs}ms.`,
-    )
-    onExpire?.()
-    options.onTimeout?.(error)
-    reject(error)
-  }, timeoutMs)
-  return { expired: promise, clear: () => options.timers.clearTimeout(timer) }
 }

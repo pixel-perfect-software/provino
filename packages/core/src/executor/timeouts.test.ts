@@ -362,6 +362,86 @@ describe('timeouts.teardown', () => {
     assert.ok(eventLog(run).includes('hook-end teardown#0 owner=file test=t failed'))
   })
 
+  test('bounds a LazyHost teardown of a test: one that never settles fails the test with CORE_TIMEOUT', async () => {
+    const { started, signal } = startSignal()
+    const running = runScript(
+      ({ test }, _step, runtime) => {
+        test('t', (ctx) => {
+          runtime.lazyHost.runOf(ctx)?.addTeardown(() => {
+            signal()
+            return hang()
+          })
+        })
+        test('next', () => {})
+      },
+      { timeouts: { teardown: 70 } },
+      clockOptions(clock),
+    )
+    const state = watch(running)
+    await reached(started, running)
+    await clock.tickAsync(69)
+    assert.equal(state.settled, false)
+    await clock.tickAsync(1)
+    const run = await running
+    assert.equal(codeOf(run, 't'), 'CORE_TIMEOUT')
+    assert.equal(run.states.next, 'pass')
+  })
+
+  test('bounds a file teardown: one that never settles fails the file with CORE_TIMEOUT', async () => {
+    const { started, signal } = startSignal()
+    const running = runScript(
+      ({ test }, _step, runtime) => {
+        runtime.lazyHost.collecting()?.file.teardowns.push(() => {
+          signal()
+          return hang()
+        })
+        test('t', () => {})
+      },
+      { timeouts: { teardown: 70 } },
+      clockOptions(clock),
+    )
+    const state = watch(running)
+    await reached(started, running)
+    await clock.tickAsync(69)
+    assert.equal(state.settled, false)
+    await clock.tickAsync(1)
+    const run = await running
+    assert.deepEqual(
+      run.file.errors.map((error) => error.code),
+      ['CORE_TIMEOUT'],
+    )
+    assert.equal(run.states.t, 'pass')
+  })
+
+  test('bounds a worker teardown: dispose runs the rest, then rejects with CORE_TIMEOUT among its errors', async () => {
+    const { started, signal } = startSignal()
+    const run = await runScript(
+      ({ test }, step, runtime) => {
+        runtime.lazyHost.addWorkerTeardown(() => step('first added'))
+        runtime.lazyHost.addWorkerTeardown(() => {
+          signal()
+          return hang()
+        })
+        test('t', () => {})
+      },
+      { timeouts: { teardown: 70 } },
+      clockOptions(clock),
+    )
+    const disposing = run.runtime.dispose()
+    disposing.catch(() => {})
+    await reached(started, disposing)
+    await clock.tickAsync(70)
+    await assert.rejects(disposing, (error: unknown) => {
+      assert.ok(error instanceof AggregateError)
+      assert.deepEqual(
+        error.errors.map((inner: { code?: string }) => inner.code),
+        ['CORE_TIMEOUT'],
+      )
+      return true
+    })
+    assert.deepEqual(run.trace, ['first added'])
+  })
+
   test('is not the hook timeout: a cleanup is not cut off by a short hook timeout', async () => {
     const { started, signal } = startSignal()
     const running = runScript(
@@ -522,6 +602,44 @@ describe('hooks.timeoutCountsTestTimeout', () => {
     await clock.tickAsync(1000)
     assert.equal(codeOf(await running, 't'), 'CORE_TIMEOUT')
   })
+
+  for (const [what, timeoutMs] of [
+    ['0', 0],
+    ['above 2^31 - 1 ms', 2 ** 31],
+  ] as const) {
+    test(`true with a test timeout of ${what} sets no deadline for the hooks or the body`, async () => {
+      const hook = startSignal()
+      const body = startSignal()
+      const hookGate = Promise.withResolvers<void>()
+      const bodyGate = Promise.withResolvers<void>()
+      const running = runScript(
+        ({ test, beforeEach }) => {
+          beforeEach(() => {
+            hook.signal()
+            return hookGate.promise
+          })
+          test(
+            't',
+            () => {
+              body.signal()
+              return bodyGate.promise
+            },
+            timeoutMs,
+          )
+        },
+        { hooks: { timeoutCountsTestTimeout: true } },
+        clockOptions(clock),
+      )
+      await reached(hook.started, running)
+      await clock.tickAsync(1_000_000)
+      hookGate.resolve()
+      await reached(body.started, running)
+      await clock.tickAsync(1_000_000)
+      bodyGate.resolve()
+      const run = await running
+      assert.equal(run.states.t, 'pass', run.errors.t?.join('\n'))
+    })
+  }
 
   test('false leaves a hanging beforeEach to the hook timeout', async () => {
     const { started, signal } = startSignal()

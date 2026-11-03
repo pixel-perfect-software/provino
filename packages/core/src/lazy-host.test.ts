@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import type { LazyFrame, SuiteHandle, TestContext, TestRunHandle } from '@provino/types'
-import { eventsOf, runScript } from './internal/test-support.ts'
+import { eventsOf, runScript, settle } from './internal/test-support.ts'
 
 /** The frame of a test, or a failed assertion. */
 function testFrame(frame: LazyFrame | undefined): Extract<LazyFrame, { kind: 'test' }> {
@@ -495,6 +495,20 @@ describe('addHook', () => {
       code: 'CORE_INVALID_ARGUMENT',
     })
   })
+
+  test('throws CORE_INVALID_ARGUMENT once the file is collected, even for one of its own suites', async () => {
+    let suite: SuiteHandle | undefined
+    const run = await runScript(({ test, beforeAll }, step, runtime) => {
+      suite = runtime.lazyHost.collecting()
+      beforeAll(() => {
+        assert.ok(suite)
+        runtime.lazyHost.addHook(suite, 'beforeEach', () => step('added too late'))
+      })
+      test('t', () => {})
+    })
+    assert.equal(run.results.t?.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
+    assert.deepEqual(run.trace, [])
+  })
 })
 
 describe('onCollected', () => {
@@ -543,6 +557,51 @@ describe('onCollected', () => {
     })
     await run.runtime.runFile('/project/second.test.ts')
     assert.deepEqual(run.trace, ['collected'])
+  })
+
+  test('a listener that throws fails the file: the other listeners run, no test does, and the file ends', async () => {
+    const run = await runScript(({ test }, step, runtime) => {
+      runtime.lazyHost.onCollected(() => {
+        throw new Error('listener failed')
+      })
+      runtime.lazyHost.onCollected(() => step('second listener'))
+      test('t', () => step('body'))
+    })
+    assert.deepEqual(run.trace, ['second listener'])
+    assert.equal(run.file.state, 'fail')
+    assert.deepEqual(
+      run.file.errors.map((error) => error.message),
+      ['listener failed'],
+    )
+    assert.deepEqual(eventsOf(run.events, 'test-start'), [])
+    assert.equal(run.events.at(-1)?.type, 'file-end')
+  })
+
+  test('a listener whose promise rejects fails the file the same way', async () => {
+    const run = await runScript(({ test }, step, runtime) => {
+      runtime.lazyHost.onCollected(async () => {
+        await Promise.resolve()
+        throw new Error('async listener failed')
+      })
+      test('t', () => step('body'))
+    })
+    assert.deepEqual(run.trace, [])
+    assert.deepEqual(
+      run.file.errors.map((error) => error.message),
+      ['async listener failed'],
+    )
+  })
+
+  test('an async listener is waited for before any hook or test runs', async () => {
+    const run = await runScript(({ test }, step, runtime) => {
+      runtime.lazyHost.onCollected(async () => {
+        // Long enough that a listener nobody waits for would end after the body.
+        for (let turn = 0; turn < 3; turn++) await settle()
+        step('listener done')
+      })
+      test('t', () => step('body'))
+    })
+    assert.deepEqual(run.trace, ['listener done', 'body'])
   })
 
   test('throws CORE_INVALID_ARGUMENT once collection is over', async () => {

@@ -50,6 +50,23 @@ describe('currentTest.run and get', () => {
     )
     assert.equal(currentTest.get(), undefined)
   })
+
+  test('inside a test, run replaces only the frame: the lazy frame and the attempt carry on', async () => {
+    const seen: unknown[] = []
+    const run = await runScript(({ test, onTestFinished }, step, runtime) => {
+      test('t', () => {
+        const lazy = runtime.lazyHost.current()
+        currentTest.run(frame('A'), () => {
+          seen.push(currentTest.get()?.fileId, runtime.lazyHost.current() === lazy)
+          // Registering a callback needs the attempt.
+          onTestFinished(() => step('finished'))
+        })
+      })
+    })
+    assert.deepEqual(seen, ['A', true])
+    assert.deepEqual(run.trace, ['finished'])
+    assert.equal(run.states.t, 'pass')
+  })
 })
 
 describe('currentTest.bind', () => {

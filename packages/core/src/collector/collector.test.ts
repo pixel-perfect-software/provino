@@ -2,22 +2,74 @@
 // one value at a time against the neutral base. The scripts below are the "test files": they run
 // through a real runtime (`runScript`), so a registration goes through the same path a file's does.
 import assert from 'node:assert/strict'
+import { basename } from 'node:path'
 import { describe, test } from 'node:test'
+import { fileURLToPath } from 'node:url'
+import type { CorePolicy } from '@provino/types'
+import type { FileState } from '../internal/model.ts'
 import {
+  type CoreOverrides,
   eventsOf,
   locateMarker,
+  policyWith,
   runScript,
   type Script,
   type ScriptRun,
+  settle,
   suiteNamed,
   testNamed,
   testsOf,
+  watch,
 } from '../internal/test-support.ts'
-import type { RuntimeApi } from './api.ts'
+import { createApi, type RuntimeApi } from './api.ts'
+import { Collector } from './collector.ts'
+import { type FinalizeOptions, finalize } from './finalize.ts'
+import { registerFromHelper, registerHookFromHelper } from './fixtures/register-helper.ts'
+import { newFileState } from './nodes.ts'
 
 /** The error codes a file failed with. */
 function fileCodes(run: ScriptRun): Array<string | undefined> {
   return run.file.errors.map((error) => error.code)
+}
+
+/**
+ * A collector and its API with no runtime around them, so a test can drive files by hand and see
+ * the tree and the late-registration reports.
+ */
+function bareCollector(overrides: CoreOverrides = {}, locations = false) {
+  const policy = policyWith(overrides)
+  const late: Array<{ readonly file: string | undefined; readonly code: string }> = []
+  const collector = new Collector({
+    policy,
+    formatEachTitle: (name) => name,
+    locations,
+    onLateRegistration: (error, chargedTo) =>
+      late.push({ file: chargedTo?.path, code: error.code }),
+  })
+  const api = createApi(collector)
+  /** Collects `script` as the file at `path`, then closes it, as the runtime does. */
+  const collectFile = async (
+    path: string,
+    script: (api: RuntimeApi) => unknown,
+  ): Promise<FileState> => {
+    const file = newFileState(path, basename(path), new AbortController().signal)
+    await collector.collect(file, async () => script(api))
+    collector.close(file)
+    return file
+  }
+  return { policy, collector, api, late, collectFile }
+}
+
+/** Finalize options with no filters. */
+function plainFinalize(policy: CorePolicy): FinalizeOptions {
+  return {
+    policy,
+    projectName: '',
+    ci: false,
+    testNamePattern: undefined,
+    testIds: undefined,
+    lines: undefined,
+  }
 }
 
 describe('collect.describeBody', () => {
@@ -161,6 +213,67 @@ describe('asyncDescribe', () => {
       ['a > a1', 'b > b-sync', 'b > b1'],
     )
   })
+
+  test('await: a body that rejects while another is awaited is never an unhandled rejection', async () => {
+    const unhandled: unknown[] = []
+    const record = (reason: unknown): void => {
+      unhandled.push(reason)
+    }
+    process.on('unhandledRejection', record)
+    try {
+      const { collectFile } = bareCollector({ asyncDescribe: 'await' })
+      const gate = Promise.withResolvers<void>()
+      const collecting = collectFile('/project/a.test.ts', ({ describe }) => {
+        describe('waits', async () => {
+          await gate.promise
+        })
+        describe('fails', async () => {
+          await Promise.resolve()
+          throw new Error('body failed')
+        })
+      })
+      // One event-loop turn (no timer): `fails` has rejected, and Node has looked for rejections
+      // nothing handles.
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      gate.resolve()
+      await assert.rejects(collecting, /body failed/)
+      assert.deepEqual(unhandled, [])
+    } finally {
+      process.off('unhandledRejection', record)
+    }
+  })
+
+  test('await: a failed collection lets every async body settle, then throws the first error', async () => {
+    const { collectFile } = bareCollector({ asyncDescribe: 'await' })
+    const gate = Promise.withResolvers<void>()
+    const collecting = collectFile('/project/a.test.ts', ({ describe }) => {
+      describe('slow', async () => {
+        await gate.promise
+        throw new Error('body failed too')
+      })
+      throw new Error('top level failed')
+    })
+    const state = watch(collecting)
+    await settle()
+    assert.equal(state.settled, false, 'collection still waits for the slow body')
+    gate.resolve()
+    await assert.rejects(collecting, /top level failed/)
+  })
+})
+
+describe('Collector.collecting', () => {
+  test('is undefined in a describe-body continuation once its file is collected', async () => {
+    const { collector, collectFile } = bareCollector()
+    const gate = Promise.withResolvers<void>()
+    let seen: Promise<unknown> | undefined
+    await collectFile('/project/a.test.ts', ({ describe }) => {
+      describe('d', () => {
+        seen = gate.promise.then(() => collector.collecting())
+      })
+    })
+    gate.resolve()
+    assert.equal(await seen, undefined)
+  })
 })
 
 describe('collect.describeReturnValue', () => {
@@ -236,13 +349,52 @@ describe('collect.lateRegistration', () => {
     assert.equal(eventsOf(run.events, 'unhandled-error').length, 2)
   })
 
-  test('a registration after the file has finished throws CORE_LATE_REGISTRATION', async () => {
+  test('a registration after the file has finished is reported, never thrown', async () => {
     const run = await runScript(({ test }) => {
       test('t', () => {})
     })
-    assert.throws(() => run.runtime.api.test('too late', () => {}), {
-      code: 'CORE_LATE_REGISTRATION',
+    assert.doesNotThrow(() => run.runtime.api.test('too late', () => {}))
+    const [unhandled] = eventsOf(run.events, 'unhandled-error')
+    assert.equal(unhandled?.origin, 'late-registration')
+    assert.equal(unhandled?.error.code, 'CORE_LATE_REGISTRATION')
+  })
+
+  test('a late registration is charged to the file its describe belongs to, not the file collecting now', async () => {
+    const { late, collectFile } = bareCollector()
+    const gate = Promise.withResolvers<void>()
+    let registered: Promise<void> | undefined
+    await collectFile('/project/first.test.ts', ({ describe, test }) => {
+      describe('d', () => {
+        // A continuation of the describe body, as a timer started there would be.
+        registered = gate.promise.then(() => test('late', () => {}))
+      })
     })
+    await collectFile('/project/second.test.ts', async () => {
+      gate.resolve()
+      await registered
+    })
+    assert.deepEqual(late, [{ file: '/project/first.test.ts', code: 'CORE_LATE_REGISTRATION' }])
+  })
+
+  test('a describe-body continuation that registers once no file is current is still charged to its file, and never throws', async () => {
+    const { collector, late, collectFile } = bareCollector()
+    const gate = Promise.withResolvers<void>()
+    let registered: Promise<void> | undefined
+    const file = await collectFile('/project/first.test.ts', ({ describe, test }) => {
+      describe('d', () => {
+        registered = gate.promise.then(() => test('late', () => {}))
+      })
+    })
+    collector.release(file)
+    gate.resolve()
+    await assert.doesNotReject(async () => registered)
+    assert.deepEqual(late, [{ file: '/project/first.test.ts', code: 'CORE_LATE_REGISTRATION' }])
+  })
+
+  test('a registration outside any file is reported with no file, never thrown', () => {
+    const { api, late } = bareCollector()
+    assert.doesNotThrow(() => api.test('outside', () => {}))
+    assert.deepEqual(late, [{ file: undefined, code: 'CORE_LATE_REGISTRATION' }])
   })
 })
 
@@ -400,6 +552,41 @@ describe('missingTestFn', () => {
     assert.deepEqual(run.file.errors, [])
     assert.equal(suiteNamed(run, 'd').mode, 'todo')
   })
+
+  test('todo leaves test.skip with no function skipped', async () => {
+    const run = await runScript(
+      ({ test }) => {
+        test.skip('x')
+      },
+      { missingTestFn: 'todo' },
+    )
+    assert.equal(testNamed(run, 'x').mode, 'skip')
+    assert.deepEqual(run.states, { x: 'skip' })
+  })
+
+  test('todo leaves test.only with no function focused, so it still narrows the file', async () => {
+    const run = await runScript(
+      ({ test }) => {
+        test.only('focused')
+        test('other', () => {})
+      },
+      { missingTestFn: 'todo' },
+    )
+    assert.equal(testNamed(run, 'focused').mode, 'only')
+    assert.equal(run.results.other?.skipReason, 'only-filter')
+  })
+
+  test('todo leaves describe.skip and describe.only with no body as they were declared', async () => {
+    const run = await runScript(
+      ({ describe }) => {
+        describe.skip('skipped')
+        describe.only('focused')
+      },
+      { missingTestFn: 'todo' },
+    )
+    assert.equal(suiteNamed(run, 'skipped').mode, 'skip')
+    assert.equal(suiteNamed(run, 'focused').mode, 'only')
+  })
 })
 
 describe('registration arguments', () => {
@@ -531,6 +718,36 @@ describe('task ids and names', () => {
       ],
     )
   })
+
+  test('dupIndex counts across same-named sibling describes, and apart from a same-named test', async () => {
+    const run = await runScript(({ describe, test }) => {
+      describe('d', () => {
+        test('same', () => {})
+        describe('e', () => {
+          test('same', () => {})
+        })
+      })
+      test('d', () => {})
+      describe('d', () => {
+        test('same', () => {})
+        describe('e', () => {
+          test('same', () => {})
+        })
+      })
+      test('d', () => {})
+    })
+    assert.deepEqual(
+      testsOf(run.tasks).map((task) => [task.fullName.join(' > '), task.dupIndex]),
+      [
+        ['d > same', 0],
+        ['d > e > same', 0],
+        ['d', 0],
+        ['d > same', 1],
+        ['d > e > same', 1],
+        ['d', 1],
+      ],
+    )
+  })
 })
 
 describe('test options', () => {
@@ -644,6 +861,132 @@ describe('test options', () => {
     assert.equal(testNamed(run, 'chained > t').concurrent, true)
     assert.equal(testNamed(run, 'option > t').concurrent, true)
     assert.equal(suiteNamed(run, 'chained').concurrent, true)
+  })
+
+  test('a describe inside a concurrent describe is concurrent too, unless it opts out', async () => {
+    const run = await runScript(({ describe, test }) => {
+      describe.concurrent('outer', () => {
+        describe('inherits', () => {
+          test('t', () => {})
+        })
+        describe('opted out', { concurrent: false }, () => {
+          test('t', () => {})
+        })
+      })
+    })
+    assert.equal(suiteNamed(run, 'outer > inherits').concurrent, true)
+    assert.equal(suiteNamed(run, 'outer > opted out').concurrent, false)
+    assert.equal(testNamed(run, 'outer > opted out > t').concurrent, false)
+  })
+
+  test('a number third to describe is its timeout, which its tests inherit', async () => {
+    const run = await runScript(({ describe, test }) => {
+      describe('d', () => {
+        test('t', () => {})
+      }, 123)
+      describe.each([[1]])(
+        'row %i',
+        () => {
+          test('t', () => {})
+        },
+        45,
+      )
+    })
+    assert.equal(testNamed(run, 'd > t').timeoutMs, 123)
+    assert.equal(testNamed(run, 'row 1 > t').timeoutMs, 45)
+  })
+})
+
+describe('timeouts.zero', () => {
+  const zeroTests: Script = ({ test }) => {
+    test('third arg', () => {}, 0)
+    test('option', { timeout: 0 }, () => {})
+  }
+
+  test('default: a test timeout of 0 is the default timeout', async () => {
+    const run = await runScript(zeroTests, { timeouts: { zero: 'default', test: 1234 } })
+    assert.equal(testNamed(run, 'third arg').timeoutMs, 1234)
+    assert.equal(testNamed(run, 'option').timeoutMs, 1234)
+  })
+
+  test('none: a test timeout of 0 stays 0, which is no deadline', async () => {
+    const run = await runScript(zeroTests, { timeouts: { zero: 'none', test: 1234 } })
+    assert.equal(testNamed(run, 'third arg').timeoutMs, 0)
+    assert.equal(testNamed(run, 'option').timeoutMs, 0)
+  })
+
+  for (const [zero, expected] of [
+    ['default', undefined],
+    ['none', 0],
+  ] as const) {
+    test(`${zero}: a hook timeout of 0 becomes ${expected}, and other timeouts are kept`, async () => {
+      const { collectFile } = bareCollector({ timeouts: { zero } })
+      const file = await collectFile('/project/a.test.ts', ({ beforeEach, afterAll }) => {
+        beforeEach(() => {}, 0)
+        afterAll(() => {}, 25)
+      })
+      assert.equal(file.root.hooks.beforeEach[0]?.timeoutMs, expected)
+      assert.equal(file.root.hooks.afterAll[0]?.timeoutMs, 25)
+    })
+  }
+})
+
+describe('suite options passed down', () => {
+  test("a describe's only option makes everything inside it only, over a chained .skip", async () => {
+    const run = await runScript(
+      ({ describe, test }) => {
+        describe('focused', { only: true }, () => {
+          test.skip('chained skip', () => {})
+          describe('nested', () => {
+            test('inner', () => {})
+          })
+        })
+        test('outside', () => {})
+      },
+      { focus: { scope: 'suite' } },
+    )
+    assert.equal(testNamed(run, 'focused > chained skip').mode, 'only')
+    assert.equal(suiteNamed(run, 'focused > nested').mode, 'only')
+    assert.equal(testNamed(run, 'focused > nested > inner').mode, 'only')
+    assert.deepEqual(run.states, {
+      'focused > chained skip': 'pass',
+      'focused > nested > inner': 'pass',
+      outside: 'skip',
+    })
+  })
+
+  test("a describe's skip and todo options reach every descendant", async () => {
+    const run = await runScript(({ describe, test }) => {
+      describe('skipped', { skip: true }, () => {
+        describe('nested', () => {
+          test('t', () => {})
+        })
+      })
+      describe('later', { todo: true }, () => {
+        test('t', () => {})
+      })
+    })
+    assert.equal(suiteNamed(run, 'skipped > nested').mode, 'skip')
+    assert.equal(testNamed(run, 'skipped > nested > t').mode, 'skip')
+    assert.equal(testNamed(run, 'later > t').mode, 'todo')
+  })
+
+  test("a registration's own option wins over the one it inherits", async () => {
+    const run = await runScript(({ describe, test }) => {
+      describe('skipped', { skip: true }, () => {
+        test('not skipped', { skip: false }, () => {})
+      })
+    })
+    assert.equal(testNamed(run, 'skipped > not skipped').mode, 'run')
+  })
+
+  test('a chained describe.only passes nothing down', async () => {
+    const run = await runScript(({ describe, test }) => {
+      describe.only('chained', () => {
+        test('t', () => {})
+      })
+    })
+    assert.equal(testNamed(run, 'chained > t').mode, 'run')
   })
 })
 
@@ -805,6 +1148,21 @@ describe('.each and .for', () => {
     assert.equal(suiteNamed(run, 'suite 1').each, true)
   })
 
+  test('each passes every row unspread when the table mixes arrays and other rows', async () => {
+    const seen: unknown[][] = []
+    const bodies: unknown[][] = []
+    await runScript(({ describe, test }) => {
+      test.each([[1, 2], 'x'])('row %#', (...args) => {
+        seen.push(args)
+      })
+      describe.each([[1, 2], { a: 1 }])('suite %#', (...args) => {
+        bodies.push(args)
+      })
+    })
+    assert.deepEqual(seen, [[[1, 2]], ['x']])
+    assert.deepEqual(bodies, [[[1, 2]], [{ a: 1 }]])
+  })
+
   test('describe.for passes the row unspread to the body', async () => {
     const bodies: unknown[][] = []
     await runScript(({ describe }) => {
@@ -814,11 +1172,97 @@ describe('.each and .for', () => {
     })
     assert.deepEqual(bodies, [[[1, 2]]])
   })
+})
 
-  test('a table that is neither an array nor a template fails the file with a TypeError', async () => {
+describe('collect.eachTableError', () => {
+  /** A missing test function, past the API's types. */
+  const NO_FN = undefined as never
+  const failingTest = { collect: { eachTableError: 'failing-test' } } as const
+  const lenient = { collect: { eachTableError: 'lenient' } } as const
+
+  test('failing-test: a template whose values leave its last row short is one failing test under the raw title, and the rest of the file runs', async () => {
+    const run = await runScript(({ test }) => {
+      test.each`
+        a    | b
+        ${1} | ${2}
+        ${3}
+      `('adds $a and $b', () => {})
+      test('other', () => {})
+    }, failingTest)
+    assert.deepEqual(run.states, { 'adds $a and $b': 'fail', other: 'pass' })
+    assert.equal(run.results['adds $a and $b']?.errors[0]?.code, 'CORE_INVALID_EACH_TABLE')
+    assert.deepEqual(run.file.errors, [])
+  })
+
+  for (const [what, register] of [
+    ['an empty table', ({ test }: RuntimeApi) => test.each([])('row %#', () => {})],
+    // The API's types require the function; the runtime still has to handle its absence.
+    ['a table with no function', ({ test }: RuntimeApi) => test.each([[1]])('row %#', NO_FN)],
+    [
+      'a table that is not an array',
+      ({ test }: RuntimeApi) => test.each('nope' as never)('row %#', () => {}),
+    ],
+    [
+      'describe.each with an empty table',
+      ({ describe }: RuntimeApi) => describe.each([])('row %#', () => {}),
+    ],
+  ] as const) {
+    test(`failing-test: ${what} is one failing test under the raw title`, async () => {
+      const run = await runScript((api) => {
+        register(api)
+        api.test('other', () => {})
+      }, failingTest)
+      assert.deepEqual(run.states, { 'row %#': 'fail', other: 'pass' })
+      assert.equal(run.results['row %#']?.errors[0]?.code, 'CORE_INVALID_EACH_TABLE')
+      assert.deepEqual(run.file.errors, [])
+    })
+  }
+
+  test('failing-test: a modifier chained before each applies to the failing test', async () => {
+    const run = await runScript(({ test }) => {
+      test.skip.each([])('row %#', () => {})
+    }, failingTest)
+    assert.deepEqual(run.states, { 'row %#': 'skip' })
+  })
+
+  test('lenient: a template drops a last row its values leave short', async () => {
+    const run = await runScript(({ test }) => {
+      test.each`
+        a    | b
+        ${1} | ${2}
+        ${3}
+      `('adds $a and $b', () => {})
+    }, lenient)
+    assert.deepEqual(run.states, { 'adds 1 and 2': 'pass' })
+    assert.deepEqual(run.file.errors, [])
+  })
+
+  test('lenient: an empty table registers nothing', async () => {
+    const run = await runScript(({ describe, test }) => {
+      test.each([])('row %#', () => {})
+      describe.each([])('suite %#', () => {})
+      test('other', () => {})
+    }, lenient)
+    assert.deepEqual(
+      run.tasks.map((task) => task.name),
+      ['script.test.ts', 'other'],
+    )
+  })
+
+  test('lenient: a table with no function gives rows with no function, as missingTestFn says', async () => {
+    const run = await runScript(
+      ({ test }) => {
+        test.each([[1], [2]])('row %i', NO_FN)
+      },
+      { ...lenient, missingTestFn: 'todo' },
+    )
+    assert.deepEqual(run.states, { 'row 1': 'todo', 'row 2': 'todo' })
+  })
+
+  test('lenient: a table that is neither an array nor a template fails the file with a TypeError', async () => {
     const run = await runScript(({ test }) => {
       test.each('nope' as never)('x', () => {})
-    })
+    }, lenient)
     assert.equal(run.file.state, 'fail')
     assert.equal(run.file.errors[0]?.name, 'TypeError')
   })
@@ -879,5 +1323,55 @@ describe('locations', () => {
       [null, null, null],
     )
     assert.equal(eventsOf(run.events, 'hook-start')[0]?.location, null)
+  })
+})
+
+describe('locationFrame', () => {
+  const file = import.meta.filename
+  const helperFile = fileURLToPath(new URL('./fixtures/register-helper.ts', import.meta.url))
+
+  /** The location of the one test a helper module registers. */
+  const helperTestLocation = async (locationFrame: 'caller' | 'test-file') => {
+    const { policy, collectFile } = bareCollector({ locationFrame }, true)
+    const collected = await collectFile(file, (api) => {
+      // @marker:helper-call
+      registerFromHelper(api, 'shared')
+    })
+    const [, task] = finalize(collected, plainFinalize(policy))
+    return task?.location
+  }
+
+  test('test-file: a test a helper registers is located where the test file calls the helper', async () => {
+    assert.deepEqual(
+      await helperTestLocation('test-file'),
+      locateMarker(file, '// @marker:helper-call', 'registerFromHelper('),
+    )
+  })
+
+  test('caller: the same test is located in the helper', async () => {
+    assert.equal((await helperTestLocation('caller'))?.file, helperFile)
+  })
+
+  /** The location of a hook a helper module registers. */
+  const helperHookLocation = async (locationFrame: 'caller' | 'test-file') => {
+    const { policy, collectFile } = bareCollector({ locationFrame }, true)
+    const collected = await collectFile(file, (api) => {
+      // @marker:hook-helper-call
+      registerHookFromHelper(api)
+      api.test('t', () => {})
+    })
+    finalize(collected, plainFinalize(policy))
+    return collected.root.hooks.beforeEach[0]?.location
+  }
+
+  test('hooks follow locationFrame too: test-file points at the helper call in the test file', async () => {
+    assert.deepEqual(
+      await helperHookLocation('test-file'),
+      locateMarker(file, '// @marker:hook-helper-call', 'registerHookFromHelper('),
+    )
+  })
+
+  test('hooks follow locationFrame too: caller points into the helper', async () => {
+    assert.equal((await helperHookLocation('caller'))?.file, helperFile)
   })
 })

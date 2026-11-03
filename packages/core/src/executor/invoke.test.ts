@@ -96,6 +96,22 @@ describe('firstArg: context', () => {
     )
     assert.equal(seen, undefined)
   })
+
+  test('no hook has a `this` either', async () => {
+    const selves: unknown[] = []
+    await runScript(
+      ({ test, beforeAll, beforeEach, afterEach, afterAll }) => {
+        for (const hook of [beforeAll, beforeEach, afterEach, afterAll]) {
+          hook(function (this: unknown) {
+            selves.push(this)
+          })
+        }
+        test('t', () => {})
+      },
+      { firstArg: 'context' },
+    )
+    assert.deepEqual(selves, [undefined, undefined, undefined, undefined])
+  })
 })
 
 describe('firstArg: done-if-arity', () => {
@@ -173,6 +189,84 @@ describe('firstArg: done-if-arity', () => {
     }, policy)
     assert.equal(run.states.t, 'fail')
     assert.equal(run.results.t?.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
+  })
+
+  test('an async function that takes done and throws fails with CORE_INVALID_ARGUMENT, its error the cause', async () => {
+    const run = await runScript(({ test }) => {
+      test(
+        't',
+        withDone(async (_done) => {
+          throw new Error('async boom')
+        }),
+      )
+    }, policy)
+    assert.equal(run.results.t?.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
+    assert.equal(run.results.t?.errors[0]?.cause?.message, 'async boom')
+  })
+
+  test('a function that calls done and also returns a promise fails with CORE_INVALID_ARGUMENT', async () => {
+    const run = await runScript(({ test }) => {
+      test(
+        't',
+        withDone(async (done) => {
+          done()
+        }),
+      )
+    }, policy)
+    assert.equal(run.results.t?.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
+  })
+
+  test('beforeEach, the body and afterEach share one `this` per attempt, with no prototype', async () => {
+    const seen: Array<[string, unknown]> = []
+    await runScript(({ test, beforeEach, afterEach }) => {
+      beforeEach(function (this: { value?: string }) {
+        this.value = 'set in beforeEach'
+        seen.push(['beforeEach', this])
+      })
+      test('t', function (this: { value?: string }) {
+        seen.push(['body', this.value])
+      })
+      afterEach(function (this: unknown) {
+        seen.push(['afterEach', this])
+      })
+    }, policy)
+    const shared = seen[0]?.[1]
+    assert.equal(Object.getPrototypeOf(shared), null)
+    assert.deepEqual(seen, [
+      ['beforeEach', shared],
+      ['body', 'set in beforeEach'],
+      ['afterEach', shared],
+    ])
+  })
+
+  test('each attempt and each test get a `this` of their own', async () => {
+    const selves: unknown[] = []
+    await runScript(({ test, beforeEach }) => {
+      beforeEach(function (this: unknown) {
+        selves.push(this)
+      })
+      let calls = 0
+      test('retried', { retry: 1 }, () => {
+        if (++calls === 1) throw new Error('first attempt fails')
+      })
+      test('other', () => {})
+    }, policy)
+    assert.equal(new Set(selves).size, 3)
+  })
+
+  test('beforeAll and afterAll each get a fresh `this`, apart from the tests', async () => {
+    const selves: unknown[] = []
+    await runScript(({ test, beforeAll, afterAll, beforeEach }) => {
+      for (const hook of [beforeAll, afterAll, beforeEach]) {
+        hook(function (this: unknown) {
+          selves.push(this)
+        })
+      }
+      test('t', () => {})
+    }, policy)
+    assert.equal(selves.length, 3)
+    assert.equal(new Set(selves).size, 3)
+    for (const self of selves) assert.equal(typeof self, 'object')
   })
 
   test('a function that takes no parameter is called with no arguments, and a shared `this`', async () => {

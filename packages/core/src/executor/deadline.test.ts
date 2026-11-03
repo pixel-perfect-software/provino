@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { beforeEach, describe, test } from 'node:test'
 import FakeTimers, { type Clock } from '@sinonjs/fake-timers'
-import { timersOf, watch } from '../internal/test-support.ts'
+import { timersOf, trackRefs, watch } from '../internal/test-support.ts'
 import { type DeadlineOptions, withDeadline } from './deadline.ts'
 
 const TIMEOUT = new Error('timed out')
@@ -114,7 +114,16 @@ describe('withDeadline timing out', () => {
     await assert.rejects(pending, (error) => error === TIMEOUT)
   })
 
-  for (const timeoutMs of [0, Number.POSITIVE_INFINITY]) {
+  test('its timer does not hold the process open', async () => {
+    const tracked = trackRefs(timersOf(clock))
+    const pending = withDeadline(() => new Promise(() => {}), options({ timers: tracked.timers }))
+    pending.catch(() => {})
+    assert.equal(tracked.created(), 1)
+    assert.equal(tracked.refed(), 0)
+  })
+
+  // Node fires a timer longer than 2^31 - 1 ms after 1 ms, so such a timeout can't be a deadline.
+  for (const timeoutMs of [0, Number.POSITIVE_INFINITY, Number.NaN, 2 ** 31]) {
     test(`a timeout of ${timeoutMs} sets no timer and never expires`, async () => {
       const late = Promise.withResolvers<string>()
       const pending = withDeadline(() => late.promise, options({ timeoutMs }))

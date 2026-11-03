@@ -7,7 +7,7 @@ import {
   createBehaviourLoader,
   isModuleRef,
   moduleRef,
-  neutralPolicy,
+  resolvePolicy,
 } from '@provino/policy'
 import type {
   AnyFunction,
@@ -15,6 +15,7 @@ import type {
   CorePolicy,
   ModuleRef,
   OrderHooks,
+  PolicyOverrides,
   RuntimeEvent,
   RuntimeEventOf,
   RuntimeEventType,
@@ -27,32 +28,22 @@ import type {
 import type { Clock } from '@sinonjs/fake-timers'
 import type { RuntimeApi } from '../collector/api.ts'
 import type { RealTimers } from '../executor/deadline.ts'
-import { createRuntime, type Runtime, type RuntimeOptions } from '../runtime.ts'
+import {
+  createRuntime,
+  type RunFileOptions,
+  type Runtime,
+  type RuntimeOptions,
+} from '../runtime.ts'
 
-/** A partial policy: nested objects merge into the neutral values. */
-export type CoreOverrides = {
-  readonly [K in keyof CorePolicy]?: CorePolicy[K] extends (...args: never[]) => unknown
-    ? CorePolicy[K]
-    : CorePolicy[K] extends object
-      ? Partial<CorePolicy[K]>
-      : CorePolicy[K]
-}
+/** A partial `core` slice: groups of keys merge key by key into the neutral values. */
+export type CoreOverrides = NonNullable<PolicyOverrides['core']>
 
-/** The neutral `core` slice with `overrides` merged in. */
+/**
+ * The neutral `core` slice with `overrides` layered on by `resolvePolicy`, so a misspelled key
+ * throws `POLICY_UNKNOWN_KEY` instead of being ignored.
+ */
 export function policyWith(overrides: CoreOverrides = {}): CorePolicy {
-  const base = neutralPolicy.core
-  const merged: Record<string, unknown> = { ...base }
-  for (const [key, value] of Object.entries(overrides)) {
-    const current = (base as unknown as Record<string, unknown>)[key]
-    merged[key] = isPlainObject(current) && isPlainObject(value) ? { ...current, ...value } : value
-  }
-  return merged as unknown as CorePolicy
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === 'object' && value !== null && !Array.isArray(value) && !('module' in value)
-  )
+  return resolvePolicy({ core: overrides }).core
 }
 
 /** What one run produced. */
@@ -71,6 +62,8 @@ export interface ScriptRun {
   readonly results: Readonly<Record<string, TaskResult>>
   /** Each suite's final result by its names joined with ` > `. */
   readonly suites: Readonly<Record<string, TaskResult>>
+  /** Each task's path (names below the file joined with ` > `; the file's is `file`). */
+  readonly paths: ReadonlyMap<TaskId, string>
 }
 
 /**
@@ -79,12 +72,13 @@ export interface ScriptRun {
  */
 export type Script = (api: RuntimeApi, step: (name: string) => void, runtime: Runtime) => unknown
 
-/** Runs `script` as one test file under `policy`. */
+/** Runs `script` as one test file under `policy`; `lines` goes to that file's `runFile`. */
 export async function runScript(
   script: Script,
   overrides: CoreOverrides = {},
-  options: Partial<RuntimeOptions> = {},
+  options: Partial<RuntimeOptions> & RunFileOptions = {},
 ): Promise<ScriptRun> {
+  const { lines, ...runtimeOptions } = options
   const events: RuntimeEvent[] = []
   const trace: string[] = []
   const step = (name: string): void => {
@@ -101,10 +95,13 @@ export async function runScript(
     },
     rootDir: '/project',
     locations: false,
-    ...options,
+    ...runtimeOptions,
   })
   api = runtime.api
-  const file = await runtime.runFile('/project/script.test.ts')
+  const file = await runtime.runFile(
+    '/project/script.test.ts',
+    lines === undefined ? {} : { lines },
+  )
   const collected = events.find((event) => event.type === 'file-collect-end')
   const tasks = collected?.type === 'file-collect-end' ? collected.tasks : []
   const byId = new Map(
@@ -114,19 +111,11 @@ export async function runScript(
   const errors: Record<string, string[]> = {}
   const results: Record<string, TaskResult> = {}
   const suites: Record<string, TaskResult> = {}
-  const nodeById = new Map(tasks.map((task) => [task.id, task]))
-  const pathOf = (task: TaskNode): string => {
-    const names: string[] = []
-    for (let node: TaskNode | undefined = task; node?.parentId != null; ) {
-      names.unshift(node.name)
-      node = nodeById.get(node.parentId)
-    }
-    return names.join(' > ')
-  }
+  const paths = taskPaths(tasks)
   for (const event of events) {
     if (event.type === 'suite-end') {
-      const suite = nodeById.get(event.id)
-      if (suite !== undefined) suites[pathOf(suite)] = event.result
+      const path = paths.get(event.id)
+      if (path !== undefined) suites[path] = event.result
       continue
     }
     if (event.type !== 'test-end') continue
@@ -137,7 +126,7 @@ export async function runScript(
     errors[name] = event.result.errors.map((error) => error.message)
     results[name] = event.result
   }
-  return { runtime, events, trace, file, tasks, states, errors, results, suites }
+  return { runtime, events, trace, file, tasks, states, errors, results, suites, paths }
 }
 
 /** The events of one type, in order. */
@@ -157,16 +146,9 @@ export function testNamed(run: ScriptRun, name: string): TestTask {
 
 /** The collected suite with this path (names joined with ` > `). */
 export function suiteNamed(run: ScriptRun, path: string): SuiteTask {
-  const byId = new Map(run.tasks.map((task) => [task.id, task]))
-  const found = run.tasks.find((task): task is SuiteTask => {
-    if (task.type !== 'suite') return false
-    const names: string[] = []
-    for (let node: TaskNode | undefined = task; node?.parentId != null; ) {
-      names.unshift(node.name)
-      node = byId.get(node.parentId)
-    }
-    return names.join(' > ') === path
-  })
+  const found = run.tasks.find(
+    (task): task is SuiteTask => task.type === 'suite' && run.paths.get(task.id) === path,
+  )
   if (found === undefined) throw new Error(`no suite named "${path}"`)
   return found
 }
@@ -236,6 +218,35 @@ export function timersOf(clock: Clock): RealTimers {
 }
 
 /**
+ * Wraps `timers` to keep every timer they create, so a test can count the ones that would still
+ * hold the process open (a fake clock's timers answer `hasRef()`).
+ */
+export function trackRefs(timers: RealTimers): {
+  readonly timers: RealTimers
+  readonly created: () => number
+  readonly refed: () => number
+} {
+  const created: unknown[] = []
+  const setTimeout = (handler: () => void, ms?: number): unknown => {
+    const timer = timers.setTimeout(handler, ms)
+    created.push(timer)
+    return timer
+  }
+  const holds = (timer: unknown): boolean =>
+    typeof timer === 'object' &&
+    timer !== null &&
+    (timer as { hasRef?: () => boolean }).hasRef?.() !== false
+  return {
+    timers: {
+      setTimeout: setTimeout as unknown as RealTimers['setTimeout'],
+      clearTimeout: timers.clearTimeout,
+    },
+    created: () => created.length,
+    refed: () => created.filter(holds).length,
+  }
+}
+
+/**
  * Where a call sits in a source file. `marker` is a comment on its own line just above the call
  * (a formatter moves a trailing comment off a multi-line call, so put it above); the result is
  * the first line from there that contains `token`, and the 1-based column of `token` on it. Lets
@@ -275,8 +286,8 @@ function taskPaths(tasks: readonly TaskNode[]): Map<TaskId, string> {
  * The run's events as one short line each, tasks named by path, so a test can assert the whole
  * protocol: `hook-start beforeEach#0 owner=a test=a > t`, `attempt-end a > t 0/0 fail will-retry`.
  */
-export function eventLog(run: Pick<ScriptRun, 'events' | 'tasks'>): string[] {
-  const paths = taskPaths(run.tasks)
+export function eventLog(run: Pick<ScriptRun, 'events' | 'paths'>): string[] {
+  const { paths } = run
   const at = (id: TaskId | null): string => (id === null ? '-' : (paths.get(id) ?? id))
   return run.events.map((event): string => {
     switch (event.type) {
