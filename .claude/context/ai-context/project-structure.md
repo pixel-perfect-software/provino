@@ -34,7 +34,7 @@ provino/
 ├── tooling/                      # private workspace tools, never published (pnpm-workspace `tooling/*`)
 │   └── boundaries/               # provino-boundaries: packages.json manifest, generator, GritQL plugins
 ├── .refs/                        # gitignored upstream sources at pinned commits (DECISIONS S3); excalidraw/ is GitHub's tarball (the sandbox blocks nested git)
-└── .github/workflows/ci.yml      # Node 22.15/24/26 typecheck + test; type tests on TS 7.0.2 and 5.9.3; lint; bench suites and goldens; resolver/transform corpora
+└── .github/workflows/ci.yml      # Node 22.15/24/26 typecheck + test; type tests on TS 7.0.2 and 5.9.3; lint; recorded goldens on every push, bench suites when their inputs change; resolver/transform corpora
 ```
 
 Gitignored build output: `packages/*/.tsc/` (declarations from `tsc -b`; project references need emit) and `.turbo/`.
