@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../transform"
+    },
+    {
+      "path": "../resolver"
+    },
+    {
+      "path": "../policy"
+    }
+  ]
+}

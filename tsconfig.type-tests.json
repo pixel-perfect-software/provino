@@ -18,6 +18,9 @@
     },
     {
       "path": "packages/transform/test"
+    },
+    {
+      "path": "packages/loader/test"
     }
   ]
 }
