@@ -35,6 +35,7 @@
     "bench:excalidraw": "node --conditions=provino-source packages/transform/bench/excalidraw.ts",
     "bench:runner-fuzz": "node --conditions=provino-source packages/transform/bench/runner-fuzz.ts",
     "bench:loader": "node --conditions=provino-source packages/bench/src/loader/cli.ts",
+    "bench:expect": "node --conditions=provino-source packages/bench/src/expect/cli.ts",
     "deps:check": "autd check",
     "deps:update": "autd update"
   },
