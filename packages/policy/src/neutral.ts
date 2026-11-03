@@ -50,6 +50,10 @@ export const neutralPolicy: Policy = deepFreeze({
       describeReturnValue: 'error',
       lateRegistration: 'fail-file',
       emptyDescribe: 'allow',
+      // A misplaced registration stops where it was made; the test fails either way.
+      nestedInTest: 'throw',
+      // A todo's body is kept for later, as RSpec's pending examples are.
+      todoWithFn: 'todo',
     },
     hooks: {
       // Run as much teardown as possible.

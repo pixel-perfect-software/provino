@@ -145,6 +145,19 @@ export interface CorePolicy {
     readonly lateRegistration: 'fail-file' | 'warn-drop'
     /** A describe with no tests. Jest: `fail-file-if-hooks`. Vitest: `fail-suite`. unverified: track-05 L312 */
     readonly emptyDescribe: 'fail-file-if-hooks' | 'fail-suite' | 'allow'
+    /**
+     * `test`, `describe` or a hook called inside a running test: the call records the error on
+     * that test and returns (`fail-test`), or throws (`throw`). Both fail the test; the body only
+     * goes on under `fail-test`. Jest: `fail-test`. Vitest: `throw`. Added in B07 from the runtime
+     * corpus (`collection-nested-test`); unverified until B14.
+     */
+    readonly nestedInTest: 'fail-test' | 'throw'
+    /**
+     * `test.todo(name, fn)`: a todo whose body never runs (`todo`), or an error at registration
+     * (`throw`). Jest: `throw`. Vitest: `todo`. Added in B07 from the runtime corpus
+     * (`collection-todo-with-fn`); unverified until B14.
+     */
+    readonly todoWithFn: 'throw' | 'todo'
   }
   /** Hook failure and edge cases (Track 5 `hooks.*`, Track 12 fuzzing). */
   readonly hooks: {

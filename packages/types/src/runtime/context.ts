@@ -41,6 +41,13 @@ export interface CurrentTest {
 }
 
 /**
+ * Loads a test file for the runtime to collect. The worker passes the loader's import here
+ * (Track 1 §Module boundaries, rule 6), so the core never imports the loader.
+ * @public
+ */
+export type ImportFile = (path: string) => Promise<unknown>
+
+/**
  * The arguments a `.each` row spreads into: a tuple row spreads, any other row is one argument.
  * @public
  */

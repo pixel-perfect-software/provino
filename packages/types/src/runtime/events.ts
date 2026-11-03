@@ -158,3 +158,12 @@ export type RuntimeEventOf<Type extends RuntimeEventType> = Extract<
   RuntimeEvent,
   { readonly type: Type }
 >
+
+/**
+ * Where the runtime sends its events, one at a time, in order. The worker's packer (Track 9)
+ * batches them; the core never does.
+ * @public
+ */
+export interface EventSink {
+  emit(event: RuntimeEvent): void
+}
