@@ -7,25 +7,6 @@ minimumReleaseAge: 10080
 # autd is our own package, so all its versions skip the wait (DECISIONS D14).
 minimumReleaseAgeExclude:
   - "@pixel-perfect-software/always-up-to-date"
-  # autd 3.3.0 pins @inquirer/prompts 8.7.5. These exact versions were published 2026-10-27
-  # and clear the 7-day wait on 2026-11-03; Tyler approved installing them early. Later
-  # versions still wait. Remove these lines after 2026-11-03.
-  - "@inquirer/ansi@2.0.10"
-  - "@inquirer/checkbox@5.2.8"
-  - "@inquirer/confirm@6.3.5"
-  - "@inquirer/core@12.0.6"
-  - "@inquirer/editor@5.3.6"
-  - "@inquirer/expand@5.1.8"
-  - "@inquirer/external-editor@3.0.7"
-  - "@inquirer/figures@2.0.10"
-  - "@inquirer/input@5.1.9"
-  - "@inquirer/number@4.2.6"
-  - "@inquirer/password@5.2.5"
-  - "@inquirer/prompts@8.7.5"
-  - "@inquirer/rawlist@5.3.8"
-  - "@inquirer/search@4.3.6"
-  - "@inquirer/select@5.2.8"
-  - "@inquirer/type@4.2.1"
 
 # Jest 30's haste map and resolver ship prebuilt native bindings; their install scripts only
 # rebuild from source when a prebuilt binary is missing, so they never run here.
@@ -39,6 +20,8 @@ catalog:
   "@biomejs/biome": 2.6.3
   # Jest 30.5 and Vitest 5.0: subjects of the dev packages (harness, bench), never our runner.
   "@jest/test-result": 30.5.2
+  # Type tests only: real Jest transformers must assign to JestTransformer (Track 3, T3.1).
+  "@jest/transform": 30.5.2
   # autd: dependency updates (DECISIONS D14); config in .always-up-to-date.json.
   "@pixel-perfect-software/always-up-to-date": 3.3.0
   "@standard-schema/spec": 1.1.0

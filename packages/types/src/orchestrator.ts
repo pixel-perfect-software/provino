@@ -1,0 +1,397 @@
+// Track 9 §Types: pools, the wire protocol, the scheduler, the reporter bus and global setup.
+// The events on the wire and on the bus are Track 5's `RuntimeEvent`s (one event model, see the
+// package README); Track 9's own `task:*`/`hook:*` event shapes are gone. Runtime pieces
+// (`defineReporter`, `inject`, the `ExitCode` constant) land in `@provino/orchestrator`.
+import type { CoverageSummary } from './coverage.ts'
+import type { IsolationTier } from './isolation.ts'
+import type { PoolKind } from './policy/orchestrator.ts'
+import type { RuntimeEvent, RuntimeEventOf } from './runtime/events.ts'
+import type { FileTask, SerializedError, SuiteTask, TaskId, TestTask } from './runtime/tree.ts'
+
+/**
+ * Everything that must match for a warm worker to take the next file.
+ * @public
+ */
+export interface WorkerKey {
+  readonly project: string
+  readonly pool: PoolKind
+  readonly environment: string
+  readonly environmentOptionsHash: string
+  readonly execArgvHash: string
+  readonly envHash: string
+}
+
+/**
+ * When a worker is replaced.
+ * @public
+ */
+export interface RecyclePolicy {
+  /** RSS (forks) or heapUsed + external (threads), checked after each file. */
+  readonly memoryLimitBytes?: number
+  readonly maxFilesPerWorker?: number
+  /** Recycle after a file whose teardown reported leaked handles (Track 2). */
+  readonly onLeak?: boolean
+}
+
+/**
+ * A pool's settings.
+ * @public
+ */
+export interface PoolOptions {
+  readonly kind: PoolKind
+  readonly maxWorkers: number
+  readonly recycle: RecyclePolicy
+  /** Then SIGTERM, then SIGKILL after 500 ms. */
+  readonly teardownTimeoutMs: number
+  readonly startTimeoutMs: number
+}
+
+/**
+ * How a worker ended.
+ * @public
+ */
+export type WorkerExit =
+  | { readonly type: 'signal'; readonly signal: NodeJS.Signals; readonly likelyOom: boolean }
+  | { readonly type: 'exit'; readonly code: number }
+  | { readonly type: 'oom'; readonly limitMb: number }
+  | { readonly type: 'timeout'; readonly phase: 'start' | 'stop' | 'idle' }
+
+/**
+ * Data too big to structured-clone: a JSON string, a temp file, or transferred bytes.
+ * @public
+ */
+export type BulkPayload =
+  | { readonly type: 'json'; readonly json: string }
+  | { readonly type: 'file'; readonly path: string; readonly bytes: number }
+  | { readonly type: 'bytes'; readonly buffer: ArrayBuffer }
+
+/**
+ * What a worker is started with.
+ * @public
+ */
+export interface WorkerInit {
+  readonly key: WorkerKey
+  readonly workerId: number
+  readonly isolation: IsolationTier
+  /** Values from global setup's `provide()`. Typed by the RPC layer (B09). */
+  readonly provided: Readonly<Record<string, unknown>>
+  /** The serialized project config. Typed by the RPC layer (B09). */
+  readonly config: unknown
+}
+
+/**
+ * One test file to run: the coordinator's work item. (Track 9 calls it `FileTask`; renamed so it
+ * doesn't shadow the task tree's `FileTask` node.)
+ * @public
+ */
+export interface FileJob {
+  readonly file: string
+  readonly fileId: TaskId
+  readonly testNamePattern?: string
+  /** Only these tests (slow-file splitting, IDE runs). */
+  readonly testIds?: readonly TaskId[]
+  readonly updateSnapshots: 'all' | 'new' | 'none'
+}
+
+/**
+ * An event the worker sends: a runtime event, or one of the worker's own (coverage, the modules
+ * a file loaded).
+ * @public
+ */
+export type WorkerEvent =
+  | RuntimeEvent
+  | {
+      readonly type: 'coverage'
+      readonly fileId: TaskId
+      readonly payload: BulkPayload
+      readonly t: number
+    }
+  | {
+      readonly type: 'deps'
+      readonly fileId: TaskId
+      readonly modules: readonly string[]
+      readonly t: number
+    }
+
+/**
+ * Methods the worker calls on the coordinator.
+ * @public
+ */
+export interface CoordinatorMethods {
+  resolveSnapshotPath(testFile: string): Promise<string>
+  writeSnapshot(file: string, content: BulkPayload): Promise<void>
+  readTimings(file: string): Promise<number | undefined>
+}
+
+/**
+ * A message from the coordinator to a worker.
+ * @public
+ */
+export type CoordinatorToWorker =
+  | { readonly t: 'start'; readonly init: WorkerInit }
+  | { readonly t: 'run'; readonly seq: number; readonly job: FileJob }
+  | { readonly t: 'ack'; readonly pack: number }
+  | { readonly t: 'reply'; readonly id: number; readonly ok: true; readonly value: unknown }
+  | {
+      readonly t: 'reply'
+      readonly id: number
+      readonly ok: false
+      readonly error: SerializedError
+    }
+  | { readonly t: 'cancel'; readonly reason: 'sigint' | 'bail' | 'watch-rerun' }
+  | { readonly t: 'stop' }
+
+/**
+ * A message from a worker to the coordinator. `pack` is the batched envelope for events.
+ * @public
+ */
+export type WorkerToCoordinator =
+  | { readonly t: 'ready' }
+  | { readonly t: 'pack'; readonly pack: number; readonly events: readonly WorkerEvent[] }
+  | {
+      readonly t: 'call'
+      readonly id: number
+      readonly method: keyof CoordinatorMethods
+      readonly args: readonly unknown[]
+    }
+  | {
+      readonly t: 'fileDone'
+      readonly seq: number
+      readonly memoryBytes: number
+      readonly leakedHandles: number
+    }
+  | { readonly t: 'stopped' }
+
+/**
+ * The caller's view of an RPC interface: every method returns a promise.
+ * @public
+ */
+export type RpcClient<Methods> = {
+  readonly [K in keyof Methods]: Methods[K] extends (...args: infer A) => infer R
+    ? (...args: A) => Promise<Awaited<R>>
+    : never
+}
+
+/**
+ * One worker's connection. Forks, threads and in-process workers share one RPC layer over it.
+ * @public
+ */
+export interface Transport {
+  readonly kind: PoolKind
+  readonly pid: number | undefined
+  send(message: CoordinatorToWorker, transfer?: readonly ArrayBuffer[]): void
+  /** Returns an unsubscribe function. */
+  onMessage(listener: (message: WorkerToCoordinator) => void): () => void
+  onExit(listener: (exit: WorkerExit) => void): () => void
+  memoryUsage(): Promise<number>
+  terminate(force: boolean): Promise<void>
+}
+
+/**
+ * Starts workers of one kind: the pool contract a plugin can contribute.
+ * @public
+ */
+export interface TransportFactory {
+  readonly kind: PoolKind
+  create(init: WorkerInit): Promise<Transport>
+}
+
+/**
+ * A file's timing history from the local cache.
+ * @public
+ */
+export interface FileHistory {
+  readonly durationMs: number
+  readonly failed: boolean
+  readonly tests: number
+  readonly at: number
+}
+
+/**
+ * A test file as the scheduler sees it.
+ * @public
+ */
+export interface ScheduleInput {
+  readonly path: string
+  readonly project: string
+  readonly sizeBytes: number
+  /** From the local cache. */
+  readonly history?: FileHistory
+  /** From the committed timings file. */
+  readonly timingMs?: number
+}
+
+/**
+ * Orders and shards test files.
+ * @public
+ */
+export interface Sequencer {
+  /** Must be pure in (files, shard, timings): the same inputs give the same shard everywhere. */
+  shard(
+    files: readonly ScheduleInput[],
+    shard: { readonly index: number; readonly count: number },
+  ): readonly ScheduleInput[]
+  sort(files: readonly ScheduleInput[]): readonly ScheduleInput[]
+}
+
+/**
+ * `provino.timings.json`, the same shape as Bun's `--timings` file.
+ * @public
+ */
+export interface TimingsFile {
+  readonly version: 1
+  readonly files: Readonly<Record<string, number>>
+}
+
+/**
+ * A test file, as reporters see it.
+ * @beta
+ */
+export interface FileInfo {
+  readonly fileId: TaskId
+  /** POSIX, relative to the project root. */
+  readonly path: string
+  readonly project: string
+}
+
+/**
+ * The run being started.
+ * @beta
+ */
+export interface RunInfo {
+  readonly root: string
+  readonly projects: readonly string[]
+  /** Monotonic ms, the same clock as each event's `t`. */
+  readonly startTime: number
+  readonly watch: boolean
+  readonly shard?: { readonly index: number; readonly count: number }
+}
+
+/**
+ * A file's outcome: from its `file-end` event, or from the worker's exit when the worker died
+ * while running it.
+ * @public
+ */
+export interface FileResult {
+  readonly file: FileInfo
+  readonly state: 'pass' | 'fail' | 'skip'
+  readonly durationMs: number
+  /** Set when the worker died owning this file. */
+  readonly workerExit?: WorkerExit
+  readonly errors: readonly SerializedError[]
+}
+
+/**
+ * Why a run ended.
+ * @public
+ */
+export type RunEndReason = 'passed' | 'failed' | 'interrupted'
+
+/**
+ * A finished run.
+ * @public
+ */
+export interface RunSummary {
+  readonly reason: RunEndReason
+  readonly files: readonly FileResult[]
+  readonly unhandled: readonly SerializedError[]
+  readonly durationMs: number
+}
+
+/**
+ * The reporter bus's events and their arguments. The coordinator's own lifecycle events carry
+ * coordinator data. Every event that starts in the worker carries the task it refers to (or the
+ * file) and the `RuntimeEvent` itself, so reporters see the whole event model, nothing less.
+ * @public
+ */
+export interface ReporterEvents {
+  'run:start': [info: RunInfo, files: readonly FileInfo[]]
+  'file:queued': [file: FileInfo]
+  'file:start': [file: FileInfo, workerId: number]
+  'file:collected': [file: FileInfo, event: RuntimeEventOf<'file-collect-end'>]
+  'task:start': [task: SuiteTask | TestTask, event: RuntimeEventOf<'suite-start' | 'test-start'>]
+  'test:attempt-start': [test: TestTask, event: RuntimeEventOf<'test-attempt-start'>]
+  'test:attempt-end': [test: TestTask, event: RuntimeEventOf<'test-attempt-end'>]
+  'task:end': [task: SuiteTask | TestTask, event: RuntimeEventOf<'suite-end' | 'test-end'>]
+  'hook:start': [owner: FileTask | SuiteTask, event: RuntimeEventOf<'hook-start'>]
+  'hook:end': [owner: FileTask | SuiteTask, event: RuntimeEventOf<'hook-end'>]
+  annotation: [test: TestTask, event: RuntimeEventOf<'annotation'>]
+  console: [file: FileInfo, event: RuntimeEventOf<'console'>]
+  /** An unhandled error in a worker; `file` is `null` when it can't be tied to one. */
+  unhandled: [file: FileInfo | null, event: RuntimeEventOf<'unhandled-error'>]
+  'file:end': [result: FileResult]
+  coverage: [summary: CoverageSummary]
+  'run:end': [summary: RunSummary]
+  'watch:waiting': []
+  'watch:rerun': [changed: readonly string[], trigger: 'change' | 'key' | 'restart']
+  /** An error outside any test file. */
+  error: [error: SerializedError, origin: 'coordinator' | 'reporter' | 'globalSetup']
+}
+
+/**
+ * A reporter's handlers, one optional handler per bus event.
+ * @public
+ */
+export type ReporterHandlers = {
+  readonly [K in keyof ReporterEvents]?: (...args: ReporterEvents[K]) => void | Promise<void>
+}
+
+/**
+ * A reporter.
+ * @public
+ */
+export interface Reporter extends ReporterHandlers {
+  readonly name: string
+  /** A reporter failure that must fail the run (Jest's `getLastError`). */
+  readonly lastError?: () => SerializedError | undefined
+}
+
+/**
+ * The signature of `defineReporter`. Only `name` is generic, so an object literal keeps its
+ * excess-property check on event names.
+ * @public
+ */
+export type DefineReporter = <const N extends string>(
+  reporter: Reporter & { readonly name: N },
+) => Reporter & { readonly name: N }
+
+/**
+ * Delivers events to reporters.
+ * @public
+ */
+export interface ReporterBus {
+  emit<K extends keyof ReporterEvents>(event: K, ...args: ReporterEvents[K]): Promise<void>
+  add(reporter: Reporter): void
+}
+
+/**
+ * Values global setup provides to tests. Augmented by users:
+ * `declare module '@provino/types' { interface ProvidedContext { dbUrl: string } }`.
+ * @public
+ */
+// biome-ignore lint/suspicious/noEmptyInterface: augmented by users (declaration merging).
+export interface ProvidedContext {}
+
+/**
+ * What a global setup function receives.
+ * @public
+ */
+export interface GlobalSetupContext {
+  provide<K extends keyof ProvidedContext>(key: K, value: ProvidedContext[K]): void
+  onTestsRerun(callback: () => void | Promise<void>): void
+  readonly project: { readonly name: string; readonly root: string }
+}
+
+/**
+ * A global setup function; it may return a teardown.
+ * @public
+ */
+export type GlobalSetupFn = (
+  context: GlobalSetupContext,
+) => void | (() => void | Promise<void>) | Promise<void | (() => void | Promise<void>)>
+
+/**
+ * The signature of the worker-side `inject`: reads a value global setup provided.
+ * @public
+ */
+export type Inject = <K extends keyof ProvidedContext>(key: K) => ProvidedContext[K]
