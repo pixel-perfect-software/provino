@@ -1,11 +1,11 @@
 // Track 2 §Types and public API: the loader contract. `@provino/loader` (B06) implements it; the
 // worker, the runtime and coverage consume it. Track 2's own `Resolver`, `ResolveContext`,
 // `ResolvedModule` and `TransformedModule` are not here: the loader takes Track 3's resolver and
-// transform record (see the package README).
+// a `ModuleTransformer` that returns Track 3's transform record (see the package README).
 import type { IsolationTier } from './isolation.ts'
 import type { ModulePolicy } from './policy/module.ts'
 import type { Resolver } from './resolve.ts'
-import type { SourceMapV3, TransformRecord, TransformRequest } from './transform.ts'
+import type { ModuleTransformer, SourceMapV3 } from './transform.ts'
 
 /**
  * How modules are evaluated: Provino's module runner (vm) or Node's own loader hooks.
@@ -24,15 +24,6 @@ export type ModuleFormat = 'esm' | 'cjs' | 'json' | 'builtin' | 'addon' | 'wasm'
  * @public
  */
 export type ModuleId = string & { readonly __brand: 'ModuleId' }
-
-/**
- * What the loader needs from Track 3's transform pipeline. Sync, because the native engine's load
- * hook can't await; `@provino/transform`'s `Pipeline` satisfies it.
- * @public
- */
-export interface ModuleTransformer {
-  transform(request: TransformRequest): TransformRecord
-}
 
 /**
  * Builds a mocked module's value (Track 4).

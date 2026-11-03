@@ -1,7 +1,8 @@
-// Track 3 §Types → shared records, plus the Jest transformer types (structurally identical to
-// `@jest/transform` 30). The pipeline itself (`Pipeline`, `PipelineOptions`, `CacheOptions`,
-// `ImportRewrite`) belongs to `@provino/transform` (B05). Track 2's `TransformedModule` is
-// folded into `TransformRecord` (its one extra field is `hasTopLevelAwait`).
+// Track 3 §Types → shared records, the pipeline's interface, and the Jest transformer types
+// (structurally identical to `@jest/transform` 30). `@provino/transform` (B05) implements
+// `Pipeline` and owns its options (`PipelineOptions`, `CacheOptions`, `ImportRewrite`). Track
+// 2's `TransformedModule` is folded into `TransformRecord` (its one extra field is
+// `hasTopLevelAwait`).
 import type { HoistPolicy } from './hoist.ts'
 
 /**
@@ -112,6 +113,26 @@ export interface TransformRequest {
   readonly consumer: 'import' | 'require'
   /** Add coverage instrumentation (Track 8). */
   readonly instrument: boolean
+}
+
+/**
+ * What the loader needs from the transform pipeline. Sync, because the native engine's load hook
+ * can't await.
+ * @public
+ */
+export interface ModuleTransformer {
+  transform(request: TransformRequest): TransformRecord
+}
+
+/**
+ * The transform pipeline (`createPipeline` in `@provino/transform`).
+ * @public
+ */
+export interface Pipeline extends ModuleTransformer {
+  /** For `processAsync` Jest transformers and async Vite hooks. */
+  transformAsync(request: TransformRequest): Promise<TransformRecord>
+  /** A stable hash of everything except file content; watch mode invalidates on it. */
+  readonly fingerprint: string
 }
 
 /**

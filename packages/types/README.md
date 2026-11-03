@@ -1,6 +1,6 @@
 # @provino/types
 
-Shared types for Provino: the task tree, the runtime events, the wire protocol, the policy slices, dialects, extension contracts and config. **Types only:** the package has no runtime exports. Functions whose signatures live here (`defineHoistPolicy`, `defineEnvironment`, `environment`, `defineReporter`, `inject`, `createLoader`) are implemented by the package that owns them and typed with the signature from here, e.g. `export const defineReporter: DefineReporter = (reporter) => reporter`.
+Shared types for Provino: the task tree, the runtime events, the wire protocol, the policy slices, dialects, extension contracts and config. **Types only:** the package has no runtime exports. Functions whose signatures live here (`defineHoistPolicy`, `defineEnvironment`, `environment`, `defineReporter`, `inject`, `createLoader`, `createResolver`) are implemented by the package that owns them and typed with the signature from here, e.g. `export const defineReporter: DefineReporter = (reporter) => reporter`.
 
 | Area | Module | Owner |
 | --- | --- | --- |

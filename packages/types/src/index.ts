@@ -96,7 +96,6 @@ export type {
   MockSpec,
   ModuleFormat,
   ModuleId,
-  ModuleTransformer,
   Realm,
 } from './loader.ts'
 export type {
@@ -135,6 +134,9 @@ export type {
 } from './orchestrator.ts'
 export type * from './policy/index.ts'
 export type {
+  CreateResolver,
+  JestCustomResolver,
+  JestResolverOptions,
   MapperHit,
   ModuleMapper,
   ResolveContext,
@@ -215,6 +217,8 @@ export type {
   JestTransformerFactory,
   JestTransformOptions,
   JestTransformRule,
+  ModuleTransformer,
+  Pipeline,
   SourceMapV3,
   StaticMockCall,
   TransformDiagnostic,

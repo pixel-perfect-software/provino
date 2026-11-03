@@ -1,11 +1,14 @@
-// Track 3 §Types → "Type tests (gate CI)" (T3.1). Cases 4 (`createResolver` rejects an explicit
-// `custom: undefined`) and 6 (`Pipeline.transform` is sync) need `@provino/resolver` and
-// `@provino/transform`, so they move to B05.
+// Track 3 §Types → "Type tests (gate CI)" (T3.1), all six cases. `createResolver` is declared
+// with its signature from here; `@provino/resolver` implements it (B05).
 import type { AsyncTransformer, SyncTransformer } from '@jest/transform'
 import type {
+  CreateResolver,
   DefineHoistPolicy,
   HoistArgRule,
+  ImportRecord,
   JestTransformer,
+  ModuleTransformer,
+  Pipeline,
   ResolveResult,
   StaticMockCall,
   TransformRecord,
@@ -50,9 +53,21 @@ expectTypeOf(p.hoistCalls).toEqualTypeOf<{
 }>()
 expectTypeOf(p.hoistValues).toEqualTypeOf<readonly 'hoisted'[]>()
 
+// 4. exactOptionalPropertyTypes: explicit undefined is rejected.
+declare const createResolver: CreateResolver
+// @ts-expect-error custom must be omitted, not undefined
+createResolver({ root: '/', mappers: [], extensions: ['.ts'], custom: undefined })
+createResolver({ root: '/', mappers: [], extensions: ['.ts'] })
+
 // 5. Records are deeply readonly for consumers.
 declare const rec: TransformRecord
 // @ts-expect-error readonly
 rec.staticMocks.push({} as StaticMockCall)
+declare const imported: ImportRecord
 // @ts-expect-error readonly
-rec.imports[0].specifier = 'x'
+imported.specifier = 'x'
+
+// 6. Pipeline.transform is sync (Track 2's load hook cannot await), and a pipeline is what the
+//    loader takes.
+expectTypeOf<Pipeline['transform']>().returns.toEqualTypeOf<TransformRecord>()
+expectTypeOf<Pipeline>().toExtend<ModuleTransformer>()

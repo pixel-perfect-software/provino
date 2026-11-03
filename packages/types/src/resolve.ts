@@ -1,6 +1,6 @@
 // Track 3 §Types → Resolver API: the one resolver contract. `@provino/resolver` (B05)
-// implements it, the loader consumes it, and a plugin may contribute one. Options, the factory
-// and the ready-made mappers stay in `@provino/resolver`.
+// implements it (`createResolver`, typed by `CreateResolver`), the loader consumes it, and a
+// plugin may contribute one. The ready-made mappers stay in `@provino/resolver`.
 
 /**
  * What kind of reference is being resolved. `mock` is a mock call's specifier;
@@ -75,3 +75,57 @@ export interface Resolver {
   invalidate(paths?: readonly string[]): void
   readonly fingerprint: string
 }
+
+/**
+ * The options Jest passes to a custom resolver (the part Provino supplies). Track 11 owns the
+ * exact shape.
+ * @beta
+ */
+export interface JestResolverOptions {
+  readonly basedir: string
+  readonly conditions?: readonly string[]
+  readonly defaultResolver: (path: string, options: JestResolverOptions) => string
+  readonly extensions?: readonly string[]
+  readonly moduleDirectory?: readonly string[]
+  readonly paths?: readonly string[]
+  readonly rootDir?: string
+}
+
+/**
+ * A Jest `resolver` module: a function, or an object with `sync` and/or `async`.
+ * @beta
+ */
+export type JestCustomResolver =
+  | ((path: string, options: JestResolverOptions) => string)
+  | {
+      readonly sync?: (path: string, options: JestResolverOptions) => string
+      readonly async?: (path: string, options: JestResolverOptions) => Promise<string>
+    }
+
+/**
+ * Options for `createResolver`.
+ * @public
+ */
+export interface ResolverOptions {
+  readonly root: string
+  readonly mappers: readonly ModuleMapper[]
+  readonly extensions: readonly string[]
+  readonly extensionAlias?: Readonly<Record<string, readonly string[]>>
+  readonly mainFields?: readonly string[]
+  /** Jest `moduleDirectories`. */
+  readonly moduleDirectories?: readonly string[]
+  /** Jest `modulePaths`: retried after a miss. */
+  readonly modulePaths?: readonly string[]
+  readonly roots?: readonly string[]
+  readonly tsconfig?: 'auto' | false | { readonly configFile: string; readonly references?: 'auto' }
+  readonly browserField?: boolean
+  readonly symlinks?: boolean
+  /** Jest's `resolver` module, called with Jest's exact shape. */
+  readonly custom?: JestCustomResolver
+}
+
+/**
+ * The signature of `createResolver` in `@provino/resolver`.
+ * @public
+ */
+export type CreateResolver = (options: ResolverOptions) => Resolver
