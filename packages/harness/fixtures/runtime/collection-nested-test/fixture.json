@@ -1,0 +1,4 @@
+{
+  "description": "test() called inside a running test. Jest adds 'Tests cannot be nested' to the running test and lets the call return. Vitest throws from the call ('Calling the test function inside another test function is not allowed'), so the outer test stops there. The nested test never runs in either, and the next test does.",
+  "runners": ["jest", "vitest"]
+}

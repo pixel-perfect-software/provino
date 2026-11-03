@@ -1,0 +1,4 @@
+{
+  "description": "Where .only applies: a describe.only with an inner test.only and siblings, and a test.only in another describe. Jest runs the focused tests of the file and skips the rest. With CI=1 (the recorder's default) Vitest rejects .only because allowOnly defaults to !isCI: the .only tests carry the error and nothing runs.",
+  "runners": ["jest", "vitest"]
+}

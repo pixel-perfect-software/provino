@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "profile": "vitest-list",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/concurrent-limit",
+  "files": [
+    {
+      "file": "limit.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "limit.test.ts",
+            "path": [
+              "seven concurrent tests",
+              "c1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 10
+          }
+        },
+        {
+          "id": {
+            "file": "limit.test.ts",
+            "path": [
+              "seven concurrent tests",
+              "c2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 10
+          }
+        },
+        {
+          "id": {
+            "file": "limit.test.ts",
+            "path": [
+              "seven concurrent tests",
+              "c3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 10
+          }
+        },
+        {
+          "id": {
+            "file": "limit.test.ts",
+            "path": [
+              "seven concurrent tests",
+              "c4"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 10
+          }
+        },
+        {
+          "id": {
+            "file": "limit.test.ts",
+            "path": [
+              "seven concurrent tests",
+              "c5"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 10
+          }
+        },
+        {
+          "id": {
+            "file": "limit.test.ts",
+            "path": [
+              "seven concurrent tests",
+              "c6"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 10
+          }
+        },
+        {
+          "id": {
+            "file": "limit.test.ts",
+            "path": [
+              "seven concurrent tests",
+              "c7"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 10
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "test c1 start",
+    "test c2 start",
+    "test c3 start",
+    "test c4 start",
+    "test c5 start",
+    "test c1 end",
+    "test c6 start",
+    "test c2 end",
+    "test c7 start",
+    "test c3 end",
+    "test c4 end",
+    "test c5 end",
+    "test c6 end",
+    "test c7 end",
+    "peak 5"
+  ]
+}

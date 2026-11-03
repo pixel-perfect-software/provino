@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/collection-describe-return-value",
+  "files": [
+    {
+      "file": "return-value.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    A \"describe\" callback must not return a value.",
+        "userFrame": "<root>/return-value.test.ts:3:1"
+      },
+      "tests": []
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "file start",
+    "body"
+  ]
+}

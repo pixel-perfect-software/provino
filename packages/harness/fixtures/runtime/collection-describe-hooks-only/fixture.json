@@ -1,0 +1,4 @@
+{
+  "description": "A describe with hooks but no tests, next to a normal test. Jest reports the file as failed ('beforeEach() may not be used in a describe block containing no tests') but still runs the other test, and runs no hook of the empty describe. Vitest fails the empty suite ('No test found in suite'), runs its afterAll, and runs the other test.",
+  "runners": ["jest", "vitest"]
+}

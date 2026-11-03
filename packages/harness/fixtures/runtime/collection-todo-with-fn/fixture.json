@@ -1,0 +1,5 @@
+{
+  "description": "test.todo(name, fn) with a function. Jest throws 'Todo must be called with only a description' while the file loads and fails the whole file. Vitest accepts it as a todo test that never runs its function.",
+  "runners": ["jest", "vitest"],
+  "expectCrash": ["jest"]
+}

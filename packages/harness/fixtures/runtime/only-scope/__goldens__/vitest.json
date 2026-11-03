@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/only-scope",
+  "files": [
+    {
+      "file": "only.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "only.test.ts",
+            "path": [
+              "focused describe",
+              "sibling before"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "only.test.ts",
+            "path": [
+              "focused describe",
+              "focused test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: [Vitest] Unexpected .only modifier. Remove it or pass --allowOnly argument to bypass this error"
+            }
+          ],
+          "location": {
+            "line": 6,
+            "column": 8
+          }
+        },
+        {
+          "id": {
+            "file": "only.test.ts",
+            "path": [
+              "focused describe",
+              "sibling after"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "only.test.ts",
+            "path": [
+              "unfocused describe",
+              "hidden"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "location": {
+            "line": 11,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "only.test.ts",
+            "path": [
+              "unfocused describe",
+              "focused elsewhere"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: [Vitest] Unexpected .only modifier. Remove it or pass --allowOnly argument to bypass this error"
+            }
+          ],
+          "location": {
+            "line": 12,
+            "column": 8
+          }
+        },
+        {
+          "id": {
+            "file": "only.test.ts",
+            "path": [
+              "plain describe",
+              "never runs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "location": {
+            "line": 16,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "file start",
+    "file end",
+    "focused body"
+  ]
+}

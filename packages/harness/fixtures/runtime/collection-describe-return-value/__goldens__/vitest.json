@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/collection-describe-return-value",
+  "files": [
+    {
+      "file": "return-value.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "return-value.test.ts",
+            "path": [
+              "returns a value",
+              "inside"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "file start",
+    "file end",
+    "body",
+    "test inside"
+  ]
+}

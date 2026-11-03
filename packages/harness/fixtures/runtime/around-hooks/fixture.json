@@ -1,0 +1,4 @@
+{
+  "description": "Vitest-only aroundAll and aroundEach: two of each at two nested levels, next to beforeAll/beforeEach/afterEach/afterAll. The first registered around hook is the outermost; aroundEach wraps beforeEach, the test and afterEach; aroundAll wraps the suite's beforeAll, tests and afterAll. Every level's aroundEach sets up before any beforeEach. Two of each plain after-hook per level make 'stack' (reversed) differ from 'list' (declaration order); the around hooks nest the same way in both.",
+  "runners": ["vitest", "vitest-list"]
+}

@@ -1,0 +1,5 @@
+{
+  "description": "test(name) without a function. Jest throws 'Missing second argument' while the file loads and fails the whole file. Vitest turns it into a todo test and runs the rest.",
+  "runners": ["jest", "vitest"],
+  "expectCrash": ["jest"]
+}
