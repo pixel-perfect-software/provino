@@ -29,6 +29,7 @@
     "boundaries:write": "node tooling/boundaries/src/cli.ts write",
     "provino-bench": "node --conditions=provino-source packages/bench/src/cli.ts",
     "provino-harness": "node --conditions=provino-source packages/harness/src/cli.ts",
+    "bench:resolve": "node --conditions=provino-source packages/resolver/bench/resolve-corpus.ts",
     "deps:check": "autd check",
     "deps:update": "autd update"
   },

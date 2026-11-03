@@ -18,6 +18,12 @@
     },
     {
       "path": "packages/bench"
+    },
+    {
+      "path": "packages/resolver"
+    },
+    {
+      "path": "packages/resolver/bench"
     }
   ]
 }

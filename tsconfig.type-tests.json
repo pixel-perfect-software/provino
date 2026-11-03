@@ -12,6 +12,9 @@
     },
     {
       "path": "packages/bench/test"
+    },
+    {
+      "path": "packages/resolver/test"
     }
   ]
 }

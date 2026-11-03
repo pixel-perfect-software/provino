@@ -37,6 +37,8 @@ catalog:
   expect-type: 1.4.0
   jest: 30.5.2
   lodash: 4.18.1
+  # Oxc (Track 3): the resolver.
+  oxc-resolver: 11.24.2
   tsdown: 0.23.2
   turbo: 2.11.10
   typescript: 7.0.2
