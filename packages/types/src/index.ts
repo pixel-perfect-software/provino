@@ -8,7 +8,7 @@ export type {
   RunRef,
   WallStats,
 } from './bench.ts'
-export type { CloneLeaf, CloneSafe } from './clone-safe.ts'
+export type { CloneLeaf, CloneSafe, JsonValue } from './clone-safe.ts'
 export type {
   BaseConfig,
   ConfigEnv,

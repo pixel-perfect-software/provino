@@ -1,6 +1,7 @@
 import type {
   CloneSafe,
   Contribution,
+  JsonValue,
   ModuleRef,
   Policy,
   SerializedPolicy,
@@ -52,6 +53,28 @@ expectTypeOf<TypeError>().toExtend<CloneSafe<TypeError>>()
 expectTypeOf<Error & { readonly code: string }>().not.toExtend<
   CloneSafe<Error & { readonly code: string }>
 >()
+// JSON values pass without being walked; a JSON-like object with a closure is still walked.
+expectTypeOf<JsonValue>().toExtend<CloneSafe<JsonValue>>()
+expectTypeOf<{ readonly a: JsonValue; readonly f: () => void }>().not.toExtend<
+  CloneSafe<{ readonly a: JsonValue; readonly f: () => void }>
+>()
+// A record with an error's name and message that declares itself plain data (the phantom
+// `__record?: never`) is checked field by field, so its extra fields clone.
+interface PlainErrorRecord {
+  readonly __record?: never
+  readonly name: string
+  readonly message: string
+  readonly code: string
+}
+expectTypeOf<PlainErrorRecord>().toExtend<CloneSafe<PlainErrorRecord>>()
+// A plain record still may not hide a closure.
+interface BadRecord {
+  readonly __record?: never
+  readonly name: string
+  readonly message: string
+  readonly format: () => string
+}
+expectTypeOf<BadRecord>().not.toExtend<CloneSafe<BadRecord>>()
 
 class Counter {
   count = 0
