@@ -9,6 +9,7 @@ import {
   prologue,
   renderExports,
   renderImport,
+  testFiles,
 } from './render.ts'
 
 /**
@@ -31,14 +32,23 @@ export const BIG_RECORD_COUNT = 24_000
 
 const BIG_SEED = 2_000_001
 
-interface BigRecord {
+/**
+ * One row of the big module.
+ * @public
+ */
+export interface BigRecord {
   readonly id: number
   readonly score: number
   readonly group: number
   readonly flags: readonly [number, number, number, number]
 }
 
-function bigRecords(): readonly BigRecord[] {
+/**
+ * The big module's records, from `BIG_SEED`. A suite builds them once and renders them for both
+ * flavours.
+ * @public
+ */
+export function bigRecords(): readonly BigRecord[] {
   const random = seededRandom(BIG_SEED)
   const records: BigRecord[] = []
   for (let id = 0; id < BIG_RECORD_COUNT; id++) {
@@ -61,15 +71,8 @@ function recordLiteral(record: BigRecord): string {
   return `{ id: ${record.id}, name: 'record-${record.id}', score: ${record.score}, group: 'g${record.group}', flags: [${record.flags.join(', ')}] }`
 }
 
-/**
- * Renders the big module (about 2 MB): a table of records, a `lookup` by id, and a `total` score
- * summed at load.
- * @public
- */
-export function renderBigModule(flavour: Flavour): string {
-  return renderBig(bigRecords(), flavour)
-}
-
+// The big module (about 2 MB): a table of records, a `lookup` by id, and a `total` score summed at
+// load.
 function renderBig(all: readonly BigRecord[], flavour: Flavour): string {
   return lines([
     ...prologue(flavour),
@@ -122,22 +125,24 @@ function renderIsolateHeavyTest(
 
 /**
  * The files of the `isolate-heavy` suite for a flavour: 30 test files that each import one
- * generated ~2 MB module and assert on it.
+ * generated ~2 MB module and assert on it. `records` come from `bigRecords`.
  * @public
  */
-export function isolateHeavyFiles(suite: string, flavour: Flavour): readonly GeneratedFile[] {
+export function isolateHeavyFiles(
+  suite: string,
+  flavour: Flavour,
+  records: readonly BigRecord[],
+): readonly GeneratedFile[] {
   const dir = FLAVOUR_DIR[flavour]
-  const records = bigRecords()
-  const tests: GeneratedFile[] = []
-  for (let index = 0; index < ISOLATE_HEAVY_FILES; index++) {
-    tests.push({
-      path: `${dir}/tests/big-${pad(index, 2)}.test.js`,
-      contents: renderIsolateHeavyTest(index, flavour, records),
-    })
-  }
   return [
     ...commonFiles(suite, flavour),
     { path: `${dir}/src/big.js`, contents: renderBig(records, flavour) },
-    ...tests,
+    ...testFiles(
+      dir,
+      'big',
+      ISOLATE_HEAVY_FILES,
+      (index) => renderIsolateHeavyTest(index, flavour, records),
+      2,
+    ),
   ]
 }

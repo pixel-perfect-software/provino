@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { BenchError } from './errors.ts'
+import { code } from './internal/test-helpers.ts'
 import {
   bootstrapMedianCi,
   coefficientOfVariation,
@@ -22,10 +22,7 @@ function assertClose(actual: number, expected: number, tolerance = 1e-9): void {
 }
 
 function assertInvalid(run: () => unknown): void {
-  assert.throws(
-    run,
-    (error) => error instanceof BenchError && error.code === 'BENCH_INVALID_SAMPLES',
-  )
+  assert.throws(run, code('BENCH_INVALID_SAMPLES'))
 }
 
 const odd = [4, 1, 3, 2, 10]

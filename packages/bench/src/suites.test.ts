@@ -1,31 +1,24 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
-import { BenchError } from './errors.ts'
 import { buildGraph, GRAPH, GRAPH_SIZE, simulate } from './generators/graph.ts'
 import { BIG_RECORD_COUNT } from './generators/isolate-heavy.ts'
 import type { Flavour, GeneratedFile } from './generators/render.ts'
+import { code, scratch } from './internal/test-helpers.ts'
 import {
   buildSuite,
   expectedTests,
   PACKAGE_DIR,
   parseSuiteName,
   planRunner,
-  runnerPackage,
   type SuiteSpec,
   toSubjectSpec,
   writeSuite,
 } from './suites.ts'
-
-async function scratch(t: { after(fn: () => Promise<void>): void }): Promise<string> {
-  const dir = await mkdtemp(join(process.env.TMPDIR ?? '/tmp', 'bench-suite-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  return dir
-}
 
 function suite(name: string): SuiteSpec {
   return parseSuiteName(name)
@@ -69,6 +62,7 @@ test('suite names parse to a shape and an expected test count', () => {
   assert.equal(expectedTests(suite('mock-heavy-500')), 2000)
   assert.equal(expectedTests(suite('isolate-heavy')), 90)
   assert.equal(suite('app-9999').files, 9999)
+  assert.equal(suite('mock-heavy-9999').files, 9999)
 })
 
 test('names that are not a suite are rejected with a stable code', () => {
@@ -79,6 +73,7 @@ test('names that are not a suite are rejected with a stable code', () => {
     'app-0',
     'app-05',
     'app-10000',
+    'mock-heavy-10000',
     'app-1.5',
     'app--1',
     'App-5',
@@ -87,11 +82,7 @@ test('names that are not a suite are rejected with a stable code', () => {
     'jsdom-5',
     'app-5 ',
   ]) {
-    assert.throws(
-      () => parseSuiteName(name),
-      (error) => error instanceof BenchError && error.code === 'BENCH_UNKNOWN_SUITE',
-      JSON.stringify(name),
-    )
+    assert.throws(() => parseSuiteName(name), code('BENCH_UNKNOWN_SUITE'), JSON.stringify(name))
   }
 })
 
@@ -111,15 +102,15 @@ test('generation is deterministic: building twice gives identical bytes', () => 
 })
 
 test('writing a suite twice leaves every file untouched the second time', async (t) => {
-  const root = await scratch(t)
+  const root = await scratch(t, 'bench-suite-')
   const spec = suite('app-3')
-  const first = await writeSuite(spec, { root })
+  const first = await writeSuite(spec, root)
   assert.equal(first.unchanged, 0)
   assert.equal(first.removed, 0)
   const probe = join(root, 'app-3', 'jest', 'tests', 'app-0001.test.js')
   const before = await stat(probe)
   const bytes = await readFile(probe)
-  const second = await writeSuite(spec, { root })
+  const second = await writeSuite(spec, root)
   assert.equal(second.written, 0)
   assert.equal(second.removed, 0)
   assert.equal(second.unchanged, first.written)
@@ -128,9 +119,9 @@ test('writing a suite twice leaves every file untouched the second time', async 
 })
 
 test('regenerating repairs edited files, removes stale ones, and leaves .cache alone', async (t) => {
-  const root = await scratch(t)
+  const root = await scratch(t, 'bench-suite-')
   const spec = suite('app-3')
-  await writeSuite(spec, { root })
+  await writeSuite(spec, root)
   const dir = join(root, 'app-3')
   const edited = join(dir, 'vitest', 'tests', 'app-0000.test.js')
   const original = await readFile(edited, 'utf8')
@@ -142,7 +133,7 @@ test('regenerating repairs edited files, removes stale ones, and leaves .cache a
   const old = new Date('2020-01-01T00:00:00Z')
   await utimes(join(dir, 'jest', 'setup.js'), old, old)
 
-  const summary = await writeSuite(spec, { root })
+  const summary = await writeSuite(spec, root)
   assert.equal(summary.written, 1)
   assert.equal(summary.removed, 1)
   assert.equal(await readFile(edited, 'utf8'), original)
@@ -266,10 +257,10 @@ test('the generated graph computes what the model says, in both flavours and any
   // The suite is written under a temp dir with a node_modules symlink to this package's, so the
   // generated modules can resolve zod, date-fns and lodash. Only the modules are loaded here;
   // no test runner starts.
-  const root = await scratch(t)
+  const root = await scratch(t, 'bench-suite-')
   await symlink(join(PACKAGE_DIR, 'node_modules'), join(root, 'node_modules'))
   const spec = suite('app-2')
-  await writeSuite(spec, { root: join(root, 'suites') })
+  await writeSuite(spec, join(root, 'suites'))
   const dir = join(root, 'suites', 'app-2')
 
   const cjs = createRequire(join(dir, 'jest', 'package.json'))
@@ -293,7 +284,7 @@ test('the generated graph computes what the model says, in both flavours and any
         const module = await loaded[flavour](node.name)
         for (const n of [0, 1, 7, 40]) {
           const memo = new Map<string, number>()
-          const expected = simulate(GRAPH, [node.index], n)
+          const expected = simulate([node.index], n)
           assert.equal(
             module.compute(n, memo),
             expected.total,
@@ -320,12 +311,12 @@ test('the graph has 24 modules, each depending only on lower ones, built from al
     assert.ok(node.weight >= 1 && node.weight <= 9)
   }
   // every module reaches all the ones below it, so the top one runs all 24
-  assert.equal(simulate(GRAPH, [23], 1).visited, 24)
+  assert.equal(simulate([23], 1).visited, 24)
   // a mock cuts off what is only reachable through it
-  const mocked = simulate(GRAPH, [23], 1, new Map([[22, 5]]))
+  const mocked = simulate([23], 1, new Map([[22, 5]]))
   assert.ok(mocked.visited < 24)
   assert.ok((mocked.calls.get(22) ?? 0) > 0)
-  assert.equal(simulate(GRAPH, [0], 4).total, (GRAPH[0]?.weight ?? 0) * 4)
+  assert.equal(simulate([0], 4).total, (GRAPH[0]?.weight ?? 0) * 4)
 })
 
 test('the runner plans carry the commands, caches and compile-cache env from the brief', () => {
@@ -361,13 +352,26 @@ test('the runner plans carry the commands, caches and compile-cache env from the
 
 test('runners resolve to real bin scripts, not .bin shims', () => {
   for (const runner of ['jest', 'vitest'] as const) {
-    const pkg = runnerPackage(runner)
-    assert.match(pkg.version, /^\d+\.\d+\.\d+/)
-    assert.ok(existsSync(pkg.bin), pkg.bin)
-    assert.ok(!pkg.bin.includes('/.bin/'))
+    const plan = planRunner(suite('app-1'), runner)
+    const bin = plan.argv[1] ?? ''
+    assert.match(plan.version, /^\d+\.\d+\.\d+/)
+    assert.ok(existsSync(bin), bin)
+    assert.ok(!bin.includes('/.bin/'))
   }
-  assert.equal(runnerPackage('jest').version, '30.5.2')
-  assert.equal(runnerPackage('vitest').version, '5.0.5')
+  assert.equal(planRunner(suite('app-1'), 'jest').version, '30.5.2')
+  assert.equal(planRunner(suite('app-1'), 'vitest').version, '5.0.5')
+})
+
+test('a plan follows the paths it is given', () => {
+  const paths = { repoRoot: '/r/repo', suitesRoot: '/r/repo/out/suites', resultsDir: '/r/results' }
+  const plan = planRunner(suite('app-5'), 'vitest', { paths })
+  assert.equal(plan.cwd, '/r/repo/out/suites/app-5/vitest')
+  assert.equal(plan.configPath, 'out/suites/app-5/vitest/vitest.config.ts')
+  assert.ok(plan.command.startsWith('cd out/suites/app-5/vitest && '))
+  assert.deepEqual(
+    plan.caches.map((cache) => cache.path),
+    ['/r/repo/out/suites/app-5/.cache/vite', '/r/repo/out/suites/app-5/.cache/node-vitest'],
+  )
 })
 
 test('a planned runner becomes a subject at the runner default isolation', () => {

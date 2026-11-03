@@ -1,8 +1,9 @@
 import { parseArgs } from 'node:util'
 import type { BenchLabel } from '@provino/types'
 import { BenchError } from './errors.ts'
-import { DEFAULT_RUN_TIMEOUT_MS, MAX_RUN_TIMEOUT_MS } from './exec.ts'
-import { parseLabel } from './report.ts'
+import { DEFAULT_RUN_TIMEOUT_MS, isTimerMs, MAX_RUN_TIMEOUT_MS } from './exec.ts'
+import { errorMessage } from './internal/guards.ts'
+import { parseLabel, runsProblem } from './report.ts'
 import { DEFAULT_COLD_RUNS, DEFAULT_WARM_RUNS } from './run-bench.ts'
 import { parseSuiteName, RUNNERS, type RunnerName, type SuiteSpec } from './suites.ts'
 
@@ -17,6 +18,8 @@ export type CliCommand =
       readonly command: 'check'
       readonly suite: SuiteSpec
       readonly runners: readonly RunnerName[]
+      /** The longest one run may take, in milliseconds. */
+      readonly timeoutMs: number
     }
   | {
       readonly command: 'run'
@@ -39,7 +42,7 @@ export const USAGE: string = `provino-bench: Provino's benchmark protocol (Track
 
 Usage:
   provino-bench generate <suite>
-  provino-bench check <suite> --runner jest [--runner vitest]
+  provino-bench check <suite> --runner jest [--runner vitest] [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}]
   provino-bench run <suite> --runner jest|vitest [--runner ...]
                     [--warm ${DEFAULT_WARM_RUNS}] [--cold ${DEFAULT_COLD_RUNS}] [--label local|desktop|pinned]
                     [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}] [--out <file>] [--machine-id <id>]
@@ -50,7 +53,7 @@ Options: each applies only to the commands above that show it.
                    ${DEFAULT_WARM_RUNS} warm and ${DEFAULT_COLD_RUNS} cold. desktop and pinned records need at least that
                    many; a local run with fewer prints a WARNING in its summary.
   --timeout        Minutes one run may take (default ${DEFAULT_RUN_TIMEOUT_MS / 60_000}, at most ${Math.floor(MAX_RUN_TIMEOUT_MS / 60_000)}). A run that takes
-                   longer has its whole process group killed and is kept as a failed run (exit 124).
+                   longer has its whole process group killed and is a failed run (exit 124).
   --out            Where the record goes. It must not exist yet: a record is never overwritten.
                    Default .results/<time>-<suite>-<sha7>.json in the bench package.
 Records are labelled local by default; only pinned numbers decide GO or appear publicly. desktop
@@ -72,7 +75,7 @@ type OptionName = keyof typeof options
 // Which options each command reads. Anything else on the command line is an error, not ignored.
 const COMMAND_OPTIONS: Readonly<Record<'generate' | 'check' | 'run', readonly OptionName[]>> = {
   generate: [],
-  check: ['runner'],
+  check: ['runner', 'timeout'],
   run: ['runner', 'warm', 'cold', 'label', 'out', 'machine-id', 'timeout'],
 }
 
@@ -80,9 +83,7 @@ function read(argv: readonly string[]) {
   try {
     return parseArgs({ args: [...argv], options, allowPositionals: true })
   } catch (cause) {
-    throw new BenchError('BENCH_USAGE', cause instanceof Error ? cause.message : String(cause), {
-      cause,
-    })
+    throw new BenchError('BENCH_USAGE', errorMessage(cause), { cause })
   }
 }
 
@@ -102,7 +103,7 @@ function count(value: string | undefined, fallback: number, flag: string): numbe
 
 function timeoutMs(value: string | undefined): number {
   const ms = count(value, DEFAULT_RUN_TIMEOUT_MS / 60_000, '--timeout') * 60_000
-  if (ms > MAX_RUN_TIMEOUT_MS) {
+  if (!isTimerMs(ms, 60_000)) {
     throw usage(`--timeout must be at most ${Math.floor(MAX_RUN_TIMEOUT_MS / 60_000)} minutes`)
   }
   return ms
@@ -153,19 +154,20 @@ export function parseCli(argv: readonly string[]): CliCommand {
       return { command, suite }
     case 'check':
       onlyOptions(command, values)
-      return { command, suite, runners: runners(values.runner) }
+      return {
+        command,
+        suite,
+        runners: runners(values.runner),
+        timeoutMs: timeoutMs(values.timeout),
+      }
     case 'run': {
       onlyOptions(command, values)
       const warm = count(values.warm, DEFAULT_WARM_RUNS, '--warm')
       const cold = count(values.cold, DEFAULT_COLD_RUNS, '--cold')
       const label = parseLabel(values.label ?? 'local')
-      // The R5 protocol is the floor for any record that can be quoted. A local run may be shorter;
-      // its summary says so.
-      if (label !== 'local' && (warm < DEFAULT_WARM_RUNS || cold < DEFAULT_COLD_RUNS)) {
-        throw usage(
-          `a ${label} record needs at least ${DEFAULT_WARM_RUNS} warm and ${DEFAULT_COLD_RUNS} cold runs (the R5 protocol); got --warm ${warm} --cold ${cold}`,
-        )
-      }
+      // The label's policy sets the floor (the R5 protocol for any record that can be quoted).
+      const tooFew = runsProblem(label, 'warm', warm) ?? runsProblem(label, 'cold', cold)
+      if (tooFew !== undefined) throw usage(`${tooFew}; got --warm ${warm} --cold ${cold}`)
       return {
         command,
         suite,

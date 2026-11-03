@@ -1,39 +1,6 @@
 import { execFileSync } from 'node:child_process'
-import { arch, availableParallelism, cpus, platform, release, totalmem } from 'node:os'
-import type { BenchLabel, RunEnvironment, RunRef } from '@provino/types'
+import type { RunRef } from '@provino/types'
 import { BenchError } from './errors.ts'
-
-/**
- * Whether the environment says it is CI: `CI` is set to something other than empty, `0` or
- * `false`.
- * @public
- */
-export function isCi(env: Readonly<Record<string, string | undefined>>): boolean {
-  const value = env.CI?.trim().toLowerCase()
-  return value !== undefined && value !== '' && value !== '0' && value !== 'false'
-}
-
-/**
- * The machine and toolchain a benchmark runs on. `runners` maps each runner measured to its
- * version, e.g. `{ jest: '30.5.2' }`.
- * @public
- */
-export function readEnvironment(
-  runners: Readonly<Record<string, string>>,
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): RunEnvironment {
-  return {
-    os: platform(),
-    osRelease: release(),
-    arch: arch(),
-    cpuModel: cpus()[0]?.model ?? 'unknown',
-    cpuCount: availableParallelism(),
-    memoryMb: Math.round(totalmem() / (1024 * 1024)),
-    node: process.version,
-    runners,
-    ci: isCi(env),
-  }
-}
 
 function git(cwd: string | undefined, args: readonly string[], what: string): string {
   try {
@@ -66,19 +33,4 @@ export function readRunRef(options?: { readonly cwd?: string; readonly now?: Dat
   const sha = git(cwd, ['rev-parse', 'HEAD'], 'the commit').trim()
   const dirty = git(cwd, ['status', '--porcelain'], 'the working tree state').trim() !== ''
   return { sha, date, dirty }
-}
-
-/**
- * Refuses a `desktop` or `pinned` record on a dirty tree with `BENCH_DIRTY_TREE`: those labels
- * name a commit that anyone can check out, which a dirty tree makes untrue. A `local` record may
- * be dirty; its summary says so.
- * @public
- */
-export function requireCleanTree(label: BenchLabel, ref: RunRef): void {
-  if (label !== 'local' && ref.dirty) {
-    throw new BenchError(
-      'BENCH_DIRTY_TREE',
-      `refusing a ${label} run: the git working tree has uncommitted changes (git status --porcelain is not empty), so commit ${ref.sha.slice(0, 7)} would not describe the code measured. Commit or stash them, or use --label local`,
-    )
-  }
 }

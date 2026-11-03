@@ -95,6 +95,30 @@ export function pad(index: number, width: number): string {
 }
 
 /**
+ * The most test files a suite can have: file names carry four digits (`app-0000.test.js`).
+ * @public
+ */
+export const MAX_SUITE_FILES = 9999
+
+/**
+ * `count` test files under `<dir>/tests/`, named `<prefix>-<index>.test.js` with the index padded
+ * to `width` digits, each holding what `render(index)` returns.
+ * @public
+ */
+export function testFiles(
+  dir: string,
+  prefix: string,
+  count: number,
+  render: (index: number) => string,
+  width = 4,
+): readonly GeneratedFile[] {
+  return Array.from({ length: count }, (_, index) => ({
+    path: `${dir}/tests/${prefix}-${pad(index, width)}.test.js`,
+    contents: render(index),
+  }))
+}
+
+/**
  * Pretty-printed JSON with a trailing newline.
  * @public
  */

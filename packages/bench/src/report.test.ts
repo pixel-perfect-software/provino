@@ -1,13 +1,17 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { BenchRecord, BenchResult, BenchSubject, RunEnvironment } from '@provino/types'
-import { BenchError } from './errors.ts'
+import { code } from './internal/test-helpers.ts'
 import {
+  BENCH_LABELS,
   buildRecord,
   defaultMachineId,
   defaultOutPath,
   formatSummary,
+  LABEL_POLICY,
   parseLabel,
+  requireCleanTree,
+  runsProblem,
 } from './report.ts'
 import { wallStats } from './stats.ts'
 
@@ -53,10 +57,7 @@ test('labels are local, desktop or pinned, and nothing else', () => {
   assert.equal(parseLabel('desktop'), 'desktop')
   assert.equal(parseLabel('pinned'), 'pinned')
   for (const bad of ['', 'Local', 'ci', 'production']) {
-    assert.throws(
-      () => parseLabel(bad),
-      (error) => error instanceof BenchError && error.code === 'BENCH_USAGE',
-    )
+    assert.throws(() => parseLabel(bad), code('BENCH_USAGE'))
   }
 })
 
@@ -80,7 +81,7 @@ test('the default output is stamped to the second and named for the suite and co
 })
 
 test('a record carries the schema version, label, ref, machine and results', () => {
-  const built = record([result('jest', 'warm', [100, 110])], 'desktop')
+  const built = record([runs('jest', 'warm', 10)], 'desktop')
   assert.equal(built.schemaVersion, 1)
   assert.equal(built.label, 'desktop')
   assert.equal(built.machine.id, 'desktop-darwin-arm64')
@@ -127,12 +128,18 @@ test('a failing run is flagged and gets no ratio', () => {
 })
 
 test('the footer says what the label means', () => {
+  for (const label of BENCH_LABELS) {
+    assert.match(
+      formatSummary(record([runs('jest', 'warm', 10)], label)),
+      new RegExp(`\\[${label}\\] label ${label}: ${LABEL_POLICY[label].note}`),
+    )
+  }
   assert.match(
-    formatSummary(record([result('jest', 'warm', [1])], 'desktop')),
+    formatSummary(record([runs('jest', 'warm', 10)], 'desktop')),
     /\[desktop\] .*provisional/,
   )
   assert.match(
-    formatSummary(record([result('jest', 'warm', [1])], 'pinned')),
+    formatSummary(record([runs('jest', 'warm', 10)], 'pinned')),
     /\[pinned\] .*dedicated/,
   )
 })
@@ -150,10 +157,12 @@ test('a summary of fewer runs than the R5 protocol warns, whatever the label', (
   assert.match(formatSummary(record([runs('jest', 'warm', 9), runs('jest', 'cold', 5)])), warning)
   assert.match(formatSummary(record([runs('jest', 'warm', 10), runs('jest', 'cold', 4)])), warning)
   assert.match(formatSummary(record([runs('jest', 'warm', 1)])), warning)
-  assert.match(
-    formatSummary(record([runs('jest', 'warm', 2), runs('jest', 'cold', 1)], 'desktop')),
-    /\[desktop\] WARNING: fewer runs than the R5 protocol/,
-  )
+  // A desktop record this short can't be built, but a summary of one read back from disk can be.
+  const shortDesktop: BenchRecord = {
+    ...record([runs('jest', 'warm', 2), runs('jest', 'cold', 1)]),
+    label: 'desktop',
+  }
+  assert.match(formatSummary(shortDesktop), /\[desktop\] WARNING: fewer runs than the R5 protocol/)
   const full = formatSummary(record([runs('jest', 'warm', 10), runs('jest', 'cold', 5)]))
   assert.doesNotMatch(full, /fewer runs/)
 })
@@ -177,4 +186,100 @@ test('the summary names the commit and says when the tree was dirty', () => {
     formatSummary(record([result('jest', 'warm', [1])])),
     /\[local\] commit aaaaaaa \(clean\)/,
   )
+})
+
+const sha = 'a'.repeat(40)
+const date = '2026-11-02T10:00:00.000Z'
+
+function recordOf(
+  label: BenchRecord['label'],
+  results: BenchResult[],
+  dirty = false,
+): () => BenchRecord {
+  return () =>
+    buildRecord({
+      label,
+      ref: { sha, date, dirty },
+      environment,
+      machineId: `${label}-darwin-arm64`,
+      results,
+    })
+}
+
+test('each label’s rules are one row of the policy table', () => {
+  assert.deepEqual(Object.keys(LABEL_POLICY), [...BENCH_LABELS])
+  assert.deepEqual(
+    BENCH_LABELS.map((label) => [
+      label,
+      LABEL_POLICY[label].minWarm,
+      LABEL_POLICY[label].minCold,
+      LABEL_POLICY[label].requireClean,
+    ]),
+    [
+      ['local', 1, 1, false],
+      ['desktop', 10, 5, true],
+      ['pinned', 10, 5, true],
+    ],
+  )
+})
+
+test('a record that can be quoted must hold the R5 run counts; a local one may be short', () => {
+  for (const label of ['desktop', 'pinned'] as const) {
+    assert.throws(recordOf(label, [runs('jest', 'warm', 1)]), code('BENCH_TOO_FEW_RUNS'), label)
+    assert.throws(recordOf(label, [runs('jest', 'warm', 9)]), code('BENCH_TOO_FEW_RUNS'), label)
+    assert.throws(recordOf(label, [runs('jest', 'cold', 4)]), code('BENCH_TOO_FEW_RUNS'), label)
+    // one short result among full ones is enough
+    assert.throws(
+      recordOf(label, [runs('jest', 'warm', 10), runs('vitest', 'warm', 3)]),
+      code('BENCH_TOO_FEW_RUNS'),
+      label,
+    )
+    assert.equal(
+      recordOf(label, [runs('jest', 'warm', 10), runs('jest', 'cold', 5)])().label,
+      label,
+    )
+  }
+  assert.equal(
+    recordOf('local', [runs('jest', 'warm', 1), runs('jest', 'cold', 1)])().label,
+    'local',
+  )
+  assert.throws(recordOf('pinned', [runs('jest', 'warm', 1)]), (error) =>
+    (error as Error).message.includes('at least 10 warm and 5 cold'),
+  )
+})
+
+test('a record that can be quoted must come from a clean tree; a local one may be dirty', () => {
+  const full = [runs('jest', 'warm', 10), runs('jest', 'cold', 5)]
+  for (const label of ['desktop', 'pinned'] as const) {
+    assert.throws(
+      recordOf(label, full, true),
+      (error) => code('BENCH_DIRTY_TREE')(error) && (error as Error).message.includes(label),
+      label,
+    )
+    assert.equal(recordOf(label, full, false)().ref.dirty, false)
+  }
+  assert.equal(recordOf('local', full, true)().ref.dirty, true)
+})
+
+test('a dirty tree is refused for desktop and pinned records only', () => {
+  const dirty = { sha, date, dirty: true }
+  const clean = { ...dirty, dirty: false }
+  for (const label of ['desktop', 'pinned'] as const) {
+    assert.throws(
+      () => requireCleanTree(label, dirty),
+      (error) => code('BENCH_DIRTY_TREE')(error) && (error as Error).message.includes(label),
+      label,
+    )
+    requireCleanTree(label, clean)
+  }
+  requireCleanTree('local', dirty)
+  requireCleanTree('local', clean)
+})
+
+test('the run counts a label accepts are read from its policy', () => {
+  assert.equal(runsProblem('local', 'warm', 1), undefined)
+  assert.equal(runsProblem('desktop', 'warm', 10), undefined)
+  assert.equal(runsProblem('desktop', 'cold', 5), undefined)
+  assert.match(runsProblem('desktop', 'warm', 9) ?? '', /^a desktop record needs at least 10 warm/)
+  assert.match(runsProblem('pinned', 'cold', 4) ?? '', /^a pinned record needs at least.* 5 cold/)
 })

@@ -12,6 +12,48 @@ import { RESULTS_DIR } from './suites.ts'
 export const BENCH_LABELS: readonly BenchLabel[] = ['local', 'desktop', 'pinned']
 
 /**
+ * What a label demands of a record.
+ * @public
+ */
+export interface LabelPolicy {
+  /** The fewest warm runs a record with this label may hold. */
+  readonly minWarm: number
+  /** The fewest cold runs a record with this label may hold. */
+  readonly minCold: number
+  /** Whether the git working tree must have been clean when the bench started. */
+  readonly requireClean: boolean
+  /** What the label means; the last line of a summary. */
+  readonly note: string
+}
+
+/**
+ * The one place a label's rules live. `desktop` and `pinned` name numbers that can be quoted, so
+ * they need the R5 protocol's run counts and a commit anyone can check out; `local` is a
+ * development signal and may be short or dirty (its summary says so).
+ * @public
+ */
+export const LABEL_POLICY: Readonly<Record<BenchLabel, LabelPolicy>> = {
+  local: {
+    minWarm: 1,
+    minCold: 1,
+    requireClean: false,
+    note: 'development signal only, not a result',
+  },
+  desktop: {
+    minWarm: DEFAULT_WARM_RUNS,
+    minCold: DEFAULT_COLD_RUNS,
+    requireClean: true,
+    note: 'provisional Phase 0-1 numbers from the pinned-core container',
+  },
+  pinned: {
+    minWarm: DEFAULT_WARM_RUNS,
+    minCold: DEFAULT_COLD_RUNS,
+    requireClean: true,
+    note: 'dedicated bench server',
+  },
+}
+
+/**
  * Checks a label typed on the command line.
  * @public
  */
@@ -48,7 +90,39 @@ export function defaultOutPath(ref: RunRef, suite: string, dir: string = RESULTS
 }
 
 /**
- * Assembles a record.
+ * Refuses a label whose policy needs a clean tree (`desktop`, `pinned`) when the tree was dirty,
+ * with `BENCH_DIRTY_TREE`: those labels name a commit that anyone can check out, which a dirty tree
+ * makes untrue. A `local` record may be dirty; its summary says so.
+ * @public
+ */
+export function requireCleanTree(label: BenchLabel, ref: RunRef): void {
+  if (LABEL_POLICY[label].requireClean && ref.dirty) {
+    throw new BenchError(
+      'BENCH_DIRTY_TREE',
+      `refusing a ${label} run: the git working tree has uncommitted changes (git status --porcelain is not empty), so commit ${ref.sha.slice(0, 7)} would not describe the code measured. Commit or stash them, or use --label local`,
+    )
+  }
+}
+
+/**
+ * Why a label doesn't accept `runs` timed runs of one cache state, as the sentence saying what it
+ * needs; `undefined` if it does.
+ * @public
+ */
+export function runsProblem(
+  label: BenchLabel,
+  cache: 'warm' | 'cold',
+  runs: number,
+): string | undefined {
+  const { minWarm, minCold } = LABEL_POLICY[label]
+  if (runs >= (cache === 'warm' ? minWarm : minCold)) return undefined
+  return `a ${label} record needs at least ${minWarm} warm and ${minCold} cold runs (the R5 protocol)`
+}
+
+/**
+ * Assembles a record, enforcing its label's policy: `BENCH_DIRTY_TREE` when the label needs a clean
+ * tree and `ref.dirty` is set, `BENCH_TOO_FEW_RUNS` when a result holds fewer runs than the label
+ * allows.
  * @public
  */
 export function buildRecord(input: {
@@ -58,6 +132,16 @@ export function buildRecord(input: {
   readonly machineId: string
   readonly results: readonly BenchResult[]
 }): BenchRecord {
+  requireCleanTree(input.label, input.ref)
+  for (const { subject, cache, wall } of input.results) {
+    const problem = runsProblem(input.label, cache, wall.runs)
+    if (problem !== undefined) {
+      throw new BenchError(
+        'BENCH_TOO_FEW_RUNS',
+        `${problem}; ${subject.runner} ${cache} has ${wall.runs}`,
+      )
+    }
+  }
   return {
     schemaVersion: 1,
     label: input.label,
@@ -65,12 +149,6 @@ export function buildRecord(input: {
     machine: { ...input.environment, id: input.machineId },
     results: input.results,
   }
-}
-
-const LABEL_NOTES: Readonly<Record<BenchLabel, string>> = {
-  local: 'development signal only, not a result',
-  desktop: 'provisional Phase 0-1 numbers from the pinned-core container',
-  pinned: 'dedicated bench server',
 }
 
 function ms(value: number): string {
@@ -175,6 +253,6 @@ export function formatSummary(record: BenchRecord): string {
   } else {
     out.push(`${tag} commit ${commit} (clean)`)
   }
-  out.push(`${tag} label ${record.label}: ${LABEL_NOTES[record.label]}`)
+  out.push(`${tag} label ${record.label}: ${LABEL_POLICY[record.label].note}`)
   return out.join('\n')
 }

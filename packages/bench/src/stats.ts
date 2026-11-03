@@ -4,16 +4,14 @@ import { randomBelow, seededRandom } from './internal/prng.ts'
 
 /**
  * Bootstrap resamples per confidence interval (Track 12 R5).
- * @public
  */
-export const BOOTSTRAP_RESAMPLES = 2000
+const BOOTSTRAP_RESAMPLES = 2000
 
 /**
  * The seed bootstrap intervals use unless the caller passes one, so the same samples always give
  * the same interval.
- * @public
  */
-export const BOOTSTRAP_SEED = 0x70726f76
+const BOOTSTRAP_SEED = 0x70726f76
 
 /**
  * A closed interval.

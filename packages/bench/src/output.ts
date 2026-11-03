@@ -1,11 +1,8 @@
 import { constants, type Stats } from 'node:fs'
-import { access, lstat, mkdir, open, rename, rm } from 'node:fs/promises'
+import { access, link, lstat, mkdir, open, rm, unlink } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { BenchError } from './errors.ts'
-
-function reason(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
+import { errorMessage, hasCode } from './internal/guards.ts'
 
 /**
  * Checks, before a bench starts, that a record can be written to `path`: nothing exists there (a
@@ -24,9 +21,7 @@ export async function prepareOutput(path: string): Promise<void> {
   try {
     existing = await lstat(path)
   } catch (cause) {
-    if (!(cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')) {
-      throw invalid(`cannot be checked: ${reason(cause)}`, cause)
-    }
+    if (!hasCode(cause, 'ENOENT')) throw invalid(`cannot be checked: ${errorMessage(cause)}`, cause)
   }
   if (existing?.isDirectory()) throw invalid('is a directory; --out names a file')
   if (existing !== undefined) throw invalid('already exists; a record is never overwritten')
@@ -35,25 +30,16 @@ export async function prepareOutput(path: string): Promise<void> {
     await mkdir(dir, { recursive: true })
     await access(dir, constants.W_OK)
   } catch (cause) {
-    throw invalid(`cannot be written: ${reason(cause)}`, cause)
-  }
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await lstat(path)
-    return true
-  } catch {
-    return false
+    throw invalid(`cannot be written: ${errorMessage(cause)}`, cause)
   }
 }
 
 /**
  * Writes `text` to `path` so that a crash can't leave a truncated file and an existing file is
- * never replaced: it is written and synced to `<path>.<pid>.tmp` (created exclusively), checked
- * once more that `path` is still free, and renamed into place. If the write itself fails the temp
- * file is removed; if only the final rename is refused, the temp file is kept, complete, and the
- * error names it. Throws `BENCH_OUT_WRITE_FAILED`.
+ * never replaced: it is written and synced to `<path>.<pid>.tmp` (created exclusively), then
+ * hard-linked to `path`, which fails if `path` exists, however late it appeared, and the temp name
+ * is removed. If the write itself fails the temp file is removed; if only the link is refused, the
+ * temp file is kept, complete, and the error names it. Throws `BENCH_OUT_WRITE_FAILED`.
  * @public
  */
 export async function writeRecordFile(path: string, text: string): Promise<void> {
@@ -68,17 +54,18 @@ export async function writeRecordFile(path: string, text: string): Promise<void>
       await handle.close()
     }
     written = true
-    if (await exists(path)) throw new Error(`${path} appeared while the bench was running`)
-    await rename(temp, path)
+    await link(temp, path)
   } catch (cause) {
     // Best effort: the original failure is what gets reported.
     if (!written) await rm(temp, { force: true }).catch(() => undefined)
     throw new BenchError(
       'BENCH_OUT_WRITE_FAILED',
       written
-        ? `could not move the record to ${path}: ${reason(cause)}. The complete record is in ${temp}`
-        : `could not write the record to ${path}: ${reason(cause)}`,
+        ? `could not move the record to ${path}: ${errorMessage(cause)}. The complete record is in ${temp}`
+        : `could not write the record to ${path}: ${errorMessage(cause)}`,
       { cause },
     )
   }
+  // The record is in place; a temp name that can't be removed is only clutter.
+  await unlink(temp).catch(() => undefined)
 }

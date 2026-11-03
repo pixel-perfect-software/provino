@@ -426,7 +426,7 @@
       "dir": "packages/bench",
       "layer": "dev",
       "runsIn": "dev",
-      "deps": ["@provino/*", "provino"],
+      "deps": ["@provino/*", "@provino/harness", "provino"],
       "slices": "all",
       "note": "Runs Provino only through provino/node (DECISIONS S4)."
     },

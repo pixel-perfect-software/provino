@@ -1,5 +1,5 @@
 import { pickDistinct, seededRandom } from '../internal/prng.ts'
-import { GRAPH, GRAPH_SIZE, type GraphNode, graphFiles, graphName, simulate } from './graph.ts'
+import { GRAPH_SIZE, graphFiles, graphName, simulate } from './graph.ts'
 import {
   commonFiles,
   FLAVOUR_DIR,
@@ -10,6 +10,7 @@ import {
   prologue,
   renderExports,
   renderImport,
+  testFiles,
 } from './render.ts'
 
 /**
@@ -19,17 +20,10 @@ import {
 export const MOCK_HEAVY_TESTS_PER_FILE = 4
 
 /**
- * The largest N for `mock-heavy-N`: file names carry four digits.
- * @public
- */
-export const MOCK_HEAVY_MAX_FILES = 9999
-
-/**
  * Consumer modules the test files share. A consumer imports a few of the graph's top modules and
  * so reaches every mocked module only through the graph.
- * @public
  */
-export const CONSUMER_COUNT = 8
+const CONSUMER_COUNT = 8
 
 const MOCK_HEAVY_SEED = 700_001
 const MOCKS_PER_FILE = 3
@@ -45,12 +39,9 @@ function consumerDeps(consumer: number): number[] {
   return picks.map((pick) => CONSUMER_POOL_START + pick)
 }
 
-/**
- * Renders a consumer: `run(n)` sums its graph modules' `compute` with one shared memo and reports
- * the total and how many modules ran.
- * @public
- */
-export function renderConsumer(consumer: number, flavour: Flavour): string {
+// A consumer: `run(n)` sums its graph modules' `compute` with one shared memo and reports the
+// total and how many modules ran.
+function renderConsumer(consumer: number, flavour: Flavour): string {
   const deps = consumerDeps(consumer)
   return lines([
     ...prologue(flavour),
@@ -80,7 +71,7 @@ interface MockPlan {
 
 // Picks three modules to mock. Each must really be reached through the graph (another mock above
 // it could cut it off), so a mock that nothing calls is re-drawn.
-function planMocks(index: number, graph: readonly GraphNode[]): MockPlan {
+function planMocks(index: number): MockPlan {
   const random = seededRandom(MOCK_HEAVY_SEED + index)
   const consumer = index % CONSUMER_COUNT
   const roots = consumerDeps(consumer)
@@ -89,7 +80,7 @@ function planMocks(index: number, graph: readonly GraphNode[]): MockPlan {
     const mocks = new Map(
       picks.map((pick) => [MOCK_POOL_START + pick, 7_000_000 + MOCK_POOL_START + pick] as const),
     )
-    const { calls } = simulate(graph, roots, 1, mocks)
+    const { calls } = simulate(roots, 1, mocks)
     if ([...mocks.keys()].every((module) => (calls.get(module) ?? 0) > 0)) {
       return { consumer, mocks }
     }
@@ -97,13 +88,13 @@ function planMocks(index: number, graph: readonly GraphNode[]): MockPlan {
   throw new RangeError(`no reachable mock set for mock-heavy file ${index}`)
 }
 
-function renderMockHeavyTest(index: number, flavour: Flavour, graph: readonly GraphNode[]): string {
-  const { consumer, mocks } = planMocks(index, graph)
+function renderMockHeavyTest(index: number, flavour: Flavour): string {
+  const { consumer, mocks } = planMocks(index)
   const roots = consumerDeps(consumer)
   const modules = [...mocks.keys()]
   const tool = flavour === 'cjs' ? 'jest' : 'vi'
-  const first = simulate(graph, roots, 3, mocks)
-  const second = simulate(graph, roots, 11, mocks)
+  const first = simulate(roots, 3, mocks)
+  const second = simulate(roots, 11, mocks)
   const names = modules.map(graphName)
   return lines([
     ...prologue(flavour),
@@ -165,17 +156,10 @@ export function mockHeavyFiles(
       contents: renderConsumer(consumer, flavour),
     })
   }
-  const tests: GeneratedFile[] = []
-  for (let index = 0; index < count; index++) {
-    tests.push({
-      path: `${dir}/tests/mock-${pad(index, 4)}.test.js`,
-      contents: renderMockHeavyTest(index, flavour, GRAPH),
-    })
-  }
   return [
     ...commonFiles(suite, flavour),
-    ...graphFiles(GRAPH, flavour, dir),
+    ...graphFiles(flavour),
     ...consumers,
-    ...tests,
+    ...testFiles(dir, 'mock', count, (index) => renderMockHeavyTest(index, flavour)),
   ]
 }

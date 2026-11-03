@@ -11,6 +11,8 @@ import {
   type ExecProcess,
   type ExecRequest,
   type Interval,
+  LABEL_POLICY,
+  type LabelPolicy,
   type ProcessEntry,
   type ProcessTableReader,
   parseLabel,
@@ -19,10 +21,10 @@ import {
   type RatioInterval,
   type RssSampler,
   type RunEvent,
+  type RunnerName,
   type RunnerPlan,
   type RunPhase,
   ratioCi,
-  readEnvironment,
   readRunRef,
   runBench,
   type SuiteSpec,
@@ -103,13 +105,30 @@ wallStats([1, 2], { resamples: '2000' })
 // @ts-expect-error ratioCi takes two sample lists
 ratioCi([1, 2])
 
-// Labels are the three from the benchmark rules.
+// Labels are the three from the benchmark rules, and each has one policy row.
+declare const environment: RunEnvironment
 expectTypeOf(parseLabel).returns.toEqualTypeOf<BenchLabel>()
 expectTypeOf(buildRecord).returns.toEqualTypeOf<BenchRecord>()
+expectTypeOf(LABEL_POLICY).toEqualTypeOf<Readonly<Record<BenchLabel, LabelPolicy>>>()
+expectTypeOf<LabelPolicy>().toEqualTypeOf<{
+  readonly minWarm: number
+  readonly minCold: number
+  readonly requireClean: boolean
+  readonly note: string
+}>()
+// @ts-expect-error a label policy needs all four rules
+accept<LabelPolicy>({ minWarm: 1, minCold: 1, requireClean: false })
+// @ts-expect-error the minimum is a number
+accept<LabelPolicy>({ minWarm: '10', minCold: 5, requireClean: true, note: 'x' })
+declare const policy: LabelPolicy
+// @ts-expect-error a policy is read-only
+policy.minWarm = 5
+// @ts-expect-error only the three labels have a policy
+accept(LABEL_POLICY.production)
 buildRecord({
   label: 'local',
   ref: { sha: 'a', date: '2026-11-02T00:00:00.000Z', dirty: false },
-  environment: readEnvironment({}),
+  environment,
   machineId: 'local-darwin-arm64',
   results: [],
 })
@@ -117,7 +136,7 @@ buildRecord({
   // @ts-expect-error a bad label
   label: 'production',
   ref: { sha: 'a', date: '2026-11-02T00:00:00.000Z', dirty: false },
-  environment: readEnvironment({}),
+  environment,
   machineId: 'x',
   results: [],
 })
@@ -125,11 +144,10 @@ buildRecord({
   label: 'local',
   // @ts-expect-error a ref must say whether the tree was dirty
   ref: { sha: 'a', date: '2026-11-02T00:00:00.000Z' },
-  environment: readEnvironment({}),
+  environment,
   machineId: 'x',
   results: [],
 })
-expectTypeOf(readEnvironment).returns.toEqualTypeOf<RunEnvironment>()
 expectTypeOf(readRunRef).returns.toEqualTypeOf<RunRef>()
 
 // Process trees.
@@ -149,8 +167,13 @@ expectTypeOf<SuiteSpec['kind']>().toEqualTypeOf<'app' | 'mock-heavy' | 'isolate-
 expectTypeOf(planRunner).returns.toEqualTypeOf<RunnerPlan>()
 planRunner(parseSuiteName('app-5'), 'jest')
 planRunner(parseSuiteName('app-5'), 'vitest')
+planRunner(parseSuiteName('app-5'), 'jest', { extraArgs: ['--json'] })
+expectTypeOf<RunnerName>().toEqualTypeOf<'jest' | 'vitest'>()
+expectTypeOf<RunnerPlan['runner']>().toEqualTypeOf<RunnerName>()
 // @ts-expect-error only Jest and Vitest are subjects
 planRunner(parseSuiteName('app-5'), 'mocha')
+// @ts-expect-error extra arguments are strings
+planRunner(parseSuiteName('app-5'), 'jest', { extraArgs: [1] })
 
 // Errors carry a stable code.
 expectTypeOf<BenchError['code']>().toEqualTypeOf<BenchErrorCode>()

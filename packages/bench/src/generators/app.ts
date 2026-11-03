@@ -1,5 +1,5 @@
 import { pickDistinct, randomBelow, seededRandom } from '../internal/prng.ts'
-import { GRAPH, GRAPH_SIZE, type GraphNode, graphFiles, graphName, simulate } from './graph.ts'
+import { GRAPH_SIZE, graphFiles, graphName, simulate } from './graph.ts'
 import {
   commonFiles,
   FLAVOUR_DIR,
@@ -9,6 +9,7 @@ import {
   pad,
   prologue,
   renderImport,
+  testFiles,
 } from './render.ts'
 
 /**
@@ -17,23 +18,17 @@ import {
  */
 export const APP_TESTS_PER_FILE = 8
 
-/**
- * The largest N for `app-N`: file names carry four digits.
- * @public
- */
-export const APP_MAX_FILES = 9999
-
 const APP_SEED = 500_001
 
-function renderAppTest(index: number, flavour: Flavour, graph: readonly GraphNode[]): string {
+function renderAppTest(index: number, flavour: Flavour): string {
   const random = seededRandom(APP_SEED + index)
   const picks = pickDistinct(random, GRAPH_SIZE, 3)
   const [a, b, c] = picks.map(graphName) as [string, string, string]
   const [ia, ib, ic] = picks as [number, number, number]
   const n1 = 1 + randomBelow(random, 20)
   const n2 = n1 + 1 + randomBelow(random, 10)
-  const total = (module: number, n: number): number => simulate(graph, [module], n).total
-  const closure = (module: number): number => simulate(graph, [module], 1).visited
+  const total = (module: number, n: number): number => simulate([module], n).total
+  const closure = (module: number): number => simulate([module], 1).visited
   return lines([
     ...prologue(flavour),
     ...picks.map((pick) =>
@@ -91,13 +86,9 @@ function renderAppTest(index: number, flavour: Flavour, graph: readonly GraphNod
  * @public
  */
 export function appFiles(suite: string, count: number, flavour: Flavour): readonly GeneratedFile[] {
-  const dir = FLAVOUR_DIR[flavour]
-  const tests: GeneratedFile[] = []
-  for (let index = 0; index < count; index++) {
-    tests.push({
-      path: `${dir}/tests/app-${pad(index, 4)}.test.js`,
-      contents: renderAppTest(index, flavour, GRAPH),
-    })
-  }
-  return [...commonFiles(suite, flavour), ...graphFiles(GRAPH, flavour, dir), ...tests]
+  return [
+    ...commonFiles(suite, flavour),
+    ...graphFiles(flavour),
+    ...testFiles(FLAVOUR_DIR[flavour], 'app', count, (index) => renderAppTest(index, flavour)),
+  ]
 }

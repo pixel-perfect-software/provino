@@ -3,13 +3,10 @@ import { test } from 'node:test'
 import { parseCli } from './cli-args.ts'
 import { runCli } from './commands.ts'
 import { BenchError } from './errors.ts'
+import { code } from './internal/test-helpers.ts'
 
 function usageError(argv: string[]): void {
-  assert.throws(
-    () => parseCli(argv),
-    (error) => error instanceof BenchError && error.code === 'BENCH_USAGE',
-    argv.join(' '),
-  )
+  assert.throws(() => parseCli(argv), code('BENCH_USAGE'), argv.join(' '))
 }
 
 test('no command, help and --help print usage', () => {
@@ -36,6 +33,15 @@ test('check takes one or more runners, once each', () => {
     'jest',
   ])
   assert.equal(parsed.command === 'check' && parsed.runners.join(), 'jest,vitest')
+})
+
+test('check takes the same --timeout as run, with the same default', () => {
+  const timeout = (...rest: string[]) => parseCli(['check', 'app-5', '--runner', 'jest', ...rest])
+  assert.equal((timeout() as { timeoutMs: number }).timeoutMs, 30 * 60_000)
+  assert.equal((timeout('--timeout', '45') as { timeoutMs: number }).timeoutMs, 45 * 60_000)
+  for (const bad of ['0', '1.5', 'soon', '', '35792']) {
+    usageError(['check', 'app-5', '--runner', 'jest', '--timeout', bad])
+  }
 })
 
 test('run defaults to 10 warm runs, 5 cold runs and the local label', () => {
@@ -126,9 +132,7 @@ function protocolError(argv: string[]): void {
   assert.throws(
     () => parseCli(argv),
     (error) =>
-      error instanceof BenchError &&
-      error.code === 'BENCH_USAGE' &&
-      /at least 10 warm and 5 cold/.test(error.message),
+      code('BENCH_USAGE')(error) && /at least 10 warm and 5 cold/.test((error as Error).message),
     argv.join(' '),
   )
 }
@@ -183,7 +187,6 @@ test('an option that does not apply to the command is rejected rather than ignor
   usageError(['check', 'app-5', '--runner', 'jest', '--cold', '3'])
   usageError(['check', 'app-5', '--runner', 'jest', '--out', 'x.json'])
   usageError(['check', 'app-5', '--runner', 'jest', '--machine-id', 'x'])
-  usageError(['check', 'app-5', '--runner', 'jest', '--timeout', '5'])
   assert.equal(parseCli(['check', 'app-5', '--runner', 'jest']).command, 'check')
   assert.equal(parseCli(['generate', 'app-5']).command, 'generate')
   assert.throws(
@@ -193,10 +196,7 @@ test('an option that does not apply to the command is rejected rather than ignor
 })
 
 test('an unknown suite is reported as such', () => {
-  assert.throws(
-    () => parseCli(['generate', 'jsdom-5']),
-    (error) => error instanceof BenchError && error.code === 'BENCH_UNKNOWN_SUITE',
-  )
+  assert.throws(() => parseCli(['generate', 'jsdom-5']), code('BENCH_UNKNOWN_SUITE'))
 })
 
 test('runCli prints usage for help and exits 2 on a usage error, without running anything', async () => {

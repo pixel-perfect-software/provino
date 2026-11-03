@@ -1,13 +1,27 @@
 import { resolve } from 'node:path'
+import { readRunEnvironment } from '@provino/harness'
 import { checkRunner } from './check.ts'
 import { type CliCommand, parseCli, USAGE } from './cli-args.ts'
-import { readEnvironment, readRunRef, requireCleanTree } from './environment.ts'
+import { readRunRef } from './environment.ts'
 import { BenchError } from './errors.ts'
 import type { ExecProcess } from './exec.ts'
 import { prepareOutput, writeRecordFile } from './output.ts'
-import { buildRecord, defaultMachineId, defaultOutPath, formatSummary } from './report.ts'
+import {
+  buildRecord,
+  defaultMachineId,
+  defaultOutPath,
+  formatSummary,
+  requireCleanTree,
+} from './report.ts'
 import { runBench } from './run-bench.ts'
-import { planRunner, REPO_ROOT, type SuiteSpec, toSubjectSpec, writeSuite } from './suites.ts'
+import {
+  type BenchPaths,
+  DEFAULT_PATHS,
+  planRunner,
+  type SuiteSpec,
+  toSubjectSpec,
+  writeSuite,
+} from './suites.ts'
 
 /**
  * Where the CLI writes. Tests pass their own.
@@ -19,15 +33,13 @@ export interface CliIo {
 }
 
 /**
- * Test seams for the `run` command: the process runner, where the repository, the generated suites
- * and the records live, and the clock. Each defaults to the real thing.
+ * Test seams: the process runner (`run` only), where the repository, the generated suites and the
+ * records live, and the clock. Each defaults to the real thing.
  * @public
  */
 export interface CliDeps {
   readonly exec?: ExecProcess
-  readonly repoRoot?: string
-  readonly suitesRoot?: string
-  readonly resultsDir?: string
+  readonly paths?: BenchPaths
   readonly now?: () => Date
 }
 
@@ -36,8 +48,8 @@ const processIo: CliIo = {
   err: (text) => process.stderr.write(`${text}\n`),
 }
 
-async function generated(suite: SuiteSpec, io: CliIo, root?: string): Promise<void> {
-  const summary = await writeSuite(suite, root === undefined ? undefined : { root })
+async function generated(suite: SuiteSpec, io: CliIo, suitesRoot: string): Promise<void> {
+  const summary = await writeSuite(suite, suitesRoot)
   io.err(
     `${suite.name}: ${summary.written} files written, ${summary.unchanged} unchanged, ${summary.removed} removed in ${summary.dir}`,
   )
@@ -56,25 +68,22 @@ async function runCommand(
   command: Extract<CliCommand, { readonly command: 'run' }>,
   io: CliIo,
   deps: CliDeps,
+  paths: BenchPaths,
 ): Promise<number> {
   const { suite, label } = command
   const now = deps.now?.()
-  const ref = readRunRef({
-    cwd: deps.repoRoot ?? REPO_ROOT,
-    ...(now === undefined ? {} : { now }),
-  })
+  const ref = readRunRef({ cwd: paths.repoRoot, ...(now === undefined ? {} : { now }) })
   requireCleanTree(label, ref)
   const out =
     command.out === undefined
-      ? defaultOutPath(ref, suite.name, deps.resultsDir)
+      ? defaultOutPath(ref, suite.name, paths.resultsDir)
       : resolve(command.out)
   await prepareOutput(out)
-  const rootOption = deps.suitesRoot === undefined ? undefined : { root: deps.suitesRoot }
-  const plans = command.runners.map((runner) => planRunner(suite, runner, rootOption))
-  const environment = readEnvironment(
+  const plans = command.runners.map((runner) => planRunner(suite, runner, { paths }))
+  const environment = readRunEnvironment(
     Object.fromEntries(plans.map((plan) => [plan.runner, plan.version])),
   )
-  await generated(suite, io, deps.suitesRoot)
+  await generated(suite, io, paths.suitesRoot)
 
   const warnings = new Set<string>()
   const results = await runBench({
@@ -125,18 +134,22 @@ export async function runCli(
 ): Promise<number> {
   try {
     const command = parseCli(argv)
+    const paths = deps.paths ?? DEFAULT_PATHS
     switch (command.command) {
       case 'help':
         io.out(USAGE)
         return 0
       case 'generate':
-        await generated(command.suite, io)
+        await generated(command.suite, io, paths.suitesRoot)
         return 0
       case 'check': {
-        await generated(command.suite, io)
+        await generated(command.suite, io, paths.suitesRoot)
         let failed = false
         for (const runner of command.runners) {
-          const result = await checkRunner(command.suite, runner)
+          const result = await checkRunner(command.suite, runner, {
+            paths,
+            timeoutMs: command.timeoutMs,
+          })
           const { summary } = result
           const counts =
             summary === undefined ? 'no report' : `${summary.passed}/${summary.total} tests passed`
@@ -152,7 +165,7 @@ export async function runCli(
         return failed ? 1 : 0
       }
       case 'run':
-        return await runCommand(command, io, deps)
+        return await runCommand(command, io, deps, paths)
     }
   } catch (error) {
     if (!(error instanceof BenchError)) throw error

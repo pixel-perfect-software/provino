@@ -1,28 +1,19 @@
 import assert from 'node:assert/strict'
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { access, chmod, mkdir, readdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { BenchError } from './errors.ts'
+import type { BenchError } from './errors.ts'
+import { code, scratch } from './internal/test-helpers.ts'
 import { prepareOutput, writeRecordFile } from './output.ts'
 
-async function scratch(t: { after(fn: () => Promise<void>): void }): Promise<string> {
-  const dir = await mkdtemp(join(process.env.TMPDIR ?? '/tmp', 'bench-out-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  return dir
-}
-
-function code(expected: 'BENCH_OUT_INVALID' | 'BENCH_OUT_WRITE_FAILED') {
-  return (error: unknown): boolean => error instanceof BenchError && error.code === expected
-}
-
 test('a free path is accepted and its directory is created', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-out-')
   await prepareOutput(join(dir, 'a', 'b', 'run.json'))
   assert.deepEqual(await readdir(join(dir, 'a', 'b')), [])
 })
 
 test('an existing file, directory or link is refused, whatever it holds', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-out-')
   await writeFile(join(dir, 'file'), '')
   await mkdir(join(dir, 'directory'))
   await symlink(join(dir, 'missing-target'), join(dir, 'dangling'))
@@ -33,14 +24,14 @@ test('an existing file, directory or link is refused, whatever it holds', async 
 })
 
 test('a path under a file is refused', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-out-')
   await writeFile(join(dir, 'file'), '')
   await assert.rejects(prepareOutput(join(dir, 'file', 'run.json')), code('BENCH_OUT_INVALID'))
 })
 
 test('a directory that cannot be written is refused', async (t) => {
   if (process.getuid?.() === 0) return t.skip('root can write anywhere')
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-out-')
   await mkdir(join(dir, 'locked'))
   await chmod(join(dir, 'locked'), 0o500)
   try {
@@ -51,7 +42,7 @@ test('a directory that cannot be written is refused', async (t) => {
 })
 
 test('a record is written whole, with no temp file left behind', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-out-')
   const path = join(dir, 'run.json')
   await writeRecordFile(path, '{"ok":true}\n')
   assert.equal(await readFile(path, 'utf8'), '{"ok":true}\n')
@@ -59,7 +50,7 @@ test('a record is written whole, with no temp file left behind', async (t) => {
 })
 
 test('an existing file is never replaced; the complete record is kept in a named temp file', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-out-')
   const path = join(dir, 'run.json')
   await writeFile(path, 'earlier record')
   await assert.rejects(
@@ -72,8 +63,17 @@ test('an existing file is never replaced; the complete record is kept in a named
   assert.equal(await readFile(`${path}.${process.pid}.tmp`, 'utf8'), 'new record')
 })
 
+test('a link at the destination is neither followed nor replaced', async (t) => {
+  const dir = await scratch(t, 'bench-out-')
+  const path = join(dir, 'run.json')
+  await symlink(join(dir, 'elsewhere.json'), path)
+  await assert.rejects(writeRecordFile(path, 'new record'), code('BENCH_OUT_WRITE_FAILED'))
+  await assert.rejects(access(join(dir, 'elsewhere.json')), { code: 'ENOENT' })
+  assert.equal(await readFile(`${path}.${process.pid}.tmp`, 'utf8'), 'new record')
+})
+
 test('a write that fails is a BenchError and leaves nothing behind', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-out-')
   const path = join(dir, 'gone', 'run.json')
   await assert.rejects(
     writeRecordFile(path, 'x'),

@@ -1,8 +1,9 @@
-import { spawn } from 'node:child_process'
 import { constants } from 'node:os'
 import { performance } from 'node:perf_hooks'
 import { Readable } from 'node:stream'
+import { type GroupExit, spawnInGroup } from '@provino/harness'
 import { BenchError } from './errors.ts'
+import { errorMessage } from './internal/guards.ts'
 import { startRssSampler } from './tree-rss.ts'
 
 /**
@@ -23,8 +24,6 @@ export const MAX_RUN_TIMEOUT_MS: number = 2 ** 31 - 1
  * @public
  */
 export const TIMEOUT_EXIT_CODE = 124
-
-const DEFAULT_KILL_GRACE_MS = 2000
 
 /**
  * One process to run. `env` is added on top of the bench process's own environment.
@@ -74,9 +73,8 @@ export type ExecProcess = (request: ExecRequest) => Promise<ExecOutcome>
 /**
  * The shell script that wraps every timed command: run it with fd 3 closed so no child can hold
  * the pipe open, then write the `times` builtin's output to the shell's own fd 3.
- * @public
  */
-export const TIMES_WRAPPER = '"$@" 3>&-; s=$?; times >&3; exit $s'
+const TIMES_WRAPPER = '"$@" 3>&-; s=$?; times >&3; exit $s'
 
 const TIME_PATTERN = /(\d+)m(\d+(?:\.\d+)?)s/g
 
@@ -114,70 +112,43 @@ async function readAll(stream: unknown): Promise<string> {
   return text
 }
 
-function exitCodeOf(code: number | null, signal: NodeJS.Signals | null): number {
+/**
+ * The exit code to report for a process: its own, or 128 plus the signal number when a signal
+ * ended it.
+ * @public
+ */
+export function exitCodeOf(code: number | null, signal: NodeJS.Signals | null): number {
   if (code !== null) return code
   return 128 + (signal === null ? 1 : (constants.signals[signal] ?? 0))
 }
 
 /**
- * Makes SIGINT, SIGTERM and SIGHUP end this process the normal way, with exit code 128 plus the
- * signal number. `execProcess` runs each subject in its own process group, so a Ctrl-C at the
- * terminal no longer reaches it; exiting normally lets `execProcess` kill the group of a run in
- * flight instead of leaving a benchmark running. The CLI calls this once at start-up.
+ * Whether `ms` is a whole number of milliseconds from `min` up to `MAX_RUN_TIMEOUT_MS`, the range
+ * a timer can hold. The one rule for every timeout the bench takes.
  * @public
  */
-export function exitOnSignals(): void {
-  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
-    process.once(signal, () => process.exit(128 + (constants.signals[signal] ?? 0)))
-  }
+export function isTimerMs(ms: number, min: number): boolean {
+  return Number.isInteger(ms) && ms >= min && ms <= MAX_RUN_TIMEOUT_MS
 }
 
-function hasCode(error: unknown, code: string): boolean {
-  return error instanceof Error && 'code' in error && error.code === code
-}
-
-// The subject runs as the leader of its own process group, so one signal reaches everything it
-// started. A group that is already gone (ESRCH) is fine; any other failure is reported.
-function signalGroup(pid: number, signal: NodeJS.Signals, problems: string[]): void {
-  try {
-    process.kill(-pid, signal)
-  } catch (error) {
-    if (!hasCode(error, 'ESRCH')) {
-      problems.push(`${signal} failed: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-}
-
-function groupAlive(pid: number): boolean {
-  try {
-    process.kill(-pid, 0)
-    return true
-  } catch (error) {
-    return !hasCode(error, 'ESRCH')
-  }
-}
-
-// Waits until the group has no members left or the grace period is over, whichever comes first.
-// `graceOver` settles after the SIGKILL has been sent. A dead member counts as alive until its
-// parent reaps it, so this polls rather than trusting the first answer.
-async function groupExit(pid: number, graceOver: Promise<void>): Promise<void> {
-  let over = false
-  void graceOver.then(() => {
-    over = true
-  })
-  while (!over && groupAlive(pid)) await new Promise<void>((resolve) => setTimeout(resolve, 10))
-}
-
-function checkMs(value: number, name: string, min: number): void {
-  if (!Number.isInteger(value) || value < min || value > MAX_RUN_TIMEOUT_MS) {
+/**
+ * Throws `BENCH_INVALID_SPEC` unless `ms` passes `isTimerMs`.
+ * @public
+ */
+export function checkMs(ms: number, name: string, min: number): void {
+  if (!isTimerMs(ms, min)) {
     throw new BenchError(
       'BENCH_INVALID_SPEC',
-      `${name} must be a whole number of milliseconds from ${min} to ${MAX_RUN_TIMEOUT_MS}; got ${value}`,
+      `${name} must be a whole number of milliseconds from ${min} to ${MAX_RUN_TIMEOUT_MS}; got ${ms}`,
     )
   }
 }
 
-function describeDuration(ms: number): string {
+/**
+ * A duration for messages: whole minutes as `5 min`, anything else in seconds.
+ * @public
+ */
+export function describeDuration(ms: number): string {
   return ms % 60_000 === 0 ? `${ms / 60_000} min` : `${ms / 1000} s`
 }
 
@@ -187,11 +158,11 @@ function describeDuration(ms: number): string {
  * peak tree RSS from a 25 ms sampler. Output is discarded. Measurements that can't be taken are
  * left out and named in `warnings`; the process still runs. Not supported on Windows.
  *
- * The command runs in its own process group. A run that outlasts `timeoutMs` gets SIGTERM for the
- * whole group, then SIGKILL after `killGraceMs`; it is reported as exit `TIMEOUT_EXIT_CODE` with a
- * "timed out" warning, so it is kept as a failed run. The end time is still taken when the shell
- * exits. If the bench process itself exits mid-run, the group is killed so no benchmark is left
- * running.
+ * The command runs in its own process group (`spawnInGroup`). A run that outlasts `timeoutMs` gets
+ * SIGTERM for the whole group, then SIGKILL after `killGraceMs`; it is reported as exit
+ * `TIMEOUT_EXIT_CODE` with a "timed out" warning, so it is kept as a failed run. The end time is
+ * still taken when the shell exits, before the group is waited for. If the bench process itself
+ * exits mid-run, the group is killed so no benchmark is left running.
  * @public
  */
 export const execProcess: ExecProcess = async (request) => {
@@ -199,86 +170,49 @@ export const execProcess: ExecProcess = async (request) => {
     throw new BenchError('BENCH_UNSUPPORTED_PLATFORM', 'the bench runs commands under a POSIX sh')
   }
   const timeoutMs = request.timeoutMs ?? DEFAULT_RUN_TIMEOUT_MS
-  const killGraceMs = request.killGraceMs ?? DEFAULT_KILL_GRACE_MS
   checkMs(timeoutMs, 'timeoutMs', 1)
-  checkMs(killGraceMs, 'killGraceMs', 0)
+  if (request.killGraceMs !== undefined) checkMs(request.killGraceMs, 'killGraceMs', 0)
 
   const startedAt = performance.now()
-  const child = spawn('/bin/sh', ['-c', TIMES_WRAPPER, 'sh', ...request.argv], {
+  const { child, exited } = spawnInGroup('/bin/sh', ['-c', TIMES_WRAPPER, 'sh', ...request.argv], {
     cwd: request.cwd,
     env: { ...process.env, ...request.env },
     stdio: ['ignore', 'ignore', 'ignore', 'pipe'],
-    detached: true,
+    timeoutMs,
+    ...(request.killGraceMs === undefined ? {} : { killGraceMs: request.killGraceMs }),
   })
-  const pid = child.pid
-  const sampler = pid === undefined ? undefined : startRssSampler(pid)
-  const exited = new Promise<{ exitCode: number; endedAt: number }>((resolve, reject) => {
-    child.once('error', reject)
-    child.once('exit', (code, signal) =>
-      resolve({ exitCode: exitCodeOf(code, signal), endedAt: performance.now() }),
-    )
-  })
+  const sampler = child.pid === undefined ? undefined : startRssSampler(child.pid)
 
-  const killProblems: string[] = []
-  let timedOut = false
-  let graceOver: Promise<void> = Promise.resolve()
-  let graceTimer: NodeJS.Timeout | undefined
-  const timeoutTimer =
-    pid === undefined
-      ? undefined
-      : setTimeout(() => {
-          timedOut = true
-          signalGroup(pid, 'SIGTERM', killProblems)
-          graceOver = new Promise((resolve) => {
-            graceTimer = setTimeout(() => {
-              signalGroup(pid, 'SIGKILL', killProblems)
-              resolve()
-            }, killGraceMs)
-          })
-        }, timeoutMs)
-  // The group has its own session, so a Ctrl-C at the terminal no longer reaches it. The CLI turns
-  // signals into a normal exit (`exitOnSignals`), and this kills the group on the way out.
-  const killOnExit = (): void => {
-    if (pid !== undefined) signalGroup(pid, 'SIGKILL', killProblems)
-  }
-  process.once('exit', killOnExit)
-
-  let result: [{ exitCode: number; endedAt: number }, string]
+  let measured: [GroupExit, string]
   try {
-    result = await Promise.all([exited, readAll(child.stdio[3])])
-    // The shell is gone, but anything that ignored SIGTERM gets the rest of the grace period and
-    // then SIGKILL, so the next run never starts beside a leftover from this one.
-    if (timedOut && pid !== undefined) await groupExit(pid, graceOver)
+    measured = await Promise.all([exited, readAll(child.stdio[3])])
   } catch (cause) {
     await sampler?.stop()
     throw new BenchError('BENCH_EXEC_FAILED', `could not run ${request.argv.join(' ')}`, { cause })
-  } finally {
-    clearTimeout(timeoutTimer)
-    clearTimeout(graceTimer)
-    process.off('exit', killOnExit)
   }
   const rss = await sampler?.stop()
-  const [{ exitCode, endedAt }, timesText] = result
+  const [exit, timesText] = measured
+  const shellExitCode = exitCodeOf(exit.exitCode, exit.signal)
   const warnings: string[] = []
-  if (timedOut) {
+  if (exit.timedOut) {
     warnings.push(
-      `timed out after ${describeDuration(timeoutMs)} and was killed (the shell exited ${exitCode})`,
+      `timed out after ${describeDuration(timeoutMs)} and was killed (the shell exited ${shellExitCode})`,
     )
   }
-  for (const problem of killProblems) warnings.push(`could not stop the timed-out run: ${problem}`)
+  for (const problem of exit.problems) warnings.push(`could not stop the process group: ${problem}`)
   const times = parseTimes(timesText)
   // A killed shell never writes its times; the timeout already says why.
-  if (times === undefined && !timedOut) {
+  if (times === undefined && !exit.timedOut) {
     warnings.push('user and system CPU unavailable: unreadable `times` output')
   }
   if (rss?.peakMib === undefined) {
     const reason =
-      rss?.lastError instanceof Error ? rss.lastError.message : 'no sample saw the process'
+      rss?.lastError === undefined ? 'no sample saw the process' : errorMessage(rss.lastError)
     warnings.push(`peak tree RSS unavailable: ${reason}`)
   }
   return {
-    exitCode: timedOut ? TIMEOUT_EXIT_CODE : exitCode,
-    wallMs: endedAt - startedAt,
+    exitCode: exit.timedOut ? TIMEOUT_EXIT_CODE : shellExitCode,
+    wallMs: exit.endedAt - startedAt,
     ...(times === undefined ? {} : { cpuUserMs: times.userMs, cpuSysMs: times.sysMs }),
     ...(rss?.peakMib === undefined ? {} : { peakRssMb: rss.peakMib }),
     ...(warnings.length === 0 ? {} : { warnings }),

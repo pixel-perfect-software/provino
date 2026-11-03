@@ -300,6 +300,9 @@ importers:
 
   packages/bench:
     dependencies:
+      '@provino/harness':
+        specifier: workspace:*
+        version: link:../harness
       '@provino/types':
         specifier: workspace:*
         version: link:../types

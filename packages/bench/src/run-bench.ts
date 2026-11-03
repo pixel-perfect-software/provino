@@ -5,11 +5,11 @@ import { performance } from 'node:perf_hooks'
 import type { BenchResult, BenchSubject } from '@provino/types'
 import { BenchError } from './errors.ts'
 import {
+  checkMs,
   DEFAULT_RUN_TIMEOUT_MS,
   type ExecOutcome,
   type ExecProcess,
   execProcess,
-  MAX_RUN_TIMEOUT_MS,
 } from './exec.ts'
 import { max, median, wallStats } from './stats.ts'
 
@@ -28,16 +28,14 @@ export const DEFAULT_COLD_RUNS = 5
 /**
  * The exit code recorded for a run that could not be started at all (spawn failed): 126, the
  * shell's "found but could not execute".
- * @public
  */
-export const SPAWN_FAILED_EXIT_CODE = 126
+const SPAWN_FAILED_EXIT_CODE = 126
 
 /**
  * A cache dir needs at least this many path segments below the filesystem root, so `/`, `/tmp` and
  * `/home/me` can never be one.
- * @public
  */
-export const MIN_CACHE_DIR_DEPTH = 3
+const MIN_CACHE_DIR_DEPTH = 3
 
 /**
  * Which tool owns a cache directory: Jest's `cacheDirectory`, Vite's `cacheDir`, Provino's
@@ -173,11 +171,7 @@ function validate(spec: BenchSpec): { warmRuns: number; coldRuns: number; timeou
     }
   }
   const timeoutMs = spec.timeoutMs ?? DEFAULT_RUN_TIMEOUT_MS
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_RUN_TIMEOUT_MS) {
-    throw invalid(
-      `timeoutMs must be a whole number of milliseconds from 1 to ${MAX_RUN_TIMEOUT_MS}`,
-    )
-  }
+  checkMs(timeoutMs, 'timeoutMs', 1)
   return {
     warmRuns: positiveCount(spec.warmRuns, DEFAULT_WARM_RUNS, 'warmRuns'),
     coldRuns: positiveCount(spec.coldRuns, DEFAULT_COLD_RUNS, 'coldRuns'),

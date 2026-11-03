@@ -3,6 +3,8 @@ import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { BenchError } from './errors.ts'
+import { hasCode } from './internal/guards.ts'
+import { inParallel } from './internal/in-parallel.ts'
 
 const execFileAsync = promisify(execFile)
 
@@ -18,8 +20,9 @@ export interface ProcessEntry {
 }
 
 /**
- * Reads the whole process table once. Rejects with `BENCH_PROCESS_TABLE_UNAVAILABLE` when the
- * platform won't list processes.
+ * Reads the process table once: at least the sampled process and its descendants, with their
+ * current RSS (a `ps` reader returns every process). Rejects with
+ * `BENCH_PROCESS_TABLE_UNAVAILABLE` when the platform won't list processes.
  * @public
  */
 export type ProcessTableReader = () => Promise<readonly ProcessEntry[]>
@@ -103,26 +106,25 @@ export function sumTreeRssMib(table: readonly ProcessEntry[], rootPid: number): 
 
 /**
  * How long a `ps` call may take before it is killed. A normal call takes tens of milliseconds.
- * @public
  */
-export const PS_TIMEOUT_MS = 5000
+const PS_TIMEOUT_MS = 5000
 
 /**
  * Makes a reader that lists processes with one call of `command` (`ps` on macOS and other
  * non-Linux systems). The argument list is `ps`'s BSD/POSIX form. A call that takes longer than
- * `options.timeoutMs` (default `PS_TIMEOUT_MS`) is killed and counts as a failed read, so a stuck
- * `ps` can't hold up `RssSampler.stop()`. `command` and `timeoutMs` are test seams.
+ * `timeoutMs` is killed and counts as a failed read, so a stuck `ps` can't hold up
+ * `RssSampler.stop()`. `command` and `timeoutMs` are test seams.
  * @public
  */
 export function createPsReader(
   command = 'ps',
-  options?: { readonly timeoutMs?: number },
+  timeoutMs: number = PS_TIMEOUT_MS,
 ): ProcessTableReader {
   return async () => {
     try {
       const { stdout } = await execFileAsync(command, ['-A', '-o', 'pid=,ppid=,rss='], {
         maxBuffer: 64 * 1024 * 1024,
-        timeout: options?.timeoutMs ?? PS_TIMEOUT_MS,
+        timeout: timeoutMs,
         killSignal: 'SIGKILL',
       })
       return parsePsOutput(stdout)
@@ -139,53 +141,96 @@ export function createPsReader(
 }
 
 /**
- * Reads the process table on macOS and other non-Linux systems with one `ps` call.
- * @public
+ * The most `/proc/<pid>/status` files `createProcReader` reads at once.
  */
-export const readPsTable: ProcessTableReader = createPsReader()
+const PROC_READ_CONCURRENCY = 16
 
 /**
- * Reads the process table on Linux from `/proc/<pid>/status`, one small file per process.
- * Processes that exit mid-read are skipped. `procRoot` is a test seam.
+ * Settings for `createProcReader`. Every one is a test seam.
  * @public
  */
-export async function readProcTable(procRoot = '/proc'): Promise<readonly ProcessEntry[]> {
-  let names: string[]
-  try {
-    names = (await readdir(procRoot)).filter((name) => /^\d+$/.test(name))
-  } catch (cause) {
-    throw new BenchError('BENCH_PROCESS_TABLE_UNAVAILABLE', `${procRoot} is not readable`, {
-      cause,
-    })
-  }
-  const entries = await Promise.all(
-    names.map(async (name) => {
-      try {
-        return parseProcStatus(await readFile(join(procRoot, name, 'status'), 'utf8'))
-      } catch {
-        return undefined
-      }
-    }),
-  )
-  return entries.filter((entry): entry is ProcessEntry => entry !== undefined)
+export interface ProcReaderOptions {
+  /** Default `/proc`. */
+  readonly procRoot?: string
+  /** Default `PROC_READ_CONCURRENCY`. */
+  readonly concurrency?: number
+  /**
+   * Called with each `status` file that could not be read, other than one whose process ended
+   * since `/proc` was listed.
+   */
+  readonly onFailure?: (error: unknown) => void
 }
 
 /**
- * The platform's process table reader: `/proc` on Linux, `ps` elsewhere.
+ * Makes a Linux reader of the tree below `rootPid` that remembers what it read. Each call lists
+ * `/proc` once, reads `status` only for processes it has not seen and for the members of the tree
+ * (their RSS and parent change), and forgets processes that are gone, so a quiet machine with
+ * thousands of processes costs one directory listing and a handful of reads per call. At most
+ * `concurrency` reads run at once. A process that ends mid-read is skipped; any other failed read
+ * goes to `onFailure`, and an unreadable process is not retried until it ends. A process that is
+ * not in the tree is assumed to keep its parent, which only a reparenting into the tree (under a
+ * subreaper) would break. `rootPid` need not be alive: its surviving descendants still count.
+ * Rejects with `BENCH_PROCESS_TABLE_UNAVAILABLE` when `/proc` can't be listed.
  * @public
  */
-export const readProcessTable: ProcessTableReader = () =>
-  process.platform === 'linux' ? readProcTable() : readPsTable()
+export function createProcReader(rootPid: number, options?: ProcReaderOptions): ProcessTableReader {
+  const procRoot = options?.procRoot ?? '/proc'
+  const concurrency = options?.concurrency ?? PROC_READ_CONCURRENCY
+  // Every live process seen so far with its last good read, or `undefined` if it never read.
+  const known = new Map<number, ProcessEntry | undefined>()
+
+  const readStatus = async (pid: number): Promise<void> => {
+    try {
+      const entry = parseProcStatus(await readFile(join(procRoot, String(pid), 'status'), 'utf8'))
+      if (entry === undefined) throw new Error(`${procRoot}/${pid}/status has no Pid or PPid line`)
+      known.set(pid, entry)
+    } catch (error) {
+      if (hasCode(error, 'ENOENT') || hasCode(error, 'ESRCH')) {
+        known.delete(pid)
+        return
+      }
+      if (!known.has(pid)) known.set(pid, undefined)
+      options?.onFailure?.(error)
+    }
+  }
+  const table = (): ProcessEntry[] => [...known.values()].filter((entry) => entry !== undefined)
+
+  return async () => {
+    let names: string[]
+    try {
+      names = await readdir(procRoot)
+    } catch (cause) {
+      throw new BenchError('BENCH_PROCESS_TABLE_UNAVAILABLE', `${procRoot} is not readable`, {
+        cause,
+      })
+    }
+    const live = new Set<number>()
+    for (const name of names) if (/^\d+$/.test(name)) live.add(Number(name))
+    for (const pid of known.keys()) if (!live.has(pid)) known.delete(pid)
+
+    const unseen = [...live].filter((pid) => !known.has(pid))
+    await inParallel(unseen, concurrency, readStatus)
+    const justRead = new Set(unseen)
+    const members = processTree(table(), rootPid).filter((entry) => !justRead.has(entry.pid))
+    await inParallel(
+      members.map((entry) => entry.pid),
+      concurrency,
+      readStatus,
+    )
+    return processTree(table(), rootPid)
+  }
+}
 
 /**
- * RSS in MiB summed over `rootPid` and its descendants right now.
+ * The reader for this platform: `/proc` on Linux (`createProcReader`, with `onFailure`), `ps`
+ * elsewhere.
  * @public
  */
-export async function treeRss(
+export function createDefaultReader(
   rootPid: number,
-  read: ProcessTableReader = readProcessTable,
-): Promise<number> {
-  return sumTreeRssMib(await read(), rootPid)
+  onFailure: (error: unknown) => void = () => {},
+): ProcessTableReader {
+  return process.platform === 'linux' ? createProcReader(rootPid, { onFailure }) : createPsReader()
 }
 
 /**
@@ -197,7 +242,11 @@ export interface RssSample {
   readonly peakMib: number | undefined
   /** Table reads that succeeded. */
   readonly samples: number
-  /** Table reads that failed. If every read failed, `peakMib` is `undefined`. */
+  /**
+   * Reads that failed: whole-table reads, and on Linux each `/proc/<pid>/status` that could not be
+   * read (a process that ended is not a failure). If every table read failed, `peakMib` is
+   * `undefined`.
+   */
   readonly failures: number
   /** The last read failure, if any. */
   readonly lastError: unknown
@@ -217,45 +266,55 @@ export interface RssSampler {
  * @public
  */
 export interface RssSamplerOptions {
-  /** Milliseconds between the end of one read and the start of the next. Default 25. */
+  /**
+   * Milliseconds from the start to the first read, and from the end of one read to the start of
+   * the next. Default 25.
+   */
   readonly intervalMs?: number
+  /** Default: the platform's reader for the sampled tree. */
   readonly read?: ProcessTableReader
 }
 
 /**
- * Samples the tree RSS of `rootPid` every 25 ms and keeps the peak. Reads never overlap: the next
- * is scheduled with `setTimeout` only after the previous one finishes. A read that fails counts
- * as a failure and sampling carries on.
+ * Samples the tree RSS of `rootPid` every 25 ms and keeps the peak. The first read comes one
+ * interval after the start, so the sampler does no work while the process is being spawned. Reads
+ * never overlap: the next is scheduled with `setTimeout` only after the previous one finishes. A
+ * read that fails counts as a failure and sampling carries on. Without `options.read` the platform
+ * reader is used (`createDefaultReader`), and its per-process read failures count too.
  * @public
  */
 export function startRssSampler(rootPid: number, options?: RssSamplerOptions): RssSampler {
   const intervalMs = options?.intervalMs ?? 25
-  const read = options?.read ?? readProcessTable
   let peakMib: number | undefined
   let samples = 0
   let failures = 0
   let lastError: unknown
+  const noteFailure = (error: unknown): void => {
+    failures += 1
+    lastError = error
+  }
+  const read = options?.read ?? createDefaultReader(rootPid, noteFailure)
   let stopped = false
   let timer: NodeJS.Timeout | undefined
   let inFlight: Promise<void> = Promise.resolve()
 
+  const arm = (): void => {
+    timer = setTimeout(() => {
+      inFlight = sample()
+    }, intervalMs)
+    timer.unref()
+  }
   const sample = async (): Promise<void> => {
     try {
-      const mib = await treeRss(rootPid, read)
+      const mib = sumTreeRssMib(await read(), rootPid)
       samples += 1
       if (mib > 0 && (peakMib === undefined || mib > peakMib)) peakMib = mib
     } catch (error) {
-      failures += 1
-      lastError = error
+      noteFailure(error)
     }
-    if (!stopped) {
-      timer = setTimeout(() => {
-        inFlight = sample()
-      }, intervalMs)
-      timer.unref()
-    }
+    if (!stopped) arm()
   }
-  inFlight = sample()
+  arm()
 
   return {
     async stop() {

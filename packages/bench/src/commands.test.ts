@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { test } from 'node:test'
+import { type TestContext, test } from 'node:test'
 import type { BenchRecord } from '@provino/types'
 import { type CliDeps, runCli } from './commands.ts'
 import { BenchError } from './errors.ts'
 import type { ExecOutcome, ExecRequest } from './exec.ts'
+import { scratch } from './internal/test-helpers.ts'
 import { makeRepo } from './internal/test-repo.ts'
 
 const START = Date.UTC(2026, 10, 2, 10, 11, 12)
@@ -24,7 +25,7 @@ interface Setup {
 // A bench with a fake process runner, a throwaway git checkout and its own suite and record
 // directories. `onRun` can fail or change a run; by default every run exits 0 after 100 ms.
 async function setup(
-  t: { after(fn: () => Promise<void>): void },
+  t: Pick<TestContext, 'after'>,
   options?: {
     readonly dirty?: boolean
     readonly repo?: boolean
@@ -34,8 +35,7 @@ async function setup(
     ) => Promise<Partial<ExecOutcome>>
   },
 ): Promise<Setup> {
-  const dir = await mkdtemp(join(process.env.TMPDIR ?? '/tmp', 'bench-cli-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  const dir = await scratch(t, 'bench-cli-')
   const repoRoot = join(dir, 'repo')
   if (options?.repo === false) await mkdir(repoRoot)
   else await makeRepo(repoRoot, { dirty: options?.dirty === true })
@@ -45,9 +45,7 @@ async function setup(
   const clockReadsAtRun: number[] = []
   let clockReads = 0
   const deps: CliDeps = {
-    repoRoot,
-    suitesRoot: join(dir, 'suites'),
-    resultsDir: join(dir, 'results'),
+    paths: { repoRoot, suitesRoot: join(dir, 'suites'), resultsDir: join(dir, 'results') },
     now: () => new Date(START + 1000 * clockReads++),
     exec: async (request) => {
       const index = calls.length

@@ -1,11 +1,24 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { BenchError } from './errors.ts'
-import { execProcess, parseTimes } from './exec.ts'
-import { readProcessTable } from './tree-rss.ts'
+import {
+  checkMs,
+  execProcess,
+  exitCodeOf,
+  isTimerMs,
+  MAX_RUN_TIMEOUT_MS,
+  parseTimes,
+} from './exec.ts'
+import { hasCode } from './internal/guards.ts'
+import { code, scratch } from './internal/test-helpers.ts'
+import { createDefaultReader } from './tree-rss.ts'
+
+// The child processes below import this package's source, so they need the same export condition
+// the tests run under, and the harness by URL.
+const SOURCE = '--conditions=provino-source'
+const HARNESS_URL = import.meta.resolve('@provino/harness')
 
 test('times output parses to the children’s user and system time', () => {
   // bash: milliseconds. First line is the shell itself, second is what it waited for.
@@ -67,9 +80,9 @@ test('the default exec reports tree RSS where the process table is readable, and
   })
   let readable = true
   try {
-    await readProcessTable()
+    await createDefaultReader(process.pid)()
   } catch (error) {
-    readable = !(error instanceof BenchError && error.code === 'BENCH_PROCESS_TABLE_UNAVAILABLE')
+    readable = !code('BENCH_PROCESS_TABLE_UNAVAILABLE')(error)
   }
   if (readable) {
     assert.ok(
@@ -124,7 +137,7 @@ test('a command that is not found exits non-zero rather than throwing', async ()
 test('a missing cwd is a BENCH_EXEC_FAILED error', async () => {
   await assert.rejects(
     execProcess({ argv: ['true'], cwd: '/nonexistent/bench-dir', env: {} }),
-    (error) => error instanceof BenchError && error.code === 'BENCH_EXEC_FAILED',
+    code('BENCH_EXEC_FAILED'),
   )
 })
 
@@ -134,12 +147,6 @@ function sleeper(script: string, pidFile: string): string[] {
   return ['/bin/sh', '-c', script, pidFile]
 }
 
-async function scratch(t: { after(fn: () => Promise<void>): void }): Promise<string> {
-  const dir = await mkdtemp(join(process.env.TMPDIR ?? '/tmp', 'bench-exec-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  return dir
-}
-
 // A killed process stays visible to `kill -0` until its parent (init, once the shell is gone)
 // reaps it. On Linux a zombie counts as gone; elsewhere wait briefly for the reap.
 async function isGone(pid: number): Promise<boolean> {
@@ -147,7 +154,7 @@ async function isGone(pid: number): Promise<boolean> {
     try {
       process.kill(pid, 0)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ESRCH') return true
+      if (hasCode(error, 'ESRCH')) return true
       throw error
     }
     try {
@@ -162,7 +169,7 @@ async function isGone(pid: number): Promise<boolean> {
 }
 
 test('a run past its timeout is killed, kept as a failed run with exit 124, and leaves no process behind', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-exec-')
   const pidFile = join(dir, 'pid')
   const outcome = await execProcess({
     argv: sleeper('echo $$ > "$0"; exec sleep 20', pidFile),
@@ -182,7 +189,7 @@ test('a run past its timeout is killed, kept as a failed run with exit 124, and 
 })
 
 test('a subject that ignores SIGTERM is killed with SIGKILL after the grace period', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-exec-')
   const pidFile = join(dir, 'pid')
   const outcome = await execProcess({
     argv: sleeper('trap "" TERM; echo $$ > "$0"; exec sleep 20', pidFile),
@@ -197,7 +204,7 @@ test('a subject that ignores SIGTERM is killed with SIGKILL after the grace peri
 })
 
 test('the whole process group is killed, not only the shell', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-exec-')
   const pidFile = join(dir, 'pid')
   // The sleeper is a grandchild: the wrapper shell runs this shell, which runs sleep in the
   // background and records the pid of that.
@@ -228,14 +235,59 @@ test('an invalid timeout is rejected before anything is spawned', async () => {
   for (const timeoutMs of [0, -1, 1.5, Number.NaN, 2 ** 31]) {
     await assert.rejects(
       execProcess({ argv: ['true'], cwd: process.cwd(), env: {}, timeoutMs }),
-      (error) => error instanceof BenchError && error.code === 'BENCH_INVALID_SPEC',
+      code('BENCH_INVALID_SPEC'),
       String(timeoutMs),
+    )
+  }
+  for (const killGraceMs of [-1, 1.5, Number.NaN, 2 ** 31]) {
+    await assert.rejects(
+      execProcess({ argv: ['true'], cwd: process.cwd(), env: {}, killGraceMs }),
+      code('BENCH_INVALID_SPEC'),
+      `killGraceMs ${killGraceMs}`,
     )
   }
 })
 
+test('a timeout is a whole number of milliseconds a timer can hold', () => {
+  assert.equal(isTimerMs(1, 1), true)
+  assert.equal(isTimerMs(MAX_RUN_TIMEOUT_MS, 1), true)
+  assert.equal(isTimerMs(0, 0), true)
+  for (const bad of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, MAX_RUN_TIMEOUT_MS + 1]) {
+    assert.equal(isTimerMs(bad, 1), false, String(bad))
+  }
+  assert.doesNotThrow(() => checkMs(60_000, 'timeoutMs', 1))
+  assert.throws(
+    () => checkMs(0, 'timeoutMs', 1),
+    (error) => code('BENCH_INVALID_SPEC')(error) && (error as Error).message.includes('timeoutMs'),
+  )
+})
+
+test('an exit code is the process’s own, or 128 plus the signal that ended it', () => {
+  assert.equal(exitCodeOf(0, null), 0)
+  assert.equal(exitCodeOf(7, null), 7)
+  assert.equal(exitCodeOf(null, 'SIGTERM'), 143)
+  assert.equal(exitCodeOf(null, 'SIGKILL'), 137)
+  assert.equal(exitCodeOf(null, null), 129)
+})
+
+test('what a finished run leaves behind is killed after the grace period, and the wall time stops at the exit', async (t) => {
+  const dir = await scratch(t, 'bench-exec-')
+  const pidFile = join(dir, 'pid')
+  const outcome = await execProcess({
+    argv: sleeper('sleep 20 & echo $! > "$0"; exit 0', pidFile),
+    cwd: process.cwd(),
+    env: {},
+    killGraceMs: 600,
+  })
+  assert.equal(outcome.exitCode, 0)
+  assert.ok(outcome.wallMs < 400, `wall ${outcome.wallMs} ms includes the cleanup`)
+  assert.ok(!outcome.warnings?.some((warning) => warning.includes('timed out')))
+  const pid = Number(await readFile(pidFile, 'utf8'))
+  assert.ok(await isGone(pid), `process ${pid} outlived its run`)
+})
+
 test('the bench exiting mid-run does not leave the subject running', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-exec-')
   const pidFile = join(dir, 'pid')
   // A bench process that starts a long run, waits until the subject has recorded its pid, then
   // exits the way a handled SIGINT does.
@@ -255,22 +307,25 @@ test('the bench exiting mid-run does not leave the subject running', async (t) =
       }
     }, 5)
   `
-  const bench = spawn(process.execPath, ['--input-type=module', '-e', script], { stdio: 'inherit' })
-  const code = await new Promise<number | null>((resolve, reject) => {
+  const bench = spawn(process.execPath, [SOURCE, '--input-type=module', '-e', script], {
+    stdio: 'inherit',
+  })
+  const exitCode = await new Promise<number | null>((resolve, reject) => {
     bench.once('error', reject)
     bench.once('exit', resolve)
   })
-  assert.equal(code, 0)
+  assert.equal(exitCode, 0)
   const pid = Number(await readFile(pidFile, 'utf8'))
   assert.ok(await isGone(pid), `subject ${pid} outlived the bench`)
 })
 
 test('SIGINT to the bench ends it with 130 and takes the subject down with it', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-exec-')
   const pidFile = join(dir, 'pid')
   const execUrl = new URL('./exec.ts', import.meta.url).href
   const script = `
-    import { execProcess, exitOnSignals } from ${JSON.stringify(execUrl)}
+    import { exitOnSignals } from ${JSON.stringify(HARNESS_URL)}
+    import { execProcess } from ${JSON.stringify(execUrl)}
     exitOnSignals()
     await execProcess({
       argv: ['/bin/sh', '-c', 'echo $$ > "$0"; exec sleep 20', ${JSON.stringify(pidFile)}],
@@ -278,7 +333,9 @@ test('SIGINT to the bench ends it with 130 and takes the subject down with it', 
       env: {},
     })
   `
-  const bench = spawn(process.execPath, ['--input-type=module', '-e', script], { stdio: 'inherit' })
+  const bench = spawn(process.execPath, [SOURCE, '--input-type=module', '-e', script], {
+    stdio: 'inherit',
+  })
   const exited = new Promise<number | null>((resolve, reject) => {
     bench.once('error', reject)
     bench.once('exit', resolve)

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import type { BenchSubject } from '@provino/types'
 import { BenchError } from './errors.ts'
 import type { ExecOutcome, ExecRequest } from './exec.ts'
+import { code, scratch } from './internal/test-helpers.ts'
 import {
   type BenchSpec,
   type BenchSubjectSpec,
@@ -23,12 +24,6 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false
   }
-}
-
-async function scratch(t: { after(fn: () => Promise<void>): void }): Promise<string> {
-  const dir = await mkdtemp(join(process.env.TMPDIR ?? '/tmp', 'bench-run-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  return dir
 }
 
 function subjectSpec(name: 'A' | 'B', dir: string): BenchSubjectSpec {
@@ -88,7 +83,7 @@ function fakeExec(
 }
 
 test('the protocol: a discarded warm-up, interleaved warm rounds, then interleaved cold rounds', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   const { calls, exec } = fakeExec(dir, (who, index) =>
     // the warm-up of A reports a wall time that must not appear in any result
     who === 'A' && index === 0 ? { wallMs: 9999 } : {},
@@ -124,7 +119,7 @@ test('the protocol: a discarded warm-up, interleaved warm rounds, then interleav
 })
 
 test('the request carries the subject’s argv, cwd and env', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   const { calls, exec } = fakeExec(dir)
   await runBench({
     benchId: 'app-1',
@@ -142,7 +137,7 @@ test('the request carries the subject’s argv, cwd and env', async (t) => {
 })
 
 test('cold runs find their own cache dirs deleted, warm runs find them kept', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   const { calls, exec } = fakeExec(dir)
   await runBench({
     benchId: 'app-1',
@@ -170,7 +165,7 @@ test('cold runs find their own cache dirs deleted, warm runs find them kept', as
 })
 
 test('a failing timed run is kept, and only that subject and cache state is not ok', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   // call 5 is B's second warm run (calls 0-1 are warm-ups, then A B A B ...)
   const { exec } = fakeExec(dir, (_who, index) => (index === 5 ? { exitCode: 1, wallMs: 5 } : {}))
   const results = await runBench({
@@ -190,7 +185,7 @@ test('a failing timed run is kept, and only that subject and cache state is not 
 })
 
 test('a failed warm-up does not make a result not ok', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   const { exec } = fakeExec(dir, (who, index) =>
     who === 'A' && index === 0 ? { exitCode: 2 } : {},
   )
@@ -205,7 +200,7 @@ test('a failed warm-up does not make a result not ok', async (t) => {
 })
 
 test('the defaults are 10 warm and 5 cold runs', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   const { calls, exec } = fakeExec(dir)
   const results = await runBench({ benchId: 'app-1', subjects: [subjectSpec('A', dir)], exec })
   assert.equal(DEFAULT_WARM_RUNS, 10)
@@ -218,7 +213,7 @@ test('the defaults are 10 warm and 5 cold runs', async (t) => {
 })
 
 test('CPU is the median across runs and peak RSS the maximum; missing figures are omitted', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   const { exec } = fakeExec(dir, (who, index) =>
     who === 'A' ? { cpuUserMs: index * 10, cpuSysMs: index, peakRssMb: 50 + index } : {},
   )
@@ -240,7 +235,7 @@ test('CPU is the median across runs and peak RSS the maximum; missing figures ar
 })
 
 test('onRun reports every run, with the discarded warm-up marked', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   const { exec } = fakeExec(dir)
   const events: RunEvent[] = []
   await runBench({
@@ -258,7 +253,7 @@ test('onRun reports every run, with the discarded warm-up marked', async (t) => 
 })
 
 test('a bad spec is rejected before anything runs or is deleted', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   await mkdir(join(dir, 'A-tool'))
   const { calls, exec } = fakeExec(dir)
   const base = subjectSpec('A', dir)
@@ -278,18 +273,14 @@ test('a bad spec is rejected before anything runs or is deleted', async (t) => {
     ],
   ]
   for (const [name, spec] of cases) {
-    await assert.rejects(
-      runBench(spec),
-      (error) => error instanceof BenchError && error.code === 'BENCH_INVALID_SPEC',
-      name,
-    )
+    await assert.rejects(runBench(spec), code('BENCH_INVALID_SPEC'), name)
   }
   assert.equal(calls.length, 0)
   assert.ok(await exists(join(dir, 'A-tool')))
 })
 
 test('the per-run timeout defaults to 30 minutes and can be set', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   const { calls, exec } = fakeExec(dir)
   await runBench({
     benchId: 'app-1',
@@ -304,12 +295,12 @@ test('the per-run timeout defaults to 30 minutes and can be set', async (t) => {
 })
 
 test('a bad timeout is rejected before anything runs', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   const { calls, exec } = fakeExec(dir)
   for (const timeoutMs of [0, -5, 1.5, Number.NaN, 2 ** 31]) {
     await assert.rejects(
       runBench({ benchId: 'x', subjects: [subjectSpec('A', dir)], timeoutMs, exec }),
-      (error) => error instanceof BenchError && error.code === 'BENCH_INVALID_SPEC',
+      code('BENCH_INVALID_SPEC'),
       String(timeoutMs),
     )
   }
@@ -319,7 +310,7 @@ test('a bad timeout is rejected before anything runs', async (t) => {
 // A run that could not be started is still a run: it is kept as a failure, so the other runs of the
 // session are not thrown away with it.
 test('a run that cannot be spawned is kept as a failed run, with a warning, and the bench carries on', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   const { exec } = fakeExec(dir)
   const events: RunEvent[] = []
   let started = 0
@@ -358,7 +349,7 @@ test('a run that cannot be spawned is kept as a failed run, with a warning, and 
 })
 
 test('a spawn failure in the real exec is kept too, for every run', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   const spec = { ...subjectSpec('A', dir), cwd: join(dir, 'does-not-exist') }
   const results = await runBench({
     benchId: 'app-1',
@@ -376,7 +367,7 @@ test('a spawn failure in the real exec is kept too, for every run', async (t) =>
 })
 
 test('an error from exec that is not a failure to run still ends the bench', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   for (const error of [
     new BenchError('BENCH_UNSUPPORTED_PLATFORM', 'no sh'),
     new TypeError('bug'),
@@ -395,7 +386,7 @@ test('an error from exec that is not a failure to run still ends the bench', asy
 })
 
 test('a cache dir that cannot be deleted before a cold run is a BenchError naming the path', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   await writeFile(join(dir, 'not-a-dir'), 'x')
   const stuck = join(dir, 'not-a-dir', 'cache')
   const { exec } = fakeExec(dir)
@@ -406,17 +397,16 @@ test('a cache dir that cannot be deleted before a cold run is a BenchError namin
   await assert.rejects(
     runBench({ benchId: 'x', subjects: [spec], warmRuns: 1, coldRuns: 1, exec }),
     (error) =>
-      error instanceof BenchError &&
-      error.code === 'BENCH_CACHE_CLEAR_FAILED' &&
-      error.message.includes(stuck) &&
-      error.cause instanceof Error,
+      code('BENCH_CACHE_CLEAR_FAILED')(error) &&
+      (error as BenchError).message.includes(stuck) &&
+      (error as BenchError).cause instanceof Error,
   )
 })
 
 // The guard runs before any deletion. Every path below is under a scratch directory or does not
 // exist, so a guard that fails to reject cannot delete anything that matters.
 test('cache dirs that could be a project, a home directory or a disk are refused before anything runs', async (t) => {
-  const dir = await scratch(t)
+  const dir = await scratch(t, 'bench-run-')
   const home = join(dir, 'home')
   const work = join(dir, 'work')
   await mkdir(join(home, 'proj'), { recursive: true })
@@ -448,7 +438,7 @@ test('cache dirs that could be a project, a home directory or a disk are refused
         subjects: [{ ...subjectSpec('A', dir), cwd, caches: [{ kind: 'jest', path }] }],
         exec,
       }),
-      (error) => error instanceof BenchError && error.code === 'BENCH_INVALID_SPEC',
+      code('BENCH_INVALID_SPEC'),
       name,
     )
   }

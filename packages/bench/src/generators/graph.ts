@@ -1,7 +1,9 @@
 import { randomBelow, seededRandom } from '../internal/prng.ts'
 import {
   type Binding,
+  FLAVOUR_DIR,
   type Flavour,
+  type GeneratedFile,
   lines,
   pad,
   prologue,
@@ -39,9 +41,8 @@ export const GRAPH_SIZE = 24
 /**
  * Seed of the graph's shape. Changing it changes every suite and so invalidates every recorded
  * baseline.
- * @public
  */
-export const GRAPH_SEED = 24_001
+const GRAPH_SEED = 24_001
 
 const KINDS: readonly GraphKind[] = ['zod', 'date', 'collection']
 
@@ -132,13 +133,10 @@ function ownWork(node: GraphNode): readonly string[] {
   }
 }
 
-/**
- * Renders one graph module. It exports `name` and `compute(n, memo)`: its own work plus the
- * `compute` of each dependency, memoized by name in the `memo` map so a shared dependency does
- * the library work once per call.
- * @public
- */
-export function renderGraphModule(node: GraphNode, flavour: Flavour): string {
+// One graph module. It exports `name` and `compute(n, memo)`: its own work plus the `compute` of
+// each dependency, memoized by name in the `memo` map so a shared dependency does the library work
+// once per call.
+function renderGraphModule(node: GraphNode, flavour: Flavour): string {
   const imports = [
     renderImport(flavour, libraryImport(node.kind)),
     ...node.deps.map((dep) =>
@@ -183,13 +181,12 @@ export interface Simulation {
 }
 
 /**
- * Runs the graph's `compute` on paper: sums `roots` the way a consumer would, sharing one memo.
+ * Runs `GRAPH`'s `compute` on paper: sums `roots` the way a consumer would, sharing one memo.
  * `mocks` maps a module index to the constant its mocked `compute` returns; a mocked module cuts
  * off everything below it.
  * @public
  */
 export function simulate(
-  graph: readonly GraphNode[],
   roots: readonly number[],
   n: number,
   mocks: ReadonlyMap<number, number> = new Map(),
@@ -204,7 +201,7 @@ export function simulate(
     }
     const cached = memo.get(index)
     if (cached !== undefined) return cached
-    const node = graph[index]
+    const node = GRAPH[index]
     if (node === undefined) throw new RangeError(`no graph module ${index}`)
     let value = node.weight * n
     for (const dep of node.deps) value += compute(dep)
@@ -220,13 +217,9 @@ export function simulate(
  * Renders the 24 graph modules for a flavour, under `src/graph/` in the flavour's tree.
  * @public
  */
-export function graphFiles(
-  graph: readonly GraphNode[],
-  flavour: Flavour,
-  dir: string,
-): readonly { readonly path: string; readonly contents: string }[] {
-  return graph.map((node) => ({
-    path: `${dir}/src/graph/${node.name}.js`,
+export function graphFiles(flavour: Flavour): readonly GeneratedFile[] {
+  return GRAPH.map((node) => ({
+    path: `${FLAVOUR_DIR[flavour]}/src/graph/${node.name}.js`,
     contents: renderGraphModule(node, flavour),
   }))
 }

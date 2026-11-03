@@ -1,10 +1,25 @@
-import { spawn } from 'node:child_process'
 import { mkdir, readFile, rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { performance } from 'node:perf_hooks'
 import { stripVTControlCharacters } from 'node:util'
+import { type ProcessResult, parseJestJson, parseVitestJson, runProcess } from '@provino/harness'
 import { BenchError } from './errors.ts'
-import { expectedTests, planRunner, type RunnerName, type SuiteSpec, suiteDir } from './suites.ts'
+import {
+  checkMs,
+  DEFAULT_RUN_TIMEOUT_MS,
+  describeDuration,
+  exitCodeOf,
+  TIMEOUT_EXIT_CODE,
+} from './exec.ts'
+import { hasCode } from './internal/guards.ts'
+import {
+  type BenchPaths,
+  DEFAULT_PATHS,
+  expectedTests,
+  planRunner,
+  type RunnerName,
+  type SuiteSpec,
+  suiteDir,
+} from './suites.ts'
 
 /**
  * The totals both Jest's `--json` and Vitest's JSON reporter put at the top of their output.
@@ -14,46 +29,67 @@ export interface TestSummary {
   readonly total: number
   readonly passed: number
   readonly failed: number
-  readonly pending: number
-  readonly todo: number
   readonly success: boolean
 }
 
-function field(object: Record<string, unknown>, key: string): number | undefined {
-  const value = object[key]
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+/**
+ * What the check reads of a parsed report, which both runners write in this shape.
+ * @public
+ */
+export interface Report {
+  readonly numTotalTests: number
+  readonly numPassedTests: number
+  readonly numFailedTests: number
+  readonly success: boolean
+  readonly testResults: readonly {
+    readonly name: string
+    readonly status: string
+    readonly message: string
+    readonly assertionResults: readonly {
+      readonly title: string
+      readonly fullName?: string
+      readonly status: string
+      readonly failureMessages?: readonly (string | null)[] | null
+    }[]
+  }[]
 }
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
+// How each runner is asked for a JSON report, and how the report is parsed.
+const REPORTERS: Readonly<
+  Record<
+    RunnerName,
+    { readonly flag: string; readonly parse: (text: string, source: string) => Report }
+  >
+> = {
+  jest: { flag: '--json', parse: parseJestJson },
+  vitest: { flag: '--reporter=json', parse: parseVitestJson },
 }
 
 /**
- * Reads the totals out of a parsed Jest or Vitest JSON report, or `undefined` if the shape is
- * not one.
+ * Reads the report a runner wrote at `path`. A report that was never written, or that is not this
+ * runner's report, is `undefined`; any other failure to read it is thrown.
  * @public
  */
-export function parseTestSummary(report: unknown): TestSummary | undefined {
-  const object = asRecord(report)
-  if (object === undefined) return undefined
-  const total = field(object, 'numTotalTests')
-  const passed = field(object, 'numPassedTests')
-  const failed = field(object, 'numFailedTests')
-  const pending = field(object, 'numPendingTests')
-  const todo = field(object, 'numTodoTests')
-  if (
-    total === undefined ||
-    passed === undefined ||
-    failed === undefined ||
-    pending === undefined ||
-    todo === undefined ||
-    typeof object.success !== 'boolean'
-  ) {
-    return undefined
+export async function readReport(runner: RunnerName, path: string): Promise<Report | undefined> {
+  try {
+    return REPORTERS[runner].parse(await readFile(path, 'utf8'), path)
+  } catch (error) {
+    if (hasCode(error, 'ENOENT') || hasCode(error, 'HARNESS_RESULT_INVALID')) return undefined
+    throw error
   }
-  return { total, passed, failed, pending, todo, success: object.success }
+}
+
+/**
+ * The totals of a report.
+ * @public
+ */
+export function summarize(report: Report): TestSummary {
+  return {
+    total: report.numTotalTests,
+    passed: report.numPassedTests,
+    failed: report.numFailedTests,
+    success: report.success,
+  }
 }
 
 /**
@@ -84,43 +120,33 @@ export function checkProblems(
   return problems
 }
 
-/**
- * Up to `limit` failed tests from a Jest or Vitest JSON report, each as `file > test: first line
- * of the message`.
- * @public
- */
-export function failureMessages(report: unknown, limit = 3): readonly string[] {
-  const out: string[] = []
-  const files = asRecord(report)?.testResults
-  if (!Array.isArray(files)) return out
-  for (const file of files) {
-    const fileRecord = asRecord(file)
-    if (fileRecord === undefined || fileRecord.status !== 'failed') continue
-    const name = String(fileRecord.name ?? 'unknown file')
-    const assertions = Array.isArray(fileRecord.assertionResults) ? fileRecord.assertionResults : []
-    const failed = assertions.map(asRecord).filter((a) => a?.status === 'failed')
-    if (failed.length === 0) {
-      out.push(`${name}: ${firstLine(fileRecord.message)}`)
-    }
-    for (const assertion of failed) {
-      const messages = Array.isArray(assertion?.failureMessages) ? assertion.failureMessages : []
-      out.push(
-        `${name} > ${String(assertion?.fullName ?? assertion?.title)}: ${firstLine(messages[0])}`,
-      )
-    }
-    if (out.length >= limit) break
-  }
-  return out.slice(0, limit)
-}
-
-function firstLine(value: unknown): string {
-  const text = typeof value === 'string' ? value : ''
+function firstLine(message: string | null | undefined): string {
   return (
-    stripVTControlCharacters(text)
+    stripVTControlCharacters(message ?? '')
       .split('\n')
       .find((line) => line.trim() !== '')
       ?.trim() ?? '(no message)'
   )
+}
+
+/**
+ * Up to `limit` failures from a report, each as `file > test: first line of the message`, or
+ * `file: first line` for a file that failed without a failed test.
+ * @public
+ */
+export function failureDetails(report: Report, limit = 3): readonly string[] {
+  const out: string[] = []
+  for (const file of report.testResults) {
+    if (file.status !== 'failed') continue
+    const failed = file.assertionResults.filter((assertion) => assertion.status === 'failed')
+    if (failed.length === 0) out.push(`${file.name}: ${firstLine(file.message)}`)
+    for (const assertion of failed) {
+      const name = assertion.fullName ?? assertion.title
+      out.push(`${file.name} > ${name}: ${firstLine(assertion.failureMessages?.[0])}`)
+    }
+    if (out.length >= limit) break
+  }
+  return out.slice(0, limit)
 }
 
 /**
@@ -139,81 +165,57 @@ export interface CheckResult {
   readonly details: readonly string[]
 }
 
-const TAIL_BYTES = 6000
-
-function runCaptured(
-  argv: readonly string[],
-  cwd: string,
-  env: Readonly<Record<string, string>>,
-): Promise<{ exitCode: number; wallMs: number; tail: string }> {
-  return new Promise((resolve, reject) => {
-    const [command, ...args] = argv
-    if (command === undefined) {
-      reject(new BenchError('BENCH_EXEC_FAILED', 'empty command'))
-      return
-    }
-    const startedAt = performance.now()
-    const child = spawn(command, args, {
-      cwd,
-      env: { ...process.env, ...env },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
-    let tail = ''
-    const keep = (chunk: Buffer): void => {
-      tail = (tail + chunk.toString('utf8')).slice(-TAIL_BYTES)
-    }
-    child.stdout.on('data', keep)
-    child.stderr.on('data', keep)
-    child.once('error', (cause) =>
-      reject(new BenchError('BENCH_EXEC_FAILED', `could not run ${command}`, { cause })),
-    )
-    child.once('close', (code, signal) =>
-      resolve({
-        exitCode: code ?? (signal === null ? 1 : 128),
-        wallMs: performance.now() - startedAt,
-        tail,
-      }),
-    )
-  })
-}
+const TAIL_CHARS = 6000
 
 /**
  * Runs a suite once under a runner with JSON output, and judges it. The report goes to
- * `<suite>/check/<runner>.json`.
+ * `<suite>/check/<runner>.json`. A run that takes longer than `timeoutMs` (default
+ * `DEFAULT_RUN_TIMEOUT_MS`) has its whole process group killed and fails the check with exit
+ * `TIMEOUT_EXIT_CODE`.
  * @public
  */
 export async function checkRunner(
   spec: SuiteSpec,
   runner: RunnerName,
-  options?: { readonly root?: string },
+  options?: { readonly paths?: BenchPaths; readonly timeoutMs?: number },
 ): Promise<CheckResult> {
-  const reportPath = join(suiteDir(spec, options?.root), 'check', `${runner}.json`)
-  const flags =
-    runner === 'jest'
-      ? ['--json', `--outputFile=${reportPath}`]
-      : ['--reporter=json', `--outputFile=${reportPath}`]
-  const plan = planRunner(spec, runner, { ...options, extraArgs: flags })
+  const paths = options?.paths ?? DEFAULT_PATHS
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_RUN_TIMEOUT_MS
+  checkMs(timeoutMs, 'timeoutMs', 1)
+  const reportPath = join(suiteDir(spec, paths.suitesRoot), 'check', `${runner}.json`)
+  const flags = [REPORTERS[runner].flag, `--outputFile=${reportPath}`]
+  const plan = planRunner(spec, runner, { paths, extraArgs: flags })
   await mkdir(dirname(reportPath), { recursive: true })
   await rm(reportPath, { force: true })
 
-  const run = await runCaptured(plan.argv, plan.cwd, plan.env)
-
-  let report: unknown
+  const [command, ...args] = plan.argv
+  if (command === undefined) throw new BenchError('BENCH_EXEC_FAILED', 'empty command')
+  let run: ProcessResult
   try {
-    report = JSON.parse(await readFile(reportPath, 'utf8'))
-  } catch {
-    report = undefined
+    run = await runProcess(command, args, {
+      cwd: plan.cwd,
+      env: { ...process.env, ...plan.env },
+      timeoutMs,
+      tailChars: TAIL_CHARS,
+    })
+  } catch (cause) {
+    throw new BenchError('BENCH_EXEC_FAILED', `could not run ${command}`, { cause })
   }
-  const summary = parseTestSummary(report)
-  const problems = checkProblems(run.exitCode, summary, expectedTests(spec))
-  const failures = failureMessages(report)
+
+  const exitCode = run.timedOut ? TIMEOUT_EXIT_CODE : exitCodeOf(run.exitCode, run.signal)
+  const report = await readReport(runner, reportPath)
+  const summary = report === undefined ? undefined : summarize(report)
+  const problems = [...checkProblems(exitCode, summary, expectedTests(spec))]
+  if (run.timedOut) problems.push(`timed out after ${describeDuration(timeoutMs)} and was killed`)
+  for (const problem of run.problems) problems.push(`could not stop the process group: ${problem}`)
+  const failures = report === undefined ? [] : failureDetails(report)
   const details =
-    problems.length === 0 ? [] : failures.length > 0 ? failures : [`output tail:\n${run.tail}`]
+    problems.length === 0 ? [] : failures.length > 0 ? failures : [`output tail:\n${run.output}`]
   return {
     runner,
     version: plan.version,
     ok: problems.length === 0,
-    exitCode: run.exitCode,
+    exitCode,
     wallMs: run.wallMs,
     summary,
     problems,
