@@ -29,7 +29,9 @@ test('every type a module declares is exported from the index', async () => {
   const index = await readFile(new URL('index.ts', import.meta.url), 'utf8')
   const exported = new Set<string>()
   const modules = new Set<string>()
-  for (const [, names = '', module = ''] of index.matchAll(/export type \{([^}]*)\} from '\.\/([^']+)'/g)) {
+  for (const [, names = '', module = ''] of index.matchAll(
+    /export type \{([^}]*)\} from '\.\/([^']+)'/g,
+  )) {
     modules.add(module)
     for (const name of names.split(',')) if (name.trim() !== '') exported.add(name.trim())
   }
