@@ -1,11 +1,13 @@
 // Track 1 §Extension points: ten contracts, each owned by a track. B04 replaced the v0 shapes
 // with the owners' types (environment and coverage: Track 8; resolver: Track 3; pool, reporter
 // and sequencer: Track 9). `Transformer` keeps Track 1's shape on Track 3's records, since Track 3
-// defines no user transformer beyond Jest's. `MatcherSet` and `SnapshotSerializer` are v0 until
-// B08, `WatchPlugin` until T9.11. Contribution and ProvinoPlugin are Track 1's and stay.
+// defines no user transformer beyond Jest's. `MatcherSet` is Track 7's (`expect.ts`, B08).
+// `SnapshotSerializer` is v0 until T7.10, `WatchPlugin` until T9.11. Contribution and
+// ProvinoPlugin are Track 1's and stay.
 import type { ProjectConfig } from './config.ts'
 import type { CoverageProvider } from './coverage.ts'
 import type { Environment } from './environment.ts'
+import type { MatcherSet } from './expect.ts'
 import type { Reporter, Sequencer, TransportFactory } from './orchestrator.ts'
 import type { Resolver } from './resolve.ts'
 import type { SourceMapV3, TransformRequest } from './transform.ts'
@@ -15,33 +17,6 @@ import type { SourceMapV3, TransformRequest } from './transform.ts'
  * @public
  */
 export type RunsIn = 'worker' | 'coordinator' | 'both'
-
-/**
- * A matcher's verdict.
- * @public
- */
-export interface MatcherResult {
-  readonly pass: boolean
-  readonly message: () => string
-}
-
-/**
- * One matcher: `(received, ...expected) → { pass, message }`. Parameters are `never` so a
- * matcher may type them (`(received: number, floor: number) => …`).
- * @public
- */
-export type Matcher = (
-  received: never,
-  ...expected: never[]
-) => MatcherResult | Promise<MatcherResult>
-
-/**
- * A set of matchers by name (Track 7 owns the full contract). Runs in the worker.
- * @public
- */
-export interface MatcherSet {
-  readonly [name: string]: Matcher
-}
 
 /**
  * A pretty-format plugin for snapshots (Track 7 owns the full contract). Runs in the worker.
