@@ -57,19 +57,10 @@ const fileDone = (seq: number): WorkerToCoordinator => ({
   leakedHandles: 0,
 })
 
-/** A promise and its resolver, for holding `onEvents` open. */
-function deferred(): { promise: Promise<void>; resolve: () => void } {
-  let resolve: () => void = () => {}
-  const promise = new Promise<void>((r) => {
-    resolve = r
-  })
-  return { promise, resolve }
-}
-
 describe('connectWorker', () => {
   it('acks a pack only after onEvents settles, and resolves fileDone after it', async () => {
     const fake = fakeTransport()
-    const gate = deferred()
+    const gate = Promise.withResolvers<void>()
     const seen: number[] = []
     const connection = connectWorker(fake.transport, {
       methods,

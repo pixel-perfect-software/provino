@@ -6,7 +6,7 @@ import { connectWorker } from '@provino/orchestrator'
 import { createRpc, RpcError, type RpcPort } from '@provino/rpc'
 import type { RpcCall, RpcReply, WorkerExit } from '@provino/types'
 import type { PeerMethods } from './fixtures/rpc-worker.ts'
-import { factoryFor, fixture, initFor, job } from './support.ts'
+import { factoryFor, fixture, forceKilled, initFor, job, methods } from './support.ts'
 
 type None = Record<never, never>
 
@@ -48,14 +48,7 @@ for (const kind of ['forks', 'threads'] as const) {
       const pending = client.hang()
       await client.ping()
       await transport.terminate(true)
-      await assert.rejects(
-        pending,
-        rejectsClosedWith(
-          kind === 'forks'
-            ? { type: 'signal', signal: 'SIGKILL', likelyOom: false }
-            : { type: 'exit', code: 1 },
-        ),
-      )
+      await assert.rejects(pending, rejectsClosedWith(forceKilled(kind)))
     })
   })
 }
@@ -76,11 +69,7 @@ describe('connectWorker after a worker dies', () => {
       initFor('forks'),
     )
     const connection = connectWorker(transport, {
-      methods: {
-        resolveSnapshotPath: async (file) => file,
-        writeSnapshot: async () => {},
-        readTimings: async () => undefined,
-      },
+      methods,
       onEvents: () => {},
     })
     assert.ok((await connection.worker.memoryUsage()) > 0)
@@ -101,11 +90,7 @@ describe('a call the worker couldn’t send', () => {
       teardownTimeoutMs: 5000,
     }).create(initFor('forks'))
     const connection = connectWorker(transport, {
-      methods: {
-        resolveSnapshotPath: async (file) => file,
-        writeSnapshot: async () => {},
-        readTimings: async () => undefined,
-      },
+      methods,
       onEvents: () => {},
     })
     await connection.run(job('a'))

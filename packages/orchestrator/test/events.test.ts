@@ -7,7 +7,7 @@ import { connectWorker } from '@provino/orchestrator'
 import type { CoordinatorToWorker, Transport, WorkerEvent } from '@provino/types'
 import { numberOf } from './fixtures/events-worker.ts'
 import { gap, int, seeded } from './fixtures/random.ts'
-import { factoryFor, fixture, initFor, job, KINDS } from './support.ts'
+import { factoryFor, fixture, initFor, job, KINDS, methods } from './support.ts'
 
 const COUNT = 10_000
 
@@ -39,11 +39,7 @@ for (const kind of KINDS) {
       const random = seeded(9)
       const received: WorkerEvent[] = []
       const connection = connectWorker(transport, {
-        methods: {
-          resolveSnapshotPath: async (file) => file,
-          writeSnapshot: async () => {},
-          readTimings: async () => undefined,
-        },
+        methods,
         // A slow reporter: each pack takes a few turns of the event loop.
         async onEvents(events) {
           received.push(...events)

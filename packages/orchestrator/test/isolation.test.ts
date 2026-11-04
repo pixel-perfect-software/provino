@@ -8,7 +8,7 @@ import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { connectWorker, type WorkerConnection } from '@provino/orchestrator'
 import type { PoolKind, RuntimeEventOf, WorkerEvent, WorkerExit } from '@provino/types'
-import { Collect, factoryFor, fixture, initFor, job } from './support.ts'
+import { Collect, factoryFor, fixture, initFor, job, methods } from './support.ts'
 
 async function startIsolation(
   kind: 'forks' | 'threads',
@@ -26,11 +26,7 @@ async function startIsolation(
     ...options,
   }).create(initFor(kind as PoolKind))
   const connection = connectWorker(transport, {
-    methods: {
-      resolveSnapshotPath: async (file) => file,
-      writeSnapshot: async () => {},
-      readTimings: async () => undefined,
-    },
+    methods,
     onEvents: (batch) => void events.push(...batch),
   })
   return { connection, events, stderr }

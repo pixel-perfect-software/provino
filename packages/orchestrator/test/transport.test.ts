@@ -5,21 +5,17 @@ import assert from 'node:assert/strict'
 import { ChildProcess } from 'node:child_process'
 import { describe, it } from 'node:test'
 import { connectWorker, OrchestratorError, type WorkerConnection } from '@provino/orchestrator'
-import type { RpcHandlers } from '@provino/rpc'
-import type {
-  CoordinatorMethods,
-  PoolKind,
-  Transport,
-  WorkerExit,
-  WorkerInit,
-} from '@provino/types'
-import { Collect, factoryFor, fixture, initFor, job, KINDS } from './support.ts'
-
-const methods: RpcHandlers<CoordinatorMethods> = {
-  resolveSnapshotPath: async (file) => `${file}.snap`,
-  writeSnapshot: async () => {},
-  readTimings: async () => undefined,
-}
+import type { PoolKind, Transport, WorkerExit, WorkerInit } from '@provino/types'
+import {
+  Collect,
+  factoryFor,
+  fixture,
+  forceKilled,
+  initFor,
+  job,
+  KINDS,
+  methods,
+} from './support.ts'
 
 async function start(
   kind: PoolKind,
@@ -124,12 +120,7 @@ for (const kind of ['forks', 'threads'] as const) {
       const { transport, connection } = await start(kind, 'hang-worker.ts')
       void connection.run(job('forever')).catch(() => {})
       await transport.terminate(true)
-      assert.deepEqual(
-        await connection.exited,
-        kind === 'forks'
-          ? { type: 'signal', signal: 'SIGKILL', likelyOom: false }
-          : { type: 'exit', code: 1 },
-      )
+      assert.deepEqual(await connection.exited, forceKilled(kind))
     })
 
     it('pipes the worker’s own stdout and stderr without ending the sinks', async () => {

@@ -79,17 +79,8 @@ function harness(runner: WorkerRunner, options: StartWorkerOptions = {}) {
   return { coordinator, received, done, until, events, fileDone, barrier }
 }
 
-/** A promise the test resolves. */
-function gate(): { readonly promise: Promise<void>; readonly open: () => void } {
-  let open: () => void = () => {}
-  const promise = new Promise<void>((resolve) => {
-    open = resolve
-  })
-  return { promise, open }
-}
-
 describe('startWorker', () => {
-  it('still sends fileDone when the thrown value breaks plain serialization', async () => {
+  it('still sends fileDone when the thrown value breaks plain serialization', async (t) => {
     const getterError = new Error('x')
     Object.defineProperty(getterError, 'message', {
       get() {
@@ -105,6 +96,7 @@ describe('startWorker', () => {
         throw thrown[job.file]
       },
     })
+    t.after(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('null-prototype') })
     h.coordinator.send({ t: 'run', seq: 1, job: job('getter') })
@@ -116,10 +108,9 @@ describe('startWorker', () => {
       charged.map((e) => e.ownerId),
       ['file:null-prototype', 'file:getter'],
     )
-    h.coordinator.close()
   })
 
-  it('sends output emitted just after runFile returns before fileDone', async () => {
+  it('sends output emitted just after runFile returns before fileDone', async (t) => {
     const h = harness({
       runFile: async ({ job, sink }) => {
         sink.emit(note(job, 'during'))
@@ -130,6 +121,7 @@ describe('startWorker', () => {
         return undefined
       },
     })
+    t.after(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
     await h.until(h.fileDone(0))
@@ -139,11 +131,10 @@ describe('startWorker', () => {
       .flatMap((m) => (m.t === 'pack' ? m.events : []))
       .map((e) => (e as RuntimeEventOf<'annotation'>).message)
     assert.deepEqual(before, ['during', 'late'])
-    h.coordinator.close()
   })
 
-  it('aborts a file that a cancel reached while it was still queued, but not later ones', async () => {
-    const starting = gate()
+  it('aborts a file that a cancel reached while it was still queued, but not later ones', async (t) => {
+    const starting = Promise.withResolvers<void>()
     const aborted: string[] = []
     const h = harness({
       start: () => starting.promise,
@@ -152,29 +143,30 @@ describe('startWorker', () => {
         return undefined
       },
     })
+    t.after(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('queued') })
     h.coordinator.send({ t: 'cancel', reason: 'bail' })
     h.coordinator.send({ t: 'run', seq: 1, job: job('after') })
     await h.barrier()
-    starting.open()
+    starting.resolve()
     await h.until(h.fileDone(1))
     assert.deepEqual(aborted, ['queued:true', 'after:false'])
-    h.coordinator.close()
   })
 
-  it('never starts files still queued when the coordinator goes away', async () => {
-    const first = gate()
-    const running = gate()
+  it('never starts files still queued when the coordinator goes away', async (t) => {
+    const first = Promise.withResolvers<void>()
+    const running = Promise.withResolvers<void>()
     const started: string[] = []
     const h = harness({
       runFile: async ({ job }) => {
         started.push(job.file)
-        running.open()
+        running.resolve()
         await first.promise
         return undefined
       },
     })
+    t.after(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
     h.coordinator.send({ t: 'run', seq: 1, job: job('b') })
@@ -182,12 +174,12 @@ describe('startWorker', () => {
     await h.barrier()
     h.coordinator.close()
     await h.done
-    first.open()
+    first.resolve()
     await new Promise((resolve) => setImmediate(resolve))
     assert.deepEqual(started, ['a'])
   })
 
-  it('gives each file a fresh console: no open group or count carries over', async () => {
+  it('gives each file a fresh console: no open group or count carries over', async (t) => {
     const h = harness({
       runFile: async ({ job, console }) => {
         if (job.file === 'one') {
@@ -200,6 +192,7 @@ describe('startWorker', () => {
         return undefined
       },
     })
+    t.after(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('one') })
     h.coordinator.send({ t: 'run', seq: 1, job: job('two') })
@@ -209,6 +202,5 @@ describe('startWorker', () => {
       .filter((e): e is RuntimeEventOf<'console'> => e.type === 'console')
       .map((e) => e.text)
     assert.deepEqual(texts, ['suite\n', '  hits: 1\n', 'two\n', 'hits: 1\n'])
-    h.coordinator.close()
   })
 })

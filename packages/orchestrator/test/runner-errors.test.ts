@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { connectWorker } from '@provino/orchestrator'
 import type { RuntimeEventOf, WorkerEvent } from '@provino/types'
-import { factoryFor, fixture, initFor, job } from './support.ts'
+import { factoryFor, fixture, initFor, job, methods } from './support.ts'
 
 async function connect(workerId: number) {
   const transport = await factoryFor('inline', { entry: fixture('failing-worker.ts') }).create(
@@ -13,11 +13,7 @@ async function connect(workerId: number) {
   )
   const events: WorkerEvent[] = []
   const connection = connectWorker(transport, {
-    methods: {
-      resolveSnapshotPath: async (file) => file,
-      writeSnapshot: async () => {},
-      readTimings: async () => undefined,
-    },
+    methods,
     onEvents: (batch) => void events.push(...batch),
   })
   return { transport, connection, events }
@@ -72,11 +68,7 @@ for (const kind of ['forks', 'threads'] as const) {
         if (message.t === 'fileDone') order.push(`fileDone ${message.seq}`)
       })
       const connection = connectWorker(transport, {
-        methods: {
-          resolveSnapshotPath: async (file) => file,
-          writeSnapshot: async () => {},
-          readTimings: async () => undefined,
-        },
+        methods,
         onEvents: () => {},
       })
       for (const file of ['a', 'b', 'c']) await connection.run(job(file))

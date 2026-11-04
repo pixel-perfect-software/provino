@@ -12,7 +12,7 @@ import { connectWorker } from '@provino/orchestrator'
 import type { PoolKind, TaskId, WorkerEvent } from '@provino/types'
 import { type Op, program } from './fixtures/program.ts'
 import { gap, int, seeded } from './fixtures/random.ts'
-import { factoryFor, fixture, initFor, job } from './support.ts'
+import { factoryFor, fixture, initFor, job, methods } from './support.ts'
 
 type Seen =
   | { readonly kind: 'event'; readonly n: number }
@@ -95,11 +95,7 @@ describe('console order matches event order', () => {
       const random = seeded(kind.length)
       let received: WorkerEvent[] = []
       const connection = connectWorker(transport, {
-        methods: {
-          resolveSnapshotPath: async (file) => file,
-          writeSnapshot: async () => {},
-          readTimings: async () => undefined,
-        },
+        methods,
         // Ack after a varying number of turns, so the window sometimes fills.
         async onEvents(events) {
           received.push(...events)
