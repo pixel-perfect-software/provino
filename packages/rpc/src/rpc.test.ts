@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { MessageChannel } from 'node:worker_threads'
-import type { MessageLink, RpcCall, RpcReply, WorkerExit } from '@provino/types'
+import type { MessageLink, RpcCall, RpcReply, SerializedError, WorkerExit } from '@provino/types'
 import { RpcError } from './errors.ts'
 import { messagePortLink } from './links.ts'
 import { createRpc, type RpcPort } from './rpc.ts'
@@ -112,23 +112,36 @@ describe('createRpc over a MessageChannel', () => {
     assert.match(error.remote?.stack ?? '', /TypeError: nope/)
   })
 
-  it('answers a method that is not served, including Object.prototype names', async (t) => {
+  it('answers a method that is not served', async (t) => {
     const { left, right } = channel()
     t.after(() => left.close())
     createRpc<Left, Right>(left, leftHandlers)
     const toLeft = createRpc<Right, Left>(right, { greet: (name) => name })
     const toLeftUntyped = toLeft as unknown as Record<string, () => Promise<unknown>>
-    for (const method of ['missing', 'toString', 'constructor']) {
-      await assert.rejects(
-        (toLeftUntyped[method] as () => Promise<unknown>)(),
-        (error: unknown) => {
-          assert.ok(error instanceof RpcError)
-          assert.equal(error.code, 'RPC_REMOTE_ERROR')
-          assert.equal(error.remote?.code, 'RPC_UNKNOWN_METHOD')
-          return true
-        },
-      )
+    await assert.rejects((toLeftUntyped.missing as () => Promise<unknown>)(), (error: unknown) => {
+      assert.ok(error instanceof RpcError)
+      assert.equal(error.code, 'RPC_REMOTE_ERROR')
+      assert.equal(error.remote?.code, 'RPC_UNKNOWN_METHOD')
+      return true
+    })
+  })
+
+  it('refuses a call naming an Object.prototype method, from any client', async () => {
+    const manual = manualPort()
+    createRpc<Left, Right>(manual.port as RpcPort<RpcCall<Right> | RpcReply<Left>>, leftHandlers)
+    for (const [id, method] of [
+      'toString',
+      'constructor',
+      '__proto__',
+      'hasOwnProperty',
+    ].entries()) {
+      manual.receive({ t: 'call', id, method, args: [] } as { readonly t: string })
     }
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.deepEqual(
+      manual.sent.map((reply) => (reply as { error?: { code?: string } }).error?.code),
+      ['RPC_UNKNOWN_METHOD', 'RPC_UNKNOWN_METHOD', 'RPC_UNKNOWN_METHOD', 'RPC_UNKNOWN_METHOD'],
+    )
   })
 
   it("rejects a call whose arguments can't be cloned, without sending it", async (t) => {
@@ -172,6 +185,49 @@ describe('createRpc over a MessageChannel', () => {
       assert.ok(error instanceof RpcError)
       assert.equal(error.code, 'RPC_CLOSED')
       assert.deepEqual(error.cause, { type: 'closed' })
+      return true
+    })
+  })
+})
+
+describe('createRpc when a reply can’t be built or sent', () => {
+  it('answers with a fixed error when the serializer throws, so the caller isn’t left waiting', async (t) => {
+    const unhandled: unknown[] = []
+    const onUnhandled = (reason: unknown): void => void unhandled.push(reason)
+    process.on('unhandledRejection', onUnhandled)
+    t.after(() => process.off('unhandledRejection', onUnhandled))
+    const { left, right } = channel()
+    t.after(() => left.close())
+    createRpc<Left, Right>(left, leftHandlers, {
+      serializeError: () => {
+        throw new Error('serializer broke')
+      },
+    })
+    const toLeft = createRpc<Right, Left>(right, { greet: (name) => name })
+    await assert.rejects(toLeft.fail('x'), (error: unknown) => {
+      assert.ok(error instanceof RpcError)
+      assert.equal(error.code, 'RPC_REMOTE_ERROR')
+      assert.equal(error.remote?.code, 'RPC_UNCLONABLE')
+      return true
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.deepEqual(unhandled, [])
+  })
+
+  it('answers with a fixed error when the serialized error itself can’t be sent', async (t) => {
+    const { left, right } = channel()
+    t.after(() => left.close())
+    createRpc<Left, Right>(left, leftHandlers, {
+      serializeError: (error) => ({
+        name: 'Error',
+        message: String(error),
+        cause: { name: 'X', message: 'x', extra: () => 1 } as unknown as SerializedError,
+      }),
+    })
+    const toLeft = createRpc<Right, Left>(right, { greet: (name) => name })
+    await assert.rejects(toLeft.fail('x'), (error: unknown) => {
+      assert.ok(error instanceof RpcError)
+      assert.equal(error.remote?.code, 'RPC_UNCLONABLE')
       return true
     })
   })
@@ -227,6 +283,29 @@ describe('createRpc when the port exits', () => {
     manual.receive({ t: 'call', id: 0, method: 'greet', args: ['x'] } as { readonly t: string })
     await new Promise((resolve) => setImmediate(resolve))
     assert.equal(manual.sent.length, 1)
+  })
+
+  it('has no stubs for Object.prototype or introspection names, so serializing it sends nothing', () => {
+    const manual = manualPort()
+    const client = createRpc<Right, Left>(manual.port as RpcPort<RpcCall<Left> | RpcReply<Right>>, {
+      greet: (name) => name,
+    })
+    const untyped = client as unknown as Record<string, unknown>
+    for (const name of [
+      'toJSON',
+      'toString',
+      'valueOf',
+      'constructor',
+      'hasOwnProperty',
+      'asymmetricMatch',
+      '$$typeof',
+      'nodeType',
+    ]) {
+      assert.equal(untyped[name], undefined, name)
+    }
+    assert.equal(JSON.stringify({ coordinator: client }), '{"coordinator":{}}')
+    assert.equal(typeof client.add, 'function')
+    assert.equal(manual.sent.length, 0)
   })
 
   it('is not a thenable, so awaiting it yields the client itself', async () => {

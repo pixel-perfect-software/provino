@@ -48,7 +48,9 @@ function createLink<Out, In>(channel: Channel): MessageLink<Out, In> {
     exitListeners.clear()
   }
   channel.listen((message) => {
-    if (closed) return
+    // Every protocol message is an object. Anything else on the channel (a test's own
+    // `process.send(null)`) is dropped rather than handed to listeners that read `.t`.
+    if (closed || typeof message !== 'object' || message === null) return
     queue.push(message as In)
     if (!drainScheduled) pump()
   }, onClose)
@@ -108,7 +110,9 @@ export function messagePortLink<Out, In>(port: MessagePort): MessageLink<Out, In
 }
 
 /**
- * A link from a forked child to its parent, over `process.send`. Closing it disconnects the IPC
+ * A link from a forked child to its parent, over `process.send`. The fork must use
+ * `serialization: 'advanced'` (as `forksTransport` does): JSON would turn a `Map`, a `Date` or a
+ * `bigint` into something else. Closing it disconnects the IPC
  * channel once every message sent so far has been written (a disconnect cancels queued writes),
  * so the child can exit once nothing else keeps it alive; `process` emits `disconnect` then.
  * @public
@@ -124,12 +128,13 @@ export function processLink<Out, In>(proc: NodeJS.Process): MessageLink<Out, In>
   return createLink({
     post: (message) => {
       if (!proc.connected) return
-      unwritten++
       // A send that fails once the channel is going away is dropped; `disconnect` reports it.
+      // A send that throws (a value advanced serialization can't write) was never queued.
       send(message, undefined, undefined, () => {
         unwritten--
         if (closing && unwritten === 0) disconnect()
       })
+      unwritten++
     },
     listen(onMessage, onClose) {
       proc.on('message', onMessage)
@@ -143,7 +148,8 @@ export function processLink<Out, In>(proc: NodeJS.Process): MessageLink<Out, In>
 }
 
 /**
- * A link from the parent to a forked child, over `child.send`. It closes when the IPC channel
+ * A link from the parent to a forked child, over `child.send`; the fork must use
+ * `serialization: 'advanced'`. It closes when the IPC channel
  * disconnects, which happens after every message the child sent has arrived; a child's `exit`
  * can come before its last messages are read, so the link doesn't close on it. A send that
  * fails once the channel is going away is dropped: the link's exit is what reports it.

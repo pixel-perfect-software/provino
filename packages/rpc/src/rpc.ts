@@ -49,6 +49,10 @@ interface Pending {
  * side's `Remote` methods. Both method sets must be clone-safe (`RpcSchema`): a method taking
  * `() => void` doesn't compile.
  *
+ * Arguments and results must also survive the link: a fork's advanced serialization rejects a
+ * `SharedArrayBuffer` (threads and inline accept it), and a class instance arrives as a plain
+ * object everywhere, a `Buffer` as a `Uint8Array` over threads and inline.
+ *
  * A handler's error comes back as `RpcError('RPC_REMOTE_ERROR')` with the error on `.remote`. When
  * the port exits, every pending call, and every call made after, rejects with
  * `RpcError('RPC_CLOSED')` whose `cause` is the port's exit value (the `WorkerExit` on the
@@ -92,19 +96,30 @@ export function createRpc<Local extends RpcSchema<Local>, Remote extends RpcSche
       const value = await invoke(handlers, call.method, call.args)
       reply = { t: 'reply', id: call.id, ok: true, value }
     } catch (error) {
-      reply = { t: 'reply', id: call.id, ok: false, error: serialize(error) }
+      reply = { t: 'reply', id: call.id, ok: false, error: serializeOr(error) }
     }
     if (closed !== undefined) return
     try {
       send(reply)
     } catch (error) {
-      // The result didn't clone. Tell the caller rather than leave it waiting.
-      const unclonable = new RpcError(
-        'RPC_UNCLONABLE',
-        `\`${call.method}\`'s result can't cross the link: ${messageOf(error)}`,
-        { cause: error },
-      )
-      send({ t: 'reply', id: call.id, ok: false, error: serialize(unclonable) })
+      // The result (or the serialized error) didn't clone. Tell the caller rather than leave it
+      // waiting, with an error that is plain strings and always sends.
+      const what = reply.ok ? 'result' : 'error'
+      const message = `\`${call.method}\`'s ${what} can't cross the link: ${messageOf(error)}`
+      try {
+        send({ t: 'reply', id: call.id, ok: false, error: unclonable(message) })
+      } catch {
+        // Only a closing link fails a send of plain strings; its exit rejects the caller.
+      }
+    }
+  }
+
+  /** The configured serializer, or a fixed error if it throws: a reply must always be built. */
+  function serializeOr(error: unknown): SerializedError {
+    try {
+      return serialize(error)
+    } catch (failure) {
+      return unclonable(`The error couldn't be serialized: ${messageOf(failure)}`)
     }
   }
 
@@ -145,8 +160,11 @@ export function createRpc<Local extends RpcSchema<Local>, Remote extends RpcSche
   const methods = new Map<string, (...args: unknown[]) => Promise<unknown>>()
   return new Proxy(Object.create(null) as object, {
     get(_target, key) {
-      // Not a thenable, so `await client` and promise resolution leave it alone.
-      if (typeof key !== 'string' || key === 'then') return undefined
+      // Not a thenable, so `await client` and promise resolution leave it alone; and no stub for a
+      // name that inspection reads (`toJSON`, `toString`, a matcher's `asymmetricMatch`), so
+      // printing or serializing the client never sends a call.
+      if (typeof key !== 'string' || NOT_METHODS.has(key) || key in Object.prototype)
+        return undefined
       let method = methods.get(key)
       if (method === undefined) {
         method = (...args) => call(key, args)
@@ -172,6 +190,22 @@ type WireReply =
       readonly error: SerializedError
     }
 type WireMessage = WireCall | WireReply
+
+/** Names read by promise resolution, `JSON.stringify`, pretty-format and the like, never methods. */
+const NOT_METHODS: ReadonlySet<string> = new Set([
+  'then',
+  'toJSON',
+  'asymmetricMatch',
+  '$$typeof',
+  'nodeType',
+  '@@__IMMUTABLE_ITERABLE__@@',
+  '@@__IMMUTABLE_RECORD__@@',
+])
+
+/** A plain-strings error for a reply that couldn't be built or sent. */
+function unclonable(message: string): SerializedError {
+  return { name: 'RpcError', message, code: 'RPC_UNCLONABLE' }
+}
 
 /** Calls `handlers[method]`, rejecting names that aren't served (including `Object.prototype`'s). */
 async function invoke(

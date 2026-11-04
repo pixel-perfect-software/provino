@@ -93,3 +93,23 @@ describe('connectWorker after a worker dies', () => {
     await assert.rejects(connection.worker.memoryUsage(), rejectsClosedWith(exit))
   })
 })
+
+describe('a call the worker couldn’t send', () => {
+  it('leaves a fork able to stop cleanly', async () => {
+    const transport = await factoryFor('forks', {
+      entry: fixture('unsendable-call-worker.ts'),
+      teardownTimeoutMs: 5000,
+    }).create(initFor('forks'))
+    const connection = connectWorker(transport, {
+      methods: {
+        resolveSnapshotPath: async (file) => file,
+        writeSnapshot: async () => {},
+        readTimings: async () => undefined,
+      },
+      onEvents: () => {},
+    })
+    await connection.run(job('a'))
+    await transport.terminate(false)
+    assert.deepEqual(await connection.exited, { type: 'exit', code: 0 })
+  })
+})
