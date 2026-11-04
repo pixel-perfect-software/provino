@@ -1,10 +1,10 @@
 // The worker's side of the protocol (Track 9 §Wire protocol): `ready`, then `start`, then one
-// `run` at a time. After each file it flushes the packer, then empty writes on stdout and stderr
-// (Vitest found stdio is otherwise lost on terminate), and only then sends `fileDone`, so the file's
+// `run` at a time. After each file it lets pending microtasks finish, flushes stdio (Vitest found
+// it is otherwise lost on terminate), and queues `fileDone` behind the file's packs, so the file's
 // events and output always arrive first. The runtime that actually runs a file is the runner's
 // (U1, B10); this file knows nothing about tests.
 import { isMainThread } from 'node:worker_threads'
-import { createRpc, type RpcOptions } from '@provino/rpc'
+import { createRpc, type RpcOptions, serializeError } from '@provino/rpc'
 import type {
   CoordinatorMethods,
   FileJob,
@@ -22,6 +22,8 @@ import {
   type WritableLike,
 } from './console.ts'
 import { createPacker, type Packer, type PackerOptions } from './packer.ts'
+import { flushStdio } from './stdio.ts'
+import { nextMacrotask } from './timers.ts'
 
 /**
  * What a worker's runner sees once the worker has started.
@@ -103,16 +105,14 @@ export function startWorker(
   })
   let init: WorkerInit | undefined
   let installed: InstalledCapture | undefined
-  let current: AbortController | undefined
   let finished = false
-  let resolveDone: () => void = () => {}
-  const done = new Promise<void>((resolve) => {
-    resolveDone = resolve
-  })
+  const { promise: done, resolve: resolveDone } = Promise.withResolvers<void>()
   /** Work in arrival order: start, each run, stop. A failed step never blocks the next. */
   let queue: Promise<void> = Promise.resolve()
   /** Set when `runner.start` threw: every file is then charged with that error, unrun. */
   let startFailure: { readonly error: unknown } | undefined
+  /** One controller per file received and not finished: a `cancel` aborts them all. */
+  const controllers = new Map<number, AbortController>()
 
   const rpcOptions: RpcOptions =
     options.serializeError === undefined ? {} : { serializeError: options.serializeError }
@@ -129,28 +129,42 @@ export function startWorker(
     console: capture.console,
   })
 
+  const abortAll = (reason: Error): void => {
+    for (const controller of controllers.values()) controller.abort(reason)
+  }
+
   const finish = (): void => {
     if (finished) return
     finished = true
-    current?.abort(new Error('The coordinator went away'))
+    abortAll(new Error('The coordinator went away'))
     installed?.restore()
     installed = undefined
     resolveDone()
   }
 
-  const flushStdio = async (): Promise<void> => {
-    if (installed !== undefined) return await installed.flush()
-    await Promise.all([writeEmpty(process.stdout), writeEmpty(process.stderr)])
+  /**
+   * Lets the microtasks the file left behind run (a floating `.then` that still logs), and flushes
+   * stdio, so `afterSent` then queues behind everything the file wrote.
+   */
+  const settle = async (): Promise<void> => {
+    await nextMacrotask()
+    await (installed === undefined ? flushStdio() : installed.flush())
   }
 
-  /** Reports an error the runner didn't, as an unhandled error charged to `ownerId`. */
+  /** Reports an error the runner didn't, as an unhandled error charged to `ownerId`. Never throws. */
   const charge = (error: unknown, ownerId: TaskId | null): void => {
+    let serialized: SerializedError
+    try {
+      serialized = (options.serializeError ?? serializeError)(error)
+    } catch {
+      serialized = serializeError(error)
+    }
     packer.emit({
       type: 'unhandled-error',
       ownerId,
       lastTestId: null,
       origin: 'uncaughtException',
-      error: (options.serializeError ?? describeError)(error),
+      error: serialized,
       t: performance.now(),
     })
   }
@@ -160,8 +174,11 @@ export function startWorker(
   }
 
   const runOne = async (seq: number, job: FileJob): Promise<void> => {
-    const controller = new AbortController()
-    current = controller
+    const controller = controllers.get(seq)
+    // The coordinator is gone: a queued file never starts.
+    if (finished || controller === undefined) return
+    // Each file gets a fresh console: an open group, a count or a timer stays with its file.
+    capture.reset()
     let leakedHandles = 0
     try {
       if (startFailure !== undefined) throw startFailure.error
@@ -171,12 +188,11 @@ export function startWorker(
       // The runtime reports test failures as events; a runner that throws is a bug, charged to the file.
       charge(error, job.fileId)
     } finally {
-      current = undefined
+      controllers.delete(seq)
     }
-    await packer.flush()
-    await flushStdio()
-    if (!finished)
-      port.send({ t: 'fileDone', seq, memoryBytes: measureMemory(init), leakedHandles })
+    await settle()
+    const memoryBytes = measureMemory(init)
+    packer.afterSent(() => port.send({ t: 'fileDone', seq, memoryBytes, leakedHandles }))
   }
 
   port.onExit(finish)
@@ -202,21 +218,25 @@ export function startWorker(
         return
       }
       case 'run':
+        controllers.set(message.seq, new AbortController())
         enqueue(() => runOne(message.seq, message.job))
         return
       case 'ack':
         packer.ack(message.pack)
         return
       case 'cancel':
-        current?.abort(new Error(`Cancelled: ${message.reason}`))
+        // It covers the running file and every file already queued; later runs are new work.
+        abortAll(new Error(`Cancelled: ${message.reason}`))
         return
       case 'stop':
         enqueue(async () => {
-          await packer.flush()
-          await flushStdio()
-          installed?.restore()
-          installed = undefined
-          port.send({ t: 'stopped' })
+          await settle()
+          const { promise: stopped, resolve } = Promise.withResolvers<void>()
+          packer.afterSent(() => {
+            port.send({ t: 'stopped' })
+            resolve()
+          })
+          await stopped
           port.close()
           finish()
         })
@@ -240,20 +260,4 @@ function measureMemory(init: WorkerInit | undefined): number {
   if (pool === 'forks') return process.memoryUsage.rss()
   const { heapUsed, external } = process.memoryUsage()
   return heapUsed + external
-}
-
-/** A thrown value as a `SerializedError`, when no serializer was given. */
-function describeError(error: unknown): SerializedError {
-  if (!(error instanceof Error)) return { name: 'Error', message: String(error) }
-  return {
-    name: error.name,
-    message: error.message,
-    ...(error.stack === undefined ? {} : { stack: error.stack }),
-  }
-}
-
-function writeEmpty(stream: NodeJS.WriteStream): Promise<void> {
-  return new Promise((resolve) => {
-    stream.write('', () => resolve())
-  })
 }

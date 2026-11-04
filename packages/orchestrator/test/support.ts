@@ -7,7 +7,16 @@ import {
   type TransportOptions,
   threadsTransport,
 } from '@provino/orchestrator'
-import type { FileJob, PoolKind, TaskId, TransportFactory, WorkerInit } from '@provino/types'
+import type { RpcHandlers } from '@provino/rpc'
+import type {
+  CoordinatorMethods,
+  FileJob,
+  PoolKind,
+  TaskId,
+  TransportFactory,
+  WorkerExit,
+  WorkerInit,
+} from '@provino/types'
 
 export const KINDS: readonly PoolKind[] = ['forks', 'threads', 'inline']
 
@@ -30,6 +39,20 @@ export function initFor(pool: PoolKind, workerId = 1): WorkerInit {
     provided: {},
     config: null,
   }
+}
+
+/** Coordinator methods for tests that never call them. */
+export const methods: RpcHandlers<CoordinatorMethods> = {
+  resolveSnapshotPath: async (file) => file,
+  writeSnapshot: async () => {},
+  readTimings: async () => undefined,
+}
+
+/** How a worker of `kind` ends when it is force-killed: a fork by SIGKILL, a thread with code 1. */
+export function forceKilled(kind: 'forks' | 'threads'): WorkerExit {
+  return kind === 'forks'
+    ? { type: 'signal', signal: 'SIGKILL', likelyOom: false }
+    : { type: 'exit', code: 1 }
 }
 
 export function job(file: string): FileJob {

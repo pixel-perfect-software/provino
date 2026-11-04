@@ -8,6 +8,7 @@ import type {
   MessageLink,
   PoolKind,
   Transport,
+  TransportFactory,
   WorkerExit,
   WorkerInit,
   WorkerToCoordinator,
@@ -27,7 +28,7 @@ export interface TransportOptions {
    * `WorkerMain`.
    */
   readonly entry: string | URL
-  /** Where the worker's own stdout goes (piped with `end: false`). Default: this process's. */
+  /** Where the worker's own stdout goes (copied; the sink is never ended). Default: this process's. */
   readonly stdout?: NodeJS.WritableStream
   /** Where the worker's own stderr goes. Default: this process's. */
   readonly stderr?: NodeJS.WritableStream
@@ -41,10 +42,26 @@ export interface TransportOptions {
 export interface Spawned {
   readonly link: MessageLink<CoordinatorToWorker, WorkerToCoordinator>
   readonly pid: number | undefined
-  /** Called once with the worker's exit, as the kind maps it. */
+  /** Called once, right after spawning, with the listener for the worker's exit as the kind maps it. */
   onExit(listener: (exit: WorkerExit) => void): void
-  /** Ends the worker: SIGTERM asks, SIGKILL forces (a thread or inline worker ends either way). */
+  /** Ends the worker: SIGTERM asks, SIGKILL forces. A thread ends either way; an inline worker only loses its link. */
   kill(signal: 'SIGTERM' | 'SIGKILL'): void
+}
+
+/**
+ * A transport kind: `spawn` starts one worker for the entry module (its URL); the rest (the
+ * handshake, exits, shutdown) is shared.
+ */
+export function createTransport(
+  kind: PoolKind,
+  options: TransportOptions,
+  spawn: (entry: string) => Spawned | Promise<Spawned>,
+): TransportFactory {
+  const entry = entryHref(options.entry)
+  return {
+    kind,
+    create: async (init) => await connect(kind, await spawn(entry), init, options),
+  }
 }
 
 /** Turns a spawned worker into a `Transport` once it has said `ready`, and sends it `start`. */
@@ -54,16 +71,12 @@ export function connect(
   init: WorkerInit,
   options: TransportOptions,
 ): Promise<Transport> {
-  const startTimeoutMs = options.startTimeoutMs ?? 30_000
   const teardownTimeoutMs = options.teardownTimeoutMs ?? 10_000
   const exitListeners = new Set<(exit: WorkerExit) => void>()
   let exit: WorkerExit | undefined
   /** Set when the transport killed the worker after a timeout, which is then its exit. */
   let timedOut: WorkerExit | undefined
-  let resolveExited: () => void = () => {}
-  const exited = new Promise<void>((resolve) => {
-    resolveExited = resolve
-  })
+  const { promise: exited, resolve: resolveExited } = Promise.withResolvers<void>()
 
   spawned.onExit((raw) => {
     if (exit !== undefined) return
@@ -109,14 +122,40 @@ export function connect(
     },
   }
 
+  return handshake(kind, spawned, transport, init, options.startTimeoutMs ?? 30_000, () => {
+    timedOut ??= { type: 'timeout', phase: 'start' }
+  })
+}
+
+/**
+ * Waits for `ready`, sends `start`, and resolves with the transport. Its own function, so the
+ * long-lived transport doesn't keep `init` (the project config) reachable. The start send is the
+ * one check that `init` can cross: a value the link can't write kills the worker and rejects
+ * with `ORCH_BAD_INIT`.
+ */
+function handshake(
+  kind: PoolKind,
+  spawned: Spawned,
+  transport: Transport,
+  init: WorkerInit,
+  startTimeoutMs: number,
+  markTimedOut: () => void,
+): Promise<Transport> {
   return new Promise<Transport>((resolve, reject) => {
+    const done = (): void => {
+      clearTimeout(timer)
+      offReady()
+      offExit()
+    }
     const timer = setTimeout(() => {
-      timedOut ??= { type: 'timeout', phase: 'start' }
+      // A `ready` read after this is too late: the worker is being killed, and its exit rejects
+      // with the timeout.
+      offReady()
+      markTimedOut()
       spawned.kill('SIGKILL')
     }, startTimeoutMs)
     const offExit = transport.onExit((workerExit) => {
-      clearTimeout(timer)
-      offReady()
+      done()
       reject(
         workerExit.type === 'timeout'
           ? new OrchestratorError(
@@ -133,13 +172,59 @@ export function connect(
     })
     const offReady = spawned.link.onMessage((message) => {
       if (message.t !== 'ready') return
-      clearTimeout(timer)
-      offReady()
-      offExit()
-      spawned.link.send({ t: 'start', init })
+      done()
+      try {
+        spawned.link.send({ t: 'start', init })
+      } catch (error) {
+        spawned.kill('SIGKILL')
+        reject(badInit(kind, error))
+        return
+      }
       resolve(transport)
     })
   })
+}
+
+function badInit(kind: PoolKind, error: unknown): OrchestratorError {
+  const reason = error instanceof Error ? error.message : String(error)
+  return new OrchestratorError(
+    'ORCH_BAD_INIT',
+    `The ${kind} worker's init can't be sent to it: ${reason}`,
+    { cause: error },
+  )
+}
+
+/**
+ * Copies a worker's own stdout and stderr into the sinks (default: this process's), and returns
+ * the stderr sink.
+ */
+export function forwardStdio(
+  worker: {
+    readonly stdout: NodeJS.ReadableStream | null
+    readonly stderr: NodeJS.ReadableStream | null
+  },
+  options: TransportOptions,
+): NodeJS.WritableStream {
+  const stderr = options.stderr ?? process.stderr
+  forward(worker.stdout, options.stdout ?? process.stdout)
+  forward(worker.stderr, stderr)
+  return stderr
+}
+
+/**
+ * Copies a worker's own stdout or stderr into `sink`, chunk by chunk. Not `pipe`: every pipe into
+ * one shared sink (this process's stdout) adds four listeners to it, and a dozen workers would set
+ * off `MaxListenersExceededWarning`. The sink is never ended.
+ */
+function forward(source: NodeJS.ReadableStream | null, sink: NodeJS.WritableStream): void {
+  source?.on('data', (chunk: Buffer) => {
+    sink.write(chunk)
+  })
+}
+
+/** Writes a worker's error that nothing else would show (a thread's uncaught one, a spawn failure). */
+export function printError(sink: NodeJS.WritableStream, error: unknown): void {
+  sink.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
 }
 
 /**
@@ -176,7 +261,7 @@ async function settlesWithin(promise: Promise<void>, ms: number): Promise<boolea
 }
 
 /** The entry as a URL string, which `import()`, `fork` arguments and `workerData` all carry. */
-export function entryHref(entry: string | URL): string {
+function entryHref(entry: string | URL): string {
   if (entry instanceof URL) return entry.href
   return entry.startsWith('file:') ? entry : pathToFileURL(entry).href
 }

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { connectWorker } from '@provino/orchestrator'
 import type { RuntimeEventOf, WorkerEvent } from '@provino/types'
-import { factoryFor, fixture, initFor, job } from './support.ts'
+import { factoryFor, fixture, initFor, job, methods } from './support.ts'
 
 async function connect(workerId: number) {
   const transport = await factoryFor('inline', { entry: fixture('failing-worker.ts') }).create(
@@ -13,11 +13,7 @@ async function connect(workerId: number) {
   )
   const events: WorkerEvent[] = []
   const connection = connectWorker(transport, {
-    methods: {
-      resolveSnapshotPath: async (file) => file,
-      writeSnapshot: async () => {},
-      readTimings: async () => undefined,
-    },
+    methods,
     onEvents: (batch) => void events.push(...batch),
   })
   return { transport, connection, events }
@@ -57,3 +53,37 @@ describe('a runner that throws', () => {
     )
   })
 })
+
+for (const kind of ['forks', 'threads'] as const) {
+  describe(`${kind}: output a file leaves behind`, () => {
+    it('arrives before its fileDone', async () => {
+      const transport = await factoryFor(kind, { entry: fixture('late-worker.ts') }).create(
+        initFor(kind),
+      )
+      const order: string[] = []
+      transport.onMessage((message) => {
+        if (message.t === 'pack') {
+          for (const e of message.events) if (e.type === 'annotation') order.push(e.message)
+        }
+        if (message.t === 'fileDone') order.push(`fileDone ${message.seq}`)
+      })
+      const connection = connectWorker(transport, {
+        methods,
+        onEvents: () => {},
+      })
+      for (const file of ['a', 'b', 'c']) await connection.run(job(file))
+      await transport.terminate(false)
+      assert.deepEqual(order, [
+        'during',
+        'late',
+        'fileDone 0',
+        'during',
+        'late',
+        'fileDone 1',
+        'during',
+        'late',
+        'fileDone 2',
+      ])
+    })
+  })
+}

@@ -125,4 +125,44 @@ describe('createPacker', () => {
     await packer.flush() // cuts now, and clears the interval timer
     assert.deepEqual(ids(sent), ['t0', 't1'])
   })
+
+  it('reports a pack it can’t send in place of the unsendable events, and never throws', async () => {
+    const sent: PackMessage[] = []
+    // Like a port or advanced IPC: any event carrying a function fails the whole send.
+    const send = (message: PackMessage): void => {
+      if (message.events.some((e) => typeof (e as { message?: unknown }).message === 'function')) {
+        throw new Error('() => 1 could not be cloned.')
+      }
+      sent.push(message)
+    }
+    const packer = createPacker(send, { maxEvents: 3 })
+    const bad = {
+      type: 'annotation',
+      testId: 'x',
+      message: () => 1,
+      kind: 'k',
+      location: null,
+      t: 5,
+    } as unknown as WorkerEvent
+    assert.doesNotThrow(() => {
+      packer.emit(event(0))
+      packer.emit(bad)
+      packer.emit(event(2)) // the third event cuts the pack, inside emit
+    })
+    packer.emit(event(3))
+    await packer.flush()
+    assert.deepEqual(
+      sent.map((p) => p.pack),
+      [0, 1],
+      'pack numbers stay contiguous',
+    )
+    const first = sent[0]?.events ?? []
+    assert.deepEqual(
+      first.map((e) => e.type),
+      ['test-start', 'unhandled-error', 'test-start'],
+    )
+    const report = first[1] as Extract<WorkerEvent, { type: 'unhandled-error' }>
+    assert.match(report.error.message, /annotation event couldn’t be sent/)
+    assert.equal(packer.inFlight, 2)
+  })
 })

@@ -5,15 +5,17 @@ import assert from 'node:assert/strict'
 import { ChildProcess } from 'node:child_process'
 import { describe, it } from 'node:test'
 import { connectWorker, OrchestratorError, type WorkerConnection } from '@provino/orchestrator'
-import type { RpcHandlers } from '@provino/rpc'
-import type { CoordinatorMethods, PoolKind, Transport, WorkerExit } from '@provino/types'
-import { Collect, factoryFor, fixture, initFor, job, KINDS } from './support.ts'
-
-const methods: RpcHandlers<CoordinatorMethods> = {
-  resolveSnapshotPath: async (file) => `${file}.snap`,
-  writeSnapshot: async () => {},
-  readTimings: async () => undefined,
-}
+import type { PoolKind, Transport, WorkerExit, WorkerInit } from '@provino/types'
+import {
+  Collect,
+  factoryFor,
+  fixture,
+  forceKilled,
+  initFor,
+  job,
+  KINDS,
+  methods,
+} from './support.ts'
 
 async function start(
   kind: PoolKind,
@@ -118,12 +120,7 @@ for (const kind of ['forks', 'threads'] as const) {
       const { transport, connection } = await start(kind, 'hang-worker.ts')
       void connection.run(job('forever')).catch(() => {})
       await transport.terminate(true)
-      assert.deepEqual(
-        await connection.exited,
-        kind === 'forks'
-          ? { type: 'signal', signal: 'SIGKILL', likelyOom: false }
-          : { type: 'exit', code: 1 },
-      )
+      assert.deepEqual(await connection.exited, forceKilled(kind))
     })
 
     it('pipes the worker’s own stdout and stderr without ending the sinks', async () => {
@@ -165,6 +162,46 @@ describe('forks transport, escalation', () => {
     assert.deepEqual(signals, ['SIGTERM', 'SIGKILL'])
   })
 })
+
+for (const kind of KINDS) {
+  describe(`${kind} transport, a bad start`, () => {
+    it('refuses an init that can’t cross to the worker, without leaving one running', async () => {
+      const init = {
+        ...initFor(kind),
+        provided: { fn: () => 1 } as unknown as WorkerInit['provided'],
+      }
+      await assert.rejects(factoryFor(kind, { entry: fixture('echo-worker.ts') }).create(init), {
+        code: 'ORCH_BAD_INIT',
+      })
+    })
+  })
+}
+
+for (const kind of ['forks', 'threads'] as const) {
+  describe(`${kind} transport, output`, () => {
+    it('prints an error the entry throws as it loads to the stderr sink', async () => {
+      const stderr = new Collect()
+      await assert.rejects(
+        factoryFor(kind, { entry: fixture('throwing-entry.ts'), stderr }).create(initFor(kind)),
+        { code: 'ORCH_WORKER_EXITED' },
+      )
+      assert.match(stderr.text, /boom from the entry module/)
+    })
+
+    it('copies worker output into the sinks without adding listeners to them', async () => {
+      const stdout = new Collect()
+      const stderr = new Collect()
+      const before = stdout.eventNames().length + stderr.eventNames().length
+      const transport = await factoryFor(kind, {
+        entry: fixture('echo-worker.ts'),
+        stdout,
+        stderr,
+      }).create(initFor(kind))
+      assert.equal(stdout.eventNames().length + stderr.eventNames().length, before)
+      await transport.terminate(false)
+    })
+  })
+}
 
 describe('inline transport', () => {
   it('refuses an entry without a default-exported function', async () => {

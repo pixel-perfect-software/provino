@@ -30,9 +30,15 @@ export interface ConnectWorkerOptions {
   readonly methods: RpcHandlers<CoordinatorMethods>
   /**
    * Receives each pack's events, in order. The pack is acked once this settles; if it throws,
-   * the pack is still acked and the file being run rejects with the error.
+   * the pack is still acked, and the file that was running when the pack arrived rejects with
+   * the error.
    */
   readonly onEvents: (events: readonly WorkerEvent[]) => void | Promise<void>
+  /**
+   * Receives an `onEvents` failure for a pack that arrived with no file running (late output of
+   * a finished file). Without it, such a failure is rethrown, uncaught, rather than lost.
+   */
+  readonly onError?: (error: unknown) => void
 }
 
 /**
@@ -57,6 +63,8 @@ export interface WorkerConnection {
 interface Running {
   resolve(done: FileDone): void
   reject(error: unknown): void
+  /** The first `onEvents` failure for a pack that arrived while this file ran. */
+  failure?: { readonly error: unknown }
 }
 
 /**
@@ -73,15 +81,22 @@ export function connectWorker(
   let exit: WorkerExit | undefined
   /** Event delivery, acks and file completions, strictly in arrival order. */
   let chain: Promise<void> = Promise.resolve()
-  /** The first `onEvents` failure since the last `fileDone`. */
-  let failure: { readonly error: unknown } | undefined
-
   transport.onMessage((message) => {
     if (message.t === 'pack') {
+      // A pack belongs to the oldest file running when it arrives; packs carry no file id.
+      const owner = running.values().next().value
       chain = chain
         .then(() => options.onEvents(message.events))
         .catch((error: unknown) => {
-          failure ??= { error }
+          if (owner !== undefined) {
+            owner.failure ??= { error }
+          } else if (options.onError !== undefined) {
+            options.onError(error)
+          } else {
+            queueMicrotask(() => {
+              throw error
+            })
+          }
         })
         .then(() => transport.send({ t: 'ack', pack: message.pack }))
     } else if (message.t === 'fileDone') {
@@ -89,10 +104,8 @@ export function connectWorker(
         const file = running.get(message.seq)
         if (file === undefined) return
         running.delete(message.seq)
-        const failed = failure
-        failure = undefined
-        if (failed === undefined) file.resolve(message)
-        else file.reject(failed.error)
+        if (file.failure === undefined) file.resolve(message)
+        else file.reject(file.failure.error)
       })
     }
   })

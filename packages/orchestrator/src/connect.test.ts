@@ -57,19 +57,10 @@ const fileDone = (seq: number): WorkerToCoordinator => ({
   leakedHandles: 0,
 })
 
-/** A promise and its resolver, for holding `onEvents` open. */
-function deferred(): { promise: Promise<void>; resolve: () => void } {
-  let resolve: () => void = () => {}
-  const promise = new Promise<void>((r) => {
-    resolve = r
-  })
-  return { promise, resolve }
-}
-
 describe('connectWorker', () => {
   it('acks a pack only after onEvents settles, and resolves fileDone after it', async () => {
     const fake = fakeTransport()
-    const gate = deferred()
+    const gate = Promise.withResolvers<void>()
     const seen: number[] = []
     const connection = connectWorker(fake.transport, {
       methods,
@@ -140,5 +131,29 @@ describe('connectWorker', () => {
     const fake = fakeTransport()
     connectWorker(fake.transport, { methods, onEvents: () => {} }).cancel('bail')
     assert.deepEqual(fake.sent, [{ t: 'cancel', reason: 'bail' }])
+  })
+
+  it('hands an onEvents failure with no file running to onError, not to the next file', async () => {
+    const fake = fakeTransport()
+    const errors: unknown[] = []
+    const boom = new Error('reporter broke on a late event')
+    let calls = 0
+    const connection = connectWorker(fake.transport, {
+      methods,
+      onEvents: () => {
+        if (calls++ === 1) throw boom
+      },
+      onError: (error) => void errors.push(error),
+    })
+    const first = connection.run(job)
+    fake.receive({ t: 'pack', pack: 0, events: [event(0)] })
+    fake.receive(fileDone(0))
+    await first
+    // A late pack for the finished file, with nothing running.
+    fake.receive({ t: 'pack', pack: 1, events: [event(1)] })
+    const second = connection.run(job)
+    fake.receive(fileDone(1))
+    assert.equal((await second).seq, 1)
+    assert.deepEqual(errors, [boom])
   })
 })

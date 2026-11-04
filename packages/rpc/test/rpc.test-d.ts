@@ -1,11 +1,18 @@
 // T1.9 / T9.3: `createRpc` infers client signatures, and a schema that can't cross a thread (a
 // callback argument, a class result) is a compile error.
-import { createRpc, type RpcError, type RpcHandlers, type RpcPort } from '@provino/rpc'
+import {
+  createRpc,
+  type RpcError,
+  type RpcHandlers,
+  type RpcPort,
+  serializeError,
+} from '@provino/rpc'
 import type {
   CoordinatorMethods,
   RpcCall,
   RpcClient,
   RpcReply,
+  SerializedError,
   Transport,
   WorkerMethods,
   WorkerPort,
@@ -78,3 +85,7 @@ declare const error: RpcError
 expectTypeOf(error.code).toEqualTypeOf<
   'RPC_CLOSED' | 'RPC_REMOTE_ERROR' | 'RPC_UNKNOWN_METHOD' | 'RPC_UNCLONABLE'
 >()
+
+// The default error serializer takes anything thrown and returns plain, clone-safe data.
+expectTypeOf(serializeError).parameter(0).toEqualTypeOf<unknown>()
+expectTypeOf(serializeError).returns.toEqualTypeOf<SerializedError>()

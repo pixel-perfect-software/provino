@@ -12,20 +12,20 @@ import { childProcessLink, messagePortLink, processLink } from './links.ts'
 describe('messagePortLink', () => {
   it('queues messages that arrive before the first listener, in order', async () => {
     const { port1, port2 } = new MessageChannel()
-    const a = messagePortLink<number, number>(port1)
-    const b = messagePortLink<number, number>(port2)
-    for (let i = 0; i < 5; i++) a.send(i)
+    const a = messagePortLink<{ n: number }, { n: number }>(port1)
+    const b = messagePortLink<{ n: number }, { n: number }>(port2)
+    for (let i = 0; i < 5; i++) a.send({ n: i })
     // Let the messages arrive with nobody listening.
     await new Promise((resolve) => setImmediate(resolve))
     const seen: number[] = []
     const done = new Promise<void>((resolve) => {
-      b.onMessage((n) => {
+      b.onMessage(({ n }) => {
         seen.push(n)
         if (n === 5) resolve()
       })
     })
     assert.deepEqual(seen, [], 'queued messages are delivered after onMessage returns')
-    a.send(5)
+    a.send({ n: 5 })
     await done
     assert.deepEqual(seen, [0, 1, 2, 3, 4, 5])
     a.close()
@@ -33,11 +33,11 @@ describe('messagePortLink', () => {
 
   it('queues again while nobody listens, so a listener that leaves loses nothing', async () => {
     const { port1, port2 } = new MessageChannel()
-    const a = messagePortLink<number, number>(port1)
-    const b = messagePortLink<number, number>(port2)
-    for (let i = 0; i < 4; i++) a.send(i)
+    const a = messagePortLink<{ n: number }, { n: number }>(port1)
+    const b = messagePortLink<{ n: number }, { n: number }>(port2)
+    for (let i = 0; i < 4; i++) a.send({ n: i })
     const first = await new Promise<number>((resolve) => {
-      const off = b.onMessage((n) => {
+      const off = b.onMessage(({ n }) => {
         off()
         resolve(n)
       })
@@ -46,7 +46,7 @@ describe('messagePortLink', () => {
     await new Promise((resolve) => setImmediate(resolve))
     const rest: number[] = []
     await new Promise<void>((resolve) => {
-      b.onMessage((n) => {
+      b.onMessage(({ n }) => {
         rest.push(n)
         if (n === 3) resolve()
       })
@@ -57,8 +57,8 @@ describe('messagePortLink', () => {
 
   it('closes both ends once, and calls a late exit listener at once', async () => {
     const { port1, port2 } = new MessageChannel()
-    const a = messagePortLink<number, number>(port1)
-    const b = messagePortLink<number, number>(port2)
+    const a = messagePortLink<{ n: number }, { n: number }>(port1)
+    const b = messagePortLink<{ n: number }, { n: number }>(port2)
     const exits: LinkClosed[] = []
     a.onExit((cause) => exits.push(cause))
     const bClosed = new Promise<LinkClosed>((resolve) => b.onExit(resolve))
@@ -71,7 +71,7 @@ describe('messagePortLink', () => {
       late = cause
     })
     assert.deepEqual(late, { type: 'closed' })
-    assert.doesNotThrow(() => a.send(1), 'a send after close is dropped')
+    assert.doesNotThrow(() => a.send({ n: 1 }), 'a send after close is dropped')
   })
 })
 
@@ -83,6 +83,10 @@ class FakeChild extends EventEmitter {
   readonly unwritten: (() => void)[] = []
   holdWrites = false
   send(message: unknown, ...rest: unknown[]): boolean {
+    // Like advanced serialization: a function can't be written, and the send throws.
+    if (typeof (message as { fn?: unknown })?.fn === 'function') {
+      throw new Error('() => {} could not be cloned.')
+    }
     this.sent.push(message)
     const callback = rest.find((arg) => typeof arg === 'function') as (() => void) | undefined
     if (callback !== undefined) {
@@ -97,14 +101,45 @@ class FakeChild extends EventEmitter {
   }
 }
 
+describe('every link', () => {
+  it('drops a message that is not an object, which no protocol message can be', async () => {
+    const { port1, port2 } = new MessageChannel()
+    const a = messagePortLink<unknown, unknown>(port1)
+    const b = messagePortLink<unknown, { readonly t: string }>(port2)
+    const seen: unknown[] = []
+    const done = new Promise<void>((resolve) => {
+      b.onMessage((message) => {
+        seen.push(message.t)
+        if (message.t === 'last') resolve()
+      })
+    })
+    for (const junk of [null, 1, 'text', undefined, true]) a.send(junk)
+    a.send({ t: 'last' })
+    await done
+    assert.deepEqual(seen, ['last'])
+    a.close()
+  })
+
+  it('drops a child’s non-object message too', async () => {
+    const child = new FakeChild()
+    const link = childProcessLink<unknown, { readonly t: string }>(child as unknown as ChildProcess)
+    const seen: string[] = []
+    link.onMessage((message) => seen.push(message.t))
+    child.emit('message', null)
+    child.emit('message', { t: 'ok' })
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.deepEqual(seen, ['ok'])
+  })
+})
+
 describe('childProcessLink and processLink', () => {
   it('sends while connected, closes on disconnect (not exit), and drops later sends', async () => {
     const child = new FakeChild()
-    const link = childProcessLink<string, string>(child as unknown as ChildProcess)
-    link.send('a')
+    const link = childProcessLink<{ m: string }, { m: string }>(child as unknown as ChildProcess)
+    link.send({ m: 'a' })
     const seen: string[] = []
-    link.onMessage((m) => seen.push(m))
-    child.emit('message', 'from-child')
+    link.onMessage(({ m }) => seen.push(m))
+    child.emit('message', { m: 'from-child' })
     await new Promise((resolve) => setImmediate(resolve))
     assert.deepEqual(seen, ['from-child'])
     let closed = false
@@ -112,15 +147,15 @@ describe('childProcessLink and processLink', () => {
       closed = true
     })
     child.emit('exit', 1, null)
-    child.emit('message', 'after-exit')
+    child.emit('message', { m: 'after-exit' })
     await new Promise((resolve) => setImmediate(resolve))
     assert.equal(closed, false, 'a message can still follow exit')
     assert.deepEqual(seen, ['from-child', 'after-exit'])
     child.connected = false
     child.emit('disconnect')
     assert.equal(closed, true)
-    link.send('b')
-    assert.deepEqual(child.sent, ['a'])
+    link.send({ m: 'b' })
+    assert.deepEqual(child.sent, [{ m: 'a' }])
   })
 
   it('closing a child-side link disconnects the IPC channel', async () => {
@@ -143,6 +178,16 @@ describe('childProcessLink and processLink', () => {
     for (const written of proc.unwritten.splice(0)) written()
     await once(proc, 'disconnect')
     assert.deepEqual(proc.sent, ['last words'])
+  })
+
+  it('still disconnects on close after a send that threw', async () => {
+    const proc = new FakeChild()
+    const link = processLink<unknown, unknown>(proc as unknown as NodeJS.Process)
+    assert.throws(() => link.send({ fn: () => {} }), /could not be cloned/)
+    link.send('fine')
+    link.close()
+    await once(proc, 'disconnect')
+    assert.deepEqual(proc.sent, ['fine'])
   })
 
   it('refuses a process without an IPC channel', () => {

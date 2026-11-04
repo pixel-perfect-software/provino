@@ -7,6 +7,7 @@ import { once } from 'node:events'
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
 import { messagePortLink, processLink } from '@provino/rpc'
 import type { WorkerMain, WorkerPort } from '@provino/types'
+import { flushStdio } from './stdio.ts'
 
 const entry: unknown = isMainThread ? process.argv[2] : (workerData as { entry?: unknown })?.entry
 if (typeof entry !== 'string') throw new TypeError('The worker bootstrap needs an entry module URL')
@@ -24,11 +25,5 @@ await (main as WorkerMain)(port)
 await closed
 // A fork's link disconnects only after its last message is written.
 if (isMainThread && process.connected) await once(process, 'disconnect')
-await Promise.all([drain(process.stdout), drain(process.stderr)])
+await flushStdio()
 process.exit(0)
-
-function drain(stream: NodeJS.WriteStream): Promise<void> {
-  return new Promise((resolve) => {
-    stream.write('', () => resolve())
-  })
-}

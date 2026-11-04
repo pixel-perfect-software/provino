@@ -3,14 +3,8 @@
 // numbered and acked cumulatively; at most 8 wait for an ack, and later packs queue behind them in
 // order, which bounds what a slow coordinator holds. Nothing is coalesced: every event is a
 // distinct transition reporters see (one event model, §6), so the pack itself is the batching.
-import * as timers from 'node:timers'
 import type { WorkerEvent, WorkerToCoordinator } from '@provino/types'
-
-// Taken once, at load: fake timers installed later by a test file can't stall the flush.
-const nativeSetImmediate = timers.setImmediate
-const nativeClearImmediate = timers.clearImmediate
-const nativeSetTimeout = timers.setTimeout
-const nativeClearTimeout = timers.clearTimeout
+import { nativeSetImmediate, nativeSetTimeout } from './timers.ts'
 
 /**
  * A pack on the wire.
@@ -47,6 +41,11 @@ export interface Packer {
   emit(event: WorkerEvent): void
   /** The coordinator has handled every pack up to `pack`. */
   ack(pack: number): void
+  /**
+   * Runs `callback` once every event emitted so far has been sent, in order with the packs: how
+   * the worker sends `fileDone` and `stopped` after a file's last event, exactly.
+   */
+  afterSent(callback: () => void): void
   /** Resolves once every event emitted so far has been sent. */
   flush(): Promise<void>
   /** Resolves when fewer than `maxPacksInFlight` packs await an ack. */
@@ -67,50 +66,88 @@ export function createPacker(
   const maxInFlight = options.maxPacksInFlight ?? 8
   const schedule = options.schedule ?? 'macrotask'
   let buffer: WorkerEvent[] = []
-  /** Cut packs not sent yet, oldest first. */
-  const waiting: WorkerEvent[][] = []
+  /** Cut packs not sent yet, and `afterSent` callbacks between them, oldest first. */
+  const waiting: (WorkerEvent[] | (() => void))[] = []
   /** The number the next sent pack gets; also how many have been sent. */
   let nextPack = 0
   let lastAcked = -1
-  let timer: { readonly cancel: () => void } | undefined
-  const flushWaiters: { readonly upTo: number; readonly resolve: () => void }[] = []
+  let armed = false
   const writableWaiters: (() => void)[] = []
 
   const inFlight = (): number => nextPack - 1 - lastAcked
 
-  const pump = (): void => {
-    while (waiting.length > 0 && inFlight() < maxInFlight) {
-      const events = waiting.shift() as WorkerEvent[]
-      send({ t: 'pack', pack: nextPack++, events })
-    }
-    for (let i = flushWaiters.length - 1; i >= 0; i--) {
-      const waiter = flushWaiters[i] as (typeof flushWaiters)[number]
-      if (nextPack >= waiter.upTo) {
-        flushWaiters.splice(i, 1)
-        waiter.resolve()
+  /**
+   * Sends one pack, and never throws. A pack that fails to send (an event that can't be cloned,
+   * against the `CloneSafe` event contract) goes again with each unclonable event replaced by an
+   * `unhandled-error` saying what was dropped; if that fails too, one error stands for the pack.
+   */
+  const sendPack = (pack: number, events: readonly WorkerEvent[]): void => {
+    try {
+      send({ t: 'pack', pack, events })
+      return
+    } catch (error) {
+      try {
+        send({
+          t: 'pack',
+          pack,
+          events: events.map((e) => (clones(e) ? e : unsendable(e, error))),
+        })
+        return
+      } catch (again) {
+        try {
+          send({
+            t: 'pack',
+            pack,
+            events: [unsendable({ type: 'pack', t: events[0]?.t ?? 0 }, again)],
+          })
+        } catch {
+          // Only a link that is already gone fails a send of plain strings; its exit reports it.
+        }
       }
     }
-    if (inFlight() < maxInFlight) for (const resolve of writableWaiters.splice(0)) resolve()
+  }
+
+  const pump = (): void => {
+    for (let next = waiting[0]; next !== undefined; next = waiting[0]) {
+      if (typeof next === 'function') {
+        waiting.shift()
+        next()
+      } else if (inFlight() < maxInFlight) {
+        waiting.shift()
+        sendPack(nextPack++, next)
+      } else {
+        break
+      }
+    }
+    if (writableWaiters.length > 0 && inFlight() < maxInFlight) {
+      for (const resolve of writableWaiters.splice(0)) resolve()
+    }
   }
 
   const cut = (): void => {
-    timer?.cancel()
-    timer = undefined
     if (buffer.length === 0) return
     waiting.push(buffer)
     buffer = []
     pump()
   }
 
+  // An armed timer is never cancelled: when it fires after an early cut, it cuts whatever came
+  // since, or nothing. The interval timer is unref'd: the worker's link keeps the process alive.
+  const fire = (): void => {
+    armed = false
+    cut()
+  }
   const arm = (): void => {
-    if (timer !== undefined) return
-    if (schedule === 'macrotask') {
-      const handle = nativeSetImmediate(cut)
-      timer = { cancel: () => nativeClearImmediate(handle) }
-    } else {
-      const handle = nativeSetTimeout(cut, schedule.intervalMs)
-      timer = { cancel: () => nativeClearTimeout(handle) }
-    }
+    if (armed) return
+    armed = true
+    if (schedule === 'macrotask') nativeSetImmediate(fire)
+    else nativeSetTimeout(fire, schedule.intervalMs).unref()
+  }
+
+  const afterSent = (callback: () => void): void => {
+    cut()
+    waiting.push(callback)
+    pump()
   }
 
   return {
@@ -124,11 +161,9 @@ export function createPacker(
       lastAcked = Math.min(pack, nextPack - 1)
       pump()
     },
+    afterSent,
     flush() {
-      cut()
-      const upTo = nextPack + waiting.length
-      if (nextPack >= upTo) return Promise.resolve()
-      return new Promise((resolve) => flushWaiters.push({ upTo, resolve }))
+      return new Promise((resolve) => afterSent(resolve))
     },
     writable() {
       if (inFlight() < maxInFlight) return Promise.resolve()
@@ -137,5 +172,35 @@ export function createPacker(
     get inFlight() {
       return inFlight()
     },
+  }
+}
+
+/** Whether an event survives structured clone (what every link's serializer does). */
+function clones(event: WorkerEvent): boolean {
+  try {
+    structuredClone(event)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The event that stands in for one that couldn't be sent. */
+function unsendable(
+  event: { readonly type: string; readonly t: number },
+  error: unknown,
+): WorkerEvent {
+  const reason = error instanceof Error ? error.message : String(error)
+  return {
+    type: 'unhandled-error',
+    ownerId: null,
+    lastTestId: null,
+    origin: 'uncaughtException',
+    error: {
+      name: 'Error',
+      message: `The worker's ${event.type} event couldn’t be sent to the coordinator, so it was dropped: ${reason}`,
+      code: 'ORCH_UNSENDABLE_EVENT',
+    },
+    t: event.t,
   }
 }

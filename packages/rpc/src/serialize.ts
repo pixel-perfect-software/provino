@@ -1,8 +1,8 @@
-// The default error serializer for replies. Handler errors are the coordinator's and worker's own
-// (a snapshot write that failed, a method that doesn't exist), so this keeps what crosses well:
-// name, message, stack, a string `code` and the `cause` chain. Core's `serializeError` is the full
-// one (aggregates, a budget against hostile getters); the worker can pass it through
-// `RpcOptions.serializeError`.
+// The default error serializer for RPC replies and the worker's own unhandled errors. Those are the
+// coordinator's and worker's errors (a snapshot write that failed, a runner that threw), so this
+// keeps what crosses well: name, message, stack, a string `code` and the `cause` chain. Core's
+// `serializeError` is the full one (aggregates, a budget against hostile getters); the worker can
+// pass it through `RpcOptions.serializeError` and `StartWorkerOptions.serializeError`.
 import type { SerializedError } from '@provino/types'
 
 /** How deep a `cause` chain is followed. */
@@ -11,7 +11,7 @@ const MAX_CAUSES = 10
 /**
  * Turns anything thrown into a clone-safe `SerializedError`. Never throws: a field that can't be
  * read is left out.
- * @internal
+ * @public
  */
 export function serializeError(value: unknown): SerializedError {
   return serialize(value, 0)
