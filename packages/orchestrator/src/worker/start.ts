@@ -109,8 +109,10 @@ export function startWorker(
   const done = new Promise<void>((resolve) => {
     resolveDone = resolve
   })
-  /** Work in arrival order: start, each run, stop. */
+  /** Work in arrival order: start, each run, stop. A failed step never blocks the next. */
   let queue: Promise<void> = Promise.resolve()
+  /** Set when `runner.start` threw: every file is then charged with that error, unrun. */
+  let startFailure: { readonly error: unknown } | undefined
 
   const rpcOptions: RpcOptions =
     options.serializeError === undefined ? {} : { serializeError: options.serializeError }
@@ -141,23 +143,33 @@ export function startWorker(
     await Promise.all([writeEmpty(process.stdout), writeEmpty(process.stderr)])
   }
 
+  /** Reports an error the runner didn't, as an unhandled error charged to `ownerId`. */
+  const charge = (error: unknown, ownerId: TaskId | null): void => {
+    packer.emit({
+      type: 'unhandled-error',
+      ownerId,
+      lastTestId: null,
+      origin: 'uncaughtException',
+      error: (options.serializeError ?? describeError)(error),
+      t: performance.now(),
+    })
+  }
+
+  const enqueue = (work: () => Promise<void>): void => {
+    queue = queue.then(work).catch((error: unknown) => charge(error, null))
+  }
+
   const runOne = async (seq: number, job: FileJob): Promise<void> => {
     const controller = new AbortController()
     current = controller
     let leakedHandles = 0
     try {
+      if (startFailure !== undefined) throw startFailure.error
       const outcome = await runner.runFile({ ...context(), job, signal: controller.signal })
       leakedHandles = outcome?.leakedHandles ?? 0
     } catch (error) {
       // The runtime reports test failures as events; a runner that throws is a bug, charged to the file.
-      packer.emit({
-        type: 'unhandled-error',
-        ownerId: job.fileId,
-        lastTestId: null,
-        origin: 'uncaughtException',
-        error: (options.serializeError ?? describeError)(error),
-        t: performance.now(),
-      })
+      charge(error, job.fileId)
     } finally {
       current = undefined
     }
@@ -180,11 +192,17 @@ export function startWorker(
             global ? (globalThis as { console: Console }) : undefined,
           )
         }
-        queue = queue.then(() => runner.start?.(context()))
+        enqueue(async () => {
+          try {
+            await runner.start?.(context())
+          } catch (error) {
+            startFailure = { error }
+          }
+        })
         return
       }
       case 'run':
-        queue = queue.then(() => runOne(message.seq, message.job))
+        enqueue(() => runOne(message.seq, message.job))
         return
       case 'ack':
         packer.ack(message.pack)
@@ -193,7 +211,7 @@ export function startWorker(
         current?.abort(new Error(`Cancelled: ${message.reason}`))
         return
       case 'stop':
-        queue = queue.then(async () => {
+        enqueue(async () => {
           await packer.flush()
           await flushStdio()
           installed?.restore()
