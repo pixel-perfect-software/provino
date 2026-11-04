@@ -15,10 +15,16 @@ import {
 } from '../suites.ts'
 import { runWorkerFiles, type WorkerRunResult } from './run.ts'
 
-/** The tiers B10 implements. */
+/**
+ * The tiers B10 implements.
+ * @public
+ */
 export const TIERS: readonly IsolationTier[] = ['registry', 'none']
 
-/** A suite written to a temporary directory. */
+/**
+ * A suite written to a temporary directory.
+ * @public
+ */
 export interface WrittenSuite {
   readonly spec: SuiteSpec
   /** The Jest tree: the project root, with `setup.js` and `tests/`. */
@@ -33,6 +39,7 @@ export interface WrittenSuite {
 /**
  * Generates `name` (an `app-N` suite) in its Jest flavour into a new directory under the OS temp
  * directory. Only the Jest tree is written: it is the one this worker runs.
+ * @public
  */
 export async function writeJestSuite(name: string): Promise<WrittenSuite> {
   const spec = parseSuiteName(name)
@@ -69,7 +76,10 @@ export async function writeJestSuite(name: string): Promise<WrittenSuite> {
   }
 }
 
-/** One tier of the check: what ran, and whether it met the bar. */
+/**
+ * One tier of the check: what ran, and whether it met the bar.
+ * @public
+ */
 export interface TierCheck {
   readonly result: WorkerRunResult
   /** The tests the suite holds: the number that must pass. */
@@ -77,7 +87,10 @@ export interface TierCheck {
   readonly ok: boolean
 }
 
-/** Whether a run meets the bar: all `expected` passed, none failed or skipped, no violation. */
+/**
+ * Whether a run meets the bar: all `expected` passed, none failed or skipped, no violation.
+ * @public
+ */
 export function meetsBar(result: WorkerRunResult, expected: number): boolean {
   return (
     result.passed === expected &&
@@ -90,6 +103,7 @@ export function meetsBar(result: WorkerRunResult, expected: number): boolean {
 
 /**
  * Runs the suite through one worker per tier, one after the other, and checks each against the bar.
+ * @public
  */
 export async function checkSuite(
   suite: WrittenSuite,
@@ -110,7 +124,10 @@ export async function checkSuite(
   return checks
 }
 
-/** The lines the CLI prints for one tier. */
+/**
+ * The lines the CLI prints for one tier.
+ * @public
+ */
 export function describeTier({ result, expected, ok }: TierCheck): string[] {
   return [
     `  ${result.isolation.padEnd(8)} ${result.files} files, tests passed ${result.passed}/${expected}, failed ${result.failed}, skipped ${result.skipped}, unhandled ${result.unhandled}, order violations ${result.violations.length}, ${result.elapsedMs.toFixed(0)} ms (local)${ok ? '' : '  FAIL'}`,

@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { after, describe, it } from 'node:test'
 import { createRuntimeRunner, type FileContext, type Packer } from '@provino/orchestrator/worker'
-import type { WorkerEvent } from '@provino/types'
+import type { IsolationTier, WorkerEvent } from '@provino/types'
 import { initFor, makeProject, type Project, runtimeConfig, runtimeJob } from './support.ts'
 
 const projects: Project[] = []
@@ -31,11 +31,14 @@ function steeredPacker(): Packer & {
   }
 }
 
-async function started() {
-  const p = await makeProject({ 'a.test.js': "test('a', () => { expect(1).toBe(1) })" })
+async function started(isolation: IsolationTier = 'registry') {
+  const p = await makeProject({
+    'a.test.js': "test('a', () => { expect(1).toBe(1) })",
+    'b.test.js': "test('b', () => { expect(1).toBe(1) })",
+  })
   projects.push(p)
   const config = runtimeConfig(p.dir)
-  const init = { ...initFor('inline'), config }
+  const init = { ...initFor('inline'), isolation, config }
   const sink = steeredPacker()
   const base = {
     init,
@@ -49,9 +52,9 @@ async function started() {
   }
   const runner = createRuntimeRunner()
   await runner.start?.(base)
-  const file = (controller = new AbortController()): FileContext => ({
+  const file = (controller = new AbortController(), name = 'a.test.js'): FileContext => ({
     ...base,
-    job: runtimeJob(config, p.path('a.test.js')),
+    job: runtimeJob(config, p.path(name)),
     signal: controller.signal,
   })
   return { runner, sink, file, base }
@@ -106,6 +109,69 @@ describe('createRuntimeRunner', () => {
     sink.open()
     await assert.rejects(createRuntimeRunner().runFile(file()), { code: 'ORCH_NOT_STARTED' })
     await runner.stop?.(base)
+  })
+
+  describe('the signal the environment’s setup gets', () => {
+    /**
+     * Starts a runner for `isolation` with `globalThis.__signals` collecting the signal of each
+     * environment setup, runs `body`, and stops the runner whatever `body` did.
+     */
+    async function recordingSignals(
+      isolation: IsolationTier,
+      body: (
+        signals: readonly AbortSignal[],
+        use: Awaited<ReturnType<typeof started>>,
+      ) => Promise<void>,
+    ): Promise<void> {
+      const signals: AbortSignal[] = []
+      Reflect.set(globalThis, '__signals', signals)
+      const use = await started(isolation)
+      try {
+        use.sink.open()
+        await body(signals, use)
+      } finally {
+        await use.runner.stop?.(use.base)
+        Reflect.deleteProperty(globalThis, '__signals')
+      }
+    }
+
+    it('lives as long as the worker for a worker-scoped environment, not as long as the first file’s run', async () => {
+      await recordingSignals('none', async (signals, { runner, file, base }) => {
+        const first = new AbortController()
+        await runner.runFile(file(first, 'a.test.js'))
+        // The first file's run is cancelled (or simply ends and is cleaned up) ...
+        first.abort(new Error('Cancelled: bail'))
+        // ... and the worker goes on with the next file, in the same environment.
+        await runner.runFile(file(new AbortController(), 'b.test.js'))
+        assert.equal(signals.length, 1, 'a worker-scoped environment is set up once')
+        assert.equal(signals[0]?.aborted, false, 'the first file’s abort did not reach it')
+        await runner.stop?.(base)
+        assert.equal(signals[0]?.aborted, true, 'stop ends the worker’s lifetime')
+      })
+    })
+
+    it('is not the first file’s signal', async () => {
+      await recordingSignals('none', async (signals, { runner, file }) => {
+        const first = new AbortController()
+        await runner.runFile(file(first, 'a.test.js'))
+        assert.notEqual(signals[0], first.signal)
+      })
+    })
+
+    it('stays the file’s own signal for a file-scoped environment', async () => {
+      await recordingSignals('registry', async (signals, { runner, file }) => {
+        const first = new AbortController()
+        const second = new AbortController()
+        await runner.runFile(file(first, 'a.test.js'))
+        await runner.runFile(file(second, 'b.test.js'))
+        assert.deepEqual(signals, [first.signal, second.signal])
+        first.abort(new Error('Cancelled: bail'))
+        assert.deepEqual(
+          signals.map((signal) => signal.aborted),
+          [true, false],
+        )
+      })
+    })
   })
 
   it('stops cleanly when it never started, and when stopped twice', async () => {

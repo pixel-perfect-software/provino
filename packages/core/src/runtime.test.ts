@@ -201,6 +201,61 @@ describe('filters given to one runFile', () => {
   })
 })
 
+describe('an invalid testNamePattern given to one runFile', () => {
+  /** A runtime whose files each register the test `a`; `imports` counts the files it imported. */
+  async function runtimeWithEvents() {
+    const events: RuntimeEvent[] = []
+    const imports: string[] = []
+    const runtime = await createRuntime({
+      policy: policyWith(),
+      behaviours: createBehaviourLoader(),
+      sink: { emit: (event) => events.push(event) },
+      importFile: async (path) => {
+        imports.push(path)
+        runtime.api.test('a', () => {})
+      },
+      rootDir: '/project',
+    })
+    return { runtime, events, imports }
+  }
+
+  test('fails the file before it is imported, with the collect pair and then file-end', async () => {
+    const { runtime, events, imports } = await runtimeWithEvents()
+    const result = await runtime.runFile('/project/x.test.ts', { testNamePattern: 'foo(' })
+
+    assert.deepEqual(imports, [], 'the file is never imported')
+    assert.deepEqual(
+      events.map((event) => event.type),
+      ['file-collect-start', 'file-collect-end', 'file-end'],
+    )
+    const collected = events[1]
+    assert.ok(collected?.type === 'file-collect-end')
+    assert.deepEqual(collected.tasks, [])
+    const [error] = collected.errors
+    assert.equal(error?.code, 'CORE_INVALID_ARGUMENT')
+    assert.equal(error?.cause?.name, 'SyntaxError', 'the SyntaxError is kept as the cause')
+    assert.match(error?.message ?? '', /foo\(/)
+    assert.equal(result.state, 'fail')
+    assert.equal(result.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
+    const end = events[2]
+    assert.ok(end?.type === 'file-end')
+    assert.equal(end.result.state, 'fail')
+  })
+
+  test('leaves the runtime usable: the next file runs with its own filters', async () => {
+    const { runtime, events, imports } = await runtimeWithEvents()
+    await runtime.runFile('/project/x.test.ts', { testNamePattern: '(' })
+    events.length = 0
+    const result = await runtime.runFile('/project/y.test.ts', { testNamePattern: 'a' })
+    assert.deepEqual(imports, ['/project/y.test.ts'])
+    assert.equal(result.state, 'pass')
+    assert.deepEqual(
+      events.filter((event) => event.type === 'test-end').map((event) => event.result.state),
+      ['pass'],
+    )
+  })
+})
+
 describe('runFile while another file is active', () => {
   /** A runtime whose files each run one test that waits for `gate`. */
   async function gatedRuntime(gate: Promise<void>, started: () => void) {

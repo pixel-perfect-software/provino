@@ -4,8 +4,25 @@
 import { createBehaviourLoader } from '@provino/policy'
 import { createResolver } from '@provino/resolver'
 import { createPipeline } from '@provino/transform'
-import type { Loader, ModuleMapper, ModulePolicy, SerializedLoaderConfig } from '@provino/types'
+import type {
+  Loader,
+  ModuleMapper,
+  ModulePolicy,
+  ResolverOptions,
+  SerializedLoaderConfig,
+} from '@provino/types'
 import { createLoader } from './loader.ts'
+
+/**
+ * The resolver's `tsconfig` option for the config's: `'auto'` and `false` pass through, and any
+ * other string is the path of the tsconfig file. (`'auto'` is a string too, so a bare `typeof`
+ * check would hand the resolver a file named "auto".)
+ */
+function resolverTsconfig(
+  tsconfig: SerializedLoaderConfig['tsconfig'],
+): NonNullable<ResolverOptions['tsconfig']> {
+  return tsconfig === 'auto' || tsconfig === false ? tsconfig : { configFile: tsconfig }
+}
 
 /**
  * Creates the worker's loader for one project. `config.mappers` are loaded by `ModuleRef` first,
@@ -30,8 +47,7 @@ export async function createProjectLoader(
       root,
       mappers,
       extensions: config.extensions,
-      tsconfig:
-        typeof config.tsconfig === 'string' ? { configFile: config.tsconfig } : config.tsconfig,
+      tsconfig: resolverTsconfig(config.tsconfig),
     }),
     transformer: createPipeline({
       root,

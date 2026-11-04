@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Environment, EnvironmentRef } from '@provino/types'
-import { WorkerError } from '../errors.ts'
+import { WorkerError } from '../../errors.ts'
 import { importEnvironment, prepareEnvironment, setupEnvironment } from './environment.ts'
 
 /** A `data:` module exporting `source`'s declarations, so a test needs no file for an environment. */

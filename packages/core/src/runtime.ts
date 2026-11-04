@@ -58,7 +58,11 @@ export interface RuntimeOptions {
 export interface RunFileOptions {
   /** Only tests (or suites) on these lines run (Vitest's `file:line`). */
   readonly lines?: readonly number[]
-  /** `-t` for this file only: replaces the runtime's `testNamePattern`. */
+  /**
+   * `-t` for this file only: replaces the runtime's `testNamePattern`. A string that is not a valid
+   * regular expression fails the file (`CORE_INVALID_ARGUMENT`, the `SyntaxError` as its cause)
+   * before it is imported.
+   */
   readonly testNamePattern?: string | RegExp
   /** Only these test ids run in this file: replaces the runtime's `testIds`. */
   readonly testIds?: readonly string[]
@@ -126,7 +130,10 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     testIds: options.testIds === undefined ? undefined : new Set(options.testIds),
   }
 
-  /** The runtime's filters, with the ones this file's options give instead. */
+  /**
+   * The runtime's filters, with the ones this file's options give instead. Compiles the file's
+   * `testNamePattern`, so a pattern that is not a valid regular expression throws here.
+   */
   function finalizeOptionsFor(fileOptions: RunFileOptions): FinalizeOptions {
     const { testNamePattern, testIds, lines } = fileOptions
     return {
@@ -136,6 +143,27 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
         : { testNamePattern: toRegExp(testNamePattern, policy.testNamePatternFlags) }),
       ...(testIds === undefined ? {} : { testIds: new Set(testIds) }),
       lines: lines === undefined ? undefined : new Set(lines),
+    }
+  }
+
+  /**
+   * This file's filters, built before the file is imported. `undefined` when they can't be built
+   * (a `testNamePattern` that is not a valid regular expression): the reason is then recorded as
+   * the file's error, wrapped with the `SyntaxError` as its cause, and the file is not collected.
+   */
+  function filtersFor(file: FileState, fileOptions: RunFileOptions): FinalizeOptions | undefined {
+    try {
+      return finalizeOptionsFor(fileOptions)
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : String(cause)
+      file.errors.push(
+        new CoreError(
+          'CORE_INVALID_ARGUMENT',
+          `Invalid testNamePattern for ${file.relativePath}: ${reason}`,
+          { cause },
+        ),
+      )
+      return undefined
     }
   }
 
@@ -188,8 +216,11 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     sink.emit({ type: 'file-collect-start', fileId, path: relativePath, t: start })
     let outcome: Outcome = 'fail'
     try {
-      const collected = await collect(file)
-      const tasks = finalize(file, finalizeOptionsFor(fileOptions))
+      // Before collection: an invalid per-file pattern skips the import and reports no tasks, but
+      // the file still gets its `file-collect-end` and `file-end`.
+      const filters = filtersFor(file, fileOptions)
+      const collected = filters !== undefined && (await collect(file))
+      const tasks = filters === undefined ? [] : finalize(file, filters)
       const errors = file.errors.map(serializeError)
       sink.emit({ type: 'file-collect-end', fileId, tasks, errors, t: now() })
       if (collected) outcome = await executor.runFile(file)

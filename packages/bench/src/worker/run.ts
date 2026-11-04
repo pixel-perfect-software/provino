@@ -32,13 +32,17 @@ const ENTRY: string = import.meta.resolve('@provino/orchestrator/worker/main')
 /** Where the node environment lives; the worker imports it by this ref. */
 const ENVIRONMENT_MODULE: string = import.meta.resolve('@provino/env-node')
 
-/** The project name in the bench's task ids. */
+/**
+ * The project name in the bench's task ids.
+ * @public
+ */
 export const PROJECT_NAME = 'bench'
 
 /**
  * The id `@provino/core` gives a file: a SHA-1 over the project name and the POSIX path relative to
  * the root, cut to 10 hex characters. Core does not export it (B11's coordinator will need its
  * own), so this repeats the formula; `runWorkerFiles` checks every event's id against it.
+ * @public
  */
 export function fileIdOf(projectName: string, rootDir: string, file: string): TaskId {
   const path = relative(rootDir, file).split(sep).join('/')
@@ -49,6 +53,7 @@ export function fileIdOf(projectName: string, rootDir: string, file: string): Ta
  * The project config for a worker running Jest-flavoured suites: the Jest dialect's resolved
  * policy and globals, the node environment, and `setupFilesAfterEnv` (Jest's name for the suite's
  * `setup.js`).
+ * @public
  */
 export function benchProjectConfig(
   rootDir: string,
@@ -75,7 +80,10 @@ export function benchProjectConfig(
   }
 }
 
-/** What to run, and how. */
+/**
+ * What to run, and how.
+ * @public
+ */
 export interface WorkerRunOptions {
   readonly rootDir: string
   /** Absolute paths of the test files, run in this order. */
@@ -91,7 +99,10 @@ export interface WorkerRunOptions {
   readonly stderr?: NodeJS.WritableStream
 }
 
-/** What one run found. */
+/**
+ * What one run found.
+ * @public
+ */
 export interface WorkerRunResult {
   readonly pool: PoolKind
   readonly isolation: IsolationTier
@@ -137,6 +148,7 @@ function transportFor(pool: PoolKind, stderr: NodeJS.WritableStream | undefined)
 /**
  * Starts one worker of `pool`, runs `files` through it one at a time, stops it, and reports what
  * the coordinator saw: test counts, the ordering checker's violations, and the wall time (`local`).
+ * @public
  */
 export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerRunResult> {
   const pool = options.pool ?? 'inline'
@@ -171,7 +183,16 @@ export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerR
   const onEvent = (event: WorkerEvent): void => {
     if (options.keepEvents === true) events.push(event)
     checker.feed(event)
-    if (running === undefined) return
+    if (running === undefined) {
+      // No file is running: this is the worker stopping. Under `none` the worker-scoped
+      // environment's teardown and the runtime's dispose run here, and a failure in either arrives
+      // as an unhandled error no file owns. It counts like any other, or the bar passes falsely.
+      if (event.type === 'unhandled-error') {
+        counts.unhandled++
+        note(`stop: unhandled ${event.origin}: ${event.error.message}`)
+      }
+      return
+    }
     const label = relative(options.rootDir, running.file)
     switch (event.type) {
       case 'file-collect-start':

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { moduleRef, neutralPolicy, serializePolicy } from '@provino/policy'
 import type { SerializedProjectConfig } from '@provino/types'
-import { WorkerError } from '../errors.ts'
+import { WorkerError } from '../../errors.ts'
 import { parseProjectConfig } from './config.ts'
 
 const valid: SerializedProjectConfig = {
@@ -70,6 +70,12 @@ describe('parseProjectConfig', () => {
       ['loader.tsconfig', true],
       ['loader.mappers', {}],
       ['loader.typescript', 'tsc'],
+      // Refs cross to the worker already resolved; a bare package specifier can't be resolved
+      // from here.
+      ['environment.module', '@provino/env-node'],
+      ['environment.module', './env.ts'],
+      ['globals.module', '@provino/dialect-jest/runtime'],
+      ['globals.module', 'globals.ts'],
     ]
     for (const [path, value] of cases) {
       assert.throws(
@@ -81,6 +87,68 @@ describe('parseProjectConfig', () => {
         path,
       )
     }
+  })
+
+  it('accepts an absolute path or an absolute URL for the environment and the globals', () => {
+    const modules = [
+      '/abs/env.ts',
+      'file:///abs/env.ts',
+      'data:text/javascript,export const env = 1',
+      'node:fs',
+    ]
+    for (const module of modules) {
+      const parsed = parseProjectConfig(with_('globals', { module, export: 'factory' }))
+      assert.equal(parsed.globals?.module, module)
+      assert.equal(
+        parseProjectConfig(with_('environment.module', module)).environment.module,
+        module,
+      )
+    }
+  })
+
+  it('says why a bare specifier is refused: the coordinator resolves it', () => {
+    assert.throws(() => parseProjectConfig(with_('environment.module', '@provino/env-node')), {
+      code: 'ORCH_BAD_CONFIG',
+      message: /environment\.module must be an absolute path or URL.*coordinator resolves/,
+    })
+  })
+
+  describe('loader.mappers', () => {
+    const factory = moduleRef('/mapper.ts', 'aliasMapper')
+
+    it('accepts mappers with a factory ref and options, in order', () => {
+      const mappers = [
+        { factory, options: { from: 'a', to: 'b' } },
+        { factory, options: null },
+      ]
+      assert.deepEqual(parseProjectConfig(with_('loader.mappers', mappers)).loader.mappers, mappers)
+    })
+
+    it('throws ORCH_BAD_CONFIG naming the element that is malformed', () => {
+      const good = { factory, options: null }
+      const cases: ReadonlyArray<readonly [path: string, mappers: readonly unknown[]]> = [
+        ['loader.mappers[0]', [3]],
+        ['loader.mappers[0]', [null]],
+        ['loader.mappers[0]', [[]]],
+        ['loader.mappers[0].factory', [{ options: null }]],
+        ['loader.mappers[0].factory', [{ factory: '/mapper.ts', options: null }]],
+        ['loader.mappers[0].factory', [{ factory: { module: '/mapper.ts' }, options: null }]],
+        ['loader.mappers[0].options', [{ factory }]],
+        // The message says which element, not only that one is wrong.
+        ['loader.mappers[1]', [good, 3]],
+        ['loader.mappers[2].options', [good, good, { factory }]],
+      ]
+      for (const [path, mappers] of cases) {
+        assert.throws(
+          () => parseProjectConfig(with_('loader.mappers', mappers)),
+          (error: unknown) =>
+            error instanceof WorkerError &&
+            error.code === 'ORCH_BAD_CONFIG' &&
+            error.message.includes(path),
+          path,
+        )
+      }
+    })
   })
 
   it('rejects a config that is not an object', () => {

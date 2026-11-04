@@ -1,10 +1,11 @@
 // A test environment that records its calls. Like the real node environment it runs in the
 // worker's own realm and, at teardown, deletes the globals added since `setup`. It writes to
-// `globalThis.__trace` when a test has set one (inline workers share the test's process), and its
+// `globalThis.__trace` when a test has set one (inline workers share the test's process), keeps the
+// `signal` each `setup` received in `globalThis.__signals` when a test has set that, and its
 // options steer failures: `failSetup` and `failTeardown`.
 import type { Environment } from '@provino/types'
 
-type Traced = typeof globalThis & { __trace?: string[] }
+type Traced = typeof globalThis & { __trace?: string[]; __signals?: AbortSignal[] }
 
 /** Adds `step` to the test's trace, if there is one. */
 export function trace(step: string): void {
@@ -33,6 +34,7 @@ export const recordingEnvironment: Environment<
     trace(
       `env:setup ${context.scope} ${context.testPath.split('/').at(-1)} ${JSON.stringify(prepared)}`,
     )
+    ;(globalThis as Traced).__signals?.push(context.signal)
     if (context.options.failSetup === true) throw new Error('setup failed')
     const before = new Set(Reflect.ownKeys(globalThis))
     return {

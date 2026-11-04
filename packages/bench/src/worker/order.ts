@@ -11,7 +11,10 @@
 // file (or a task of it) must name that file.
 import type { TaskId, WorkerEvent } from '@provino/types'
 
-/** One thing the coordinator saw, in order. */
+/**
+ * One thing the coordinator saw, in order.
+ * @public
+ */
 export type OrderInput =
   /** The coordinator sent the job for `fileId`: the events until its `fileDone` are its own. */
   | { readonly type: 'run'; readonly fileId: TaskId }
@@ -43,6 +46,7 @@ interface FileState {
 /**
  * The checker. Feed it every input; `finish` ends the run and returns the violations, in the order
  * they were found.
+ * @public
  */
 export interface OrderChecker {
   feed(input: OrderInput): void
@@ -58,6 +62,7 @@ const hookKey = (event: Extract<WorkerEvent, { readonly type: 'hook-start' | 'ho
 
 /**
  * Creates a checker for one run.
+ * @public
  */
 export function createOrderChecker(): OrderChecker {
   const violations: string[] = []
@@ -289,7 +294,10 @@ export function createOrderChecker(): OrderChecker {
   }
 }
 
-/** Checks a whole sequence at once. */
+/**
+ * Checks a whole sequence at once.
+ * @public
+ */
 export function checkOrder(inputs: readonly OrderInput[]): readonly string[] {
   const checker = createOrderChecker()
   for (const input of inputs) checker.feed(input)

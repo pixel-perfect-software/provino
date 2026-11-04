@@ -8,12 +8,18 @@ import type {
   EnvironmentRef,
   EnvironmentSetupContext,
 } from '@provino/types'
-import { WorkerError } from '../errors.ts'
+import { WorkerError } from '../../errors.ts'
 
-/** The environment's options, as the config carries them. */
+/**
+ * The environment's options, as the config carries them.
+ * @internal
+ */
 export type EnvironmentOptions = EnvironmentRef['options']
 
-/** A loaded environment and what its `prepare` returned. */
+/**
+ * A loaded environment and what its `prepare` returned.
+ * @internal
+ */
 export interface PreparedEnvironment {
   readonly environment: Environment<string, EnvironmentOptions>
   readonly options: EnvironmentOptions
@@ -44,6 +50,7 @@ function isEnvironment(value: unknown): value is Environment<string, Environment
  * Imports the module `ref` names and reads its export. The export must be an `Environment` whose
  * `realms` include `'worker'` (a `context`-only environment needs the `realm` tier, which no
  * worker runs yet). Throws `ORCH_BAD_ENVIRONMENT` otherwise.
+ * @internal
  */
 export async function importEnvironment(
   ref: EnvironmentRef,
@@ -73,6 +80,7 @@ export async function importEnvironment(
 /**
  * Loads the environment `ref` names and calls its `prepare` once (an environment that has none
  * prepares to `undefined`).
+ * @internal
  */
 export async function prepareEnvironment(ref: EnvironmentRef): Promise<PreparedEnvironment> {
   const environment = await importEnvironment(ref)
@@ -90,6 +98,7 @@ function isInstance(value: unknown): value is EnvironmentInstance {
  * Sets the environment up for one file (scope `file`) or for the worker (scope `worker`), and
  * checks the instance: a `global` object to install into and a `teardown` function to call.
  * Throws `ORCH_BAD_ENVIRONMENT` for one without.
+ * @internal
  */
 export async function setupEnvironment(
   loaded: PreparedEnvironment,

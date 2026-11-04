@@ -10,7 +10,10 @@ interface Run {
   readonly repeat: number
 }
 
-/** The part of the expect state source the sink reads. */
+/**
+ * The part of the expect state source the sink reads.
+ * @internal
+ */
 export interface RunStates {
   stateOf(testId: string, run: Run): MatcherState | undefined
 }
@@ -21,6 +24,7 @@ export interface RunStates {
  * (the one that decided the result; Jest counts `numPassingAsserts` for it). A test with no
  * attempt (skipped or todo) or an attempt that never asserted has 0 of each. The sink forgets a
  * test once it ends.
+ * @internal
  */
 export function assertionCountSink(states: RunStates, next: EventSink): EventSink {
   const lastRun = new Map<TaskId, Run>()

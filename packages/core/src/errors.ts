@@ -35,7 +35,7 @@ export type CoreErrorCode =
   | 'CORE_EXPECTED_FAILURE'
   /** `onTestFinished`/`onTestFailed` called outside a test, or inside one of those callbacks. */
   | 'CORE_TEST_CALLBACK_CONTEXT'
-  /** An argument of the wrong shape (a non-function hook, options in the third position, …). */
+  /** An argument of the wrong shape (a non-function hook, options in the third position, a `testNamePattern` that isn't a regular expression, …). */
   | 'CORE_INVALID_ARGUMENT'
   /** `runFile` called while another file of the same runtime is collecting or running. */
   | 'CORE_BUSY'

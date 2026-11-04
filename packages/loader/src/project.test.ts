@@ -113,3 +113,46 @@ test('a mapper ref that does not load rejects, with the ref in the message', asy
     { code: 'POLICY_BEHAVIOUR_LOAD_FAILED' },
   )
 })
+
+test("tsconfig 'auto' finds the nearest tsconfig.json, so its paths alias resolves", async () => {
+  const root = writeTree({
+    'tsconfig.json': JSON.stringify({ compilerOptions: { paths: { '@lib/*': ['./lib/*'] } } }),
+    'lib/util.ts': 'export const util: number = 7\n',
+    'entry.test.ts': "export { util } from '@lib/util'\n",
+  })
+  const loader = await createProjectLoader(
+    root,
+    { ...CONFIG, tsconfig: 'auto' },
+    neutralPolicy.module,
+  )
+  const entry = await loader
+    .createFileRegistry(join(root, 'entry.test.ts'), { tier: 'registry' })
+    .import<{ util: number }>(join(root, 'entry.test.ts'))
+  assert.equal(entry.util, 7)
+})
+
+test('a tsconfig path is that file, and false is none', async () => {
+  const root = writeTree({
+    'config/paths.json': JSON.stringify({
+      compilerOptions: { paths: { '@lib/*': ['../lib/*'] } },
+    }),
+    'lib/util.ts': 'export const util: number = 7\n',
+    'entry.test.ts': "export { util } from '@lib/util'\n",
+  })
+  const file = join(root, 'entry.test.ts')
+  const named = await createProjectLoader(
+    root,
+    { ...CONFIG, tsconfig: join(root, 'config/paths.json') },
+    neutralPolicy.module,
+  )
+  const entry = await named
+    .createFileRegistry(file, { tier: 'registry' })
+    .import<{ util: number }>(file)
+  assert.equal(entry.util, 7)
+
+  const none = await createProjectLoader(root, { ...CONFIG, tsconfig: false }, neutralPolicy.module)
+  await assert.rejects(none.createFileRegistry(file, { tier: 'registry' }).import(file), {
+    code: 'ERR_MODULE_NOT_FOUND',
+    message: /@lib\/util/,
+  })
+})

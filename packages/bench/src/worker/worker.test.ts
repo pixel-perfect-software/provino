@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
 import { after, describe, it } from 'node:test'
-import type { PoolKind, TaskId, WorkerEvent } from '@provino/types'
+import type { IsolationTier, PoolKind, TaskId, WorkerEvent } from '@provino/types'
 import { checkSuite, meetsBar, TIERS, writeJestSuite } from './check.ts'
 import { fileIdOf, PROJECT_NAME, runWorkerFiles, type WorkerRunResult } from './run.ts'
 
@@ -172,6 +172,45 @@ describe('global isolation, with the real node environment and the Jest dialect'
           'b sees all of them': 'pass',
         })
       })
+    })
+  }
+})
+
+describe('a failure while the worker stops', () => {
+  // The file defines a global that can't be deleted. The node environment restores everything else,
+  // then its teardown throws `ENV_NODE_RESTORE_FAILED`: after each file under `registry`, and only
+  // when the worker stops under `none`, where the environment lives as long as the worker. A forked
+  // worker keeps the stuck global out of this process.
+  const stuck = {
+    'a.test.js': [
+      "test('plants a global it cannot remove', () => {",
+      "  Object.defineProperty(globalThis, '__provinoStuck', { value: 1, configurable: false })",
+      '})',
+    ].join('\n'),
+  }
+  const run = async (isolation: IsolationTier) => {
+    const dir = await project(stuck)
+    return await runWorkerFiles({
+      rootDir: dir,
+      files: [join(dir, 'a.test.js')],
+      pool: 'forks',
+      isolation,
+      keepEvents: true,
+      stderr: new Collect(),
+    })
+  }
+
+  for (const isolation of TIERS) {
+    it(`${isolation}: the teardown’s unhandled error is counted, and the bar fails on it`, async () => {
+      const result = await run(isolation)
+      assert.deepEqual(statesOf(result.events), { 'plants a global it cannot remove': 'pass' })
+      assert.equal(result.passed, 1)
+      assert.equal(result.failed, 0)
+      assert.equal(result.unhandled, 1)
+      assert.match(result.failures.join('\n'), /Could not restore the global/)
+      assert.equal(meetsBar(result, 1), false)
+      // The count alone fails the bar: it doesn't lean on the ordering checker noticing the event.
+      assert.equal(meetsBar({ ...result, violations: [] }, 1), false)
     })
   }
 })

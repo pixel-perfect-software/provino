@@ -5,7 +5,8 @@
 //                  → the dialect's globals factory
 //   runFile        back-pressure → file registry → environment `setup` → globals → expect state →
 //                  core (setup files, then the test file, imported inside collection) → teardown
-//   stop           core's worker teardowns → the worker environment → loader → the matcher slot
+//   stop           core's worker teardowns → the worker environment → loader → the matcher slot →
+//                  the worker's lifetime signal
 // The environment and the globals come in by ref, never by import: this node knows no dialect and
 // no environment package.
 import { createRuntime, currentTest, type Runtime } from '@provino/core'
@@ -32,11 +33,15 @@ import type {
   Policy,
 } from '@provino/types'
 import { WorkerError } from '../errors.ts'
+import { parseProjectConfig } from '../internal/runtime/config.ts'
+import {
+  type PreparedEnvironment,
+  prepareEnvironment,
+  setupEnvironment,
+} from '../internal/runtime/environment.ts'
+import { installGlobals } from '../internal/runtime/globals.ts'
+import { assertionCountSink } from '../internal/runtime/sink.ts'
 import type { FileContext, FileOutcome, WorkerContext, WorkerRunner } from '../start.ts'
-import { parseProjectConfig } from './config.ts'
-import { type PreparedEnvironment, prepareEnvironment, setupEnvironment } from './environment.ts'
-import { installGlobals } from './globals.ts'
-import { assertionCountSink } from './sink.ts'
 
 /** Everything `start` built, and what `runFile` needs from it. */
 interface Booted {
@@ -107,6 +112,11 @@ export function createRuntimeRunner(): WorkerRunner {
   let runtime: Runtime | undefined
   /** The environment instance of a worker-scoped environment (isolation `none`). */
   let workerEnvironment: EnvironmentInstance | undefined
+  /**
+   * The lifetime of the worker: what a worker-scoped environment's `signal` is. It outlives the
+   * first file, whose own signal belongs to that file's run, and `stop` aborts it.
+   */
+  const workerLifetime = new AbortController()
   let booted: Booted | undefined
   /** The registry of the file running now, for `importFile` and the globals' `registry()`. */
   let current: FileRegistry | undefined
@@ -144,15 +154,22 @@ export function createRuntimeRunner(): WorkerRunner {
     const expect = createExpect({ policy: policy.expect, table, source, registry })
     const snapshot = snapshotRegistry(registry, expect)
 
+    // `process` is the pool's business (a new process per file) and runs as `registry`.
+    const tier = context.init.isolation === 'process' ? 'registry' : context.init.isolation
+
     // Setup files run inside core's collection, so the hooks they register belong to the file.
     const importFile = async (path: string): Promise<unknown> => {
       const files = activeRegistry()
+      // Under `none` one registry serves every file of the worker, so a module it already
+      // evaluated is cached: the setup files and the test file itself (queued twice, or imported
+      // by an earlier file) are dropped and evaluated again, while their dependencies stay shared.
+      // Every other tier gives the file a new registry, where there is nothing to drop.
+      const shared = tier === 'none'
       for (const setup of [...config.setupFiles, ...config.setupFilesAfterEnv]) {
-        // Fresh for every file in every tier: under `none` the registry is shared, so the setup
-        // module alone is dropped and imported again, while its dependencies stay shared.
-        files.invalidate(setup)
+        if (shared) files.invalidate(setup)
         await files.import(setup)
       }
+      if (shared) files.invalidate(path)
       return await files.import(path)
     }
     const coreRuntime = await createRuntime({
@@ -187,13 +204,15 @@ export function createRuntimeRunner(): WorkerRunner {
       snapshot,
       environment,
       globals,
-      tier: context.init.isolation === 'process' ? 'registry' : context.init.isolation,
+      tier,
     }
   }
 
   /**
-   * The environment instance for a file: a new one for scope `file`, and for scope `worker` the
-   * one made for the first file.
+   * The environment instance for a file: a new one for scope `file` (given the file's `signal`),
+   * and for scope `worker` the one made for the first file (given the worker's lifetime signal,
+   * because it outlives that file; its `testPath` stays the first file's, the only file it was set
+   * up for).
    */
   async function setUpEnvironment(
     worker: Booted,
@@ -206,7 +225,7 @@ export function createRuntimeRunner(): WorkerRunner {
       testPath: context.job.file,
       pragmas: {},
       console: context.console,
-      signal: context.signal,
+      signal: scope === 'worker' ? workerLifetime.signal : context.signal,
     })
     if (scope === 'worker') workerEnvironment = instance
     return instance
@@ -239,14 +258,15 @@ export function createRuntimeRunner(): WorkerRunner {
       // With `none` nothing is isolated, so the environment lives as long as the worker.
       const scope: EnvironmentScope = worker.tier === 'none' ? 'worker' : 'file'
       let instance: EnvironmentInstance | undefined
-      const errors = await runAll([
-        async () => {
-          instance = await setUpEnvironment(worker, scope, context)
-          if (worker.globals !== undefined) installGlobals(instance.global, worker.globals)
-          worker.source.startFile(job.file)
-          await worker.runtime.runFile(job.file, filtersOf(job))
-        },
-      ])
+      const errors: unknown[] = []
+      try {
+        instance = await setUpEnvironment(worker, scope, context)
+        if (worker.globals !== undefined) installGlobals(instance.global, worker.globals)
+        worker.source.startFile(job.file)
+        await worker.runtime.runFile(job.file, filtersOf(job))
+      } catch (error) {
+        errors.push(error)
+      }
 
       // Teardown, always, in this order. A step that throws doesn't stop the next ones.
       errors.push(
@@ -272,6 +292,8 @@ export function createRuntimeRunner(): WorkerRunner {
           () => parts.workerEnvironment?.teardown(),
           () => parts.loader?.[Symbol.dispose](),
           () => parts.slot?.uninstall(),
+          // Last: the worker environment's teardown ran with its signal still live.
+          () => workerLifetime.abort(),
         ]),
         'Stopping the worker runtime failed',
       )

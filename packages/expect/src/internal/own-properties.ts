@@ -6,6 +6,7 @@
  * returns the function that puts `target` back: keys added since are deleted, and any key that is
  * gone or changed is defined again from its saved descriptor. The object stays the same one.
  * A key that can't be deleted or redefined (non-configurable) is left, as `Reflect` reports it.
+ * @internal
  */
 export function snapshotOwnProperties(target: object): () => void {
   const saved = new Map<string | symbol, PropertyDescriptor>()

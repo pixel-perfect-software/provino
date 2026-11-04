@@ -39,13 +39,17 @@ export function fixture(name: string): URL {
   return new URL(`./fixtures/${name}`, import.meta.url)
 }
 
-/** A valid project config; these tests move it around without reading it. */
+/** A valid project config (its refs absolute, as the worker requires); these tests move it around without reading it. */
 const config: SerializedProjectConfig = {
   name: 'test',
   rootDir: '/',
   ci: false,
   policy: serializePolicy(neutralPolicy),
-  environment: { module: '@provino/env-node', export: 'nodeEnvironment', options: {} },
+  environment: {
+    module: fixture('runtime-env.ts').href,
+    export: 'recordingEnvironment',
+    options: {},
+  },
   globals: null,
   setupFiles: [],
   setupFilesAfterEnv: [],

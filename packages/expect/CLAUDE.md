@@ -38,7 +38,7 @@ The neutral `expect` engine (Track 7 R1). It owns the front end, the per-test ma
 5. `snapshotRegistry(registry, expect)`, after `createExpect` has registered the table's matchers (a snapshot taken earlier would restore them away). Pass `expect`, or a file's `expect.extend` asymmetric forms outlive its restore.
 6. Per file, `source.startFile(testPath)`, then the setup files and the test file; after the file, `snapshot.restore()` when the environment is file-scoped.
 
-Per test, `source.stateOf(testId, { attempt, repeat })` (from the last `test-attempt-end`) gives the counts the result needs (`numPassingAsserts`). Core itself reports 0; the orchestrator's assertion-count sink (`worker/runtime/sink.ts`) fills `assertions` and `passingAssertions` on `test-end`.
+Per test, `source.stateOf(testId, { attempt, repeat })` (from the last `test-attempt-end`) gives the counts the result needs (`numPassingAsserts`). Core itself reports 0; the orchestrator's assertion-count sink (`worker/internal/runtime/sink.ts`) fills `assertions` and `passingAssertions` on `test-end`.
 
 ## Not built yet
 

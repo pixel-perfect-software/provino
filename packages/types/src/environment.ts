@@ -78,7 +78,12 @@ export interface Environment<
  * @public
  */
 export interface EnvironmentRef {
-  /** An absolute path, a `file:` URL, or a package specifier the worker can import. */
+  /**
+   * Where the worker imports the environment from: an absolute path, or an absolute URL (a `file:`
+   * URL, usually from `import.meta.resolve`). Not a bare package specifier: the worker would resolve
+   * that from its own location, not the project's, so the coordinator resolves it first and the
+   * worker rejects it (`ORCH_BAD_CONFIG`).
+   */
   readonly module: string
   readonly export: string
   /** What `setup` and `prepare` get as `options`. */

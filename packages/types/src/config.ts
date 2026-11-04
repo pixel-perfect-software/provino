@@ -111,6 +111,10 @@ export interface SerializedLoaderConfig {
  * One project's resolved config as it crosses coordinator → worker, once per worker
  * (`WorkerInit.config`). One project per worker. Functions, plugins and the dialect objects are
  * gone: behaviour is a `ModuleRef`, the environment an `EnvironmentRef`.
+ *
+ * The refs that cross are already resolved: `environment.module` and `globals.module` are each an
+ * absolute path or an absolute URL (a `file:` URL), never a bare package specifier. The
+ * coordinator resolves them; the worker rejects any other with `ORCH_BAD_CONFIG`.
  * @public
  */
 export interface SerializedProjectConfig {
@@ -121,7 +125,7 @@ export interface SerializedProjectConfig {
   readonly ci: boolean
   readonly policy: SerializedPolicy
   readonly environment: EnvironmentRef
-  /** The dialect's globals factory, or `null` for a dialect that injects none. */
+  /** The dialect's globals factory (its `module` absolute, as above), or `null` for a dialect that injects none. */
   readonly globals: ModuleRef<GlobalsFactory> | null
   /** Absolute paths, imported before each test file, first (Jest `setupFiles`). */
   readonly setupFiles: readonly string[]

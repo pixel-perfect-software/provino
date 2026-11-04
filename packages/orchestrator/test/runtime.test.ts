@@ -4,9 +4,17 @@
 // factory. They write to `globalThis.__trace`, which an inline worker shares with the test.
 import assert from 'node:assert/strict'
 import { after, describe, it } from 'node:test'
-import type { FileJob, RuntimeEventOf, TaskId, WorkerEvent } from '@provino/types'
+import { moduleRef } from '@provino/policy'
+import type {
+  FileJob,
+  ModuleMapperFactory,
+  RuntimeEventOf,
+  TaskId,
+  WorkerEvent,
+} from '@provino/types'
 import {
   eventsOf,
+  fixture,
   makeProject,
   type Project,
   runJobs,
@@ -130,6 +138,55 @@ describe('setup files are fresh for every file', () => {
     )
     assert.equal(eventsOf(run.events, 'test-end').length, 0)
     assert.equal(eventsOf(run.events, 'file-end')[0]?.result.state, 'fail')
+  })
+})
+
+describe('invalidating a module before importing it', () => {
+  // `invalidate` resolves the specifier like an import does. Under `none` it is needed (the shared
+  // registry caches); under `registry` the registry is new, so it would be a wasted resolver call
+  // per module per file.
+  const resolutions = async (isolation: 'registry' | 'none') => {
+    const p = await project({
+      'setup.js': '',
+      'a.test.js': "test('a', () => {})",
+    })
+    const config = runtimeConfig(p.dir, {
+      setupFilesAfterEnv: [p.path('setup.js')],
+      loader: {
+        ...runtimeConfig(p.dir).loader,
+        mappers: [
+          {
+            factory: moduleRef<ModuleMapperFactory>(
+              fixture('runtime-mapper.ts').href,
+              'recordingMapper',
+            ),
+            options: null,
+          },
+        ],
+      },
+    })
+    const trace: string[] = []
+    const run = await runJobs({
+      config,
+      isolation,
+      trace,
+      jobs: [runtimeJob(config, p.path('a.test.js'))],
+    })
+    assert.deepEqual(states(run.events), { a: 'pass' })
+    return trace.filter((step) => step.startsWith('resolve '))
+  }
+
+  it('resolves the setup file and the test file once each under registry', async () => {
+    assert.deepEqual(await resolutions('registry'), ['resolve setup.js', 'resolve a.test.js'])
+  })
+
+  it('resolves each of them twice under none: once to invalidate, once to import', async () => {
+    assert.deepEqual(await resolutions('none'), [
+      'resolve setup.js',
+      'resolve setup.js',
+      'resolve a.test.js',
+      'resolve a.test.js',
+    ])
   })
 })
 
@@ -365,11 +422,15 @@ describe('a config the worker cannot use', () => {
       { policy: { ...base.policy, core: null } },
       { environment: undefined },
       { environment: { ...base.environment, module: 3 } },
+      // A ref that crosses must be absolute: the worker can't resolve a package from here.
+      { environment: { ...base.environment, module: '@provino/env-node' } },
+      { globals: { module: '@provino/dialect-jest/runtime', export: 'jestGlobals' } },
       { globals: { module: 'x' } },
       { setupFiles: 'setup.js' },
       { setupFilesAfterEnv: [1] },
       { loader: { ...base.loader, typescript: 'tsc' } },
       { loader: { ...base.loader, extensions: [1] } },
+      { loader: { ...base.loader, mappers: [{ options: null }] } },
     ]) {
       assert.deepEqual(
         await codes(bad(overrides), jobs),
@@ -454,6 +515,57 @@ describe('isolation tiers', () => {
     })
     assert.equal(states(run.events).a, 'pass')
     assert.ok(trace.includes('env:setup file a.test.js {"prepared":true}'))
+  })
+
+  describe('a test file the shared registry already evaluated', () => {
+    // Under `none` the registry outlives the file, so a module it evaluated once is cached.
+    // The test file itself must be evaluated again, or it registers no tests.
+    it('collects its tests each time the same file is queued under none', async () => {
+      const p = await project({
+        'a.test.js': "test('one', () => {})\ntest('two', () => {})",
+      })
+      const config = runtimeConfig(p.dir)
+      const job = runtimeJob(config, p.path('a.test.js'))
+      const run = await runJobs({ config, isolation: 'none', jobs: [job, job] })
+      const collected = eventsOf(run.events, 'file-collect-end')
+      assert.deepEqual(
+        collected.map((event) => event.tasks.filter((task) => task.type === 'test').length),
+        [2, 2],
+      )
+      assert.deepEqual(
+        eventsOf(run.events, 'test-end').map((event) => event.result.state),
+        ['pass', 'pass', 'pass', 'pass'],
+      )
+    })
+
+    it('collects the tests of a file an earlier test file imported, under none', async () => {
+      const p = await project({
+        'a.test.js': "require('./b.test.js')\ntest('a', () => {})",
+        'b.test.js': "test('b', () => {})",
+      })
+      const config = runtimeConfig(p.dir)
+      const run = await runJobs({
+        config,
+        isolation: 'none',
+        jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
+      })
+      const [first, second] = eventsOf(run.events, 'file-collect-end')
+      const names = (event: typeof first) =>
+        event?.tasks.filter((task) => task.type === 'test').map((task) => task.name)
+      assert.deepEqual(names(first), ['b', 'a'])
+      assert.deepEqual(names(second), ['b'])
+    })
+
+    it('is evaluated again under registry too, with a new registry each file', async () => {
+      const p = await project({ 'a.test.js': "test('one', () => {})" })
+      const config = runtimeConfig(p.dir)
+      const job = runtimeJob(config, p.path('a.test.js'))
+      const run = await runJobs({ config, isolation: 'registry', jobs: [job, job] })
+      assert.deepEqual(
+        eventsOf(run.events, 'test-end').map((event) => event.result.state),
+        ['pass', 'pass'],
+      )
+    })
   })
 
   const leaky = {
