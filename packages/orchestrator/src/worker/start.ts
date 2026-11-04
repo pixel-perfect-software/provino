@@ -113,6 +113,9 @@ export function startWorker(
   let queue: Promise<void> = Promise.resolve()
   /** Set when `runner.start` threw: every file is then charged with that error, unrun. */
   let startFailure: { readonly error: unknown } | undefined
+  /** The highest `run` seq received so far, and the last `cancel` (it covers runs up to `through`). */
+  let lastQueued = -1
+  let cancelled: { readonly through: number; readonly reason: Error } | undefined
 
   const rpcOptions: RpcOptions =
     options.serializeError === undefined ? {} : { serializeError: options.serializeError }
@@ -143,16 +146,35 @@ export function startWorker(
     await Promise.all([writeEmpty(process.stdout), writeEmpty(process.stderr)])
   }
 
-  /** Reports an error the runner didn't, as an unhandled error charged to `ownerId`. */
+  /** Reports an error the runner didn't, as an unhandled error charged to `ownerId`. Never throws. */
   const charge = (error: unknown, ownerId: TaskId | null): void => {
+    let serialized: SerializedError
+    try {
+      serialized = (options.serializeError ?? describeError)(error)
+    } catch {
+      serialized = describeError(error)
+    }
     packer.emit({
       type: 'unhandled-error',
       ownerId,
       lastTestId: null,
       origin: 'uncaughtException',
-      error: (options.serializeError ?? describeError)(error),
+      error: serialized,
       t: performance.now(),
     })
+  }
+
+  /**
+   * Waits until everything the file wrote has been sent: stdio first, then the packer, again and
+   * again until nothing is left, so output a floating promise emits as the file ends still goes
+   * before `fileDone`. The caller sends `fileDone` in the same turn as the last empty check.
+   */
+  const settle = async (): Promise<void> => {
+    await flushStdio()
+    for (let round = 0; round < MAX_SETTLE_ROUNDS; round++) {
+      await packer.flush()
+      if (packer.pending === 0) return
+    }
   }
 
   const enqueue = (work: () => Promise<void>): void => {
@@ -160,8 +182,13 @@ export function startWorker(
   }
 
   const runOne = async (seq: number, job: FileJob): Promise<void> => {
+    // The coordinator is gone: a queued file never starts.
+    if (finished) return
     const controller = new AbortController()
+    if (cancelled !== undefined && seq <= cancelled.through) controller.abort(cancelled.reason)
     current = controller
+    // Each file gets a fresh console: an open group, a count or a timer stays with its file.
+    capture.reset()
     let leakedHandles = 0
     try {
       if (startFailure !== undefined) throw startFailure.error
@@ -173,10 +200,13 @@ export function startWorker(
     } finally {
       current = undefined
     }
-    await packer.flush()
-    await flushStdio()
-    if (!finished)
-      port.send({ t: 'fileDone', seq, memoryBytes: measureMemory(init), leakedHandles })
+    try {
+      await settle()
+    } finally {
+      if (!finished) {
+        port.send({ t: 'fileDone', seq, memoryBytes: measureMemory(init), leakedHandles })
+      }
+    }
   }
 
   port.onExit(finish)
@@ -202,23 +232,30 @@ export function startWorker(
         return
       }
       case 'run':
+        lastQueued = Math.max(lastQueued, message.seq)
         enqueue(() => runOne(message.seq, message.job))
         return
       case 'ack':
         packer.ack(message.pack)
         return
-      case 'cancel':
-        current?.abort(new Error(`Cancelled: ${message.reason}`))
+      case 'cancel': {
+        // It covers the running file and every file already queued; later runs are new work.
+        const reason = new Error(`Cancelled: ${message.reason}`)
+        cancelled = { through: lastQueued, reason }
+        current?.abort(reason)
         return
+      }
       case 'stop':
         enqueue(async () => {
-          await packer.flush()
-          await flushStdio()
-          installed?.restore()
-          installed = undefined
-          port.send({ t: 'stopped' })
-          port.close()
-          finish()
+          try {
+            await settle()
+          } finally {
+            installed?.restore()
+            installed = undefined
+            port.send({ t: 'stopped' })
+            port.close()
+            finish()
+          }
         })
         return
       case 'call':
@@ -242,13 +279,24 @@ function measureMemory(init: WorkerInit | undefined): number {
   return heapUsed + external
 }
 
-/** A thrown value as a `SerializedError`, when no serializer was given. */
+/** How many times `settle` re-flushes before giving up on output that keeps coming. */
+const MAX_SETTLE_ROUNDS = 100
+
+/**
+ * A thrown value as a `SerializedError`, when no serializer was given. Never throws: a value
+ * with no string form (a null-prototype object) or a throwing getter gets a fixed description.
+ */
 function describeError(error: unknown): SerializedError {
-  if (!(error instanceof Error)) return { name: 'Error', message: String(error) }
-  return {
-    name: error.name,
-    message: error.message,
-    ...(error.stack === undefined ? {} : { stack: error.stack }),
+  try {
+    if (!(error instanceof Error)) return { name: 'Error', message: String(error) }
+    const { stack } = error
+    return {
+      name: String(error.name),
+      message: String(error.message),
+      ...(typeof stack === 'string' ? { stack } : {}),
+    }
+  } catch {
+    return { name: 'Error', message: 'A thrown value that can’t be described' }
   }
 }
 

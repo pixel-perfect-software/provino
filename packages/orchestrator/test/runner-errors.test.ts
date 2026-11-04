@@ -57,3 +57,41 @@ describe('a runner that throws', () => {
     )
   })
 })
+
+for (const kind of ['forks', 'threads'] as const) {
+  describe(`${kind}: output a file leaves behind`, () => {
+    it('arrives before its fileDone', async () => {
+      const transport = await factoryFor(kind, { entry: fixture('late-worker.ts') }).create(
+        initFor(kind),
+      )
+      const order: string[] = []
+      transport.onMessage((message) => {
+        if (message.t === 'pack') {
+          for (const e of message.events) if (e.type === 'annotation') order.push(e.message)
+        }
+        if (message.t === 'fileDone') order.push(`fileDone ${message.seq}`)
+      })
+      const connection = connectWorker(transport, {
+        methods: {
+          resolveSnapshotPath: async (file) => file,
+          writeSnapshot: async () => {},
+          readTimings: async () => undefined,
+        },
+        onEvents: () => {},
+      })
+      for (const file of ['a', 'b', 'c']) await connection.run(job(file))
+      await transport.terminate(false)
+      assert.deepEqual(order, [
+        'during',
+        'late',
+        'fileDone 0',
+        'during',
+        'late',
+        'fileDone 1',
+        'during',
+        'late',
+        'fileDone 2',
+      ])
+    })
+  })
+}

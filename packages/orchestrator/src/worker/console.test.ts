@@ -154,4 +154,51 @@ describe('createConsoleCapture', () => {
     stdout.write('')
     assert.equal(events.length, 0)
   })
+
+  it('reset gives a fresh console: no open group or count carries over', () => {
+    const { c, events } = capture()
+    c.console.group('open')
+    c.console.count('n')
+    c.reset()
+    c.console.log('after')
+    c.console.count('n')
+    assert.deepEqual(
+      events.map((e) => e.text),
+      ['open\n', '  n: 1\n', 'after\n', 'n: 1\n'],
+    )
+  })
+
+  it('records a console call made while another prints under its own level', () => {
+    const { c, events } = capture()
+    const noisy = {
+      [Symbol.for('nodejs.util.inspect.custom')]: () => {
+        c.console.error('inner')
+        return 'outer'
+      },
+    }
+    c.console.log(noisy)
+    assert.deepEqual(
+      brief(events).map(({ stream, level, text }) => [stream, level, text]),
+      [
+        ['stderr', 'error', 'inner\n'],
+        ['stdout', 'log', 'outer\n'],
+      ],
+    )
+  })
+
+  it('decodes direct writes as a real stream does', () => {
+    const { c, events } = capture()
+    const stdout = stream()
+    c.install({ stdout, stderr: stream() })
+    stdout.write(Buffer.from('héllo'), 'latin1') // a Buffer's encoding is ignored
+    stdout.write('68690a', 'hex') // a string's is applied
+    stdout.write(Buffer.from('ok'), 'buffer')
+    const euro = Buffer.from('€\n')
+    stdout.write(euro.subarray(0, 1)) // a character split across writes
+    stdout.write(euro.subarray(1))
+    assert.deepEqual(
+      events.map((e) => e.text),
+      ['héllo', 'hi\n', 'ok', '€\n'],
+    )
+  })
 })

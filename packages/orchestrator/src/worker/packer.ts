@@ -53,6 +53,8 @@ export interface Packer {
   writable(): Promise<void>
   /** Packs sent and not yet acked. */
   readonly inFlight: number
+  /** Events emitted and not yet sent. */
+  readonly pending: number
 }
 
 /**
@@ -78,10 +80,41 @@ export function createPacker(
 
   const inFlight = (): number => nextPack - 1 - lastAcked
 
+  /**
+   * Sends one pack, and never throws. A pack that fails to send (an event that can't be cloned,
+   * against the `CloneSafe` event contract) goes again with each unclonable event replaced by an
+   * `unhandled-error` saying what was dropped; if that fails too, one error stands for the pack.
+   */
+  const sendPack = (pack: number, events: readonly WorkerEvent[]): void => {
+    try {
+      send({ t: 'pack', pack, events })
+      return
+    } catch (error) {
+      try {
+        send({
+          t: 'pack',
+          pack,
+          events: events.map((e) => (clones(e) ? e : unsendable(e, error))),
+        })
+        return
+      } catch (again) {
+        try {
+          send({
+            t: 'pack',
+            pack,
+            events: [unsendable({ type: 'pack', t: events[0]?.t ?? 0 }, again)],
+          })
+        } catch {
+          // Only a link that is already gone fails a send of plain strings; its exit reports it.
+        }
+      }
+    }
+  }
+
   const pump = (): void => {
     while (waiting.length > 0 && inFlight() < maxInFlight) {
-      const events = waiting.shift() as WorkerEvent[]
-      send({ t: 'pack', pack: nextPack++, events })
+      sendPack(nextPack, waiting.shift() as WorkerEvent[])
+      nextPack++
     }
     for (let i = flushWaiters.length - 1; i >= 0; i--) {
       const waiter = flushWaiters[i] as (typeof flushWaiters)[number]
@@ -137,5 +170,38 @@ export function createPacker(
     get inFlight() {
       return inFlight()
     },
+    get pending() {
+      return buffer.length + waiting.reduce((sum, events) => sum + events.length, 0)
+    },
+  }
+}
+
+/** Whether an event survives structured clone (what every link's serializer does). */
+function clones(event: WorkerEvent): boolean {
+  try {
+    structuredClone(event)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The event that stands in for one that couldn't be sent. */
+function unsendable(
+  event: { readonly type: string; readonly t: number },
+  error: unknown,
+): WorkerEvent {
+  const reason = error instanceof Error ? error.message : String(error)
+  return {
+    type: 'unhandled-error',
+    ownerId: null,
+    lastTestId: null,
+    origin: 'uncaughtException',
+    error: {
+      name: 'Error',
+      message: `The worker's ${event.type} event couldn’t be sent to the coordinator, so it was dropped: ${reason}`,
+      code: 'ORCH_UNSENDABLE_EVENT',
+    },
+    t: event.t,
   }
 }
