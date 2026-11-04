@@ -13,8 +13,10 @@ import {
   type MatcherRegistry,
   type MatcherResultError,
   type MatchersSlot,
+  type RegistrySnapshot,
   type SlotHandle,
   type StateSource,
+  snapshotRegistry,
 } from '@provino/expect'
 import type {
   Assertion,
@@ -34,6 +36,10 @@ expectTypeOf(createStateSource).returns.toEqualTypeOf<StateSource>()
 expectTypeOf(createMatcherRegistry).returns.toEqualTypeOf<MatcherRegistry>()
 expectTypeOf(installMatchersSlot).returns.toEqualTypeOf<SlotHandle>()
 expectTypeOf(MATCHERS_SLOT).toEqualTypeOf<typeof MATCHERS_SLOT>()
+expectTypeOf(snapshotRegistry).parameter(0).toEqualTypeOf<MatcherRegistry>()
+expectTypeOf(snapshotRegistry).parameter(1).toEqualTypeOf<ExpectStatic | undefined>()
+expectTypeOf(snapshotRegistry).returns.toEqualTypeOf<RegistrySnapshot>()
+expectTypeOf<RegistrySnapshot>().toEqualTypeOf<{ restore(): void }>()
 expectTypeOf<MatchersSlot['state']>().toEqualTypeOf<MatcherState>()
 expectTypeOf<ExpectError['code']>().toEqualTypeOf<ExpectErrorCode>()
 expectTypeOf<MatcherResultError>().toExtend<Error>()
@@ -65,6 +71,13 @@ createExpect({ policy: options.policy, source: options.source })
 createStateSource(currentTest, { nameSeparator: ' ' })
 // @ts-expect-error the slot needs the registry `createExpect` will fill
 installMatchersSlot(options.source)
+// @ts-expect-error a snapshot is of a registry, not of an `expect`
+snapshotRegistry(expect)
+// @ts-expect-error the second argument is the `expect` function, not its registry
+snapshotRegistry(createMatcherRegistry(), createMatcherRegistry())
+snapshotRegistry(createMatcherRegistry(), expect).restore()
+// @ts-expect-error `restore` takes nothing
+snapshotRegistry(createMatcherRegistry()).restore(1)
 // @ts-expect-error the base is abstract
 new AsymmetricMatcher(1)
 

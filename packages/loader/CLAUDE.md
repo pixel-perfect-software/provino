@@ -9,10 +9,19 @@ The module loader (Track 2): a two-phase module-runner engine. One `Loader` per 
   - its static deps resolved once;
   - compiled once with `vm.runInThisContext`, with `filename` set to the real path.
 
-  `linkAsync`/`linkSync` walk the static graph. Externals (anything under `node_modules` that `inline` doesn't match, plus addons and builtins) are loaded natively and shared: `import()` when async, `require`/`require(esm)` when sync. `asyncGraph` marks top-level-await subgraphs, as a fixed point over cycles.
+  `linkAsync`/`linkSync` walk the static graph. Externals (anything under `node_modules` that `inline` doesn't match, plus addons and builtins) are loaded natively and shared: `import()` when async, `require`/`require(esm)` when sync. `asyncGraph` marks top-level-await subgraphs, as a fixed point over cycles. `markAsyncGraphs` scans every record in the worker, so it runs only while `Records.asyncGraphsStale` is set: a new record, a record linked and every `resolved` write (through `setResolved`) set it, and the scan clears it. A cached `require` changes none of those, so it skips the scan.
 - **Per file: `src/internal/registry.ts`.** A stack of instance maps; the top one is live, and `isolateModules` pushes a fresh one. Evaluation calls a record's compiled wrapper with fresh linkers, so module state is per registry while compiled code is shared.
+  - `resetModules` empties every layer in place and keeps the stack's depth, so a reset inside `isolateModules` leaves the registry (under `none`, the worker's shared one) usable.
+  - `isolate`/`isolateAsync` remove the map they pushed, by identity, not whatever is on top: overlapping async isolates each drop only their own map. They still share the one stack, so whichever pushed last is live for both; there is no per-call context. The loader has no nesting ban; Jest's "cannot be nested" error belongs to the Jest dialect.
 
 `src/loader.ts` holds `createLoader` and the tiers. `registry` creates a new `Registry` per file; `none` reuses one per loader.
+
+`src/project.ts` holds `createProjectLoader(root, config, policy.module)`: the worker's way in. It builds the resolver and the transform pipeline from a clone-safe `SerializedLoaderConfig` (the worker entry may not import either), loads the config's mappers by `ModuleRef` (so it is async), and calls `createLoader` with the runner engine. Hoisting and the transform cache are off until their tasks (B13, T3.6).
+
+- **`tsconfig`:** `'auto'` and `false` pass through. Any other string is a file path, resolved against `root` (never the process cwd) for both the resolver and the pipeline, and it must be a file: otherwise `createProjectLoader` rejects with `LOADER_TSCONFIG_NOT_FOUND`, naming the resolved path.
+- **Mappers:** each factory's result must be an object with a string `id` and a `map` function. A factory that throws (the error is the `cause`) or returns anything else rejects with `LOADER_INVALID_MAPPER`, naming `loader.mappers[<i>]`. Factories are called synchronously, as `ModuleMapperFactory` says.
+
+`FileRegistry.invalidate(specifier, parent?)` drops the live instance of the user module the specifier resolves to, in the top map of an `isolateModules` stack. It resolves the specifier as an `import` and as a `require` and drops both ids, since a package's `exports` can map the two to different files and either may be the loaded one (a kind that doesn't resolve is skipped). The module evaluates again on its next import; its dependencies and modules that already imported it keep their instances. An external, a builtin, a module never loaded and a specifier that doesn't resolve are no-ops. Under `none` the registry is shared, so it reaches every file of the worker.
 
 ## The wrapper shape (oxc's runner output, Vite's shape)
 

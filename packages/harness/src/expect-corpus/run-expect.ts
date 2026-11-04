@@ -1,8 +1,8 @@
 // Runs one expect-corpus test file through `@provino/core` with the Jest dialect's `expect`
 // (B08's temporary entry before `provino/node` exists, DECISIONS S4), in the boot order the worker
 // will use (U1): state source, slot, the table loaded by `ModuleRef`, then `expect`. Each test is
-// reduced to what a golden records: status, the failures' text as Jest's JSON would carry it, and
-// the passing-assertion count.
+// reduced to what a golden records: status, the failures' text and matcher name as Jest's JSON
+// would carry them, and the passing-assertion count.
 import { pathToFileURL } from 'node:url'
 import { createRuntime, currentTest } from '@provino/core'
 import { jestExpectPolicy } from '@provino/dialect-jest'
@@ -26,22 +26,34 @@ import { ModuleMocker } from 'jest-mock'
 import { installGlobals } from '../internal/globals.ts'
 import { type Reported, reported } from '../runtime-corpus/run-core.ts'
 
+/** One failure of a test: what Jest's JSON holds for it. */
+export interface ExpectFailure {
+  /**
+   * Jest's `failureMessages` entry: the error's `stack`, or its message when there is none
+   * (jest-circus `getErrorStack`).
+   */
+  readonly text: string
+  /** Jest's `failureDetails[i].matcherResult.name`; absent for an error no matcher made. */
+  readonly matcher?: string
+}
+
 /** A test as the comparison sees it. */
 export interface ExpectTest {
   readonly path: readonly string[]
   readonly dupIndex: number
   readonly status: Reported
-  /**
-   * Each failure as Jest's `failureMessages` holds it: the error's `stack`, or its message when
-   * there is none (jest-circus `getErrorStack`).
-   */
-  readonly failures: readonly string[]
+  readonly failures: readonly ExpectFailure[]
   readonly passingAssertions: number
 }
 
 /** Jest's `failureMessages` entry for one error (jest-circus `utils.ts` `getErrorStack`). */
 function failureText(error: SerializedError): string {
   return typeof error.stack === 'string' && error.stack !== '' ? error.stack : error.message
+}
+
+function failureOf(error: SerializedError): ExpectFailure {
+  const matcher = error.matcherResult?.name
+  return { text: failureText(error), ...(matcher === undefined ? {} : { matcher }) }
 }
 
 /**
@@ -129,7 +141,7 @@ export function summarizeExpectRun(
       path: task.fullName,
       dupIndex: task.dupIndex,
       status,
-      failures: event.result.errors.map(failureText),
+      failures: event.result.errors.map(failureOf),
       passingAssertions: run === undefined ? 0 : (stateOf(event.id, run)?.numPassingAsserts ?? 0),
     })
   }

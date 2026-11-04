@@ -3,6 +3,7 @@
 // (B10), typed by the signatures here. Track 8's `TestEventLike` placeholder is `RuntimeEvent`:
 // Track 5 owns the real type.
 import type { Context } from 'node:vm'
+import type { JsonValue } from './clone-safe.ts'
 import type { RuntimeEvent } from './runtime/events.ts'
 
 /**
@@ -35,6 +36,17 @@ export interface EnvironmentSetupContext<Options> {
 }
 
 /**
+ * What a `teardown` reports when it left something behind (decision D22): an unremovable global is
+ * a warning, not a failure. The file passes; the worker warns and tells the coordinator, which
+ * recycles the worker.
+ * @public
+ */
+export interface EnvironmentTeardownReport {
+  /** Global keys the teardown could not restore, as strings (`String(symbol)` for a symbol key): a key a test added that can't be deleted, or a changed key that can't be redefined. Later files in this worker still see them. */
+  readonly leakedGlobals: readonly string[]
+}
+
+/**
  * A set-up environment.
  * @public
  */
@@ -45,7 +57,13 @@ export interface EnvironmentInstance<G extends object = typeof globalThis> {
   readonly context?: Context
   /** Jest's `handleTestEvent`: sees every runtime event of the file. */
   onTestEvent?(event: RuntimeEvent): void | Promise<void>
-  teardown(): void | Promise<void>
+  /**
+   * Puts the global back. Returning nothing means a clean teardown; returning a report means it
+   * restored everything it could and names the keys it could not. Throw only for an unexpected
+   * failure, which fails the file.
+   */
+  // biome-ignore lint/suspicious/noConfusingVoidType: `Promise<void>` from an `async teardown() {}` must stay assignable; `undefined` would reject it.
+  teardown(): void | EnvironmentTeardownReport | Promise<void | EnvironmentTeardownReport>
 }
 
 /**
@@ -68,6 +86,25 @@ export interface Environment<
     context: EnvironmentSetupContext<Options>,
     prepared: unknown,
   ): EnvironmentInstance<G> | Promise<EnvironmentInstance<G>>
+}
+
+/**
+ * Where a worker finds its `Environment`: the module and the export that holds it, plus the
+ * options its `setup` receives. A ref to a *value*, not a function, so it can't be a `ModuleRef`;
+ * it has the same `{ module, export }` shape, and crosses threads as data.
+ * @public
+ */
+export interface EnvironmentRef {
+  /**
+   * Where the worker imports the environment from: an absolute path, or an absolute URL (a `file:`
+   * URL, usually from `import.meta.resolve`). Not a bare package specifier: the worker would resolve
+   * that from its own location, not the project's, so the coordinator resolves it first and the
+   * worker rejects it (`ORCH_BAD_CONFIG`).
+   */
+  readonly module: string
+  readonly export: string
+  /** What `setup` and `prepare` get as `options`. */
+  readonly options: { readonly [key: string]: JsonValue }
 }
 
 /**

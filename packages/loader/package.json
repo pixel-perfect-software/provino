@@ -30,11 +30,9 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@provino/policy": "workspace:*",
+    "@provino/resolver": "workspace:*",
     "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*"
-  },
-  "devDependencies": {
-    "@provino/resolver": "workspace:*",
-    "@provino/policy": "workspace:*"
   }
 }

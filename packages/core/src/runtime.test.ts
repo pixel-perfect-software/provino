@@ -5,7 +5,7 @@ import { describe, test } from 'node:test'
 import { createBehaviourLoader } from '@provino/policy'
 import type { RuntimeEvent } from '@provino/types'
 import { policyWith, reached, runScript } from './internal/test-support.ts'
-import { createRuntime, type Runtime } from './runtime.ts'
+import { createRuntime, type RunFileOptions, type Runtime, type RuntimeOptions } from './runtime.ts'
 
 describe('runFile', () => {
   test('reports the path relative to rootDir, with forward slashes', async () => {
@@ -108,6 +108,231 @@ describe('runFile', () => {
       late[0]?.type === 'unhandled-error' && late[0].error.code,
       'CORE_LATE_REGISTRATION',
     )
+  })
+})
+
+describe('filters given to one runFile', () => {
+  /** What one `runFile` did: each test’s state by name, and each test’s id by name. */
+  interface FileRun {
+    readonly states: Readonly<Record<string, string>>
+    readonly ids: Readonly<Record<string, string>>
+  }
+
+  /**
+   * Runs the same file once per entry of `runs` through one runtime built with `runtimeOptions`;
+   * the file registers the tests `a`, `b` and `c`.
+   */
+  async function runEach(
+    runtimeOptions: Partial<RuntimeOptions>,
+    runs: readonly RunFileOptions[],
+  ): Promise<FileRun[]> {
+    const events: RuntimeEvent[] = []
+    const runtime = await createRuntime({
+      policy: policyWith(),
+      behaviours: createBehaviourLoader(),
+      sink: { emit: (event) => events.push(event) },
+      importFile: async () => {
+        for (const name of ['a', 'b', 'c']) runtime.api.test(name, () => {})
+      },
+      rootDir: '/project',
+      ...runtimeOptions,
+    })
+    const results: FileRun[] = []
+    for (const options of runs) {
+      events.length = 0
+      await runtime.runFile('/project/x.test.ts', options)
+      const names = new Map<string, string>()
+      for (const event of events) {
+        if (event.type !== 'file-collect-end') continue
+        for (const task of event.tasks) if (task.type === 'test') names.set(task.id, task.name)
+      }
+      results.push({
+        states: Object.fromEntries(
+          events.flatMap((event) =>
+            event.type === 'test-end' ? [[names.get(event.id), event.result.state]] : [],
+          ),
+        ),
+        ids: Object.fromEntries([...names].map(([id, name]) => [name, id])),
+      })
+    }
+    return results
+  }
+
+  const only = (name: string): Record<string, string> => ({
+    a: name === 'a' ? 'pass' : 'skip',
+    b: name === 'b' ? 'pass' : 'skip',
+    c: name === 'c' ? 'pass' : 'skip',
+  })
+
+  test('a testNamePattern replaces the runtime’s for that file only', async () => {
+    const [override, regexp, inherited] = await runEach({ testNamePattern: 'a' }, [
+      { testNamePattern: 'b' },
+      { testNamePattern: /C/i },
+      {},
+    ])
+    assert.deepEqual(override?.states, only('b'))
+    assert.deepEqual(regexp?.states, only('c'))
+    assert.deepEqual(inherited?.states, only('a'), 'the next file is back to the runtime’s')
+  })
+
+  test('a string pattern is compiled with the policy’s flags', async () => {
+    const [sensitive] = await runEach({}, [{ testNamePattern: 'B' }])
+    assert.deepEqual(sensitive?.states, { a: 'skip', b: 'skip', c: 'skip' })
+    const [insensitive] = await runEach({ policy: policyWith({ testNamePatternFlags: 'i' }) }, [
+      { testNamePattern: 'B' },
+    ])
+    assert.deepEqual(insensitive?.states, only('b'))
+  })
+
+  test('testIds replace the runtime’s for that file only', async () => {
+    const [first] = await runEach({}, [{}])
+    const ids = first?.ids ?? {}
+    const [override, inherited] = await runEach({ testIds: [ids.a ?? ''] }, [
+      { testIds: [ids.c ?? ''] },
+      {},
+    ])
+    assert.deepEqual(override?.states, only('c'))
+    assert.deepEqual(inherited?.states, only('a'), 'the next file is back to the runtime’s')
+  })
+
+  test('without filters of its own or the runtime’s, every test runs', async () => {
+    const [run] = await runEach({}, [{}])
+    assert.deepEqual(run?.states, { a: 'pass', b: 'pass', c: 'pass' })
+  })
+})
+
+/** A runtime whose files each register the test `a`; `imports` counts the files it imported. */
+async function runtimeWithEvents() {
+  const events: RuntimeEvent[] = []
+  const imports: string[] = []
+  const runtime = await createRuntime({
+    policy: policyWith(),
+    behaviours: createBehaviourLoader(),
+    sink: { emit: (event) => events.push(event) },
+    importFile: async (path) => {
+      imports.push(path)
+      runtime.api.test('a', () => {})
+    },
+    rootDir: '/project',
+  })
+  return { runtime, events, imports }
+}
+
+describe('an invalid testNamePattern given to one runFile', () => {
+  test('fails the file before it is imported, with the collect pair and then file-end', async () => {
+    const { runtime, events, imports } = await runtimeWithEvents()
+    const result = await runtime.runFile('/project/x.test.ts', { testNamePattern: 'foo(' })
+
+    assert.deepEqual(imports, [], 'the file is never imported')
+    assert.deepEqual(
+      events.map((event) => event.type),
+      ['file-collect-start', 'file-collect-end', 'file-end'],
+    )
+    const collected = events[1]
+    assert.ok(collected?.type === 'file-collect-end')
+    assert.deepEqual(collected.tasks, [])
+    const [error] = collected.errors
+    assert.equal(error?.code, 'CORE_INVALID_ARGUMENT')
+    assert.equal(error?.cause?.name, 'SyntaxError', 'the SyntaxError is kept as the cause')
+    assert.match(error?.message ?? '', /foo\(/)
+    assert.equal(result.state, 'fail')
+    assert.equal(result.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
+    const end = events[2]
+    assert.ok(end?.type === 'file-end')
+    assert.equal(end.result.state, 'fail')
+  })
+
+  test('leaves the runtime usable: the next file runs with its own filters', async () => {
+    const { runtime, events, imports } = await runtimeWithEvents()
+    await runtime.runFile('/project/x.test.ts', { testNamePattern: '(' })
+    events.length = 0
+    const result = await runtime.runFile('/project/y.test.ts', { testNamePattern: 'a' })
+    assert.deepEqual(imports, ['/project/y.test.ts'])
+    assert.equal(result.state, 'pass')
+    assert.deepEqual(
+      events.filter((event) => event.type === 'test-end').map((event) => event.result.state),
+      ['pass'],
+    )
+  })
+})
+
+describe('a per-file filter of the wrong type given to one runFile', () => {
+  // `FileJob` crosses a link unvalidated, so these arrive as they are, whatever the types say.
+  const WRONG = [
+    ['testNamePattern', null],
+    ['testNamePattern', 5],
+    ['testNamePattern', {}],
+    ['testIds', null],
+    ['testIds', 5],
+    ['lines', null],
+    ['lines', 5],
+  ] as const
+
+  for (const [option, value] of WRONG) {
+    test(`${option}: ${JSON.stringify(value)} fails the file before it is imported, naming the option`, async () => {
+      const { runtime, events, imports } = await runtimeWithEvents()
+      const options = { [option]: value } as RunFileOptions
+      const result = await runtime.runFile('/project/x.test.ts', options)
+
+      assert.deepEqual(imports, [], 'the file is never imported')
+      assert.deepEqual(
+        events.map((event) => event.type),
+        ['file-collect-start', 'file-collect-end', 'file-end'],
+      )
+      const collected = events[1]
+      assert.ok(collected?.type === 'file-collect-end')
+      assert.deepEqual(collected.tasks, [])
+      assert.equal(collected.errors.length, 1)
+      assert.equal(collected.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
+      assert.match(
+        collected.errors[0]?.message ?? '',
+        new RegExp(`^Invalid ${option} for x\\.test\\.ts`),
+      )
+      assert.equal(result.state, 'fail')
+    })
+  }
+
+  test('leaves the runtime usable for the next file', async () => {
+    const { runtime, imports } = await runtimeWithEvents()
+    await runtime.runFile('/project/x.test.ts', { testIds: null } as unknown as RunFileOptions)
+    const result = await runtime.runFile('/project/y.test.ts', { testIds: [] })
+    assert.deepEqual(imports, ['/project/y.test.ts'])
+    assert.equal(result.state, 'skip', 'an empty testIds array selects no test')
+  })
+})
+
+describe('a file whose finalize throws', () => {
+  /** A `-t` pattern whose match throws when `finalize` applies it to a test. */
+  class ExplodingPattern extends RegExp {
+    override test(): boolean {
+      throw new Error('pattern exploded')
+    }
+  }
+
+  test('still reports its collect pair, with no tasks and the error, then a failed file-end', async () => {
+    const { runtime, events, imports } = await runtimeWithEvents()
+    const result = await runtime.runFile('/project/x.test.ts', {
+      testNamePattern: new ExplodingPattern('a'),
+    })
+
+    assert.deepEqual(imports, ['/project/x.test.ts'])
+    assert.deepEqual(
+      events.map((event) => event.type),
+      ['file-collect-start', 'file-collect-end', 'file-end'],
+    )
+    const collected = events[1]
+    assert.ok(collected?.type === 'file-collect-end')
+    assert.deepEqual(collected.tasks, [])
+    assert.equal(collected.errors[0]?.message, 'pattern exploded')
+    assert.equal(result.state, 'fail')
+    assert.equal(result.errors[0]?.message, 'pattern exploded')
+  })
+
+  test('leaves the runtime usable for the next file', async () => {
+    const { runtime } = await runtimeWithEvents()
+    await runtime.runFile('/project/x.test.ts', { testNamePattern: new ExplodingPattern('a') })
+    const result = await runtime.runFile('/project/y.test.ts')
+    assert.equal(result.state, 'pass')
   })
 })
 

@@ -14,6 +14,7 @@ import {
   type Records,
   recordFor,
   resolveTarget,
+  setResolved,
   type Target,
 } from './records.ts'
 
@@ -71,10 +72,13 @@ function cjsView(module: { exports: unknown }, interop: ModulePolicy['interopDef
   return namespace
 }
 
-/** One stack of instance maps: the top is used; `isolateModules` pushes a fresh one. */
+/**
+ * One stack of instance maps: the top is used; `isolateModules` pushes a fresh one and removes
+ * that same map when it finishes, wherever it ended up in the stack.
+ */
 export class Registry {
   readonly #state: Records
-  #maps: Map<ModuleId, Instance>[]
+  readonly #maps: Map<ModuleId, Instance>[]
 
   constructor(state: Records, base: Map<ModuleId, Instance> = new Map()) {
     this.#state = state
@@ -91,26 +95,64 @@ export class Registry {
     return [...new Set(this.#maps.flatMap((map) => [...map.keys()]))]
   }
 
+  /**
+   * Empties every layer of the stack and keeps its depth, so an `isolateModules` call that is
+   * still running removes its own (now empty) map when it finishes.
+   */
   reset(): void {
-    this.#maps = [new Map()]
+    for (const map of this.#maps) map.clear()
+  }
+
+  /**
+   * Drops the live instance of the user module `specifier` resolves to from `importer`, so its
+   * next import or require evaluates it again. The specifier is resolved as an `import` and as a
+   * `require`, since a package's `exports` can map them to different files and either may be the
+   * one that was loaded. Records stay (compiled code is shared), and so does every other
+   * instance: the module's dependencies keep theirs. An external, a builtin, a module that was
+   * never loaded or a specifier that doesn't resolve (for that kind) is a no-op; the import
+   * itself reports the last one.
+   */
+  invalidate(specifier: string, importer: string): void {
+    for (const kind of ['import', 'require'] as const) {
+      let target: Target
+      try {
+        target = resolveTarget(this.#state, specifier, importer, kind)
+      } catch (error) {
+        if (error instanceof LoaderError && error.code === 'ERR_MODULE_NOT_FOUND') continue
+        throw error
+      }
+      if (target.kind === 'user') this.#instances.delete(target.id)
+    }
   }
 
   isolate<R>(fn: () => R): R {
-    this.#maps.push(new Map())
+    const map = this.#push()
     try {
       return fn()
     } finally {
-      this.#maps.pop()
+      this.#remove(map)
     }
   }
 
   async isolateAsync<R>(fn: () => Promise<R>): Promise<R> {
-    this.#maps.push(new Map())
+    const map = this.#push()
     try {
       return await fn()
     } finally {
-      this.#maps.pop()
+      this.#remove(map)
     }
+  }
+
+  #push(): Map<ModuleId, Instance> {
+    const map = new Map<ModuleId, Instance>()
+    this.#maps.push(map)
+    return map
+  }
+
+  /** Removes `map` itself, not whatever is on top: isolated calls can overlap and finish in any order. */
+  #remove(map: Map<ModuleId, Instance>): void {
+    const index = this.#maps.lastIndexOf(map)
+    if (index > 0) this.#maps.splice(index, 1)
   }
 
   /** `import(specifier)` from `importer`: link asynchronously, then evaluate. */
@@ -278,7 +320,7 @@ export class Registry {
     if (target !== undefined) return target
     const kind = record.format === 'cjs' ? 'require' : 'import'
     const resolved = resolveTarget(this.#state, specifier, record.path, kind)
-    record.resolved.set(specifier, resolved)
+    setResolved(this.#state, record, specifier, resolved)
     return resolved
   }
 

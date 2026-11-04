@@ -2,8 +2,10 @@
 // `ready` → `start` handshake and its timeout, Track 9's shutdown, and stdio piped with
 // `end: false`.
 import assert from 'node:assert/strict'
-import { ChildProcess } from 'node:child_process'
+import { ChildProcess, spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { describe, it } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { connectWorker, OrchestratorError, type WorkerConnection } from '@provino/orchestrator'
 import type { PoolKind, Transport, WorkerExit, WorkerInit } from '@provino/types'
 import {
@@ -209,5 +211,96 @@ describe('inline transport', () => {
       factoryFor('inline', { entry: fixture('../support.ts') }).create(initFor('inline')),
       { code: 'ORCH_BAD_ENTRY' },
     )
+  })
+
+  it('reports a main that throws as exit code 1, after printing it', async () => {
+    const stderr = new Collect()
+    await assert.rejects(
+      factoryFor('inline', { entry: fixture('throwing-main.ts'), stderr }).create(
+        initFor('inline'),
+      ),
+      (error: unknown) => {
+        assert.ok(error instanceof OrchestratorError)
+        assert.equal(error.code, 'ORCH_WORKER_EXITED')
+        assert.deepEqual(error.cause, { type: 'exit', code: 1 })
+        return true
+      },
+    )
+    assert.match(stderr.text, /boom from the main/)
+  })
+
+  // The worker has ended once its main has settled and its link has closed. `startWorker` settles
+  // after the runner's best-effort `stop`, so a kill is not reported before that teardown is done,
+  // and the next inline worker in this process boots after it.
+  it('reports a killed worker only after its runner.stop has finished, even one that awaits a macrotask', async () => {
+    const steps: string[] = []
+    Reflect.set(globalThis, '__steps', steps)
+    try {
+      for (const workerId of [1, 2]) {
+        const transport = await factoryFor('inline', {
+          entry: fixture('slow-stop-worker.ts'),
+        }).create(initFor('inline', workerId))
+        const connection = connectWorker(transport, { methods, onEvents: () => {} })
+        // A round trip: the worker's `start` has run once its `fileDone` is back.
+        await connection.run(job(`file-${workerId}`))
+        await transport.terminate(true)
+        assert.deepEqual(await connection.exited, { type: 'exit', code: 0 })
+        // The exit is not reported before the stop has ended.
+        assert.equal(steps.at(-1), `stopped ${workerId}`)
+      }
+    } finally {
+      Reflect.deleteProperty(globalThis, '__steps')
+    }
+    assert.deepEqual(steps, ['start 1', 'stop 1', 'stopped 1', 'start 2', 'stop 2', 'stopped 2'])
+  })
+
+  it('reports a graceful stop as exit code 0 once the stop has finished', async () => {
+    const steps: string[] = []
+    Reflect.set(globalThis, '__steps', steps)
+    try {
+      const transport = await factoryFor('inline', {
+        entry: fixture('slow-stop-worker.ts'),
+      }).create(initFor('inline'))
+      const connection = connectWorker(transport, { methods, onEvents: () => {} })
+      await transport.terminate(false)
+      assert.deepEqual(await connection.exited, { type: 'exit', code: 0 })
+      assert.deepEqual(steps, ['start 1', 'stop 1', 'stopped 1'])
+    } finally {
+      Reflect.deleteProperty(globalThis, '__steps')
+    }
+  })
+
+  // A file that can't be cancelled (T5.12) holds the best-effort stop behind it, so the worker's
+  // main never settles; the wait for it is bounded by the teardown timeout.
+  it('stops waiting for a worker that cannot end after the teardown timeout, and reports it as it is', {
+    timeout: 10_000,
+  }, async () => {
+    const { transport, connection } = await start('inline', 'hang-worker.ts', {
+      teardownTimeoutMs: 50,
+    })
+    void connection.run(job('forever')).catch(() => {})
+    await transport.terminate(true)
+    assert.deepEqual(await connection.exited, { type: 'exit', code: 0 })
+  })
+
+  // Inside this test runner something else keeps the event loop alive; a real coordinator may have
+  // nothing. The stuck worker holds no handle, so only the bound's own timer can: unref'd, the loop
+  // drained and `terminate` never resolved (exit 13, "unsettled top-level await").
+  it('keeps a process with nothing else alive until a stuck worker is reported', {
+    timeout: 20_000,
+  }, async () => {
+    const child = spawn(
+      process.execPath,
+      [...process.execArgv, fileURLToPath(fixture('terminate-hung-inline.ts'))],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    )
+    let stdout = ''
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString()
+    })
+    child.stderr.resume()
+    const [code] = (await once(child, 'exit')) as [number | null]
+    assert.equal(code, 0)
+    assert.match(stdout, /terminated \{"type":"exit","code":0\}/)
   })
 })

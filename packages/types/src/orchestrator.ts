@@ -2,7 +2,8 @@
 // The events on the wire and on the bus are Track 5's `RuntimeEvent`s (one event model, see the
 // package README); Track 9's own `task:*`/`hook:*` event shapes are gone. Runtime pieces
 // (`defineReporter`, `inject`, the `ExitCode` constant) land in `@provino/orchestrator`.
-import type { CloneSafe, JsonValue } from './clone-safe.ts'
+import type { CloneSafe } from './clone-safe.ts'
+import type { SerializedProjectConfig } from './config.ts'
 import type { CoverageSummary } from './coverage.ts'
 import type { IsolationTier } from './isolation.ts'
 import type { PoolKind } from './policy/orchestrator.ts'
@@ -30,7 +31,10 @@ export interface RecyclePolicy {
   /** RSS (forks) or heapUsed + external (threads), checked after each file. */
   readonly memoryLimitBytes?: number
   readonly maxFilesPerWorker?: number
-  /** Recycle after a file whose teardown reported leaked handles (Track 2). */
+  /**
+   * Recycle after a file whose teardown reported leaked handles (Track 2), or globals its
+   * environment could not remove (`fileDone.leakedGlobals`, decision D22).
+   */
   readonly onLeak?: boolean
 }
 
@@ -76,8 +80,8 @@ export interface WorkerInit {
   readonly isolation: IsolationTier
   /** Values from global setup's `provide()`. */
   readonly provided: Readonly<Partial<ProvidedContext>>
-  /** The serialized project config. Its shape arrives with the worker runtime (U1). */
-  readonly config: JsonValue
+  /** The worker's one project. */
+  readonly config: SerializedProjectConfig
 }
 
 /**
@@ -219,6 +223,15 @@ export type WorkerToCoordinator =
       readonly seq: number
       readonly memoryBytes: number
       readonly leakedHandles: number
+      /**
+       * Global keys the file left behind that the environment could not remove (decision D22: a
+       * warning, not a failure), as strings (`String(symbol)` for a symbol key). Always present;
+       * empty when the file cleaned up. The worker has also sent a `console` warning that names
+       * them. Later files in the same worker can see these globals, so the pool recycles a worker
+       * whose files leak (`RecyclePolicy.onLeak`, B11). Only a file-scoped teardown reports here: a
+       * worker-scoped environment (isolation `none`) reports at `stop`, with the warning alone.
+       */
+      readonly leakedGlobals: readonly string[]
     }
   | { readonly t: 'stopped' }
   | RpcCall<CoordinatorMethods>

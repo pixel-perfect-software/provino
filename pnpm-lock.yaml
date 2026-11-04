@@ -372,6 +372,9 @@ importers:
       '@provino/dialect-jest':
         specifier: workspace:*
         version: link:../dialect-jest
+      '@provino/env-node':
+        specifier: workspace:*
+        version: link:../env-node
       '@provino/expect':
         specifier: workspace:*
         version: link:../expect
@@ -381,6 +384,9 @@ importers:
       '@provino/loader':
         specifier: workspace:*
         version: link:../loader
+      '@provino/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
@@ -458,6 +464,9 @@ importers:
       '@jest/get-type':
         specifier: 'catalog:'
         version: 30.5.0
+      '@provino/core':
+        specifier: workspace:*
+        version: link:../core
       '@provino/expect':
         specifier: workspace:*
         version: link:../expect
@@ -477,15 +486,18 @@ importers:
         specifier: 'catalog:'
         version: 30.5.1
     devDependencies:
-      '@provino/core':
-        specifier: workspace:*
-        version: link:../core
       expect:
         specifier: 'catalog:'
         version: 30.5.2
       jest-mock:
         specifier: 'catalog:'
         version: 30.5.2
+
+  packages/env-node:
+    dependencies:
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/expect:
     dependencies:
@@ -542,22 +554,33 @@ importers:
 
   packages/loader:
     dependencies:
-      '@provino/transform':
-        specifier: workspace:*
-        version: link:../transform
-      '@provino/types':
-        specifier: workspace:*
-        version: link:../types
-    devDependencies:
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
       '@provino/resolver':
         specifier: workspace:*
         version: link:../resolver
+      '@provino/transform':
+        specifier: workspace:*
+        version: link:../transform
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/orchestrator:
     dependencies:
+      '@provino/core':
+        specifier: workspace:*
+        version: link:../core
+      '@provino/expect':
+        specifier: workspace:*
+        version: link:../expect
+      '@provino/loader':
+        specifier: workspace:*
+        version: link:../loader
+      '@provino/policy':
+        specifier: workspace:*
+        version: link:../policy
       '@provino/rpc':
         specifier: workspace:*
         version: link:../rpc

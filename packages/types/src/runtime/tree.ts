@@ -132,6 +132,12 @@ export interface SerializedError {
   readonly errors?: readonly SerializedError[]
   /** Filled by the expect layer (Track 7). */
   readonly diff?: { readonly expected: string; readonly actual: string }
+  /**
+   * The matcher that failed, from the error's `matcherResult` (Jest's
+   * `failureDetails[i].matcherResult`): its `name` and whether it `pass`ed. Only these two fields
+   * cross; the rest of the result (messages, `actual`, `expected`) can hold anything.
+   */
+  readonly matcherResult?: { readonly name: string; readonly pass: boolean }
   readonly location?: SourceLocation
 }
 

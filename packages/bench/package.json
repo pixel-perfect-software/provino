@@ -24,9 +24,11 @@
   "dependencies": {
     "@provino/core": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
+    "@provino/env-node": "workspace:*",
     "@provino/expect": "workspace:*",
     "@provino/harness": "workspace:*",
     "@provino/loader": "workspace:*",
+    "@provino/orchestrator": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/resolver": "workspace:*",
     "@provino/transform": "workspace:*",

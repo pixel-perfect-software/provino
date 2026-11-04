@@ -28,6 +28,12 @@
     },
     {
       "path": "../dialect-jest"
+    },
+    {
+      "path": "../env-node"
+    },
+    {
+      "path": "../orchestrator"
     }
   ]
 }

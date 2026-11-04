@@ -141,6 +141,13 @@ export interface FileRegistry extends Disposable {
   registerMock<T>(specifier: string, parent: ModuleId | null, spec: MockSpec<T>): void
   unregisterMock(specifier: string, parent: ModuleId | null): void
   resetModules(): void
+  /**
+   * Forgets the instance of the user module `specifier` resolves to (from `parent`, else the test
+   * file), so the next import or require evaluates it again. Its dependencies keep their
+   * instances, and so do modules that already imported it. A specifier that resolves to a
+   * node_modules package, a builtin or nothing is left alone.
+   */
+  invalidate(specifier: string, parent?: ModuleId | null): void
   isolateModules<R>(fn: () => R): R
   isolateModulesAsync<R>(fn: () => Promise<R>): Promise<R>
   /** For affected-test selection (Track 9). */

@@ -63,10 +63,23 @@ export interface Records {
   /** Native namespaces of shared externals and builtins, by path or `node:` id. */
   readonly externals: Map<string, object>
   readonly listeners: Set<(event: CompiledModuleEvent) => void>
+  /**
+   * Whether anything `markAsyncGraphs` reads has changed since it last ran: a new record, a record
+   * linked, a resolved target. It is on the state, not in a walk, so a walk that throws partway
+   * leaves it set for the next call. A link that changes nothing (every cached `require`) skips the
+   * scan of every record in the worker.
+   */
+  asyncGraphsStale: boolean
 }
 
 export function createRecords(options: LoaderOptions): Records {
-  return { options, records: new Map(), externals: new Map(), listeners: new Set() }
+  return {
+    options,
+    records: new Map(),
+    externals: new Map(),
+    listeners: new Set(),
+    asyncGraphsStale: false,
+  }
 }
 
 /** Resolves `specifier` from `importer` to a target, or throws `ERR_MODULE_NOT_FOUND`. */
@@ -139,6 +152,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
     }
   }
   state.records.set(id, record)
+  state.asyncGraphsStale = true
   return record
 }
 
@@ -209,10 +223,11 @@ export async function linkAsync(state: Records, root: ModuleRecord): Promise<voi
     const record = stack.pop()
     if (record === undefined || record.linked) continue
     record.linked = true
+    state.asyncGraphsStale = true
     const kind: ResolveKind = record.format === 'cjs' ? 'require' : 'import'
     for (const specifier of record.deps) {
       const target = resolveTarget(state, specifier, record.path, kind)
-      record.resolved.set(specifier, target)
+      setResolved(state, record, specifier, target)
       if (target.kind === 'user') stack.push(recordFor(state, target.id, false))
       else if (record.format === 'esm') await preloadAsync(state, target)
     }
@@ -226,10 +241,11 @@ export function linkSync(state: Records, root: ModuleRecord): void {
     const record = stack.pop()
     if (record === undefined || record.linked) continue
     record.linked = true
+    state.asyncGraphsStale = true
     const kind: ResolveKind = record.format === 'cjs' ? 'require' : 'import'
     for (const specifier of record.deps) {
       const target = resolveTarget(state, specifier, record.path, kind)
-      record.resolved.set(specifier, target)
+      setResolved(state, record, specifier, target)
       if (target.kind === 'user') stack.push(recordFor(state, target.id, false))
       else if (record.format === 'esm') preloadSync(state, target, record.path)
     }
@@ -237,8 +253,25 @@ export function linkSync(state: Records, root: ModuleRecord): void {
   markAsyncGraphs(state)
 }
 
-/** Marks every module whose static subgraph has top-level await, to a fixed point over cycles. */
+/** Sets `specifier`'s target on `record`. The only writer of `resolved`, so it can mark the state stale. */
+export function setResolved(
+  state: Records,
+  record: ModuleRecord,
+  specifier: string,
+  target: Target,
+): void {
+  record.resolved.set(specifier, target)
+  state.asyncGraphsStale = true
+}
+
+/**
+ * Marks every module whose static subgraph has top-level await, to a fixed point over cycles.
+ * A no-op unless something it reads has changed since the last run, so it is safe to call after
+ * every link.
+ */
 function markAsyncGraphs(state: Records): void {
+  if (!state.asyncGraphsStale) return
+  state.asyncGraphsStale = false
   let changed = true
   while (changed) {
     changed = false

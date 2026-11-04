@@ -17,6 +17,8 @@ export type {
   ProjectConfig,
   ProvinoConfigInput,
   ReservedConfigKey,
+  SerializedLoaderConfig,
+  SerializedProjectConfig,
 } from './config.ts'
 export type {
   CoverageCollector,
@@ -44,6 +46,8 @@ export type {
   DialectPolicyFactory,
   DialectRegistry,
   FlagSpec,
+  GlobalsFactory,
+  GlobalsHost,
   LoaderPolicies,
   ReporterAdapter,
 } from './dialect.ts'
@@ -56,8 +60,10 @@ export type {
   EnvironmentInstance,
   EnvironmentOptionsMap,
   EnvironmentRealm,
+  EnvironmentRef,
   EnvironmentScope,
   EnvironmentSetupContext,
+  EnvironmentTeardownReport,
 } from './environment.ts'
 export type {
   Assertion,
@@ -164,11 +170,13 @@ export type {
   JestResolverOptions,
   MapperHit,
   ModuleMapper,
+  ModuleMapperFactory,
   ResolveContext,
   ResolveKind,
   ResolveResult,
   Resolver,
   ResolverOptions,
+  SerializedModuleMapper,
 } from './resolve.ts'
 export type {
   ConsoleEntry,

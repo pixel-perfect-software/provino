@@ -52,6 +52,19 @@ createRuntime({ ...options, lines: [3] })
 // @ts-expect-error a line is a number
 void runtime.runFile('/a.test.ts', { lines: ['3'] })
 
+// `-t` and test ids can also be given for one file; they replace the runtime's for that file.
+expectTypeOf<RunFileOptions['testNamePattern']>().toEqualTypeOf<string | RegExp | undefined>()
+expectTypeOf<RunFileOptions['testIds']>().toEqualTypeOf<readonly string[] | undefined>()
+void runtime.runFile('/a.test.ts', { testNamePattern: /x/, testIds: ['t1'] })
+// @ts-expect-error a pattern is a string or a RegExp
+void runtime.runFile('/a.test.ts', { testNamePattern: 3 })
+// @ts-expect-error ids are strings
+void runtime.runFile('/a.test.ts', { testIds: [1] })
+// A serialized error keeps only the matcher's name and verdict.
+expectTypeOf<SerializedError['matcherResult']>().toEqualTypeOf<
+  { readonly name: string; readonly pass: boolean } | undefined
+>()
+
 // Errors carry a stable code.
 expectTypeOf<CoreError['code']>().toEqualTypeOf<CoreErrorCode>()
 expectTypeOf<'CORE_LATE_REGISTRATION'>().toExtend<CoreErrorCode>()

@@ -61,6 +61,7 @@ export const createLoader: CreateLoader = (options) => {
         throw notYet('unregisterMock', 'T2.5')
       },
       resetModules: () => registry.reset(),
+      invalidate: (specifier, parent) => registry.invalidate(specifier, importer(parent)),
       isolateModules: (fn) => registry.isolate(fn),
       isolateModulesAsync: (fn) => registry.isolateAsync(fn),
       loadedModules: () => registry.loaded(),

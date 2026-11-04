@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict'
 import { afterEach, test } from 'node:test'
+import type { EqualityTester, Matcher } from '@provino/types'
 import { ExpectError } from './errors.ts'
-import { manualCurrentTest, testTask } from './internal/test-support.ts'
+import { manualCurrentTest, testEngine, testTask } from './internal/test-support.ts'
 import {
   createMatcherRegistry,
   installMatchersSlot,
   MATCHERS_SLOT,
   type MatchersSlot,
   type SlotHandle,
+  snapshotRegistry,
 } from './slot.ts'
 import { createStateSource } from './state.ts'
 
@@ -67,4 +69,159 @@ test('uninstall leaves a slot it doesn`t own alone', () => {
   handle = installMatchersSlot(source, createMatcherRegistry())
   first.uninstall()
   assert.equal(Object.hasOwn(globalThis, MATCHERS_SLOT), true)
+})
+
+const pass: Matcher = () => ({ pass: true, message: () => '' })
+const tester: EqualityTester = () => undefined
+
+test('restore deletes the matchers added since the snapshot and keeps the older ones', () => {
+  const registry = createMatcherRegistry()
+  registry.matchers.old = pass
+  const snapshot = snapshotRegistry(registry)
+  registry.matchers.added = pass
+  Object.defineProperty(registry.matchers, 'hidden', { value: pass, configurable: true })
+  const symbol = Symbol('s')
+  Reflect.set(registry.matchers, symbol, pass)
+  snapshot.restore()
+  assert.deepEqual(Reflect.ownKeys(registry.matchers), ['old'])
+  assert.equal(registry.matchers.old, pass)
+})
+
+test('restore puts back a matcher that was replaced', () => {
+  const registry = createMatcherRegistry()
+  const original: Matcher = () => ({ pass: true, message: () => 'original' })
+  registry.matchers.toBeThing = original
+  const snapshot = snapshotRegistry(registry)
+  registry.matchers.toBeThing = pass
+  snapshot.restore()
+  assert.equal(registry.matchers.toBeThing, original)
+})
+
+test('restore resets the equality testers to the snapshot’s, in the same array', () => {
+  const registry = createMatcherRegistry()
+  const kept = tester
+  registry.customEqualityTesters.push(kept)
+  const testers = registry.customEqualityTesters
+  const snapshot = snapshotRegistry(registry)
+  registry.customEqualityTesters.push(
+    () => true,
+    () => false,
+  )
+  snapshot.restore()
+  assert.equal(registry.customEqualityTesters, testers)
+  assert.deepEqual(registry.customEqualityTesters, [kept])
+  // A tester that replaced the old one in place goes back too.
+  registry.customEqualityTesters[0] = () => true
+  snapshot.restore()
+  assert.equal(registry.customEqualityTesters[0], kept)
+})
+
+test('a snapshot can be restored after each file', () => {
+  const registry = createMatcherRegistry()
+  const snapshot = snapshotRegistry(registry)
+  for (const file of ['a', 'b', 'c']) {
+    assert.deepEqual(Reflect.ownKeys(registry.matchers), [], `before ${file}`)
+    assert.equal(registry.customEqualityTesters.length, 0, `before ${file}`)
+    registry.matchers[`from_${file}`] = pass
+    registry.customEqualityTesters.push(tester)
+    snapshot.restore()
+  }
+  assert.deepEqual(Reflect.ownKeys(registry.matchers), [])
+})
+
+test('restoring with nothing changed leaves the registry as it was', () => {
+  const registry = createMatcherRegistry()
+  registry.matchers.old = pass
+  const descriptor = Reflect.getOwnPropertyDescriptor(registry.matchers, 'old')
+  snapshotRegistry(registry).restore()
+  assert.deepEqual(Reflect.getOwnPropertyDescriptor(registry.matchers, 'old'), descriptor)
+})
+
+test('after a restore, an engine no longer has the extended matcher or equality tester', () => {
+  const { expect, registry } = testEngine()
+  const snapshot = snapshotRegistry(registry)
+  expect.extend({
+    toBeEven: (received: number) => ({ pass: received % 2 === 0, message: () => 'x' }),
+  })
+  expect.addEqualityTesters([(a, b) => (a === 'x' && b === 'y' ? true : undefined)])
+  const loose = expect as unknown as (value: unknown) => Record<string, (() => void) | undefined>
+  assert.equal(typeof loose(2).toBeEven, 'function')
+  expect('x').toEqual('y')
+
+  snapshot.restore()
+  assert.equal(loose(2).toBeEven, undefined)
+  assert.throws(() => expect('x').toEqual('y'))
+  expect(1).toBe(1) // the table’s own matchers are still there
+})
+
+const isEven: Matcher = ((received: number) => ({
+  pass: received % 2 === 0,
+  message: () => 'x',
+})) as unknown as Matcher
+
+/** `expect`'s and `expect.not`'s own keys, with their values. */
+function staticsOf(expect: object): Array<[string | symbol, unknown]> {
+  const not = Reflect.get(expect, 'not') as object
+  return [expect, not].flatMap((owner) =>
+    Reflect.ownKeys(owner).map((key): [string | symbol, unknown] => [key, Reflect.get(owner, key)]),
+  )
+}
+
+test('given expect, restore also undoes the asymmetric forms extend put on expect and expect.not', () => {
+  const { expect, registry } = testEngine()
+  const before = staticsOf(expect)
+  const snapshot = snapshotRegistry(registry, expect)
+  expect.extend({ toBeEven: isEven })
+  const loose = expect as unknown as Record<string, unknown> & { not: Record<string, unknown> }
+  assert.equal(typeof loose.toBeEven, 'function')
+  assert.equal(typeof loose.not.toBeEven, 'function')
+
+  snapshot.restore()
+  assert.equal(Object.hasOwn(loose, 'toBeEven'), false)
+  assert.equal(Object.hasOwn(loose.not, 'toBeEven'), false)
+  assert.deepEqual(staticsOf(expect), before)
+  // The table's own statics and `extend` itself are still there.
+  assert.equal(typeof expect.anything, 'function')
+  assert.equal(typeof expect.extend, 'function')
+})
+
+test('restore puts back a static that was replaced or deleted, on expect and on expect.not', () => {
+  const { expect, registry } = testEngine()
+  // An asymmetric form from before the snapshot, on both objects.
+  expect.extend({ toBeOdd: isEven })
+  const loose = expect as unknown as Record<string, unknown> & { not: Record<string, unknown> }
+  const { anything, extend, toBeOdd } = loose
+  const notOdd = loose.not.toBeOdd
+  const snapshot = snapshotRegistry(registry, expect)
+  loose.anything = () => 'replaced'
+  delete loose.extend
+  loose.toBeOdd = () => 'replaced'
+  delete loose.not.toBeOdd
+  snapshot.restore()
+  assert.equal(loose.anything, anything)
+  assert.equal(loose.extend, extend)
+  assert.equal(loose.toBeOdd, toBeOdd)
+  assert.equal(loose.not.toBeOdd, notOdd)
+})
+
+test('without expect, a snapshot leaves the asymmetric forms alone', () => {
+  const { expect, registry } = testEngine()
+  const snapshot = snapshotRegistry(registry)
+  expect.extend({ toBeEven: isEven })
+  snapshot.restore()
+  const loose = expect as unknown as Record<string, unknown>
+  assert.equal(Object.hasOwn(registry.matchers, 'toBeEven'), false)
+  assert.equal(typeof loose.toBeEven, 'function')
+})
+
+test('each file can extend again after a restore, with the statics going back every time', () => {
+  const { expect, registry } = testEngine()
+  const snapshot = snapshotRegistry(registry, expect)
+  const loose = expect as unknown as Record<string, unknown> & { not: Record<string, unknown> }
+  for (const file of ['a', 'b', 'c']) {
+    assert.equal(Object.hasOwn(loose, 'toBeEven'), false, `before ${file}`)
+    assert.equal(Object.hasOwn(loose.not, 'toBeEven'), false, `before ${file}`)
+    expect.extend({ toBeEven: isEven })
+    snapshot.restore()
+  }
 })

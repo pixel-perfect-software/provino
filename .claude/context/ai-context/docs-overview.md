@@ -23,7 +23,8 @@ Tier 1 is project-wide. Read a Tier 1 file only when the task needs it; `.claude
 When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (under ~150 lines) and list it here, alphabetically.
 
 - `packages/core/CLAUDE.md`: the runtime's module map, one store per test attempt, the per-attempt order, the two focus algorithms, how the corpus check runs core, and what is still stubbed (with owning tasks).
-- `packages/dialect-jest/CLAUDE.md`: the Jest dialect's `expect` slice and matcher table, the vendored Jest matchers (their own tsconfig project, D17), and its tests.
+- `packages/dialect-jest/CLAUDE.md`: the Jest dialect's value (`jestDialect`, `jestPolicy`) and globals (`jestGlobals`), its `expect` slice and matcher table, the vendored Jest matchers (their own tsconfig project, D17), and its tests.
+- `packages/env-node/CLAUDE.md`: how the Node environment restores the global (what is compared, the key-order limit, what an unrestorable key does, why setup reads every descriptor first).
 - `packages/expect/CLAUDE.md`: the neutral expect engine (front end, per-attempt state, slot), the stack-anchoring rule, the worker's boot order, and what is still stubbed (with owning tasks).
 - `packages/harness/CLAUDE.md`: the golden-fixture format and recorder (one format for every golden), converters, normalization and parity diffs.
 - `packages/loader/CLAUDE.md`: the engine's worker-wide and per-file halves, the module-runner wrapper shape, and what is still stubbed (with owning tasks).

@@ -5,6 +5,7 @@ export {
   type InstalledCapture,
   type WritableLike,
 } from './console.ts'
+export { WorkerError, type WorkerErrorCode } from './errors.ts'
 export {
   createPacker,
   type Packer,
@@ -12,6 +13,7 @@ export {
   type PackMessage,
   type PackSchedule,
 } from './packer.ts'
+export { createRuntimeRunner, type RuntimeGlobalsHost } from './runtime/runner.ts'
 export {
   type FileContext,
   type FileOutcome,

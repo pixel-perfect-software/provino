@@ -8,12 +8,13 @@ import type {
   EventSink,
   ImportFile,
   LazyHost,
+  TaskNode,
   TaskResult,
   TestRunHandle,
 } from '@provino/types'
 import { createApi, type RuntimeApi } from './collector/api.ts'
 import { Collector } from './collector/collector.ts'
-import { fileIdOf, finalize } from './collector/finalize.ts'
+import { type FinalizeOptions, fileIdOf, finalize } from './collector/finalize.ts'
 import { newFileState } from './collector/nodes.ts'
 import { type CurrentTestService, currentTest, reportAsyncContext } from './current/current-test.ts'
 import { CoreError, serializeError } from './errors.ts'
@@ -58,6 +59,16 @@ export interface RuntimeOptions {
 export interface RunFileOptions {
   /** Only tests (or suites) on these lines run (Vitest's `file:line`). */
   readonly lines?: readonly number[]
+  /**
+   * `-t` for this file only: replaces the runtime's `testNamePattern`. A string that is not a valid
+   * regular expression fails the file (`CORE_INVALID_ARGUMENT`, the `SyntaxError` as its cause)
+   * before it is imported. So does a value that is neither a string nor a `RegExp`, and a `testIds`
+   * or `lines` that is not an array (the error names the option): `FileJob` crosses a link
+   * unvalidated.
+   */
+  readonly testNamePattern?: string | RegExp
+  /** Only these test ids run in this file: replaces the runtime's `testIds`. */
+  readonly testIds?: readonly string[]
 }
 
 /**
@@ -113,13 +124,58 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   })
   const executor = new Executor({ policy, orderHooks, sink, deadlines, timers, now, runs })
   const pattern = options.testNamePattern
-  const finalizeOptions = {
+  const finalizeOptions: Omit<FinalizeOptions, 'lines'> = {
     policy,
     projectName,
     ci: options.ci ?? false,
     testNamePattern:
       pattern === undefined ? undefined : toRegExp(pattern, policy.testNamePatternFlags),
     testIds: options.testIds === undefined ? undefined : new Set(options.testIds),
+  }
+
+  /**
+   * The runtime's filters, with the ones this file's options give instead. `FileJob` crosses a link
+   * unvalidated, so each option is checked here: a wrong type, or a `testNamePattern` string that
+   * is not a valid regular expression, throws a `CORE_INVALID_ARGUMENT` naming the option.
+   */
+  function finalizeOptionsFor(relativePath: string, fileOptions: RunFileOptions): FinalizeOptions {
+    const { testNamePattern, testIds, lines } = fileOptions
+    const invalid = (option: string, reason: string, cause?: unknown): CoreError =>
+      new CoreError(
+        'CORE_INVALID_ARGUMENT',
+        `Invalid ${option} for ${relativePath}: ${reason}`,
+        cause === undefined ? undefined : { cause },
+      )
+    let filePattern: RegExp | undefined
+    if (testNamePattern !== undefined) {
+      if (typeof testNamePattern !== 'string' && !(testNamePattern instanceof RegExp)) {
+        throw invalid(
+          'testNamePattern',
+          `expected a string or a RegExp, got ${describeType(testNamePattern)}`,
+        )
+      }
+      try {
+        filePattern = toRegExp(testNamePattern, policy.testNamePatternFlags)
+      } catch (cause) {
+        throw invalid(
+          'testNamePattern',
+          cause instanceof Error ? cause.message : String(cause),
+          cause,
+        )
+      }
+    }
+    if (testIds !== undefined && !Array.isArray(testIds)) {
+      throw invalid('testIds', `expected an array of test ids, got ${describeType(testIds)}`)
+    }
+    if (lines !== undefined && !Array.isArray(lines)) {
+      throw invalid('lines', `expected an array of line numbers, got ${describeType(lines)}`)
+    }
+    return {
+      ...finalizeOptions,
+      ...(filePattern === undefined ? {} : { testNamePattern: filePattern }),
+      ...(testIds === undefined ? {} : { testIds: new Set(testIds) }),
+      lines: lines === undefined ? undefined : new Set(lines),
+    }
   }
 
   /**
@@ -171,9 +227,19 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     sink.emit({ type: 'file-collect-start', fileId, path: relativePath, t: start })
     let outcome: Outcome = 'fail'
     try {
-      const collected = await collect(file)
-      const lines = fileOptions.lines === undefined ? undefined : new Set(fileOptions.lines)
-      const tasks = finalize(file, { ...finalizeOptions, lines })
+      let collected = false
+      let tasks: TaskNode[] = []
+      try {
+        // The filters are built before the import: an invalid per-file filter skips it. Whatever
+        // throws here (that, or `finalize`), the file reports no tasks and the error, is not run,
+        // and still gets its `file-collect-end` and `file-end`.
+        const filters = finalizeOptionsFor(relativePath, fileOptions)
+        collected = await collect(file)
+        tasks = finalize(file, filters)
+      } catch (error) {
+        collected = false
+        file.errors.push(error)
+      }
       const errors = file.errors.map(serializeError)
       sink.emit({ type: 'file-collect-end', fileId, tasks, errors, t: now() })
       if (collected) outcome = await executor.runFile(file)
@@ -204,6 +270,11 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       }
     },
   }
+}
+
+/** What a value is, for an error message: `typeof`, except that `null` is not an object. */
+function describeType(value: unknown): string {
+  return value === null ? 'null' : typeof value
 }
 
 /** `-t` as a `RegExp`: a string is compiled with the policy's flags. */

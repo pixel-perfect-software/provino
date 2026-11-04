@@ -55,6 +55,67 @@ describe('serializeError of an Error', () => {
   })
 })
 
+describe('serializeError of a failed assertion’s matcherResult', () => {
+  const withResult = (matcherResult: unknown): Error =>
+    Object.assign(new Error('expected 1 to be 2'), { matcherResult })
+
+  test('copies only its name and pass', () => {
+    const serialized = serializeError(
+      withResult({ name: 'toBe', pass: false, message: 'm', actual: 1, expected: () => 2 }),
+    )
+    assert.deepEqual(serialized.matcherResult, { name: 'toBe', pass: false })
+    assert.deepEqual(Object.keys(serialized.matcherResult ?? {}), ['name', 'pass'])
+    assert.doesNotThrow(() => structuredClone(serialized))
+  })
+
+  test('is absent when the error has none', () => {
+    assert.equal('matcherResult' in serializeError(new Error('x')), false)
+  })
+
+  test('is absent unless name is a string and pass a boolean', () => {
+    for (const matcherResult of [
+      undefined,
+      null,
+      'toBe',
+      () => ({ name: 'toBe', pass: true }),
+      {},
+      { name: 'toBe' },
+      { pass: true },
+      { name: 3, pass: true },
+      { name: 'toBe', pass: 'yes' },
+    ]) {
+      assert.equal(
+        'matcherResult' in serializeError(withResult(matcherResult)),
+        false,
+        String(matcherResult),
+      )
+    }
+  })
+
+  test('is read from a cause as well', () => {
+    const serialized = serializeError(
+      new Error('outer', { cause: withResult({ name: 'toEqual', pass: false }) }),
+    )
+    assert.deepEqual(serialized.cause?.matcherResult, { name: 'toEqual', pass: false })
+    assert.equal('matcherResult' in serialized, false)
+  })
+
+  test('never throws, however it is hostile', () => {
+    const throwing = (): never => {
+      throw new Error('trap')
+    }
+    const getter = new Error('x')
+    Object.defineProperty(getter, 'matcherResult', { get: throwing })
+    const fields = Object.defineProperties({}, { name: { get: throwing }, pass: { get: throwing } })
+    const { proxy, revoke } = Proxy.revocable({ name: 'toBe', pass: true }, {})
+    revoke()
+    const hostile = new Proxy({ name: 'toBe', pass: true }, { get: throwing, has: throwing })
+    for (const error of [getter, withResult(fields), withResult(proxy), withResult(hostile)]) {
+      assert.equal('matcherResult' in serializeError(error), false)
+    }
+  })
+})
+
 describe('serializeError of a cause chain', () => {
   test('serializes each cause in turn', () => {
     const error = new Error('outer', {

@@ -2,7 +2,8 @@
 // `run` at a time. After each file it lets pending microtasks finish, flushes stdio (Vitest found
 // it is otherwise lost on terminate), and queues `fileDone` behind the file's packs, so the file's
 // events and output always arrive first. The runtime that actually runs a file is the runner's
-// (U1, B10); this file knows nothing about tests.
+// (U1, B10); this file knows nothing about tests. On `stop` it lets the runner tear down, then
+// sends `stopped`.
 import { isMainThread } from 'node:worker_threads'
 import { createRpc, type RpcOptions, serializeError } from '@provino/rpc'
 import type {
@@ -56,6 +57,12 @@ export interface FileContext extends WorkerContext {
 export interface FileOutcome {
   /** Handles still open after the file's teardown (Track 2's leak detector). */
   readonly leakedHandles?: number
+  /**
+   * Global keys the file left behind that its environment could not remove (decision D22), as
+   * strings. They go out as `fileDone.leakedGlobals`, so the pool can recycle the worker. Absent
+   * or empty for a clean file. The runner sends the matching `console` warning itself.
+   */
+  readonly leakedGlobals?: readonly string[]
 }
 
 /**
@@ -65,6 +72,24 @@ export interface FileOutcome {
 export interface WorkerRunner {
   start?(context: WorkerContext): void | Promise<void>
   runFile(context: FileContext): Promise<FileOutcome | undefined>
+  /**
+   * Tears down what `start` and the files left: called once, on the coordinator's `stop`, after
+   * every queued file has finished and before `stopped` is sent. It runs even when `start`
+   * threw, so it must cope with a half-built worker. It is not called if `start` never came.
+   * What it throws is reported as an unhandled error with no owner, and `stopped` is sent anyway.
+   * One that never settles holds `stopped` back until the coordinator's stop timeout kills the
+   * worker.
+   *
+   * It is also called, best-effort, when the link goes away before any `stop` came (the
+   * coordinator was killed, or `terminate(true)` closed the link of an inline worker, which
+   * shares this process with the next one): without it the matcher slot, the loader and the
+   * environment would stay installed. Nothing can be sent then, so what it throws or emits is
+   * dropped. It queues behind the file running now, so a file that is still running delays it:
+   * `cancel` can't reach core until T5.12, so such a file runs to its end. The promise
+   * `startWorker` returns settles only after this stop has, so whoever awaits the worker's main
+   * (the inline transport) knows the teardown is over.
+   */
+  stop?(context: WorkerContext): void | Promise<void>
 }
 
 /**
@@ -90,7 +115,8 @@ export interface StartWorkerOptions {
 
 /**
  * Speaks the worker side of the protocol on `port`, running files with `runner`. Resolves once the
- * worker has stopped or the coordinator has gone away.
+ * worker has stopped, or the coordinator has gone away and the runner's best-effort `stop` (see
+ * `WorkerRunner.stop`) has settled.
  * @beta
  */
 export function startWorker(
@@ -106,7 +132,11 @@ export function startWorker(
   let init: WorkerInit | undefined
   let installed: InstalledCapture | undefined
   let finished = false
+  /** Set when a `stop` arrives, or when the link's exit queued the best-effort one: `runner.stop` runs once. */
+  let stopQueued = false
   const { promise: done, resolve: resolveDone } = Promise.withResolvers<void>()
+  /** Settles once `runner.stop` has (or there was none to call): the link going away waits for it. */
+  const { promise: runnerStopped, resolve: resolveRunnerStopped } = Promise.withResolvers<void>()
   /** Work in arrival order: start, each run, stop. A failed step never blocks the next. */
   let queue: Promise<void> = Promise.resolve()
   /** Set when `runner.start` threw: every file is then charged with that error, unrun. */
@@ -133,13 +163,27 @@ export function startWorker(
     for (const controller of controllers.values()) controller.abort(reason)
   }
 
+  /** Nothing is left to report to: aborts every file, keeps queued ones from starting, restores the console. */
   const finish = (): void => {
     if (finished) return
     finished = true
     abortAll(new Error('The coordinator went away'))
     installed?.restore()
     installed = undefined
-    resolveDone()
+  }
+
+  /**
+   * Calls `runner.stop` if the worker started, once, and gives `onError` what it throws. Never
+   * throws itself.
+   */
+  const stopRunner = async (onError: (error: unknown) => void): Promise<void> => {
+    try {
+      if (init !== undefined) await runner.stop?.(context())
+    } catch (error) {
+      onError(error)
+    } finally {
+      resolveRunnerStopped()
+    }
   }
 
   /**
@@ -180,10 +224,12 @@ export function startWorker(
     // Each file gets a fresh console: an open group, a count or a timer stays with its file.
     capture.reset()
     let leakedHandles = 0
+    let leakedGlobals: readonly string[] = []
     try {
       if (startFailure !== undefined) throw startFailure.error
       const outcome = await runner.runFile({ ...context(), job, signal: controller.signal })
       leakedHandles = outcome?.leakedHandles ?? 0
+      leakedGlobals = outcome?.leakedGlobals ?? []
     } catch (error) {
       // The runtime reports test failures as events; a runner that throws is a bug, charged to the file.
       charge(error, job.fileId)
@@ -192,10 +238,24 @@ export function startWorker(
     }
     await settle()
     const memoryBytes = measureMemory(init)
-    packer.afterSent(() => port.send({ t: 'fileDone', seq, memoryBytes, leakedHandles }))
+    packer.afterSent(() =>
+      port.send({ t: 'fileDone', seq, memoryBytes, leakedHandles, leakedGlobals }),
+    )
   }
 
-  port.onExit(finish)
+  port.onExit(() => {
+    // The link went away: files are aborted and the console is given back at once, and nothing can
+    // be sent now. But an inline worker lives in the coordinator's process, so the slot, the loader
+    // and the environment it installed must not outlive it (the next worker would find the matcher
+    // slot taken): without a `stop` of its own the runner gets a best-effort one, and `done` waits
+    // for it, because that is when this worker has ended. Errors have nowhere to go.
+    finish()
+    if (!stopQueued) {
+      stopQueued = true
+      enqueue(() => stopRunner(() => {}))
+    }
+    void runnerStopped.then(resolveDone)
+  })
   port.onMessage((message) => {
     switch (message.t) {
       case 'start': {
@@ -229,7 +289,12 @@ export function startWorker(
         abortAll(new Error(`Cancelled: ${message.reason}`))
         return
       case 'stop':
+        stopQueued = true
         enqueue(async () => {
+          // The queue has drained: every file received before `stop` has sent its `fileDone`.
+          // `stopped` is how the coordinator knows the worker ended cleanly; a failed teardown is
+          // news for the run, not a reason to withhold it.
+          await stopRunner((error) => charge(error, null))
           await settle()
           const { promise: stopped, resolve } = Promise.withResolvers<void>()
           packer.afterSent(() => {
@@ -239,6 +304,7 @@ export function startWorker(
           await stopped
           port.close()
           finish()
+          resolveDone()
         })
         return
       case 'call':
