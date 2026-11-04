@@ -2,7 +2,7 @@
 // serialization so `Map`, `Set`, `BigInt`, `Date` and typed arrays cross, and piped stdio so a
 // crash's last words reach the coordinator. A native fault stays in the child.
 import { fork } from 'node:child_process'
-import { setTimeout } from 'node:timers'
+import { clearTimeout, setTimeout } from 'node:timers'
 import { fileURLToPath } from 'node:url'
 import { childProcessLink } from '@provino/rpc'
 import type {
@@ -11,14 +11,7 @@ import type {
   WorkerExit,
   WorkerToCoordinator,
 } from '@provino/types'
-import {
-  checkInit,
-  connect,
-  entryHref,
-  forward,
-  printError,
-  type TransportOptions,
-} from './shared.ts'
+import { createTransport, forwardStdio, printError, type TransportOptions } from './shared.ts'
 
 /** How long after a child's exit its IPC channel may take to disconnect. */
 const DISCONNECT_GRACE_MS = 1000
@@ -40,69 +33,58 @@ export interface ForksTransportOptions extends TransportOptions {
  */
 export function forksTransport(options: ForksTransportOptions): TransportFactory {
   const bootstrap = fileURLToPath(import.meta.resolve('@provino/orchestrator/worker/bootstrap'))
-  const entry = entryHref(options.entry)
-  return {
-    kind: 'forks',
-    async create(init) {
-      checkInit('forks', init)
-      const stderr = options.stderr ?? process.stderr
-      const child = fork(bootstrap, [entry], {
-        serialization: 'advanced',
-        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-        execArgv: [...(options.execArgv ?? process.execArgv)],
-        env: options.env ?? process.env,
-      })
-      forward(child.stdout, options.stdout ?? process.stdout)
-      forward(child.stderr, stderr)
-      const link = childProcessLink<CoordinatorToWorker, WorkerToCoordinator>(child)
-      let exitListener: ((exit: WorkerExit) => void) | undefined
-      // The exit is reported once the child has exited *and* its IPC channel has disconnected, so
-      // every message it sent first has arrived. A grandchild holding the channel open could
+  return createTransport('forks', options, (entry) => {
+    const child = fork(bootstrap, [entry], {
+      serialization: 'advanced',
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      execArgv: [...(options.execArgv ?? process.execArgv)],
+      env: options.env ?? process.env,
+    })
+    const stderr = forwardStdio(child, options)
+    const link = childProcessLink<CoordinatorToWorker, WorkerToCoordinator>(child)
+    return {
+      link,
+      pid: child.pid,
+      // The exit is reported once the child has exited *and* its IPC channel has disconnected,
+      // so every message it sent first has arrived. A grandchild holding the channel open could
       // delay the disconnect forever, so after the exit it gets a short grace, then is ignored.
-      let exit: WorkerExit | undefined
-      let disconnected = false
-      const report = (): void => {
-        if (exit !== undefined && disconnected) exitListener?.(exit)
-      }
-      link.onExit(() => {
-        disconnected = true
-        report()
-      })
-      // A spawn failure has no `exit` event; any later `error` (a send on a closing channel) is
-      // reported by the exit that follows it.
-      child.on('error', (error) => {
-        if (child.pid !== undefined) return
-        printError(stderr, error)
-        exit = { type: 'exit', code: 1 }
-        disconnected = true
-        report()
-      })
-      child.once('exit', (code, signal) => {
-        exit =
-          signal !== null
-            ? { type: 'signal', signal, likelyOom: signal === 'SIGABRT' }
-            : { type: 'exit', code: code ?? 0 }
-        setTimeout(() => {
+      onExit(listener) {
+        let exit: WorkerExit | undefined
+        let disconnected = false
+        let grace: NodeJS.Timeout | undefined
+        const report = (): void => {
+          if (exit === undefined || !disconnected) return
+          clearTimeout(grace)
+          listener(exit)
+        }
+        link.onExit(() => {
           disconnected = true
           report()
-        }, DISCONNECT_GRACE_MS).unref()
-        report()
-      })
-      return await connect(
-        'forks',
-        {
-          link,
-          pid: child.pid,
-          onExit(listener) {
-            exitListener = listener
-          },
-          kill(signal) {
-            child.kill(signal)
-          },
-        },
-        init,
-        options,
-      )
-    },
-  }
+        })
+        // A spawn failure has no `exit` event; any later `error` (a send on a closing channel)
+        // is reported by the exit that follows it.
+        child.on('error', (error) => {
+          if (child.pid !== undefined) return
+          printError(stderr, error)
+          exit = { type: 'exit', code: 1 }
+          disconnected = true
+          report()
+        })
+        child.once('exit', (code, signal) => {
+          exit =
+            signal !== null
+              ? { type: 'signal', signal, likelyOom: signal === 'SIGABRT' }
+              : { type: 'exit', code: code ?? 0 }
+          grace = setTimeout(() => {
+            disconnected = true
+            report()
+          }, DISCONNECT_GRACE_MS).unref()
+          report()
+        })
+      },
+      kill(signal) {
+        child.kill(signal)
+      },
+    }
+  })
 }

@@ -6,13 +6,12 @@ import { messagePortLink } from '@provino/rpc'
 import type {
   CoordinatorToWorker,
   TransportFactory,
-  WorkerExit,
   WorkerMain,
   WorkerPort,
   WorkerToCoordinator,
 } from '@provino/types'
 import { OrchestratorError } from '../errors.ts'
-import { checkInit, connect, entryHref, type TransportOptions } from './shared.ts'
+import { createTransport, printError, type TransportOptions } from './shared.ts'
 
 /**
  * Options for `inlineTransport`. An inline worker shares this process's stdio, so the `stdout`
@@ -26,48 +25,36 @@ export type InlineTransportOptions = TransportOptions
  * @public
  */
 export function inlineTransport(options: InlineTransportOptions): TransportFactory {
-  const entry = entryHref(options.entry)
-  return {
-    kind: 'inline',
-    async create(init) {
-      checkInit('inline', init)
-      const loaded: unknown = await import(entry)
-      const main = (loaded as { readonly default?: unknown }).default
-      if (typeof main !== 'function') {
-        throw new OrchestratorError(
-          'ORCH_BAD_ENTRY',
-          `The worker entry ${entry} has no default-exported function`,
-        )
-      }
-      const { port1, port2 } = new MessageChannel()
-      const link = messagePortLink<CoordinatorToWorker, WorkerToCoordinator>(port1)
-      const workerPort: WorkerPort = messagePortLink(port2)
-      let failed = false
-      let exitListener: ((exit: WorkerExit) => void) | undefined
-      link.onExit(() => exitListener?.({ type: 'exit', code: failed ? 1 : 0 }))
-      // Like an uncaught error in a fork: print it, then the worker is gone.
-      void Promise.resolve()
-        .then(() => (main as WorkerMain)(workerPort))
-        .catch((error: unknown) => {
-          failed = true
-          ;(options.stderr ?? process.stderr).write(`${String((error as Error)?.stack ?? error)}\n`)
-          workerPort.close()
-        })
-      return await connect(
-        'inline',
-        {
-          link,
-          pid: undefined,
-          onExit(listener) {
-            exitListener = listener
-          },
-          kill() {
-            link.close()
-          },
-        },
-        init,
-        options,
+  return createTransport('inline', options, async (entry) => {
+    const loaded: unknown = await import(entry)
+    const main = (loaded as { readonly default?: unknown }).default
+    if (typeof main !== 'function') {
+      throw new OrchestratorError(
+        'ORCH_BAD_ENTRY',
+        `The worker entry ${entry} has no default-exported function`,
       )
-    },
-  }
+    }
+    const { port1, port2 } = new MessageChannel()
+    const link = messagePortLink<CoordinatorToWorker, WorkerToCoordinator>(port1)
+    const workerPort: WorkerPort = messagePortLink(port2)
+    let failed = false
+    // Like an uncaught error in a fork: print it, then the worker is gone.
+    void Promise.resolve()
+      .then(() => (main as WorkerMain)(workerPort))
+      .catch((error: unknown) => {
+        failed = true
+        printError(options.stderr ?? process.stderr, error)
+        workerPort.close()
+      })
+    return {
+      link,
+      pid: undefined,
+      onExit(listener) {
+        link.onExit(() => listener({ type: 'exit', code: failed ? 1 : 0 }))
+      },
+      kill() {
+        link.close()
+      },
+    }
+  })
 }

@@ -63,6 +63,8 @@ export interface WorkerConnection {
 interface Running {
   resolve(done: FileDone): void
   reject(error: unknown): void
+  /** The first `onEvents` failure for a pack that arrived while this file ran. */
+  failure?: { readonly error: unknown }
 }
 
 /**
@@ -79,18 +81,15 @@ export function connectWorker(
   let exit: WorkerExit | undefined
   /** Event delivery, acks and file completions, strictly in arrival order. */
   let chain: Promise<void> = Promise.resolve()
-  /** Each running file's first `onEvents` failure, by seq. */
-  const failures = new Map<number, unknown>()
-
   transport.onMessage((message) => {
     if (message.t === 'pack') {
       // A pack belongs to the oldest file running when it arrives; packs carry no file id.
-      const owner = running.keys().next()
+      const owner = running.values().next().value
       chain = chain
         .then(() => options.onEvents(message.events))
         .catch((error: unknown) => {
-          if (owner.done !== true && running.has(owner.value)) {
-            if (!failures.has(owner.value)) failures.set(owner.value, error)
+          if (owner !== undefined) {
+            owner.failure ??= { error }
           } else if (options.onError !== undefined) {
             options.onError(error)
           } else {
@@ -105,10 +104,8 @@ export function connectWorker(
         const file = running.get(message.seq)
         if (file === undefined) return
         running.delete(message.seq)
-        if (!failures.has(message.seq)) return file.resolve(message)
-        const error = failures.get(message.seq)
-        failures.delete(message.seq)
-        file.reject(error)
+        if (file.failure === undefined) file.resolve(message)
+        else file.reject(file.failure.error)
       })
     }
   })
