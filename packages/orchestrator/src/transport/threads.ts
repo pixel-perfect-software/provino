@@ -8,7 +8,14 @@ import type {
   WorkerExit,
   WorkerToCoordinator,
 } from '@provino/types'
-import { connect, entryHref, type TransportOptions } from './shared.ts'
+import {
+  checkInit,
+  connect,
+  entryHref,
+  forward,
+  printError,
+  type TransportOptions,
+} from './shared.ts'
 
 /**
  * Options for `threadsTransport`.
@@ -36,6 +43,8 @@ export function threadsTransport(options: ThreadsTransportOptions): TransportFac
   return {
     kind: 'threads',
     async create(init) {
+      checkInit('threads', init)
+      const stderr = options.stderr ?? process.stderr
       const worker = new Worker(bootstrap, {
         workerData: { entry },
         stdout: true,
@@ -46,14 +55,16 @@ export function threadsTransport(options: ThreadsTransportOptions): TransportFac
           ? {}
           : { resourceLimits: { maxOldGenerationSizeMb: options.memoryLimitMb } }),
       })
-      worker.stdout.pipe(options.stdout ?? process.stdout, { end: false })
-      worker.stderr.pipe(options.stderr ?? process.stderr, { end: false })
+      forward(worker.stdout, options.stdout ?? process.stdout)
+      forward(worker.stderr, stderr)
       let exitListener: ((exit: WorkerExit) => void) | undefined
       let outOfMemory = false
-      // An uncaught error ends the thread with code 1, which the exit reports; only the OOM code
-      // changes what the exit means.
+      // An uncaught error ends the thread with code 1, which the exit reports. Node prints it
+      // nowhere, so it goes to the stderr sink, as a fork's would; only the OOM code changes what
+      // the exit means.
       worker.on('error', (error: unknown) => {
         if ((error as { code?: unknown }).code === 'ERR_WORKER_OUT_OF_MEMORY') outOfMemory = true
+        else printError(stderr, error)
       })
       worker.once('exit', (code) => {
         exitListener?.(

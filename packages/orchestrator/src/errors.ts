@@ -6,6 +6,7 @@ export type OrchestratorErrorCode =
   | 'ORCH_WORKER_START_TIMEOUT'
   | 'ORCH_WORKER_EXITED'
   | 'ORCH_BAD_ENTRY'
+  | 'ORCH_BAD_INIT'
 
 /**
  * A coordinator error with a stable code. For `ORCH_WORKER_EXITED` the `cause` is the

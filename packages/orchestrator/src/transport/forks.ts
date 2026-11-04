@@ -11,7 +11,14 @@ import type {
   WorkerExit,
   WorkerToCoordinator,
 } from '@provino/types'
-import { connect, entryHref, type TransportOptions } from './shared.ts'
+import {
+  checkInit,
+  connect,
+  entryHref,
+  forward,
+  printError,
+  type TransportOptions,
+} from './shared.ts'
 
 /** How long after a child's exit its IPC channel may take to disconnect. */
 const DISCONNECT_GRACE_MS = 1000
@@ -37,14 +44,16 @@ export function forksTransport(options: ForksTransportOptions): TransportFactory
   return {
     kind: 'forks',
     async create(init) {
+      checkInit('forks', init)
+      const stderr = options.stderr ?? process.stderr
       const child = fork(bootstrap, [entry], {
         serialization: 'advanced',
         stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
         execArgv: [...(options.execArgv ?? process.execArgv)],
         env: options.env ?? process.env,
       })
-      child.stdout?.pipe(options.stdout ?? process.stdout, { end: false })
-      child.stderr?.pipe(options.stderr ?? process.stderr, { end: false })
+      forward(child.stdout, options.stdout ?? process.stdout)
+      forward(child.stderr, stderr)
       const link = childProcessLink<CoordinatorToWorker, WorkerToCoordinator>(child)
       let exitListener: ((exit: WorkerExit) => void) | undefined
       // The exit is reported once the child has exited *and* its IPC channel has disconnected, so
@@ -61,8 +70,9 @@ export function forksTransport(options: ForksTransportOptions): TransportFactory
       })
       // A spawn failure has no `exit` event; any later `error` (a send on a closing channel) is
       // reported by the exit that follows it.
-      child.on('error', () => {
+      child.on('error', (error) => {
         if (child.pid !== undefined) return
+        printError(stderr, error)
         exit = { type: 'exit', code: 1 }
         disconnected = true
         report()

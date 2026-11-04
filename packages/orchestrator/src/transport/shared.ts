@@ -132,14 +132,65 @@ export function connect(
       )
     })
     const offReady = spawned.link.onMessage((message) => {
-      if (message.t !== 'ready') return
+      // A `ready` read after the start timeout fired is too late: the worker is being killed,
+      // and its exit rejects with the timeout.
+      if (message.t !== 'ready' || timedOut !== undefined) return
+      try {
+        spawned.link.send({ t: 'start', init })
+      } catch (error) {
+        clearTimeout(timer)
+        offReady()
+        offExit()
+        spawned.kill('SIGKILL')
+        reject(badInit(kind, error))
+        return
+      }
       clearTimeout(timer)
       offReady()
       offExit()
-      spawned.link.send({ t: 'start', init })
       resolve(transport)
     })
   })
+}
+
+/**
+ * Refuses an init that can't cross to a worker, before anything is spawned. (A fork's advanced
+ * serialization also rejects a `SharedArrayBuffer`, which structured clone allows; `connect`
+ * catches that when it sends `start`.)
+ */
+export function checkInit(kind: PoolKind, init: WorkerInit): void {
+  try {
+    structuredClone(init)
+  } catch (error) {
+    throw badInit(kind, error)
+  }
+}
+
+function badInit(kind: PoolKind, error: unknown): OrchestratorError {
+  const reason = error instanceof Error ? error.message : String(error)
+  return new OrchestratorError(
+    'ORCH_BAD_INIT',
+    `The ${kind} worker's init can't be sent to it: ${reason}`,
+    {
+      cause: error,
+    },
+  )
+}
+
+/**
+ * Copies a worker's own stdout or stderr into `sink`, chunk by chunk. Not `pipe`: every pipe into
+ * one shared sink (this process's stdout) adds four listeners to it, and a dozen workers would set
+ * off `MaxListenersExceededWarning`. The sink is never ended.
+ */
+export function forward(source: NodeJS.ReadableStream | null, sink: NodeJS.WritableStream): void {
+  source?.on('data', (chunk: Buffer) => {
+    sink.write(chunk)
+  })
+}
+
+/** Writes a worker's error that nothing else would show (a thread's uncaught one, a spawn failure). */
+export function printError(sink: NodeJS.WritableStream, error: unknown): void {
+  sink.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
 }
 
 /**

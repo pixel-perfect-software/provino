@@ -12,7 +12,7 @@ import type {
   WorkerToCoordinator,
 } from '@provino/types'
 import { OrchestratorError } from '../errors.ts'
-import { connect, entryHref, type TransportOptions } from './shared.ts'
+import { checkInit, connect, entryHref, type TransportOptions } from './shared.ts'
 
 /**
  * Options for `inlineTransport`. An inline worker shares this process's stdio, so the `stdout`
@@ -30,6 +30,7 @@ export function inlineTransport(options: InlineTransportOptions): TransportFacto
   return {
     kind: 'inline',
     async create(init) {
+      checkInit('inline', init)
       const loaded: unknown = await import(entry)
       const main = (loaded as { readonly default?: unknown }).default
       if (typeof main !== 'function') {
