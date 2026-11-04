@@ -67,8 +67,10 @@ export function inlineTransport(options: InlineTransportOptions): TransportFacto
       onExit(listener) {
         link.onExit(() => {
           // The link is closed; the worker has ended once its main has settled too. Past the
-          // bound it is reported as it is.
-          void settlesWithin(mainSettled, teardownTimeoutMs).then(() =>
+          // bound it is reported as it is. The bound's timer is ref'd: a main stuck on a promise
+          // holds no handle, so an unref'd one would let the loop drain before the exit is
+          // reported, and `terminate` would never resolve.
+          void settlesWithin(mainSettled, teardownTimeoutMs, { ref: true }).then(() =>
             listener({ type: 'exit', code: failed ? 1 : 0 }),
           )
         })

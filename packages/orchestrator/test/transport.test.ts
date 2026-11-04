@@ -2,8 +2,10 @@
 // `ready` → `start` handshake and its timeout, Track 9's shutdown, and stdio piped with
 // `end: false`.
 import assert from 'node:assert/strict'
-import { ChildProcess } from 'node:child_process'
+import { ChildProcess, spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { describe, it } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { connectWorker, OrchestratorError, type WorkerConnection } from '@provino/orchestrator'
 import type { PoolKind, Transport, WorkerExit, WorkerInit } from '@provino/types'
 import {
@@ -279,5 +281,26 @@ describe('inline transport', () => {
     void connection.run(job('forever')).catch(() => {})
     await transport.terminate(true)
     assert.deepEqual(await connection.exited, { type: 'exit', code: 0 })
+  })
+
+  // Inside this test runner something else keeps the event loop alive; a real coordinator may have
+  // nothing. The stuck worker holds no handle, so only the bound's own timer can: unref'd, the loop
+  // drained and `terminate` never resolved (exit 13, "unsettled top-level await").
+  it('keeps a process with nothing else alive until a stuck worker is reported', {
+    timeout: 20_000,
+  }, async () => {
+    const child = spawn(
+      process.execPath,
+      [...process.execArgv, fileURLToPath(fixture('terminate-hung-inline.ts'))],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    )
+    let stdout = ''
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString()
+    })
+    child.stderr.resume()
+    const [code] = (await once(child, 'exit')) as [number | null]
+    assert.equal(code, 0)
+    assert.match(stdout, /terminated \{"type":"exit","code":0\}/)
   })
 })

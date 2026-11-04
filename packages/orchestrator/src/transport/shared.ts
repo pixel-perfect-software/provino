@@ -258,12 +258,21 @@ export function describeExit(exit: WorkerExit): string {
   }
 }
 
-/** Whether `promise` settles within `ms`. The timer never keeps the process alive. */
-export async function settlesWithin(promise: Promise<void>, ms: number): Promise<boolean> {
+/**
+ * Whether `promise` settles within `ms`. By default the timer doesn't keep the process alive: a
+ * fork or thread being waited for holds a handle of its own. Pass `ref: true` when nothing else
+ * may: an inline worker stuck on a promise holds no handle, and an unref'd bound would let the
+ * event loop drain with the wait still pending.
+ */
+export async function settlesWithin(
+  promise: Promise<void>,
+  ms: number,
+  options: { readonly ref?: boolean } = {},
+): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined
   const expired = new Promise<false>((resolve) => {
     timer = setTimeout(() => resolve(false), ms)
-    timer.unref()
+    if (options.ref !== true) timer.unref()
   })
   try {
     return await Promise.race([promise.then(() => true as const), expired])
