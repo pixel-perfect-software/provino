@@ -11,13 +11,20 @@ import type {
   Inject,
   ReporterBus,
   ReporterEvents,
+  RpcCall,
   RpcClient,
+  RpcReply,
+  RpcSchema,
   RuntimeEvent,
   RuntimeEventOf,
   SuiteTask,
   TaskState,
   TestTask,
   WorkerEvent,
+  WorkerInit,
+  WorkerMethods,
+  WorkerPort,
+  WorkerToCoordinator,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -70,8 +77,50 @@ const bad: FileResult = { file, state: 'pass', durationMs: 1, errors: [], worker
 // runtime-originated bus event hands reporters the RuntimeEvent itself.
 expectTypeOf<RuntimeEvent>().toExtend<WorkerEvent>()
 expectTypeOf<WorkerEvent>().toExtend<CloneSafe<WorkerEvent>>()
-type RunMessage = Extract<CoordinatorToWorker, { t: 'run' }>
-expectTypeOf<RunMessage>().toExtend<CloneSafe<RunMessage>>()
+
+// Every wire message crosses a thread, now that the RPC payloads are typed (B09).
+expectTypeOf<CoordinatorToWorker>().toExtend<CloneSafe<CoordinatorToWorker>>()
+expectTypeOf<WorkerToCoordinator>().toExtend<CloneSafe<WorkerToCoordinator>>()
+expectTypeOf<WorkerInit>().toExtend<CloneSafe<WorkerInit>>()
+
+// The RPC schemas: both method sets are clone-safe; a callback or a class result is not.
+expectTypeOf<CoordinatorMethods>().toExtend<RpcSchema<CoordinatorMethods>>()
+expectTypeOf<WorkerMethods>().toExtend<RpcSchema<WorkerMethods>>()
+interface TakesCallback {
+  subscribe(listener: () => void): void
+}
+expectTypeOf<RpcSchema<TakesCallback>['subscribe']>().toBeNever()
+interface ReturnsMap {
+  lookup(): Promise<Map<string, URL>>
+}
+expectTypeOf<RpcSchema<ReturnsMap>['lookup']>().toBeNever()
+
+// Calls name a method and carry its arguments; replies carry a result of one of the methods.
+type TimingsCall = Extract<RpcCall<CoordinatorMethods>, { method: 'readTimings' }>
+expectTypeOf<TimingsCall['args']>().toEqualTypeOf<readonly [file: string]>()
+expectTypeOf<Extract<WorkerToCoordinator, { t: 'call' }>>().toEqualTypeOf<
+  RpcCall<CoordinatorMethods>
+>()
+expectTypeOf<Extract<CoordinatorToWorker, { t: 'call' }>>().toEqualTypeOf<RpcCall<WorkerMethods>>()
+type CoordinatorReplyValue = Extract<RpcReply<CoordinatorMethods>, { ok: true }>['value']
+// The union of the three results: string, void, and number | undefined.
+expectTypeOf<string | number | undefined>().toExtend<CoordinatorReplyValue>()
+expectTypeOf<Exclude<CoordinatorReplyValue, string | number | undefined>>().toEqualTypeOf<void>()
+// @ts-expect-error a call names one of the methods
+const unknownCall: RpcCall<CoordinatorMethods> = { t: 'call', id: 1, method: 'nope', args: [] }
+const wrongArgs: RpcCall<CoordinatorMethods> = {
+  t: 'call',
+  id: 1,
+  method: 'readTimings',
+  // @ts-expect-error a call carries that method's arguments
+  args: [1],
+}
+
+// A worker's port is the mirror of the transport.
+expectTypeOf<Parameters<WorkerPort['send']>[0]>().toEqualTypeOf<WorkerToCoordinator>()
+expectTypeOf<
+  Parameters<Parameters<WorkerPort['onMessage']>[0]>[0]
+>().toEqualTypeOf<CoordinatorToWorker>()
 expectTypeOf<ReporterEvents['hook:start'][1]>().toEqualTypeOf<RuntimeEventOf<'hook-start'>>()
 expectTypeOf<ReporterEvents['task:end'][1]>().toEqualTypeOf<
   RuntimeEventOf<'suite-end' | 'test-end'>
@@ -117,4 +166,4 @@ export function busEventFor(event: WorkerEvent): keyof ReporterEvents | null {
   }
 }
 
-export { bad }
+export { bad, unknownCall, wrongArgs }

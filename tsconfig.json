@@ -5,6 +5,12 @@
       "path": "packages/types"
     },
     {
+      "path": "packages/rpc"
+    },
+    {
+      "path": "packages/orchestrator"
+    },
+    {
       "path": "packages/policy"
     },
     {
