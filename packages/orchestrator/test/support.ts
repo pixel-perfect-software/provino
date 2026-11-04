@@ -6,6 +6,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, sep } from 'node:path'
 import { Writable } from 'node:stream'
+import { after } from 'node:test'
 import {
   connectWorker,
   type FileDone,
@@ -150,6 +151,22 @@ export async function makeProject(files: Readonly<Record<string, string>>): Prom
     dir,
     path: (name) => join(dir, name),
     cleanup: () => rm(dir, { recursive: true, force: true }),
+  }
+}
+
+/**
+ * A maker of projects for one test file: each project it makes is removed once the file's tests
+ * are done. It registers its own `after`, so call it once, at the top of the file.
+ */
+export function trackedProjects(): (files: Readonly<Record<string, string>>) => Promise<Project> {
+  const made: Project[] = []
+  after(async () => {
+    await Promise.all(made.map((project) => project.cleanup()))
+  })
+  return async (files) => {
+    const project = await makeProject(files)
+    made.push(project)
+    return project
   }
 }
 

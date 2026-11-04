@@ -44,26 +44,50 @@ import {
   setupEnvironment,
 } from '../internal/runtime/environment.ts'
 import { installGlobals } from '../internal/runtime/globals.ts'
-import {
-  fileLeakWarning,
-  leakedGlobalsOf,
-  leakWarningEvent,
-  workerLeakWarning,
-} from '../internal/runtime/leaks.ts'
+import { fileLeakEvent, leakedGlobalsOf, workerLeakEvent } from '../internal/runtime/leaks.ts'
 import { assertionCountSink } from '../internal/runtime/sink.ts'
 import type { FileContext, FileOutcome, WorkerContext, WorkerRunner } from '../start.ts'
 
-/** Everything `start` built, and what `runFile` needs from it. */
+/**
+ * The pieces of the worker. `boot` fills them in as it goes, so `stop` can undo a worker whose
+ * `start` threw half-way; a worker is started once `isBooted` says every one it builds is there.
+ */
 interface Booted {
-  readonly loader: Loader
-  readonly runtime: Runtime
-  readonly source: StateSource
-  readonly snapshot: RegistrySnapshot
-  readonly environment: PreparedEnvironment
+  /** The matcher slot expect installed. */
+  slot: SlotHandle
+  loader: Loader
+  runtime: Runtime
+  source: StateSource
+  snapshot: RegistrySnapshot
+  /** The environment, loaded and prepared. */
+  environment: PreparedEnvironment
   /** The dialect's globals, built once; `undefined` when none are injected. */
-  readonly globals: Readonly<Record<string, unknown>> | undefined
+  globals: Readonly<Record<string, unknown>> | undefined
   /** The file registry tier: `process` is the pool's business and runs as `registry`. */
-  readonly tier: Exclude<IsolationTier, 'process'>
+  tier: Exclude<IsolationTier, 'process'>
+  /**
+   * How long an environment instance lives: `worker` for isolation `none` (nothing is isolated, so
+   * the environment, the globals and the registry last as long as the worker), `file` otherwise.
+   */
+  scope: EnvironmentScope
+  /** The instance of a worker-scoped environment, set up for the first file; `stop` tears it down. */
+  workerEnvironment: { readonly instance: EnvironmentInstance; readonly name: string } | undefined
+}
+
+/** The pieces `boot` builds. `globals` and `workerEnvironment` may stay `undefined`. */
+const BUILT = [
+  'slot',
+  'loader',
+  'runtime',
+  'source',
+  'snapshot',
+  'environment',
+  'tier',
+  'scope',
+] as const satisfies readonly (keyof Booted)[]
+
+function isBooted(parts: Partial<Booted>): parts is Booted {
+  return BUILT.every((key) => parts[key] !== undefined)
 }
 
 /**
@@ -130,19 +154,13 @@ async function writableUnlessAborted(
  * @public
  */
 export function createRuntimeRunner(): WorkerRunner {
-  // The pieces of the worker that exist so far. `start` fills them in as it goes, so `stop` can
-  // undo a worker whose `start` threw half-way.
-  let slot: SlotHandle | undefined
-  let loader: Loader | undefined
-  let runtime: Runtime | undefined
-  /** The environment instance of a worker-scoped environment (isolation `none`). */
-  let workerEnvironment: EnvironmentInstance | undefined
+  /** What `boot` has built so far; `stop` takes it all and leaves it empty. */
+  let parts: Partial<Booted> = {}
   /**
    * The lifetime of the worker: what a worker-scoped environment's `signal` is. It outlives the
    * first file, whose own signal belongs to that file's run, and `stop` aborts it.
    */
   const workerLifetime = new AbortController()
-  let booted: Booted | undefined
   /** The registry of the file running now, for `importFile` and the globals' `registry()`. */
   let current: FileRegistry | undefined
 
@@ -153,13 +171,19 @@ export function createRuntimeRunner(): WorkerRunner {
     return current
   }
 
-  async function boot(context: WorkerContext): Promise<Booted> {
+  async function boot(context: WorkerContext): Promise<void> {
     const config = parseProjectConfig(context.init.config)
     // A SerializedPolicy is a Policy whose behaviour keys are all refs: nothing to deserialize.
     const policy: Policy = config.policy
     const behaviours = createBehaviourLoader()
-    const projectLoader = await createProjectLoader(config.rootDir, config.loader, policy.module)
-    loader = projectLoader
+    parts.loader = await createProjectLoader(config.rootDir, config.loader, policy.module)
+
+    // `process` is the pool's business (a new process per file) and runs as `registry`.
+    const tier = context.init.isolation === 'process' ? 'registry' : context.init.isolation
+    // With `none` nothing is isolated, so the environment lives as long as the worker.
+    const scope: EnvironmentScope = tier === 'none' ? 'worker' : 'file'
+    parts.tier = tier
+    parts.scope = scope
 
     // Expect, in the order its docs give: the slot exists before any matcher module loads, and
     // `createExpect` registers the table's matchers. The registry snapshot comes last (below).
@@ -167,8 +191,9 @@ export function createRuntimeRunner(): WorkerRunner {
       nameSeparator: policy.core.nameSeparator,
       expand: policy.expect.expand,
     })
+    parts.source = source
     const registry = createMatcherRegistry()
-    slot = installMatchersSlot(source, registry)
+    parts.slot = installMatchersSlot(source, registry)
     if (policy.expect.matcherTable === null) {
       throw new ExpectError(
         'EXPECT_NO_MATCHER_TABLE',
@@ -178,9 +203,6 @@ export function createRuntimeRunner(): WorkerRunner {
     const table = (await behaviours.load(policy.expect.matcherTable))()
     const expect = createExpect({ policy: policy.expect, table, source, registry })
 
-    // `process` is the pool's business (a new process per file) and runs as `registry`.
-    const tier = context.init.isolation === 'process' ? 'registry' : context.init.isolation
-
     // Setup files run inside core's collection, so the hooks they register belong to the file.
     const importFile = async (path: string): Promise<unknown> => {
       const files = activeRegistry()
@@ -188,7 +210,7 @@ export function createRuntimeRunner(): WorkerRunner {
       // evaluated is cached: the setup files and the test file itself (queued twice, or imported
       // by an earlier file) are dropped and evaluated again, while their dependencies stay shared.
       // Every other tier gives the file a new registry, where there is nothing to drop.
-      const shared = tier === 'none'
+      const shared = scope === 'worker'
       for (const setup of [...config.setupFiles, ...config.setupFilesAfterEnv]) {
         if (shared) files.invalidate(setup)
         await files.import(setup)
@@ -205,11 +227,10 @@ export function createRuntimeRunner(): WorkerRunner {
       projectName: config.name,
       ci: config.ci,
     })
-    runtime = coreRuntime
+    parts.runtime = coreRuntime
 
-    const environment = await prepareEnvironment(config.environment)
+    parts.environment = await prepareEnvironment(config.environment)
 
-    let globals: Readonly<Record<string, unknown>> | undefined
     if (policy.core.injectGlobals && config.globals !== null) {
       const factory = await behaviours.load(config.globals)
       const host: RuntimeGlobalsHost = { api: coreRuntime.api, expect, registry: activeRegistry }
@@ -220,20 +241,11 @@ export function createRuntimeRunner(): WorkerRunner {
           `The globals factory ${config.globals.module}#${config.globals.export} did not return an object`,
         )
       }
-      globals = built as Readonly<Record<string, unknown>>
+      parts.globals = built as Readonly<Record<string, unknown>>
     }
     // After the factory: it may extend `expect` (or add to it), and what it adds belongs to the
     // baseline that each file's restore returns to, not to something the first file leaked.
-    const snapshot = snapshotRegistry(registry, expect)
-    return {
-      loader: projectLoader,
-      runtime: coreRuntime,
-      source,
-      snapshot,
-      environment,
-      globals,
-      tier,
-    }
+    parts.snapshot = snapshotRegistry(registry, expect)
   }
 
   /**
@@ -244,18 +256,20 @@ export function createRuntimeRunner(): WorkerRunner {
    */
   async function setUpEnvironment(
     worker: Booted,
-    scope: EnvironmentScope,
     context: FileContext,
   ): Promise<EnvironmentInstance> {
-    if (scope === 'worker' && workerEnvironment !== undefined) return workerEnvironment
-    const instance = await setupEnvironment(worker.environment, {
+    const { scope, environment } = worker
+    if (worker.workerEnvironment !== undefined) return worker.workerEnvironment.instance
+    const instance = await setupEnvironment(environment, {
       scope,
       testPath: context.job.file,
       pragmas: {},
       console: context.console,
       signal: scope === 'worker' ? workerLifetime.signal : context.signal,
     })
-    if (scope === 'worker') workerEnvironment = instance
+    if (scope === 'worker') {
+      worker.workerEnvironment = { instance, name: environment.environment.name }
+    }
     return instance
   }
 
@@ -269,26 +283,24 @@ export function createRuntimeRunner(): WorkerRunner {
 
   return {
     async start(context): Promise<void> {
-      booted = await boot(context)
+      await boot(context)
     },
 
     async runFile(context): Promise<FileOutcome> {
-      if (booted === undefined) {
+      if (!isBooted(parts)) {
         throw new WorkerError('ORCH_NOT_STARTED', 'The worker runtime has not started')
       }
-      const worker = booted
+      const worker = parts
       const { job } = context
       if (!(await writableUnlessAborted(context.sink, context.signal))) return {}
 
       // Throws for the tier `realm` (the loader's LOADER_NOT_IMPLEMENTED), with nothing set up yet.
       const registry = worker.loader.createFileRegistry(job.file, { tier: worker.tier })
       current = registry
-      // With `none` nothing is isolated, so the environment lives as long as the worker.
-      const scope: EnvironmentScope = worker.tier === 'none' ? 'worker' : 'file'
       let instance: EnvironmentInstance | undefined
       const errors: unknown[] = []
       try {
-        instance = await setUpEnvironment(worker, scope, context)
+        instance = await setUpEnvironment(worker, context)
         if (worker.globals !== undefined) installGlobals(instance.global, worker.globals)
         worker.source.startFile(job.file)
         await worker.runtime.runFile(job.file, filtersOf(job))
@@ -296,47 +308,49 @@ export function createRuntimeRunner(): WorkerRunner {
         errors.push(error)
       }
 
-      // Teardown, always, in this order. A step that throws doesn't stop the next ones.
+      // Teardown, always, in this order. A step that throws doesn't stop the next ones. With `none`
+      // the environment, the custom matchers and the globals persist for the next file, as with
+      // Vitest's `isolate: false`: only the registry goes.
       let leaked: readonly string[] = []
+      const teardownEnvironment = async (): Promise<void> => {
+        // The environment reports a global it couldn't remove instead of throwing (D22).
+        if (instance === undefined) return
+        leaked = leakedGlobalsOf(await instance.teardown(), worker.environment.environment.name)
+      }
+      const restoreMatchers = () => worker.snapshot.restore()
+      const disposeRegistry = () => registry.dispose()
       errors.push(
         ...(await runAll([
-          // File scope only: with `none` the environment, the custom matchers and the globals
-          // persist for the next file, as with Vitest's `isolate: false`. The environment reports
-          // a global it couldn't remove instead of throwing (D22).
-          async () => {
-            if (scope !== 'file' || instance === undefined) return
-            leaked = leakedGlobalsOf(await instance.teardown(), worker.environment.environment.name)
-          },
-          () => scope === 'file' && worker.snapshot.restore(),
-          () => registry.dispose(),
+          ...(worker.scope === 'file' ? [teardownEnvironment, restoreMatchers] : []),
+          disposeRegistry,
         ])),
       )
       current = undefined
       // A warning, before the file finishes: through the same sink as the file's own events, so it
       // arrives after them and before `fileDone`. It has no task: the file's tasks have ended.
-      if (leaked.length > 0) context.sink.emit(leakWarningEvent(fileLeakWarning(job.file, leaked)))
+      if (leaked.length > 0) context.sink.emit(fileLeakEvent(job.file, leaked))
       rethrow(errors, `Tearing down ${job.file} failed`)
       return leaked.length > 0 ? { leakedGlobals: leaked } : {}
     },
 
     async stop(context): Promise<void> {
-      const parts = { runtime, workerEnvironment, loader, slot, environment: booted?.environment }
-      booted = runtime = workerEnvironment = loader = slot = undefined
+      const torn = parts
+      parts = {}
       let leaked: readonly string[] = []
       const errors = await runAll([
-        () => parts.runtime?.dispose(),
+        () => torn.runtime?.dispose(),
         async () => {
-          if (parts.workerEnvironment === undefined) return
-          const name = parts.environment?.environment.name ?? 'worker'
-          leaked = leakedGlobalsOf(await parts.workerEnvironment.teardown(), name)
+          if (torn.workerEnvironment === undefined) return
+          const { instance, name } = torn.workerEnvironment
+          leaked = leakedGlobalsOf(await instance.teardown(), name)
         },
-        () => parts.loader?.[Symbol.dispose](),
-        () => parts.slot?.uninstall(),
+        () => torn.loader?.[Symbol.dispose](),
+        () => torn.slot?.uninstall(),
         // Last: the worker environment's teardown ran with its signal still live.
         () => workerLifetime.abort(),
       ])
       // The worker-scoped environment (isolation `none`) reports once, here, before `stopped`.
-      if (leaked.length > 0) context.sink.emit(leakWarningEvent(workerLeakWarning(leaked)))
+      if (leaked.length > 0) context.sink.emit(workerLeakEvent(leaked))
       rethrow(errors, 'Stopping the worker runtime failed')
     },
   }

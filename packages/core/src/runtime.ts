@@ -146,7 +146,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
         `Invalid ${option} for ${relativePath}: ${reason}`,
         cause === undefined ? undefined : { cause },
       )
-    let pattern: RegExp | undefined
+    let filePattern: RegExp | undefined
     if (testNamePattern !== undefined) {
       if (typeof testNamePattern !== 'string' && !(testNamePattern instanceof RegExp)) {
         throw invalid(
@@ -155,7 +155,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
         )
       }
       try {
-        pattern = toRegExp(testNamePattern, policy.testNamePatternFlags)
+        filePattern = toRegExp(testNamePattern, policy.testNamePatternFlags)
       } catch (cause) {
         throw invalid(
           'testNamePattern',
@@ -172,23 +172,9 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     }
     return {
       ...finalizeOptions,
-      ...(pattern === undefined ? {} : { testNamePattern: pattern }),
+      ...(filePattern === undefined ? {} : { testNamePattern: filePattern }),
       ...(testIds === undefined ? {} : { testIds: new Set(testIds) }),
       lines: lines === undefined ? undefined : new Set(lines),
-    }
-  }
-
-  /**
-   * This file's filters, built before the file is imported. `undefined` when they can't be built
-   * (an option of the wrong type, or a `testNamePattern` that is not a valid regular expression):
-   * the reason is then recorded as the file's error and the file is not collected.
-   */
-  function filtersFor(file: FileState, fileOptions: RunFileOptions): FinalizeOptions | undefined {
-    try {
-      return finalizeOptionsFor(file.relativePath, fileOptions)
-    } catch (error) {
-      file.errors.push(error)
-      return undefined
     }
   }
 
@@ -241,19 +227,18 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     sink.emit({ type: 'file-collect-start', fileId, path: relativePath, t: start })
     let outcome: Outcome = 'fail'
     try {
-      // Before collection: an invalid per-file filter skips the import and reports no tasks, but
-      // the file still gets its `file-collect-end` and `file-end`.
-      const filters = filtersFor(file, fileOptions)
-      let collected = filters !== undefined && (await collect(file))
+      let collected = false
       let tasks: TaskNode[] = []
-      if (filters !== undefined) {
-        try {
-          tasks = finalize(file, filters)
-        } catch (error) {
-          // Whatever made finalizing throw, the file reports no tasks and the error, and is not run.
-          collected = false
-          file.errors.push(error)
-        }
+      try {
+        // The filters are built before the import: an invalid per-file filter skips it. Whatever
+        // throws here (that, or `finalize`), the file reports no tasks and the error, is not run,
+        // and still gets its `file-collect-end` and `file-end`.
+        const filters = finalizeOptionsFor(relativePath, fileOptions)
+        collected = await collect(file)
+        tasks = finalize(file, filters)
+      } catch (error) {
+        collected = false
+        file.errors.push(error)
       }
       const errors = file.errors.map(serializeError)
       sink.emit({ type: 'file-collect-end', fileId, tasks, errors, t: now() })

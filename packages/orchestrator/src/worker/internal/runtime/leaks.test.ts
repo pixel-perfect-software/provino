@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { WorkerError } from '../../errors.ts'
-import { fileLeakWarning, leakedGlobalsOf, leakWarningEvent, workerLeakWarning } from './leaks.ts'
+import { fileLeakEvent, leakedGlobalsOf, workerLeakEvent } from './leaks.ts'
 
 describe('leakedGlobalsOf', () => {
   it('reads the keys of a report, and nothing from a clean teardown', () => {
@@ -32,35 +32,46 @@ describe('leakedGlobalsOf', () => {
 describe('the leak warnings', () => {
   it('name the file and the keys, and say later files in the worker can see them', () => {
     assert.equal(
-      fileLeakWarning('/p/a.test.js', ['__stuck', 'Symbol(s)']),
+      fileLeakEvent('/p/a.test.js', ['__stuck', 'Symbol(s)']).text,
       'Provino: /p/a.test.js left 2 globals behind that the environment could not remove: __stuck, Symbol(s). Later files in this worker can see them.\n',
     )
     assert.equal(
-      fileLeakWarning('/p/a.test.js', ['__stuck']),
+      fileLeakEvent('/p/a.test.js', ['__stuck']).text,
       'Provino: /p/a.test.js left 1 global behind that the environment could not remove: __stuck. Later files in this worker can see it.\n',
     )
   })
 
   it('name the keys for a worker-scoped environment', () => {
     assert.equal(
-      workerLeakWarning(['a', 'b']),
+      workerLeakEvent(['a', 'b']).text,
       'Provino: the environment could not remove 2 globals when the worker stopped: a, b.\n',
     )
   })
 
   it('are console events a console.warn call would have made, with no task', () => {
-    const event = leakWarningEvent('text\n')
-    assert.deepEqual(
-      { ...event, t: typeof event.t },
-      {
-        type: 'console',
-        taskId: null,
-        stream: 'stderr',
-        level: 'warn',
-        text: 'text\n',
-        origin: null,
-        t: 'number',
-      },
-    )
+    const warnings = [
+      [
+        fileLeakEvent('/p/a.test.js', ['a']),
+        'Provino: /p/a.test.js left 1 global behind that the environment could not remove: a. Later files in this worker can see it.\n',
+      ],
+      [
+        workerLeakEvent(['a']),
+        'Provino: the environment could not remove 1 global when the worker stopped: a.\n',
+      ],
+    ] as const
+    for (const [event, text] of warnings) {
+      assert.deepEqual(
+        { ...event, t: typeof event.t },
+        {
+          type: 'console',
+          taskId: null,
+          stream: 'stderr',
+          level: 'warn',
+          text,
+          origin: null,
+          t: 'number',
+        },
+      )
+    }
   })
 })

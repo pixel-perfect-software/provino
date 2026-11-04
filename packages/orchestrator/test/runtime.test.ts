@@ -3,7 +3,8 @@
 // a project supplies by ref: an environment that records its calls, a matcher table, and a globals
 // factory. They write to `globalThis.__trace`, which an inline worker shares with the test.
 import assert from 'node:assert/strict'
-import { after, describe, it } from 'node:test'
+import { describe, it } from 'node:test'
+import { MATCHERS_SLOT } from '@provino/expect'
 import { moduleRef } from '@provino/policy'
 import type {
   FileJob,
@@ -16,24 +17,13 @@ import type {
 import {
   eventsOf,
   fixture,
-  makeProject,
-  type Project,
   runJobs,
   runtimeConfig,
   runtimeJob,
+  trackedProjects,
 } from './support.ts'
 
-const projects: Project[] = []
-async function project(files: Readonly<Record<string, string>>): Promise<Project> {
-  const made = await makeProject(files)
-  projects.push(made)
-  return made
-}
-after(async () => {
-  await Promise.all(projects.map((made) => made.cleanup()))
-})
-
-const SLOT = Symbol.for('$$jest-matchers-object')
+const project = trackedProjects()
 
 /** `test-end` results by test name (the last path segment of the full name). */
 function resultsByName(events: readonly WorkerEvent[]): Map<string, RuntimeEventOf<'test-end'>> {
@@ -541,7 +531,7 @@ describe('stop', () => {
     })
     assert.deepEqual(run.exit, { type: 'exit', code: 0 })
     assert.equal(trace.at(-1), 'env:teardown matchers=toBe')
-    assert.equal(Reflect.has(globalThis, SLOT), false)
+    assert.equal(Reflect.has(globalThis, MATCHERS_SLOT), false)
     // Worker-scoped: the globals the file saw were removed with the environment.
     assert.equal(Reflect.has(globalThis, 'describe'), false)
   })
@@ -572,11 +562,60 @@ describe('stop', () => {
         [],
       )
       assert.deepEqual(states(second.events), { b: 'pass' })
-      assert.equal(Reflect.has(globalThis, SLOT), false)
+      assert.equal(Reflect.has(globalThis, MATCHERS_SLOT), false)
       // Under none the environment was worker-scoped: the first worker's globals went with it.
       assert.equal(Reflect.has(globalThis, 'describe'), false)
     })
   }
+
+  it('reports a killed inline worker only after its teardown ended, so the next one boots after it, even when the teardown awaits a macrotask', async () => {
+    const p = await project({
+      'a.test.js': "test('a', () => { expect(1).toBe(1) })",
+      'b.test.js': "test('b', () => { expect(1).toBe(1) })",
+    })
+    // Under `none` the environment is torn down by the worker's `stop`, which is what a kill
+    // queues; the matcher slot is released after it. The teardown takes a macrotask and an fs op.
+    const config = runtimeConfig(p.dir, { environmentOptions: { slowTeardown: true } })
+    // Set here, not through `runJobs`, so it stays in place when the first run returns.
+    const trace: string[] = []
+    Reflect.set(globalThis, '__trace', trace)
+    try {
+      const first = await runJobs({
+        config,
+        isolation: 'none',
+        end: 'kill',
+        jobs: [runtimeJob(config, p.path('a.test.js'))],
+      })
+      assert.deepEqual(states(first.events), { a: 'pass' })
+      // The kill is reported only once the worker has torn down: nothing is left to run.
+      assert.equal(trace.at(-1), 'env:teardown ended')
+      assert.equal(Reflect.has(globalThis, MATCHERS_SLOT), false)
+
+      const second = await runJobs({
+        config,
+        isolation: 'none',
+        jobs: [runtimeJob(config, p.path('b.test.js'))],
+      })
+      assert.deepEqual(
+        eventsOf(second.events, 'unhandled-error').map((event) => event.error.code),
+        [],
+      )
+      assert.deepEqual(states(second.events), { b: 'pass' })
+    } finally {
+      Reflect.deleteProperty(globalThis, '__trace')
+    }
+    assert.deepEqual(
+      trace.filter((step) => /^env:(prepare|teardown)/.test(step)),
+      [
+        'env:prepare {"slowTeardown":true}',
+        'env:teardown matchers=toBe',
+        'env:teardown ended',
+        'env:prepare {"slowTeardown":true}',
+        'env:teardown matchers=toBe',
+        'env:teardown ended',
+      ],
+    )
+  })
 
   it('copes with a worker whose start failed half-way', async () => {
     const p = await project({ 'a.test.js': "test('a', () => {})" })
@@ -589,7 +628,7 @@ describe('stop', () => {
     })
     const run = await runJobs({ config, jobs: [runtimeJob(config, p.path('a.test.js'))] })
     // Expect was booted (the slot installed) before the environment failed; stop undid it.
-    assert.equal(Reflect.has(globalThis, SLOT), false)
+    assert.equal(Reflect.has(globalThis, MATCHERS_SLOT), false)
     assert.deepEqual(run.exit, { type: 'exit', code: 0 })
     assert.equal(run.done.length, 1)
   })

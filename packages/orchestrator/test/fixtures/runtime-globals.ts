@@ -1,7 +1,7 @@
 // A tiny globals factory for the runtime tests: the test API from the host, plus two probes. The
 // orchestrator may not depend on a dialect, so this stands in for the dialect's factory.
 import type { GlobalsHost } from '@provino/types'
-import { trace } from './runtime-env.ts'
+import { slotMatchers, trace } from './runtime-env.ts'
 
 type Probe = {
   [name: string]: unknown
@@ -29,10 +29,7 @@ export function testGlobals(host: GlobalsHost): Probe {
       const registry = host.registry()
       const dispose = registry.dispose.bind(registry)
       registry.dispose = () => {
-        const slot = Reflect.get(globalThis, Symbol.for('$$jest-matchers-object')) as
-          | { matchers: object }
-          | undefined
-        trace(`registry:dispose matchers=${Object.keys(slot?.matchers ?? {}).join('+')}`)
+        trace(`registry:dispose matchers=${slotMatchers()}`)
         return dispose()
       }
     },

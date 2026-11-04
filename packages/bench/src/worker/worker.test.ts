@@ -8,9 +8,9 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
 import { after, describe, it } from 'node:test'
-import type { IsolationTier, PoolKind, TaskId, WorkerEvent } from '@provino/types'
+import type { IsolationTier, TaskId, WorkerEvent } from '@provino/types'
 import { checkSuite, meetsBar, TIERS, writeJestSuite } from './check.ts'
-import { fileIdOf, PROJECT_NAME, runWorkerFiles, type WorkerRunResult } from './run.ts'
+import { fileIdOf, POOLS, PROJECT_NAME, runWorkerFiles, type WorkerRunResult } from './run.ts'
 
 /** The throwing environment, as the absolute ref a worker imports it by. */
 const THROWING_ENVIRONMENT = {
@@ -18,8 +18,6 @@ const THROWING_ENVIRONMENT = {
   export: 'throwingEnvironment',
   options: {},
 } as const
-
-const POOLS: readonly PoolKind[] = ['inline', 'threads', 'forks']
 
 const cleanups: Array<() => Promise<void>> = []
 after(async () => {

@@ -9,12 +9,9 @@ import type {
   EnvironmentSetupContext,
 } from '@provino/types'
 import { WorkerError } from '../../errors.ts'
+import { isRecord } from './guards.ts'
 
-/**
- * The environment's options, as the config carries them.
- * @internal
- */
-export type EnvironmentOptions = EnvironmentRef['options']
+type EnvironmentOptions = EnvironmentRef['options']
 
 /**
  * A loaded environment and what its `prepare` returned.
@@ -36,8 +33,8 @@ function bad(ref: EnvironmentRef, problem: string, options?: ErrorOptions): Work
 }
 
 function isEnvironment(value: unknown): value is Environment<string, EnvironmentOptions> {
-  if (typeof value !== 'object' || value === null) return false
-  const { name, realms, setup, prepare } = value as Record<string, unknown>
+  if (!isRecord(value)) return false
+  const { name, realms, setup, prepare } = value
   return (
     typeof name === 'string' &&
     Array.isArray(realms) &&
@@ -89,8 +86,8 @@ export async function prepareEnvironment(ref: EnvironmentRef): Promise<PreparedE
 }
 
 function isInstance(value: unknown): value is EnvironmentInstance {
-  if (typeof value !== 'object' || value === null) return false
-  const { global, teardown } = value as Record<string, unknown>
+  if (!isRecord(value)) return false
+  const { global, teardown } = value
   return typeof global === 'object' && global !== null && typeof teardown === 'function'
 }
 

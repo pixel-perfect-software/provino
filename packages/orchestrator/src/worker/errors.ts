@@ -13,9 +13,8 @@ export type WorkerErrorCode =
 /**
  * A worker-side error with a stable code: the project config, the environment or the globals
  * factory is malformed, a file was run before `start` finished, or something asked for the running
- * file when none was. The
- * worker node cannot import the coordinator's `OrchestratorError` (the two nodes never meet), so
- * the runtime has its own class under the same code namespace.
+ * file when none was. The worker node cannot import the coordinator's `OrchestratorError` (the two
+ * nodes never meet), so the runtime has its own class under the same code namespace.
  * @public
  */
 export class WorkerError extends Error {

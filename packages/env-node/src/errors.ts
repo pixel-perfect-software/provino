@@ -13,12 +13,8 @@ export type NodeEnvironmentErrorCode = 'ENV_NODE_REALM_UNSUPPORTED'
 export class NodeEnvironmentError extends Error {
   readonly code: NodeEnvironmentErrorCode
 
-  constructor(
-    code: NodeEnvironmentErrorCode,
-    message: string,
-    options?: { readonly cause?: unknown },
-  ) {
-    super(message, options?.cause === undefined ? undefined : { cause: options.cause })
+  constructor(code: NodeEnvironmentErrorCode, message: string) {
+    super(message)
     this.name = 'NodeEnvironmentError'
     this.code = code
   }

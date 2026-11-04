@@ -85,7 +85,9 @@ export interface WorkerRunner {
    * shares this process with the next one): without it the matcher slot, the loader and the
    * environment would stay installed. Nothing can be sent then, so what it throws or emits is
    * dropped. It queues behind the file running now, so a file that is still running delays it:
-   * `cancel` can't reach core until T5.12, so such a file runs to its end.
+   * `cancel` can't reach core until T5.12, so such a file runs to its end. The promise
+   * `startWorker` returns settles only after this stop has, so whoever awaits the worker's main
+   * (the inline transport) knows the teardown is over.
    */
   stop?(context: WorkerContext): void | Promise<void>
 }
@@ -113,7 +115,8 @@ export interface StartWorkerOptions {
 
 /**
  * Speaks the worker side of the protocol on `port`, running files with `runner`. Resolves once the
- * worker has stopped or the coordinator has gone away.
+ * worker has stopped, or the coordinator has gone away and the runner's best-effort `stop` (see
+ * `WorkerRunner.stop`) has settled.
  * @beta
  */
 export function startWorker(
@@ -132,6 +135,8 @@ export function startWorker(
   /** Set when a `stop` arrives, or when the link's exit queued the best-effort one: `runner.stop` runs once. */
   let stopQueued = false
   const { promise: done, resolve: resolveDone } = Promise.withResolvers<void>()
+  /** Settles once `runner.stop` has (or there was none to call): the link going away waits for it. */
+  const { promise: runnerStopped, resolve: resolveRunnerStopped } = Promise.withResolvers<void>()
   /** Work in arrival order: start, each run, stop. A failed step never blocks the next. */
   let queue: Promise<void> = Promise.resolve()
   /** Set when `runner.start` threw: every file is then charged with that error, unrun. */
@@ -158,13 +163,27 @@ export function startWorker(
     for (const controller of controllers.values()) controller.abort(reason)
   }
 
+  /** Nothing is left to report to: aborts every file, keeps queued ones from starting, restores the console. */
   const finish = (): void => {
     if (finished) return
     finished = true
     abortAll(new Error('The coordinator went away'))
     installed?.restore()
     installed = undefined
-    resolveDone()
+  }
+
+  /**
+   * Calls `runner.stop` if the worker started, once, and gives `onError` what it throws. Never
+   * throws itself.
+   */
+  const stopRunner = async (onError: (error: unknown) => void): Promise<void> => {
+    try {
+      if (init !== undefined) await runner.stop?.(context())
+    } catch (error) {
+      onError(error)
+    } finally {
+      resolveRunnerStopped()
+    }
   }
 
   /**
@@ -225,20 +244,17 @@ export function startWorker(
   }
 
   port.onExit(() => {
-    // The link went away before any `stop`: nothing can be sent now, but an inline worker lives
-    // in the coordinator's process, so the slot, the loader and the environment it installed must
-    // not outlive it (the next worker would find the matcher slot taken). Errors have nowhere to go.
-    if (!stopQueued && init !== undefined) {
-      stopQueued = true
-      enqueue(async () => {
-        try {
-          await runner.stop?.(context())
-        } catch {
-          // Reported nowhere: the link is closed, and the worker is already gone.
-        }
-      })
-    }
+    // The link went away: files are aborted and the console is given back at once, and nothing can
+    // be sent now. But an inline worker lives in the coordinator's process, so the slot, the loader
+    // and the environment it installed must not outlive it (the next worker would find the matcher
+    // slot taken): without a `stop` of its own the runner gets a best-effort one, and `done` waits
+    // for it, because that is when this worker has ended. Errors have nowhere to go.
     finish()
+    if (!stopQueued) {
+      stopQueued = true
+      enqueue(() => stopRunner(() => {}))
+    }
+    void runnerStopped.then(resolveDone)
   })
   port.onMessage((message) => {
     switch (message.t) {
@@ -276,15 +292,9 @@ export function startWorker(
         stopQueued = true
         enqueue(async () => {
           // The queue has drained: every file received before `stop` has sent its `fileDone`.
-          if (init !== undefined) {
-            try {
-              await runner.stop?.(context())
-            } catch (error) {
-              // `stopped` is how the coordinator knows the worker ended cleanly; a failed
-              // teardown is news for the run, not a reason to withhold it.
-              charge(error, null)
-            }
-          }
+          // `stopped` is how the coordinator knows the worker ended cleanly; a failed teardown is
+          // news for the run, not a reason to withhold it.
+          await stopRunner((error) => charge(error, null))
           await settle()
           const { promise: stopped, resolve } = Promise.withResolvers<void>()
           packer.afterSent(() => {
@@ -294,6 +304,7 @@ export function startWorker(
           await stopped
           port.close()
           finish()
+          resolveDone()
         })
         return
       case 'call':

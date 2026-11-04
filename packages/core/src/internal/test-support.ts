@@ -72,15 +72,11 @@ export interface ScriptRun {
  */
 export type Script = (api: RuntimeApi, step: (name: string) => void, runtime: Runtime) => unknown
 
-/**
- * Runs `script` as one test file under `policy`; `lines` goes to that file's `runFile`, and so does
- * everything in `fileOptions` (which then replaces the runtime's `testNamePattern` and `testIds`).
- */
+/** Runs `script` as one test file under `policy`; `lines` goes to that file's `runFile`. */
 export async function runScript(
   script: Script,
   overrides: CoreOverrides = {},
   options: Partial<RuntimeOptions> & RunFileOptions = {},
-  fileOptions: RunFileOptions = {},
 ): Promise<ScriptRun> {
   const { lines, ...runtimeOptions } = options
   const events: RuntimeEvent[] = []
@@ -102,10 +98,10 @@ export async function runScript(
     ...runtimeOptions,
   })
   api = runtime.api
-  const file = await runtime.runFile('/project/script.test.ts', {
-    ...(lines === undefined ? {} : { lines }),
-    ...fileOptions,
-  })
+  const file = await runtime.runFile(
+    '/project/script.test.ts',
+    lines === undefined ? {} : { lines },
+  )
   const collected = events.find((event) => event.type === 'file-collect-end')
   const tasks = collected?.type === 'file-collect-end' ? collected.tasks : []
   const byId = new Map(

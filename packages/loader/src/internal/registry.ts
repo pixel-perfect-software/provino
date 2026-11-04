@@ -14,6 +14,7 @@ import {
   type Records,
   recordFor,
   resolveTarget,
+  setResolved,
   type Target,
 } from './records.ts'
 
@@ -319,7 +320,7 @@ export class Registry {
     if (target !== undefined) return target
     const kind = record.format === 'cjs' ? 'require' : 'import'
     const resolved = resolveTarget(this.#state, specifier, record.path, kind)
-    record.resolved.set(specifier, resolved)
+    setResolved(this.#state, record, specifier, resolved)
     return resolved
   }
 

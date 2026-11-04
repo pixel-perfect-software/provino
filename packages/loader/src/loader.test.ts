@@ -113,6 +113,24 @@ test('top-level await makes its importers async, and require() of them throws', 
   assert.deepEqual({ ...registry.require<{ plain: number }>(join(root, 'sync.ts')) }, { plain: 1 })
 })
 
+test('a link that throws partway still gets its async graphs marked by the next link', async () => {
+  const root = writeTree({
+    'slow.ts': 'export const value: number = await Promise.resolve(42)\n',
+    'broken.ts': "import './missing.ts'\nexport const broken = 1\n",
+    // `half.ts` resolves both of its imports before the walk reaches `broken.ts` and throws,
+    // whichever order the walk takes them in.
+    'half.ts': "import './slow.ts'\nimport './broken.ts'\nexport const half = 1\n",
+    'entry.test.ts': '',
+  })
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  await assert.rejects(registry.import(join(root, 'half.ts')), { code: 'ERR_MODULE_NOT_FOUND' })
+  // `half.ts` stays linked with `slow.ts` resolved, and nothing marked it. This second link finds
+  // nothing new to link, but still has to mark it: its graph has top-level await.
+  assert.throws(() => registry.require(join(root, 'half.ts')), { code: 'ERR_REQUIRE_ASYNC_MODULE' })
+})
+
 test('CommonJS user modules: require, module.exports and the default interop', async () => {
   const files = {
     'lib.cjs':

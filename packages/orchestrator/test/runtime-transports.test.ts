@@ -1,27 +1,16 @@
 // The real entry over each transport: the config and the events cross a real link, errors keep
 // their `code` through core's serializer, and console output is attributed to the running test.
 import assert from 'node:assert/strict'
-import { after, describe, it } from 'node:test'
+import { describe, it } from 'node:test'
 import type { RuntimeEventOf } from '@provino/types'
-import {
-  eventsOf,
-  KINDS,
-  makeProject,
-  type Project,
-  runJobs,
-  runtimeConfig,
-  runtimeJob,
-} from './support.ts'
+import { eventsOf, KINDS, runJobs, runtimeConfig, runtimeJob, trackedProjects } from './support.ts'
 
-const projects: Project[] = []
-after(async () => {
-  await Promise.all(projects.map((made) => made.cleanup()))
-})
+const project = trackedProjects()
 
 for (const pool of KINDS) {
   describe(`${pool}: the runtime entry`, () => {
     it('runs a file: statuses, assertion counts, console output tied to its test', async () => {
-      const p = await makeProject({
+      const p = await project({
         'a.test.js': [
           "describe('suite', () => {",
           // Inline workers share the coordinator’s stdio, so only the others get a log to capture.
@@ -30,7 +19,6 @@ for (const pool of KINDS) {
           '})',
         ].join('\n'),
       })
-      projects.push(p)
       const config = runtimeConfig(p.dir)
       const job = runtimeJob(config, p.path('a.test.js'))
       const run = await runJobs({ pool, config, jobs: [job] })
@@ -62,8 +50,7 @@ for (const pool of KINDS) {
     })
 
     it('keeps the code of a startup error across the link, charged to the file', async () => {
-      const p = await makeProject({ 'a.test.js': '' })
-      projects.push(p)
+      const p = await project({ 'a.test.js': '' })
       const base = runtimeConfig(p.dir)
       const config = { ...base, setupFiles: 'nope' as unknown as readonly string[] }
       const job = runtimeJob(base, p.path('a.test.js'))

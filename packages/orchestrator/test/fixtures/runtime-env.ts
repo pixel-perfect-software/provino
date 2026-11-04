@@ -4,6 +4,12 @@
 // `signal` each `setup` received in `globalThis.__signals` when a test has set that, and its
 // options steer failures: `failSetup` and `failTeardown`. `leak: 'a,b'` makes `teardown` report
 // those keys as globals it could not remove (D22), without actually leaving anything behind.
+// `slowTeardown` makes it end later, after a macrotask and a file system round trip, as a teardown
+// that does real I/O would.
+import { stat } from 'node:fs/promises'
+import { setImmediate as macrotask } from 'node:timers/promises'
+import { fileURLToPath } from 'node:url'
+import { MATCHERS_SLOT } from '@provino/expect'
 import type { Environment } from '@provino/types'
 
 type Traced = typeof globalThis & { __trace?: string[]; __signals?: AbortSignal[] }
@@ -14,10 +20,8 @@ export function trace(step: string): void {
 }
 
 /** The matcher names the global slot holds right now. */
-function slotMatchers(): string {
-  const slot = Reflect.get(globalThis, Symbol.for('$$jest-matchers-object')) as
-    | { matchers: object }
-    | undefined
+export function slotMatchers(): string {
+  const slot = Reflect.get(globalThis, MATCHERS_SLOT) as { matchers: object } | undefined
   return Object.keys(slot?.matchers ?? {}).join('+')
 }
 
@@ -42,13 +46,22 @@ export const recordingEnvironment: Environment<
       global: globalThis,
       teardown() {
         trace(`env:teardown matchers=${slotMatchers()}`)
-        for (const key of Reflect.ownKeys(globalThis)) {
-          if (!before.has(key)) Reflect.deleteProperty(globalThis, key)
+        const finish = () => {
+          for (const key of Reflect.ownKeys(globalThis)) {
+            if (!before.has(key)) Reflect.deleteProperty(globalThis, key)
+          }
+          if (context.options.failTeardown === true) throw new Error('teardown failed')
+          // D22: like the node environment, report what it could not restore instead of throwing.
+          const leak = context.options.leak
+          return typeof leak === 'string' ? { leakedGlobals: leak.split(',') } : undefined
         }
-        if (context.options.failTeardown === true) throw new Error('teardown failed')
-        // D22: like the node environment, report what it could not restore instead of throwing.
-        const leak = context.options.leak
-        return typeof leak === 'string' ? { leakedGlobals: leak.split(',') } : undefined
+        if (context.options.slowTeardown !== true) return finish()
+        return (async () => {
+          await macrotask()
+          await stat(fileURLToPath(import.meta.url))
+          trace('env:teardown ended')
+          return finish()
+        })()
       },
     }
   },

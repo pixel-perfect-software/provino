@@ -32,8 +32,8 @@ export type OrderInput =
 type TestPhase = 'started' | 'in-attempt' | 'between-attempts' | 'ended'
 
 interface TestState {
+  /** `started` means no attempt has begun: a test that ended in it ran none. */
   phase: TestPhase
-  attempts: number
   /** The open attempt's numbers. */
   attempt: { readonly attempt: number; readonly repeat: number } | undefined
 }
@@ -64,6 +64,16 @@ export interface OrderChecker {
 /** The file a task id belongs to: ids are `<fileId>` or `<fileId>_<index>[_<index>…]`. */
 const fileOf = (id: string): string => id.split('_', 1)[0] ?? id
 
+/** Whether `fileOf(id) === fileId`, without the allocation: this runs for every event. */
+const belongsTo = (id: string, fileId: string): boolean =>
+  id.startsWith(fileId) && (id.length === fileId.length || id[fileId.length] === '_')
+
+/** The events that name their file. */
+type FileEvent = Extract<
+  WorkerEvent,
+  { readonly type: 'file-collect-start' | 'file-collect-end' | 'file-end' }
+>
+
 const hookKey = (event: Extract<WorkerEvent, { readonly type: 'hook-start' | 'hook-end' }>) =>
   `${event.ownerId}/${event.testId ?? '-'}/${event.kind}/${event.ordinal}`
 
@@ -74,8 +84,8 @@ const hookKey = (event: Extract<WorkerEvent, { readonly type: 'hook-start' | 'ho
 export function createOrderChecker(): OrderChecker {
   const violations: string[] = []
   let file: FileState | undefined
-  /** `fileDone`s seen, so output before the first file (the worker’s start) is not “late”. */
-  let done = 0
+  /** Whether a `fileDone` was seen, so output before the first file (the worker’s start) is not late. */
+  let anyFileDone = false
   /** Whether the worker was asked to stop: its teardown may write. */
   let stopping = false
 
@@ -92,11 +102,20 @@ export function createOrderChecker(): OrderChecker {
       fail(`${what} with no file running`, id)
       return false
     }
-    if (fileOf(id) !== file.fileId) {
+    if (!belongsTo(id, file.fileId)) {
       fail(`${what} belongs to ${fileOf(id)}, not to the running file`, id)
       return false
     }
     return true
+  }
+
+  /** The running file, when `event` names it; else records the violation. */
+  const ownFile = (event: FileEvent): FileState | undefined => {
+    if (file === undefined) return fail(`${event.type} with no file running`)
+    if (event.fileId !== file.fileId) {
+      return fail(`${event.type} names ${event.fileId}, not the running file`)
+    }
+    return file
   }
 
   /** The running file, once it is past collection and not yet ended; else records the violation. */
@@ -128,48 +147,46 @@ export function createOrderChecker(): OrderChecker {
 
   function onEvent(event: WorkerEvent): undefined {
     switch (event.type) {
-      case 'file-collect-start':
-        if (file === undefined) fail('file-collect-start with no file running')
-        else if (event.fileId !== file.fileId) {
-          fail(`file-collect-start names ${event.fileId}, not the running file`)
-        } else if (file.phase !== 'sent') fail(`file-collect-start twice, or after ${file.phase}`)
-        else file.phase = 'collecting'
-        return
-      case 'file-collect-end': {
-        if (file === undefined) return fail('file-collect-end with no file running')
-        if (event.fileId !== file.fileId) {
-          return fail(`file-collect-end names ${event.fileId}, not the running file`)
+      case 'file-collect-start': {
+        const current = ownFile(event)
+        if (current === undefined) return
+        if (current.phase !== 'sent') {
+          return fail(`file-collect-start twice, or after ${current.phase}`)
         }
-        if (file.phase !== 'collecting') {
+        current.phase = 'collecting'
+        return
+      }
+      case 'file-collect-end': {
+        const current = ownFile(event)
+        if (current === undefined) return
+        if (current.phase !== 'collecting') {
           return fail(
-            `file-collect-end ${file.phase === 'sent' ? 'before file-collect-start' : `after ${file.phase}`}`,
+            `file-collect-end ${current.phase === 'sent' ? 'before file-collect-start' : `after ${current.phase}`}`,
           )
         }
-        file.phase = 'running'
+        current.phase = 'running'
         for (const task of event.tasks) {
-          if (task.type === 'test') file.collected.add(task.id)
+          if (task.type === 'test') current.collected.add(task.id)
         }
         return
       }
       case 'file-end': {
-        if (file === undefined) return fail('file-end with no file running')
-        if (event.fileId !== file.fileId) {
-          return fail(`file-end names ${event.fileId}, not the running file`)
-        }
-        if (file.phase !== 'running') {
+        const current = ownFile(event)
+        if (current === undefined) return
+        if (current.phase !== 'running') {
           return fail(
-            `file-end ${file.phase === 'ended' ? 'twice' : `before file-collect-end (${file.phase})`}`,
+            `file-end ${current.phase === 'ended' ? 'twice' : `before file-collect-end (${current.phase})`}`,
           )
         }
-        for (const [id, state] of file.tests) {
+        for (const [id, state] of current.tests) {
           if (state.phase !== 'ended') fail('test never ended before file-end', id)
         }
-        for (const id of file.suites) fail('suite never ended before file-end', id)
-        for (const key of file.hooks) fail(`hook never ended before file-end (${key})`)
-        for (const id of file.collected) {
-          if (!file.tests.has(id)) fail('collected, but it never started', id)
+        for (const id of current.suites) fail('suite never ended before file-end', id)
+        for (const key of current.hooks) fail(`hook never ended before file-end (${key})`)
+        for (const id of current.collected) {
+          if (!current.tests.has(id)) fail('collected, but it never started', id)
         }
-        file.phase = 'ended'
+        current.phase = 'ended'
         return
       }
       case 'suite-start': {
@@ -194,7 +211,7 @@ export function createOrderChecker(): OrderChecker {
         const current = own(event.id, 'test-start') ? running('test-start', event.id) : undefined
         if (current === undefined) return
         if (current.tests.has(event.id)) return fail('test-start twice', event.id)
-        current.tests.set(event.id, { phase: 'started', attempts: 0, attempt: undefined })
+        current.tests.set(event.id, { phase: 'started', attempt: undefined })
         return
       }
       case 'test-attempt-start': {
@@ -203,7 +220,6 @@ export function createOrderChecker(): OrderChecker {
         if (state.phase === 'in-attempt')
           return fail('test-attempt-start inside an open attempt', event.id)
         state.phase = 'in-attempt'
-        state.attempts++
         state.attempt = { attempt: event.attempt, repeat: event.repeat }
         return
       }
@@ -228,7 +244,7 @@ export function createOrderChecker(): OrderChecker {
         if (state === undefined) return
         if (state.phase === 'in-attempt') fail('test-end inside an open attempt', event.id)
         else if (
-          state.attempts === 0 &&
+          state.phase === 'started' &&
           event.result.state !== 'skip' &&
           event.result.state !== 'todo'
         ) {
@@ -262,12 +278,12 @@ export function createOrderChecker(): OrderChecker {
         test(event.testId, 'annotation')
         return
       case 'console':
-        if (file === undefined && done > 0 && !stopping) {
+        if (file === undefined && anyFileDone && !stopping) {
           fail('console output after the last fileDone')
         }
         return
       case 'unhandled-error':
-        if (file === undefined && done > 0) fail('unhandled-error after the last fileDone')
+        if (file === undefined && anyFileDone) fail('unhandled-error after the last fileDone')
         return
       case 'coverage':
       case 'deps':
@@ -295,7 +311,7 @@ export function createOrderChecker(): OrderChecker {
         if (file === undefined) return fail('fileDone with no file running')
         if (file.phase !== 'ended') fail(`fileDone before file-end (${file.phase})`)
         file = undefined
-        done++
+        anyFileDone = true
       } else {
         onEvent(input)
       }

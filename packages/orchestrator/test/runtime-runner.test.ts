@@ -2,15 +2,12 @@
 // back-pressure and the file's signal, and when it is used out of order. The test plays
 // `startWorker`: it builds the contexts and calls `start`, `runFile` and `stop`.
 import assert from 'node:assert/strict'
-import { after, describe, it } from 'node:test'
+import { describe, it } from 'node:test'
 import { createRuntimeRunner, type FileContext, type Packer } from '@provino/orchestrator/worker'
 import type { IsolationTier, WorkerEvent } from '@provino/types'
-import { initFor, makeProject, type Project, runtimeConfig, runtimeJob } from './support.ts'
+import { initFor, runtimeConfig, runtimeJob, trackedProjects } from './support.ts'
 
-const projects: Project[] = []
-after(async () => {
-  await Promise.all(projects.map((made) => made.cleanup()))
-})
+const project = trackedProjects()
 
 /** A packer the test steers: `writable()` stays pending until `open()`. */
 function steeredPacker(): Packer & {
@@ -35,11 +32,10 @@ async function started(
   isolation: IsolationTier = 'registry',
   environmentOptions: Readonly<Record<string, string | number | boolean>> = {},
 ) {
-  const p = await makeProject({
+  const p = await project({
     'a.test.js': "test('a', () => { expect(1).toBe(1) })",
     'b.test.js': "test('b', () => { expect(1).toBe(1) })",
   })
-  projects.push(p)
   const config = runtimeConfig(p.dir, { environmentOptions })
   const init = { ...initFor('inline'), isolation, config }
   const sink = steeredPacker()

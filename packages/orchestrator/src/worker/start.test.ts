@@ -178,10 +178,12 @@ describe('startWorker', () => {
   it('never starts files still queued when the coordinator goes away', async (t) => {
     const first = Promise.withResolvers<void>()
     const running = Promise.withResolvers<void>()
+    const gone = Promise.withResolvers<void>()
     const started: string[] = []
     const h = harness({
-      runFile: async ({ job }) => {
+      runFile: async ({ job, signal }) => {
         started.push(job.file)
+        signal.addEventListener('abort', () => gone.resolve(), { once: true })
         running.resolve()
         await first.promise
         return undefined
@@ -194,8 +196,10 @@ describe('startWorker', () => {
     await running.promise
     await h.barrier()
     h.coordinator.close()
-    await h.done
+    // The worker has heard of it (it aborts the running file's signal) before file a ends.
+    await gone.promise
     first.resolve()
+    await h.done
     await new Promise((resolve) => setImmediate(resolve))
     assert.deepEqual(started, ['a'])
   })
@@ -308,13 +312,16 @@ describe('startWorker', () => {
       assert.deepEqual(calls, ['stop'])
     })
 
-    it('waits for the file that is running, then stops', { timeout: 10_000 }, async () => {
+    it('aborts the running file at once, but stops only after it, and done waits for the stop', {
+      timeout: 10_000,
+    }, async () => {
       const gate = Promise.withResolvers<void>()
       const started = Promise.withResolvers<void>()
+      const aborted = Promise.withResolvers<void>()
       const calls: string[] = []
-      const stopped = Promise.withResolvers<void>()
       const h = harness({
-        runFile: async () => {
+        runFile: async ({ signal }) => {
+          signal.addEventListener('abort', () => aborted.resolve(), { once: true })
           started.resolve()
           await gate.promise
           calls.push('file ended')
@@ -322,19 +329,76 @@ describe('startWorker', () => {
         },
         stop: () => {
           calls.push('stop')
-          stopped.resolve()
         },
+      })
+      let doneSettled = false
+      void h.done.then(() => {
+        doneSettled = true
       })
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
       await started.promise
       h.coordinator.close()
-      await h.done
+      // The worker heard of it, and aborted the file's signal, while the file is still running.
+      await aborted.promise
       await new Promise<void>((resolve) => setImmediate(resolve))
       assert.deepEqual(calls, [], 'cancel does not reach a running file yet, so stop waits for it')
+      assert.equal(doneSettled, false, 'the worker has not ended: its stop has not run')
       gate.resolve()
-      await stopped.promise
+      await h.done
       assert.deepEqual(calls, ['file ended', 'stop'])
+    })
+
+    it('resolves done only after a stop that awaits a macrotask has settled', {
+      timeout: 10_000,
+    }, async () => {
+      const calls: string[] = []
+      const h = harness({
+        runFile: async () => undefined,
+        stop: async () => {
+          calls.push('stop')
+          await new Promise<void>((resolve) => setImmediate(resolve))
+          calls.push('stop settled')
+        },
+      })
+      h.coordinator.send({ t: 'start', init })
+      await h.barrier()
+      h.coordinator.close()
+      await h.done
+      assert.deepEqual(calls, ['stop', 'stop settled'])
+    })
+
+    it('restores the patched console at once, before the stop it queued has run', {
+      timeout: 10_000,
+    }, async () => {
+      const gate = Promise.withResolvers<void>()
+      const started = Promise.withResolvers<void>()
+      const original = (): boolean => true
+      const stream = { write: original }
+      const calls: string[] = []
+      const h = harness(
+        {
+          runFile: async () => {
+            started.resolve()
+            await gate.promise
+            return undefined
+          },
+          stop: () => {
+            calls.push('stop')
+          },
+        },
+        { console: { streams: { stdout: stream, stderr: { write: original } } } },
+      )
+      h.coordinator.send({ t: 'start', init })
+      h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
+      await started.promise
+      assert.notEqual(stream.write, original, 'the stream is patched while the worker runs')
+      h.coordinator.close()
+      while (stream.write !== original) await new Promise<void>((resolve) => setImmediate(resolve))
+      assert.deepEqual(calls, [], 'the stop is still queued behind the file')
+      gate.resolve()
+      await h.done
+      assert.deepEqual(calls, ['stop'])
     })
 
     it('does not call stop twice when a stop came first, and not for a worker that never started', async () => {

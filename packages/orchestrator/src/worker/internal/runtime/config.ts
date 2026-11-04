@@ -14,6 +14,7 @@ import type {
   SerializedProjectConfig,
 } from '@provino/types'
 import { WorkerError } from '../../errors.ts'
+import { isRecord, isStringArray } from './guards.ts'
 
 const TYPESCRIPT_MODES: readonly unknown[] = ['oxc', 'node-strip', 'off']
 
@@ -22,10 +23,6 @@ function invalid(path: string, expected: string): never {
     'ORCH_BAD_CONFIG',
     `The project config is invalid: ${path} must be ${expected}`,
   )
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function record(value: unknown, path: string): Readonly<Record<string, unknown>> {
@@ -37,10 +34,7 @@ function text(value: unknown, path: string): string {
 }
 
 function texts(value: unknown, path: string): readonly string[] {
-  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
-    return invalid(path, 'an array of strings')
-  }
-  return value
+  return isStringArray(value) ? value : invalid(path, 'an array of strings')
 }
 
 /** Every slice of the policy is there as an object: the shape `SerializedPolicy` promises. */
@@ -116,10 +110,11 @@ function mapperList(value: unknown): readonly SerializedModuleMapper[] {
 function loaderConfig(value: unknown): SerializedLoaderConfig {
   const loader = record(value, 'loader')
   const { tsconfig, typescript } = loader
-  if (tsconfig !== 'auto' && tsconfig !== false && typeof tsconfig !== 'string') {
-    invalid('loader.tsconfig', "'auto', false or an absolute path")
+  if (tsconfig !== 'auto' && tsconfig !== false) {
+    if (typeof tsconfig !== 'string')
+      invalid('loader.tsconfig', "'auto', false or an absolute path")
+    absolutePath(tsconfig, 'loader.tsconfig')
   }
-  if (typeof tsconfig === 'string' && tsconfig !== 'auto') absolutePath(tsconfig, 'loader.tsconfig')
   if (!TYPESCRIPT_MODES.includes(typescript)) {
     invalid('loader.typescript', "'oxc', 'node-strip' or 'off'")
   }

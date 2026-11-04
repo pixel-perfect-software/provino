@@ -3,7 +3,8 @@
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import type { IsolationTier, PoolKind, WorkerExit } from '@provino/types'
+import { describeExit } from '@provino/orchestrator'
+import type { IsolationTier, PoolKind } from '@provino/types'
 import { BenchError } from '../errors.ts'
 import { FLAVOUR_DIR } from '../generators/render.ts'
 import {
@@ -108,38 +109,22 @@ export function meetsBar(result: WorkerRunResult, expected: number): boolean {
   )
 }
 
-/** A worker's exit in words, for the check's output. */
-function describeWorkerExit(exit: WorkerExit): string {
-  switch (exit.type) {
-    case 'exit':
-      return `exit ${exit.code}`
-    case 'signal':
-      return `signal ${exit.signal}`
-    case 'oom':
-      return `out of memory at ${exit.limitMb} MB`
-    case 'timeout':
-      return `timeout during ${exit.phase}`
-    default:
-      return exit satisfies never
-  }
-}
-
 /**
  * Runs the suite through one worker per tier, one after the other, and checks each against the bar.
  * @public
  */
 export async function checkSuite(
   suite: WrittenSuite,
-  options: { readonly pool?: PoolKind; readonly tiers?: readonly IsolationTier[] } = {},
+  pool: PoolKind = 'inline',
 ): Promise<readonly TierCheck[]> {
   const expected = expectedTests(suite.spec)
   const checks: TierCheck[] = []
-  for (const isolation of options.tiers ?? TIERS) {
+  for (const isolation of TIERS) {
     const result = await runWorkerFiles({
       rootDir: suite.rootDir,
       files: suite.files,
       setupFilesAfterEnv: [suite.setupFile],
-      pool: options.pool ?? 'inline',
+      pool,
       isolation,
     })
     checks.push({ result, expected, ok: meetsBar(result, expected) })
@@ -153,7 +138,7 @@ export async function checkSuite(
  */
 export function describeTier({ result, expected, ok }: TierCheck): string[] {
   return [
-    `  ${result.isolation.padEnd(8)} ${result.files} files, tests passed ${result.passed}/${expected}, failed ${result.failed}, skipped ${result.skipped}, unhandled ${result.unhandled}, file errors ${result.fileErrors}, leaked globals ${result.leakedGlobals}, order violations ${result.violations.length}, worker ${describeWorkerExit(result.exit)}, ${result.elapsedMs.toFixed(0)} ms (local)${ok ? '' : '  FAIL'}`,
+    `  ${result.isolation.padEnd(8)} ${result.files} files, tests passed ${result.passed}/${expected}, failed ${result.failed}, skipped ${result.skipped}, unhandled ${result.unhandled}, file errors ${result.fileErrors}, leaked globals ${result.leakedGlobals}, order violations ${result.violations.length}, worker ${describeExit(result.exit)}, ${result.elapsedMs.toFixed(0)} ms (local)${ok ? '' : '  FAIL'}`,
     ...result.violations.slice(0, 10).map((violation) => `    order: ${violation}`),
     ...result.failures.map((failure) => `    ${failure}`),
   ]

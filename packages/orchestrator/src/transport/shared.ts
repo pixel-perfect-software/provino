@@ -18,6 +18,14 @@ import { OrchestratorError } from '../errors.ts'
 /** Track 9: the wait between SIGTERM and SIGKILL. */
 const KILL_GRACE_MS = 500
 
+/** Track 9: how long `terminate(false)` waits after `stop` before SIGTERM. */
+const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000
+
+/** `options.teardownTimeoutMs`, or Track 9's default. */
+export function teardownTimeoutOf(options: TransportOptions): number {
+  return options.teardownTimeoutMs ?? DEFAULT_TEARDOWN_TIMEOUT_MS
+}
+
 /**
  * Options every transport kind takes.
  * @public
@@ -34,7 +42,11 @@ export interface TransportOptions {
   readonly stderr?: NodeJS.WritableStream
   /** How long a new worker may take to say `ready`. Default 30 s. */
   readonly startTimeoutMs?: number
-  /** How long `terminate(false)` waits after `stop` before SIGTERM. Default 10 s (Track 9). */
+  /**
+   * How long `terminate(false)` waits after `stop` before SIGTERM. Default 10 s (Track 9). An
+   * inline transport also waits this long, once its link has closed, for the worker's `main` to
+   * settle before it reports the exit.
+   */
   readonly teardownTimeoutMs?: number
 }
 
@@ -71,7 +83,7 @@ export function connect(
   init: WorkerInit,
   options: TransportOptions,
 ): Promise<Transport> {
-  const teardownTimeoutMs = options.teardownTimeoutMs ?? 10_000
+  const teardownTimeoutMs = teardownTimeoutOf(options)
   const exitListeners = new Set<(exit: WorkerExit) => void>()
   let exit: WorkerExit | undefined
   /** Set when the transport killed the worker after a timeout, which is then its exit. */
@@ -247,7 +259,7 @@ export function describeExit(exit: WorkerExit): string {
 }
 
 /** Whether `promise` settles within `ms`. The timer never keeps the process alive. */
-async function settlesWithin(promise: Promise<void>, ms: number): Promise<boolean> {
+export async function settlesWithin(promise: Promise<void>, ms: number): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined
   const expired = new Promise<false>((resolve) => {
     timer = setTimeout(() => resolve(false), ms)

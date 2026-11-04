@@ -424,6 +424,28 @@ describe('checkOrder: each kind of violation', () => {
     )
   })
 
+  it('a wrong file id is reported once, by the checker alone', () => {
+    // `runWorkerFiles` adds nothing of its own to `violations`: each wrong id is one entry here.
+    const mentioning = (inputs: readonly OrderInput[]): string[] =>
+      violations(inputs).filter((message) => message.includes(G))
+    assert.deepEqual(mentioning([run(), collectStart(G), collectEnd(), fileEnd(), done]), [
+      inF(`file-collect-start names ${G}, not the running file`),
+    ])
+    assert.deepEqual(mentioning([run(), collectStart(), collectEnd([], G), fileEnd(), done]), [
+      inF(`file-collect-end names ${G}, not the running file`),
+    ])
+    assert.deepEqual(mentioning([run(), collectStart(), collectEnd([]), fileEnd(G), done]), [
+      inF(`file-end names ${G}, not the running file`),
+    ])
+  })
+
+  it('an id that only begins with the running file’s id belongs to another file', () => {
+    const longer = `${F}a_0` as TaskId
+    assert.deepEqual(violations(file([testStart(longer)], [])).slice(0, 1), [
+      `${longer}: test-start belongs to ${F}a, not to the running file`,
+    ])
+  })
+
   it('an event with no file running', () => {
     assert.deepEqual(violations([testStart(T0)]), [`${T0}: test-start with no file running`])
     assert.deepEqual(violations([collectStart()]), ['file-collect-start with no file running'])

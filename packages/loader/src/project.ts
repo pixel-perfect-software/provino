@@ -11,7 +11,6 @@ import type {
   ModuleMapper,
   ModuleMapperFactory,
   ModulePolicy,
-  ResolverOptions,
   SerializedLoaderConfig,
 } from '@provino/types'
 import { LoaderError } from './errors.ts'
@@ -35,13 +34,6 @@ function tsconfigFor(
     )
   }
   return file
-}
-
-/** The resolver's `tsconfig` option for a `tsconfigFor` result. */
-function resolverTsconfig(
-  tsconfig: 'auto' | false | string,
-): NonNullable<ResolverOptions['tsconfig']> {
-  return tsconfig === 'auto' || tsconfig === false ? tsconfig : { configFile: tsconfig }
 }
 
 /** Whether a mapper factory's result is a `ModuleMapper`: a string `id` and a `map` function. */
@@ -105,7 +97,7 @@ export async function createProjectLoader(
       root,
       mappers,
       extensions: config.extensions,
-      tsconfig: resolverTsconfig(tsconfig),
+      tsconfig: tsconfig === 'auto' || tsconfig === false ? tsconfig : { configFile: tsconfig },
     }),
     transformer: createPipeline({
       root,
