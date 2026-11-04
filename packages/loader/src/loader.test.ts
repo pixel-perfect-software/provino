@@ -264,3 +264,101 @@ test('compiled scripts are reported once per worker, with their maps', async () 
   assert.ok(events.every((event) => event.wrapperColumnOffset > 0 && !event.thirdParty))
   assert.notEqual(loader.getSourceMap(events[0]?.id ?? ('' as never)), null)
 })
+
+interface Evaluations extends Array<string> {}
+
+/** Runs `fn` with a log the fixtures push to as they evaluate. */
+async function withLog<T>(fn: (log: Evaluations) => Promise<T>): Promise<T> {
+  const log: Evaluations = []
+  Reflect.set(globalThis, '__invalidateLog', log)
+  try {
+    return await fn(log)
+  } finally {
+    Reflect.deleteProperty(globalThis, '__invalidateLog')
+  }
+}
+
+const INVALIDATE = {
+  'leaf.js': "globalThis.__invalidateLog.push('leaf')\nexport const leaf = {}\n",
+  'setup.js':
+    "import { leaf } from './leaf.js'\nglobalThis.__invalidateLog.push('setup')\nexport { leaf }\nexport const id = {}\n",
+  'user.js': "import { id } from './setup.js'\nexport const seen = id\n",
+  'cjs-setup.cjs': "globalThis.__invalidateLog.push('cjs')\nmodule.exports = { id: {} }\n",
+  'entry.test.js': '',
+  'other.test.js': '',
+}
+
+interface SetupModule {
+  readonly leaf: object
+  readonly id: object
+}
+
+for (const tier of ['none', 'registry'] as const) {
+  test(`invalidate (${tier}): the module evaluates again and its dependencies keep their instances`, async () => {
+    const root = writeTree(INVALIDATE)
+    await withLog(async (log) => {
+      const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.js'), { tier })
+      const first = await registry.import<SetupModule>('./setup.js')
+      const user = await registry.import<{ seen: object }>(join(root, 'user.js'))
+      assert.deepEqual(log, ['leaf', 'setup'])
+
+      registry.invalidate('./setup.js')
+      const second = await registry.import<SetupModule>('./setup.js')
+      assert.deepEqual(log, ['leaf', 'setup', 'setup'], 'setup ran again, leaf did not')
+      assert.notEqual(second.id, first.id)
+      assert.equal(second.leaf, first.leaf, 'the dependency keeps its instance')
+      assert.equal(user.seen, first.id, 'an importer that already ran keeps what it imported')
+      const again = await registry.import<{ seen: object }>(join(root, 'user.js'))
+      assert.equal(again.seen, first.id, 'and so does its cached instance')
+
+      // The same rule for a CommonJS module and `require()`.
+      const cjs = join(root, 'cjs-setup.cjs')
+      const oneCjs = registry.require<{ id: object }>(cjs)
+      assert.equal(registry.require(cjs), oneCjs, 'cached until invalidated')
+      registry.invalidate(cjs)
+      assert.notEqual(registry.require<{ id: object }>(cjs), oneCjs)
+      assert.deepEqual(log, ['leaf', 'setup', 'setup', 'cjs', 'cjs'])
+    })
+  })
+}
+
+test('invalidate reaches the other files of a none worker, and no other registry', async () => {
+  const root = writeTree(INVALIDATE)
+  await withLog(async (log) => {
+    const loader = loaderFor(root)
+    const file = (name: string, tier: 'none' | 'registry') =>
+      loader.createFileRegistry(join(root, name), { tier })
+    await file('entry.test.js', 'none').import('./setup.js')
+    file('other.test.js', 'none').invalidate('./setup.js')
+    await file('entry.test.js', 'none').import('./setup.js')
+    assert.deepEqual(log, ['leaf', 'setup', 'setup'], 'none: one registry for the worker')
+
+    log.length = 0
+    const mine = file('entry.test.js', 'registry')
+    await mine.import('./setup.js')
+    file('other.test.js', 'registry').invalidate('./setup.js')
+    await mine.import('./setup.js')
+    assert.deepEqual(log, ['leaf', 'setup'], 'registry: the other file’s registry is its own')
+  })
+})
+
+test('invalidate leaves externals, builtins, unknown and unloaded specifiers alone', async () => {
+  const root = writeTree({
+    ...INVALIDATE,
+    'node_modules/ext/package.json': JSON.stringify({ name: 'ext', main: 'index.js' }),
+    'node_modules/ext/index.js': 'module.exports = { token: {} }\n',
+  })
+  await withLog(async (log) => {
+    const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.js'), {
+      tier: 'registry',
+    })
+    const ext = registry.require('ext')
+    await registry.import('./setup.js')
+    for (const specifier of ['ext', 'node:path', 'path', './never-loaded.js', './missing.js']) {
+      assert.doesNotThrow(() => registry.invalidate(specifier), specifier)
+    }
+    assert.equal(registry.require('ext'), ext)
+    await registry.import('./setup.js')
+    assert.deepEqual(log, ['leaf', 'setup'], 'nothing was evaluated again')
+  })
+})

@@ -8,7 +8,7 @@ The neutral `expect` engine (Track 7 R1). It owns the front end, the per-test ma
 |---|---|
 | `src/expect.ts` | `createExpect({ policy, table, source, registry? })`. `expect(x)` returns a Proxy that resolves `not`/`resolves`/`rejects` and the matcher name on access (spike F). A call follows Jest's `makeThrowingMatcher` (`expect/src/index.ts` L275–L395) step by step. `MatcherResultError` is the `errorShape: 'matcher-result'` error (Jest's `JestAssertionError`). |
 | `src/state.ts` | `createStateSource(currentTest, { nameSeparator, expand })`: the file's state, plus one state per run of a test, keyed by test id, `frame.repeat` and `frame.attempt`. A run's state is never replaced, so a timed-out attempt still running counts into its own. A one-entry cache of the last frame makes the lookup about 12 ns. `stateOf(testId, { attempt, repeat })` names the run. It takes `@provino/types`' `CurrentTest`, so core is never imported. |
-| `src/slot.ts` | `installMatchersSlot(source, registry)`: `globalThis[Symbol.for('$$jest-matchers-object')]`, configurable. Its `matchers` and `customEqualityTesters` are the registry's own objects, and its `state` getter returns `source.current()`. Its own keys are Jest's three; a non-enumerable `utils` getter serves the asymmetric base. |
+| `src/slot.ts` | `installMatchersSlot(source, registry)`: `globalThis[Symbol.for('$$jest-matchers-object')]`, configurable. Its `matchers` and `customEqualityTesters` are the registry's own objects, and its `state` getter returns `source.current()`. Its own keys are Jest's three; a non-enumerable `utils` getter serves the asymmetric base. `snapshotRegistry(registry)` remembers the registry's matchers and equality testers; its `restore()` deletes what was added since, puts back what was replaced, and resets the testers array in place (it does not undo the asymmetric forms `expect.extend` puts on the `expect` function itself). |
 | `src/asymmetric.ts` | The `AsymmetricMatcher` base (T7.4), for Provino and user code; Jest's vendored built-ins keep their own base. `getMatcherContext()` reads whichever slot the realm has. |
 | `src/context.ts` | `MatcherContext`, a matcher's `this`. |
 | `src/internal/slot-read.ts`, `counters.ts` | Reading the slot without owning it; a state's fresh counters. |
@@ -35,7 +35,8 @@ The neutral `expect` engine (Track 7 R1). It owns the front end, the per-test ma
 2. `createMatcherRegistry()`, then `installMatchersSlot(source, registry)`, before any matcher module loads.
 3. Load the table from `policy.expect.matcherTable` through the `BehaviourLoader`.
 4. `createExpect({ policy, table, source, registry })`.
-5. Per file, `source.startFile(testPath)`, then the setup files and the test file.
+5. `snapshotRegistry(registry)`, after `createExpect` has registered the table's matchers (a snapshot taken earlier would restore them away).
+6. Per file, `source.startFile(testPath)`, then the setup files and the test file; after the file, `snapshot.restore()` when the environment is file-scoped.
 
 Per test, `source.stateOf(testId, { attempt, repeat })` (from the last `test-attempt-end`) gives the counts the result needs (`numPassingAsserts`). Core reports 0 until U1 wires this.
 

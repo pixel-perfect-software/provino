@@ -14,6 +14,10 @@ The module loader (Track 2): a two-phase module-runner engine. One `Loader` per 
 
 `src/loader.ts` holds `createLoader` and the tiers. `registry` creates a new `Registry` per file; `none` reuses one per loader.
 
+`src/project.ts` holds `createProjectLoader(root, config, policy.module)`: the worker's way in. It builds the resolver and the transform pipeline from a clone-safe `SerializedLoaderConfig` (the worker entry may not import either), loads the config's mappers by `ModuleRef` (so it is async), and calls `createLoader` with the runner engine. Hoisting and the transform cache are off until their tasks (B13, T3.6).
+
+`FileRegistry.invalidate(specifier, parent?)` drops the live instance of the user module the specifier resolves to (the same path `import` takes, so the top map of an `isolateModules` stack). The module evaluates again on its next import; its dependencies and modules that already imported it keep their instances. An external, a builtin, a module never loaded and a specifier that doesn't resolve are no-ops. Under `none` the registry is shared, so it reaches every file of the worker.
+
 ## The wrapper shape (oxc's runner output, Vite's shape)
 
 - **Imports** become `const __vite_ssr_import_N__ = await __vite_ssr_import__('./x', { importedNames })`. Uses become `__vite_ssr_import_N__.x`, which stays live.

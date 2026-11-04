@@ -4,12 +4,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { MessageChannel } from 'node:worker_threads'
+import { neutralPolicy, serializePolicy } from '@provino/policy'
 import { createRpc, messagePortLink } from '@provino/rpc'
 import type {
   CoordinatorMethods,
   CoordinatorToWorker,
   FileJob,
   RuntimeEventOf,
+  SerializedProjectConfig,
   TaskId,
   WorkerEvent,
   WorkerInit,
@@ -18,6 +20,25 @@ import type {
   WorkerToCoordinator,
 } from '@provino/types'
 import { type StartWorkerOptions, startWorker, type WorkerRunner } from './start.ts'
+
+/** A valid project config; these tests move it around without reading it. */
+const config: SerializedProjectConfig = {
+  name: 't',
+  rootDir: '/',
+  ci: false,
+  policy: serializePolicy(neutralPolicy),
+  environment: { module: '@provino/env-node', export: 'nodeEnvironment', options: {} },
+  globals: null,
+  setupFiles: [],
+  setupFilesAfterEnv: [],
+  loader: {
+    extensions: ['.ts', '.js'],
+    conditions: ['node'],
+    tsconfig: false,
+    mappers: [],
+    typescript: 'oxc',
+  },
+}
 
 const init: WorkerInit = {
   key: {
@@ -31,7 +52,7 @@ const init: WorkerInit = {
   workerId: 1,
   isolation: 'registry',
   provided: {},
-  config: null,
+  config,
 }
 const job = (file: string): FileJob => ({
   file,
@@ -202,5 +223,130 @@ describe('startWorker', () => {
       .filter((e): e is RuntimeEventOf<'console'> => e.type === 'console')
       .map((e) => e.text)
     assert.deepEqual(texts, ['suite\n', '  hits: 1\n', 'two\n', 'hits: 1\n'])
+  })
+
+  describe('stop', () => {
+    const stopped = (message: WorkerToCoordinator): boolean => message.t === 'stopped'
+
+    it('calls runner.stop after the queued files and before stopped, and what it emits arrives first', async (t) => {
+      const steps: string[] = []
+      let seen: WorkerInit | undefined
+      const h = harness({
+        runFile: async ({ job }) => {
+          steps.push(`run ${job.file}`)
+          return undefined
+        },
+        stop: ({ init, sink }) => {
+          seen = init
+          steps.push('stop')
+          sink.emit(note(job('a'), 'from stop'))
+        },
+      })
+      t.after(() => h.coordinator.close())
+      h.coordinator.send({ t: 'start', init })
+      h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
+      h.coordinator.send({ t: 'run', seq: 1, job: job('b') })
+      h.coordinator.send({ t: 'stop' })
+      await h.until(stopped)
+      await h.done
+      assert.deepEqual(steps, ['run a', 'run b', 'stop'])
+      assert.equal(seen?.workerId, init.workerId, 'stop gets the worker’s context')
+      const at = (match: (m: WorkerToCoordinator) => boolean): number => h.received.findIndex(match)
+      const stoppedAt = at(stopped)
+      assert.ok(at(h.fileDone(1)) < stoppedAt, 'both files finished first')
+      const emitted = h.received.findIndex(
+        (m) =>
+          m.t === 'pack' &&
+          m.events.some((e) => e.type === 'annotation' && e.message === 'from stop'),
+      )
+      assert.ok(emitted !== -1 && emitted < stoppedAt, 'what stop emitted was sent before stopped')
+    })
+
+    it('awaits an async stop before sending stopped', async (t) => {
+      const gate = Promise.withResolvers<void>()
+      const reached = Promise.withResolvers<void>()
+      const h = harness({
+        runFile: async () => undefined,
+        stop: async () => {
+          reached.resolve()
+          await gate.promise
+        },
+      })
+      t.after(() => h.coordinator.close())
+      h.coordinator.send({ t: 'start', init })
+      h.coordinator.send({ t: 'stop' })
+      await reached.promise
+      await h.barrier()
+      assert.equal(h.received.some(stopped), false, 'stopped waits for stop')
+      gate.resolve()
+      await h.until(stopped)
+      await h.done
+    })
+
+    it('reports a throwing stop as an unhandled error with no owner, and still sends stopped', async (t) => {
+      const h = harness({
+        runFile: async () => undefined,
+        stop: () => {
+          throw new Error('teardown failed')
+        },
+      })
+      t.after(() => h.coordinator.close())
+      h.coordinator.send({ t: 'start', init })
+      h.coordinator.send({ t: 'stop' })
+      await h.until(stopped)
+      await h.done
+      const unhandled = h
+        .events()
+        .filter((e): e is RuntimeEventOf<'unhandled-error'> => e.type === 'unhandled-error')
+      assert.deepEqual(
+        unhandled.map((e) => [e.ownerId, e.error.message]),
+        [[null, 'teardown failed']],
+      )
+      const reportedAt = h.received.findIndex(
+        (m) => m.t === 'pack' && m.events.some((e) => e.type === 'unhandled-error'),
+      )
+      assert.ok(reportedAt < h.received.findIndex(stopped), 'reported before stopped')
+    })
+
+    it('still calls stop when start threw, so a half-built worker is torn down', async (t) => {
+      const steps: string[] = []
+      const h = harness({
+        start: () => {
+          throw new Error('start failed')
+        },
+        runFile: async () => undefined,
+        stop: () => {
+          steps.push('stop')
+        },
+      })
+      t.after(() => h.coordinator.close())
+      h.coordinator.send({ t: 'start', init })
+      h.coordinator.send({ t: 'stop' })
+      await h.until(stopped)
+      await h.done
+      assert.deepEqual(steps, ['stop'])
+    })
+
+    it('does not call stop for a worker that never started, and works without a stop', async (t) => {
+      const steps: string[] = []
+      const never = harness({
+        runFile: async () => undefined,
+        stop: () => {
+          steps.push('stop')
+        },
+      })
+      t.after(() => never.coordinator.close())
+      never.coordinator.send({ t: 'stop' })
+      await never.until(stopped)
+      await never.done
+      assert.deepEqual(steps, [])
+
+      const plain = harness({ runFile: async () => undefined })
+      t.after(() => plain.coordinator.close())
+      plain.coordinator.send({ t: 'start', init })
+      plain.coordinator.send({ t: 'stop' })
+      await plain.until(stopped)
+      await plain.done
+    })
   })
 })

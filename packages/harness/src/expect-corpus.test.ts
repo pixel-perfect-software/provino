@@ -1,9 +1,9 @@
 // B08's corpus check (T7.5): every `fixtures/expect/messages` fixture, run through `@provino/core`
 // with the Jest dialect's `expect`, gives the Jest golden's tests: status, each failure's name,
-// message and user frame (normalized by the same rules as the golden), and the passing-assertion
-// count. Brief 8's "100% of the Jest message goldens match". The golden's `matcher` field
-// (`matcherResult.name` in Jest's JSON) isn't compared: core's `SerializedError` doesn't carry
-// `matcherResult` yet (U1, T11.8).
+// message, matcher and user frame (normalized by the same rules as the golden), and the
+// passing-assertion count. Brief 8's "100% of the Jest message goldens match". The golden's
+// `matcher` field is Jest's `failureDetails[i].matcherResult.name`; the run's is the same field of
+// the `SerializedError.matcherResult` core now carries.
 //
 // Jest's `toThrow` prints a thrown error's stack with paths relative to `process.cwd()`, which
 // was the fixture's directory when it was recorded, so each fixture runs from its directory.
@@ -25,10 +25,14 @@ test('the message corpus is there', () => {
   assert.ok(dirs.length >= 10, `expected the B08 corpus under ${root}, found ${dirs.length}`)
 })
 
-/** A failure's comparable shape: `name` and `userFrame` are there only when the failure has one. */
+/**
+ * A failure's comparable shape: `name`, `matcher` and `userFrame` are there only when the failure
+ * has one.
+ */
 interface ComparableError {
   readonly name?: string
   readonly message: string
+  readonly matcher?: string
   readonly userFrame?: string
 }
 
@@ -40,10 +44,11 @@ interface Comparable {
 }
 
 /** The comparable part of a golden error or a normalized failure, the same on both sides. */
-function comparable({ name, message, userFrame }: ComparableError): ComparableError {
+function comparable({ name, message, matcher, userFrame }: ComparableError): ComparableError {
   return {
     ...(name === undefined ? {} : { name }),
     message,
+    ...(matcher === undefined ? {} : { matcher }),
     ...(userFrame === undefined ? {} : { userFrame }),
   }
 }
@@ -78,7 +83,9 @@ for (const fixture of fixtures) {
             const key = testKey({ file: testFile, path: run.path, dupIndex: run.dupIndex })
             actual.set(key, {
               status: run.status,
-              errors: run.failures.map((raw) => comparable(normalizer.error(raw))),
+              errors: run.failures.map(({ text, matcher }) =>
+                comparable(normalizer.error(text, matcher)),
+              ),
               passingAssertions: run.passingAssertions,
             })
           }

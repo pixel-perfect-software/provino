@@ -2,7 +2,8 @@
 // `run` at a time. After each file it lets pending microtasks finish, flushes stdio (Vitest found
 // it is otherwise lost on terminate), and queues `fileDone` behind the file's packs, so the file's
 // events and output always arrive first. The runtime that actually runs a file is the runner's
-// (U1, B10); this file knows nothing about tests.
+// (U1, B10); this file knows nothing about tests. On `stop` it lets the runner tear down, then
+// sends `stopped`.
 import { isMainThread } from 'node:worker_threads'
 import { createRpc, type RpcOptions, serializeError } from '@provino/rpc'
 import type {
@@ -65,6 +66,15 @@ export interface FileOutcome {
 export interface WorkerRunner {
   start?(context: WorkerContext): void | Promise<void>
   runFile(context: FileContext): Promise<FileOutcome | undefined>
+  /**
+   * Tears down what `start` and the files left: called once, on the coordinator's `stop`, after
+   * every queued file has finished and before `stopped` is sent. It runs even when `start`
+   * threw, so it must cope with a half-built worker. It is not called if `start` never came.
+   * What it throws is reported as an unhandled error with no owner, and `stopped` is sent anyway.
+   * One that never settles holds `stopped` back until the coordinator's stop timeout kills the
+   * worker.
+   */
+  stop?(context: WorkerContext): void | Promise<void>
 }
 
 /**
@@ -230,6 +240,16 @@ export function startWorker(
         return
       case 'stop':
         enqueue(async () => {
+          // The queue has drained: every file received before `stop` has sent its `fileDone`.
+          if (init !== undefined) {
+            try {
+              await runner.stop?.(context())
+            } catch (error) {
+              // `stopped` is how the coordinator knows the worker ended cleanly; a failed
+              // teardown is news for the run, not a reason to withhold it.
+              charge(error, null)
+            }
+          }
           await settle()
           const { promise: stopped, resolve } = Promise.withResolvers<void>()
           packer.afterSent(() => {

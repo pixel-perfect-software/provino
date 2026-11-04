@@ -96,7 +96,8 @@ interface Walk {
 /**
  * Turns anything thrown into plain, clone-safe data: name, message, stack, `code`, the `cause`
  * chain and an aggregate's errors (anything error-like with an `errors` array, so an
- * `AggregateError` from another realm counts). A non-error value becomes an error whose message is
+ * `AggregateError` from another realm counts), and the `name` and `pass` of a failed assertion's
+ * `matcherResult`. A non-error value becomes an error whose message is
  * its string form. Never throws: a field that can't be read (a throwing getter, a revoked proxy)
  * is left out.
  * @public
@@ -136,12 +137,27 @@ function ownFields(value: object): SerializedError {
   // the field's absence says.
   const stack = read(value, 'stack')
   const code = read(value, 'code')
+  const matcherResult = matcherResultOf(value)
   return {
     name: typeof name === 'string' ? name : 'Error',
     message: typeof message === 'string' ? message : describe(message),
     ...(typeof stack === 'string' ? { stack } : {}),
     ...(typeof code === 'string' ? { code } : {}),
+    ...(matcherResult === undefined ? {} : { matcherResult }),
   }
+}
+
+/**
+ * The `name` and `pass` of the `matcherResult` a failed assertion carries (Jest's
+ * `failureDetails[i].matcherResult`), or `undefined` when the error has none or its fields aren't
+ * a string and a boolean. The rest of the result can hold any value, so it stays behind.
+ */
+function matcherResultOf(value: object): SerializedError['matcherResult'] {
+  const result = read(value, 'matcherResult')
+  if (typeof result !== 'object' || result === null) return undefined
+  const name = read(result, 'name')
+  const pass = read(result, 'pass')
+  return typeof name === 'string' && typeof pass === 'boolean' ? { name, pass } : undefined
 }
 
 /**

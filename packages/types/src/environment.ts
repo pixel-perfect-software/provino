@@ -3,6 +3,7 @@
 // (B10), typed by the signatures here. Track 8's `TestEventLike` placeholder is `RuntimeEvent`:
 // Track 5 owns the real type.
 import type { Context } from 'node:vm'
+import type { JsonValue } from './clone-safe.ts'
 import type { RuntimeEvent } from './runtime/events.ts'
 
 /**
@@ -68,6 +69,20 @@ export interface Environment<
     context: EnvironmentSetupContext<Options>,
     prepared: unknown,
   ): EnvironmentInstance<G> | Promise<EnvironmentInstance<G>>
+}
+
+/**
+ * Where a worker finds its `Environment`: the module and the export that holds it, plus the
+ * options its `setup` receives. A ref to a *value*, not a function, so it can't be a `ModuleRef`;
+ * it has the same `{ module, export }` shape, and crosses threads as data.
+ * @public
+ */
+export interface EnvironmentRef {
+  /** An absolute path, a `file:` URL, or a package specifier the worker can import. */
+  readonly module: string
+  readonly export: string
+  /** What `setup` and `prepare` get as `options`. */
+  readonly options: { readonly [key: string]: JsonValue }
 }
 
 /**

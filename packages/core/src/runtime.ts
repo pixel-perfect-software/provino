@@ -13,7 +13,7 @@ import type {
 } from '@provino/types'
 import { createApi, type RuntimeApi } from './collector/api.ts'
 import { Collector } from './collector/collector.ts'
-import { fileIdOf, finalize } from './collector/finalize.ts'
+import { type FinalizeOptions, fileIdOf, finalize } from './collector/finalize.ts'
 import { newFileState } from './collector/nodes.ts'
 import { type CurrentTestService, currentTest, reportAsyncContext } from './current/current-test.ts'
 import { CoreError, serializeError } from './errors.ts'
@@ -58,6 +58,10 @@ export interface RuntimeOptions {
 export interface RunFileOptions {
   /** Only tests (or suites) on these lines run (Vitest's `file:line`). */
   readonly lines?: readonly number[]
+  /** `-t` for this file only: replaces the runtime's `testNamePattern`. */
+  readonly testNamePattern?: string | RegExp
+  /** Only these test ids run in this file: replaces the runtime's `testIds`. */
+  readonly testIds?: readonly string[]
 }
 
 /**
@@ -113,13 +117,26 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   })
   const executor = new Executor({ policy, orderHooks, sink, deadlines, timers, now, runs })
   const pattern = options.testNamePattern
-  const finalizeOptions = {
+  const finalizeOptions: Omit<FinalizeOptions, 'lines'> = {
     policy,
     projectName,
     ci: options.ci ?? false,
     testNamePattern:
       pattern === undefined ? undefined : toRegExp(pattern, policy.testNamePatternFlags),
     testIds: options.testIds === undefined ? undefined : new Set(options.testIds),
+  }
+
+  /** The runtime's filters, with the ones this file's options give instead. */
+  function finalizeOptionsFor(fileOptions: RunFileOptions): FinalizeOptions {
+    const { testNamePattern, testIds, lines } = fileOptions
+    return {
+      ...finalizeOptions,
+      ...(testNamePattern === undefined
+        ? {}
+        : { testNamePattern: toRegExp(testNamePattern, policy.testNamePatternFlags) }),
+      ...(testIds === undefined ? {} : { testIds: new Set(testIds) }),
+      lines: lines === undefined ? undefined : new Set(lines),
+    }
   }
 
   /**
@@ -172,8 +189,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     let outcome: Outcome = 'fail'
     try {
       const collected = await collect(file)
-      const lines = fileOptions.lines === undefined ? undefined : new Set(fileOptions.lines)
-      const tasks = finalize(file, { ...finalizeOptions, lines })
+      const tasks = finalize(file, finalizeOptionsFor(fileOptions))
       const errors = file.errors.map(serializeError)
       sink.emit({ type: 'file-collect-end', fileId, tasks, errors, t: now() })
       if (collected) outcome = await executor.runFile(file)

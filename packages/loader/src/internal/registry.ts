@@ -95,6 +95,24 @@ export class Registry {
     this.#maps = [new Map()]
   }
 
+  /**
+   * Drops the live instance of the user module `specifier` resolves to from `importer`, so its
+   * next import or require evaluates it again. Records stay (compiled code is shared), and so
+   * does every other instance: the module's dependencies keep theirs. An external, a builtin, a
+   * module that was never loaded or a specifier that doesn't resolve is a no-op; the import
+   * itself reports the last one.
+   */
+  invalidate(specifier: string, importer: string): void {
+    let target: Target
+    try {
+      target = resolveTarget(this.#state, specifier, importer, 'import')
+    } catch (error) {
+      if (error instanceof LoaderError && error.code === 'ERR_MODULE_NOT_FOUND') return
+      throw error
+    }
+    if (target.kind === 'user') this.#instances.delete(target.id)
+  }
+
   isolate<R>(fn: () => R): R {
     this.#maps.push(new Map())
     try {

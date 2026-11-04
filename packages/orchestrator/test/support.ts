@@ -7,11 +7,13 @@ import {
   type TransportOptions,
   threadsTransport,
 } from '@provino/orchestrator'
+import { neutralPolicy, serializePolicy } from '@provino/policy'
 import type { RpcHandlers } from '@provino/rpc'
 import type {
   CoordinatorMethods,
   FileJob,
   PoolKind,
+  SerializedProjectConfig,
   TaskId,
   TransportFactory,
   WorkerExit,
@@ -22,6 +24,25 @@ export const KINDS: readonly PoolKind[] = ['forks', 'threads', 'inline']
 
 export function fixture(name: string): URL {
   return new URL(`./fixtures/${name}`, import.meta.url)
+}
+
+/** A valid project config; these tests move it around without reading it. */
+const config: SerializedProjectConfig = {
+  name: 'test',
+  rootDir: '/',
+  ci: false,
+  policy: serializePolicy(neutralPolicy),
+  environment: { module: '@provino/env-node', export: 'nodeEnvironment', options: {} },
+  globals: null,
+  setupFiles: [],
+  setupFilesAfterEnv: [],
+  loader: {
+    extensions: ['.ts', '.js'],
+    conditions: ['node'],
+    tsconfig: false,
+    mappers: [],
+    typescript: 'oxc',
+  },
 }
 
 export function initFor(pool: PoolKind, workerId = 1): WorkerInit {
@@ -37,7 +58,7 @@ export function initFor(pool: PoolKind, workerId = 1): WorkerInit {
     workerId,
     isolation: 'registry',
     provided: {},
-    config: null,
+    config,
   }
 }
 

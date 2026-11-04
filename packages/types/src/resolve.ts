@@ -1,6 +1,8 @@
 // Track 3 §Types → Resolver API: the one resolver contract. `@provino/resolver` (B05)
 // implements it (`createResolver`, typed by `CreateResolver`), the loader consumes it, and a
 // plugin may contribute one. The ready-made mappers stay in `@provino/resolver`.
+import type { JsonValue } from './clone-safe.ts'
+import type { ModuleRef } from './policy/behaviour.ts'
 
 /**
  * What kind of reference is being resolved. `mock` is a mock call's specifier;
@@ -63,6 +65,22 @@ export interface MapperHit {
 export interface ModuleMapper {
   readonly id: string
   map(specifier: string, context: ResolveContext): MapperHit | null
+}
+
+/**
+ * Builds a `ModuleMapper` from the options its config carried. A worker loads it by `ModuleRef`
+ * (`SerializedModuleMapper`), because a mapper has methods and can't cross a thread.
+ * @public
+ */
+export type ModuleMapperFactory = (options: JsonValue) => ModuleMapper
+
+/**
+ * A mapper as it crosses coordinator → worker: the factory's ref and the data it is called with.
+ * @public
+ */
+export interface SerializedModuleMapper {
+  readonly factory: ModuleRef<ModuleMapperFactory>
+  readonly options: JsonValue
 }
 
 /**

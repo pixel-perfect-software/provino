@@ -5,7 +5,7 @@ import { describe, test } from 'node:test'
 import { createBehaviourLoader } from '@provino/policy'
 import type { RuntimeEvent } from '@provino/types'
 import { policyWith, reached, runScript } from './internal/test-support.ts'
-import { createRuntime, type Runtime } from './runtime.ts'
+import { createRuntime, type RunFileOptions, type Runtime, type RuntimeOptions } from './runtime.ts'
 
 describe('runFile', () => {
   test('reports the path relative to rootDir, with forward slashes', async () => {
@@ -108,6 +108,96 @@ describe('runFile', () => {
       late[0]?.type === 'unhandled-error' && late[0].error.code,
       'CORE_LATE_REGISTRATION',
     )
+  })
+})
+
+describe('filters given to one runFile', () => {
+  /** What one `runFile` did: each test’s state by name, and each test’s id by name. */
+  interface FileRun {
+    readonly states: Readonly<Record<string, string>>
+    readonly ids: Readonly<Record<string, string>>
+  }
+
+  /**
+   * Runs the same file once per entry of `runs` through one runtime built with `runtimeOptions`;
+   * the file registers the tests `a`, `b` and `c`.
+   */
+  async function runEach(
+    runtimeOptions: Partial<RuntimeOptions>,
+    runs: readonly RunFileOptions[],
+  ): Promise<FileRun[]> {
+    const events: RuntimeEvent[] = []
+    const runtime = await createRuntime({
+      policy: policyWith(),
+      behaviours: createBehaviourLoader(),
+      sink: { emit: (event) => events.push(event) },
+      importFile: async () => {
+        for (const name of ['a', 'b', 'c']) runtime.api.test(name, () => {})
+      },
+      rootDir: '/project',
+      ...runtimeOptions,
+    })
+    const results: FileRun[] = []
+    for (const options of runs) {
+      events.length = 0
+      await runtime.runFile('/project/x.test.ts', options)
+      const names = new Map<string, string>()
+      for (const event of events) {
+        if (event.type !== 'file-collect-end') continue
+        for (const task of event.tasks) if (task.type === 'test') names.set(task.id, task.name)
+      }
+      results.push({
+        states: Object.fromEntries(
+          events.flatMap((event) =>
+            event.type === 'test-end' ? [[names.get(event.id), event.result.state]] : [],
+          ),
+        ),
+        ids: Object.fromEntries([...names].map(([id, name]) => [name, id])),
+      })
+    }
+    return results
+  }
+
+  const only = (name: string): Record<string, string> => ({
+    a: name === 'a' ? 'pass' : 'skip',
+    b: name === 'b' ? 'pass' : 'skip',
+    c: name === 'c' ? 'pass' : 'skip',
+  })
+
+  test('a testNamePattern replaces the runtime’s for that file only', async () => {
+    const [override, regexp, inherited] = await runEach({ testNamePattern: 'a' }, [
+      { testNamePattern: 'b' },
+      { testNamePattern: /C/i },
+      {},
+    ])
+    assert.deepEqual(override?.states, only('b'))
+    assert.deepEqual(regexp?.states, only('c'))
+    assert.deepEqual(inherited?.states, only('a'), 'the next file is back to the runtime’s')
+  })
+
+  test('a string pattern is compiled with the policy’s flags', async () => {
+    const [sensitive] = await runEach({}, [{ testNamePattern: 'B' }])
+    assert.deepEqual(sensitive?.states, { a: 'skip', b: 'skip', c: 'skip' })
+    const [insensitive] = await runEach({ policy: policyWith({ testNamePatternFlags: 'i' }) }, [
+      { testNamePattern: 'B' },
+    ])
+    assert.deepEqual(insensitive?.states, only('b'))
+  })
+
+  test('testIds replace the runtime’s for that file only', async () => {
+    const [first] = await runEach({}, [{}])
+    const ids = first?.ids ?? {}
+    const [override, inherited] = await runEach({ testIds: [ids.a ?? ''] }, [
+      { testIds: [ids.c ?? ''] },
+      {},
+    ])
+    assert.deepEqual(override?.states, only('c'))
+    assert.deepEqual(inherited?.states, only('a'), 'the next file is back to the runtime’s')
+  })
+
+  test('without filters of its own or the runtime’s, every test runs', async () => {
+    const [run] = await runEach({}, [{}])
+    assert.deepEqual(run?.states, { a: 'pass', b: 'pass', c: 'pass' })
   })
 })
 

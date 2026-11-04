@@ -1,14 +1,35 @@
 // `connect()` against a hand-driven spawned worker: the handshake's two failure races.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { neutralPolicy, serializePolicy } from '@provino/policy'
 import type {
   CoordinatorToWorker,
   MessageLink,
+  SerializedProjectConfig,
   WorkerExit,
   WorkerInit,
   WorkerToCoordinator,
 } from '@provino/types'
 import { connect, type Spawned } from './shared.ts'
+
+/** A valid project config; these tests move it around without reading it. */
+const config: SerializedProjectConfig = {
+  name: 't',
+  rootDir: '/',
+  ci: false,
+  policy: serializePolicy(neutralPolicy),
+  environment: { module: '@provino/env-node', export: 'nodeEnvironment', options: {} },
+  globals: null,
+  setupFiles: [],
+  setupFilesAfterEnv: [],
+  loader: {
+    extensions: ['.ts', '.js'],
+    conditions: ['node'],
+    tsconfig: false,
+    mappers: [],
+    typescript: 'oxc',
+  },
+}
 
 const init: WorkerInit = {
   key: {
@@ -22,7 +43,7 @@ const init: WorkerInit = {
   workerId: 1,
   isolation: 'registry',
   provided: {},
-  config: null,
+  config,
 }
 
 /** A spawned worker the test drives: `deliver` hands the transport a message, `exit` ends it. */

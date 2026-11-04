@@ -6,7 +6,7 @@ The test runtime (Track 5): collector, executor, hooks, the test context and the
 
 | Module | Role |
 |---|---|
-| `src/runtime.ts` | `createRuntime(options)`: loads `formatEachTitle`/`orderHooks` through the `BehaviourLoader` first (so registration stays sync), builds one `Deadlines`, wires the parts. `runFile(path, { lines? })` collects, runs the `onCollected` listeners, finalizes, runs, then always drains the file teardowns and emits `file-end`; a second `runFile` while one is active rejects with `CORE_BUSY`. `dispose()` drains the worker teardowns |
+| `src/runtime.ts` | `createRuntime(options)`: loads `formatEachTitle`/`orderHooks` through the `BehaviourLoader` first (so registration stays sync), builds one `Deadlines`, wires the parts. `runFile(path, { lines?, testNamePattern?, testIds? })` (the last two replace the runtime's for that file only) collects, runs the `onCollected` listeners, finalizes, runs, then always drains the file teardowns and emits `file-end`; a second `runFile` while one is active rejects with `CORE_BUSY`. `dispose()` drains the worker teardowns |
 | `src/collector/collector.ts` | Registration into a mutable tree (`internal/model.ts`): modes, options inheritance, immediate/deferred bodies, async bodies, nested and late registration |
 | `src/collector/finalize.ts` | After collection: ids, full names, `dupIndex`, the two **focus algorithms**, filters (name, ids, lines), `allowOnly`, `emptyDescribe`, the clone-safe `TaskNode` list |
 | `src/collector/api.ts` | The chainable global API (`RuntimeApi`): `describe`/`test` modifiers, `.each`/`.for`/tables, hooks |

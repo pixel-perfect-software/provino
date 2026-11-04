@@ -35,6 +35,52 @@ export function createMatcherRegistry(): MatcherRegistry {
 }
 
 /**
+ * A registry's contents at one moment, to go back to.
+ * @beta
+ */
+export interface RegistrySnapshot {
+  /**
+   * Puts the registry back as it was when the snapshot was taken: matchers added since are
+   * deleted, any it replaced are put back, and `customEqualityTesters` is reset to its contents
+   * then. The registry's objects stay the same ones, so the slot keeps sharing them. It can be
+   * called again after each file.
+   */
+  restore(): void
+}
+
+/**
+ * Remembers what `registry` holds now. The worker takes one after `createExpect` has registered
+ * the dialect's matchers (an earlier one would restore them away), and restores it after each file
+ * when the environment is file-scoped, as Jest gives each file a fresh `expect`.
+ *
+ * It restores the registry only: the asymmetric forms `expect.extend` also puts on the `expect`
+ * function itself (`expect.toBeEven()`) are not undone.
+ * @beta
+ */
+export function snapshotRegistry(registry: MatcherRegistry): RegistrySnapshot {
+  const matchers = new Map<string | symbol, PropertyDescriptor>()
+  for (const key of Reflect.ownKeys(registry.matchers)) {
+    const descriptor = Reflect.getOwnPropertyDescriptor(registry.matchers, key)
+    if (descriptor !== undefined) matchers.set(key, descriptor)
+  }
+  const testers = [...registry.customEqualityTesters]
+  return {
+    restore(): void {
+      for (const key of Reflect.ownKeys(registry.matchers)) {
+        if (!matchers.has(key)) Reflect.deleteProperty(registry.matchers, key)
+      }
+      for (const [key, descriptor] of matchers) {
+        if (Reflect.get(registry.matchers, key) !== descriptor.value) {
+          Reflect.defineProperty(registry.matchers, key, descriptor)
+        }
+      }
+      registry.customEqualityTesters.length = 0
+      registry.customEqualityTesters.push(...testers)
+    },
+  }
+}
+
+/**
  * The installed slot.
  * @public
  */

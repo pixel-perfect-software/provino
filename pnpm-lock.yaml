@@ -542,19 +542,18 @@ importers:
 
   packages/loader:
     dependencies:
-      '@provino/transform':
-        specifier: workspace:*
-        version: link:../transform
-      '@provino/types':
-        specifier: workspace:*
-        version: link:../types
-    devDependencies:
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
       '@provino/resolver':
         specifier: workspace:*
         version: link:../resolver
+      '@provino/transform':
+        specifier: workspace:*
+        version: link:../transform
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/orchestrator:
     dependencies:
@@ -564,6 +563,10 @@ importers:
       '@provino/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      '@provino/policy':
+        specifier: workspace:*
+        version: link:../policy
 
   packages/policy:
     dependencies:

@@ -2,7 +2,8 @@
 // The events on the wire and on the bus are Track 5's `RuntimeEvent`s (one event model, see the
 // package README); Track 9's own `task:*`/`hook:*` event shapes are gone. Runtime pieces
 // (`defineReporter`, `inject`, the `ExitCode` constant) land in `@provino/orchestrator`.
-import type { CloneSafe, JsonValue } from './clone-safe.ts'
+import type { CloneSafe } from './clone-safe.ts'
+import type { SerializedProjectConfig } from './config.ts'
 import type { CoverageSummary } from './coverage.ts'
 import type { IsolationTier } from './isolation.ts'
 import type { PoolKind } from './policy/orchestrator.ts'
@@ -76,8 +77,8 @@ export interface WorkerInit {
   readonly isolation: IsolationTier
   /** Values from global setup's `provide()`. */
   readonly provided: Readonly<Partial<ProvidedContext>>
-  /** The serialized project config. Its shape arrives with the worker runtime (U1). */
-  readonly config: JsonValue
+  /** The worker's one project. */
+  readonly config: SerializedProjectConfig
 }
 
 /**

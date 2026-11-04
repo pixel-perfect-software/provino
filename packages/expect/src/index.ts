@@ -10,7 +10,9 @@ export {
   MATCHERS_SLOT,
   type MatcherRegistry,
   type MatchersSlot,
+  type RegistrySnapshot,
   type SlotHandle,
+  snapshotRegistry,
 } from './slot.ts'
 export {
   createStateSource,
