@@ -9,6 +9,9 @@ import { RpcError } from './errors.ts'
 
 const CLOSED: LinkClosed = Object.freeze({ type: 'closed' })
 
+/** A send that fails once the channel is going away is dropped; the link's exit reports it. */
+const ignoreSendError = (): void => {}
+
 /** What a link needs from the channel under it. */
 interface Channel {
   post(message: unknown, transfer: readonly ArrayBuffer[] | undefined): void
@@ -20,29 +23,23 @@ interface Channel {
 function createLink<Out, In>(channel: Channel): MessageLink<Out, In> {
   const listeners = new Set<(message: In) => void>()
   const exitListeners = new Set<(cause: LinkClosed) => void>()
-  /** Messages nobody has taken yet, oldest first, from `head`. */
-  let queue: In[] = []
-  let head = 0
+  /** Messages nobody has taken yet, oldest first. Short: it fills only while nobody listens. */
+  const queue: In[] = []
   let drainScheduled = false
   let closed = false
 
   /** Delivers queued messages, in order, while someone listens. */
   const pump = (): void => {
-    while (head < queue.length && listeners.size > 0 && !closed) {
-      const message = queue[head] as In
-      queue[head++] = undefined as In
+    while (queue.length > 0 && listeners.size > 0 && !closed) {
+      const message = queue.shift() as In
+      // A copy: a listener added or removed while this message is delivered doesn't change who gets it.
       for (const listener of [...listeners]) listener(message)
-    }
-    if (head === queue.length) {
-      queue = []
-      head = 0
     }
   }
   const onClose = (): void => {
     if (closed) return
     closed = true
-    queue = []
-    head = 0
+    queue.length = 0
     listeners.clear()
     for (const listener of exitListeners) listener(CLOSED)
     exitListeners.clear()
@@ -62,7 +59,7 @@ function createLink<Out, In>(channel: Channel): MessageLink<Out, In> {
     onMessage(listener) {
       if (closed) return () => {}
       listeners.add(listener)
-      if (head < queue.length && !drainScheduled) {
+      if (queue.length > 0 && !drainScheduled) {
         // Delivered after `onMessage` returns, in order, before any message that arrives later
         // (those come as macrotasks, and wait behind the scheduled drain).
         drainScheduled = true
@@ -125,15 +122,16 @@ export function processLink<Out, In>(proc: NodeJS.Process): MessageLink<Out, In>
   const disconnect = (): void => {
     if (proc.connected) proc.disconnect()
   }
+  // A send that fails once the channel is going away is dropped; `disconnect` reports it.
+  const written = (): void => {
+    unwritten--
+    if (closing && unwritten === 0) disconnect()
+  }
   return createLink({
     post: (message) => {
       if (!proc.connected) return
-      // A send that fails once the channel is going away is dropped; `disconnect` reports it.
       // A send that throws (a value advanced serialization can't write) was never queued.
-      send(message, undefined, undefined, () => {
-        unwritten--
-        if (closing && unwritten === 0) disconnect()
-      })
+      send(message, undefined, undefined, written)
       unwritten++
     },
     listen(onMessage, onClose) {
@@ -158,7 +156,7 @@ export function processLink<Out, In>(proc: NodeJS.Process): MessageLink<Out, In>
 export function childProcessLink<Out, In>(child: ChildProcess): MessageLink<Out, In> {
   return createLink({
     post: (message) => {
-      if (child.connected) child.send(message as Serializable, (error) => void error)
+      if (child.connected) child.send(message as Serializable, ignoreSendError)
     },
     listen(onMessage, onClose) {
       child.on('message', onMessage)

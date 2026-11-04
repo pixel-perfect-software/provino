@@ -31,7 +31,7 @@ export class RpcError extends Error {
   readonly remote?: SerializedError
 
   constructor(code: RpcErrorCode, message: string, options: RpcErrorOptions = {}) {
-    super(message, 'cause' in options ? { cause: options.cause } : undefined)
+    super(message, options)
     this.name = 'RpcError'
     this.code = code
     if (options.remote !== undefined) this.remote = options.remote

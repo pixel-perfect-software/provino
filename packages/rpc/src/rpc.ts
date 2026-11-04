@@ -3,7 +3,7 @@
 // birpc with `timeout: -1` too): a call ends when it is answered or when the port exits.
 import type { RpcCall, RpcClient, RpcReply, RpcSchema, SerializedError } from '@provino/types'
 import { RpcError } from './errors.ts'
-import { serializeError } from './internal/serialize.ts'
+import { serializeError } from './serialize.ts'
 
 /**
  * What `createRpc` runs over: a `Transport` on the coordinator side and a `WorkerPort` on the
@@ -163,10 +163,10 @@ export function createRpc<Local extends RpcSchema<Local>, Remote extends RpcSche
       // Not a thenable, so `await client` and promise resolution leave it alone; and no stub for a
       // name that inspection reads (`toJSON`, `toString`, a matcher's `asymmetricMatch`), so
       // printing or serializing the client never sends a call.
-      if (typeof key !== 'string' || NOT_METHODS.has(key) || key in Object.prototype)
-        return undefined
+      if (typeof key !== 'string') return undefined
       let method = methods.get(key)
       if (method === undefined) {
+        if (NOT_METHODS.has(key) || key in Object.prototype) return undefined
         method = (...args) => call(key, args)
         methods.set(key, method)
       }
@@ -208,11 +208,7 @@ function unclonable(message: string): SerializedError {
 }
 
 /** Calls `handlers[method]`, rejecting names that aren't served (including `Object.prototype`'s). */
-async function invoke(
-  handlers: object,
-  method: string,
-  args: readonly unknown[],
-): Promise<unknown> {
+function invoke(handlers: object, method: string, args: readonly unknown[]): unknown {
   const handler: unknown = (handlers as Record<string, unknown>)[method]
   if (
     typeof handler !== 'function' ||
@@ -220,7 +216,7 @@ async function invoke(
   ) {
     throw new RpcError('RPC_UNKNOWN_METHOD', `No RPC method \`${method}\` is served here`)
   }
-  return await Reflect.apply(handler, handlers, args)
+  return Reflect.apply(handler, handlers, args)
 }
 
 function messageOf(error: unknown): string {
