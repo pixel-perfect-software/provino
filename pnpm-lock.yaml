@@ -556,6 +556,15 @@ importers:
         specifier: workspace:*
         version: link:../resolver
 
+  packages/orchestrator:
+    dependencies:
+      '@provino/rpc':
+        specifier: workspace:*
+        version: link:../rpc
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
+
   packages/policy:
     dependencies:
       '@provino/types':
@@ -570,6 +579,12 @@ importers:
       oxc-resolver:
         specifier: 'catalog:'
         version: 11.24.2
+
+  packages/rpc:
+    dependencies:
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/transform:
     dependencies:

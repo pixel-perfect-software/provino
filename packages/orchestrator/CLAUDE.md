@@ -1,0 +1,53 @@
+# @provino/orchestrator
+
+The coordinator (`.`) and the worker entry (`./worker`), as two manifest nodes in one package. They never import each other: shared types come from `@provino/types` and shared runtime code from `@provino/rpc`. B09 built the transports, the per-worker connection and the worker-side packer. The pool, scheduler, reporters and the real worker runtime come later (see "Not built yet").
+
+## Module map
+
+| File | Node | What it does |
+|---|---|---|
+| `src/transport/shared.ts` | coordinator | `connect()`: the `ready` → `start` handshake, the start timeout, one exit report, and `terminate` (`stop` → teardown timeout → SIGTERM → 500 ms → SIGKILL) |
+| `src/transport/forks.ts`, `threads.ts`, `inline.ts` | coordinator | Spawning one worker and mapping how it ends to a `WorkerExit` |
+| `src/connect.ts` | coordinator | `connectWorker`: serves `CoordinatorMethods`, hands packs to `onEvents` in order, acks after it settles, and resolves `run()` on `fileDone` |
+| `src/worker/start.ts` | worker | `startWorker(port, runner)`: the worker side of the protocol, run by B10's runtime |
+| `src/worker/packer.ts` | worker | Packs: 64 events or the end of the macrotask, numbered, cumulative acks, at most 8 in flight |
+| `src/worker/console.ts` | worker | Console capture: a real `Console` over sinks, plus patched stream `write`s |
+| `src/worker/bootstrap.ts` | worker | The fork and thread main. Never imported; the coordinator finds it with `import.meta.resolve('@provino/orchestrator/worker/bootstrap')` |
+
+## How a worker runs
+
+1. The transport spawns `bootstrap.ts` and passes the entry module URL: `argv[2]` for a fork, `workerData.entry` for a thread. Inline has no bootstrap: the transport imports the entry itself and builds the port over a `MessageChannel`.
+2. The entry's default export (`WorkerMain`) gets a `WorkerPort` and calls `startWorker`. That sends `ready`; the transport answers with `start` and only then resolves `create()`.
+3. Each `run` goes through `runner.runFile`, then `packer.flush()`, then an empty write on stdout and stderr, then `fileDone`. `fileDone` never overtakes the file's events or its output.
+4. `stop` drains, sends `stopped` and closes the link. The bootstrap then **exits on purpose** (`process.exit(0)`), after a fork's IPC disconnect, so a handle a test leaked can't keep the worker alive. If the coordinator dies, the link closes and the worker exits the same way.
+
+## Rules that aren't obvious
+
+- **A fork's exit is reported after `exit` *and* the IPC `disconnect`.** `exit` can arrive before the child's last messages are read, so closing the link on `exit` would drop them. A 1 s fallback covers a grandchild that holds the channel open. That's also why `childProcessLink` closes on `disconnect`, not `exit`.
+- **A child's `processLink.close()` waits for queued writes** before it disconnects, because a disconnect cancels pending IPC writes, `stopped` included.
+- **Links queue while nobody listens** and hand the queue, in order, to the next listener. The handshake listener unsubscribes on `ready`, and nothing after it is lost.
+- **A timeout overrides the raw exit.** A worker killed after the start or teardown timeout reports `{ type: 'timeout', phase }`, not the signal used to kill it.
+- **Inline workers don't patch globals.** Console capture installs on `globalThis.console` and `process.stdout`/`stderr` only when `init.key.pool !== 'inline'`: an inline worker shares the coordinator's stdio, and `node:test` reports over it. Inline runners use `context.console`; tests pass stand-in streams.
+- **The packer takes its timers at load** (`node:timers`), so fake timers installed by a test file can't stall a flush.
+- **No coalescing.** Every `RuntimeEvent` is a transition reporters see (§6's one event model). The brief's "coalesce per task" came from Track 9's retired `task:update` shape (DECISIONS P4).
+- **`WorkerMethods.memoryUsage` replaces `Transport.memoryUsage`.** A parent can't read a forked child's RSS, so the worker measures itself: RSS in a fork, `heapUsed + external` in a thread or inline.
+
+## Tests
+
+- `src/**/*.test.ts`: unit tests per node (packer, console capture, `connectWorker` over a fake transport).
+- `test/**/*.test.ts`: end to end over real forks, threads and inline workers. Fixtures in `test/fixtures/` are worker entries (`WorkerMain` default exports), plus a seeded PRNG and the console-order program generator. Tests here may import both entries (the `<package>/test` manifest node).
+  - `transport.test.ts`: 1,000 round trips per kind, stop, kill, both timeouts, SIGKILL escalation, stdio piping.
+  - `isolation.test.ts`: spike A2's table. The threads SIGSEGV case runs a whole coordinator in a child process, which must die by SIGSEGV.
+  - `rpc-exit.test.ts`, `events.test.ts` (10k events, window ≤ 8), `console-order.test.ts` (the property; replay one seed with `PROVINO_SEED`).
+- Workers print crash output (the OOM case's V8 fatal error). Pass a `Collect` stream as `stderr` to keep it out of the test output.
+
+## Not built yet
+
+| What | Owner |
+|---|---|
+| Pool: `WorkerKey` reuse, recycling, lazy spawn, crash → file failed → replacement | T9.5 (B11 minimal, B21) |
+| The real runner behind `startWorker` (loader → core → expect), `passingAssertions`, the current-test lookup for console attribution | U1 (B10) |
+| `BulkPayload` for coverage and snapshots over 64 KiB | Track 8, T7.10 |
+| `inject`/`provide` backing store; `WorkerInit` contents (policy, dialect runtime ref) | T9.9 (B21); U1 (B10) |
+| Jest's console `origin` (the call site) | B10/B14 |
+| Scheduler, reporters, watch, global setup, exit codes | T9.6–T9.13 |
