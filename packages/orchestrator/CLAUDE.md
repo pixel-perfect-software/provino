@@ -18,7 +18,7 @@ The coordinator (`.`) and the worker entry (`./worker`), as two manifest nodes i
 
 1. The transport spawns `bootstrap.ts` and passes the entry module URL: `argv[2]` for a fork, `workerData.entry` for a thread. Inline has no bootstrap: the transport imports the entry itself and builds the port over a `MessageChannel`.
 2. The entry's default export (`WorkerMain`) gets a `WorkerPort` and calls `startWorker`. That sends `ready`; the transport answers with `start` and only then resolves `create()`.
-3. Each `run` goes through `runner.runFile`, then `packer.flush()`, then an empty write on stdout and stderr, then `fileDone`. `fileDone` never overtakes the file's events or its output.
+3. Each `run` goes through `runner.runFile`, then `packer.flush()`, then an empty write on stdout and stderr, then `fileDone`. `fileDone` never overtakes the file's events or its output. A runner that throws (in `runFile`, or in `start`, which then fails every file) is charged to the file as an `unhandled-error`, and the file still gets its `fileDone`: no failure can stall the worker's queue.
 4. `stop` drains, sends `stopped` and closes the link. The bootstrap then **exits on purpose** (`process.exit(0)`), after a fork's IPC disconnect, so a handle a test leaked can't keep the worker alive. If the coordinator dies, the link closes and the worker exits the same way.
 
 ## Rules that aren't obvious
@@ -38,7 +38,7 @@ The coordinator (`.`) and the worker entry (`./worker`), as two manifest nodes i
 - `test/**/*.test.ts`: end to end over real forks, threads and inline workers. Fixtures in `test/fixtures/` are worker entries (`WorkerMain` default exports), plus a seeded PRNG and the console-order program generator. Tests here may import both entries (the `<package>/test` manifest node).
   - `transport.test.ts`: 1,000 round trips per kind, stop, kill, both timeouts, SIGKILL escalation, stdio piping.
   - `isolation.test.ts`: spike A2's table. The threads SIGSEGV case runs a whole coordinator in a child process, which must die by SIGSEGV.
-  - `rpc-exit.test.ts`, `events.test.ts` (10k events, window ≤ 8), `console-order.test.ts` (the property; replay one seed with `PROVINO_SEED`).
+  - `rpc-exit.test.ts`, `events.test.ts` (10k events, window ≤ 8), `console-order.test.ts` (the property; replay one seed with `PROVINO_SEED`), `runner-errors.test.ts`.
 - Workers print crash output (the OOM case's V8 fatal error). Pass a `Collect` stream as `stderr` to keep it out of the test output.
 
 ## Not built yet
