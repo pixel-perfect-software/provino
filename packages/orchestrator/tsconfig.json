@@ -10,6 +10,15 @@
     },
     {
       "path": "../policy"
+    },
+    {
+      "path": "../loader"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../expect"
     }
   ]
 }

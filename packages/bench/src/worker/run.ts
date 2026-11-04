@@ -1,0 +1,255 @@
+// Runs a directory of test files through one worker with the real runtime (B10): the Jest
+// dialect's policy and globals, the node environment, the setup file of the suite, and the
+// coordinator side of B09 (`connectWorker` over a transport). Until `provino/node` exists this is
+// the bench's own entry, as DECISIONS S4 allows; B11's coordinator replaces it.
+import { createHash } from 'node:crypto'
+import { relative, sep } from 'node:path'
+import { jestDialect, jestPolicy } from '@provino/dialect-jest'
+import {
+  connectWorker,
+  forksTransport,
+  inlineTransport,
+  threadsTransport,
+} from '@provino/orchestrator'
+import { resolvePolicy, serializePolicy } from '@provino/policy'
+import type {
+  CoordinatorMethods,
+  FileJob,
+  IsolationTier,
+  PoolKind,
+  SerializedProjectConfig,
+  TaskId,
+  TransportFactory,
+  WorkerEvent,
+  WorkerInit,
+} from '@provino/types'
+import { BenchError } from '../errors.ts'
+import { createOrderChecker } from './order.ts'
+
+/** The worker entry: the real runtime behind `startWorker`. */
+const ENTRY: string = import.meta.resolve('@provino/orchestrator/worker/main')
+
+/** Where the node environment lives; the worker imports it by this ref. */
+const ENVIRONMENT_MODULE: string = import.meta.resolve('@provino/env-node')
+
+/** The project name in the bench's task ids. */
+export const PROJECT_NAME = 'bench'
+
+/**
+ * The id `@provino/core` gives a file: a SHA-1 over the project name and the POSIX path relative to
+ * the root, cut to 10 hex characters. Core does not export it (B11's coordinator will need its
+ * own), so this repeats the formula; `runWorkerFiles` checks every event's id against it.
+ */
+export function fileIdOf(projectName: string, rootDir: string, file: string): TaskId {
+  const path = relative(rootDir, file).split(sep).join('/')
+  return createHash('sha1').update(`${projectName}\0${path}`).digest('hex').slice(0, 10) as TaskId
+}
+
+/**
+ * The project config for a worker running Jest-flavoured suites: the Jest dialect's resolved
+ * policy and globals, the node environment, and `setupFilesAfterEnv` (Jest's name for the suite's
+ * `setup.js`).
+ */
+export function benchProjectConfig(
+  rootDir: string,
+  setupFilesAfterEnv: readonly string[],
+): SerializedProjectConfig {
+  const globals = jestDialect.globals
+  if (globals === undefined) throw new BenchError('BENCH_USAGE', 'the Jest dialect has no globals')
+  return {
+    name: PROJECT_NAME,
+    rootDir,
+    ci: false,
+    policy: serializePolicy(resolvePolicy(jestPolicy)),
+    environment: { module: ENVIRONMENT_MODULE, export: 'nodeEnvironment', options: {} },
+    globals: globals.factory,
+    setupFiles: [],
+    setupFilesAfterEnv,
+    loader: {
+      extensions: ['.js', '.ts', '.mjs', '.cjs', '.json'],
+      conditions: ['node'],
+      tsconfig: false,
+      mappers: [],
+      typescript: 'oxc',
+    },
+  }
+}
+
+/** What to run, and how. */
+export interface WorkerRunOptions {
+  readonly rootDir: string
+  /** Absolute paths of the test files, run in this order. */
+  readonly files: readonly string[]
+  readonly setupFilesAfterEnv?: readonly string[]
+  /** The worker's transport. Default `inline`. */
+  readonly pool?: PoolKind
+  /** Default `registry`. */
+  readonly isolation?: IsolationTier
+  /** Keep every event in the result (the ordering fixtures read them). Default off. */
+  readonly keepEvents?: boolean
+  /** Where a worker's own stderr goes (a crash). Default: this process's. */
+  readonly stderr?: NodeJS.WritableStream
+}
+
+/** What one run found. */
+export interface WorkerRunResult {
+  readonly pool: PoolKind
+  readonly isolation: IsolationTier
+  readonly files: number
+  readonly passed: number
+  readonly failed: number
+  readonly skipped: number
+  /** Tests that ended: `passed + failed + skipped`. */
+  readonly total: number
+  /** What the ordering checker found, plus any event whose file id is not its job's. */
+  readonly violations: readonly string[]
+  /** The first few failures and unhandled errors, as `file › test: message`. */
+  readonly failures: readonly string[]
+  /** Unhandled errors: a test never charged them, so they are not in `failed`. */
+  readonly unhandled: number
+  readonly elapsedMs: number
+  /** Every event, in order, when `keepEvents` was set. */
+  readonly events: readonly WorkerEvent[]
+}
+
+const METHODS: CoordinatorMethods = {
+  resolveSnapshotPath: async (file) => file,
+  writeSnapshot: async () => {},
+  readTimings: async () => undefined,
+}
+
+const MAX_FAILURES = 10
+
+function transportFor(pool: PoolKind, stderr: NodeJS.WritableStream | undefined): TransportFactory {
+  const options = { entry: ENTRY, ...(stderr === undefined ? {} : { stderr }) }
+  switch (pool) {
+    case 'forks':
+      return forksTransport(options)
+    case 'threads':
+      return threadsTransport(options)
+    case 'inline':
+      return inlineTransport(options)
+    default:
+      return pool satisfies never
+  }
+}
+
+/**
+ * Starts one worker of `pool`, runs `files` through it one at a time, stops it, and reports what
+ * the coordinator saw: test counts, the ordering checker's violations, and the wall time (`local`).
+ */
+export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerRunResult> {
+  const pool = options.pool ?? 'inline'
+  const isolation = options.isolation ?? 'registry'
+  const config = benchProjectConfig(options.rootDir, options.setupFilesAfterEnv ?? [])
+  const init: WorkerInit = {
+    key: {
+      project: PROJECT_NAME,
+      pool,
+      environment: 'node',
+      environmentOptionsHash: '',
+      execArgvHash: '',
+      envHash: '',
+    },
+    workerId: 1,
+    isolation,
+    provided: {},
+    config,
+  }
+  const checker = createOrderChecker()
+  const violations: string[] = []
+  const failures: string[] = []
+  const events: WorkerEvent[] = []
+  const counts = { passed: 0, failed: 0, skipped: 0, unhandled: 0 }
+  /** The running file’s tests, by id, for readable failures. */
+  let names = new Map<TaskId, string>()
+  let running: FileJob | undefined
+  const note = (failure: string): void => {
+    if (failures.length < MAX_FAILURES) failures.push(failure)
+  }
+
+  const onEvent = (event: WorkerEvent): void => {
+    if (options.keepEvents === true) events.push(event)
+    checker.feed(event)
+    if (running === undefined) return
+    const label = relative(options.rootDir, running.file)
+    switch (event.type) {
+      case 'file-collect-start':
+      case 'file-collect-end':
+      case 'file-end':
+        if (event.fileId !== running.fileId) {
+          violations.push(
+            `${event.type} has file id ${event.fileId}, the job’s is ${running.fileId}`,
+          )
+        }
+        if (event.type === 'file-collect-end') {
+          names = new Map(
+            event.tasks.filter((task) => task.type === 'test').map((task) => [task.id, task.name]),
+          )
+          for (const error of event.errors) note(`${label}: collection failed: ${error.message}`)
+        }
+        return
+      case 'test-end': {
+        const { state, errors } = event.result
+        if (state === 'pass') counts.passed++
+        else if (state === 'fail') {
+          counts.failed++
+          note(`${label} › ${names.get(event.id) ?? event.id}: ${errors[0]?.message ?? 'failed'}`)
+        } else counts.skipped++
+        return
+      }
+      case 'unhandled-error':
+        counts.unhandled++
+        note(`${label}: unhandled ${event.origin}: ${event.error.message}`)
+        return
+      default:
+        return
+    }
+  }
+
+  const start = performance.now()
+  const transport = await transportFor(pool, options.stderr).create(init)
+  const connection = connectWorker(transport, {
+    methods: METHODS,
+    onEvents: (batch) => {
+      for (const event of batch) onEvent(event)
+    },
+  })
+  let finished = false
+  try {
+    for (const file of options.files) {
+      running = {
+        file,
+        fileId: fileIdOf(PROJECT_NAME, options.rootDir, file),
+        updateSnapshots: 'none',
+      }
+      checker.feed({ type: 'run', fileId: running.fileId })
+      await connection.run(running)
+      checker.feed({ type: 'fileDone' })
+    }
+    running = undefined
+    await transport.terminate(false)
+    await connection.exited
+    finished = true
+  } finally {
+    // A run that threw leaves a worker behind; end it now rather than leak it.
+    if (!finished) await transport.terminate(true)
+  }
+  const elapsedMs = performance.now() - start
+  violations.push(...checker.finish())
+  const { passed, failed, skipped, unhandled } = counts
+  return {
+    pool,
+    isolation,
+    files: options.files.length,
+    passed,
+    failed,
+    skipped,
+    total: passed + failed + skipped,
+    violations,
+    failures,
+    unhandled,
+    elapsedMs,
+    events,
+  }
+}

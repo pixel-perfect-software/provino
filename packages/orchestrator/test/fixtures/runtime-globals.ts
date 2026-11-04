@@ -1,0 +1,40 @@
+// A tiny globals factory for the runtime tests: the test API from the host, plus two probes. The
+// orchestrator may not depend on a dialect, so this stands in for the dialect's factory.
+import type { GlobalsHost } from '@provino/types'
+import { trace } from './runtime-env.ts'
+
+type Probe = {
+  [name: string]: unknown
+}
+
+export function testGlobals(host: GlobalsHost): Probe {
+  trace('globals:factory')
+  const api = host.api as Record<string, unknown>
+  return {
+    describe: api.describe,
+    it: api.it,
+    test: api.test,
+    beforeAll: api.beforeAll,
+    afterAll: api.afterAll,
+    beforeEach: api.beforeEach,
+    afterEach: api.afterEach,
+    expect: host.expect,
+    /** The path of the file whose registry the host serves now. */
+    currentRegistryFile: () => host.registry().file,
+    /**
+     * Makes the running file's registry report its `dispose` (with the matchers the slot holds
+     * then) to the trace, so a test can see when the worker disposes it.
+     */
+    probeRegistry: () => {
+      const registry = host.registry()
+      const dispose = registry.dispose.bind(registry)
+      registry.dispose = () => {
+        const slot = Reflect.get(globalThis, Symbol.for('$$jest-matchers-object')) as
+          | { matchers: object }
+          | undefined
+        trace(`registry:dispose matchers=${Object.keys(slot?.matchers ?? {}).join('+')}`)
+        return dispose()
+      }
+    },
+  }
+}

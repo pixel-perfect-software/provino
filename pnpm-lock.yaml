@@ -372,6 +372,9 @@ importers:
       '@provino/dialect-jest':
         specifier: workspace:*
         version: link:../dialect-jest
+      '@provino/env-node':
+        specifier: workspace:*
+        version: link:../env-node
       '@provino/expect':
         specifier: workspace:*
         version: link:../expect
@@ -381,6 +384,9 @@ importers:
       '@provino/loader':
         specifier: workspace:*
         version: link:../loader
+      '@provino/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
@@ -563,16 +569,24 @@ importers:
 
   packages/orchestrator:
     dependencies:
+      '@provino/core':
+        specifier: workspace:*
+        version: link:../core
+      '@provino/expect':
+        specifier: workspace:*
+        version: link:../expect
+      '@provino/loader':
+        specifier: workspace:*
+        version: link:../loader
+      '@provino/policy':
+        specifier: workspace:*
+        version: link:../policy
       '@provino/rpc':
         specifier: workspace:*
         version: link:../rpc
       '@provino/types':
         specifier: workspace:*
         version: link:../types
-    devDependencies:
-      '@provino/policy':
-        specifier: workspace:*
-        version: link:../policy
 
   packages/policy:
     dependencies:

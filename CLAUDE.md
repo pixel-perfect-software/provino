@@ -51,6 +51,7 @@ Keep this table current: a wrong command here costs every session. Run everythin
 | Resolver / transform corpora | `pnpm bench:resolve` (agreement with Node ESM; `--max-warm-us 15` adds the timing bar); `pnpm bench:excalidraw` (needs `.refs/excalidraw`, see `docs/plan/bundles/B05.md`; `--max-median-ms 0.5` adds the timing bar) |
 | Expect bench          | `pnpm bench:expect` (passing `toBe`/`toEqual`, Provino vs `expect@30.5.2`, interleaved, `local`); `--max-tobe-us 1 --max-toequal-us 4` adds T7.3's bar |
 | Loader checks         | `pnpm bench:loader check` (Spike A fixture, 600/600 and 0 isolation violations); `pnpm bench:loader isolation [--max-overhead-ms 1]`; `pnpm bench:loader e2e` (vs Jest + @swc/jest, a signal only); `pnpm bench:runner-fuzz` (10,000 generated TS files through the guarded runner transform) |
+| Worker runtime check  | `pnpm bench:worker check` (app-500, Jest flavour, through one inline worker with the Jest dialect and `@provino/env-node`, under `registry` then `none`: 4,000/4,000 passing and 0 order violations in each; `--suite app-N`, `--pool inline\|threads\|forks`; `local`) |
 | Record goldens        | `pnpm provino-harness record [<fixture dir>...]` (real Jest 30.5 / Vitest 5.0); `--check` fails on drift. One corpus alone: `pnpm record:runtime [--check]`, `pnpm record:expect [--check]` |
 | Dependency updates    | `pnpm deps:check` (report only); `pnpm deps:update` runs only when Tyler asks (autd, D14) |
 

@@ -1,0 +1,280 @@
+// U1: the worker's runtime (B10). It assembles what the other packages built, in the order their
+// docs prescribe, behind `startWorker`'s `WorkerRunner`:
+//   start (once)   config → behaviour loader + project loader → expect (state source, registry,
+//                  slot, table, `createExpect`, registry snapshot) → core → environment `prepare`
+//                  → the dialect's globals factory
+//   runFile        back-pressure → file registry → environment `setup` → globals → expect state →
+//                  core (setup files, then the test file, imported inside collection) → teardown
+//   stop           core's worker teardowns → the worker environment → loader → the matcher slot
+// The environment and the globals come in by ref, never by import: this node knows no dialect and
+// no environment package.
+import { createRuntime, currentTest, type Runtime } from '@provino/core'
+import {
+  createExpect,
+  createMatcherRegistry,
+  createStateSource,
+  ExpectError,
+  installMatchersSlot,
+  type RegistrySnapshot,
+  type SlotHandle,
+  type StateSource,
+  snapshotRegistry,
+} from '@provino/expect'
+import { createProjectLoader } from '@provino/loader'
+import { createBehaviourLoader } from '@provino/policy'
+import type {
+  EnvironmentInstance,
+  EnvironmentScope,
+  FileJob,
+  FileRegistry,
+  IsolationTier,
+  Loader,
+  Policy,
+} from '@provino/types'
+import { WorkerError } from '../errors.ts'
+import type { FileContext, FileOutcome, WorkerContext, WorkerRunner } from '../start.ts'
+import { parseProjectConfig } from './config.ts'
+import { type PreparedEnvironment, prepareEnvironment, setupEnvironment } from './environment.ts'
+import { installGlobals } from './globals.ts'
+import { assertionCountSink } from './sink.ts'
+
+/** Everything `start` built, and what `runFile` needs from it. */
+interface Booted {
+  readonly loader: Loader
+  readonly runtime: Runtime
+  readonly source: StateSource
+  readonly snapshot: RegistrySnapshot
+  readonly environment: PreparedEnvironment
+  /** The dialect's globals, built once; `undefined` when none are injected. */
+  readonly globals: Readonly<Record<string, unknown>> | undefined
+  /** The file registry tier: `process` is the pool's business and runs as `registry`. */
+  readonly tier: Exclude<IsolationTier, 'process'>
+}
+
+/**
+ * Runs every step, in order, whatever the earlier ones threw, and returns what they threw.
+ */
+async function runAll(steps: readonly (() => unknown)[]): Promise<unknown[]> {
+  const errors: unknown[] = []
+  for (const step of steps) {
+    try {
+      await step()
+    } catch (error) {
+      errors.push(error)
+    }
+  }
+  return errors
+}
+
+/** Throws the one error as it is, several as an `AggregateError`, and nothing for none. */
+function rethrow(errors: readonly unknown[], message: string): void {
+  if (errors.length === 1) throw errors[0]
+  if (errors.length > 1) throw new AggregateError(errors, message)
+}
+
+/**
+ * Waits until the packer has room for another file's events, so a worker never runs ahead of a
+ * slow coordinator by more than one file. `false` when `signal` aborted first (or already had):
+ * a cancelled file never starts.
+ */
+async function writableUnlessAborted(
+  sink: { writable(): Promise<void> },
+  signal: AbortSignal,
+): Promise<boolean> {
+  if (signal.aborted) return false
+  const { promise, resolve } = Promise.withResolvers<boolean>()
+  const onAbort = (): void => resolve(false)
+  signal.addEventListener('abort', onAbort, { once: true })
+  void sink.writable().then(() => resolve(true))
+  try {
+    return await promise
+  } finally {
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
+/**
+ * Creates the real runner behind `startWorker`: the worker runtime, one per worker. It reads the
+ * project from `init.config`; a missing or malformed piece fails `start` with a coded
+ * `WorkerError`, which `startWorker` charges to every file.
+ * @public
+ */
+export function createRuntimeRunner(): WorkerRunner {
+  // The pieces of the worker that exist so far. `start` fills them in as it goes, so `stop` can
+  // undo a worker whose `start` threw half-way.
+  let slot: SlotHandle | undefined
+  let loader: Loader | undefined
+  let runtime: Runtime | undefined
+  /** The environment instance of a worker-scoped environment (isolation `none`). */
+  let workerEnvironment: EnvironmentInstance | undefined
+  let booted: Booted | undefined
+  /** The registry of the file running now, for `importFile` and the globals' `registry()`. */
+  let current: FileRegistry | undefined
+
+  const activeRegistry = (): FileRegistry => {
+    if (current === undefined) {
+      throw new WorkerError('ORCH_NO_ACTIVE_FILE', 'No test file is running in this worker')
+    }
+    return current
+  }
+
+  async function boot(context: WorkerContext): Promise<Booted> {
+    const config = parseProjectConfig(context.init.config)
+    // A SerializedPolicy is a Policy whose behaviour keys are all refs: nothing to deserialize.
+    const policy: Policy = config.policy
+    const behaviours = createBehaviourLoader()
+    const projectLoader = await createProjectLoader(config.rootDir, config.loader, policy.module)
+    loader = projectLoader
+
+    // Expect, in the order its docs give: the slot exists before any matcher module loads, and the
+    // registry snapshot is taken after `createExpect` has registered the table's matchers.
+    const source = createStateSource(currentTest, {
+      nameSeparator: policy.core.nameSeparator,
+      expand: policy.expect.expand,
+    })
+    const registry = createMatcherRegistry()
+    slot = installMatchersSlot(source, registry)
+    if (policy.expect.matcherTable === null) {
+      throw new ExpectError(
+        'EXPECT_NO_MATCHER_TABLE',
+        'ExpectPolicy.matcherTable is null: the neutral matcher table is not built yet',
+      )
+    }
+    const table = (await behaviours.load(policy.expect.matcherTable))()
+    const expect = createExpect({ policy: policy.expect, table, source, registry })
+    const snapshot = snapshotRegistry(registry, expect)
+
+    // Setup files run inside core's collection, so the hooks they register belong to the file.
+    const importFile = async (path: string): Promise<unknown> => {
+      const files = activeRegistry()
+      for (const setup of [...config.setupFiles, ...config.setupFilesAfterEnv]) {
+        // Fresh for every file in every tier: under `none` the registry is shared, so the setup
+        // module alone is dropped and imported again, while its dependencies stay shared.
+        files.invalidate(setup)
+        await files.import(setup)
+      }
+      return await files.import(path)
+    }
+    const coreRuntime = await createRuntime({
+      policy: policy.core,
+      behaviours,
+      sink: assertionCountSink(source, context.sink),
+      importFile,
+      rootDir: config.rootDir,
+      projectName: config.name,
+      ci: config.ci,
+    })
+    runtime = coreRuntime
+
+    const environment = await prepareEnvironment(config.environment)
+
+    let globals: Readonly<Record<string, unknown>> | undefined
+    if (policy.core.injectGlobals && config.globals !== null) {
+      const factory = await behaviours.load(config.globals)
+      const built: unknown = factory({ api: coreRuntime.api, expect, registry: activeRegistry })
+      if (typeof built !== 'object' || built === null) {
+        throw new WorkerError(
+          'ORCH_BAD_GLOBALS',
+          `The globals factory ${config.globals.module}#${config.globals.export} did not return an object`,
+        )
+      }
+      globals = built as Readonly<Record<string, unknown>>
+    }
+    return {
+      loader: projectLoader,
+      runtime: coreRuntime,
+      source,
+      snapshot,
+      environment,
+      globals,
+      tier: context.init.isolation === 'process' ? 'registry' : context.init.isolation,
+    }
+  }
+
+  /**
+   * The environment instance for a file: a new one for scope `file`, and for scope `worker` the
+   * one made for the first file.
+   */
+  async function setUpEnvironment(
+    worker: Booted,
+    scope: EnvironmentScope,
+    context: FileContext,
+  ): Promise<EnvironmentInstance> {
+    if (scope === 'worker' && workerEnvironment !== undefined) return workerEnvironment
+    const instance = await setupEnvironment(worker.environment, {
+      scope,
+      testPath: context.job.file,
+      pragmas: {},
+      console: context.console,
+      signal: context.signal,
+    })
+    if (scope === 'worker') workerEnvironment = instance
+    return instance
+  }
+
+  /** The filters this file's job carries; `exactOptionalPropertyTypes` forbids passing `undefined`. */
+  function filtersOf(job: FileJob) {
+    return {
+      ...(job.testNamePattern === undefined ? {} : { testNamePattern: job.testNamePattern }),
+      ...(job.testIds === undefined ? {} : { testIds: job.testIds }),
+    }
+  }
+
+  return {
+    async start(context): Promise<void> {
+      booted = await boot(context)
+    },
+
+    async runFile(context): Promise<FileOutcome> {
+      if (booted === undefined) {
+        throw new WorkerError('ORCH_NOT_STARTED', 'The worker runtime has not started')
+      }
+      const worker = booted
+      const { job } = context
+      if (!(await writableUnlessAborted(context.sink, context.signal))) return {}
+
+      // Throws for the tier `realm` (the loader's LOADER_NOT_IMPLEMENTED), with nothing set up yet.
+      const registry = worker.loader.createFileRegistry(job.file, { tier: worker.tier })
+      current = registry
+      // With `none` nothing is isolated, so the environment lives as long as the worker.
+      const scope: EnvironmentScope = worker.tier === 'none' ? 'worker' : 'file'
+      let instance: EnvironmentInstance | undefined
+      const errors = await runAll([
+        async () => {
+          instance = await setUpEnvironment(worker, scope, context)
+          if (worker.globals !== undefined) installGlobals(instance.global, worker.globals)
+          worker.source.startFile(job.file)
+          await worker.runtime.runFile(job.file, filtersOf(job))
+        },
+      ])
+
+      // Teardown, always, in this order. A step that throws doesn't stop the next ones.
+      errors.push(
+        ...(await runAll([
+          // File scope only: with `none` the environment, the custom matchers and the globals
+          // persist for the next file, as with Vitest's `isolate: false`.
+          () => scope === 'file' && instance?.teardown(),
+          () => scope === 'file' && worker.snapshot.restore(),
+          () => registry.dispose(),
+        ])),
+      )
+      current = undefined
+      rethrow(errors, `Tearing down ${job.file} failed`)
+      return {}
+    },
+
+    async stop(): Promise<void> {
+      const parts = { runtime, workerEnvironment, loader, slot }
+      booted = runtime = workerEnvironment = loader = slot = undefined
+      rethrow(
+        await runAll([
+          () => parts.runtime?.dispose(),
+          () => parts.workerEnvironment?.teardown(),
+          () => parts.loader?.[Symbol.dispose](),
+          () => parts.slot?.uninstall(),
+        ]),
+        'Stopping the worker runtime failed',
+      )
+    },
+  }
+}

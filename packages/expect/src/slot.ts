@@ -4,8 +4,9 @@
 // `globalThis[Symbol.for('$$jest-matchers-object')]`. The engine installs it first, as the only
 // writer, and its `state` reads the current test's state. Jest's own `expect` defines the slot
 // non-configurable; ours is configurable, so a realm teardown can drop it.
-import type { EqualityTester, Matcher, MatcherState } from '@provino/types'
+import type { EqualityTester, ExpectStatic, Matcher, MatcherState } from '@provino/types'
 import { ExpectError } from './errors.ts'
+import { snapshotOwnProperties } from './internal/own-properties.ts'
 import type { StateSource } from './state.ts'
 
 /**
@@ -42,38 +43,41 @@ export interface RegistrySnapshot {
   /**
    * Puts the registry back as it was when the snapshot was taken: matchers added since are
    * deleted, any it replaced are put back, and `customEqualityTesters` is reset to its contents
-   * then. The registry's objects stay the same ones, so the slot keeps sharing them. It can be
-   * called again after each file.
+   * then. The registry's objects stay the same ones, so the slot keeps sharing them. When the
+   * snapshot was given the `expect` function, the own properties of `expect` and of `expect.not`
+   * go back too (the asymmetric forms `expect.extend` defines). It can be called again after each
+   * file.
    */
   restore(): void
 }
 
 /**
- * Remembers what `registry` holds now. The worker takes one after `createExpect` has registered
- * the dialect's matchers (an earlier one would restore them away), and restores it after each file
- * when the environment is file-scoped, as Jest gives each file a fresh `expect`.
+ * Remembers what `registry` holds now, and, when `expect` is given, the own properties of `expect`
+ * and of `expect.not`. The worker takes one after `createExpect` has registered the dialect's
+ * matchers (an earlier one would restore them away), and restores it after each file when the
+ * environment is file-scoped, as Jest gives each file a fresh `expect`.
  *
- * It restores the registry only: the asymmetric forms `expect.extend` also puts on the `expect`
- * function itself (`expect.toBeEven()`) are not undone.
+ * `expect.extend` puts a custom matcher's asymmetric form (`expect.toBeEven()`) on `expect` and on
+ * `expect.not`, outside the registry; pass `expect` so those are undone too.
  * @beta
  */
-export function snapshotRegistry(registry: MatcherRegistry): RegistrySnapshot {
-  const matchers = new Map<string | symbol, PropertyDescriptor>()
-  for (const key of Reflect.ownKeys(registry.matchers)) {
-    const descriptor = Reflect.getOwnPropertyDescriptor(registry.matchers, key)
-    if (descriptor !== undefined) matchers.set(key, descriptor)
+export function snapshotRegistry(
+  registry: MatcherRegistry,
+  expect?: ExpectStatic,
+): RegistrySnapshot {
+  const restoreMatchers = snapshotOwnProperties(registry.matchers)
+  const restoreStatics: Array<() => void> = []
+  if (expect !== undefined) {
+    restoreStatics.push(snapshotOwnProperties(expect))
+    // `not` is one object, defined when `createExpect` builds the engine.
+    const not: unknown = Reflect.get(expect, 'not')
+    if (typeof not === 'object' && not !== null) restoreStatics.push(snapshotOwnProperties(not))
   }
   const testers = [...registry.customEqualityTesters]
   return {
     restore(): void {
-      for (const key of Reflect.ownKeys(registry.matchers)) {
-        if (!matchers.has(key)) Reflect.deleteProperty(registry.matchers, key)
-      }
-      for (const [key, descriptor] of matchers) {
-        if (Reflect.get(registry.matchers, key) !== descriptor.value) {
-          Reflect.defineProperty(registry.matchers, key, descriptor)
-        }
-      }
+      restoreMatchers()
+      for (const restore of restoreStatics) restore()
       registry.customEqualityTesters.length = 0
       registry.customEqualityTesters.push(...testers)
     },

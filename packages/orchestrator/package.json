@@ -26,6 +26,10 @@
     "./worker/bootstrap": {
       "provino-source": "./src/worker/bootstrap.ts",
       "types": "./dist/worker/bootstrap.d.ts"
+    },
+    "./worker/main": {
+      "provino-source": "./src/worker/main.ts",
+      "types": "./dist/worker/main.d.ts"
     }
   },
   "files": [
@@ -38,10 +42,11 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },
   "dependencies": {
+    "@provino/core": "workspace:*",
+    "@provino/expect": "workspace:*",
+    "@provino/loader": "workspace:*",
+    "@provino/policy": "workspace:*",
     "@provino/rpc": "workspace:*",
     "@provino/types": "workspace:*"
-  },
-  "devDependencies": {
-    "@provino/policy": "workspace:*"
   }
 }
