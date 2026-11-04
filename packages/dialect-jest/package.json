@@ -36,6 +36,7 @@
   "dependencies": {
     "@jest/expect-utils": "catalog:",
     "@jest/get-type": "catalog:",
+    "@provino/core": "workspace:*",
     "@provino/expect": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/types": "workspace:*",
@@ -44,7 +45,6 @@
     "jest-util": "catalog:"
   },
   "devDependencies": {
-    "@provino/core": "workspace:*",
     "expect": "catalog:",
     "jest-mock": "catalog:"
   }

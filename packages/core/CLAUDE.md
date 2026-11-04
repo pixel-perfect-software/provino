@@ -34,7 +34,7 @@ The test runtime (Track 5): collector, executor, hooks, the test context and the
 
 - `src/**/*.test.ts`: unit tests, one case per policy value, through `internal/test-support.ts`'s `runScript` (an inline "file" under the neutral policy plus overrides). No real-time waits: timeouts use an injected fake clock (`realTimers`, `now`).
 - `src/current/propagation.test.ts`: the 23 propagation cases (Track 5 Spikes B). Cases 20–21 run in a child process (`fixtures/process-listeners.ts`), because `node:test` installs its own process handlers.
-- **Ground truth against the real runners** lives in `@provino/harness`: `src/runtime-corpus.test.ts` runs every `fixtures/runtime/` fixture through `createRuntime` under each recorded profile (`src/runtime-corpus/profiles.ts` holds the jest / vitest-stack / vitest-list values until B14's dialects replace them) and compares trace, tests, locations and file status with the golden.
+- **Ground truth against the real runners** lives in `@provino/harness`: `src/runtime-corpus.test.ts` runs every `fixtures/runtime/` fixture through `createRuntime` under each recorded profile (`src/runtime-corpus/profiles.ts` reads the Jest profile from `@provino/dialect-jest` and holds the vitest-stack / vitest-list values until B14's Vitest dialect replaces them) and compares trace, tests, locations and file status with the golden.
 - `test/core.test-d.ts`: the public API, and T6.1's check that `Runtime['lazyHost']` satisfies `LazyHost` (§4 D.23).
 
 ## Not built yet (each throws `CORE_NOT_IMPLEMENTED` or is absent)

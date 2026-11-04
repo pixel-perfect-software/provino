@@ -45,6 +45,9 @@
     },
     {
       "path": "packages/dialect-jest"
+    },
+    {
+      "path": "packages/env-node"
     }
   ]
 }

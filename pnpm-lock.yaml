@@ -458,6 +458,9 @@ importers:
       '@jest/get-type':
         specifier: 'catalog:'
         version: 30.5.0
+      '@provino/core':
+        specifier: workspace:*
+        version: link:../core
       '@provino/expect':
         specifier: workspace:*
         version: link:../expect
@@ -477,15 +480,18 @@ importers:
         specifier: 'catalog:'
         version: 30.5.1
     devDependencies:
-      '@provino/core':
-        specifier: workspace:*
-        version: link:../core
       expect:
         specifier: 'catalog:'
         version: 30.5.2
       jest-mock:
         specifier: 'catalog:'
         version: 30.5.2
+
+  packages/env-node:
+    dependencies:
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/expect:
     dependencies:
