@@ -156,3 +156,74 @@ test('a tsconfig path is that file, and false is none', async () => {
     message: /@lib\/util/,
   })
 })
+
+test('a relative tsconfig path is read against root, not the process cwd', async () => {
+  const root = writeTree({
+    'config/paths.json': JSON.stringify({
+      compilerOptions: { paths: { '@lib/*': ['../lib/*'] } },
+    }),
+    'lib/util.ts': 'export const util: number = 7\n',
+    'entry.test.ts': "export { util } from '@lib/util'\n",
+  })
+  assert.notEqual(realpathSync(process.cwd()), root, 'the test needs cwd to differ from root')
+  const file = join(root, 'entry.test.ts')
+  const loader = await createProjectLoader(
+    root,
+    { ...CONFIG, tsconfig: 'config/paths.json' },
+    neutralPolicy.module,
+  )
+  const entry = await loader
+    .createFileRegistry(file, { tier: 'registry' })
+    .import<{ util: number }>(file)
+  assert.equal(entry.util, 7)
+})
+
+test('a tsconfig path that is not a file throws a coded error naming it', async () => {
+  const root = writeTree({ 'config/dir/placeholder.txt': '' })
+  for (const [tsconfig, resolved] of [
+    ['config/nope.json', join(root, 'config/nope.json')],
+    [join(root, 'absent.json'), join(root, 'absent.json')],
+    ['config/dir', join(root, 'config/dir')],
+  ] as const) {
+    await assert.rejects(
+      createProjectLoader(root, { ...CONFIG, tsconfig }, neutralPolicy.module),
+      (error: unknown) => {
+        assert.equal((error as { code?: unknown }).code, 'LOADER_TSCONFIG_NOT_FOUND', tsconfig)
+        assert.ok(String((error as Error).message).includes(resolved), (error as Error).message)
+        return true
+      },
+    )
+  }
+})
+
+test('a mapper factory that returns no mapper throws a coded error naming its index', async () => {
+  const root = writeTree({
+    'mapper.ts': [
+      'export const good = () => ({ id: "good", map: () => null })',
+      'export const nothing = () => undefined',
+      'export const noMap = () => ({ id: "no-map" })',
+      'export const noId = () => ({ map: () => null })',
+      'export const throws = () => { throw new Error("bad options") }',
+      '',
+    ].join('\n'),
+  })
+  const mapperAt = (name: string) => ({
+    factory: { module: join(root, 'mapper.ts'), export: name },
+    options: null,
+  })
+  for (const name of ['nothing', 'noMap', 'noId', 'throws']) {
+    await assert.rejects(
+      createProjectLoader(
+        root,
+        { ...CONFIG, mappers: [mapperAt('good'), mapperAt(name)] },
+        neutralPolicy.module,
+      ),
+      (error: unknown) => {
+        assert.equal((error as { code?: unknown }).code, 'LOADER_INVALID_MAPPER', name)
+        assert.match(String((error as Error).message), /loader\.mappers\[1\]/, name)
+        if (name === 'throws') assert.equal((error as Error).cause instanceof Error, true)
+        return true
+      },
+    )
+  }
+})

@@ -239,6 +239,8 @@ export async function runJobs(options: {
   readonly config: SerializedProjectConfig
   readonly jobs: readonly FileJob[]
   readonly trace?: string[]
+  /** How the worker ends: `stop` asks it to (default), `kill` force-terminates it without a `stop`. */
+  readonly end?: 'stop' | 'kill'
 }): Promise<RuntimeRun> {
   const pool = options.pool ?? 'inline'
   const stderr = new Collect()
@@ -258,7 +260,7 @@ export async function runJobs(options: {
       onEvents: (batch) => void events.push(...batch),
     })
     for (const next of options.jobs) done.push(await connection.run(next))
-    await transport.terminate(false)
+    await transport.terminate(options.end === 'kill')
     return { events, done, exit: await connection.exited }
   } finally {
     if (options.trace !== undefined) {

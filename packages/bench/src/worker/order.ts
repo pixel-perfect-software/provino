@@ -1,6 +1,7 @@
 // The ordering checker for B10's third acceptance line: "each test's events arrive in order".
 // It is fed what the coordinator sees, in arrival order: a marker when a file's job is sent, every
-// event, and a marker for each `fileDone`. It returns what broke:
+// event, a marker for each `fileDone`, and one when the worker is asked to stop. It returns what
+// broke:
 //   per file   file-collect-start < file-collect-end < (suites, tests, hooks) < file-end < fileDone
 //   per test   test-start < (test-attempt-start < its hook events < test-attempt-end)+ < test-end
 // A test that never started an attempt (skipped, todo) goes straight to test-end. Nothing for a
@@ -20,6 +21,12 @@ export type OrderInput =
   | { readonly type: 'run'; readonly fileId: TaskId }
   /** The coordinator received the running file's `fileDone`. */
   | { readonly type: 'fileDone' }
+  /**
+   * The coordinator asked the worker to stop. What the worker prints while it tears down (a
+   * warning about a global its environment could not remove, decision D22) is not a file's late
+   * output; an unhandled error still is a violation, as it fails the run.
+   */
+  | { readonly type: 'stop' }
   | WorkerEvent
 
 type TestPhase = 'started' | 'in-attempt' | 'between-attempts' | 'ended'
@@ -69,6 +76,8 @@ export function createOrderChecker(): OrderChecker {
   let file: FileState | undefined
   /** `fileDone`s seen, so output before the first file (the worker’s start) is not “late”. */
   let done = 0
+  /** Whether the worker was asked to stop: its teardown may write. */
+  let stopping = false
 
   /** Records a violation, named by the task it is about, else by the running file. */
   const fail = (message: string, task?: string): undefined => {
@@ -253,7 +262,9 @@ export function createOrderChecker(): OrderChecker {
         test(event.testId, 'annotation')
         return
       case 'console':
-        if (file === undefined && done > 0) fail('console output after the last fileDone')
+        if (file === undefined && done > 0 && !stopping) {
+          fail('console output after the last fileDone')
+        }
         return
       case 'unhandled-error':
         if (file === undefined && done > 0) fail('unhandled-error after the last fileDone')
@@ -278,6 +289,8 @@ export function createOrderChecker(): OrderChecker {
           suites: new Set(),
           hooks: new Set(),
         }
+      } else if (input.type === 'stop') {
+        stopping = true
       } else if (input.type === 'fileDone') {
         if (file === undefined) return fail('fileDone with no file running')
         if (file.phase !== 'ended') fail(`fileDone before file-end (${file.phase})`)

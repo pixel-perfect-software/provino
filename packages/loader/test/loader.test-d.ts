@@ -21,6 +21,7 @@ expectTypeOf(createLoader).returns.toEqualTypeOf<Loader>()
 expectTypeOf<ReturnType<Loader['createFileRegistry']>>().toEqualTypeOf<FileRegistry>()
 expectTypeOf<LoaderError['code']>().toEqualTypeOf<LoaderErrorCode>()
 expectTypeOf<'ERR_REQUIRE_ASYNC_MODULE'>().toExtend<LoaderErrorCode>()
+expectTypeOf<'LOADER_TSCONFIG_NOT_FOUND' | 'LOADER_INVALID_MAPPER'>().toExtend<LoaderErrorCode>()
 
 declare const loader: Loader
 // @ts-expect-error the process tier is a pool decision, never a registry tier

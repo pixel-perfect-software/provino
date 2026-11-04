@@ -3,7 +3,7 @@
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import type { IsolationTier, PoolKind } from '@provino/types'
+import type { IsolationTier, PoolKind, WorkerExit } from '@provino/types'
 import { BenchError } from '../errors.ts'
 import { FLAVOUR_DIR } from '../generators/render.ts'
 import {
@@ -88,7 +88,10 @@ export interface TierCheck {
 }
 
 /**
- * Whether a run meets the bar: all `expected` passed, none failed or skipped, no violation.
+ * Whether a run meets the bar: all `expected` passed, none failed or skipped, no unhandled error,
+ * no error on a file itself (a failing `afterAll`), no global left behind (decision D22 makes that
+ * a warning to the worker; the check still wants none), no ordering violation, and the worker
+ * exited with code 0 after `stop`.
  * @public
  */
 export function meetsBar(result: WorkerRunResult, expected: number): boolean {
@@ -97,8 +100,28 @@ export function meetsBar(result: WorkerRunResult, expected: number): boolean {
     result.total === expected &&
     result.failed === 0 &&
     result.unhandled === 0 &&
+    result.fileErrors === 0 &&
+    result.leakedGlobals === 0 &&
+    result.exit.type === 'exit' &&
+    result.exit.code === 0 &&
     result.violations.length === 0
   )
+}
+
+/** A worker's exit in words, for the check's output. */
+function describeWorkerExit(exit: WorkerExit): string {
+  switch (exit.type) {
+    case 'exit':
+      return `exit ${exit.code}`
+    case 'signal':
+      return `signal ${exit.signal}`
+    case 'oom':
+      return `out of memory at ${exit.limitMb} MB`
+    case 'timeout':
+      return `timeout during ${exit.phase}`
+    default:
+      return exit satisfies never
+  }
 }
 
 /**
@@ -130,7 +153,7 @@ export async function checkSuite(
  */
 export function describeTier({ result, expected, ok }: TierCheck): string[] {
   return [
-    `  ${result.isolation.padEnd(8)} ${result.files} files, tests passed ${result.passed}/${expected}, failed ${result.failed}, skipped ${result.skipped}, unhandled ${result.unhandled}, order violations ${result.violations.length}, ${result.elapsedMs.toFixed(0)} ms (local)${ok ? '' : '  FAIL'}`,
+    `  ${result.isolation.padEnd(8)} ${result.files} files, tests passed ${result.passed}/${expected}, failed ${result.failed}, skipped ${result.skipped}, unhandled ${result.unhandled}, file errors ${result.fileErrors}, leaked globals ${result.leakedGlobals}, order violations ${result.violations.length}, worker ${describeWorkerExit(result.exit)}, ${result.elapsedMs.toFixed(0)} ms (local)${ok ? '' : '  FAIL'}`,
     ...result.violations.slice(0, 10).map((violation) => `    order: ${violation}`),
     ...result.failures.map((failure) => `    ${failure}`),
   ]

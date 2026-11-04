@@ -12,6 +12,13 @@ import type { IsolationTier, PoolKind, TaskId, WorkerEvent } from '@provino/type
 import { checkSuite, meetsBar, TIERS, writeJestSuite } from './check.ts'
 import { fileIdOf, PROJECT_NAME, runWorkerFiles, type WorkerRunResult } from './run.ts'
 
+/** The throwing environment, as the absolute ref a worker imports it by. */
+const THROWING_ENVIRONMENT = {
+  module: import.meta.resolve('../internal/throwing-environment.ts'),
+  export: 'throwingEnvironment',
+  options: {},
+} as const
+
 const POOLS: readonly PoolKind[] = ['inline', 'threads', 'forks']
 
 const cleanups: Array<() => Promise<void>> = []
@@ -70,11 +77,15 @@ describe('app-500 in one inline worker', () => {
       assert.equal(result.passed, 4000, result.isolation)
       assert.equal(result.total, 4000, result.isolation)
       assert.equal(expected, 4000)
+      assert.equal(result.fileErrors, 0, result.isolation)
+      assert.equal(result.leakedGlobals, 0, result.isolation)
+      // An inline worker that stopped cleanly reports an exit with code 0.
+      assert.deepEqual(result.exit, { type: 'exit', code: 0 }, result.isolation)
       assert.equal(ok, true)
     }
   })
 
-  it('the bar fails a run with a failing test, an unhandled error or a violation', () => {
+  it('the bar fails a run with a failing test, an unhandled error, a file error, a leak, a violation or a bad exit', () => {
     const passing: WorkerRunResult = {
       pool: 'inline',
       isolation: 'registry',
@@ -86,6 +97,9 @@ describe('app-500 in one inline worker', () => {
       violations: [],
       failures: [],
       unhandled: 0,
+      fileErrors: 0,
+      leakedGlobals: 0,
+      exit: { type: 'exit', code: 0 },
       elapsedMs: 1,
       events: [],
     }
@@ -93,8 +107,19 @@ describe('app-500 in one inline worker', () => {
     assert.equal(meetsBar({ ...passing, passed: 7, failed: 1 }, 8), false)
     assert.equal(meetsBar({ ...passing, passed: 7, skipped: 1 }, 8), false)
     assert.equal(meetsBar({ ...passing, unhandled: 1 }, 8), false)
+    assert.equal(meetsBar({ ...passing, fileErrors: 1 }, 8), false)
+    assert.equal(meetsBar({ ...passing, leakedGlobals: 1 }, 8), false)
     assert.equal(meetsBar({ ...passing, violations: ['x'] }, 8), false)
     assert.equal(meetsBar(passing, 9), false)
+    for (const exit of [
+      { type: 'exit', code: 1 },
+      { type: 'exit', code: 9 },
+      { type: 'signal', signal: 'SIGKILL', likelyOom: false },
+      { type: 'oom', limitMb: 512 },
+      { type: 'timeout', phase: 'stop' },
+    ] as const) {
+      assert.equal(meetsBar({ ...passing, exit }, 8), false, JSON.stringify(exit))
+    }
   })
 })
 
@@ -176,11 +201,10 @@ describe('global isolation, with the real node environment and the Jest dialect'
   }
 })
 
-describe('a failure while the worker stops', () => {
-  // The file defines a global that can't be deleted. The node environment restores everything else,
-  // then its teardown throws `ENV_NODE_RESTORE_FAILED`: after each file under `registry`, and only
-  // when the worker stops under `none`, where the environment lives as long as the worker. A forked
-  // worker keeps the stuck global out of this process.
+describe('a global the environment cannot remove (D22)', () => {
+  // The file defines a global that can't be deleted. The node environment restores everything else
+  // and reports the key instead of throwing: a warning to the coordinator, not a failure of the
+  // file. A forked worker keeps the stuck global out of this process.
   const stuck = {
     'a.test.js': [
       "test('plants a global it cannot remove', () => {",
@@ -188,11 +212,81 @@ describe('a failure while the worker stops', () => {
       '})',
     ].join('\n'),
   }
-  const run = async (isolation: IsolationTier) => {
+
+  it('registry: the file passes, the coordinator gets a warn naming the key, and fileDone lists it', async () => {
     const dir = await project(stuck)
+    const result = await runWorkerFiles({
+      rootDir: dir,
+      files: [join(dir, 'a.test.js')],
+      pool: 'forks',
+      isolation: 'registry',
+      keepEvents: true,
+      stderr: new Collect(),
+    })
+    assert.deepEqual(statesOf(result.events), { 'plants a global it cannot remove': 'pass' })
+    assert.equal(result.passed, 1)
+    assert.equal(result.failed, 0)
+    assert.equal(result.unhandled, 0, 'a warning, not an unhandled error')
+    assert.equal(result.fileErrors, 0)
+    assert.deepEqual(result.violations, [])
+    assert.deepEqual(result.exit, { type: 'exit', code: 0 })
+
+    const warnings = result.events.filter(
+      (event) => event.type === 'console' && event.level === 'warn',
+    )
+    assert.equal(warnings.length, 1)
+    const [warning] = warnings
+    assert.ok(warning?.type === 'console')
+    assert.equal(warning.taskId, null)
+    assert.match(warning.text, /__provinoStuck/)
+    assert.match(warning.text, /Later files in this worker can see it/)
+
+    // fileDone.leakedGlobals: counted, and named in the failures the check prints.
+    assert.equal(result.leakedGlobals, 1)
+    assert.match(result.failures.join('\n'), /left globals behind: __provinoStuck/)
+    // The leak alone fails the bar, though the worker called it a warning.
+    assert.equal(meetsBar(result, 1), false)
+    assert.equal(meetsBar({ ...result, leakedGlobals: 0 }, 1), true)
+  })
+
+  it('none: reported once, as a warn when the worker stops, with nothing on fileDone', async () => {
+    const dir = await project(stuck)
+    const result = await runWorkerFiles({
+      rootDir: dir,
+      files: [join(dir, 'a.test.js')],
+      pool: 'forks',
+      isolation: 'none',
+      keepEvents: true,
+      stderr: new Collect(),
+    })
+    assert.equal(result.passed, 1)
+    assert.equal(result.unhandled, 0)
+    assert.equal(
+      result.leakedGlobals,
+      0,
+      'fileDone has nothing: the worker-scoped teardown ran at stop',
+    )
+    assert.deepEqual(result.exit, { type: 'exit', code: 0 })
+    const warning = result.events.findLast((event) => event.type === 'console')
+    assert.ok(warning?.type === 'console' && warning.level === 'warn')
+    assert.match(warning.text, /when the worker stopped: __provinoStuck/)
+    // It arrives after the last fileDone, but it is the teardown's, so it is not late output.
+    assert.deepEqual(result.violations, [])
+  })
+})
+
+describe('a failure while the worker stops', () => {
+  // A teardown that throws is still a failure (decision D22 only turned an unremovable global
+  // into a warning): after each file under `registry`, charged to that file, and only when the
+  // worker stops under `none`, where the environment lives as long as the worker, with no owner.
+  // The file defines nothing; the fixture environment's teardown throws.
+  const quiet = { 'a.test.js': "test('does nothing', () => {})" }
+  const run = async (isolation: IsolationTier) => {
+    const dir = await project(quiet)
     return await runWorkerFiles({
       rootDir: dir,
       files: [join(dir, 'a.test.js')],
+      environment: THROWING_ENVIRONMENT,
       pool: 'forks',
       isolation,
       keepEvents: true,
@@ -203,16 +297,110 @@ describe('a failure while the worker stops', () => {
   for (const isolation of TIERS) {
     it(`${isolation}: the teardown’s unhandled error is counted, and the bar fails on it`, async () => {
       const result = await run(isolation)
-      assert.deepEqual(statesOf(result.events), { 'plants a global it cannot remove': 'pass' })
+      assert.deepEqual(statesOf(result.events), { 'does nothing': 'pass' })
       assert.equal(result.passed, 1)
       assert.equal(result.failed, 0)
       assert.equal(result.unhandled, 1)
-      assert.match(result.failures.join('\n'), /Could not restore the global/)
+      assert.equal(result.leakedGlobals, 0)
+      assert.match(result.failures.join('\n'), /the environment’s teardown exploded/)
+      if (isolation === 'none') assert.match(result.failures.join('\n'), /^stop: unhandled/m)
       assert.equal(meetsBar(result, 1), false)
       // The count alone fails the bar: it doesn't lean on the ordering checker noticing the event.
       assert.equal(meetsBar({ ...result, violations: [] }, 1), false)
     })
   }
+})
+
+describe('an error on the file itself', () => {
+  it('a failing afterAll is counted, noted, and fails the bar though every test passed', async () => {
+    const dir = await project({
+      'a.test.js': [
+        "afterAll(() => { throw new Error('afterAll blew up') })",
+        "test('passes', () => { expect(1).toBe(1) })",
+      ].join('\n'),
+    })
+    const result = await runWorkerFiles({ rootDir: dir, files: [join(dir, 'a.test.js')] })
+    assert.equal(result.passed, 1)
+    assert.equal(result.failed, 0)
+    assert.equal(result.unhandled, 0)
+    assert.equal(result.fileErrors, 1)
+    assert.match(result.failures.join('\n'), /a\.test\.js: file failed: afterAll blew up/)
+    assert.equal(meetsBar(result, 1), false)
+    assert.equal(meetsBar({ ...result, fileErrors: 0 }, 1), true, 'it is the only thing wrong')
+  })
+
+  it('a file with no error counts none', async () => {
+    const dir = await project({ 'a.test.js': "test('passes', () => {})" })
+    const result = await runWorkerFiles({ rootDir: dir, files: [join(dir, 'a.test.js')] })
+    assert.equal(result.fileErrors, 0)
+    assert.equal(meetsBar(result, 1), true)
+  })
+})
+
+describe('how the worker exits', () => {
+  it('a fork that exits with a non-zero code fails the bar, though every test passed', async () => {
+    const dir = await project({
+      'a.test.js': [
+        // The bootstrap exits on purpose with code 0; a handler for `exit` changes it.
+        "process.on('exit', () => { process.exitCode = 9 })",
+        "test('passes', () => { expect(1).toBe(1) })",
+      ].join('\n'),
+    })
+    const result = await runWorkerFiles({
+      rootDir: dir,
+      files: [join(dir, 'a.test.js')],
+      pool: 'forks',
+      stderr: new Collect(),
+    })
+    assert.equal(result.passed, 1)
+    assert.equal(result.failed, 0)
+    assert.equal(result.unhandled, 0)
+    assert.deepEqual(result.exit, { type: 'exit', code: 9 })
+    assert.equal(meetsBar(result, 1), false)
+    assert.equal(meetsBar({ ...result, exit: { type: 'exit', code: 0 } }, 1), true)
+  })
+
+  for (const pool of POOLS) {
+    it(`${pool}: a clean worker exits with code 0`, async () => {
+      const dir = await project({ 'a.test.js': "test('passes', () => {})" })
+      const result = await runWorkerFiles({
+        rootDir: dir,
+        files: [join(dir, 'a.test.js')],
+        pool,
+        stderr: new Collect(),
+      })
+      assert.deepEqual(result.exit, { type: 'exit', code: 0 })
+      assert.equal(meetsBar(result, 1), true)
+    })
+  }
+})
+
+describe('the Jest nesting ban, through the real loader', () => {
+  it('isolateModules inside isolateModules throws Jest’s error; sequential use works', async () => {
+    const dir = await project({
+      'a.test.js': [
+        "test('nested', () => {",
+        '  jest.isolateModules(() => {',
+        "    expect(() => jest.isolateModules(() => {})).toThrow('isolateModules cannot be nested inside another isolateModules or isolateModulesAsync.')",
+        '  })',
+        '  jest.isolateModules(() => {})',
+        '})',
+        "test('nested async', async () => {",
+        '  await jest.isolateModulesAsync(async () => {',
+        "    await expect(jest.isolateModulesAsync(async () => {})).rejects.toThrow('isolateModulesAsync cannot be nested inside another isolateModulesAsync or isolateModules.')",
+        '  })',
+        '  await jest.isolateModulesAsync(async () => {})',
+        '})',
+      ].join('\n'),
+    })
+    const result = await runWorkerFiles({
+      rootDir: dir,
+      files: [join(dir, 'a.test.js')],
+      keepEvents: true,
+    })
+    assert.deepEqual(result.failures, [])
+    assert.deepEqual(statesOf(result.events), { nested: 'pass', 'nested async': 'pass' })
+  })
 })
 
 describe('each test’s events arrive in order', () => {

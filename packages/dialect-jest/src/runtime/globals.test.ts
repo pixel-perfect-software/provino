@@ -255,6 +255,138 @@ test('jest.isolateModules, isolateModulesAsync and resetModules act on the regis
   ])
 })
 
+// Jest 30.5 refuses to nest the two isolation calls, in either order, and to overlap them. Its
+// registries check this when an isolation is entered (jest-runtime
+// `src/internals/ModuleRegistries.ts` L125-L134), and the text names the call being made first,
+// then the other one. The loader's registry no longer checks, so the facade does.
+const NESTED_SYNC =
+  'isolateModules cannot be nested inside another isolateModules or isolateModulesAsync.'
+const NESTED_ASYNC =
+  'isolateModulesAsync cannot be nested inside another isolateModulesAsync or isolateModules.'
+
+test('isolateModules inside isolateModules throws Jest’s error, and the outer call carries on', async (t) => {
+  const calls: string[] = []
+  const registry = recordingRegistry('r', calls)
+  const { jest } = await globalsFor(t, () => registry)
+  const ran: string[] = []
+  jest.isolateModules(() => {
+    ran.push('outer')
+    assert.throws(() => jest.isolateModules(() => ran.push('inner')), { message: NESTED_SYNC })
+    ran.push('outer again')
+  })
+  assert.deepEqual(ran, ['outer', 'outer again'], 'the inner function never ran')
+  assert.deepEqual(calls, ['r.isolateModules'], 'the refused call never reached the registry')
+})
+
+test('isolateModules inside isolateModulesAsync throws, and the other way round rejects', async (t) => {
+  const calls: string[] = []
+  const registry = recordingRegistry('r', calls)
+  const { jest } = await globalsFor(t, () => registry)
+  await jest.isolateModulesAsync(async () => {
+    assert.throws(() => jest.isolateModules(() => {}), { message: NESTED_SYNC })
+    await Promise.resolve()
+    assert.throws(() => jest.isolateModules(() => {}), { message: NESTED_SYNC })
+  })
+
+  let inner: Promise<void> | undefined
+  jest.isolateModules(() => {
+    inner = jest.isolateModulesAsync(async () => {})
+  })
+  assert.ok(inner)
+  await assert.rejects(inner, { message: NESTED_ASYNC })
+  assert.deepEqual(calls, ['r.isolateModulesAsync', 'r.isolateModules'])
+})
+
+test('isolateModulesAsync inside isolateModulesAsync rejects', async (t) => {
+  const calls: string[] = []
+  const registry = recordingRegistry('r', calls)
+  const { jest } = await globalsFor(t, () => registry)
+  await jest.isolateModulesAsync(async () => {
+    await assert.rejects(
+      jest.isolateModulesAsync(async () => {}),
+      { message: NESTED_ASYNC },
+    )
+  })
+  assert.deepEqual(calls, ['r.isolateModulesAsync'])
+})
+
+test('two overlapping isolateModulesAsync calls: the second rejects while the first is pending', async (t) => {
+  const registry = recordingRegistry('r', [])
+  const { jest } = await globalsFor(t, () => registry)
+  const gate = Promise.withResolvers<void>()
+  const first = jest.isolateModulesAsync(async () => await gate.promise)
+  await assert.rejects(
+    jest.isolateModulesAsync(async () => {}),
+    { message: NESTED_ASYNC },
+  )
+  assert.throws(() => jest.isolateModules(() => {}), { message: NESTED_SYNC })
+  gate.resolve()
+  await first
+})
+
+test('sequential isolation calls work, also after one threw or rejected', async (t) => {
+  const calls: string[] = []
+  const registry = recordingRegistry('r', calls)
+  const { jest } = await globalsFor(t, () => registry)
+  jest.isolateModules(() => {})
+  jest.isolateModules(() => {})
+  await jest.isolateModulesAsync(async () => {})
+  await jest.isolateModulesAsync(async () => {})
+  assert.throws(
+    () =>
+      jest.isolateModules(() => {
+        throw new Error('the function threw')
+      }),
+    { message: 'the function threw' },
+  )
+  await assert.rejects(
+    jest.isolateModulesAsync(async () => {
+      throw new Error('the function rejected')
+    }),
+    { message: 'the function rejected' },
+  )
+  jest.isolateModules(() => {})
+  await jest.isolateModulesAsync(async () => {})
+  assert.equal(calls.length, 8, 'every sequential call reached the registry')
+})
+
+test('the ban is per registry: a new file’s registry is not blocked by one still isolating', async (t) => {
+  const first = recordingRegistry('first', [])
+  const second = recordingRegistry('second', [])
+  let current = first
+  const { jest } = await globalsFor(t, () => current)
+  const gate = Promise.withResolvers<void>()
+  // File one's isolation never ends (a test that hung, say) ...
+  const stuck = jest.isolateModulesAsync(async () => await gate.promise)
+  // ... and file two runs on its own registry.
+  current = second
+  jest.isolateModules(() => {})
+  await jest.isolateModulesAsync(async () => {})
+  current = first
+  assert.throws(() => jest.isolateModules(() => {}), { message: NESTED_SYNC })
+  gate.resolve()
+  await stuck
+})
+
+test('a second jestGlobals call has its own record of what is isolating', async (t) => {
+  const { expect } = setUpJestExpect(t)
+  const registry = recordingRegistry('r', [])
+  let one: JestGlobals | undefined
+  let two: JestGlobals | undefined
+  await runRegistered((api) => {
+    one = jestGlobals({ api, expect, registry: () => registry })
+    two = jestGlobals({ api, expect, registry: () => registry })
+  }, jestCore)
+  assert.ok(one && two)
+  const gate = Promise.withResolvers<void>()
+  const pending = one.jest.isolateModulesAsync(async () => await gate.promise)
+  // Another worker's globals over the same registry object is not nested in this one: no state
+  // is shared between the two calls.
+  two.jest.isolateModules(() => {})
+  gate.resolve()
+  await pending
+})
+
 test('the jest object has the registry methods and nothing else', async (t) => {
   const { jest } = await globalsFor(t)
   assert.deepEqual(Object.keys(jest).sort(), [

@@ -5,6 +5,7 @@ import type {
   DefineEnvironment,
   EnvironmentHelper,
   EnvironmentInstance,
+  EnvironmentTeardownReport,
   RawCoverage,
   RuntimeEvent,
 } from '@provino/types'
@@ -41,6 +42,51 @@ environment({ name: 'happy-dom', options: { html: '<p>' } })
 // @ts-expect-error exactOptionalPropertyTypes: context cannot be explicitly undefined
 const inst: EnvironmentInstance = { global: globalThis, context: undefined, teardown() {} }
 
+// A teardown returns nothing for a clean teardown, or a report of the globals it could not restore
+// (decision D22), synchronously or not.
+expectTypeOf<EnvironmentTeardownReport['leakedGlobals']>().toEqualTypeOf<readonly string[]>()
+type Teardown = EnvironmentInstance['teardown']
+expectTypeOf<() => void>().toExtend<Teardown>()
+expectTypeOf<() => Promise<void>>().toExtend<Teardown>()
+expectTypeOf<() => EnvironmentTeardownReport>().toExtend<Teardown>()
+expectTypeOf<() => EnvironmentTeardownReport | undefined>().toExtend<Teardown>()
+expectTypeOf<() => Promise<EnvironmentTeardownReport>>().toExtend<Teardown>()
+expectTypeOf<() => Promise<EnvironmentTeardownReport | undefined>>().toExtend<Teardown>()
+expectTypeOf<() => string>().not.toExtend<Teardown>()
+expectTypeOf<() => Promise<string>>().not.toExtend<Teardown>()
+expectTypeOf<() => { readonly leakedGlobals: readonly symbol[] }>().not.toExtend<Teardown>()
+const reporting: EnvironmentInstance = {
+  global: globalThis,
+  teardown: () => ({ leakedGlobals: ['__stuck', 'Symbol(stuck)'] }),
+}
+const reportingLater: EnvironmentInstance = {
+  global: globalThis,
+  async teardown() {
+    return { leakedGlobals: [] }
+  },
+}
+const maybeReporting: EnvironmentInstance = {
+  global: globalThis,
+  teardown: () => (Math.random() > 0.5 ? { leakedGlobals: ['__stuck'] } : undefined),
+}
+// @ts-expect-error a teardown returns a report or nothing, not another shape
+const wrongShape: EnvironmentInstance = { global: globalThis, teardown: () => ({ leaked: ['x'] }) }
+const symbolKeys: EnvironmentInstance = {
+  global: globalThis,
+  // @ts-expect-error the keys are strings: a symbol key is reported as String(symbol)
+  teardown: () => ({ leakedGlobals: [Symbol('stuck')] }),
+}
+const wrongShapeLater: EnvironmentInstance = {
+  global: globalThis,
+  // @ts-expect-error the same rule when the teardown is async
+  async teardown() {
+    return { leakedGlobals: 'stuck' }
+  },
+}
+const report: EnvironmentTeardownReport = { leakedGlobals: ['x'] }
+// @ts-expect-error the report's list is read-only
+report.leakedGlobals.push('y')
+
 // Jest's handleTestEvent sees the runtime's own events.
 expectTypeOf<
   Parameters<NonNullable<EnvironmentInstance['onTestEvent']>>[0]
@@ -59,4 +105,16 @@ if (raw.kind === 'v8') expectTypeOf(raw.scripts).items.toHaveProperty('url')
 // @ts-expect-error not a coverage metric
 const badThresholds: CoverageOptions = { thresholds: { lines: 90, paths: 80 } }
 
-export { badThresholds, contributed, cov, inst }
+export {
+  badThresholds,
+  contributed,
+  cov,
+  inst,
+  maybeReporting,
+  report,
+  reporting,
+  reportingLater,
+  symbolKeys,
+  wrongShape,
+  wrongShapeLater,
+}

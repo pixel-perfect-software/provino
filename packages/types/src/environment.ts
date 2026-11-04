@@ -36,6 +36,17 @@ export interface EnvironmentSetupContext<Options> {
 }
 
 /**
+ * What a `teardown` reports when it left something behind (decision D22): an unremovable global is
+ * a warning, not a failure. The file passes; the worker warns and tells the coordinator, which
+ * recycles the worker.
+ * @public
+ */
+export interface EnvironmentTeardownReport {
+  /** Global keys the teardown could not restore, as strings (`String(symbol)` for a symbol key): a key a test added that can't be deleted, or a changed key that can't be redefined. Later files in this worker still see them. */
+  readonly leakedGlobals: readonly string[]
+}
+
+/**
  * A set-up environment.
  * @public
  */
@@ -46,7 +57,13 @@ export interface EnvironmentInstance<G extends object = typeof globalThis> {
   readonly context?: Context
   /** Jest's `handleTestEvent`: sees every runtime event of the file. */
   onTestEvent?(event: RuntimeEvent): void | Promise<void>
-  teardown(): void | Promise<void>
+  /**
+   * Puts the global back. Returning nothing means a clean teardown; returning a report means it
+   * restored everything it could and names the keys it could not. Throw only for an unexpected
+   * failure, which fails the file.
+   */
+  // biome-ignore lint/suspicious/noConfusingVoidType: `Promise<void>` from an `async teardown() {}` must stay assignable; `undefined` would reject it.
+  teardown(): void | EnvironmentTeardownReport | Promise<void | EnvironmentTeardownReport>
 }
 
 /**

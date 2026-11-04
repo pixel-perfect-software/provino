@@ -13,7 +13,7 @@ export {
   type PackMessage,
   type PackSchedule,
 } from './packer.ts'
-export { createRuntimeRunner } from './runtime/runner.ts'
+export { createRuntimeRunner, type RuntimeGlobalsHost } from './runtime/runner.ts'
 export {
   type FileContext,
   type FileOutcome,

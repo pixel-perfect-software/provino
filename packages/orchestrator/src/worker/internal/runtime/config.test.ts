@@ -113,6 +113,71 @@ describe('parseProjectConfig', () => {
     })
   })
 
+  describe('paths are absolute', () => {
+    // Refs cross to the worker already resolved (D21): a relative path would resolve against the
+    // worker's own working directory, which is not the project's.
+    const cases: ReadonlyArray<readonly [key: string, config: () => unknown]> = [
+      ['rootDir', () => with_('rootDir', 'project')],
+      ['rootDir', () => with_('rootDir', './project')],
+      ['setupFiles[1]', () => with_('setupFiles', ['/ok.ts', './setup.ts'])],
+      ['setupFiles[0]', () => with_('setupFiles', ['setup.ts'])],
+      ['setupFilesAfterEnv[0]', () => with_('setupFilesAfterEnv', ['../setup.ts'])],
+      ['setupFilesAfterEnv[1]', () => with_('setupFilesAfterEnv', ['/ok.ts', 'setup.ts'])],
+      ['loader.tsconfig', () => with_('loader.tsconfig', './tsconfig.json')],
+      ['loader.tsconfig', () => with_('loader.tsconfig', 'tsconfig.json')],
+      [
+        'loader.mappers[0].factory.module',
+        () => with_('loader.mappers', [{ factory: moduleRef('./mapper.ts', 'm'), options: null }]),
+      ],
+      [
+        'loader.mappers[1].factory.module',
+        () =>
+          with_('loader.mappers', [
+            { factory: moduleRef('/mapper.ts', 'm'), options: null },
+            { factory: moduleRef('@scope/mapper', 'm'), options: null },
+          ]),
+      ],
+    ]
+
+    it('throws ORCH_BAD_CONFIG naming the key, for a relative path or a bare specifier', () => {
+      for (const [key, config] of cases) {
+        assert.throws(
+          () => parseProjectConfig(config()),
+          (error: unknown) =>
+            error instanceof WorkerError &&
+            error.code === 'ORCH_BAD_CONFIG' &&
+            error.message.includes(`${key} must be an absolute path`),
+          key,
+        )
+      }
+    })
+
+    it('accepts absolute paths in all of them, the keyword tsconfig and a mapper factory URL', () => {
+      const parsed = parseProjectConfig(
+        with_('loader.mappers', [
+          { factory: moduleRef('file:///abs/mapper.ts', 'm'), options: null },
+          { factory: moduleRef('/abs/mapper.ts', 'm'), options: null },
+        ]),
+      )
+      assert.deepEqual(
+        parsed.loader.mappers.map((mapper) => mapper.factory.module),
+        ['file:///abs/mapper.ts', '/abs/mapper.ts'],
+      )
+      const absolute = parseProjectConfig({
+        ...structuredClone(valid),
+        rootDir: '/abs/root',
+        setupFiles: ['/abs/a.ts', '/abs/b.ts'],
+        setupFilesAfterEnv: ['/abs/c.ts'],
+        loader: { ...valid.loader, tsconfig: '/abs/tsconfig.json' },
+      })
+      assert.equal(absolute.rootDir, '/abs/root')
+      assert.deepEqual(absolute.setupFiles, ['/abs/a.ts', '/abs/b.ts'])
+      assert.deepEqual(absolute.setupFilesAfterEnv, ['/abs/c.ts'])
+      assert.equal(absolute.loader.tsconfig, '/abs/tsconfig.json')
+      assert.equal(parseProjectConfig(with_('loader.tsconfig', 'auto')).loader.tsconfig, 'auto')
+    })
+  })
+
   describe('loader.mappers', () => {
     const factory = moduleRef('/mapper.ts', 'aliasMapper')
 

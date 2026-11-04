@@ -31,13 +31,16 @@ function steeredPacker(): Packer & {
   }
 }
 
-async function started(isolation: IsolationTier = 'registry') {
+async function started(
+  isolation: IsolationTier = 'registry',
+  environmentOptions: Readonly<Record<string, string | number | boolean>> = {},
+) {
   const p = await makeProject({
     'a.test.js': "test('a', () => { expect(1).toBe(1) })",
     'b.test.js': "test('b', () => { expect(1).toBe(1) })",
   })
   projects.push(p)
-  const config = runtimeConfig(p.dir)
+  const config = runtimeConfig(p.dir, { environmentOptions })
   const init = { ...initFor('inline'), isolation, config }
   const sink = steeredPacker()
   const base = {
@@ -171,6 +174,50 @@ describe('createRuntimeRunner', () => {
           [true, false],
         )
       })
+    })
+  })
+
+  describe('globals the environment could not remove (D22)', () => {
+    const warnings = (events: readonly WorkerEvent[]) =>
+      events.filter((event) => event.type === 'console' && event.level === 'warn')
+
+    it('a file reports them on its outcome and as one warn through the context’s sink, after its events', async () => {
+      const { runner, sink, file, base } = await started('registry', { leak: 'a,Symbol(b)' })
+      sink.open()
+      const context = file()
+      assert.deepEqual(await runner.runFile(context), { leakedGlobals: ['a', 'Symbol(b)'] })
+      const kinds = sink.events.map((event) => event.type)
+      const [warning] = warnings(sink.events)
+      assert.equal(warnings(sink.events).length, 1)
+      assert.equal(sink.events.at(-1), warning, 'the last thing the file sent')
+      assert.ok(kinds.includes('file-end'))
+      assert.ok(warning?.type === 'console' && warning.text.includes(context.job.file))
+      await runner.stop?.(base)
+    })
+
+    it('a clean file has an empty outcome and sends no warning', async () => {
+      const { runner, sink, file, base } = await started()
+      sink.open()
+      assert.deepEqual(await runner.runFile(file()), {})
+      assert.deepEqual(warnings(sink.events), [])
+      await runner.stop?.(base)
+    })
+
+    it('a worker-scoped environment reports at stop, as one warn through the stop context’s sink', async () => {
+      const { runner, sink, file, base } = await started('none', { leak: 'late' })
+      sink.open()
+      assert.deepEqual(await runner.runFile(file()), {})
+      assert.deepEqual(warnings(sink.events), [], 'nothing while the worker runs')
+      await runner.stop?.(base)
+      const [warning, ...more] = warnings(sink.events)
+      assert.equal(more.length, 0)
+      assert.ok(
+        warning?.type === 'console' && warning.text.includes('when the worker stopped: late'),
+      )
+      assert.equal(sink.events.at(-1), warning)
+      // A second stop has nothing left to tear down, so it reports nothing again.
+      await runner.stop?.(base)
+      assert.equal(warnings(sink.events).length, 1)
     })
   })
 

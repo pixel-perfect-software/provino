@@ -1,6 +1,8 @@
 // `--runInBand` (Track 9 §Lifecycle): the worker entry runs in the coordinator's own process,
 // over a `MessageChannel`, so messages are structured-cloned exactly as they are for a fork or a
-// thread. Nothing isolates it: `process.exit` in an inline worker ends the coordinator.
+// thread. Nothing isolates it: `process.exit` in an inline worker ends the coordinator. Killing one
+// closes both ends of its link, and the worker, told at once, tears itself down (`startWorker`'s
+// best-effort `runner.stop`).
 import { MessageChannel } from 'node:worker_threads'
 import { messagePortLink } from '@provino/rpc'
 import type {
@@ -53,6 +55,11 @@ export function inlineTransport(options: InlineTransportOptions): TransportFacto
         link.onExit(() => listener({ type: 'exit', code: failed ? 1 : 0 }))
       },
       kill() {
+        // Both ends, now. Closing only ours would tell the worker later (a port's `close` event
+        // arrives after the next worker's whole handshake could have), and an inline worker is in
+        // this process: its `runner.stop`, which frees the matcher slot, must start before the
+        // next inline worker boots.
+        workerPort.close()
         link.close()
       },
     }

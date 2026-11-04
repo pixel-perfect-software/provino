@@ -2,8 +2,9 @@
 // `pnpm bench:worker check`: B10's acceptance check. Generates an app suite (app-500 by default,
 // the Jest flavour) into a temporary directory and runs it through one worker with the real
 // runtime, the Jest dialect and the node environment, under `registry` and then under `none`. It
-// prints files, tests passed, failed and total, ordering violations and wall time for each tier,
-// and exits 1 unless every tier has all its tests passing, none failing and no violation.
+// prints files, tests passed, failed and skipped, unhandled errors, file errors, leaked globals,
+// ordering violations, how the worker exited and wall time for each tier, and exits 1 unless every
+// tier has all its tests passing and none of the rest.
 //   --suite app-N        the suite (default app-500)
 //   --pool inline|threads|forks   the worker’s transport (default inline)
 // Every number is labelled `local`; this is a pass/fail check, not a Track 12 BenchRecord.
@@ -40,7 +41,7 @@ if (positionals[0] === 'check') {
     }
     if (!ok) {
       lines.push(
-        `FAIL the bar is ${checks[0]?.expected} passed, 0 failed, 0 unhandled and 0 order violations in each tier`,
+        `FAIL the bar is ${checks[0]?.expected} passed, and 0 failed, unhandled, file errors, leaked globals and order violations, and worker exit 0, in each tier`,
       )
     }
   } finally {

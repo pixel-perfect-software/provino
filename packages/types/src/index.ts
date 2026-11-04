@@ -63,6 +63,7 @@ export type {
   EnvironmentRef,
   EnvironmentScope,
   EnvironmentSetupContext,
+  EnvironmentTeardownReport,
 } from './environment.ts'
 export type {
   Assertion,

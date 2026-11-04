@@ -443,6 +443,19 @@ describe('checkOrder: each kind of violation', () => {
     )
   })
 
+  it('console output after a stop is the worker’s teardown, not a file’s late output', () => {
+    const stop: OrderInput = { type: 'stop' }
+    assert.deepEqual(violations([...file(oneTest), stop, consoleLog()]), [])
+    // An unhandled error at stop still fails the run.
+    assert.deepEqual(violations([...file(oneTest), stop, unhandled]), [
+      'unhandled-error after the last fileDone',
+    ])
+    // Before the stop it is still late.
+    assert.deepEqual(violations([...file(oneTest), consoleLog(), stop]), [
+      'console output after the last fileDone',
+    ])
+  })
+
   it('a run that ends before fileDone', () => {
     assert.deepEqual(violations([run(), collectStart(), collectEnd([]), fileEnd()]), [
       inF('the run ended before fileDone'),

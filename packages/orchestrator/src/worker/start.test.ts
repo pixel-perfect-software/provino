@@ -225,6 +225,138 @@ describe('startWorker', () => {
     assert.deepEqual(texts, ['suite\n', '  hits: 1\n', 'two\n', 'hits: 1\n'])
   })
 
+  describe('fileDone.leakedGlobals', () => {
+    it('carries the keys the runner reports for the file, and is empty for a clean one', async (t) => {
+      const h = harness({
+        runFile: async ({ job }) => (job.file === 'leaky' ? { leakedGlobals: ['a', 'b'] } : {}),
+      })
+      t.after(() => h.coordinator.close())
+      h.coordinator.send({ t: 'start', init })
+      h.coordinator.send({ t: 'run', seq: 0, job: job('leaky') })
+      h.coordinator.send({ t: 'run', seq: 1, job: job('clean') })
+      h.coordinator.send({ t: 'run', seq: 2, job: job('nothing') })
+      await h.until(h.fileDone(2))
+      const dones = h.received.filter((m) => m.t === 'fileDone')
+      assert.deepEqual(
+        dones.map((m) => m.t === 'fileDone' && m.leakedGlobals),
+        [['a', 'b'], [], []],
+      )
+    })
+
+    it('is empty for a file whose runner threw: the file is charged, and the field is still there', async (t) => {
+      const h = harness({
+        runFile: async () => {
+          throw new Error('boom')
+        },
+      })
+      t.after(() => h.coordinator.close())
+      h.coordinator.send({ t: 'start', init })
+      h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
+      await h.until(h.fileDone(0))
+      const done = h.received.find(h.fileDone(0))
+      assert.deepEqual(done?.t === 'fileDone' && done.leakedGlobals, [])
+    })
+  })
+
+  describe('a link that goes away before any stop', () => {
+    /** A runner that counts its `stop` calls and says when one starts and finishes. */
+    function counting(behaviour: () => void | Promise<void> = () => {}) {
+      const calls: string[] = []
+      const called = Promise.withResolvers<void>()
+      const runner: WorkerRunner = {
+        runFile: async ({ job }) => {
+          calls.push(`run ${job.file}`)
+          return undefined
+        },
+        stop: async () => {
+          calls.push('stop')
+          called.resolve()
+          await behaviour()
+        },
+      }
+      return { runner, calls, called: called.promise }
+    }
+
+    it('still calls runner.stop, once, so what the worker installed does not outlive it', {
+      timeout: 10_000,
+    }, async () => {
+      const { runner, calls, called } = counting()
+      const h = harness(runner)
+      h.coordinator.send({ t: 'start', init })
+      h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
+      await h.until(h.fileDone(0))
+      h.coordinator.close()
+      await h.done
+      await called
+      assert.deepEqual(calls, ['run a', 'stop'])
+    })
+
+    it('drops what the best-effort stop throws, and the worker still ends', {
+      timeout: 10_000,
+    }, async () => {
+      const { runner, calls, called } = counting(() => {
+        throw new Error('nowhere to report this')
+      })
+      const h = harness(runner)
+      h.coordinator.send({ t: 'start', init })
+      await h.barrier()
+      h.coordinator.close()
+      await h.done
+      await called
+      // Let the failed stop settle: an unreported rejection would fail this test.
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      assert.deepEqual(calls, ['stop'])
+    })
+
+    it('waits for the file that is running, then stops', { timeout: 10_000 }, async () => {
+      const gate = Promise.withResolvers<void>()
+      const started = Promise.withResolvers<void>()
+      const calls: string[] = []
+      const stopped = Promise.withResolvers<void>()
+      const h = harness({
+        runFile: async () => {
+          started.resolve()
+          await gate.promise
+          calls.push('file ended')
+          return undefined
+        },
+        stop: () => {
+          calls.push('stop')
+          stopped.resolve()
+        },
+      })
+      h.coordinator.send({ t: 'start', init })
+      h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
+      await started.promise
+      h.coordinator.close()
+      await h.done
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      assert.deepEqual(calls, [], 'cancel does not reach a running file yet, so stop waits for it')
+      gate.resolve()
+      await stopped.promise
+      assert.deepEqual(calls, ['file ended', 'stop'])
+    })
+
+    it('does not call stop twice when a stop came first, and not for a worker that never started', async () => {
+      const first = counting()
+      const h = harness(first.runner)
+      h.coordinator.send({ t: 'start', init })
+      h.coordinator.send({ t: 'stop' })
+      await h.until((message) => message.t === 'stopped')
+      await h.done
+      h.coordinator.close()
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      assert.deepEqual(first.calls, ['stop'])
+
+      const never = counting()
+      const idle = harness(never.runner)
+      idle.coordinator.close()
+      await idle.done
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      assert.deepEqual(never.calls, [])
+    })
+  })
+
   describe('stop', () => {
     const stopped = (message: WorkerToCoordinator): boolean => message.t === 'stopped'
 

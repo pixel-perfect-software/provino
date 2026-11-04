@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { MatcherState, RuntimeEvent, TaskId, TaskResult } from '@provino/types'
+import type { MatcherState, RuntimeEvent, RuntimeEventOf, TaskId, TaskResult } from '@provino/types'
 import { assertionCountSink, type RunStates } from './sink.ts'
 
 const id = (value: string): TaskId => value as TaskId
@@ -16,7 +16,12 @@ const result = (overrides: Partial<TaskResult> = {}): TaskResult => ({
   passingAssertions: 0,
   ...overrides,
 })
-const attemptEnd = (testId: string, attempt: number, repeat = 0): RuntimeEvent => ({
+const attemptEnd = (
+  testId: string,
+  attempt: number,
+  repeat = 0,
+  overrides: Partial<RuntimeEventOf<'test-attempt-end'>> = {},
+): RuntimeEvent => ({
   type: 'test-attempt-end',
   id: id(testId),
   attempt,
@@ -25,7 +30,11 @@ const attemptEnd = (testId: string, attempt: number, repeat = 0): RuntimeEvent =
   errors: [],
   willRetry: false,
   t: 0,
+  ...overrides,
 })
+/** An attempt that failed and that nothing retries: the run that decides the test failed. */
+const failedFor = (testId: string, attempt: number, repeat = 0): RuntimeEvent =>
+  attemptEnd(testId, attempt, repeat, { state: 'fail' })
 const testEnd = (testId: string, overrides: Partial<TaskResult> = {}): RuntimeEvent => ({
   type: 'test-end',
   id: id(testId),
@@ -122,6 +131,89 @@ describe('assertionCountSink', () => {
     const { source, asked } = statesOf({ 'f_0/2/0': counts(1, 1) })
     collect(source, [attemptEnd('f_0', 2), testEnd('f_0'), testEnd('f_0')])
     assert.deepEqual(asked, ['f_0/2/0'])
+  })
+
+  describe('a test whose repeats do not all pass', () => {
+    const endOf = (out: readonly RuntimeEvent[]) => {
+      const end = out.at(-1)
+      assert.ok(end?.type === 'test-end')
+      return end.result
+    }
+
+    it('takes the counts of the repeat that failed, not of a later one that passed', () => {
+      // repeats: 2: repeat 0 fails, repeats 1 and 2 pass. The test failed, and so did these counts.
+      const { source, asked } = statesOf({
+        'f_0/0/0': counts(2, 1),
+        'f_0/0/1': counts(5, 5),
+        'f_0/0/2': counts(6, 6),
+      })
+      const out = collect(source, [
+        failedFor('f_0', 0, 0),
+        attemptEnd('f_0', 0, 1),
+        attemptEnd('f_0', 0, 2),
+        testEnd('f_0', { state: 'fail', repeatIndex: 2 }),
+      ])
+      assert.deepEqual(asked, ['f_0/0/0'])
+      assert.equal(endOf(out).state, 'fail')
+      assert.equal(endOf(out).assertions, 2)
+      assert.equal(endOf(out).passingAssertions, 1)
+    })
+
+    it('keeps the latest failing repeat when several fail', () => {
+      const { source, asked } = statesOf({
+        'f_0/0/0': counts(2, 1),
+        'f_0/0/1': counts(5, 5),
+        'f_0/0/2': counts(4, 0),
+        'f_0/0/3': counts(7, 7),
+      })
+      const out = collect(source, [
+        failedFor('f_0', 0, 0),
+        attemptEnd('f_0', 0, 1),
+        failedFor('f_0', 0, 2),
+        attemptEnd('f_0', 0, 3),
+        testEnd('f_0', { state: 'fail' }),
+      ])
+      assert.deepEqual(asked, ['f_0/0/2'])
+      assert.equal(endOf(out).assertions, 4)
+      assert.equal(endOf(out).passingAssertions, 0)
+    })
+
+    it('does not count a failed attempt a retry follows: the retry decides', () => {
+      const { source, asked } = statesOf({ 'f_0/0/0': counts(1, 0), 'f_0/1/0': counts(3, 3) })
+      const out = collect(source, [
+        attemptEnd('f_0', 0, 0, { state: 'fail', willRetry: true }),
+        attemptEnd('f_0', 1, 0),
+        testEnd('f_0'),
+      ])
+      assert.deepEqual(asked, ['f_0/1/0'])
+      assert.equal(endOf(out).assertions, 3)
+    })
+
+    it('uses the last attempt of the failing repeat when its retries failed too', () => {
+      const { source, asked } = statesOf({
+        'f_0/0/0': counts(1, 0),
+        'f_0/1/0': counts(2, 1),
+        'f_0/0/1': counts(9, 9),
+      })
+      collect(source, [
+        attemptEnd('f_0', 0, 0, { state: 'fail', willRetry: true }),
+        failedFor('f_0', 1, 0),
+        attemptEnd('f_0', 0, 1),
+        testEnd('f_0', { state: 'fail' }),
+      ])
+      assert.deepEqual(asked, ['f_0/1/0'])
+    })
+  })
+
+  it('forgets a failed repeat with its test, so a later test with the same id starts clean', () => {
+    const { source, asked } = statesOf({ 'f_0/0/0': counts(1, 0), 'f_0/0/1': counts(2, 2) })
+    collect(source, [
+      failedFor('f_0', 0, 0),
+      testEnd('f_0', { state: 'fail' }),
+      attemptEnd('f_0', 0, 1),
+      testEnd('f_0'),
+    ])
+    assert.deepEqual(asked, ['f_0/0/0', 'f_0/0/1'])
   })
 
   it('tracks tests that run at the same time apart', () => {

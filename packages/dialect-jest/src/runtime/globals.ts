@@ -3,7 +3,7 @@
 // registry of the file running now. Nothing here is module-level state.
 import type { RuntimeApi, SuiteApi, TestApi } from '@provino/core'
 import type { createExpect } from '@provino/expect'
-import type { GlobalsHost } from '@provino/types'
+import type { FileRegistry, GlobalsHost } from '@provino/types'
 
 /**
  * What `jestGlobals` builds the globals from: `GlobalsHost` with the real types of the two
@@ -21,7 +21,8 @@ export interface JestGlobalsHost extends GlobalsHost {
 
 /**
  * The `jest` global, as far as the worker runtime goes: the module registry methods, which act on
- * the registry of the file running when they are called. Mocks, timers, `setTimeout`,
+ * the registry of the file running when they are called. `isolateModules` and
+ * `isolateModulesAsync` refuse to nest or overlap (on one registry), as Jest does. Mocks, timers, `setTimeout`,
  * `retryTimes` and the rest of Jest's `jest` object are not here yet (T11.10 and B13).
  * @public
  */
@@ -73,15 +74,50 @@ export type JestGlobals = {
  */
 export function jestGlobals(host: JestGlobalsHost): JestGlobals {
   const { api, expect } = host
+  // The registries with an isolation running now. Jest keeps this on each file's module registries
+  // (one set per file's runtime); a `FileRegistry` is the same scope here, so a `WeakSet` keyed by
+  // it is the same record without a module-level one: every `jestGlobals` call (one per worker)
+  // has its own, a file's registry can be collected with it, and one that never finishes (a hung
+  // test) blocks only itself.
+  const isolating = new WeakSet<FileRegistry>()
+
+  /** Marks `registry` as isolating, or throws Jest's error when it already is. */
+  const enterIsolation = (
+    registry: FileRegistry,
+    caller: 'isolateModules' | 'isolateModulesAsync',
+  ): void => {
+    if (isolating.has(registry)) {
+      const other = caller === 'isolateModules' ? 'isolateModulesAsync' : 'isolateModules'
+      // Jest 30.5.2, packages/jest-runtime/src/internals/ModuleRegistries.ts L125-L134
+      // (`enterIsolated`, reached from `Runtime.isolateModules` and `isolateModulesAsync`,
+      // src/index.ts L627-L643): copied exactly, a plain `Error` with no `code`, as Jest throws it.
+      // unverified: read from source, not recorded (B14)
+      throw new Error(`${caller} cannot be nested inside another ${caller} or ${other}.`)
+    }
+    isolating.add(registry)
+  }
+
   const jest: JestObject = {
     isolateModules(fn) {
-      host.registry().isolateModules(fn)
+      const registry = host.registry()
+      enterIsolation(registry, 'isolateModules')
+      try {
+        registry.isolateModules(fn)
+      } finally {
+        isolating.delete(registry)
+      }
       // unverified: jest-runtime 30.5.2 `JestGlobals.ts` L267-L270 returns `jestObject`; read from source, not recorded
       return jest
     },
     async isolateModulesAsync(fn) {
-      // unverified: jest-runtime 30.5.2 `JestGlobals.ts` L271 hands back the runtime's `Promise<void>`; read from source, not recorded
-      await host.registry().isolateModulesAsync(fn)
+      const registry = host.registry()
+      enterIsolation(registry, 'isolateModulesAsync')
+      try {
+        // unverified: jest-runtime 30.5.2 `JestGlobals.ts` L271 hands back the runtime's `Promise<void>`; read from source, not recorded
+        await registry.isolateModulesAsync(fn)
+      } finally {
+        isolating.delete(registry)
+      }
     },
     resetModules() {
       host.registry().resetModules()

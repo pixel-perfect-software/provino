@@ -1,12 +1,15 @@
 // U1: the worker's runtime (B10). It assembles what the other packages built, in the order their
 // docs prescribe, behind `startWorker`'s `WorkerRunner`:
 //   start (once)   config → behaviour loader + project loader → expect (state source, registry,
-//                  slot, table, `createExpect`, registry snapshot) → core → environment `prepare`
-//                  → the dialect's globals factory
+//                  slot, table, `createExpect`) → core → environment `prepare` → the dialect's
+//                  globals factory → registry snapshot (last, so a matcher the factory adds is part
+//                  of the baseline a file's restore returns to)
 //   runFile        back-pressure → file registry → environment `setup` → globals → expect state →
 //                  core (setup files, then the test file, imported inside collection) → teardown
 //   stop           core's worker teardowns → the worker environment → loader → the matcher slot →
 //                  the worker's lifetime signal
+// An environment's teardown may report globals it could not remove (D22): that is a `console`
+// warning and, for a file, `leakedGlobals` on its outcome; it is never a failure.
 // The environment and the globals come in by ref, never by import: this node knows no dialect and
 // no environment package.
 import { createRuntime, currentTest, type Runtime } from '@provino/core'
@@ -28,6 +31,7 @@ import type {
   EnvironmentScope,
   FileJob,
   FileRegistry,
+  GlobalsHost,
   IsolationTier,
   Loader,
   Policy,
@@ -40,6 +44,12 @@ import {
   setupEnvironment,
 } from '../internal/runtime/environment.ts'
 import { installGlobals } from '../internal/runtime/globals.ts'
+import {
+  fileLeakWarning,
+  leakedGlobalsOf,
+  leakWarningEvent,
+  workerLeakWarning,
+} from '../internal/runtime/leaks.ts'
 import { assertionCountSink } from '../internal/runtime/sink.ts'
 import type { FileContext, FileOutcome, WorkerContext, WorkerRunner } from '../start.ts'
 
@@ -54,6 +64,21 @@ interface Booted {
   readonly globals: Readonly<Record<string, unknown>> | undefined
   /** The file registry tier: `process` is the pool's business and runs as `registry`. */
   readonly tier: Exclude<IsolationTier, 'process'>
+}
+
+/**
+ * The host the worker gives a dialect's globals factory: `GlobalsHost` with the real types of the
+ * two objects it declares as `object`. A `GlobalsFactory` is bivariant in its host, so the compiler
+ * does not stop this file passing the wrong `api` or `expect` through that type; building the host
+ * as this type does, and a type test that this type is assignable to a dialect's own host
+ * (`@provino/bench` checks the Jest dialect's), do.
+ * @beta
+ */
+export interface RuntimeGlobalsHost extends GlobalsHost {
+  /** Core's global API: `runtime.api`. */
+  readonly api: Runtime['api']
+  /** The worker's `expect`, from `createExpect`. */
+  readonly expect: ReturnType<typeof createExpect>
 }
 
 /**
@@ -136,8 +161,8 @@ export function createRuntimeRunner(): WorkerRunner {
     const projectLoader = await createProjectLoader(config.rootDir, config.loader, policy.module)
     loader = projectLoader
 
-    // Expect, in the order its docs give: the slot exists before any matcher module loads, and the
-    // registry snapshot is taken after `createExpect` has registered the table's matchers.
+    // Expect, in the order its docs give: the slot exists before any matcher module loads, and
+    // `createExpect` registers the table's matchers. The registry snapshot comes last (below).
     const source = createStateSource(currentTest, {
       nameSeparator: policy.core.nameSeparator,
       expand: policy.expect.expand,
@@ -152,7 +177,6 @@ export function createRuntimeRunner(): WorkerRunner {
     }
     const table = (await behaviours.load(policy.expect.matcherTable))()
     const expect = createExpect({ policy: policy.expect, table, source, registry })
-    const snapshot = snapshotRegistry(registry, expect)
 
     // `process` is the pool's business (a new process per file) and runs as `registry`.
     const tier = context.init.isolation === 'process' ? 'registry' : context.init.isolation
@@ -188,7 +212,8 @@ export function createRuntimeRunner(): WorkerRunner {
     let globals: Readonly<Record<string, unknown>> | undefined
     if (policy.core.injectGlobals && config.globals !== null) {
       const factory = await behaviours.load(config.globals)
-      const built: unknown = factory({ api: coreRuntime.api, expect, registry: activeRegistry })
+      const host: RuntimeGlobalsHost = { api: coreRuntime.api, expect, registry: activeRegistry }
+      const built: unknown = factory(host)
       if (typeof built !== 'object' || built === null) {
         throw new WorkerError(
           'ORCH_BAD_GLOBALS',
@@ -197,6 +222,9 @@ export function createRuntimeRunner(): WorkerRunner {
       }
       globals = built as Readonly<Record<string, unknown>>
     }
+    // After the factory: it may extend `expect` (or add to it), and what it adds belongs to the
+    // baseline that each file's restore returns to, not to something the first file leaked.
+    const snapshot = snapshotRegistry(registry, expect)
     return {
       loader: projectLoader,
       runtime: coreRuntime,
@@ -269,34 +297,47 @@ export function createRuntimeRunner(): WorkerRunner {
       }
 
       // Teardown, always, in this order. A step that throws doesn't stop the next ones.
+      let leaked: readonly string[] = []
       errors.push(
         ...(await runAll([
           // File scope only: with `none` the environment, the custom matchers and the globals
-          // persist for the next file, as with Vitest's `isolate: false`.
-          () => scope === 'file' && instance?.teardown(),
+          // persist for the next file, as with Vitest's `isolate: false`. The environment reports
+          // a global it couldn't remove instead of throwing (D22).
+          async () => {
+            if (scope !== 'file' || instance === undefined) return
+            leaked = leakedGlobalsOf(await instance.teardown(), worker.environment.environment.name)
+          },
           () => scope === 'file' && worker.snapshot.restore(),
           () => registry.dispose(),
         ])),
       )
       current = undefined
+      // A warning, before the file finishes: through the same sink as the file's own events, so it
+      // arrives after them and before `fileDone`. It has no task: the file's tasks have ended.
+      if (leaked.length > 0) context.sink.emit(leakWarningEvent(fileLeakWarning(job.file, leaked)))
       rethrow(errors, `Tearing down ${job.file} failed`)
-      return {}
+      return leaked.length > 0 ? { leakedGlobals: leaked } : {}
     },
 
-    async stop(): Promise<void> {
-      const parts = { runtime, workerEnvironment, loader, slot }
+    async stop(context): Promise<void> {
+      const parts = { runtime, workerEnvironment, loader, slot, environment: booted?.environment }
       booted = runtime = workerEnvironment = loader = slot = undefined
-      rethrow(
-        await runAll([
-          () => parts.runtime?.dispose(),
-          () => parts.workerEnvironment?.teardown(),
-          () => parts.loader?.[Symbol.dispose](),
-          () => parts.slot?.uninstall(),
-          // Last: the worker environment's teardown ran with its signal still live.
-          () => workerLifetime.abort(),
-        ]),
-        'Stopping the worker runtime failed',
-      )
+      let leaked: readonly string[] = []
+      const errors = await runAll([
+        () => parts.runtime?.dispose(),
+        async () => {
+          if (parts.workerEnvironment === undefined) return
+          const name = parts.environment?.environment.name ?? 'worker'
+          leaked = leakedGlobalsOf(await parts.workerEnvironment.teardown(), name)
+        },
+        () => parts.loader?.[Symbol.dispose](),
+        () => parts.slot?.uninstall(),
+        // Last: the worker environment's teardown ran with its signal still live.
+        () => workerLifetime.abort(),
+      ])
+      // The worker-scoped environment (isolation `none`) reports once, here, before `stopped`.
+      if (leaked.length > 0) context.sink.emit(leakWarningEvent(workerLeakWarning(leaked)))
+      rethrow(errors, 'Stopping the worker runtime failed')
     },
   }
 }

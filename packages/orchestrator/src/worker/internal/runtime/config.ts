@@ -66,6 +66,21 @@ function moduleLocation(value: unknown, path: string): string {
   return location
 }
 
+/**
+ * A path a worker uses as it is: absolute, because a relative one would resolve against the
+ * worker's own working directory, not the project's. The coordinator resolves them (D21).
+ */
+function absolutePath(value: unknown, path: string): string {
+  const location = text(value, path)
+  return isAbsolute(location)
+    ? location
+    : invalid(path, 'an absolute path (the coordinator resolves it)')
+}
+
+function absolutePaths(value: unknown, path: string): readonly string[] {
+  return texts(value, path).map((item, index) => absolutePath(item, `${path}[${index}]`))
+}
+
 function environmentRef(value: unknown): EnvironmentRef {
   const ref = record(value, 'environment')
   return {
@@ -92,7 +107,7 @@ function mapperList(value: unknown): readonly SerializedModuleMapper[] {
     if (!('options' in mapper)) invalid(`${path}.options`, 'present (null for none)')
     const { module, export: name } = mapper.factory
     return {
-      factory: { module, export: name },
+      factory: { module: moduleLocation(module, `${path}.factory.module`), export: name },
       options: mapper.options as SerializedModuleMapper['options'],
     }
   })
@@ -102,8 +117,9 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
   const loader = record(value, 'loader')
   const { tsconfig, typescript } = loader
   if (tsconfig !== 'auto' && tsconfig !== false && typeof tsconfig !== 'string') {
-    invalid('loader.tsconfig', "'auto', false or a path")
+    invalid('loader.tsconfig', "'auto', false or an absolute path")
   }
+  if (typeof tsconfig === 'string' && tsconfig !== 'auto') absolutePath(tsconfig, 'loader.tsconfig')
   if (!TYPESCRIPT_MODES.includes(typescript)) {
     invalid('loader.typescript', "'oxc', 'node-strip' or 'off'")
   }
@@ -126,13 +142,13 @@ export function parseProjectConfig(value: unknown): SerializedProjectConfig {
   if (typeof config.ci !== 'boolean') invalid('ci', 'a boolean')
   return {
     name: text(config.name, 'name'),
-    rootDir: text(config.rootDir, 'rootDir'),
+    rootDir: absolutePath(config.rootDir, 'rootDir'),
     ci: config.ci,
     policy: serializedPolicy(config.policy),
     environment: environmentRef(config.environment),
     globals: globalsRef(config.globals),
-    setupFiles: texts(config.setupFiles, 'setupFiles'),
-    setupFilesAfterEnv: texts(config.setupFilesAfterEnv, 'setupFilesAfterEnv'),
+    setupFiles: absolutePaths(config.setupFiles, 'setupFiles'),
+    setupFilesAfterEnv: absolutePaths(config.setupFilesAfterEnv, 'setupFilesAfterEnv'),
     loader: loaderConfig(config.loader),
   }
 }

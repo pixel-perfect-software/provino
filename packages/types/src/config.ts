@@ -99,9 +99,9 @@ export interface SerializedLoaderConfig {
   readonly extensions: readonly string[]
   /** Environment export conditions for resolution; the call kind adds its own. */
   readonly conditions: readonly string[]
-  /** `auto`: the nearest `tsconfig.json`; a path: that file; `false`: none. */
+  /** `auto`: the nearest `tsconfig.json`; a path: that file (absolute); `false`: none. */
   readonly tsconfig: 'auto' | false | string
-  /** Mappers in the order they run; the first hit wins. Loaded by `ModuleRef` in the worker. */
+  /** Mappers in the order they run; the first hit wins. Loaded by `ModuleRef` in the worker (each factory's `module` is absolute). */
   readonly mappers: readonly SerializedModuleMapper[]
   /** How TypeScript is stripped. */
   readonly typescript: 'oxc' | 'node-strip' | 'off'
@@ -112,14 +112,18 @@ export interface SerializedLoaderConfig {
  * (`WorkerInit.config`). One project per worker. Functions, plugins and the dialect objects are
  * gone: behaviour is a `ModuleRef`, the environment an `EnvironmentRef`.
  *
- * The refs that cross are already resolved: `environment.module` and `globals.module` are each an
- * absolute path or an absolute URL (a `file:` URL), never a bare package specifier. The
- * coordinator resolves them; the worker rejects any other with `ORCH_BAD_CONFIG`.
+ * Everything that names a place crosses already resolved (the coordinator resolves it; the worker
+ * rejects anything else with `ORCH_BAD_CONFIG` naming the key). `rootDir`, each of `setupFiles`
+ * and `setupFilesAfterEnv`, a path `loader.tsconfig` and each mapper factory's `module` are
+ * absolute paths (or, for a `module`, an absolute URL). `environment.module` and `globals.module`
+ * are each an absolute path or an absolute URL (a `file:` URL). None is a bare package specifier
+ * or a path relative to the worker's own working directory.
  * @public
  */
 export interface SerializedProjectConfig {
   /** The project's name: part of every task id. */
   readonly name: string
+  /** The project root, an absolute path. */
   readonly rootDir: string
   /** Whether this is a CI run (`allowOnly: 'not-in-ci'`). */
   readonly ci: boolean

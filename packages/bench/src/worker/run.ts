@@ -14,6 +14,7 @@ import {
 import { resolvePolicy, serializePolicy } from '@provino/policy'
 import type {
   CoordinatorMethods,
+  EnvironmentRef,
   FileJob,
   IsolationTier,
   PoolKind,
@@ -21,6 +22,7 @@ import type {
   TaskId,
   TransportFactory,
   WorkerEvent,
+  WorkerExit,
   WorkerInit,
 } from '@provino/types'
 import { BenchError } from '../errors.ts'
@@ -31,6 +33,13 @@ const ENTRY: string = import.meta.resolve('@provino/orchestrator/worker/main')
 
 /** Where the node environment lives; the worker imports it by this ref. */
 const ENVIRONMENT_MODULE: string = import.meta.resolve('@provino/env-node')
+
+/** The node environment, as a ref the worker can import (its module is absolute). */
+const NODE_ENVIRONMENT: EnvironmentRef = {
+  module: ENVIRONMENT_MODULE,
+  export: 'nodeEnvironment',
+  options: {},
+}
 
 /**
  * The project name in the bench's task ids.
@@ -51,13 +60,14 @@ export function fileIdOf(projectName: string, rootDir: string, file: string): Ta
 
 /**
  * The project config for a worker running Jest-flavoured suites: the Jest dialect's resolved
- * policy and globals, the node environment, and `setupFilesAfterEnv` (Jest's name for the suite's
- * `setup.js`).
+ * policy and globals, the node environment (or `environment`, an absolute ref), and
+ * `setupFilesAfterEnv` (Jest's name for the suite's `setup.js`).
  * @public
  */
 export function benchProjectConfig(
   rootDir: string,
   setupFilesAfterEnv: readonly string[],
+  environment: EnvironmentRef = NODE_ENVIRONMENT,
 ): SerializedProjectConfig {
   const globals = jestDialect.globals
   if (globals === undefined) throw new BenchError('BENCH_USAGE', 'the Jest dialect has no globals')
@@ -66,7 +76,7 @@ export function benchProjectConfig(
     rootDir,
     ci: false,
     policy: serializePolicy(resolvePolicy(jestPolicy)),
-    environment: { module: ENVIRONMENT_MODULE, export: 'nodeEnvironment', options: {} },
+    environment,
     globals: globals.factory,
     setupFiles: [],
     setupFilesAfterEnv,
@@ -89,6 +99,8 @@ export interface WorkerRunOptions {
   /** Absolute paths of the test files, run in this order. */
   readonly files: readonly string[]
   readonly setupFilesAfterEnv?: readonly string[]
+  /** The environment, by an absolute ref. Default: the node environment. */
+  readonly environment?: EnvironmentRef
   /** The worker's transport. Default `inline`. */
   readonly pool?: PoolKind
   /** Default `registry`. */
@@ -118,6 +130,21 @@ export interface WorkerRunResult {
   readonly failures: readonly string[]
   /** Unhandled errors: a test never charged them, so they are not in `failed`. */
   readonly unhandled: number
+  /**
+   * Errors on the files themselves (`file-end`'s result): a failing `afterAll`, a hook the file
+   * registered outside any test. No test is charged with them, so they are not in `failed`.
+   */
+  readonly fileErrors: number
+  /**
+   * Global keys the files left behind that the environment could not remove (the sum of every
+   * `fileDone.leakedGlobals`). A warning to the worker (decision D22), a failure of the bar: a
+   * suite that leaks would make later files in a worker see what it left. A worker-scoped
+   * environment (isolation `none`) reports at stop, with a `console` warning only, so it is not
+   * counted here.
+   */
+  readonly leakedGlobals: number
+  /** How the worker ended after `stop`. A clean one is `{ type: 'exit', code: 0 }`, inline too. */
+  readonly exit: WorkerExit
   readonly elapsedMs: number
   /** Every event, in order, when `keepEvents` was set. */
   readonly events: readonly WorkerEvent[]
@@ -153,7 +180,11 @@ function transportFor(pool: PoolKind, stderr: NodeJS.WritableStream | undefined)
 export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerRunResult> {
   const pool = options.pool ?? 'inline'
   const isolation = options.isolation ?? 'registry'
-  const config = benchProjectConfig(options.rootDir, options.setupFilesAfterEnv ?? [])
+  const config = benchProjectConfig(
+    options.rootDir,
+    options.setupFilesAfterEnv ?? [],
+    options.environment,
+  )
   const init: WorkerInit = {
     key: {
       project: PROJECT_NAME,
@@ -172,7 +203,7 @@ export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerR
   const violations: string[] = []
   const failures: string[] = []
   const events: WorkerEvent[] = []
-  const counts = { passed: 0, failed: 0, skipped: 0, unhandled: 0 }
+  const counts = { passed: 0, failed: 0, skipped: 0, unhandled: 0, fileErrors: 0, leaked: 0 }
   /** The running file’s tests, by id, for readable failures. */
   let names = new Map<TaskId, string>()
   let running: FileJob | undefined
@@ -208,6 +239,11 @@ export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerR
             event.tasks.filter((task) => task.type === 'test').map((task) => [task.id, task.name]),
           )
           for (const error of event.errors) note(`${label}: collection failed: ${error.message}`)
+        } else if (event.type === 'file-end') {
+          // A failing `afterAll` fails the file, not a test: no `test-end` carries it.
+          counts.fileErrors += event.result.errors.length
+          const [first] = event.result.errors
+          if (first !== undefined) note(`${label}: file failed: ${first.message}`)
         }
         return
       case 'test-end': {
@@ -237,6 +273,7 @@ export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerR
     },
   })
   let finished = false
+  let exit: WorkerExit
   try {
     for (const file of options.files) {
       running = {
@@ -245,12 +282,20 @@ export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerR
         updateSnapshots: 'none',
       }
       checker.feed({ type: 'run', fileId: running.fileId })
-      await connection.run(running)
+      const done = await connection.run(running)
       checker.feed({ type: 'fileDone' })
+      if (done.leakedGlobals.length > 0) {
+        counts.leaked += done.leakedGlobals.length
+        note(
+          `${relative(options.rootDir, running.file)}: left globals behind: ${done.leakedGlobals.join(', ')}`,
+        )
+      }
     }
     running = undefined
+    // `terminate(false)` sends the worker its `stop`.
+    checker.feed({ type: 'stop' })
     await transport.terminate(false)
-    await connection.exited
+    exit = await connection.exited
     finished = true
   } finally {
     // A run that threw leaves a worker behind; end it now rather than leak it.
@@ -258,7 +303,7 @@ export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerR
   }
   const elapsedMs = performance.now() - start
   violations.push(...checker.finish())
-  const { passed, failed, skipped, unhandled } = counts
+  const { passed, failed, skipped, unhandled, fileErrors, leaked } = counts
   return {
     pool,
     isolation,
@@ -270,6 +315,9 @@ export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerR
     violations,
     failures,
     unhandled,
+    fileErrors,
+    leakedGlobals: leaked,
+    exit,
     elapsedMs,
     events,
   }

@@ -2,7 +2,8 @@
 // worker's own realm and, at teardown, deletes the globals added since `setup`. It writes to
 // `globalThis.__trace` when a test has set one (inline workers share the test's process), keeps the
 // `signal` each `setup` received in `globalThis.__signals` when a test has set that, and its
-// options steer failures: `failSetup` and `failTeardown`.
+// options steer failures: `failSetup` and `failTeardown`. `leak: 'a,b'` makes `teardown` report
+// those keys as globals it could not remove (D22), without actually leaving anything behind.
 import type { Environment } from '@provino/types'
 
 type Traced = typeof globalThis & { __trace?: string[]; __signals?: AbortSignal[] }
@@ -45,6 +46,9 @@ export const recordingEnvironment: Environment<
           if (!before.has(key)) Reflect.deleteProperty(globalThis, key)
         }
         if (context.options.failTeardown === true) throw new Error('teardown failed')
+        // D22: like the node environment, report what it could not restore instead of throwing.
+        const leak = context.options.leak
+        return typeof leak === 'string' ? { leakedGlobals: leak.split(',') } : undefined
       },
     }
   },

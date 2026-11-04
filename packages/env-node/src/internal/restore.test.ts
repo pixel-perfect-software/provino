@@ -2,8 +2,7 @@
 // non-configurable property can never be removed from it again.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { NodeEnvironmentError } from '../errors.ts'
-import { restoreOrThrow, snapshotProperties } from './restore.ts'
+import { snapshotProperties } from './restore.ts'
 
 /** An object with a mix of properties, and the descriptors it started with. */
 function sample(): { readonly target: Record<string | symbol, unknown>; readonly tag: symbol } {
@@ -65,10 +64,7 @@ test('a non-configurable property added since is reported, and the rest is still
   target.a = 100
   target.extra = true
   delete target.b
-  assert.deepEqual(snapshot.restore(), [
-    { key: 'stuck', action: 'delete' },
-    { key: stuckSymbol, action: 'delete' },
-  ])
+  assert.deepEqual(snapshot.restore(), ['stuck', stuckSymbol])
   assert.equal(target.a, 1)
   assert.equal(target.b, 2)
   assert.equal('extra' in target, false)
@@ -80,7 +76,7 @@ test('a changed property that can no longer be redefined is reported', () => {
   const snapshot = snapshotProperties(target)
   // Writable and non-configurable: the value changes, and `writable` can still go to false.
   Object.defineProperty(target, 'x', { value: 2, writable: false })
-  assert.deepEqual(snapshot.restore(), [{ key: 'x', action: 'redefine' }])
+  assert.deepEqual(snapshot.restore(), ['x'])
 })
 
 test('a non-configurable property that only changed value is restored', () => {
@@ -90,31 +86,6 @@ test('a non-configurable property that only changed value is restored', () => {
   target.x = 2
   assert.deepEqual(snapshot.restore(), [])
   assert.equal(target.x, 1)
-})
-
-test('restoreOrThrow throws ENV_NODE_RESTORE_FAILED after restoring everything else', () => {
-  const { target } = sample()
-  const snapshot = snapshotProperties(target)
-  Object.defineProperty(target, 'stuck', { value: 1, configurable: false })
-  target.a = 100
-  assert.throws(
-    () => restoreOrThrow(snapshot),
-    (error) => {
-      assert.ok(error instanceof NodeEnvironmentError)
-      assert.equal(error.code, 'ENV_NODE_RESTORE_FAILED')
-      assert.deepEqual(error.failures, [{ key: 'stuck', action: 'delete' }])
-      assert.match(error.message, /stuck \(delete\)/)
-      return true
-    },
-  )
-  assert.equal(target.a, 1, 'the other change was restored before the throw')
-})
-
-test('restoreOrThrow returns quietly when everything was restored', () => {
-  const { target } = sample()
-  const snapshot = snapshotProperties(target)
-  target.extra = 1
-  assert.equal(restoreOrThrow(snapshot), undefined)
 })
 
 test('capture does not call accessors', () => {
@@ -149,4 +120,120 @@ test('capture reads descriptors until no new key appears', () => {
   const snapshot = snapshotProperties(target)
   assert.deepEqual(snapshot.restore(), [], '`loaded` is non-configurable: deleting it would fail')
   assert.equal(Reflect.has(target, 'loaded'), true)
+})
+
+/**
+ * A get/set accessor whose value lives in a closure, the shape of Node's `process`, `Buffer` and
+ * `performance`, with a count of the calls to each side and the receivers the setter saw.
+ */
+function closureAccessor(
+  target: object,
+  key: string,
+): {
+  readonly state: { value: string; reads: number; writes: number }
+  readonly receivers: unknown[]
+} {
+  const state = { value: 'original', reads: 0, writes: 0 }
+  const receivers: unknown[] = []
+  Object.defineProperty(target, key, {
+    get(): string {
+      state.reads++
+      return state.value
+    },
+    set(this: unknown, value: string) {
+      state.writes++
+      receivers.push(this)
+      state.value = value
+    },
+    enumerable: true,
+    configurable: true,
+  })
+  return { state, receivers }
+}
+
+test('a plain assignment over a get/set accessor is undone, and the getter is read once', () => {
+  const target: Record<string, unknown> = {}
+  const { state, receivers } = closureAccessor(target, 'cell')
+  const before = Object.getOwnPropertyDescriptors(target)
+  const snapshot = snapshotProperties(target)
+  target.cell = 'first'
+  target.cell = 'second'
+  assert.equal(state.value, 'second')
+  assert.deepEqual(snapshot.restore(), [])
+  assert.equal(state.value, 'original')
+  assert.deepStrictEqual(Object.getOwnPropertyDescriptors(target), before)
+  assert.equal(state.reads, 1, 'read once, by the wrapper on the first assignment')
+  assert.deepEqual(receivers, [target, target, target], 'the setter still gets the receiver')
+})
+
+test('nothing assigned: no getter or setter is called, and the descriptor is untouched', () => {
+  const target: Record<string, unknown> = {}
+  const { state } = closureAccessor(target, 'cell')
+  const before = Object.getOwnPropertyDescriptors(target)
+  const snapshot = snapshotProperties(target)
+  assert.deepEqual(snapshot.restore(), [])
+  assert.deepStrictEqual(Object.getOwnPropertyDescriptors(target), before)
+  assert.deepEqual(state, { value: 'original', reads: 0, writes: 0 })
+})
+
+test('while set up, only a configurable accessor with both sides is wrapped', () => {
+  const target: Record<string, unknown> = {}
+  Object.defineProperty(target, 'getterOnly', { get: () => 1, configurable: true })
+  Object.defineProperty(target, 'setterOnly', { set: () => {}, configurable: true })
+  Object.defineProperty(target, 'fixed', { get: () => 1, set: () => {}, configurable: false })
+  Object.defineProperty(target, 'data', { value: 1, writable: true, configurable: true })
+  const before = Object.getOwnPropertyDescriptors(target)
+  const snapshot = snapshotProperties(target)
+  assert.deepStrictEqual(Object.getOwnPropertyDescriptors(target), before)
+  closureAccessor(target, 'cell')
+  assert.deepEqual(snapshot.restore(), [])
+})
+
+test('a getter that throws on the first assignment is reported, and the assignment still goes through', () => {
+  const target: Record<string, unknown> = {}
+  let value = 'original'
+  Object.defineProperty(target, 'cell', {
+    get(): string {
+      throw new Error('not readable')
+    },
+    set(next: string) {
+      value = next
+    },
+    configurable: true,
+  })
+  const before = Object.getOwnPropertyDescriptors(target)
+  const snapshot = snapshotProperties(target)
+  target.cell = 'assigned'
+  assert.equal(value, 'assigned', 'the setter ran as it would have without the environment')
+  assert.deepEqual(snapshot.restore(), ['cell'], 'the old value is unknown, so the key is left')
+  assert.deepStrictEqual(Object.getOwnPropertyDescriptors(target), before)
+})
+
+test('a setter that throws when the old value is put back is reported, and the rest is restored', () => {
+  const target: Record<string, unknown> = { plain: 1 }
+  let allow = true
+  Object.defineProperty(target, 'cell', {
+    get: () => 'old',
+    set() {
+      if (!allow) throw new Error('refused')
+    },
+    configurable: true,
+  })
+  const snapshot = snapshotProperties(target)
+  target.cell = 'assigned'
+  target.plain = 2
+  allow = false
+  assert.deepEqual(snapshot.restore(), ['cell'])
+  assert.equal(target.plain, 1)
+})
+
+test('a second restore does not replay an assignment made after the first', () => {
+  const target: Record<string, unknown> = {}
+  const { state } = closureAccessor(target, 'cell')
+  const snapshot = snapshotProperties(target)
+  target.cell = 'during the file'
+  assert.deepEqual(snapshot.restore(), [])
+  target.cell = 'after the file'
+  assert.deepEqual(snapshot.restore(), [])
+  assert.equal(state.value, 'after the file', 'the wrapper is gone, so there is nothing to replay')
 })

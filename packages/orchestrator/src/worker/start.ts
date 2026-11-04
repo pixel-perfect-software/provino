@@ -57,6 +57,12 @@ export interface FileContext extends WorkerContext {
 export interface FileOutcome {
   /** Handles still open after the file's teardown (Track 2's leak detector). */
   readonly leakedHandles?: number
+  /**
+   * Global keys the file left behind that its environment could not remove (decision D22), as
+   * strings. They go out as `fileDone.leakedGlobals`, so the pool can recycle the worker. Absent
+   * or empty for a clean file. The runner sends the matching `console` warning itself.
+   */
+  readonly leakedGlobals?: readonly string[]
 }
 
 /**
@@ -73,6 +79,13 @@ export interface WorkerRunner {
    * What it throws is reported as an unhandled error with no owner, and `stopped` is sent anyway.
    * One that never settles holds `stopped` back until the coordinator's stop timeout kills the
    * worker.
+   *
+   * It is also called, best-effort, when the link goes away before any `stop` came (the
+   * coordinator was killed, or `terminate(true)` closed the link of an inline worker, which
+   * shares this process with the next one): without it the matcher slot, the loader and the
+   * environment would stay installed. Nothing can be sent then, so what it throws or emits is
+   * dropped. It queues behind the file running now, so a file that is still running delays it:
+   * `cancel` can't reach core until T5.12, so such a file runs to its end.
    */
   stop?(context: WorkerContext): void | Promise<void>
 }
@@ -116,6 +129,8 @@ export function startWorker(
   let init: WorkerInit | undefined
   let installed: InstalledCapture | undefined
   let finished = false
+  /** Set when a `stop` arrives, or when the link's exit queued the best-effort one: `runner.stop` runs once. */
+  let stopQueued = false
   const { promise: done, resolve: resolveDone } = Promise.withResolvers<void>()
   /** Work in arrival order: start, each run, stop. A failed step never blocks the next. */
   let queue: Promise<void> = Promise.resolve()
@@ -190,10 +205,12 @@ export function startWorker(
     // Each file gets a fresh console: an open group, a count or a timer stays with its file.
     capture.reset()
     let leakedHandles = 0
+    let leakedGlobals: readonly string[] = []
     try {
       if (startFailure !== undefined) throw startFailure.error
       const outcome = await runner.runFile({ ...context(), job, signal: controller.signal })
       leakedHandles = outcome?.leakedHandles ?? 0
+      leakedGlobals = outcome?.leakedGlobals ?? []
     } catch (error) {
       // The runtime reports test failures as events; a runner that throws is a bug, charged to the file.
       charge(error, job.fileId)
@@ -202,10 +219,27 @@ export function startWorker(
     }
     await settle()
     const memoryBytes = measureMemory(init)
-    packer.afterSent(() => port.send({ t: 'fileDone', seq, memoryBytes, leakedHandles }))
+    packer.afterSent(() =>
+      port.send({ t: 'fileDone', seq, memoryBytes, leakedHandles, leakedGlobals }),
+    )
   }
 
-  port.onExit(finish)
+  port.onExit(() => {
+    // The link went away before any `stop`: nothing can be sent now, but an inline worker lives
+    // in the coordinator's process, so the slot, the loader and the environment it installed must
+    // not outlive it (the next worker would find the matcher slot taken). Errors have nowhere to go.
+    if (!stopQueued && init !== undefined) {
+      stopQueued = true
+      enqueue(async () => {
+        try {
+          await runner.stop?.(context())
+        } catch {
+          // Reported nowhere: the link is closed, and the worker is already gone.
+        }
+      })
+    }
+    finish()
+  })
   port.onMessage((message) => {
     switch (message.t) {
       case 'start': {
@@ -239,6 +273,7 @@ export function startWorker(
         abortAll(new Error(`Cancelled: ${message.reason}`))
         return
       case 'stop':
+        stopQueued = true
         enqueue(async () => {
           // The queue has drained: every file received before `stop` has sent its `fileDone`.
           if (init !== undefined) {

@@ -55,6 +55,7 @@ const fileDone = (seq: number): WorkerToCoordinator => ({
   seq,
   memoryBytes: 1,
   leakedHandles: 0,
+  leakedGlobals: [],
 })
 
 describe('connectWorker', () => {

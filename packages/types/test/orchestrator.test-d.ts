@@ -116,6 +116,21 @@ const wrongArgs: RpcCall<CoordinatorMethods> = {
   args: [1],
 }
 
+// `fileDone` always says which globals the file left behind (D22), as strings.
+type FileDoneMessage = Extract<WorkerToCoordinator, { t: 'fileDone' }>
+expectTypeOf<FileDoneMessage['leakedGlobals']>().toEqualTypeOf<readonly string[]>()
+const fileDoneClean: FileDoneMessage = {
+  t: 'fileDone',
+  seq: 0,
+  memoryBytes: 1,
+  leakedHandles: 0,
+  leakedGlobals: [],
+}
+// @ts-expect-error leakedGlobals is always present, empty when clean
+const fileDoneWithout: FileDoneMessage = { t: 'fileDone', seq: 0, memoryBytes: 1, leakedHandles: 0 }
+// @ts-expect-error the keys are strings
+const fileDoneSymbols: FileDoneMessage = { ...fileDoneClean, leakedGlobals: [Symbol('x')] }
+
 // A worker's port is the mirror of the transport.
 expectTypeOf<Parameters<WorkerPort['send']>[0]>().toEqualTypeOf<WorkerToCoordinator>()
 expectTypeOf<
@@ -166,4 +181,4 @@ export function busEventFor(event: WorkerEvent): keyof ReporterEvents | null {
   }
 }
 
-export { bad, unknownCall, wrongArgs }
+export { bad, fileDoneClean, fileDoneSymbols, fileDoneWithout, unknownCall, wrongArgs }

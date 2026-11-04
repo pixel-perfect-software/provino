@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, test } from 'node:test'
@@ -223,6 +223,85 @@ test('isolateModules gets a fresh instance; resetModules drops them all', async 
   assert.equal(isolatedAsync, 1)
 })
 
+test('resetModules inside isolateModules clears every layer, and the registry works after', async () => {
+  const root = writeTree(COUNTER)
+  const registry = loaderFor(root).createFileRegistry(join(root, 'a.test.ts'), { tier: 'registry' })
+  const counter = join(root, 'counter.ts')
+  registry.require<CounterModule>(counter).bump()
+  const inside = registry.isolateModules(() => {
+    registry.require<CounterModule>(counter).bump()
+    registry.resetModules()
+    assert.deepEqual(registry.loadedModules(), [], 'every layer is empty')
+    return registry.require<CounterModule>(counter).bump()
+  })
+  assert.equal(inside, 1, 'fresh after the reset')
+  assert.equal(
+    registry.require<CounterModule>(counter).bump(),
+    1,
+    'the outer layer was cleared too',
+  )
+
+  const isolated = await registry.isolateModulesAsync(async () => {
+    registry.resetModules()
+    return (await registry.import<CounterModule>(counter)).bump()
+  })
+  assert.equal(isolated, 1)
+  assert.equal((await registry.import<CounterModule>(counter)).bump(), 1, 'cleared again')
+  assert.deepEqual(registry.loadedModules(), [counter])
+})
+
+test('resetModules inside isolateModules under none leaves the worker’s shared registry working', async () => {
+  const root = writeTree(COUNTER)
+  const loader = loaderFor(root)
+  const first = loader.createFileRegistry(join(root, 'a.test.ts'), { tier: 'none' })
+  first.isolateModules(() => first.resetModules())
+  await first.isolateModulesAsync(async () => first.resetModules())
+  const second = loader.createFileRegistry(join(root, 'b.test.ts'), { tier: 'none' })
+  const b = await second.import<CounterModule>(join(root, 'b.test.ts'))
+  assert.equal(b.bump(), 1, 'the next file’s registry still works')
+  assert.equal(second.require<CounterModule>(join(root, 'counter.ts')).bump(), 2)
+})
+
+test('overlapping isolateModulesAsync calls each drop only their own map', async () => {
+  const root = writeTree(COUNTER)
+  const registry = loaderFor(root).createFileRegistry(join(root, 'a.test.ts'), { tier: 'registry' })
+  const counter = join(root, 'counter.ts')
+  registry.require<CounterModule>(counter).bump()
+
+  const aReady = Promise.withResolvers<void>()
+  const bReady = Promise.withResolvers<void>()
+  const aGate = Promise.withResolvers<void>()
+  const bGate = Promise.withResolvers<void>()
+  const a = registry.isolateModulesAsync(async () => {
+    const mod = await registry.import<CounterModule>(counter)
+    mod.bump()
+    mod.bump()
+    aReady.resolve()
+    await aGate.promise
+    return mod.count
+  })
+  await aReady.promise
+  const b = registry.isolateModulesAsync(async () => {
+    assert.equal(
+      (await registry.import<CounterModule>(counter)).bump(),
+      1,
+      'B has its own instance',
+    )
+    bReady.resolve()
+    await bGate.promise
+    // A has finished: B's map is still the live one, with B's instance in it.
+    return (await registry.import<CounterModule>(counter)).bump()
+  })
+  await bReady.promise
+
+  aGate.resolve()
+  assert.equal(await a, 2, 'A kept its own instance')
+  bGate.resolve()
+  assert.equal(await b, 2, 'A finishing did not drop B’s map')
+  assert.equal(registry.require<CounterModule>(counter).bump(), 2, 'the main map is untouched')
+  assert.deepEqual(registry.loadedModules(), [counter])
+})
+
 test('failures are per file and coded', async () => {
   const root = writeTree({
     'broken.ts': 'export const = 1\n',
@@ -360,5 +439,45 @@ test('invalidate leaves externals, builtins, unknown and unloaded specifiers alo
     assert.equal(registry.require('ext'), ext)
     await registry.import('./setup.js')
     assert.deepEqual(log, ['leaf', 'setup'], 'nothing was evaluated again')
+  })
+})
+
+test('invalidate drops a module loaded by require() whose exports differ by condition', async () => {
+  const root = writeTree({
+    'entry.test.js': '',
+    'packages/dual/package.json': JSON.stringify({
+      name: 'dual',
+      exports: { '.': { import: './a.mjs', require: './a.cjs' } },
+    }),
+    'packages/dual/a.mjs': "globalThis.__invalidateLog.push('esm')\nexport const kind = 'esm'\n",
+    'packages/dual/a.cjs':
+      "globalThis.__invalidateLog.push('cjs')\nmodule.exports = { kind: {} }\n",
+    'packages/cjs-only/package.json': JSON.stringify({
+      name: 'cjs-only',
+      exports: { '.': { require: './index.cjs' } },
+    }),
+    'packages/cjs-only/index.cjs':
+      "globalThis.__invalidateLog.push('only')\nmodule.exports = { kind: {} }\n",
+  })
+  // A workspace package linked into node_modules is a user module: the resolver follows the link.
+  mkdirSync(join(root, 'node_modules'))
+  for (const name of ['dual', 'cjs-only']) {
+    symlinkSync(join(root, 'packages', name), join(root, 'node_modules', name), 'dir')
+  }
+  await withLog(async (log) => {
+    const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.js'), {
+      tier: 'registry',
+    })
+    await registry.import('dual')
+    const required = registry.require<{ kind: object }>('dual')
+    const only = registry.require<{ kind: object }>('cjs-only')
+    assert.deepEqual(log, ['esm', 'cjs', 'only'])
+
+    registry.invalidate('dual')
+    registry.invalidate('cjs-only')
+    await registry.import('dual')
+    assert.notEqual(registry.require<{ kind: object }>('dual'), required, 'the require() side')
+    assert.notEqual(registry.require<{ kind: object }>('cjs-only'), only, 'a require-only package')
+    assert.deepEqual(log, ['esm', 'cjs', 'only', 'esm', 'cjs', 'only'])
   })
 })

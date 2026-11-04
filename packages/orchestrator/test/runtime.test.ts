@@ -7,6 +7,7 @@ import { after, describe, it } from 'node:test'
 import { moduleRef } from '@provino/policy'
 import type {
   FileJob,
+  GlobalsFactory,
   ModuleMapperFactory,
   RuntimeEventOf,
   TaskId,
@@ -142,9 +143,11 @@ describe('setup files are fresh for every file', () => {
 })
 
 describe('invalidating a module before importing it', () => {
-  // `invalidate` resolves the specifier like an import does. Under `none` it is needed (the shared
-  // registry caches); under `registry` the registry is new, so it would be a wasted resolver call
-  // per module per file.
+  // `invalidate` has to forget the module whichever way it was loaded. A package's `exports` can
+  // map `import` and `require` to different files, so it resolves the specifier once as an
+  // `import` and once as a `require` (the loader's `invalidate`, B10 review round 1). Under `none`
+  // it is needed (the shared registry caches). Under `registry` the registry is new, so the worker
+  // never calls it: that would be a wasted resolver call per module per file.
   const resolutions = async (isolation: 'registry' | 'none') => {
     const p = await project({
       'setup.js': '',
@@ -180,13 +183,24 @@ describe('invalidating a module before importing it', () => {
     assert.deepEqual(await resolutions('registry'), ['resolve setup.js', 'resolve a.test.js'])
   })
 
-  it('resolves each of them twice under none: once to invalidate, once to import', async () => {
+  it('resolves each of them three times under none: invalidate as import and as require, then the import', async () => {
     assert.deepEqual(await resolutions('none'), [
       'resolve setup.js',
       'resolve setup.js',
+      'resolve setup.js',
+      'resolve a.test.js',
       'resolve a.test.js',
       'resolve a.test.js',
     ])
+  })
+
+  it('resolves more under none than under registry, because only none calls invalidate', async () => {
+    const registry = await resolutions('registry')
+    const none = await resolutions('none')
+    assert.ok(
+      none.length > registry.length,
+      `${none.length} resolves under none, ${registry.length} under registry`,
+    )
   })
 })
 
@@ -223,6 +237,33 @@ describe('the globals', () => {
     assert.ok(!trace.includes('globals:factory'))
     assert.equal(eventsOf(run.events, 'test-end').length, 0)
   })
+})
+
+describe('a matcher the globals factory adds', () => {
+  const files = {
+    'a.test.js': "test('a', () => { expect('factory').toBeFromFactory() })",
+    'b.test.js': [
+      "test('b', () => {",
+      "  expect('factory').toBeFromFactory()",
+      "  expect(typeof expect.toBeFromFactory).toBe('function')",
+      '})',
+    ].join('\n'),
+  }
+
+  for (const isolation of ['registry', 'none'] as const) {
+    it(`is still there for the second file under ${isolation}: the restore keeps it`, async () => {
+      const p = await project(files)
+      const config = runtimeConfig(p.dir, {
+        globals: moduleRef<GlobalsFactory>(fixture('runtime-globals.ts').href, 'extendingGlobals'),
+      })
+      const run = await runJobs({
+        config,
+        isolation,
+        jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
+      })
+      assert.deepEqual(states(run.events), { a: 'pass', b: 'pass' })
+    })
+  }
 })
 
 describe('per-file filters', () => {
@@ -300,6 +341,28 @@ describe('assertion counts', () => {
   })
 })
 
+describe('assertion counts of a test with repeats', () => {
+  it('are those of the repeat that failed, not of a later repeat that passed', async () => {
+    const p = await project({
+      'a.test.js': [
+        'let run = 0',
+        "test('flaky', { repeats: 2 }, () => {",
+        '  run++',
+        // Repeat 0 makes one call, and it fails; repeats 1 and 2 make three that pass.
+        '  if (run === 1) return expect(1).toBe(2)',
+        '  expect(1).toBe(1); expect(2).toBe(2); expect(3).toBe(3)',
+        '})',
+      ].join('\n'),
+    })
+    const config = runtimeConfig(p.dir)
+    const run = await runJobs({ config, jobs: [runtimeJob(config, p.path('a.test.js'))] })
+    const flaky = resultsByName(run.events).get('flaky')
+    assert.equal(flaky?.result.state, 'fail')
+    assert.equal(flaky?.result.assertions, 1)
+    assert.equal(flaky?.result.passingAssertions, 0)
+  })
+})
+
 describe('teardown', () => {
   const file = [
     'expect.extend({ toBeEven: () => ({ pass: true, message: () => "" }) })',
@@ -366,6 +429,105 @@ describe('teardown', () => {
   })
 })
 
+describe('globals the environment could not remove (D22)', () => {
+  const files = { 'a.test.js': "test('a', () => {})", 'b.test.js': "test('b', () => {})" }
+  const consoleWarnings = (events: readonly WorkerEvent[]) =>
+    eventsOf(events, 'console').filter((event) => event.level === 'warn')
+
+  it('is a warning, not a failure: one console warn per file, before its fileDone, and the keys on fileDone', async () => {
+    const p = await project(files)
+    const config = runtimeConfig(p.dir, { environmentOptions: { leak: '__stuck,Symbol(s)' } })
+    const jobs = [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))]
+    const run = await runJobs({ config, jobs })
+
+    assert.deepEqual(states(run.events), { a: 'pass', b: 'pass' })
+    assert.equal(eventsOf(run.events, 'unhandled-error').length, 0)
+    assert.equal(
+      eventsOf(run.events, 'file-end').filter((e) => e.result.state === 'fail').length,
+      0,
+    )
+    assert.deepEqual(
+      run.done.map((done) => done.leakedGlobals),
+      [
+        ['__stuck', 'Symbol(s)'],
+        ['__stuck', 'Symbol(s)'],
+      ],
+    )
+    const warnings = consoleWarnings(run.events)
+    assert.deepEqual(
+      warnings.map((event) => [event.taskId, event.stream, event.level, event.origin]),
+      [
+        [null, 'stderr', 'warn', null],
+        [null, 'stderr', 'warn', null],
+      ],
+    )
+    for (const [index, name] of ['a.test.js', 'b.test.js'].entries()) {
+      const text = warnings[index]?.text ?? ''
+      assert.ok(text.includes(p.path(name)), `names the file: ${text}`)
+      assert.ok(text.includes('__stuck, Symbol(s)'), `names the keys: ${text}`)
+      assert.match(text, /Later files in this worker can see them\.\n$/)
+    }
+    // Each warning arrives after its own file ended and before the next file started.
+    const kinds = run.events.map((event) => event.type)
+    const warnAt = run.events.findIndex((event) => event.type === 'console')
+    assert.ok(kinds.indexOf('file-end') < warnAt)
+    assert.ok(warnAt < kinds.indexOf('file-collect-start', kinds.indexOf('file-end')))
+  })
+
+  it('leaves leakedGlobals empty on fileDone for a clean file, and sends no warning', async () => {
+    const p = await project(files)
+    const config = runtimeConfig(p.dir)
+    const run = await runJobs({
+      config,
+      jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
+    })
+    assert.deepEqual(
+      run.done.map((done) => done.leakedGlobals),
+      [[], []],
+    )
+    assert.deepEqual(consoleWarnings(run.events), [])
+  })
+
+  it('under none is reported once, when the worker stops: a warning before stopped, nothing on fileDone', async () => {
+    const p = await project(files)
+    const config = runtimeConfig(p.dir, { environmentOptions: { leak: '__stuck' } })
+    const run = await runJobs({
+      config,
+      isolation: 'none',
+      jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
+    })
+    assert.deepEqual(states(run.events), { a: 'pass', b: 'pass' })
+    assert.deepEqual(run.exit, { type: 'exit', code: 0 })
+    assert.equal(eventsOf(run.events, 'unhandled-error').length, 0)
+    assert.deepEqual(
+      run.done.map((done) => done.leakedGlobals),
+      [[], []],
+      'the files leaked nothing the worker knew of while it ran',
+    )
+    const [warning, ...more] = consoleWarnings(run.events)
+    assert.equal(more.length, 0)
+    assert.equal(warning?.taskId, null)
+    assert.equal(
+      warning?.text,
+      'Provino: the environment could not remove 1 global when the worker stopped: __stuck.\n',
+    )
+    // It is the last thing the worker sent: after the last file ended.
+    assert.equal(run.events.at(-1), warning)
+  })
+
+  it('a teardown that throws is still charged to the file, with no keys reported', async () => {
+    const p = await project(files)
+    const config = runtimeConfig(p.dir, { environmentOptions: { failTeardown: true, leak: 'x' } })
+    const run = await runJobs({ config, jobs: [runtimeJob(config, p.path('a.test.js'))] })
+    assert.deepEqual(
+      eventsOf(run.events, 'unhandled-error').map((event) => event.error.message),
+      ['teardown failed'],
+    )
+    assert.deepEqual(run.done[0]?.leakedGlobals, [])
+    assert.deepEqual(consoleWarnings(run.events), [])
+  })
+})
+
 describe('stop', () => {
   it('tears the worker environment down and removes the matcher slot', async () => {
     const p = await project({ 'a.test.js': "test('a', () => {})" })
@@ -383,6 +545,38 @@ describe('stop', () => {
     // Worker-scoped: the globals the file saw were removed with the environment.
     assert.equal(Reflect.has(globalThis, 'describe'), false)
   })
+
+  for (const isolation of ['registry', 'none'] as const) {
+    it(`tears down an inline worker that was killed without a stop, so the next one can start (${isolation})`, async () => {
+      const p = await project({
+        'a.test.js': "test('a', () => { expect(1).toBe(1) })",
+        'b.test.js': "test('b', () => { expect(1).toBe(1) })",
+      })
+      const config = runtimeConfig(p.dir)
+      const first = await runJobs({
+        config,
+        isolation,
+        end: 'kill',
+        jobs: [runtimeJob(config, p.path('a.test.js'))],
+      })
+      assert.deepEqual(states(first.events), { a: 'pass' })
+
+      // The same process, a second inline worker: it needs the matcher slot the first held.
+      const second = await runJobs({
+        config,
+        isolation,
+        jobs: [runtimeJob(config, p.path('b.test.js'))],
+      })
+      assert.deepEqual(
+        eventsOf(second.events, 'unhandled-error').map((event) => event.error.code),
+        [],
+      )
+      assert.deepEqual(states(second.events), { b: 'pass' })
+      assert.equal(Reflect.has(globalThis, SLOT), false)
+      // Under none the environment was worker-scoped: the first worker's globals went with it.
+      assert.equal(Reflect.has(globalThis, 'describe'), false)
+    })
+  }
 
   it('copes with a worker whose start failed half-way', async () => {
     const p = await project({ 'a.test.js': "test('a', () => {})" })

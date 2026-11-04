@@ -38,3 +38,22 @@ export function testGlobals(host: GlobalsHost): Probe {
     },
   }
 }
+
+/**
+ * `testGlobals`, and the factory itself adds a matcher to `expect` once, the way a dialect's
+ * factory may. The worker must treat that matcher as part of the baseline it restores to after
+ * each file.
+ */
+export function extendingGlobals(host: GlobalsHost): Probe {
+  const globals = testGlobals(host)
+  const expectWithExtend = host.expect as {
+    extend(matchers: Record<string, (received: unknown) => unknown>): void
+  }
+  expectWithExtend.extend({
+    toBeFromFactory: (received) => ({
+      pass: received === 'factory',
+      message: () => `expected ${String(received)} to be "factory"`,
+    }),
+  })
+  return globals
+}

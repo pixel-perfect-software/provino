@@ -2,13 +2,15 @@
 import {
   createRuntimeRunner,
   type FileContext,
+  type FileOutcome,
+  type RuntimeGlobalsHost,
   type WorkerContext,
   WorkerError,
   type WorkerErrorCode,
   type WorkerRunner,
 } from '@provino/orchestrator/worker'
 import main from '@provino/orchestrator/worker/main'
-import type { WorkerMain } from '@provino/types'
+import type { GlobalsHost, WorkerMain } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
 // The real runtime is a runner, and its entry is a `WorkerMain`.
@@ -56,4 +58,30 @@ const returnsValue: WorkerRunner = {
   stop: () => 1,
 }
 
-export { badStop, minimal, returnsValue, stopping, stoppingSync }
+// A file's outcome carries the globals its environment could not remove (D22), as strings.
+expectTypeOf<FileOutcome['leakedGlobals']>().toEqualTypeOf<readonly string[] | undefined>()
+const leaky: FileOutcome = { leakedGlobals: ['a', 'Symbol(b)'] }
+const none: FileOutcome = {}
+// @ts-expect-error the keys are strings (a symbol key is `String(symbol)`)
+const symbolKey: FileOutcome = { leakedGlobals: [Symbol('b')] }
+// @ts-expect-error a list, not one key
+const oneKey: FileOutcome = { leakedGlobals: 'a' }
+const leakingRunner: WorkerRunner = { runFile: async () => leaky }
+
+// The host the worker gives a dialect's globals factory has the real types of what a plain
+// `GlobalsHost` declares as `object` (the bench checks it against the Jest dialect's own host).
+expectTypeOf<RuntimeGlobalsHost>().toExtend<GlobalsHost>()
+expectTypeOf<RuntimeGlobalsHost['api']>().not.toEqualTypeOf<GlobalsHost['api']>()
+expectTypeOf<RuntimeGlobalsHost['expect']>().not.toEqualTypeOf<GlobalsHost['expect']>()
+
+export {
+  badStop,
+  leakingRunner,
+  minimal,
+  none,
+  oneKey,
+  returnsValue,
+  stopping,
+  stoppingSync,
+  symbolKey,
+}
