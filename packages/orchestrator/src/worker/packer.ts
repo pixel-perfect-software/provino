@@ -3,14 +3,8 @@
 // numbered and acked cumulatively; at most 8 wait for an ack, and later packs queue behind them in
 // order, which bounds what a slow coordinator holds. Nothing is coalesced: every event is a
 // distinct transition reporters see (one event model, §6), so the pack itself is the batching.
-import * as timers from 'node:timers'
 import type { WorkerEvent, WorkerToCoordinator } from '@provino/types'
-
-// Taken once, at load: fake timers installed later by a test file can't stall the flush.
-const nativeSetImmediate = timers.setImmediate
-const nativeClearImmediate = timers.clearImmediate
-const nativeSetTimeout = timers.setTimeout
-const nativeClearTimeout = timers.clearTimeout
+import { nativeSetImmediate, nativeSetTimeout } from './timers.ts'
 
 /**
  * A pack on the wire.
@@ -47,14 +41,17 @@ export interface Packer {
   emit(event: WorkerEvent): void
   /** The coordinator has handled every pack up to `pack`. */
   ack(pack: number): void
+  /**
+   * Runs `callback` once every event emitted so far has been sent, in order with the packs: how
+   * the worker sends `fileDone` and `stopped` after a file's last event, exactly.
+   */
+  afterSent(callback: () => void): void
   /** Resolves once every event emitted so far has been sent. */
   flush(): Promise<void>
   /** Resolves when fewer than `maxPacksInFlight` packs await an ack. */
   writable(): Promise<void>
   /** Packs sent and not yet acked. */
   readonly inFlight: number
-  /** Events emitted and not yet sent. */
-  readonly pending: number
 }
 
 /**
@@ -69,13 +66,12 @@ export function createPacker(
   const maxInFlight = options.maxPacksInFlight ?? 8
   const schedule = options.schedule ?? 'macrotask'
   let buffer: WorkerEvent[] = []
-  /** Cut packs not sent yet, oldest first. */
-  const waiting: WorkerEvent[][] = []
+  /** Cut packs not sent yet, and `afterSent` callbacks between them, oldest first. */
+  const waiting: (WorkerEvent[] | (() => void))[] = []
   /** The number the next sent pack gets; also how many have been sent. */
   let nextPack = 0
   let lastAcked = -1
-  let timer: { readonly cancel: () => void } | undefined
-  const flushWaiters: { readonly upTo: number; readonly resolve: () => void }[] = []
+  let armed = false
   const writableWaiters: (() => void)[] = []
 
   const inFlight = (): number => nextPack - 1 - lastAcked
@@ -112,38 +108,46 @@ export function createPacker(
   }
 
   const pump = (): void => {
-    while (waiting.length > 0 && inFlight() < maxInFlight) {
-      sendPack(nextPack, waiting.shift() as WorkerEvent[])
-      nextPack++
-    }
-    for (let i = flushWaiters.length - 1; i >= 0; i--) {
-      const waiter = flushWaiters[i] as (typeof flushWaiters)[number]
-      if (nextPack >= waiter.upTo) {
-        flushWaiters.splice(i, 1)
-        waiter.resolve()
+    for (let next = waiting[0]; next !== undefined; next = waiting[0]) {
+      if (typeof next === 'function') {
+        waiting.shift()
+        next()
+      } else if (inFlight() < maxInFlight) {
+        waiting.shift()
+        sendPack(nextPack++, next)
+      } else {
+        break
       }
     }
-    if (inFlight() < maxInFlight) for (const resolve of writableWaiters.splice(0)) resolve()
+    if (writableWaiters.length > 0 && inFlight() < maxInFlight) {
+      for (const resolve of writableWaiters.splice(0)) resolve()
+    }
   }
 
   const cut = (): void => {
-    timer?.cancel()
-    timer = undefined
     if (buffer.length === 0) return
     waiting.push(buffer)
     buffer = []
     pump()
   }
 
+  // An armed timer is never cancelled: when it fires after an early cut, it cuts whatever came
+  // since, or nothing. The interval timer is unref'd: the worker's link keeps the process alive.
+  const fire = (): void => {
+    armed = false
+    cut()
+  }
   const arm = (): void => {
-    if (timer !== undefined) return
-    if (schedule === 'macrotask') {
-      const handle = nativeSetImmediate(cut)
-      timer = { cancel: () => nativeClearImmediate(handle) }
-    } else {
-      const handle = nativeSetTimeout(cut, schedule.intervalMs)
-      timer = { cancel: () => nativeClearTimeout(handle) }
-    }
+    if (armed) return
+    armed = true
+    if (schedule === 'macrotask') nativeSetImmediate(fire)
+    else nativeSetTimeout(fire, schedule.intervalMs).unref()
+  }
+
+  const afterSent = (callback: () => void): void => {
+    cut()
+    waiting.push(callback)
+    pump()
   }
 
   return {
@@ -157,11 +161,9 @@ export function createPacker(
       lastAcked = Math.min(pack, nextPack - 1)
       pump()
     },
+    afterSent,
     flush() {
-      cut()
-      const upTo = nextPack + waiting.length
-      if (nextPack >= upTo) return Promise.resolve()
-      return new Promise((resolve) => flushWaiters.push({ upTo, resolve }))
+      return new Promise((resolve) => afterSent(resolve))
     },
     writable() {
       if (inFlight() < maxInFlight) return Promise.resolve()
@@ -169,9 +171,6 @@ export function createPacker(
     },
     get inFlight() {
       return inFlight()
-    },
-    get pending() {
-      return buffer.length + waiting.reduce((sum, events) => sum + events.length, 0)
     },
   }
 }

@@ -5,6 +5,7 @@
 import { Console } from 'node:console'
 import { StringDecoder } from 'node:string_decoder'
 import type { RuntimeEventOf, TaskId } from '@provino/types'
+import { flushStream } from './stdio.ts'
 
 /**
  * The part of a writable stream the capture patches: `process.stdout`, `process.stderr`, or a
@@ -96,25 +97,25 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
   const fresh = (): Console =>
     new Console({ stdout: sink('stdout'), stderr: sink('stderr'), ignoreErrors: false })
 
-  let inner = fresh()
-  // The console handed out is a stable front whose methods call the current inner Console. A
-  // Console's methods are its own bound properties, and the ones that print through others
-  // (`count`, `table`, `assert`, `trace`, `group`) call the inner instance's own, unwrapped ones,
-  // so they keep the front method's level. A call that comes back through the front (an
-  // `inspect.custom` that logs) is recorded under its own.
+  /** A Console's methods are its own bound properties; seen as a record of them. */
+  type Methods = Record<string, (...args: unknown[]) => unknown>
+  let inner = fresh() as unknown as Methods
+  /** Whether a method ran since the last reset: a file that never logs keeps its console. */
+  let used = false
+  // The console handed out is a stable front whose methods call the current inner Console. The
+  // inner methods that print through others (`count`, `table`, `assert`, `trace`, `group`) call
+  // the inner instance's own, unwrapped ones, so they keep the front method's level. A call that
+  // comes back through the front (an `inspect.custom` that logs) is recorded under its own.
   const front = Object.create(Console.prototype) as Console
-  const methods = front as unknown as Record<string, unknown>
-  for (const name of Object.keys(inner)) {
-    if (typeof (inner as unknown as Record<string, unknown>)[name] !== 'function') continue
+  const methods = front as unknown as Methods
+  for (const [name, method] of Object.entries(inner)) {
+    if (typeof method !== 'function') continue
     methods[name] = (...args: unknown[]): unknown => {
       const outer = level
       level = name
+      used = true
       try {
-        return Reflect.apply(
-          (inner as unknown as Record<string, () => unknown>)[name] as () => unknown,
-          inner,
-          args,
-        )
+        return Reflect.apply(inner[name] as Methods[string], inner, args)
       } finally {
         level = outer
       }
@@ -124,7 +125,9 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
   return {
     console: front,
     reset() {
-      inner = fresh()
+      if (!used) return
+      inner = fresh() as unknown as Methods
+      used = false
     },
     install(streams, target) {
       const previousConsole = target?.console
@@ -173,10 +176,7 @@ function patch(
     return true
   }
   return {
-    flush: () =>
-      new Promise<void>((resolve) => {
-        Reflect.apply(original, stream, ['', () => resolve()])
-      }),
+    flush: () => flushStream(stream as Parameters<typeof flushStream>[0], original),
     restore() {
       if (own) stream.write = original
       else delete (stream as Partial<WritableLike>).write
