@@ -2,6 +2,7 @@
 // The events on the wire and on the bus are Track 5's `RuntimeEvent`s (one event model, see the
 // package README); Track 9's own `task:*`/`hook:*` event shapes are gone. Runtime pieces
 // (`defineReporter`, `inject`, the `ExitCode` constant) land in `@provino/orchestrator`.
+import type { CloneSafe, JsonValue } from './clone-safe.ts'
 import type { CoverageSummary } from './coverage.ts'
 import type { IsolationTier } from './isolation.ts'
 import type { PoolKind } from './policy/orchestrator.ts'
@@ -73,10 +74,10 @@ export interface WorkerInit {
   readonly key: WorkerKey
   readonly workerId: number
   readonly isolation: IsolationTier
-  /** Values from global setup's `provide()`. Typed by the RPC layer (B09). */
-  readonly provided: Readonly<Record<string, unknown>>
-  /** The serialized project config. Typed by the RPC layer (B09). */
-  readonly config: unknown
+  /** Values from global setup's `provide()`. */
+  readonly provided: Readonly<Partial<ProvidedContext>>
+  /** The serialized project config. Its shape arrives with the worker runtime (U1). */
+  readonly config: JsonValue
 }
 
 /**
@@ -124,36 +125,95 @@ export interface CoordinatorMethods {
 }
 
 /**
- * A message from the coordinator to a worker.
+ * Methods the coordinator calls on a worker.
  * @public
  */
-export type CoordinatorToWorker =
-  | { readonly t: 'start'; readonly init: WorkerInit }
-  | { readonly t: 'run'; readonly seq: number; readonly job: FileJob }
-  | { readonly t: 'ack'; readonly pack: number }
-  | { readonly t: 'reply'; readonly id: number; readonly ok: true; readonly value: unknown }
+export interface WorkerMethods {
+  /**
+   * The worker's memory in bytes, measured by the worker itself (a parent can't read a forked
+   * child's RSS): RSS in a fork, `heapUsed + external` in a thread or inline, where RSS is the
+   * whole process's. `fileDone.memoryBytes` uses the same measure.
+   */
+  memoryUsage(): number
+}
+
+/**
+ * `Methods` with every method whose arguments or awaited result can't cross a thread replaced by
+ * `never`, so `M extends RpcSchema<M>` holds only for a clone-safe interface: a method taking
+ * `() => void` fails it.
+ * @public
+ */
+export type RpcSchema<Methods> = {
+  readonly [K in keyof Methods]: Methods[K] extends (...args: infer A) => infer R
+    ? [A] extends [CloneSafe<A>]
+      ? [Awaited<R>] extends [CloneSafe<Awaited<R>>]
+        ? Methods[K]
+        : never
+      : never
+    : never
+}
+
+/** A method's arguments, as sent. */
+type RpcArgs<Method> = Method extends (...args: infer A) => unknown ? Readonly<A> : never
+
+/** Every method's awaited result, as a union. */
+type RpcResult<Methods> = {
+  [K in keyof Methods]: Methods[K] extends (...args: never) => infer R ? Awaited<R> : never
+}[keyof Methods]
+
+/**
+ * A call to one of `Methods`, on the wire. `id` pairs it with its reply.
+ * @public
+ */
+export type RpcCall<Methods> = {
+  readonly [K in keyof Methods & string]: {
+    readonly t: 'call'
+    readonly id: number
+    readonly method: K
+    readonly args: RpcArgs<Methods[K]>
+  }
+}[keyof Methods & string]
+
+/**
+ * The reply to an `RpcCall<Methods>`: the method's result, or the error it threw, serialized.
+ * @public
+ */
+export type RpcReply<Methods> =
+  | {
+      readonly t: 'reply'
+      readonly id: number
+      readonly ok: true
+      readonly value: RpcResult<Methods>
+    }
   | {
       readonly t: 'reply'
       readonly id: number
       readonly ok: false
       readonly error: SerializedError
     }
-  | { readonly t: 'cancel'; readonly reason: 'sigint' | 'bail' | 'watch-rerun' }
-  | { readonly t: 'stop' }
 
 /**
- * A message from a worker to the coordinator. `pack` is the batched envelope for events.
+ * A message from the coordinator to a worker. `start` answers the worker's `ready`; `ack`
+ * acknowledges the worker's packs (cumulatively) up to `pack`.
+ * @public
+ */
+export type CoordinatorToWorker =
+  | { readonly t: 'start'; readonly init: WorkerInit }
+  | { readonly t: 'run'; readonly seq: number; readonly job: FileJob }
+  | { readonly t: 'ack'; readonly pack: number }
+  | { readonly t: 'cancel'; readonly reason: 'sigint' | 'bail' | 'watch-rerun' }
+  | { readonly t: 'stop' }
+  | RpcCall<WorkerMethods>
+  | RpcReply<CoordinatorMethods>
+
+/**
+ * A message from a worker to the coordinator. `ready` says the worker is listening; `pack` is the
+ * batched envelope for events; `fileDone` follows the file's last pack.
  * @public
  */
 export type WorkerToCoordinator =
   | { readonly t: 'ready' }
   | { readonly t: 'pack'; readonly pack: number; readonly events: readonly WorkerEvent[] }
-  | {
-      readonly t: 'call'
-      readonly id: number
-      readonly method: keyof CoordinatorMethods
-      readonly args: readonly unknown[]
-    }
   | {
       readonly t: 'fileDone'
       readonly seq: number
@@ -161,6 +221,8 @@ export type WorkerToCoordinator =
       readonly leakedHandles: number
     }
   | { readonly t: 'stopped' }
+  | RpcCall<CoordinatorMethods>
+  | RpcReply<WorkerMethods>
 
 /**
  * The caller's view of an RPC interface: every method returns a promise.
@@ -173,19 +235,60 @@ export type RpcClient<Methods> = {
 }
 
 /**
- * One worker's connection. Forks, threads and in-process workers share one RPC layer over it.
+ * One worker's connection, seen from the coordinator. Forks, threads and in-process workers share
+ * one RPC layer over it.
  * @public
  */
 export interface Transport {
   readonly kind: PoolKind
+  /** The child's pid; `undefined` for a thread or an inline worker. */
   readonly pid: number | undefined
   send(message: CoordinatorToWorker, transfer?: readonly ArrayBuffer[]): void
   /** Returns an unsubscribe function. */
   onMessage(listener: (message: WorkerToCoordinator) => void): () => void
+  /** Called once, when the worker has exited. A listener added after that is called at once. */
   onExit(listener: (exit: WorkerExit) => void): () => void
-  memoryUsage(): Promise<number>
+  /**
+   * Ends the worker. Graceful: send `stop`, wait the teardown timeout, then SIGTERM, then SIGKILL
+   * after 500 ms. `force`: kill at once. Resolves once the worker has exited.
+   */
   terminate(force: boolean): Promise<void>
 }
+
+/**
+ * Why a message link closed: the other side exited, disconnected or closed it.
+ * @public
+ */
+export interface LinkClosed {
+  readonly type: 'closed'
+}
+
+/**
+ * One end of an ordered, structured-clone message link (a `MessagePort`, a fork's IPC channel).
+ * @public
+ */
+export interface MessageLink<Out, In> {
+  /** `transfer` moves the buffers where the link can (ports); a fork's IPC copies them. */
+  send(message: Out, transfer?: readonly ArrayBuffer[]): void
+  /** Returns an unsubscribe function. */
+  onMessage(listener: (message: In) => void): () => void
+  /** Called once, when the link closes. A listener added after that is called at once. */
+  onExit(listener: (cause: LinkClosed) => void): () => void
+  close(): void
+}
+
+/**
+ * A worker's side of its transport.
+ * @public
+ */
+export type WorkerPort = MessageLink<WorkerToCoordinator, CoordinatorToWorker>
+
+/**
+ * What a worker entry module default-exports. Every transport loads the entry and calls it with
+ * the worker's port: in a fork, in a thread, or in the coordinator's own process (inline).
+ * @public
+ */
+export type WorkerMain = (port: WorkerPort) => void | Promise<void>
 
 /**
  * Starts workers of one kind: the pool contract a plugin can contribute.
