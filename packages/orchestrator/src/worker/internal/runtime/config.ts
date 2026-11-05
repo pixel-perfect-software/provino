@@ -1,9 +1,9 @@
 // The project config arrives in `WorkerInit` typed, but it crossed a link: the worker checks that
 // every piece it reads is there before it builds anything, so a malformed config fails with a code
-// and the name of the key, instead of a `TypeError` from the middle of the boot. Leaf values of
-// the policy are checked where they are used (behaviour keys by the behaviour loader).
+// and the name of the key, instead of a `TypeError` from the middle of the boot. The policy's data
+// keys are checked where they are used; where its behaviour refs point is checked here (D21).
 import { isAbsolute } from 'node:path'
-import { isModuleRef, neutralPolicy } from '@provino/policy'
+import { forEachModuleRef, isImportableLocation, isModuleRef, neutralPolicy } from '@provino/policy'
 import type {
   EnvironmentRef,
   GlobalsFactory,
@@ -37,13 +37,6 @@ function texts(value: unknown, path: string): readonly string[] {
   return isStringArray(value) ? value : invalid(path, 'an array of strings')
 }
 
-/** Every slice of the policy is there as an object: the shape `SerializedPolicy` promises. */
-function serializedPolicy(value: unknown): SerializedPolicy {
-  const policy = record(value, 'policy')
-  for (const slice of Object.keys(neutralPolicy)) record(policy[slice], `policy.${slice}`)
-  return policy as SerializedPolicy
-}
-
 /**
  * A module location a worker can import as it is: an absolute path or an absolute URL (`file:`,
  * `data:`, `node:`). A bare package specifier would resolve from this package's own location, which
@@ -51,13 +44,29 @@ function serializedPolicy(value: unknown): SerializedPolicy {
  */
 function moduleLocation(value: unknown, path: string): string {
   const location = text(value, path)
-  if (!isAbsolute(location) && !URL.canParse(location)) {
+  if (!isImportableLocation(location)) {
     return invalid(
       path,
       'an absolute path or URL, such as a file: URL (the coordinator resolves package specifiers)',
     )
   }
   return location
+}
+
+/**
+ * Every slice of the policy is there as an object (the shape `SerializedPolicy` promises) and every
+ * behaviour ref in it is absolute.
+ */
+function serializedPolicy(value: unknown): SerializedPolicy {
+  const policy = record(value, 'policy')
+  for (const slice of Object.keys(neutralPolicy)) record(policy[slice], `policy.${slice}`)
+  // Every behaviour in the policy is a `{ module, export }` ref under its slice (D21): a worker
+  // imports each `module` as it is, so each is absolute like the environment's, the policy's own
+  // refs (`neutralPolicy`'s, a dialect's) included.
+  forEachModuleRef(policy, 'policy', (ref, path) => {
+    moduleLocation(ref.module, `${path}.module`)
+  })
+  return policy as SerializedPolicy
 }
 
 /**

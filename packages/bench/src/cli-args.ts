@@ -5,7 +5,13 @@ import { DEFAULT_RUN_TIMEOUT_MS, isTimerMs, MAX_RUN_TIMEOUT_MS } from './exec.ts
 import { errorMessage } from './internal/guards.ts'
 import { parseLabel, runsProblem } from './report.ts'
 import { DEFAULT_COLD_RUNS, DEFAULT_WARM_RUNS } from './run-bench.ts'
-import { parseSuiteName, RUNNERS, type RunnerName, type SuiteSpec } from './suites.ts'
+import {
+  BENCHMARKED_RUNNERS,
+  parseSuiteName,
+  RUNNERS,
+  type RunnerName,
+  type SuiteSpec,
+} from './suites.ts'
 
 /**
  * A parsed command line.
@@ -42,12 +48,16 @@ export const USAGE: string = `provino-bench: Provino's benchmark protocol (Track
 
 Usage:
   provino-bench generate <suite>
-  provino-bench check <suite> --runner jest [--runner vitest] [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}]
+  provino-bench check <suite> --runner jest [--runner vitest] [--runner provino] [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}]
   provino-bench run <suite> --runner jest|vitest [--runner ...]
                     [--warm ${DEFAULT_WARM_RUNS}] [--cold ${DEFAULT_COLD_RUNS}] [--label local|desktop|pinned]
                     [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}] [--out <file>] [--machine-id <id>]
 
 Suites: app-N, mock-heavy-N (N from 1 to 9999), isolate-heavy.
+Runners: jest, vitest, and provino, which \`check\` only: it runs the provino bin on the suite's jest/
+  tree (all cores but one, the default) and requires every test to pass; with --runner jest in the
+  same check it also requires Provino's per-test statuses to equal Jest's. \`run\` doesn't take it
+  yet: Provino's record is the kill-check's (B12).
 Options: each applies only to the commands above that show it.
   --warm, --cold   Timed runs per subject: whole numbers of 1 or more. The R5 protocol is
                    ${DEFAULT_WARM_RUNS} warm and ${DEFAULT_COLD_RUNS} cold. desktop and pinned records need at least that
@@ -126,12 +136,22 @@ function onlyOptions(
   }
 }
 
-function runners(values: readonly string[] | undefined): readonly RunnerName[] {
+// `run` records only the runners whose numbers are a result; `check` takes them all.
+function runners(
+  values: readonly string[] | undefined,
+  command: 'check' | 'run',
+): readonly RunnerName[] {
   if (values === undefined || values.length === 0) throw usage('pass at least one --runner')
+  const allowed = command === 'run' ? BENCHMARKED_RUNNERS : RUNNERS
   const parsed: RunnerName[] = []
   for (const value of values) {
     const runner = RUNNERS.find((candidate) => candidate === value)
-    if (runner === undefined) throw usage(`--runner must be ${RUNNERS.join(' or ')}; got ${value}`)
+    if (runner === undefined) throw usage(`--runner must be ${allowed.join(' or ')}; got ${value}`)
+    if (!allowed.includes(runner)) {
+      throw usage(
+        `--runner ${runner} is for check only; run records ${allowed.join(' and ')} (Provino's record is the kill-check's, B12)`,
+      )
+    }
     if (!parsed.includes(runner)) parsed.push(runner)
   }
   return parsed
@@ -157,7 +177,7 @@ export function parseCli(argv: readonly string[]): CliCommand {
       return {
         command,
         suite,
-        runners: runners(values.runner),
+        runners: runners(values.runner, 'check'),
         timeoutMs: timeoutMs(values.timeout),
       }
     case 'run': {
@@ -171,7 +191,7 @@ export function parseCli(argv: readonly string[]): CliCommand {
       return {
         command,
         suite,
-        runners: runners(values.runner),
+        runners: runners(values.runner, 'run'),
         warm,
         cold,
         label,

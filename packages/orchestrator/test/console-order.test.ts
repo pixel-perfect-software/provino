@@ -8,11 +8,11 @@
 import assert from 'node:assert/strict'
 import { Console } from 'node:console'
 import { describe, it } from 'node:test'
-import { connectWorker } from '@provino/orchestrator'
+import { connectWorker, transportFor } from '@provino/orchestrator'
 import type { PoolKind, TaskId, WorkerEvent } from '@provino/types'
 import { type Op, program } from './fixtures/program.ts'
 import { gap, int, seeded } from './fixtures/random.ts'
-import { factoryFor, fixture, initFor, job, methods } from './support.ts'
+import { fixture, initFor, job, methods } from './support.ts'
 
 type Seen =
   | { readonly kind: 'event'; readonly n: number }
@@ -91,7 +91,7 @@ const CASES: readonly {
 describe('console order matches event order', () => {
   for (const { kind, entry, cases } of CASES) {
     it(`${kind}: ${only === undefined ? cases : 1} seeded programs`, async () => {
-      const transport = await factoryFor(kind, { entry: fixture(entry) }).create(initFor(kind))
+      const transport = await transportFor(kind, { entry: fixture(entry) }).create(initFor(kind))
       const random = seeded(kind.length)
       let received: WorkerEvent[] = []
       const connection = connectWorker(transport, {

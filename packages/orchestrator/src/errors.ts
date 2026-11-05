@@ -7,6 +7,12 @@ export type OrchestratorErrorCode =
   | 'ORCH_WORKER_EXITED'
   | 'ORCH_BAD_ENTRY'
   | 'ORCH_BAD_INIT'
+  /** A run option names something the coordinator doesn't do yet (the message names the task that will). */
+  | 'ORCH_NOT_IMPLEMENTED'
+  /** The test name pattern isn't a valid regular expression. */
+  | 'ORCH_BAD_PATTERN'
+  /** A worker sent an event the coordinator can't place (a task id it never announced). */
+  | 'ORCH_BAD_EVENT'
 
 /**
  * A coordinator error with a stable code. For `ORCH_WORKER_EXITED` the `cause` is the

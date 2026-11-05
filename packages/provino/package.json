@@ -1,0 +1,47 @@
+{
+  "name": "provino",
+  "version": "0.0.0",
+  "description": "A fast, type-safe test runner for JavaScript and TypeScript. A drop-in replacement for Jest and Vitest, with RSpec-style lazy variables built in.",
+  "homepage": "https://github.com/pixel-perfect-software/provino#readme",
+  "bugs": {
+    "url": "https://github.com/pixel-perfect-software/provino/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pixel-perfect-software/provino.git",
+    "directory": "packages/provino"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./node": {
+      "provino-source": "./src/node.ts",
+      "types": "./dist/node.d.ts"
+    },
+    "./package.json": {
+      "provino-source": "./package.json",
+      "default": "./package.json"
+    }
+  },
+  "bin": {
+    "provino": "./src/cli.ts"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@provino/config": "workspace:*",
+    "@provino/dialect-jest": "workspace:*",
+    "@provino/env-node": "workspace:*",
+    "@provino/orchestrator": "workspace:*",
+    "@provino/reporters": "workspace:*",
+    "@provino/types": "workspace:*"
+  }
+}

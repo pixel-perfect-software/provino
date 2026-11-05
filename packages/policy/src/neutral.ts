@@ -2,7 +2,12 @@ import type { EnvironmentConditions, FormatEachTitle, Policy, SnapshotKey } from
 import { deepFreeze } from './internal/objects.ts'
 import { moduleRef } from './module-ref.ts'
 
-const BEHAVIOURS = '@provino/policy/behaviours'
+/**
+ * Where the neutral behaviours live, as an absolute `file:` URL (D21: a ref that crosses to a worker
+ * is absolute, so nothing depends on where the worker resolves from). The package names itself
+ * through its own `exports`, which works in source (`--conditions=provino-source`) and once built.
+ */
+const BEHAVIOURS: string = import.meta.resolve('@provino/policy/behaviours')
 
 /**
  * The neutral dialect's policy: what Provino does with no dialect, and the base every layer

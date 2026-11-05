@@ -2,15 +2,9 @@
 // dialect's policy and globals, the node environment, the setup file of the suite, and the
 // coordinator side of B09 (`connectWorker` over a transport). Until `provino/node` exists this is
 // the bench's own entry, as DECISIONS S4 allows; B11's coordinator replaces it.
-import { createHash } from 'node:crypto'
-import { relative, sep } from 'node:path'
+import { relative } from 'node:path'
 import { jestDialect, jestPolicy } from '@provino/dialect-jest'
-import {
-  connectWorker,
-  forksTransport,
-  inlineTransport,
-  threadsTransport,
-} from '@provino/orchestrator'
+import { connectWorker, fileIdOf, relativePosix, transportFor } from '@provino/orchestrator'
 import { resolvePolicy, serializePolicy } from '@provino/policy'
 import type {
   CoordinatorMethods,
@@ -20,7 +14,6 @@ import type {
   PoolKind,
   SerializedProjectConfig,
   TaskId,
-  TransportFactory,
   WorkerEvent,
   WorkerExit,
   WorkerInit,
@@ -43,17 +36,6 @@ const NODE_ENVIRONMENT: EnvironmentRef = {
  * @public
  */
 export const PROJECT_NAME = 'bench'
-
-/**
- * The id `@provino/core` gives a file: a SHA-1 over the project name and the POSIX path relative to
- * the root, cut to 10 hex characters. Core does not export it (B11's coordinator will need its
- * own), so this repeats the formula; the ordering checker compares every event's file id with it.
- * @public
- */
-export function fileIdOf(projectName: string, rootDir: string, file: string): TaskId {
-  const path = relative(rootDir, file).split(sep).join('/')
-  return createHash('sha1').update(`${projectName}\0${path}`).digest('hex').slice(0, 10) as TaskId
-}
 
 /**
  * The project config for a worker running Jest-flavoured suites: the Jest dialect's resolved
@@ -166,20 +148,6 @@ const MAX_FAILURES = 10
  */
 export const POOLS: readonly PoolKind[] = ['inline', 'threads', 'forks']
 
-function transportFor(pool: PoolKind, stderr: NodeJS.WritableStream | undefined): TransportFactory {
-  const options = { entry: ENTRY, ...(stderr === undefined ? {} : { stderr }) }
-  switch (pool) {
-    case 'forks':
-      return forksTransport(options)
-    case 'threads':
-      return threadsTransport(options)
-    case 'inline':
-      return inlineTransport(options)
-    default:
-      return pool satisfies never
-  }
-}
-
 /**
  * Starts one worker of `pool`, runs `files` through it one at a time, stops it, and reports what
  * the coordinator saw: test counts, the ordering checker's violations, and the wall time (`local`).
@@ -274,7 +242,10 @@ export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerR
   }
 
   const start = performance.now()
-  const transport = await transportFor(pool, options.stderr).create(init)
+  const transport = await transportFor(pool, {
+    entry: ENTRY,
+    ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
+  }).create(init)
   const connection = connectWorker(transport, {
     methods: METHODS,
     onEvents: (batch) => {
@@ -287,7 +258,7 @@ export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerR
     for (const file of options.files) {
       const job: FileJob = {
         file,
-        fileId: fileIdOf(PROJECT_NAME, options.rootDir, file),
+        fileId: fileIdOf(PROJECT_NAME, relativePosix(options.rootDir, file)),
         updateSnapshots: 'none',
       }
       const current: RunningFile = { label: relative(options.rootDir, file), names: new Map() }

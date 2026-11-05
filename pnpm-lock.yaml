@@ -308,6 +308,9 @@ catalogs:
     pretty-format:
       specifier: 30.5.1
       version: 30.5.1
+    tinyglobby:
+      specifier: 0.2.17
+      version: 0.2.17
     tsdown:
       specifier: 0.23.2
       version: 0.23.2
@@ -399,6 +402,9 @@ importers:
       '@provino/types':
         specifier: workspace:*
         version: link:../types
+      provino:
+        specifier: workspace:*
+        version: link:../provino
     devDependencies:
       '@swc/core':
         specifier: 'catalog:'
@@ -433,6 +439,15 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.6.7
+
+  packages/config:
+    dependencies:
+      '@provino/policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/core:
     dependencies:
@@ -569,6 +584,9 @@ importers:
 
   packages/orchestrator:
     dependencies:
+      '@provino/config':
+        specifier: workspace:*
+        version: link:../config
       '@provino/core':
         specifier: workspace:*
         version: link:../core
@@ -587,8 +605,42 @@ importers:
       '@provino/types':
         specifier: workspace:*
         version: link:../types
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.17
+    devDependencies:
+      '@provino/reporters':
+        specifier: workspace:*
+        version: link:../reporters
 
   packages/policy:
+    dependencies:
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
+
+  packages/provino:
+    dependencies:
+      '@provino/config':
+        specifier: workspace:*
+        version: link:../config
+      '@provino/dialect-jest':
+        specifier: workspace:*
+        version: link:../dialect-jest
+      '@provino/env-node':
+        specifier: workspace:*
+        version: link:../env-node
+      '@provino/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
+      '@provino/reporters':
+        specifier: workspace:*
+        version: link:../reporters
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
+
+  packages/reporters:
     dependencies:
       '@provino/types':
         specifier: workspace:*

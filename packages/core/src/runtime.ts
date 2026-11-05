@@ -8,6 +8,7 @@ import type {
   EventSink,
   ImportFile,
   LazyHost,
+  TaskId,
   TaskNode,
   TaskResult,
   TestRunHandle,
@@ -69,6 +70,14 @@ export interface RunFileOptions {
   readonly testNamePattern?: string | RegExp
   /** Only these test ids run in this file: replaces the runtime's `testIds`. */
   readonly testIds?: readonly string[]
+  /**
+   * The file's id, assigned by the coordinator (D23; `FileJob.fileId`). Every event of the file and
+   * every task id in it derives from this. Absent (a runtime used on its own), core computes it
+   * from the project name and the file's path relative to the root. A value that is not a
+   * non-empty string fails the file (`CORE_INVALID_ARGUMENT`), and its events then carry the
+   * computed id.
+   */
+  readonly fileId?: TaskId
 }
 
 /**
@@ -139,7 +148,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
    * is not a valid regular expression, throws a `CORE_INVALID_ARGUMENT` naming the option.
    */
   function finalizeOptionsFor(relativePath: string, fileOptions: RunFileOptions): FinalizeOptions {
-    const { testNamePattern, testIds, lines } = fileOptions
+    const { testNamePattern, testIds, lines, fileId } = fileOptions
     const invalid = (option: string, reason: string, cause?: unknown): CoreError =>
       new CoreError(
         'CORE_INVALID_ARGUMENT',
@@ -170,8 +179,15 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     if (lines !== undefined && !Array.isArray(lines)) {
       throw invalid('lines', `expected an array of line numbers, got ${describeType(lines)}`)
     }
+    if (fileId !== undefined && !isFileId(fileId)) {
+      throw invalid(
+        'fileId',
+        `expected a non-empty string, got ${fileId === '' ? 'an empty string' : describeType(fileId)}`,
+      )
+    }
     return {
       ...finalizeOptions,
+      ...(fileId === undefined ? {} : { fileId }),
       ...(filePattern === undefined ? {} : { testNamePattern: filePattern }),
       ...(testIds === undefined ? {} : { testIds: new Set(testIds) }),
       lines: lines === undefined ? undefined : new Set(lines),
@@ -222,7 +238,9 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     }
     const relativePath = relative(options.rootDir, path).split(sep).join('/')
     const file = newFileState(path, relativePath, new AbortController().signal)
-    const fileId = fileIdOf(projectName, relativePath)
+    const fileId = isFileId(fileOptions.fileId)
+      ? fileOptions.fileId
+      : fileIdOf(projectName, relativePath)
     const start = now()
     sink.emit({ type: 'file-collect-start', fileId, path: relativePath, t: start })
     let outcome: Outcome = 'fail'
@@ -270,6 +288,11 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       }
     },
   }
+}
+
+/** Whether a coordinator-assigned file id is usable: a non-empty string. */
+function isFileId(value: unknown): value is TaskId {
+  return typeof value === 'string' && value !== ''
 }
 
 /** What a value is, for an error message: `typeof`, except that `null` is not an object. */

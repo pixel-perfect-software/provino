@@ -113,6 +113,61 @@ describe('parseProjectConfig', () => {
     })
   })
 
+  describe('the policy’s behaviour refs are absolute (D21)', () => {
+    const behaviours = import.meta.resolve('@provino/policy/behaviours')
+
+    it('accepts the neutral policy, whose own refs are file: URLs', () => {
+      for (const ref of [
+        valid.policy.core.formatEachTitle,
+        valid.policy.snapshot.key,
+        valid.policy.orchestrator.environmentConditions,
+      ]) {
+        assert.equal(ref.module, behaviours)
+      }
+      assert.deepEqual(parseProjectConfig(structuredClone(valid)).policy, valid.policy)
+    })
+
+    it('throws ORCH_BAD_CONFIG naming the key path, for a bare specifier or a relative path', () => {
+      const cases: ReadonlyArray<readonly [key: string, module: string]> = [
+        ['policy.core.formatEachTitle', '@provino/policy/behaviours'],
+        ['policy.snapshot.key', '@provino/policy/behaviours'],
+        ['policy.orchestrator.environmentConditions', './conditions.ts'],
+        ['policy.core.formatEachTitle', 'behaviours.ts'],
+      ]
+      for (const [key, module] of cases) {
+        assert.throws(
+          () => parseProjectConfig(with_(key, moduleRef(module, 'x'))),
+          (error: unknown) =>
+            error instanceof WorkerError &&
+            error.code === 'ORCH_BAD_CONFIG' &&
+            error.message.includes(`${key}.module must be an absolute path or URL`),
+          `${key} = ${module}`,
+        )
+      }
+    })
+
+    it('accepts an absolute path or a URL for a behaviour ref', () => {
+      for (const module of ['/abs/behaviours.ts', 'file:///abs/behaviours.ts', 'node:path']) {
+        const parsed = parseProjectConfig(with_('policy.snapshot.key', moduleRef(module, 'x')))
+        assert.equal(parsed.policy.snapshot.key.module, module)
+      }
+    })
+
+    it('finds a ref wherever it is nested, in an array too, and names it', () => {
+      const nested = { list: [moduleRef('/ok.ts', 'a'), { deeper: moduleRef('bare', 'b') }] }
+      assert.throws(() => parseProjectConfig(with_('policy.core.extra', nested)), {
+        code: 'ORCH_BAD_CONFIG',
+        message: /policy\.core\.extra\.list\[1\]\.deeper\.module must be an absolute path/,
+      })
+    })
+
+    it('does not loop on a policy that refers to itself', () => {
+      const cyclic: Record<string, unknown> = { ref: moduleRef('/ok.ts', 'a') }
+      cyclic.self = cyclic
+      assert.doesNotThrow(() => parseProjectConfig(with_('policy.core.extra', cyclic)))
+    })
+  })
+
   describe('paths are absolute', () => {
     // Refs cross to the worker already resolved (D21): a relative path would resolve against the
     // worker's own working directory, which is not the project's.

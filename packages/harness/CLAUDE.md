@@ -9,6 +9,7 @@ Dev-only (private). Turns Jest and Vitest output into the neutral result model, 
 | `src/normalize.ts`                         | `rules` (the 9 F2 rules, each with an id), `normalizeText`, `normalizeError`, `testKey`                            |
 | `src/convert-jest.ts`, `convert-vitest.ts` | `convertJest` (both `--json` and `AggregatedResult` shapes), `convertVitest`; `convert-options.ts` has the options |
 | `src/parse-results.ts`                     | `parseJestJson` / `parseVitestJson`: envelope guards for JSON read from disk                                       |
+| `src/parse-normalized-run.ts`              | `parseNormalizedRun(text, source)`: the structural check of a `NormalizedRun` (the schema for `normalized-json`). It builds the run as it checks (no casts), so an optional field is absent or typed, never `undefined`; a key the model doesn't define is ignored and dropped. `HARNESS_RESULT_INVALID` with the first wrong JSON path in the message (`files[3].tests[0].status`) |
 | `src/diff.ts`                              | `diffRuns` → `ParityReport` (R1/R2), exclusions with expiry                                                        |
 | `src/site.ts`                              | the `./site` entry: `ApiRow`, `ParitySummary`, `SiteIndex`, re-exported bench types                                |
 | `src/fixture.ts`                           | `fixture.json` validation, profiles, test-file selection, fixture discovery (`resolveFixtureDirs` for the CLI)     |

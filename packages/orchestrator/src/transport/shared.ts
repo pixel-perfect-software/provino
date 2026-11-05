@@ -14,6 +14,7 @@ import type {
   WorkerToCoordinator,
 } from '@provino/types'
 import { OrchestratorError } from '../errors.ts'
+import { messageOf } from '../util.ts'
 
 /** Track 9: the wait between SIGTERM and SIGKILL. */
 const KILL_GRACE_MS = 500
@@ -72,7 +73,10 @@ export function createTransport(
   const entry = entryHref(options.entry)
   return {
     kind,
-    create: async (init) => await connect(kind, await spawn(entry), init, options),
+    create: async (init, signal) => {
+      signal?.throwIfAborted()
+      return await connect(kind, await spawn(entry), init, options, signal)
+    },
   }
 }
 
@@ -82,6 +86,7 @@ export function connect(
   spawned: Spawned,
   init: WorkerInit,
   options: TransportOptions,
+  signal?: AbortSignal,
 ): Promise<Transport> {
   const teardownTimeoutMs = teardownTimeoutOf(options)
   const exitListeners = new Set<(exit: WorkerExit) => void>()
@@ -134,9 +139,17 @@ export function connect(
     },
   }
 
-  return handshake(kind, spawned, transport, init, options.startTimeoutMs ?? 30_000, () => {
-    timedOut ??= { type: 'timeout', phase: 'start' }
-  })
+  return handshake(
+    kind,
+    spawned,
+    transport,
+    init,
+    options.startTimeoutMs ?? 30_000,
+    () => {
+      timedOut ??= { type: 'timeout', phase: 'start' }
+    },
+    signal,
+  )
 }
 
 /**
@@ -152,13 +165,22 @@ function handshake(
   init: WorkerInit,
   startTimeoutMs: number,
   markTimedOut: () => void,
+  signal: AbortSignal | undefined,
 ): Promise<Transport> {
   return new Promise<Transport>((resolve, reject) => {
     const done = (): void => {
       clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
       offReady()
       offExit()
     }
+    // Aborted while starting: the worker is killed at once and its exit rejects, as any early one.
+    const onAbort = (): void => {
+      clearTimeout(timer)
+      offReady()
+      spawned.kill('SIGKILL')
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
     const timer = setTimeout(() => {
       // A `ready` read after this is too late: the worker is being killed, and its exit rejects
       // with the timeout.
@@ -194,14 +216,14 @@ function handshake(
       }
       resolve(transport)
     })
+    if (signal?.aborted === true) onAbort()
   })
 }
 
 function badInit(kind: PoolKind, error: unknown): OrchestratorError {
-  const reason = error instanceof Error ? error.message : String(error)
   return new OrchestratorError(
     'ORCH_BAD_INIT',
-    `The ${kind} worker's init can't be sent to it: ${reason}`,
+    `The ${kind} worker's init can't be sent to it: ${messageOf(error)}`,
     { cause: error },
   )
 }

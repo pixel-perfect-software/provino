@@ -48,6 +48,15 @@
     },
     {
       "path": "packages/env-node"
+    },
+    {
+      "path": "packages/config"
+    },
+    {
+      "path": "packages/reporters"
+    },
+    {
+      "path": "packages/provino"
     }
   ]
 }

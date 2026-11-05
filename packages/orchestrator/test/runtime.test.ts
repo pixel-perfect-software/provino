@@ -87,6 +87,48 @@ describe('setup order', () => {
   })
 })
 
+describe('the file id (D23)', () => {
+  it('is the job’s: every event of the file, and every task in it, carries the id the coordinator gave', async () => {
+    const p = await project({
+      'a.test.js': [
+        "describe('suite', () => {",
+        '  beforeEach(() => {})',
+        "  test('one', () => {})",
+        '})',
+        "test('two', () => {})",
+      ].join('\n'),
+    })
+    const config = runtimeConfig(p.dir)
+    const given = 'from-coord' as TaskId
+    const job: FileJob = { ...runtimeJob(config, p.path('a.test.js')), fileId: given }
+    assert.notEqual(job.fileId, runtimeJob(config, p.path('a.test.js')).fileId)
+    const run = await runJobs({ config, jobs: [job] })
+    assert.deepEqual(states(run.events), { one: 'pass', two: 'pass' })
+    const ids = run.events.flatMap((event): TaskId[] => {
+      switch (event.type) {
+        case 'file-collect-start':
+        case 'file-collect-end':
+        case 'file-end':
+          return [event.fileId]
+        case 'suite-start':
+        case 'suite-end':
+        case 'test-start':
+        case 'test-attempt-start':
+        case 'test-attempt-end':
+        case 'test-end':
+          return [event.id]
+        default:
+          return []
+      }
+    })
+    assert.ok(ids.length >= 10, `${ids.length} ids`)
+    for (const id of ids) assert.ok(id === given || id.startsWith(`${given}_`), id)
+    const [collected] = eventsOf(run.events, 'file-collect-end')
+    assert.ok(collected !== undefined)
+    for (const task of collected.tasks) assert.equal(task.fileId, given)
+  })
+})
+
 describe('setup files are fresh for every file', () => {
   const files = {
     'dep.js': "__trace.push('dep evaluated')",

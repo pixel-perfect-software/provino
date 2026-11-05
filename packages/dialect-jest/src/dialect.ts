@@ -323,6 +323,22 @@ const JEST_GLOBAL_NAMES: readonly string[] = [
 ]
 
 /**
+ * What a project config may put under `jest`: nothing yet, so only an empty object. Jest's own
+ * options arrive with the config reader (T11.x, B14).
+ * @public
+ */
+export type JestDialectOptions = Record<string, never>
+
+// Registers the dialect's name: with this package imported, `{ dialect: 'jest' }` is a valid
+// `ProjectConfig`, and `jest` is a config key of its own type. Declaration merging is program-wide,
+// so a program that imports the package (or only its types) sees it.
+declare module '@provino/types' {
+  interface DialectRegistry {
+    jest: JestDialectOptions
+  }
+}
+
+/**
  * The Jest 30.5 dialect: its policy values and the globals it injects. The config reader, the CLI
  * flags and the `@jest/globals` facade come with T11.x and T11.10 (B14, B17).
  * @public

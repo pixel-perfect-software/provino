@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
+import { parseNormalizedRun, readRunEnvironment } from '@provino/harness'
+import type { NormalizedFile, NormalizedRun, NormalizedTest } from '@provino/types'
 import {
   checkProblems,
   checkRunner,
@@ -10,8 +12,8 @@ import {
   readReport,
   summarize,
 } from './check.ts'
-import { code, scratch } from './internal/test-helpers.ts'
-import { DEFAULT_PATHS, parseSuiteName, writeSuite } from './suites.ts'
+import { code, scratch, scratchSuites } from './internal/test-helpers.ts'
+import { DEFAULT_PATHS, parseSuiteName, suiteDir, writeSuite } from './suites.ts'
 
 const passing: Report = {
   numTotalTests: 40,
@@ -155,6 +157,7 @@ test('a run past its timeout fails the check as exit 124 and names the timeout',
   assert.equal(result.ok, false)
   assert.equal(result.exitCode, 124)
   assert.equal(result.summary, undefined)
+  assert.deepEqual(result.notes, [])
   assert.deepEqual(result.problems, [
     'exited 124',
     'wrote no readable JSON report',
@@ -175,4 +178,128 @@ test('a timeout outside what a timer can hold is refused before anything runs', 
       String(timeoutMs),
     )
   }
+})
+
+function normalizedTest(
+  file: string,
+  title: string,
+  status: NormalizedTest['status'],
+  message?: string,
+): NormalizedTest {
+  return {
+    id: { file, path: ['suite', title], dupIndex: 0 },
+    status,
+    errors: message === undefined ? [] : [{ message, raw: message }],
+  }
+}
+
+function normalizedRun(files: readonly NormalizedFile[], success: boolean): NormalizedRun {
+  return {
+    schemaVersion: 1,
+    runner: 'provino:jest',
+    runnerVersion: '0.0.0',
+    suite: 'jest',
+    startedAt: '2026-11-05T00:00:00.000Z',
+    env: readRunEnvironment({ provino: '0.0.0' }),
+    files,
+    runErrors: [],
+    success,
+  }
+}
+
+test('a Provino report is its normalized-json, read for the same totals and failures as the others', async (t) => {
+  const dir = await scratch(t, 'bench-check-')
+  const run = normalizedRun(
+    [
+      {
+        file: 'tests/a.test.js',
+        status: 'failed',
+        tests: [
+          normalizedTest('tests/a.test.js', 'one', 'passed'),
+          normalizedTest('tests/a.test.js', 'two', 'failed', 'expected 1\nreceived 2'),
+          normalizedTest('tests/a.test.js', 'three', 'skipped'),
+        ],
+      },
+      {
+        file: 'tests/b.test.js',
+        status: 'crashed',
+        fileError: { message: 'worker killed by SIGSEGV', raw: 'worker killed by SIGSEGV' },
+        tests: [normalizedTest('tests/b.test.js', 'four', 'notRun')],
+      },
+    ],
+    false,
+  )
+  await writeFile(join(dir, 'provino.json'), JSON.stringify(run))
+  const report = await readReport('provino', join(dir, 'provino.json'))
+  assert.ok(report)
+  assert.deepEqual(summarize(report), { total: 4, passed: 1, failed: 1, success: false })
+  assert.deepEqual(failureDetails(report), [
+    'tests/a.test.js > suite two: expected 1',
+    'tests/b.test.js: worker killed by SIGSEGV',
+  ])
+  // a skipped or never-run test is not a pass, so it cannot make up the expected count
+  assert.deepEqual(checkProblems(0, summarize(report), 4), [
+    'reported failure',
+    '1 tests passed, expected 4',
+    '1 tests failed',
+  ])
+})
+
+test('a Provino report must be a NormalizedRun: another runner’s JSON, or a broken file, reads as nothing', async (t) => {
+  const dir = await scratch(t, 'bench-check-')
+  await writeFile(join(dir, 'jest.json'), JSON.stringify(jestReport))
+  await writeFile(join(dir, 'wrong-version.json'), JSON.stringify({ schemaVersion: 2 }))
+  assert.equal(await readReport('provino', join(dir, 'jest.json')), undefined)
+  assert.equal(await readReport('provino', join(dir, 'wrong-version.json')), undefined)
+  assert.equal(await readReport('provino', join(dir, 'missing.json')), undefined)
+  // and a Provino report is not a Jest report
+  const ok = normalizedRun([], true)
+  await writeFile(join(dir, 'provino.json'), JSON.stringify(ok))
+  assert.equal(await readReport('jest', join(dir, 'provino.json')), undefined)
+})
+
+test('Provino runs a generated suite as a black box and passes it, with its workers and schema noted', async (t) => {
+  const root = await scratchSuites(t)
+  const spec = parseSuiteName('app-2')
+  await writeSuite(spec, root)
+  const paths = { ...DEFAULT_PATHS, suitesRoot: root }
+  const result = await checkRunner(spec, 'provino', { paths })
+  assert.deepEqual(result.problems, [])
+  assert.equal(result.ok, true)
+  assert.equal(result.exitCode, 0)
+  assert.deepEqual(result.summary, { total: 16, passed: 16, failed: 0, success: true })
+  assert.equal(result.notes.length, 2)
+  assert.match(
+    result.notes[0] ?? '',
+    /^maxWorkers [1-9]\d*: the default, \d+ cores - 1 and at least 1/,
+  )
+  assert.match(result.notes[1] ?? '', /^normalized-json: schema valid/)
+  // the JSON on disk is a NormalizedRun that the harness accepts
+  const reportPath = join(suiteDir(spec, root), 'check', 'provino.json')
+  const run = parseNormalizedRun(await readFile(reportPath, 'utf8'), reportPath)
+  assert.equal(run.runner, 'provino:jest')
+  assert.equal(run.files.length, 2)
+})
+
+test('a Provino run with a failing test fails the check and names the test', async (t) => {
+  const root = await scratchSuites(t)
+  const spec = parseSuiteName('app-2')
+  await writeSuite(spec, root)
+  await writeFile(
+    join(suiteDir(spec, root), 'jest', 'tests', 'app-0000.test.js'),
+    "describe('x', () => {\n  test('fails on purpose', () => {\n    throw new Error('on purpose')\n  })\n})\n",
+  )
+  const result = await checkRunner(spec, 'provino', {
+    paths: { ...DEFAULT_PATHS, suitesRoot: root },
+  })
+  assert.equal(result.ok, false)
+  assert.equal(result.exitCode, 1)
+  assert.deepEqual(result.problems, [
+    'exited 1',
+    'reported failure',
+    'ran 9 tests, expected 16',
+    '8 tests passed, expected 16',
+    '1 tests failed',
+  ])
+  assert.deepEqual(result.details, ['tests/app-0000.test.js > x fails on purpose: on purpose'])
 })

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { isAbsolute } from 'node:path'
 import { test } from 'node:test'
 import {
   diffPolicy,
@@ -96,6 +97,24 @@ test('the policy serializes: every behaviour key is a module ref', () => {
   assert.ok(matcherTable !== null && isModuleRef(matcherTable))
   assert.equal(matcherTable.export, 'jestExpectTable')
   assert.ok(isModuleRef(serialized.core.formatEachTitle))
+})
+
+test('every behaviour ref is absolute, so a worker imports it as it is (D21)', () => {
+  const refs: Array<readonly [path: string, module: string]> = []
+  const collect = (value: unknown, path: string): void => {
+    if (isModuleRef(value)) refs.push([path, value.module])
+    else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      for (const [key, child] of Object.entries(value)) collect(child, `${path}.${key}`)
+    }
+  }
+  collect(serializePolicy(resolved), 'policy')
+  assert.ok(jestDialect.globals !== undefined)
+  refs.push(['globals', jestDialect.globals.factory.module])
+  // The matcher table, the three the neutral policy supplies, and the globals factory.
+  assert.ok(refs.length >= 5, refs.map(([path]) => path).join(', '))
+  for (const [path, module] of refs) {
+    assert.ok(isAbsolute(module) || module.startsWith('file:'), `${path} is ${module}`)
+  }
 })
 
 /** The leaf values of a policy: the paths a layer can set (`mock.messages` and `byEnvironment` are open records). */

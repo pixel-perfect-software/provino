@@ -53,7 +53,15 @@ jobs:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-node${{ matrix.node }}-${{ github.sha }}
           restore-keys: turbo-${{ runner.os }}-node${{ matrix.node }}-
-      - run: pnpm test
+      # The crash tests kill a worker with SIGSEGV and must see it die at once. The runner pipes
+      # core dumps to a crash handler, and the kernel ignores `ulimit -c` for a pipe, so each
+      # crashing worker first streams its whole memory image: 48-185 s per crash test in run
+      # 42072223325. A plain file pattern with core files off ends a crashed worker as locally.
+      - name: Turn core dumps off
+        run: |
+          echo "core_pattern was: $(cat /proc/sys/kernel/core_pattern)"
+          echo core | sudo tee /proc/sys/kernel/core_pattern || echo "::warning::could not change core_pattern; crash tests will be slow"
+      - run: ulimit -c 0 && pnpm test
         env:
           NODE_OPTIONS: ${{ matrix.node-options }}
 
@@ -117,7 +125,14 @@ jobs:
       # The suite checks take about 11 of this job's 12 minutes, and their result depends only on
       # the generator and check code (bench, and the harness helpers it uses), the runners'
       # versions (lockfile, catalog), Node (.tool-versions), the root scripts and this workflow.
+      # The app-500 check also runs Provino itself (`--runner provino`), so it depends on the
+      # source and manifest of every package a Provino run might load: any workspace package's
+      # `src/` or `package.json`, so a package that starts to be loaded later needs no edit here.
+      # Unit tests beside that source (`*.test.ts`, `*.test-d.ts`) are not loaded by a run, so
+      # editing one alone doesn't count; bench and harness keep counting them.
       # They run on main, and on a task branch whose changes against main touch any of those.
+      # Paths are NUL-separated and never quoted, so a name with non-ASCII, a tab, `"` or `\`
+      # still matches.
       - id: scope
         name: Decide whether the suite checks run
         run: |
@@ -130,16 +145,32 @@ jobs:
             run true
             exit 0
           fi
-          inputs='^(packages/bench/|packages/harness/src/|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/workflows/ci\.yml$)'
+          inputs="^(packages/bench/|packages/harness/src/|packages/[^/]+/(src/|package\\.json\$)|pnpm-lock\\.yaml\$|pnpm-workspace\\.yaml\$|\\.tool-versions\$|package\\.json\$|\\.github/workflows/ci\\.yml\$)"
+          unit_tests="^packages/[^/]+/src/.*\\.test(-d)?\\.ts\$"
+          kept="^packages/(bench|harness)/"
+          work=$(mktemp -d)
           # --no-renames lists both paths of a move, so moving a file out of an input counts.
-          if ! files=$(git diff --no-renames --name-only "$base" HEAD); then
+          if ! git -c core.quotePath=false diff -z --no-renames --name-only "$base" HEAD > "$work/diff"; then
             echo "Couldn't diff against main; running the suite checks."
             run true
             exit 0
           fi
-          changed=$(printf '%s\n' "$files" | grep -E "$inputs" || true)
-          if [ -n "$changed" ]; then
-            printf 'Suite inputs changed against main:\n%s\n' "$changed"
+          # grep exits 1 when nothing matches, which is an answer, and 2 or more on an error, which
+          # is not: that fails closed like the steps above.
+          match() {
+            local status=0
+            grep -z "$@" || status=$?
+            if [ "$status" -gt 1 ]; then
+              echo "Couldn't match the changed files; running the suite checks." >&2
+              run true
+              exit 0
+            fi
+          }
+          match -E "$inputs" "$work/diff" > "$work/inputs"
+          { match -vE "$unit_tests" "$work/inputs"; match -E "$kept" "$work/inputs"; } > "$work/changed"
+          if [ -s "$work/changed" ]; then
+            printf 'Suite inputs changed against main:\n'
+            tr '\0' '\n' < "$work/changed" | sort -u
             run true
           else
             echo "No suite inputs changed against main; skipping the suite checks."
@@ -153,9 +184,11 @@ jobs:
           node-version-file: .tool-versions
       - id: install
         run: pnpm install --frozen-lockfile
-      # Every generated suite must pass under both real runners (Track 12 T12.12).
+      # Every generated suite must pass under both real runners (Track 12 T12.12). app-500 also runs
+      # Provino (the `provino` bin, as a black box, all cores but one): every test passes, its
+      # normalized-json parses, and each test's status equals Jest's (B11).
       - if: ${{ steps.scope.outputs.run == 'true' }}
-        run: pnpm provino-bench check app-500 --runner jest --runner vitest
+        run: pnpm provino-bench check app-500 --runner jest --runner vitest --runner provino
       - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
         run: pnpm provino-bench check mock-heavy-500 --runner jest --runner vitest
       - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}

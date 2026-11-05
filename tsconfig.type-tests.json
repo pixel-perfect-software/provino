@@ -39,6 +39,15 @@
     },
     {
       "path": "packages/env-node/test"
+    },
+    {
+      "path": "packages/config/test"
+    },
+    {
+      "path": "packages/reporters/test"
+    },
+    {
+      "path": "packages/provino/test"
     }
   ]
 }

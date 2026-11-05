@@ -44,6 +44,10 @@ export interface RecyclePolicy {
  */
 export interface PoolOptions {
   readonly kind: PoolKind
+  /**
+   * The most workers alive at once, capped by the transport's own `TransportFactory.maxWorkers`
+   * (an `inline` pool runs exactly one, whatever this says).
+   */
   readonly maxWorkers: number
   readonly recycle: RecyclePolicy
   /** Then SIGTERM, then SIGKILL after 500 ms. */
@@ -309,7 +313,19 @@ export type WorkerMain = (port: WorkerPort) => void | Promise<void>
  */
 export interface TransportFactory {
   readonly kind: PoolKind
-  create(init: WorkerInit): Promise<Transport>
+  /**
+   * The most workers of this kind that can be alive at once; the pool never starts more, whatever
+   * `PoolOptions.maxWorkers` says. Omitted: no limit of its own. The inline transport sets 1
+   * (`--runInBand`): the expect slot is process-global, so a second inline worker in the process
+   * cannot boot. Two inline runs overlapping in one process share that slot and are not
+   * supported; use forks or threads.
+   */
+  readonly maxWorkers?: number
+  /**
+   * Starts a worker and resolves once it is ready. Aborting `signal` while it starts kills the
+   * worker and rejects, so a pool that is closing does not wait for a start.
+   */
+  create(init: WorkerInit, signal?: AbortSignal): Promise<Transport>
 }
 
 /**
@@ -423,6 +439,13 @@ export interface RunSummary {
 export interface ReporterEvents {
   'run:start': [info: RunInfo, files: readonly FileInfo[]]
   'file:queued': [file: FileInfo]
+  /**
+   * A worker took the file. Every `file:start` is followed by exactly one `file:end`, and a
+   * `file:end` never comes without its `file:start`. A file whose worker failed to start gets
+   * `file:start` just before its `file:end`, with the id of the worker whose failed start its
+   * error is (for the files left when the pool gave up, the last one). A file that was never
+   * started (the run was aborted before) gets neither event.
+   */
   'file:start': [file: FileInfo, workerId: number]
   'file:collected': [file: FileInfo, event: RuntimeEventOf<'file-collect-end'>]
   'task:start': [task: SuiteTask | TestTask, event: RuntimeEventOf<'suite-start' | 'test-start'>]
@@ -435,6 +458,10 @@ export interface ReporterEvents {
   console: [file: FileInfo, event: RuntimeEventOf<'console'>]
   /** An unhandled error in a worker; `file` is `null` when it can't be tied to one. */
   unhandled: [file: FileInfo | null, event: RuntimeEventOf<'unhandled-error'>]
+  /**
+   * The file's result, always after its `file:start` and the last of its own events. A file cut
+   * off by an abort that had started ends here as a `fail` with an error naming the interruption.
+   */
   'file:end': [result: FileResult]
   coverage: [summary: CoverageSummary]
   'run:end': [summary: RunSummary]

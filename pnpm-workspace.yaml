@@ -71,6 +71,8 @@ catalog:
   oxc-resolver: 11.24.2
   oxc-transform: 0.156.0
   pretty-format: 30.5.1
+  # File discovery in the coordinator (B11): include/exclude globs.
+  tinyglobby: 0.2.17
   tsdown: 0.23.2
   turbo: 2.11.10
   typescript: 7.0.2

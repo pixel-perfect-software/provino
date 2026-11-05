@@ -303,7 +303,8 @@ export function createRuntimeRunner(): WorkerRunner {
         instance = await setUpEnvironment(worker, context)
         if (worker.globals !== undefined) installGlobals(instance.global, worker.globals)
         worker.source.startFile(job.file)
-        await worker.runtime.runFile(job.file, filtersOf(job))
+        // The coordinator's id for the file (D23), so every event carries the id it expects.
+        await worker.runtime.runFile(job.file, { fileId: job.fileId, ...filtersOf(job) })
       } catch (error) {
         errors.push(error)
       }
