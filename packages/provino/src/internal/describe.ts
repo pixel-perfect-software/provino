@@ -5,18 +5,34 @@ import { UsageError } from './usage-error.ts'
 /** How many `cause`s deep an error's text goes. */
 const MAX_CAUSES = 3
 
+/** What a thrown non-error (a string, an object) says for itself. */
+function describeValue(value: unknown): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value) ?? String(value)
+  } catch {
+    return String(value)
+  }
+}
+
 /** An error's message, then what caused it and, for a config error, each problem found. */
 function describeError(error: Error): string {
   const lines = [error.message]
   if (error instanceof ConfigError) {
     for (const issue of error.issues) {
+      // Some messages (the dialect options') already list their issues.
+      if (
+        error.message.includes(`${issue.path === '' ? '(options)' : issue.path}: ${issue.message}`)
+      ) {
+        continue
+      }
       lines.push(`  - ${issue.path === '' ? issue.message : `${issue.path}: ${issue.message}`}`)
     }
   }
   let cause: unknown = error.cause
-  for (let depth = 0; depth < MAX_CAUSES && cause instanceof Error; depth++) {
-    lines.push(`  caused by: ${cause.message}`)
-    cause = cause.cause
+  for (let depth = 0; depth < MAX_CAUSES && cause !== undefined; depth++) {
+    lines.push(`  caused by: ${cause instanceof Error ? cause.message : describeValue(cause)}`)
+    cause = cause instanceof Error ? cause.cause : undefined
   }
   return lines.join('\n')
 }

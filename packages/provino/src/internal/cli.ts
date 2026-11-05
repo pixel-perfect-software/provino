@@ -26,7 +26,8 @@ provino run --config <file> [options]
 Options:
   -c, --config <file>               The config file (required)
       --maxWorkers <n>              Run at most n workers (default: the cores, less one)
-      --pool <kind>                 forks, threads or inline (default: the dialect's)
+      --pool <kind>                 forks, threads or inline (default: the dialect's); inline
+                                    runs in this process, so a leaked handle keeps it alive
       --reporter <name>             default or normalized-json; repeat for several
       --outputFile <path>           Write the normalized-json reporter's JSON here
   -t, --testNamePattern <pattern>   Run only the tests whose full name matches
@@ -60,7 +61,10 @@ function parseReporters(
   names: readonly string[],
   outputFile: string | undefined,
 ): readonly ReporterChoice[] {
-  for (const name of names) {
+  for (const [index, name] of names.entries()) {
+    if (names.indexOf(name) !== index) {
+      throw new UsageError(`--reporter ${name} is given more than once`)
+    }
     if (!BUILT_IN_REPORTERS.includes(name)) {
       throw new UsageError(
         `unknown reporter "${name}" (use ${BUILT_IN_REPORTERS.join(' or ')}) for --reporter`,
@@ -86,7 +90,7 @@ function parseReporters(
 export function parseRunArgs(args: readonly string[]): RunCommand {
   let parsed: ReturnType<typeof parse>
   try {
-    parsed = parse(args)
+    parsed = parse(args.map(longFormOfShortWithEquals))
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error), { cause: error })
   }
@@ -109,6 +113,16 @@ export function parseRunArgs(args: readonly string[]): RunCommand {
     ...(values['no-cache'] === true ? { cache: false } : {}),
   }
   return { type: 'run', options }
+}
+
+/**
+ * `parseArgs` keeps the `=` of `-t=a` in the value (`=a`), so `-t=<v>` and `-c=<v>` become the
+ * long options. Only that exact form: `-ta` and `-t a` are already right.
+ */
+function longFormOfShortWithEquals(arg: string): string {
+  if (arg.startsWith('-t=')) return `--testNamePattern=${arg.slice(3)}`
+  if (arg.startsWith('-c=')) return `--config=${arg.slice(3)}`
+  return arg
 }
 
 function parse(args: readonly string[]) {

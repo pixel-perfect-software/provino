@@ -67,6 +67,42 @@ describe('parseRunArgs', () => {
     })
   })
 
+  it('reads -t=<pattern> and -c=<file> as the long options, without the =', () => {
+    assert.deepEqual(parseRunArgs(['-c=c.mjs', '-t=adds up']), {
+      type: 'run',
+      options: { config: 'c.mjs', testNamePattern: 'adds up' },
+    })
+    // A value that itself holds an =, and the other spellings that already worked.
+    assert.deepEqual(parseRunArgs(['-c', 'c.mjs', '-t=a=b']), {
+      type: 'run',
+      options: { config: 'c.mjs', testNamePattern: 'a=b' },
+    })
+    assert.deepEqual(parseRunArgs(['-c', 'c.mjs', '-ta']), {
+      type: 'run',
+      options: { config: 'c.mjs', testNamePattern: 'a' },
+    })
+    assert.deepEqual(parseRunArgs(['-c', 'c.mjs', '-t', 'a']), {
+      type: 'run',
+      options: { config: 'c.mjs', testNamePattern: 'a' },
+    })
+  })
+
+  it('refuses a repeated --reporter', () => {
+    usageError(
+      ['--config', 'c.mjs', '--reporter', 'normalized-json', '--reporter', 'normalized-json'],
+      /--reporter normalized-json is given more than once/,
+    )
+    usageError(
+      ['--config', 'c.mjs', '--reporter', 'default', '--reporter', 'default'],
+      /--reporter default is given more than once/,
+    )
+    assert.equal(
+      parseRunArgs(['--config', 'c.mjs', '--reporter', 'default', '--reporter', 'normalized-json'])
+        .type,
+      'run',
+    )
+  })
+
   it('is help for --help, even without --config', () => {
     assert.deepEqual(parseRunArgs(['--help']), { type: 'help' })
     assert.deepEqual(parseRunArgs(['-h']), { type: 'help' })
@@ -117,6 +153,10 @@ describe('main', () => {
       assert.ok(stderr.text.startsWith('Provino: '), stderr.text)
       assert.ok(stderr.text.endsWith(USAGE), 'the usage text follows the message')
     }
+  })
+
+  it('says in the usage text that --pool inline keeps a leaked handle alive', () => {
+    assert.match(USAGE, /inline\s+runs in this process, so a leaked handle keeps it alive/)
   })
 
   it('is exit code 2 for a config file that is not there, without the usage text', async () => {

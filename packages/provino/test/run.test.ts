@@ -165,6 +165,42 @@ describe('run()', () => {
       }
     })
 
+    it('two normalized-json reporters that both write to stdout', async () => {
+      const project = await makeProject({ 'tests/a.test.js': passing('a') })
+      const ran = await runProject(project, {
+        reporters: ['normalized-json', 'normalized-json'],
+      })
+
+      assert.equal(ran.exitCode, 2)
+      assert.equal(ran.summary, null)
+      assert.match(ran.stderr, /both write to stdout/)
+      assert.equal(ran.stdout, '')
+      assert.doesNotMatch(ran.stderr, /PASS|FAIL/, 'no file ran')
+    })
+
+    it('an empty outputFile, or one that is a directory, before any test runs', async () => {
+      const project = await makeProject({ 'tests/a.test.js': passing('a') })
+      for (const outputFile of ['', '.', 'tests']) {
+        const ran = await runProject(project, {
+          cwd: project.dir,
+          reporters: [['normalized-json', { outputFile }]],
+        })
+
+        assert.equal(ran.exitCode, 2, JSON.stringify(outputFile))
+        assert.equal(ran.summary, null)
+        assert.match(ran.stderr, /outputFile/)
+        assert.doesNotMatch(ran.stderr, /PASS|FAIL/, 'no file ran')
+      }
+    })
+
+    it('a config that throws something that is not an Error keeps what it threw', async () => {
+      const project = await makeProject({}, "throw 'thrown string detail'\n")
+      const ran = await runProject(project)
+
+      assert.equal(ran.exitCode, 2)
+      assert.match(ran.stderr, /thrown string detail/)
+    })
+
     it('no config path', async () => {
       // @ts-expect-error config is required
       const result = await run({ stderr: new Collect() })
@@ -325,6 +361,28 @@ describe('run()', () => {
       'run:end passed',
     ])
     assert.doesNotMatch(ran.stderr, /PASS|Test Suites/, 'only the reporters given run')
+  })
+
+  it('registers normalized-json after the other reporters, whatever order it was named in', async () => {
+    const project = await makeProject({ 'tests/a.test.js': passing('a') })
+    let fileThereAtRunEnd: boolean | undefined
+    const ran = await runProject(project, {
+      cwd: project.dir,
+      reporters: [
+        ['normalized-json', { outputFile: 'out.json' }],
+        {
+          name: 'watcher',
+          'run:end': () => {
+            fileThereAtRunEnd = existsSync(project.path('out.json'))
+          },
+        },
+      ],
+    })
+
+    assert.equal(ran.exitCode, 0, ran.stderr)
+    // The watcher gets run:end before the JSON reporter writes its file.
+    assert.equal(fileThereAtRunEnd, false)
+    assert.equal(existsSync(project.path('out.json')), true)
   })
 
   it('a reporter that throws fails the run and is said on stderr', async () => {

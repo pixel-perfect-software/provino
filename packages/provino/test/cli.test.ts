@@ -113,6 +113,60 @@ describe('provino run', () => {
     assert.equal(allowed.code, 0, allowed.stderr)
   })
 
+  it('reads -t=<pattern> and -c=<file> without the =', async () => {
+    const project = await makeProject({
+      'tests/a.test.js': [
+        "test('keeps this', () => { expect(1).toBe(1) })",
+        "test('drops that', () => { expect(1).toBe(2) })",
+        '',
+      ].join('\n'),
+    })
+    // Before the fix the pattern was "=drops", nothing matched, and the run passed with no tests.
+    const ended = await spawnCli(
+      ['run', `-c=${project.config}`, '-t=drops', '--reporter', 'normalized-json'],
+      { cwd: project.dir },
+    )
+    assert.equal(ended.code, 1, ended.stderr)
+    const view = viewOfNormalized(ended.stdout)
+    assert.equal(view.files.get('tests/a.test.js')?.tests.get('drops that'), 'failed')
+  })
+
+  it('exits 2 for an --outputFile that is empty or a directory, before running any test', async () => {
+    const project = await makeProject({ 'tests/a.test.js': passing('a') })
+    for (const outputFile of ['', '.']) {
+      const ended = await spawnCli(
+        [
+          'run',
+          '--config',
+          project.config,
+          '--reporter',
+          'normalized-json',
+          '--outputFile',
+          outputFile,
+        ],
+        { cwd: project.dir },
+      )
+      assert.equal(ended.code, 2, `${JSON.stringify(outputFile)}: ${ended.stderr}`)
+      assert.match(ended.stderr, /outputFile/)
+      assert.doesNotMatch(ended.stderr, /PASS|FAIL/, 'no file ran')
+    }
+  })
+
+  it('exits 2 for a repeated --reporter', async () => {
+    const ended = await spawnCli([
+      'run',
+      '--config',
+      'x.mjs',
+      '--reporter',
+      'normalized-json',
+      '--reporter',
+      'normalized-json',
+    ])
+    assert.equal(ended.code, 2)
+    assert.equal(ended.stdout, '')
+    assert.match(ended.stderr, /given more than once/)
+  })
+
   it('exits 2 for a pattern that is not a regular expression, and starts nothing', async () => {
     const project = await makeProject({ 'tests/a.test.js': passing('a') })
     const ended = await spawnCli(['run', '--config', project.config, '--testNamePattern', '('], {
