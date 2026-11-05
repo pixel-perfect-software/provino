@@ -124,6 +124,58 @@ async function runCommand(
   return results.every((result) => result.ok) ? 0 : 1
 }
 
+// The `check` command: each runner once, then Provino against Jest when both ran and passed.
+async function checkCommand(
+  command: Extract<CliCommand, { readonly command: 'check' }>,
+  io: CliIo,
+  paths: BenchPaths,
+): Promise<number> {
+  await generated(command.suite, io, paths.suitesRoot)
+  let failed = false
+  const results = new Map<RunnerName, CheckResult>()
+  for (const runner of command.runners) {
+    const result = await checkRunner(command.suite, runner, {
+      paths,
+      timeoutMs: command.timeoutMs,
+    })
+    results.set(runner, result)
+    const { summary } = result
+    const counts =
+      summary === undefined ? 'no report' : `${summary.passed}/${summary.total} tests passed`
+    io.out(
+      `${result.ok ? 'PASS' : 'FAIL'} ${runner} ${result.version} ${command.suite.name}: ${counts} in ${seconds(result.wallMs)} (local, one run: not a result)`,
+    )
+    for (const note of result.notes) io.out(`  ${note}`)
+    if (!result.ok) {
+      failed = true
+      for (const problem of result.problems) io.out(`  ${problem}`)
+      for (const detail of result.details) io.out(`  ${detail}`)
+    }
+  }
+  // Provino against Jest, once both have passed: every test the same status.
+  const jest = results.get('jest')
+  const provino = results.get('provino')
+  if (jest !== undefined && provino !== undefined) {
+    if (jest.ok && provino.ok) {
+      // The reports the runs were judged on are compared, not read and validated again.
+      const reports = {
+        ...(jest.parsed?.jest === undefined ? {} : { jest: jest.parsed.jest }),
+        ...(provino.parsed?.provino === undefined ? {} : { provino: provino.parsed.provino }),
+      }
+      const parity = await checkStatusParity(
+        command.suite,
+        { jest: jest.version, provino: provino.version },
+        { paths, reports },
+      )
+      for (const line of parityLines(parity)) io.out(line)
+      if (!parity.ok) failed = true
+    } else {
+      io.out('status parity: not compared, because a run above failed')
+    }
+  }
+  return failed ? 1 : 0
+}
+
 /**
  * Runs the command line and returns the exit code: 0 on success, 1 when a check or run failed, 2
  * for a usage error.
@@ -144,47 +196,8 @@ export async function runCli(
       case 'generate':
         await generated(command.suite, io, paths.suitesRoot)
         return 0
-      case 'check': {
-        await generated(command.suite, io, paths.suitesRoot)
-        let failed = false
-        const results = new Map<RunnerName, CheckResult>()
-        for (const runner of command.runners) {
-          const result = await checkRunner(command.suite, runner, {
-            paths,
-            timeoutMs: command.timeoutMs,
-          })
-          results.set(runner, result)
-          const { summary } = result
-          const counts =
-            summary === undefined ? 'no report' : `${summary.passed}/${summary.total} tests passed`
-          io.out(
-            `${result.ok ? 'PASS' : 'FAIL'} ${runner} ${result.version} ${command.suite.name}: ${counts} in ${seconds(result.wallMs)} (local, one run: not a result)`,
-          )
-          for (const note of result.notes) io.out(`  ${note}`)
-          if (!result.ok) {
-            failed = true
-            for (const problem of result.problems) io.out(`  ${problem}`)
-            for (const detail of result.details) io.out(`  ${detail}`)
-          }
-        }
-        // Provino against Jest, once both have passed: every test the same status.
-        const jest = results.get('jest')
-        const provino = results.get('provino')
-        if (jest !== undefined && provino !== undefined) {
-          if (jest.ok && provino.ok) {
-            const parity = await checkStatusParity(
-              command.suite,
-              { jest: jest.version, provino: provino.version },
-              { paths },
-            )
-            for (const line of parityLines(parity)) io.out(line)
-            if (!parity.ok) failed = true
-          } else {
-            io.out('status parity: not compared, because a run above failed')
-          }
-        }
-        return failed ? 1 : 0
-      }
+      case 'check':
+        return await checkCommand(command, io, paths)
       case 'run':
         return await runCommand(command, io, deps, paths)
     }

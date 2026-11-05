@@ -4,6 +4,7 @@ import type { ResolvedProject } from '@provino/config'
 import { defaultReporter, normalizedJsonReporter, type TextSink } from '@provino/reporters'
 import type { Reporter } from '@provino/types'
 import { UsageError } from './usage-error.ts'
+import { packageVersion } from './version.ts'
 
 /**
  * The reporters `run()` and the command line can name.
@@ -21,8 +22,6 @@ export interface ReporterContext {
   readonly cwd: string
   readonly stdout: TextSink
   readonly stderr: TextSink
-  /** This package's version: `NormalizedRun.runnerVersion`. */
-  readonly runnerVersion: string
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -85,7 +84,8 @@ function normalizedJson(context: ReporterContext, options: unknown): Built {
     ...(path === undefined ? { stream: context.stdout } : { outputFile: path }),
     suite: suite ?? basename(project.rootDir),
     runner: `provino:${project.dialect?.name ?? 'neutral'}`,
-    runnerVersion: context.runnerVersion,
+    // Read here, as only this reporter needs it.
+    runnerVersion: packageVersion(),
     // The run's own answer, so `env.ci` in the file is what the run used.
     ci: project.config.ci,
     // The policy that decides the exit code, so the file's `success` agrees with it.
@@ -137,7 +137,5 @@ export function reportersFor(
   }
   // Last, so it sees every other reporter's failure (the bus tells the reporters after a failing
   // one about it before they get the same event) before it writes its document.
-  return [...built.filter((entry) => !entry.json), ...built.filter((entry) => entry.json)].map(
-    (entry) => entry.reporter,
-  )
+  return built.toSorted((a, b) => Number(a.json) - Number(b.json)).map((entry) => entry.reporter)
 }

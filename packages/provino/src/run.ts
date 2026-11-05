@@ -7,17 +7,17 @@ import { isCi } from './internal/ci.ts'
 import { usageMessage } from './internal/describe.ts'
 import { reportersFor } from './internal/reporters.ts'
 import { UsageError } from './internal/usage-error.ts'
-import { packageVersion } from './internal/version.ts'
 import type { RunOptions, RunResult } from './types.ts'
 
 /** The pool options a run overrides: only the ones given, so the policy's defaults stand. */
 function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']> {
-  if (options.maxWorkers !== undefined) {
-    if (!Number.isSafeInteger(options.maxWorkers) || options.maxWorkers < 1) {
-      throw new UsageError(
-        `maxWorkers must be a whole number of at least 1 (got ${String(options.maxWorkers)})`,
-      )
-    }
+  if (
+    options.maxWorkers !== undefined &&
+    (!Number.isSafeInteger(options.maxWorkers) || options.maxWorkers < 1)
+  ) {
+    throw new UsageError(
+      `maxWorkers must be a whole number of at least 1 (got ${String(options.maxWorkers)})`,
+    )
   }
   return {
     ...(options.pool === undefined ? {} : { kind: options.pool }),
@@ -43,15 +43,7 @@ async function execute(
     },
     ci: options.ci ?? isCi(process.env),
   })
-  const bus = createReporterBus(
-    reportersFor(options.reporters, {
-      project,
-      cwd,
-      stdout,
-      stderr,
-      runnerVersion: packageVersion(),
-    }),
-  )
+  const bus = createReporterBus(reportersFor(options.reporters, { project, cwd, stdout, stderr }))
 
   const summary = await runProject(project, {
     bus,

@@ -12,7 +12,7 @@ The umbrella package (layer 6, composition root). B11 built its first part: `pro
 | `src/internal/cli.ts` | `main(argv, io)` (dispatch on the first argument, so T11.13 adds `jest` and `vitest` beside `run`), `parseRunArgs` (`node:util` `parseArgs`, strict), `USAGE` |
 | `src/internal/reporters.ts` | `reportersFor`: a built-in name, `['normalized-json', { outputFile?, suite? }]` or a `Reporter` object becomes a reporter; the policy's `report.defaultReporters` when none are given |
 | `src/internal/describe.ts` | `usageMessage(error)`: the text for an error that means bad input (issues the message doesn't already list, and the `cause` chain, including a thrown string or object), `undefined` for any other |
-| `src/internal/usage-error.ts`, `ci.ts`, `version.ts` | `UsageError` (`PROVINO_USAGE`), `isCi(env)`, this package's version (through `import.meta.resolve('provino/package.json')`) |
+| `src/internal/usage-error.ts`, `ci.ts`, `version.ts` | `UsageError` (`PROVINO_USAGE`), `isCi(env)`, this package's version (through `import.meta.resolve('provino/package.json')`; read by `reporters.ts` only when it builds the `normalized-json` reporter) |
 
 ## `run()`
 
@@ -27,7 +27,7 @@ Flow: check `config` and `maxWorkers` → `loadProject(config against cwd, { dia
 
 `provino run --config <file> [--maxWorkers n] [--pool forks|threads|inline] [--reporter name]… [--outputFile path] [-t pattern] [--ci] [--passWithNoTests] [--no-cache]`. A missing command, an unknown command or flag, a missing `--config`, a bad value, or `--outputFile` without `--reporter normalized-json` prints the message and the usage text to stderr, exit 2. `--help` prints the usage text to stdout, exit 0. A bug prints its stack, exit 1. The bin sets `process.exitCode` and never calls `process.exit`. With forks or threads the pool has stopped every worker, so the process ends on its own (`test/cli.test.ts` runs it with a deadline). **With `--pool inline` it may not:** the worker shares the process, so a test's leaked handle (timer, socket) keeps it alive, as with Jest's `--runInBand`; `--forceExit` is T9.10.
 
-- `-t=<v>` and `-c=<v>` are rewritten to the long options before `parseArgs`, which would keep the `=` in the value. A repeated `--reporter` name is a usage error.
+- `-<short>=<v>` is rewritten to the long option before `parseArgs` (which would keep the `=` in the value), for every string option with a short name in the options table (today `-t` and `-c`). A repeated `--reporter` name is a usage error.
 - An inline pool runs one worker (the orchestrator caps it). An inline worker doesn't capture console, so a test's `console.log` reaches stdout: use `--outputFile` for normalized-json with `--pool inline`. With forks or threads, the workers' own stdout goes to stderr.
 
 ## Tests

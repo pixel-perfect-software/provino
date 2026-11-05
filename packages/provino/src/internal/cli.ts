@@ -1,4 +1,4 @@
-import { parseArgs } from 'node:util'
+import { type ParseArgsOptionsConfig, parseArgs } from 'node:util'
 import { ExitCode } from '@provino/orchestrator'
 import type { TextSink } from '@provino/reporters'
 import type { PoolKind } from '@provino/types'
@@ -115,34 +115,41 @@ export function parseRunArgs(args: readonly string[]): RunCommand {
   return { type: 'run', options }
 }
 
+const OPTIONS = {
+  config: { type: 'string', short: 'c' },
+  maxWorkers: { type: 'string' },
+  pool: { type: 'string' },
+  reporter: { type: 'string', multiple: true },
+  outputFile: { type: 'string' },
+  testNamePattern: { type: 'string', short: 't' },
+  ci: { type: 'boolean' },
+  passWithNoTests: { type: 'boolean' },
+  'no-cache': { type: 'boolean' },
+  help: { type: 'boolean', short: 'h' },
+} as const satisfies ParseArgsOptionsConfig
+
+/** The long name of each string option's short one: `t` is `testNamePattern`. */
+const LONG_OF_SHORT: ReadonlyMap<string, string> = new Map(
+  Object.entries<ParseArgsOptionsConfig[string]>(OPTIONS).flatMap(([long, option]) =>
+    option.type === 'string' && option.short !== undefined ? [[option.short, long]] : [],
+  ),
+)
+
 /**
- * `parseArgs` keeps the `=` of `-t=a` in the value (`=a`), so `-t=<v>` and `-c=<v>` become the
- * long options. Only that exact form: `-ta` and `-t a` are already right.
+ * `parseArgs` keeps the `=` of `-t=a` in the value (`=a`), so `-<short>=<v>` becomes the long
+ * option, for every string option with a short name. Only that exact form: `-ta` and `-t a` are
+ * already right.
  */
 function longFormOfShortWithEquals(arg: string): string {
-  if (arg.startsWith('-t=')) return `--testNamePattern=${arg.slice(3)}`
-  if (arg.startsWith('-c=')) return `--config=${arg.slice(3)}`
+  if (arg.length >= 3 && arg.startsWith('-') && arg[2] === '=') {
+    const long = LONG_OF_SHORT.get(arg.slice(1, 2))
+    if (long !== undefined) return `--${long}=${arg.slice(3)}`
+  }
   return arg
 }
 
 function parse(args: readonly string[]) {
-  return parseArgs({
-    args: [...args],
-    allowPositionals: false,
-    strict: true,
-    options: {
-      config: { type: 'string', short: 'c' },
-      maxWorkers: { type: 'string' },
-      pool: { type: 'string' },
-      reporter: { type: 'string', multiple: true },
-      outputFile: { type: 'string' },
-      testNamePattern: { type: 'string', short: 't' },
-      ci: { type: 'boolean' },
-      passWithNoTests: { type: 'boolean' },
-      'no-cache': { type: 'boolean' },
-      help: { type: 'boolean', short: 'h' },
-    },
-  })
+  return parseArgs({ args: [...args], allowPositionals: false, strict: true, options: OPTIONS })
 }
 
 /**
@@ -153,6 +160,14 @@ export interface CliIo {
   readonly stdout?: TextSink
   readonly stderr?: NodeJS.WritableStream
   readonly cwd?: string
+}
+
+/** What `command` and its `args` ask for; T11.13 adds `jest` and `vitest` beside `run`. */
+function parseCommand(command: string | undefined, args: readonly string[]): RunCommand {
+  if (command === '--help' || command === '-h') return { type: 'help' }
+  if (command === undefined) throw new UsageError('a command is required')
+  if (command === 'run') return parseRunArgs(args)
+  throw new UsageError(`unknown command "${command}"`)
 }
 
 /**
@@ -167,29 +182,18 @@ export async function main(argv: readonly string[], io: CliIo = {}): Promise<num
   const stderr = io.stderr ?? process.stderr
   try {
     const [command, ...args] = argv
-    if (command === '--help' || command === '-h') {
+    const parsed = parseCommand(command, args)
+    if (parsed.type === 'help') {
       await stdout.write(USAGE)
       return ExitCode.Pass
     }
-    if (command === undefined) throw new UsageError('a command is required')
-    switch (command) {
-      case 'run': {
-        const parsed = parseRunArgs(args)
-        if (parsed.type === 'help') {
-          await stdout.write(USAGE)
-          return ExitCode.Pass
-        }
-        const result = await run({
-          ...parsed.options,
-          stdout,
-          stderr,
-          ...(io.cwd === undefined ? {} : { cwd: io.cwd }),
-        })
-        return result.exitCode
-      }
-      default:
-        throw new UsageError(`unknown command "${command}"`)
-    }
+    const result = await run({
+      ...parsed.options,
+      stdout,
+      stderr,
+      ...(io.cwd === undefined ? {} : { cwd: io.cwd }),
+    })
+    return result.exitCode
   } catch (error) {
     if (error instanceof UsageError) {
       stderr.write(`Provino: ${error.message}\n\n${USAGE}`)

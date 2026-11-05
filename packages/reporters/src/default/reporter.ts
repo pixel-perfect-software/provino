@@ -11,7 +11,6 @@ import type {
 } from '@provino/types'
 import type { TextSink } from '../sink.ts'
 import {
-  type FileCounts,
   failLine,
   failureBlock,
   passLine,
@@ -53,13 +52,7 @@ const ERROR_LABELS = {
  */
 export function defaultReporter(options: DefaultReporterOptions): Reporter {
   const { stream, report } = options
-  let failures = new Map<TaskId, FailedTest[]>()
-  // Suites that ended `fail` with errors of their own, kept like failed tests, and each suite's
-  // name path (from the collected tree) for their titles.
-  let suiteFailures = new Map<TaskId, FailedTest[]>()
-  let suitePaths = new Map<TaskId, readonly string[]>()
-  let files = zeroFiles()
-  let tests = zeroTests()
+  let state = freshState()
   // Whether the last thing printed ended in a blank line, so the totals don't add a second.
   let atBlank = true
 
@@ -72,50 +65,37 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
     name: 'default',
 
     'run:start'() {
-      failures = new Map()
-      suiteFailures = new Map()
-      suitePaths = new Map()
-      files = zeroFiles()
-      tests = zeroTests()
+      state = freshState()
     },
 
-    'file:collected'(_file, event) {
-      const byId = new Map(event.tasks.map((task) => [task.id, task]))
-      for (const task of event.tasks) {
-        if (task.type !== 'suite') continue
-        const path: string[] = []
-        for (let at: TaskNode | undefined = task; at?.type === 'suite'; ) {
-          path.unshift(at.name)
-          at = at.parentId === null ? undefined : byId.get(at.parentId)
-        }
-        suitePaths.set(task.id, path)
-      }
+    // Kept until the file ends: a suite's name path is only built if that suite failed.
+    'file:collected'(file, event) {
+      state.collected.set(file.fileId, event.tasks)
     },
 
     'task:end'(task, event) {
       if (task.type === 'suite' && event.type === 'suite-end') {
-        const { state, errors } = event.result
-        if (state !== 'fail' || errors.length === 0) return
-        const failed = suiteFailures.get(task.fileId) ?? []
-        failed.push({ title: testTitle(report, suitePaths.get(task.id) ?? [task.name]), errors })
-        suiteFailures.set(task.fileId, failed)
+        const { state: suiteState, errors } = event.result
+        if (suiteState !== 'fail' || errors.length === 0) return
+        const path = suitePath(state.collected.get(task.fileId), task) ?? [task.name]
+        push(state.suiteFailures, task.fileId, { title: testTitle(report, path), errors })
         return
       }
       if (task.type !== 'test' || event.type !== 'test-end') return
-      const { state, errors } = event.result
-      tests = tally(tests, state)
-      if (state !== 'fail') return
-      const failed = failures.get(task.fileId) ?? []
-      failed.push({ title: testTitle(report, task.fullName), errors })
-      failures.set(task.fileId, failed)
+      const { state: testState, errors } = event.result
+      state.tests = tally(state.tests, testState)
+      if (testState !== 'fail') return
+      push(state.failures, task.fileId, { title: testTitle(report, task.fullName), errors })
     },
 
     async 'file:end'(result) {
-      files = tallyFile(files, result)
-      const failed = failures.get(result.file.fileId) ?? []
-      failures.delete(result.file.fileId)
-      const failedSuites = suiteFailures.get(result.file.fileId) ?? []
-      suiteFailures.delete(result.file.fileId)
+      const { fileId } = result.file
+      state.files = tally(state.files, result.state)
+      const failed = state.failures.get(fileId) ?? []
+      const failedSuites = state.suiteFailures.get(fileId) ?? []
+      state.failures.delete(fileId)
+      state.suiteFailures.delete(fileId)
+      state.collected.delete(fileId)
       await print(fileText(result.file, result, failed, failedSuites))
     },
 
@@ -127,7 +107,7 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
       const unhandled = summary.unhandled.map((error) =>
         failureBlock(report, 'Unhandled error', [error]),
       )
-      const parts = [...unhandled, summaryLines(files, tests, summary.durationMs)]
+      const parts = [...unhandled, summaryLines(state.files, state.tests, summary.durationMs)]
       await print((atBlank ? parts : ['', ...parts]).join('\n'))
     },
   }
@@ -154,26 +134,55 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
   }
 }
 
-function zeroFiles(): FileCounts {
-  return { failed: 0, skipped: 0, passed: 0, total: 0 }
+/** Everything one run accumulates; `run:start` replaces it whole. */
+interface RunState {
+  failures: Map<TaskId, FailedTest[]>
+  /** Suites that ended `fail` with errors of their own, kept like failed tests. */
+  suiteFailures: Map<TaskId, FailedTest[]>
+  /** Each file's collected tasks, from `file:collected` until its `file:end`. */
+  collected: Map<TaskId, readonly TaskNode[]>
+  /** File tallies (`todo` stays 0) and test tallies. */
+  files: TestCounts
+  tests: TestCounts
 }
 
-function zeroTests(): TestCounts {
-  return { ...zeroFiles(), todo: 0 }
-}
-
-function tallyFile(counts: FileCounts, result: FileResult): FileCounts {
-  const total = counts.total + 1
-  switch (result.state) {
-    case 'pass':
-      return { ...counts, passed: counts.passed + 1, total }
-    case 'fail':
-      return { ...counts, failed: counts.failed + 1, total }
-    case 'skip':
-      return { ...counts, skipped: counts.skipped + 1, total }
+function freshState(): RunState {
+  return {
+    failures: new Map(),
+    suiteFailures: new Map(),
+    collected: new Map(),
+    files: zeroCounts(),
+    tests: zeroCounts(),
   }
 }
 
+function zeroCounts(): TestCounts {
+  return { failed: 0, skipped: 0, passed: 0, total: 0, todo: 0 }
+}
+
+/** Adds `item` to `map`'s list for `id`, creating the list first. */
+function push<T>(map: Map<TaskId, T[]>, id: TaskId, item: T): void {
+  const list = map.get(id)
+  if (list === undefined) map.set(id, [item])
+  else list.push(item)
+}
+
+/** The names from the root suite down to `suite`, or `undefined` when its file's tree is unknown. */
+function suitePath(
+  tasks: readonly TaskNode[] | undefined,
+  suite: TaskNode,
+): readonly string[] | undefined {
+  if (tasks === undefined) return undefined
+  const byId = new Map(tasks.map((task) => [task.id, task]))
+  const path: string[] = []
+  for (let at: TaskNode | undefined = suite; at?.type === 'suite'; ) {
+    path.unshift(at.name)
+    at = at.parentId === null ? undefined : byId.get(at.parentId)
+  }
+  return path
+}
+
+/** One more finished file or test in `state`'s bucket. */
 function tally(counts: TestCounts, state: TaskState): TestCounts {
   const total = counts.total + 1
   switch (state) {

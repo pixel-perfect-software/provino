@@ -29,12 +29,35 @@ import { SCHEMA_VERSION } from './schema.ts'
 class Mismatch extends Error {
   readonly location: string
 
-  constructor(location: string, expected: string, value: unknown) {
+  constructor(at: Loc, expected: string, value: unknown) {
+    const location = render(at)
     super(
       `${location === '' ? 'the run' : location} must be ${expected} (got ${describeValue(value)})`,
     )
     this.location = location
   }
+}
+
+/**
+ * Where a value sits: its parent and one key or array index, `undefined` for the run itself. The
+ * text (`files[3].tests[0].status`) is only built by `render`, when something is wrong, so a
+ * successful parse builds no strings for its locations.
+ */
+type Loc = { readonly parent: Loc; readonly segment: string | number } | undefined
+
+/** A parser: the value and where it is, for a message. */
+type Parse<T> = (value: unknown, at: Loc) => T
+
+/** `files[3].tests[0].status`: a key after a parent is `.key`, an index is `[n]`. */
+function render(at: Loc): string {
+  const segments: (string | number)[] = []
+  for (let node = at; node !== undefined; node = node.parent) segments.unshift(node.segment)
+  let text = ''
+  for (const segment of segments) {
+    if (typeof segment === 'number') text += `[${segment}]`
+    else text += text === '' ? segment : `.${segment}`
+  }
+  return text
 }
 
 /** A short description of a value for a message: its kind, and a short string in quotes. */
@@ -72,13 +95,8 @@ const TRACE_KINDS: readonly TraceEntry['kind'][] = [
 const TRACE_OUTCOMES: readonly NonNullable<TraceEntry['outcome']>[] = ['ok', 'error']
 const SHA256 = /^[0-9a-f]{64}$/i
 
-/** `parent.key`, or `key` at the root. */
-function keyPath(parent: string, key: string): string {
-  return parent === '' ? key : `${parent}.${key}`
-}
-
-function object(value: unknown, location: string): Record<string, unknown> {
-  if (!isRecord(value)) throw new Mismatch(location, 'an object', value)
+function object(value: unknown, at: Loc): Record<string, unknown> {
+  if (!isRecord(value)) throw new Mismatch(at, 'an object', value)
   return value
 }
 
@@ -87,31 +105,31 @@ function field(record: Record<string, unknown>, key: string): unknown {
   return Object.hasOwn(record, key) ? record[key] : undefined
 }
 
-function string(value: unknown, location: string): string {
-  if (typeof value !== 'string') throw new Mismatch(location, 'a string', value)
+function string(value: unknown, at: Loc): string {
+  if (typeof value !== 'string') throw new Mismatch(at, 'a string', value)
   return value
 }
 
-function boolean(value: unknown, location: string): boolean {
-  if (typeof value !== 'boolean') throw new Mismatch(location, 'a boolean', value)
+function boolean(value: unknown, at: Loc): boolean {
+  if (typeof value !== 'boolean') throw new Mismatch(at, 'a boolean', value)
   return value
 }
 
 /** A number that is not `NaN` or infinite and is not below zero (a duration, a size). */
-function quantity(value: unknown, location: string): number {
+function quantity(value: unknown, at: Loc): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    throw new Mismatch(location, 'a number that is not negative', value)
+    throw new Mismatch(at, 'a number that is not negative', value)
   }
   return value
 }
 
 /** A whole number, `minimum` or more (a count, an index, a line). */
-function integer(minimum: number): (value: unknown, location: string) => number {
+function integer(minimum: number): Parse<number> {
   const expected =
     minimum === 0 ? 'a whole number, 0 or more' : `a whole number, ${minimum} or more`
-  return (value, location) => {
+  return (value, at) => {
     if (typeof value !== 'number' || !Number.isInteger(value) || value < minimum) {
-      throw new Mismatch(location, expected, value)
+      throw new Mismatch(at, expected, value)
     }
     return value
   }
@@ -120,230 +138,216 @@ function integer(minimum: number): (value: unknown, location: string) => number 
 const count = integer(0)
 
 /** A value that is one of `allowed`, which is returned as itself, so it keeps its literal type. */
-function oneOf<T extends string>(allowed: readonly T[]): (value: unknown, location: string) => T {
+function oneOf<T extends string>(allowed: readonly T[]): Parse<T> {
   const expected = `one of ${allowed.map((item) => `"${item}"`).join(', ')}`
-  return (value, location) => {
+  return (value, at) => {
     const found = allowed.find((item) => item === value)
-    if (found === undefined) throw new Mismatch(location, expected, value)
+    if (found === undefined) throw new Mismatch(at, expected, value)
     return found
   }
 }
 
-/** An array, each item parsed by `item` at `location[index]`. */
-function list<T>(
-  item: (value: unknown, location: string) => T,
-  options: { readonly minimum?: number } = {},
-): (value: unknown, location: string) => T[] {
+/** An array, each item parsed by `item` at `at[index]`. */
+function list<T>(item: Parse<T>, options: { readonly minimum?: number } = {}): Parse<T[]> {
   const minimum = options.minimum ?? 0
-  return (value, location) => {
-    if (!Array.isArray(value)) throw new Mismatch(location, 'an array', value)
+  return (value, at) => {
+    if (!Array.isArray(value)) throw new Mismatch(at, 'an array', value)
     if (value.length < minimum) {
-      throw new Mismatch(location, `an array of at least ${minimum} item`, value)
+      throw new Mismatch(at, `an array of at least ${minimum} item`, value)
     }
-    return value.map((entry: unknown, index) => item(entry, `${location}[${index}]`))
+    return value.map((entry: unknown, index) => item(entry, { parent: at, segment: index }))
   }
 }
 
 /** The required `key` of `record`, parsed. */
-function required<T>(
+function required<T>(record: Record<string, unknown>, key: string, at: Loc, parse: Parse<T>): T {
+  return parse(field(record, key), { parent: at, segment: key })
+}
+
+/**
+ * The optional fields of `record` named by `parsers`, each parsed: only the keys `record` has,
+ * so no value is ever `undefined`. The one cast is safe because each key's value comes from its
+ * own parser.
+ */
+function optionalFields<P extends Record<string, Parse<unknown>>>(
   record: Record<string, unknown>,
-  key: string,
-  location: string,
-  parse: (value: unknown, location: string) => T,
-): T {
-  return parse(field(record, key), keyPath(location, key))
+  at: Loc,
+  parsers: P,
+): { [K in keyof P]?: ReturnType<P[K]> } {
+  const found: Record<string, unknown> = {}
+  for (const [key, parse] of Object.entries(parsers)) {
+    if (Object.hasOwn(record, key)) found[key] = parse(record[key], { parent: at, segment: key })
+  }
+  return found as { [K in keyof P]?: ReturnType<P[K]> }
 }
 
-/** The optional `key` of `record`, parsed; `undefined` when `record` does not have it. */
-function optional<T>(
-  record: Record<string, unknown>,
-  key: string,
-  location: string,
-  parse: (value: unknown, location: string) => T,
-): T | undefined {
-  return Object.hasOwn(record, key) ? parse(record[key], keyPath(location, key)) : undefined
-}
-
-function testIdentity(value: unknown, location: string): TestIdentity {
-  const id = object(value, location)
+function testIdentity(value: unknown, at: Loc): TestIdentity {
+  const id = object(value, at)
   return {
-    file: required(id, 'file', location, string),
-    path: required(id, 'path', location, list(string, { minimum: 1 })),
-    dupIndex: required(id, 'dupIndex', location, count),
+    file: required(id, 'file', at, string),
+    path: required(id, 'path', at, list(string, { minimum: 1 })),
+    dupIndex: required(id, 'dupIndex', at, count),
   }
 }
 
-function normalizedError(value: unknown, location: string): NormalizedError {
-  const error = object(value, location)
-  const name = optional(error, 'name', location, string)
-  const matcher = optional(error, 'matcher', location, string)
-  const userFrame = optional(error, 'userFrame', location, string)
+function normalizedError(value: unknown, at: Loc): NormalizedError {
+  const error = object(value, at)
   return {
-    ...(name === undefined ? {} : { name }),
-    message: required(error, 'message', location, string),
-    ...(matcher === undefined ? {} : { matcher }),
-    ...(userFrame === undefined ? {} : { userFrame }),
-    raw: required(error, 'raw', location, string),
+    message: required(error, 'message', at, string),
+    raw: required(error, 'raw', at, string),
+    ...optionalFields(error, at, {
+      name: string,
+      matcher: string,
+      userFrame: string,
+    }),
   }
 }
 
-function consoleEntry(value: unknown, location: string): ConsoleEntry {
-  const entry = object(value, location)
-  const level = optional(entry, 'level', location, string)
+function consoleEntry(value: unknown, at: Loc): ConsoleEntry {
+  const entry = object(value, at)
   return {
-    stream: required(entry, 'stream', location, oneOf(STREAMS)),
-    ...(level === undefined ? {} : { level }),
-    text: required(entry, 'text', location, string),
+    stream: required(entry, 'stream', at, oneOf(STREAMS)),
+    text: required(entry, 'text', at, string),
+    ...optionalFields(entry, at, { level: string }),
   }
 }
 
-function traceEntry(value: unknown, location: string): TraceEntry {
-  const entry = object(value, location)
-  const label = optional(entry, 'label', location, string)
-  const outcome = optional(entry, 'outcome', location, oneOf(TRACE_OUTCOMES))
+function traceEntry(value: unknown, at: Loc): TraceEntry {
+  const entry = object(value, at)
   return {
-    kind: required(entry, 'kind', location, oneOf(TRACE_KINDS)),
-    owner: required(entry, 'owner', location, list(string)),
-    ...(label === undefined ? {} : { label }),
-    ...(outcome === undefined ? {} : { outcome }),
+    kind: required(entry, 'kind', at, oneOf(TRACE_KINDS)),
+    owner: required(entry, 'owner', at, list(string)),
+    ...optionalFields(entry, at, { label: string, outcome: oneOf(TRACE_OUTCOMES) }),
   }
 }
 
 function sourceLocation(
   value: unknown,
-  location: string,
+  at: Loc,
 ): { readonly line: number; readonly column: number } {
-  const position = object(value, location)
+  const position = object(value, at)
   return {
-    line: required(position, 'line', location, integer(1)),
-    column: required(position, 'column', location, integer(1)),
+    line: required(position, 'line', at, integer(1)),
+    column: required(position, 'column', at, integer(1)),
   }
 }
 
-function normalizedTest(value: unknown, location: string): NormalizedTest {
-  const test = object(value, location)
-  const skipReason = optional(test, 'skipReason', location, oneOf(SKIP_REASONS))
-  const passingAssertions = optional(test, 'passingAssertions', location, count)
-  const retries = optional(test, 'retries', location, count)
-  const durationMs = optional(test, 'durationMs', location, quantity)
-  const position = optional(test, 'location', location, sourceLocation)
-  const output = optional(test, 'console', location, list(consoleEntry))
-  const expectedToFail = optional(test, 'expectedToFail', location, boolean)
+function normalizedTest(value: unknown, at: Loc): NormalizedTest {
+  const test = object(value, at)
   return {
-    id: required(test, 'id', location, testIdentity),
-    status: required(test, 'status', location, oneOf(TEST_STATUSES)),
-    ...(skipReason === undefined ? {} : { skipReason }),
-    errors: required(test, 'errors', location, list(normalizedError)),
-    ...(passingAssertions === undefined ? {} : { passingAssertions }),
-    ...(retries === undefined ? {} : { retries }),
-    ...(durationMs === undefined ? {} : { durationMs }),
-    ...(position === undefined ? {} : { location: position }),
-    ...(output === undefined ? {} : { console: output }),
-    ...(expectedToFail === undefined ? {} : { expectedToFail }),
+    id: required(test, 'id', at, testIdentity),
+    status: required(test, 'status', at, oneOf(TEST_STATUSES)),
+    errors: required(test, 'errors', at, list(normalizedError)),
+    ...optionalFields(test, at, {
+      skipReason: oneOf(SKIP_REASONS),
+      passingAssertions: count,
+      retries: count,
+      durationMs: quantity,
+      location: sourceLocation,
+      console: list(consoleEntry),
+      expectedToFail: boolean,
+    }),
   }
 }
 
-function normalizedFile(value: unknown, location: string): NormalizedFile {
-  const file = object(value, location)
-  const fileError = optional(file, 'fileError', location, normalizedError)
-  const output = optional(file, 'console', location, list(consoleEntry))
-  const trace = optional(file, 'trace', location, list(traceEntry))
-  const durationMs = optional(file, 'durationMs', location, quantity)
+function normalizedFile(value: unknown, at: Loc): NormalizedFile {
+  const file = object(value, at)
   return {
-    file: required(file, 'file', location, string),
-    status: required(file, 'status', location, oneOf(FILE_STATUSES)),
-    ...(fileError === undefined ? {} : { fileError }),
-    tests: required(file, 'tests', location, list(normalizedTest)),
-    ...(output === undefined ? {} : { console: output }),
-    ...(trace === undefined ? {} : { trace }),
-    ...(durationMs === undefined ? {} : { durationMs }),
+    file: required(file, 'file', at, string),
+    status: required(file, 'status', at, oneOf(FILE_STATUSES)),
+    tests: required(file, 'tests', at, list(normalizedTest)),
+    ...optionalFields(file, at, {
+      fileError: normalizedError,
+      console: list(consoleEntry),
+      trace: list(traceEntry),
+      durationMs: quantity,
+    }),
   }
 }
 
-function runners(value: unknown, location: string): Record<string, string> {
-  const versions = object(value, location)
+function runners(value: unknown, at: Loc): Record<string, string> {
+  const versions = object(value, at)
   return Object.fromEntries(
     Object.keys(versions).map((name): [string, string] => [
       name,
-      string(versions[name], keyPath(location, name)),
+      string(versions[name], { parent: at, segment: name }),
     ]),
   )
 }
 
-function runEnvironment(value: unknown, location: string): RunEnvironment {
-  const env = object(value, location)
+function runEnvironment(value: unknown, at: Loc): RunEnvironment {
+  const env = object(value, at)
   return {
-    os: required(env, 'os', location, string),
-    osRelease: required(env, 'osRelease', location, string),
-    arch: required(env, 'arch', location, string),
-    cpuModel: required(env, 'cpuModel', location, string),
-    cpuCount: required(env, 'cpuCount', location, count),
-    memoryMb: required(env, 'memoryMb', location, quantity),
-    node: required(env, 'node', location, string),
-    runners: required(env, 'runners', location, runners),
-    ci: required(env, 'ci', location, boolean),
+    os: required(env, 'os', at, string),
+    osRelease: required(env, 'osRelease', at, string),
+    arch: required(env, 'arch', at, string),
+    cpuModel: required(env, 'cpuModel', at, string),
+    cpuCount: required(env, 'cpuCount', at, count),
+    memoryMb: required(env, 'memoryMb', at, quantity),
+    node: required(env, 'node', at, string),
+    runners: required(env, 'runners', at, runners),
+    ci: required(env, 'ci', at, boolean),
   }
 }
 
-function snapshotCounters(value: unknown, location: string): SnapshotCounters {
-  const counters = object(value, location)
+function snapshotCounters(value: unknown, at: Loc): SnapshotCounters {
+  const counters = object(value, at)
   return {
-    added: required(counters, 'added', location, count),
-    matched: required(counters, 'matched', location, count),
-    unmatched: required(counters, 'unmatched', location, count),
-    updated: required(counters, 'updated', location, count),
-    unchecked: required(counters, 'unchecked', location, count),
-    total: required(counters, 'total', location, count),
-    filesAdded: required(counters, 'filesAdded', location, count),
-    filesRemoved: required(counters, 'filesRemoved', location, count),
-    filesUnmatched: required(counters, 'filesUnmatched', location, count),
-    filesUpdated: required(counters, 'filesUpdated', location, count),
+    added: required(counters, 'added', at, count),
+    matched: required(counters, 'matched', at, count),
+    unmatched: required(counters, 'unmatched', at, count),
+    updated: required(counters, 'updated', at, count),
+    unchecked: required(counters, 'unchecked', at, count),
+    total: required(counters, 'total', at, count),
+    filesAdded: required(counters, 'filesAdded', at, count),
+    filesRemoved: required(counters, 'filesRemoved', at, count),
+    filesUnmatched: required(counters, 'filesUnmatched', at, count),
+    filesUpdated: required(counters, 'filesUpdated', at, count),
   }
 }
 
-function sha256(value: unknown, location: string): string {
-  const text = string(value, location)
-  if (!SHA256.test(text)) throw new Mismatch(location, 'a hex SHA-256 (64 hex digits)', value)
+function sha256(value: unknown, at: Loc): string {
+  const text = string(value, at)
+  if (!SHA256.test(text)) throw new Mismatch(at, 'a hex SHA-256 (64 hex digits)', value)
   return text
 }
 
-function snapshotFile(value: unknown, location: string): SnapshotFileState {
-  const state = object(value, location)
+function snapshotFile(value: unknown, at: Loc): SnapshotFileState {
+  const state = object(value, at)
   return {
-    file: required(state, 'file', location, string),
-    sha256: required(state, 'sha256', location, sha256),
+    file: required(state, 'file', at, string),
+    sha256: required(state, 'sha256', at, sha256),
   }
 }
 
-function snapshots(value: unknown, location: string): NonNullable<NormalizedRun['snapshots']> {
-  const state = object(value, location)
+function snapshots(value: unknown, at: Loc): NonNullable<NormalizedRun['snapshots']> {
+  const state = object(value, at)
   return {
-    counters: required(state, 'counters', location, snapshotCounters),
-    files: required(state, 'files', location, list(snapshotFile)),
+    counters: required(state, 'counters', at, snapshotCounters),
+    files: required(state, 'files', at, list(snapshotFile)),
   }
 }
 
-function schemaVersion(value: unknown, location: string): typeof SCHEMA_VERSION {
+function schemaVersion(value: unknown, at: Loc): typeof SCHEMA_VERSION {
   if (value !== SCHEMA_VERSION) {
-    throw new Mismatch(location, `the schema version ${SCHEMA_VERSION}`, value)
+    throw new Mismatch(at, `the schema version ${SCHEMA_VERSION}`, value)
   }
   return SCHEMA_VERSION
 }
 
 function normalizedRun(value: unknown): NormalizedRun {
-  const run = object(value, '')
-  const state = optional(run, 'snapshots', '', snapshots)
+  const run = object(value, undefined)
   return {
-    schemaVersion: required(run, 'schemaVersion', '', schemaVersion),
-    runner: required(run, 'runner', '', string),
-    runnerVersion: required(run, 'runnerVersion', '', string),
-    suite: required(run, 'suite', '', string),
-    startedAt: required(run, 'startedAt', '', string),
-    env: required(run, 'env', '', runEnvironment),
-    files: required(run, 'files', '', list(normalizedFile)),
-    ...(state === undefined ? {} : { snapshots: state }),
-    runErrors: required(run, 'runErrors', '', list(normalizedError)),
-    success: required(run, 'success', '', boolean),
+    schemaVersion: required(run, 'schemaVersion', undefined, schemaVersion),
+    runner: required(run, 'runner', undefined, string),
+    runnerVersion: required(run, 'runnerVersion', undefined, string),
+    suite: required(run, 'suite', undefined, string),
+    startedAt: required(run, 'startedAt', undefined, string),
+    env: required(run, 'env', undefined, runEnvironment),
+    files: required(run, 'files', undefined, list(normalizedFile)),
+    runErrors: required(run, 'runErrors', undefined, list(normalizedError)),
+    success: required(run, 'success', undefined, boolean),
+    ...optionalFields(run, undefined, { snapshots }),
   }
 }
 

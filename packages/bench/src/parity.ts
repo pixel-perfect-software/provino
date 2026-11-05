@@ -9,6 +9,7 @@ import {
   parseNormalizedRun,
   readRunEnvironment,
 } from '@provino/harness'
+import type { NormalizedRun } from '@provino/types'
 import { type BenchPaths, DEFAULT_PATHS, type SuiteSpec, suiteDir } from './suites.ts'
 
 /**
@@ -35,18 +36,35 @@ export interface StatusParity {
   readonly unavailable?: string
 }
 
+/** What an unavailable comparison reports in place of counts. */
+const ZERO_COUNTS = {
+  referenceTests: 0,
+  statusMatched: 0,
+  candidateOnlyTests: 0,
+  files: 0,
+  filesMatched: 0,
+} as const
+
 /**
  * Compares the reports `checkRunner` wrote for Jest and Provino on a suite
  * (`<suite>/check/jest.json` and `provino.json`). Jest's is converted with the suite's `jest/`
  * directory as the root (its real path, the way Provino reports it), and `diffRuns` compares them
  * by test key with no exclusions, messages, console or trace off: the check is on statuses. Any
- * diff but `passing-assertions` fails it, so a file or test in one run only does too.
+ * diff but `passing-assertions` fails it, so a file or test in one run only does too. A report
+ * the caller has already parsed (`CheckResult.parsed`) goes in `options.reports`, so it is not read
+ * and validated a second time; one that is left out is read from its file.
  * @public
  */
 export async function checkStatusParity(
   spec: SuiteSpec,
   versions: { readonly jest: string; readonly provino: string },
-  options?: { readonly paths?: BenchPaths },
+  options?: {
+    readonly paths?: BenchPaths
+    readonly reports?: {
+      readonly jest?: ReturnType<typeof parseJestJson>
+      readonly provino?: NormalizedRun
+    }
+  },
 ): Promise<StatusParity> {
   const paths = options?.paths ?? DEFAULT_PATHS
   const dir = suiteDir(spec, paths.suitesRoot)
@@ -54,13 +72,17 @@ export async function checkStatusParity(
   const provinoPath = join(dir, 'check', 'provino.json')
   try {
     const rootDir = await realpath(join(dir, 'jest'))
-    const jestRun = convertJest(parseJestJson(await readFile(jestPath, 'utf8'), jestPath), {
+    const jestJson =
+      options?.reports?.jest ?? parseJestJson(await readFile(jestPath, 'utf8'), jestPath)
+    const jestRun = convertJest(jestJson, {
       rootDir,
       suite: spec.name,
       runnerVersion: versions.jest,
       env: readRunEnvironment({ jest: versions.jest, provino: versions.provino }),
     })
-    const provinoRun = parseNormalizedRun(await readFile(provinoPath, 'utf8'), provinoPath)
+    const provinoRun =
+      options?.reports?.provino ??
+      parseNormalizedRun(await readFile(provinoPath, 'utf8'), provinoPath)
     const report = diffRuns(jestRun, provinoRun, {
       messageMode: 'none',
       compareConsole: false,
@@ -70,11 +92,7 @@ export async function checkStatusParity(
     const failing = report.diffs.filter((diff) => diff.kind !== 'passing-assertions')
     return {
       ok: failing.length === 0,
-      referenceTests: report.counts.referenceTests,
-      statusMatched: report.counts.statusMatched,
-      candidateOnlyTests: report.counts.candidateOnlyTests,
-      files: report.counts.files,
-      filesMatched: report.counts.filesMatched,
+      ...report.counts,
       failing,
       assertionDiffs: report.diffs.filter((diff) => diff.kind === 'passing-assertions'),
     }
@@ -84,11 +102,7 @@ export async function checkStatusParity(
     if (!(error instanceof HarnessError)) throw error
     return {
       ok: false,
-      referenceTests: 0,
-      statusMatched: 0,
-      candidateOnlyTests: 0,
-      files: 0,
-      filesMatched: 0,
+      ...ZERO_COUNTS,
       failing: [],
       assertionDiffs: [],
       unavailable: `${error.code}: ${error.message}`,

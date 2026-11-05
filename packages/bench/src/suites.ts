@@ -246,30 +246,28 @@ const RUNNER_SETUP: Readonly<
   Record<
     RunnerName,
     {
-      readonly tree: string
+      /** The tree it runs in under the suite; the runner's own name when left out. */
+      readonly tree?: string
       readonly nodeArgs: readonly string[]
       readonly config: string
       readonly args: readonly string[]
       readonly cacheKind: CacheKind
-      readonly cacheDir: string
+      /** Relative to the suite; `.cache/<cacheKind>` when left out. */
+      readonly cacheDir?: string
     }
   >
 > = {
   jest: {
-    tree: 'jest',
     nodeArgs: [],
     config: 'jest.config.json',
     args: ['--ci'],
     cacheKind: 'jest',
-    cacheDir: '.cache/jest',
   },
   vitest: {
-    tree: 'vitest',
     nodeArgs: [],
     config: 'vitest.config.ts',
     args: ['run'],
     cacheKind: 'vite',
-    cacheDir: '.cache/vite',
   },
   provino: {
     tree: 'jest',
@@ -326,7 +324,8 @@ export function planRunner(
   options?: { readonly paths?: BenchPaths; readonly extraArgs?: readonly string[] },
 ): RunnerPlan {
   const { repoRoot, suitesRoot } = options?.paths ?? DEFAULT_PATHS
-  const { tree, nodeArgs, config, args: leading, cacheKind, cacheDir } = RUNNER_SETUP[runner]
+  const { nodeArgs, config, args: leading, cacheKind } = RUNNER_SETUP[runner]
+  const { tree = runner, cacheDir = join('.cache', cacheKind) } = RUNNER_SETUP[runner]
   const root = suiteDir(spec, suitesRoot)
   const pkg = installedPackage(runner)
   const cwd = join(root, tree)

@@ -97,14 +97,20 @@ const REPORTERS: Readonly<
     RunnerName,
     {
       readonly args: (outputFile: string) => readonly string[]
-      readonly parse: (text: string, source: string) => Report
+      readonly parse: (text: string, source: string) => Parsed
     }
   >
 > = {
-  jest: { args: (outputFile) => ['--json', `--outputFile=${outputFile}`], parse: parseJestJson },
+  jest: {
+    args: (outputFile) => ['--json', `--outputFile=${outputFile}`],
+    parse: (text, source) => {
+      const jest = parseJestJson(text, source)
+      return { report: jest, parsed: { jest } }
+    },
+  },
   vitest: {
     args: (outputFile) => ['--reporter=json', `--outputFile=${outputFile}`],
-    parse: parseVitestJson,
+    parse: (text, source) => ({ report: parseVitestJson(text, source), parsed: {} }),
   },
   provino: {
     args: (outputFile) => [
@@ -116,19 +122,39 @@ const REPORTERS: Readonly<
       outputFile,
       '--no-cache',
     ],
-    parse: (text, source) => reportOfRun(parseNormalizedRun(text, source)),
+    parse: (text, source) => {
+      const provino = parseNormalizedRun(text, source)
+      return { report: reportOfRun(provino), parsed: { provino } }
+    },
   },
+}
+
+/**
+ * What a parsed report came from, for a caller that needs the original (the parity check compares
+ * Jest's JSON and Provino's `NormalizedRun`, not the `Report` view of them).
+ * @public
+ */
+export interface ParsedReport {
+  readonly jest?: ReturnType<typeof parseJestJson>
+  readonly provino?: NormalizedRun
+}
+
+/** A parsed report: the `Report` view the check judges, and the original where one is kept. */
+interface Parsed {
+  readonly report: Report
+  readonly parsed: ParsedReport
 }
 
 /** What reading a report found: the report, or why there is none (`invalid` is set for a file that exists but isn't this runner's report). */
 interface ReportRead {
   readonly report?: Report
+  readonly parsed?: ParsedReport
   readonly invalid?: string
 }
 
 async function loadReport(runner: RunnerName, path: string): Promise<ReportRead> {
   try {
-    return { report: REPORTERS[runner].parse(await readFile(path, 'utf8'), path) }
+    return REPORTERS[runner].parse(await readFile(path, 'utf8'), path)
   } catch (error) {
     if (hasCode(error, 'ENOENT')) return {}
     if (hasCode(error, 'HARNESS_RESULT_INVALID')) return { invalid: errorMessage(error) }
@@ -231,6 +257,8 @@ export interface CheckResult {
   readonly details: readonly string[]
   /** Facts about the run worth printing next to the verdict, e.g. Provino's worker count. */
   readonly notes: readonly string[]
+  /** The report as parsed, where the run wrote a valid one (for `checkStatusParity`). */
+  readonly parsed?: ParsedReport
 }
 
 const TAIL_CHARS = 6000
@@ -285,7 +313,7 @@ export async function checkRunner(
   }
 
   const exitCode = run.timedOut ? TIMEOUT_EXIT_CODE : exitCodeOf(run.exitCode, run.signal)
-  const { report, invalid } = await loadReport(runner, reportPath)
+  const { report, parsed, invalid } = await loadReport(runner, reportPath)
   const summary = report === undefined ? undefined : summarize(report)
   const problems = [...checkProblems(exitCode, summary, expectedTests(spec))]
   if (run.timedOut) problems.push(`timed out after ${describeDuration(timeoutMs)} and was killed`)
@@ -308,5 +336,6 @@ export async function checkRunner(
     problems,
     details,
     notes: runner === 'provino' ? provinoNotes(report !== undefined) : [],
+    ...(parsed === undefined ? {} : { parsed }),
   }
 }
