@@ -19,6 +19,7 @@ import type {
   ImportFile,
   LazyHost,
   SerializedError,
+  TaskId,
   TaskResult,
   TestContext,
 } from '@provino/types'
@@ -60,6 +61,15 @@ void runtime.runFile('/a.test.ts', { testNamePattern: /x/, testIds: ['t1'] })
 void runtime.runFile('/a.test.ts', { testNamePattern: 3 })
 // @ts-expect-error ids are strings
 void runtime.runFile('/a.test.ts', { testIds: [1] })
+
+// The coordinator assigns the file's id (D23); a standalone runtime computes its own.
+expectTypeOf<RunFileOptions['fileId']>().toEqualTypeOf<TaskId | undefined>()
+declare const fileId: TaskId
+void runtime.runFile('/a.test.ts', { fileId })
+// @ts-expect-error an id is a `TaskId`, not any string
+void runtime.runFile('/a.test.ts', { fileId: 'abc' })
+// @ts-expect-error exactOptionalPropertyTypes: omit `fileId`, don't pass undefined
+void runtime.runFile('/a.test.ts', { fileId: undefined })
 // A serialized error keeps only the matcher's name and verdict.
 expectTypeOf<SerializedError['matcherResult']>().toEqualTypeOf<
   { readonly name: string; readonly pass: boolean } | undefined

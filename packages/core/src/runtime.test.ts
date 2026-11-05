@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { createBehaviourLoader } from '@provino/policy'
-import type { RuntimeEvent } from '@provino/types'
+import type { RuntimeEvent, TaskId } from '@provino/types'
+import { fileIdOf } from './collector/finalize.ts'
 import { policyWith, reached, runScript } from './internal/test-support.ts'
 import { createRuntime, type RunFileOptions, type Runtime, type RuntimeOptions } from './runtime.ts'
 
@@ -20,6 +21,112 @@ describe('runFile', () => {
     await runtime.runFile('/project/src/deep/a.test.ts')
     const [start] = events
     assert.equal(start?.type === 'file-collect-start' && start.path, 'src/deep/a.test.ts')
+  })
+
+  describe('the file id (D23)', () => {
+    /** Every task id an event carries, whatever the field is called. */
+    const idsOf = (event: RuntimeEvent): Array<string | null> => {
+      switch (event.type) {
+        case 'file-collect-start':
+        case 'file-collect-end':
+        case 'file-end':
+          return [event.fileId]
+        case 'suite-start':
+        case 'suite-end':
+        case 'test-start':
+        case 'test-attempt-start':
+        case 'test-attempt-end':
+        case 'test-end':
+          return [event.id]
+        case 'hook-start':
+        case 'hook-end':
+          return [event.ownerId, event.testId]
+        case 'annotation':
+          return [event.testId]
+        case 'console':
+          return [event.taskId]
+        case 'unhandled-error':
+          return [event.ownerId, event.lastTestId]
+        default:
+          return []
+      }
+    }
+
+    test('a given id is on every event of the file and the root of every task id', async () => {
+      const given = 'coord0001x' as TaskId
+      const run = await runScript(
+        ({ describe, test, beforeEach, afterAll }) => {
+          beforeEach(() => {})
+          describe('suite', () => {
+            afterAll(() => {})
+            test('a', () => {})
+            test('b', () => {})
+          })
+          test('top level', () => {})
+        },
+        {},
+        { fileId: given },
+      )
+      assert.equal(run.file.state, 'pass')
+      const ids = run.events.flatMap(idsOf).filter((id) => id !== null)
+      // Each kind of event that carries an id was seen: the file's, a suite's, a test's, a hook's.
+      for (const type of ['file-collect-start', 'suite-end', 'test-end', 'hook-end'] as const) {
+        assert.ok(
+          run.events.some((event) => event.type === type),
+          type,
+        )
+      }
+      assert.ok(ids.length > 10, `${ids.length} ids`)
+      for (const id of ids) assert.ok(id === given || id.startsWith(`${given}_`), id)
+      assert.deepEqual(
+        run.events.flatMap((event) =>
+          event.type === 'file-collect-start' || event.type === 'file-end' ? [event.fileId] : [],
+        ),
+        [given, given],
+      )
+      assert.equal(run.tasks.length, 5)
+      for (const task of run.tasks) {
+        assert.equal(task.fileId, given)
+        assert.ok(task.id === given || task.id.startsWith(`${given}_`), task.id)
+      }
+    })
+
+    test('without one, core computes it from the project name and the relative path', async () => {
+      const run = await runScript(
+        ({ test }) => {
+          test('t', () => {})
+        },
+        {},
+        { projectName: 'web' },
+      )
+      const expected = fileIdOf('web', 'script.test.ts')
+      assert.equal(run.tasks[0]?.fileId, expected)
+      assert.ok(run.events.flatMap(idsOf).every((id) => id === null || id.startsWith(expected)))
+    })
+
+    for (const [what, value] of [
+      ['an empty string', ''],
+      ['a number', 7],
+      ['null', null],
+    ] as const) {
+      test(`${what} fails the file with CORE_INVALID_ARGUMENT, and its events carry the computed id`, async () => {
+        const run = await runScript(
+          ({ test }) => {
+            test('t', () => {})
+          },
+          {},
+          { fileId: value as unknown as TaskId },
+        )
+        const computed = fileIdOf('', 'script.test.ts')
+        assert.equal(run.file.state, 'fail')
+        assert.equal(run.file.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
+        assert.match(run.file.errors[0]?.message ?? '', /fileId/)
+        const ids = run.events.flatMap(idsOf).filter((id) => id !== null)
+        assert.ok(ids.length > 0)
+        assert.ok(ids.every((id) => id === computed))
+        assert.equal(run.tasks.length, 0)
+      })
+    }
   })
 
   test('a file whose collection throws reports its error, no tasks and a failed file', async () => {

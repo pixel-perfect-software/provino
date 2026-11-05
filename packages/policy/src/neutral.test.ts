@@ -56,7 +56,7 @@ test('the pinned neutral choices hold', () => {
     assert.deepEqual(read(path), expected, path)
 })
 
-test('every behaviour key is a ModuleRef into @provino/policy/behaviours or null', () => {
+test('every behaviour key is an absolute ModuleRef into @provino/policy/behaviours or null', () => {
   const behaviours = [
     neutralPolicy.core.formatEachTitle,
     neutralPolicy.snapshot.key,
@@ -64,7 +64,9 @@ test('every behaviour key is a ModuleRef into @provino/policy/behaviours or null
   ]
   for (const ref of behaviours) {
     assert.ok(isModuleRef(ref))
-    assert.equal(ref.module, '@provino/policy/behaviours')
+    // D21: absolute, so a worker needs no package resolution to load it.
+    assert.equal(ref.module, import.meta.resolve('@provino/policy/behaviours'))
+    assert.match(ref.module, /^file:\/\//)
   }
   assert.equal(neutralPolicy.core.orderHooks, null)
   assert.equal(neutralPolicy.snapshot.resolvePath, null)

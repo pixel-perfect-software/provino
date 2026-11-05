@@ -1,7 +1,7 @@
 // The project config arrives in `WorkerInit` typed, but it crossed a link: the worker checks that
 // every piece it reads is there before it builds anything, so a malformed config fails with a code
-// and the name of the key, instead of a `TypeError` from the middle of the boot. Leaf values of
-// the policy are checked where they are used (behaviour keys by the behaviour loader).
+// and the name of the key, instead of a `TypeError` from the middle of the boot. The policy's data
+// keys are checked where they are used; where its behaviour refs point is checked here (D21).
 import { isAbsolute } from 'node:path'
 import { isModuleRef, neutralPolicy } from '@provino/policy'
 import type {
@@ -37,13 +37,6 @@ function texts(value: unknown, path: string): readonly string[] {
   return isStringArray(value) ? value : invalid(path, 'an array of strings')
 }
 
-/** Every slice of the policy is there as an object: the shape `SerializedPolicy` promises. */
-function serializedPolicy(value: unknown): SerializedPolicy {
-  const policy = record(value, 'policy')
-  for (const slice of Object.keys(neutralPolicy)) record(policy[slice], `policy.${slice}`)
-  return policy as SerializedPolicy
-}
-
 /**
  * A module location a worker can import as it is: an absolute path or an absolute URL (`file:`,
  * `data:`, `node:`). A bare package specifier would resolve from this package's own location, which
@@ -58,6 +51,42 @@ function moduleLocation(value: unknown, path: string): string {
     )
   }
   return location
+}
+
+/**
+ * Every behaviour in the policy is a `{ module, export }` ref, nested under its slice (the key path
+ * is dotted, `policy.core.formatEachTitle`, and an array item is indexed). A worker imports each
+ * `module` as it is, so each is an absolute location like the environment's (D21); the policy's
+ * own refs (`neutralPolicy`'s, a dialect's) are no exception. `seen` stops a cyclic value, which
+ * structured clone can carry, from looping.
+ */
+function absoluteBehaviourRefs(value: unknown, path: string, seen: Set<object>): void {
+  if (isModuleRef(value)) {
+    moduleLocation(value.module, `${path}.module`)
+    return
+  }
+  if (typeof value !== 'object' || value === null || seen.has(value)) return
+  seen.add(value)
+  if (Array.isArray(value)) {
+    value.forEach((item: unknown, index) => {
+      absoluteBehaviourRefs(item, `${path}[${index}]`, seen)
+    })
+    return
+  }
+  for (const [key, item] of Object.entries(value)) {
+    absoluteBehaviourRefs(item, `${path}.${key}`, seen)
+  }
+}
+
+/**
+ * Every slice of the policy is there as an object (the shape `SerializedPolicy` promises) and every
+ * behaviour ref in it is absolute.
+ */
+function serializedPolicy(value: unknown): SerializedPolicy {
+  const policy = record(value, 'policy')
+  for (const slice of Object.keys(neutralPolicy)) record(policy[slice], `policy.${slice}`)
+  absoluteBehaviourRefs(policy, 'policy', new Set())
+  return policy as SerializedPolicy
 }
 
 /**

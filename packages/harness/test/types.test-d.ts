@@ -22,6 +22,7 @@ import {
   type ProcessOptions,
   type ProcessResult,
   parseJestJson,
+  parseNormalizedRun,
   parseVitestJson,
   type RecordOptions,
   type RecordOutcome,
@@ -223,6 +224,17 @@ expectTypeOf(parseVitestJson).returns.toEqualTypeOf<JsonTestResults>()
 
 // @ts-expect-error the text of the file, not a path or a parsed value
 void parseJestJson({ testResults: [] })
+
+// The file Provino's `normalized-json` reporter writes (and `convertJest` and `convertVitest`
+// return): the text and where it came from, both required, giving a `NormalizedRun`.
+expectTypeOf(parseNormalizedRun).parameters.toEqualTypeOf<[text: string, source: string]>()
+expectTypeOf(parseNormalizedRun).returns.toEqualTypeOf<NormalizedRun>()
+
+// @ts-expect-error the source is named in every error, so it is required
+void parseNormalizedRun('{}')
+declare const parsedRun: NormalizedRun
+// @ts-expect-error the text of the file, not a parsed run
+void parseNormalizedRun(parsedRun, 'run')
 
 // Process groups, shared with the bench.
 expectTypeOf(spawnInGroup).parameters.toEqualTypeOf<

@@ -29,6 +29,11 @@ type Nodes = ReadonlyArray<SuiteNode | TestNode>
 export interface FinalizeOptions {
   readonly policy: CorePolicy
   readonly projectName: string
+  /**
+   * The file's id, when the caller (the coordinator, D23) assigned it; `fileIdOf` computes it
+   * from `projectName` and the relative path otherwise. Every task id below the file derives from it.
+   */
+  readonly fileId?: TaskId
   readonly ci: boolean
   readonly testNamePattern: RegExp | undefined
   readonly testIds: ReadonlySet<string> | undefined
@@ -40,7 +45,7 @@ export interface FinalizeOptions {
 export function finalize(file: FileState, options: FinalizeOptions): TaskNode[] {
   const testFile = toPath(file.path)
   const nodes = walk(file.root)
-  assignIds(file, options.projectName)
+  assignIds(file, options.fileId ?? fileIdOf(options.projectName, file.relativePath))
   assignNames(file.root)
   parseLocations(file.root, nodes, testFile, options.policy.locationFrame === 'test-file')
   if (options.policy.focus.scope === 'file') interpretFileScope(file.root, options)
@@ -56,8 +61,8 @@ export function fileIdOf(projectName: string, relativePath: string): TaskId {
   return hash('sha1', `${projectName}\0${relativePath}`).slice(0, 10) as TaskId
 }
 
-function assignIds(file: FileState, projectName: string): void {
-  file.root.id = fileIdOf(projectName, file.relativePath)
+function assignIds(file: FileState, fileId: TaskId): void {
+  file.root.id = fileId
   const visit = (suite: SuiteNode): void => {
     suite.children.forEach((child, index) => {
       child.id = `${suite.id}_${index}` as TaskId

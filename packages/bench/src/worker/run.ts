@@ -2,11 +2,11 @@
 // dialect's policy and globals, the node environment, the setup file of the suite, and the
 // coordinator side of B09 (`connectWorker` over a transport). Until `provino/node` exists this is
 // the bench's own entry, as DECISIONS S4 allows; B11's coordinator replaces it.
-import { createHash } from 'node:crypto'
 import { relative, sep } from 'node:path'
 import { jestDialect, jestPolicy } from '@provino/dialect-jest'
 import {
   connectWorker,
+  fileIdOf,
   forksTransport,
   inlineTransport,
   threadsTransport,
@@ -43,17 +43,6 @@ const NODE_ENVIRONMENT: EnvironmentRef = {
  * @public
  */
 export const PROJECT_NAME = 'bench'
-
-/**
- * The id `@provino/core` gives a file: a SHA-1 over the project name and the POSIX path relative to
- * the root, cut to 10 hex characters. Core does not export it (B11's coordinator will need its
- * own), so this repeats the formula; the ordering checker compares every event's file id with it.
- * @public
- */
-export function fileIdOf(projectName: string, rootDir: string, file: string): TaskId {
-  const path = relative(rootDir, file).split(sep).join('/')
-  return createHash('sha1').update(`${projectName}\0${path}`).digest('hex').slice(0, 10) as TaskId
-}
 
 /**
  * The project config for a worker running Jest-flavoured suites: the Jest dialect's resolved
@@ -287,7 +276,7 @@ export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerR
     for (const file of options.files) {
       const job: FileJob = {
         file,
-        fileId: fileIdOf(PROJECT_NAME, options.rootDir, file),
+        fileId: fileIdOf(PROJECT_NAME, relative(options.rootDir, file).split(sep).join('/')),
         updateSnapshots: 'none',
       }
       const current: RunningFile = { label: relative(options.rootDir, file), names: new Map() }

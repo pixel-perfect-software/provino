@@ -5,6 +5,7 @@ export {
   type WorkerConnection,
 } from './connect.ts'
 export { OrchestratorError, type OrchestratorErrorCode } from './errors.ts'
+export { fileIdOf } from './file-id.ts'
 export { type ForksTransportOptions, forksTransport } from './transport/forks.ts'
 export { type InlineTransportOptions, inlineTransport } from './transport/inline.ts'
 export { describeExit, type TransportOptions } from './transport/shared.ts'

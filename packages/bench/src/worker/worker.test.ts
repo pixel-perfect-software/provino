@@ -5,12 +5,13 @@
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative, sep } from 'node:path'
 import { Writable } from 'node:stream'
 import { after, describe, it } from 'node:test'
+import { fileIdOf } from '@provino/orchestrator'
 import type { IsolationTier, TaskId, WorkerEvent } from '@provino/types'
 import { checkSuite, meetsBar, TIERS, writeJestSuite } from './check.ts'
-import { fileIdOf, POOLS, PROJECT_NAME, runWorkerFiles, type WorkerRunResult } from './run.ts'
+import { POOLS, PROJECT_NAME, runWorkerFiles, type WorkerRunResult } from './run.ts'
 
 /** The throwing environment, as the absolute ref a worker imports it by. */
 const THROWING_ENVIRONMENT = {
@@ -459,7 +460,7 @@ describe('each test’s events arrive in order', () => {
       const ends = result.events.filter((event) => event.type === 'file-end')
       assert.deepEqual(
         ends.map((event) => event.fileId),
-        files.map((file) => fileIdOf(PROJECT_NAME, dir, file)),
+        files.map((file) => fileIdOf(PROJECT_NAME, relative(dir, file).split(sep).join('/'))),
       )
       const logs = result.events.filter((event) => event.type === 'console')
       if (pool === 'inline') assert.equal(logs.length, 0)

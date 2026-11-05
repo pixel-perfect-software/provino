@@ -38,7 +38,7 @@ test('every differing key is listed by path, in key order', () => {
 test('refs compare by module and export; closures by identity', () => {
   const key: SnapshotKey = (n, c) => `${n}${c}`
   const sameRef = resolvePolicy({
-    snapshot: { key: moduleRef('@provino/policy/behaviours', 'snapshotKey') },
+    snapshot: { key: moduleRef(import.meta.resolve('@provino/policy/behaviours'), 'snapshotKey') },
   })
   assert.deepEqual(diffPolicy(neutralPolicy, sameRef), [])
   assert.deepEqual(

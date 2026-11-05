@@ -1,6 +1,5 @@
 // Shared by the end-to-end tests: worker inits, jobs, transports of each kind, and a stream that
 // keeps what a worker printed (so a crash's stderr doesn't land in the test output).
-import { createHash } from 'node:crypto'
 import { mkdtempSync, realpathSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -10,6 +9,7 @@ import { after } from 'node:test'
 import {
   connectWorker,
   type FileDone,
+  fileIdOf,
   forksTransport,
   inlineTransport,
   type TransportOptions,
@@ -170,15 +170,10 @@ export function trackedProjects(): (files: Readonly<Record<string, string>>) => 
   }
 }
 
-/** The id core gives a file: the project name and the POSIX path relative to the root, hashed. */
-export function fileIdOf(projectName: string, rootDir: string, file: string): TaskId {
-  const path = relative(rootDir, file).split(sep).join('/')
-  return createHash('sha1').update(`${projectName}\0${path}`).digest('hex').slice(0, 10) as TaskId
-}
-
-/** The job for `file` in a project: with the id core will give its events. */
+/** The job for `file` in a project: with the id the coordinator assigns it (D23). */
 export function runtimeJob(config: SerializedProjectConfig, file: string): FileJob {
-  return { file, fileId: fileIdOf(config.name, config.rootDir, file), updateSnapshots: 'none' }
+  const path = relative(config.rootDir, file).split(sep).join('/')
+  return { file, fileId: fileIdOf(config.name, path), updateSnapshots: 'none' }
 }
 
 /**
