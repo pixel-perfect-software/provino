@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
@@ -752,3 +752,203 @@ function build(files: ReadonlyMap<ReturnType<typeof taskId>, FileRecord>): Norma
     reason: 'failed',
   })
 }
+
+describe('the normalized-json reporter: suites, bus failures, retries, unhandled policy', () => {
+  test('a suite’s own failure (afterAll) is in the file’s fileError', async () => {
+    const run = await write([
+      {
+        path: 'suite.test.ts',
+        tests: [{ path: ['outer', 'inner', 'works'] }],
+        suiteErrors: [{ path: ['outer', 'inner'], errors: [error('AFTERALL EXPLODED')] }],
+      },
+    ])
+    const file = run.files[0]
+    assert.equal(file?.status, 'failed')
+    assert.match(file?.fileError?.message ?? '', /AFTERALL EXPLODED/)
+    assert.equal(run.success, false)
+  })
+
+  test('a reporter that throws at run:end, registered before this one, is in the JSON', async () => {
+    const out = output()
+    const bus = createReporterBus([
+      {
+        name: 'bad',
+        'run:end'() {
+          throw new Error('REPORTER BROKE')
+        },
+      },
+      reporter(out),
+    ])
+    await playRun(bus, [{ path: 'a.test.ts', tests: [{ path: ['t'] }] }])
+    const run = parse(out)
+    assert.deepEqual(
+      run.runErrors.map((e) => e.message),
+      ['REPORTER BROKE'],
+    )
+    assert.equal(run.success, false)
+    assert.equal(bus.failures().length, 1)
+  })
+
+  describe('retries', () => {
+    async function retriesOf(spec: FileSpec['tests']): Promise<(number | undefined)[]> {
+      const run = await write([{ path: 'r.test.ts', tests: spec ?? [] }])
+      return (run.files[0]?.tests ?? []).map((t) => t.retries)
+    }
+
+    test('counts real retries only', async () => {
+      assert.deepEqual(await retriesOf([{ path: ['flaky'], retries: 2 }]), [2])
+    })
+
+    test('a repeat is not a retry', async () => {
+      assert.deepEqual(await retriesOf([{ path: ['repeated'], repeats: 2 }]), [undefined])
+    })
+
+    test('retries and repeats together count the retries', async () => {
+      assert.deepEqual(await retriesOf([{ path: ['both'], retries: 1, repeats: 2 }]), [1])
+    })
+  })
+
+  describe('unhandledErrors', () => {
+    async function runWith(
+      unhandledErrors: 'fail-run' | 'ignore' | undefined,
+      withFile: boolean,
+    ): Promise<NormalizedRun> {
+      const out = output()
+      const bus = createReporterBus([
+        normalizedJsonReporter({
+          stream: out,
+          suite: 's',
+          runner: 'r',
+          runnerVersion: '1',
+          env: FIXED_ENV,
+          ...(unhandledErrors === undefined ? {} : { unhandledErrors }),
+        }),
+      ])
+      const file = buildFile({ path: 'x.test.ts', tests: [{ path: ['t'] }] })
+      await bus.emit('run:start', { root: '/', projects: [''], startTime: 0, watch: false }, [])
+      await bus.emit('file:collected', file.info, collectedEvent(file))
+      await bus.emit('unhandled', withFile ? file.info : null, unhandledEvent(error('STRAY')))
+      await bus.emit('file:end', file.result)
+      await bus.emit('run:end', {
+        reason: 'passed',
+        files: [file.result],
+        unhandled: [],
+        durationMs: 1,
+      })
+      return parse(out)
+    }
+
+    test('fail-run (the default) fails the file and the run', async () => {
+      for (const setting of [undefined, 'fail-run' as const]) {
+        const charged = await runWith(setting, true)
+        assert.equal(charged.files[0]?.status, 'failed')
+        assert.equal(charged.success, false)
+        const loose = await runWith(setting, false)
+        assert.equal(loose.success, false)
+      }
+    })
+
+    test('ignore records the error but fails nothing', async () => {
+      const charged = await runWith('ignore', true)
+      assert.equal(charged.files[0]?.status, 'passed')
+      assert.equal(charged.files[0]?.fileError?.message, 'STRAY')
+      assert.equal(charged.success, true)
+      const loose = await runWith('ignore', false)
+      assert.deepEqual(
+        loose.runErrors.map((e) => e.message),
+        ['STRAY'],
+      )
+      assert.equal(loose.success, true)
+    })
+
+    test('ignore still fails the run for a real run error', async () => {
+      const out = output()
+      const bus = createReporterBus([
+        normalizedJsonReporter({
+          stream: out,
+          suite: 's',
+          runner: 'r',
+          runnerVersion: '1',
+          env: FIXED_ENV,
+          unhandledErrors: 'ignore',
+        }),
+      ])
+      await playRun(bus, [])
+      await bus.emit('run:start', { root: '/', projects: [''], startTime: 0, watch: false }, [])
+      await bus.emit('error', error('boom'), 'coordinator')
+      await bus.emit('run:end', { reason: 'failed', files: [], unhandled: [], durationMs: 1 })
+      const second = parseText(out.text().slice(out.text().indexOf('}\n') + 2))
+      assert.equal(second.success, false)
+    })
+  })
+
+  describe('outputFile is written atomically', () => {
+    let dir: string
+    before(async () => {
+      dir = await mkdtemp(join(tmpdir(), 'provino-reporters-atomic-'))
+    })
+    after(async () => {
+      await rm(dir, { recursive: true, force: true })
+    })
+
+    test('concurrent writes to one path always leave valid JSON, and no temp files', async () => {
+      const outputFile = join(dir, 'shared.json')
+      // Big enough that a write is not one syscall, and read while the writers run, as a CI step
+      // collecting the file would.
+      const tests = Array.from({ length: 2500 }, (_, index) => ({ path: [`test ${index}`] }))
+      let writing = true
+      let torn = 0
+      const reader = (async () => {
+        while (writing) {
+          try {
+            JSON.parse(await readFile(outputFile, 'utf8'))
+          } catch (cause) {
+            if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') torn++
+          }
+        }
+      })()
+      for (let round = 0; round < 10; round++) {
+        const runs = Array.from({ length: 8 }, async (_, index) => {
+          const bus = createReporterBus([
+            normalizedJsonReporter({
+              outputFile,
+              suite: `s${index}`,
+              runner: 'r',
+              runnerVersion: '1',
+              env: FIXED_ENV,
+            }),
+          ])
+          await playRun(bus, [{ path: 'a.test.ts', tests }])
+          assert.deepEqual(bus.failures(), [])
+        })
+        await Promise.all(runs)
+        const parsed = parseText(await readFile(outputFile, 'utf8'))
+        assert.match(parsed.suite, /^s\d$/)
+      }
+      writing = false
+      await reader
+      assert.equal(torn, 0)
+      assert.deepEqual(await readdir(dir), ['shared.json'])
+    })
+
+    test('a failed write throws and leaves no temp file', async () => {
+      const blocked = join(dir, 'blocked.json')
+      await mkdir(blocked)
+      const bus = createReporterBus([
+        normalizedJsonReporter({
+          outputFile: blocked,
+          suite: 's',
+          runner: 'r',
+          runnerVersion: '1',
+          env: FIXED_ENV,
+        }),
+      ])
+      await playRun(bus, [])
+      assert.equal(bus.failures().length, 1)
+      assert.deepEqual(
+        (await readdir(dir)).filter((name) => name.endsWith('.tmp')),
+        [],
+      )
+    })
+  })
+})

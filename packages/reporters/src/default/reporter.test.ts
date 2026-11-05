@@ -363,3 +363,22 @@ describe('the default reporter', () => {
     assert.equal(out.text(), '')
   })
 })
+
+describe('the default reporter: a suite’s own failure', () => {
+  test('prints the afterAll error under the suite’s name path', async () => {
+    const text = await report(
+      [
+        {
+          path: 'suite.test.ts',
+          tests: [{ path: ['outer', 'inner', 'works'] }],
+          suiteErrors: [{ path: ['outer', 'inner'], errors: [error('AFTERALL EXPLODED')] }],
+        },
+      ],
+      { policy: NEUTRAL },
+    )
+    assert.match(text, /^FAIL suite\.test\.ts$/m)
+    assert.match(text, /outer > inner\n/)
+    assert.match(text, /AFTERALL EXPLODED/)
+    assert.doesNotMatch(text, /Test suite failed to run/)
+  })
+})

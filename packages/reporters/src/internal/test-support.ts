@@ -61,7 +61,12 @@ export interface TestSpec {
   readonly durationMs?: number
   readonly skipReason?: SkipReason
   readonly passingAssertions?: number
+  /** Attempts in the result. Default: `retries` + `repeats` + 1; with only this, it is all retries. */
   readonly attempts?: number
+  /** Real retries: failed attempts of the first repeat that ran again (`test:attempt-end` with `willRetry`). */
+  readonly retries?: number
+  /** Repeats after the first run: each is one more attempt, not a retry. */
+  readonly repeats?: number
   readonly expectFail?: boolean
   readonly location?: { readonly line: number; readonly column: number }
 }
@@ -75,6 +80,11 @@ export interface FileSpec {
   readonly state?: 'pass' | 'fail' | 'skip'
   /** The file's own errors: a collection error, a failing `afterAll`. */
   readonly errors?: readonly SerializedError[]
+  /** Suites that ended `fail` with errors of their own (an `afterAll` in a describe). */
+  readonly suiteErrors?: readonly {
+    readonly path: readonly string[]
+    readonly errors: readonly SerializedError[]
+  }[]
   readonly durationMs?: number
   readonly workerExit?: WorkerExit
 }
@@ -85,6 +95,11 @@ export interface BuiltFile {
   readonly tasks: readonly TaskNode[]
   /** Each test's task, with its spec, in declaration order. */
   readonly tests: readonly { readonly task: TestTask; readonly spec: TestSpec }[]
+  /** The suite task for each `suiteErrors` entry, with its errors. */
+  readonly suiteEnds: readonly {
+    readonly task: SuiteTask
+    readonly errors: readonly SerializedError[]
+  }[]
   readonly result: FileResult
 }
 
@@ -172,12 +187,19 @@ export function buildFile(spec: FileSpec): BuiltFile {
     if (task.type === 'test') return task
     return { ...task, children: children.get(task.id) ?? [] }
   })
-  const anyFailed = specs.some((t) => t.state === 'fail')
+  const suiteEnds = (spec.suiteErrors ?? []).map(({ path, errors }) => {
+    const task = suites.get(JSON.stringify(path))
+    if (task === undefined) throw new Error(`no tests under the suite ${JSON.stringify(path)}`)
+    return { task, errors }
+  })
+  const anyFailed =
+    specs.some((t) => t.state === 'fail') || suiteEnds.some((end) => end.errors.length > 0)
   const state = spec.state ?? (anyFailed ? 'fail' : 'pass')
   return {
     info,
     tasks: withChildren,
     tests,
+    suiteEnds,
     result: {
       file: info,
       state,
@@ -233,8 +255,35 @@ export function resultOf(spec: TestSpec): TaskResult {
     ...(spec.durationMs === undefined ? {} : { durationMs: spec.durationMs }),
     ...(spec.skipReason === undefined ? {} : { skipReason: spec.skipReason }),
     ...(spec.passingAssertions === undefined ? {} : { passingAssertions: spec.passingAssertions }),
-    ...(spec.attempts === undefined ? {} : { attempts: spec.attempts }),
+    attempts: spec.attempts ?? (spec.retries ?? 0) + (spec.repeats ?? 0) + 1,
+    repeatIndex: spec.repeats ?? 0,
   })
+}
+
+/** The attempt events a spec's retries and repeats would produce, ahead of its `test-end`. */
+export function attemptEndEvents(
+  task: TestTask,
+  spec: TestSpec,
+): RuntimeEventOf<'test-attempt-end'>[] {
+  const retries = spec.retries ?? (spec.repeats === undefined ? (spec.attempts ?? 1) - 1 : 0)
+  const events: RuntimeEventOf<'test-attempt-end'>[] = []
+  for (let repeat = 0; repeat <= (spec.repeats ?? 0); repeat++) {
+    const failedAttempts = repeat === 0 ? retries : 0
+    for (let attempt = 0; attempt <= failedAttempts; attempt++) {
+      const retrying = attempt < failedAttempts
+      events.push({
+        type: 'test-attempt-end',
+        id: task.id,
+        attempt,
+        repeat,
+        state: retrying ? 'fail' : 'pass',
+        errors: [],
+        willRetry: retrying,
+        t: 2,
+      })
+    }
+  }
+  return events
 }
 
 /** Sends one file's events, in the order the coordinator will: queued, start, collected, each test, end. */
@@ -246,7 +295,18 @@ export async function emitFile(bus: ReporterBus, spec: FileSpec): Promise<FileRe
   for (const { task, spec: testSpec } of file.tests) {
     if (testSpec.ran === false) continue
     await bus.emit('task:start', task, testStartEvent(task))
+    for (const attempt of attemptEndEvents(task, testSpec)) {
+      await bus.emit('test:attempt-end', task, attempt)
+    }
     await bus.emit('task:end', task, testEndEvent(task, resultOf(testSpec)))
+  }
+  for (const { task, errors } of file.suiteEnds) {
+    await bus.emit('task:end', task, {
+      type: 'suite-end',
+      id: task.id,
+      result: taskResult('fail', { errors }),
+      t: 2,
+    })
   }
   await bus.emit('file:end', file.result)
   return file.result

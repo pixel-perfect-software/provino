@@ -43,8 +43,9 @@ async function call<K extends keyof ReporterEvents>(
  *   ever has two handlers running at once.
  * - **A reporter that throws** (or rejects) does not stop the others and does not fail `emit`.
  *   The error is recorded in `failures()` and sent to every *other* reporter as
- *   `error(error, 'reporter')`. It never goes back to the reporter that threw it, and a reporter
- *   that throws while handling such an error is recorded but not announced again.
+ *   `error(error, 'reporter')` straight away, before the reporters after it get the event. It
+ *   never goes back to the reporter that threw it, and a reporter that throws while handling
+ *   such an error is recorded but not announced again.
  * - A reporter added during an `emit` first sees the next event.
  * @public
  */
@@ -53,39 +54,32 @@ export function createReporterBus(reporters: readonly Reporter[] = []): Reporter
   const recorded: SerializedError[] = []
   let queue: Promise<void> = Promise.resolve()
 
-  /** Delivers to `targets`; returns the reporters that threw, each with its error. */
-  async function deliver<K extends keyof ReporterEvents>(
-    targets: readonly Reporter[],
+  /** Calls each target in order; a reporter that throws is recorded and, if asked, announced at once. */
+  async function dispatch<K extends keyof ReporterEvents>(
     event: K,
     args: ReporterEvents[K],
-  ): Promise<readonly { readonly reporter: Reporter; readonly error: SerializedError }[]> {
-    const failed: { readonly reporter: Reporter; readonly error: SerializedError }[] = []
+  ): Promise<void> {
+    const targets = [...registered]
+    // A reporter-error that itself failed to be handled is recorded and ends there.
+    const announce = !(event === 'error' && args[1] === 'reporter')
     for (const reporter of targets) {
       try {
         await call(reporter, event, args)
       } catch (thrown) {
         const error = serializeError(thrown)
         recorded.push(error)
-        failed.push({ reporter, error })
+        if (!announce) continue
+        // Before the remaining reporters get the event, so one registered after this one (a
+        // writer at `run:end`) knows of the failure in time.
+        for (const other of targets) {
+          if (other === reporter) continue
+          try {
+            await call(other, 'error', [error, 'reporter'])
+          } catch (again) {
+            recorded.push(serializeError(again))
+          }
+        }
       }
-    }
-    return failed
-  }
-
-  async function dispatch<K extends keyof ReporterEvents>(
-    event: K,
-    args: ReporterEvents[K],
-  ): Promise<void> {
-    const targets = [...registered]
-    const failed = await deliver(targets, event, args)
-    // A reporter-error that itself failed to be handled is recorded and ends there.
-    if (event === 'error' && args[1] === 'reporter') return
-    for (const { reporter, error } of failed) {
-      await deliver(
-        targets.filter((other) => other !== reporter),
-        'error',
-        [error, 'reporter'],
-      )
     }
   }
 

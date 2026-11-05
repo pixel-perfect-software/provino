@@ -160,6 +160,23 @@ describe('createReporterBus: a reporter that throws', () => {
     assert.deepEqual(origins, ['reporter'])
   })
 
+  test('is announced before the reporters after it get the event, and after it to those before', async () => {
+    const log: string[] = []
+    const bus = createReporterBus([
+      recorder('before', log),
+      recorder('bad', log, { throwOn: 'run:end' }),
+      recorder('after', log),
+    ])
+    await bus.emit('run:end', { reason: 'passed', files: [], unhandled: [], durationMs: 1 })
+    assert.deepEqual(log, [
+      'before:run:end',
+      'bad:run:end',
+      'before:error bad threw on run:end',
+      'after:error bad threw on run:end',
+      'after:run:end',
+    ])
+  })
+
   test('rejects the same way as it throws', async () => {
     const log: string[] = []
     const bus = createReporterBus([
@@ -173,7 +190,7 @@ describe('createReporterBus: a reporter that throws', () => {
       recorder('b', log),
     ])
     await bus.emit('run:start', { root: '/', projects: [], startTime: 0, watch: false }, [])
-    assert.deepEqual(log, ['b:run:start', 'b:error late failure'])
+    assert.deepEqual(log, ['b:error late failure', 'b:run:start'])
     assert.equal(bus.failures()[0]?.name, 'TypeError')
   })
 
@@ -201,8 +218,8 @@ describe('createReporterBus: a reporter that throws', () => {
     await bus.emit('error', error('the run broke'), 'coordinator')
     assert.deepEqual(log, [
       'a:error the run broke',
-      'b:error the run broke',
       'b:error a threw on error',
+      'b:error the run broke',
     ])
   })
 

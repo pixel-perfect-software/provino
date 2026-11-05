@@ -25,12 +25,32 @@ export interface FileRecord {
   readonly results: Map<TaskId, TaskResult>
   /** Unhandled errors the runtime tied to this file. */
   readonly unhandled: SerializedError[]
+  /** Errors of suites that ended `fail` (an `afterAll` that threw), which are in no file result. */
+  readonly suiteErrors: SerializedError[]
+  /** Real retries per test, counted from `test:attempt-end` events with `willRetry`. */
+  readonly retries: Map<TaskId, number>
   /** Set by `file:end`. */
   ended: FileResult | undefined
 }
 
+/** A run-level error. `unhandled` ones are ignored for `success` when the policy says so. */
+export interface RunError {
+  readonly error: SerializedError
+  readonly unhandled: boolean
+}
+
+/** What a run does about unhandled errors; the orchestrator's `unhandledErrors` policy. */
+export type UnhandledErrors = 'fail-run' | 'ignore'
+
 export function newFileRecord(): FileRecord {
-  return { tests: new Map(), results: new Map(), unhandled: [], ended: undefined }
+  return {
+    tests: new Map(),
+    results: new Map(),
+    unhandled: [],
+    suiteErrors: [],
+    retries: new Map(),
+    ended: undefined,
+  }
 }
 
 /** Everything `buildNormalizedRun` needs. */
@@ -41,8 +61,10 @@ export interface RunParts {
   readonly startedAt: string
   readonly env: RunEnvironment
   readonly files: ReadonlyMap<TaskId, FileRecord>
-  readonly runErrors: readonly SerializedError[]
+  readonly runErrors: readonly RunError[]
   readonly reason: RunEndReason
+  /** Default `fail-run`. */
+  readonly unhandledErrors?: UnhandledErrors
 }
 
 /**
@@ -109,18 +131,35 @@ function testStatus(result: TaskResult | undefined): TestStatus {
   }
 }
 
+/**
+ * A test's real retries: the attempt events with `willRetry`. A repeat is also an attempt in
+ * `TaskResult.attempts`, so that can't be used when the test repeated; without events, a test
+ * that repeated has no `retries`.
+ */
+function retriesOf(
+  test: TestTask,
+  result: TaskResult,
+  counted: number | undefined,
+): number | undefined {
+  if (counted !== undefined) return counted
+  if (test.repeats > 0 || result.repeatIndex > 0) return undefined
+  return result.attempts - 1
+}
+
 function normalizeTest(
   info: FileInfo,
   test: TestTask,
   result: TaskResult | undefined,
+  counted: number | undefined,
 ): NormalizedTest {
+  const retries = result === undefined ? undefined : retriesOf(test, result, counted)
   return {
     id: { file: info.path, path: [...test.fullName], dupIndex: test.dupIndex },
     status: testStatus(result),
     ...(result?.skipReason === undefined ? {} : { skipReason: result.skipReason }),
     errors: (result?.errors ?? []).map(normalizeError),
     ...(result === undefined ? {} : { passingAssertions: result.passingAssertions }),
-    ...(result !== undefined && result.attempts > 1 ? { retries: result.attempts - 1 } : {}),
+    ...(retries === undefined || retries < 1 ? {} : { retries }),
     ...(result === undefined ? {} : { durationMs: result.durationMs }),
     ...(test.location === null
       ? {}
@@ -137,21 +176,31 @@ function normalizeTest(
  * A crashed or failed file keeps `fileError`: its own errors, and the unhandled ones charged to
  * it, except those already among its errors.
  */
-function normalizeFile(info: FileInfo, record: FileRecord, result: FileResult): NormalizedFile {
+function normalizeFile(
+  info: FileInfo,
+  record: FileRecord,
+  result: FileResult,
+  unhandledErrors: UnhandledErrors,
+): NormalizedFile {
   const tests = [...record.tests.values()].map((test) =>
-    normalizeTest(info, test, record.results.get(test.id)),
+    normalizeTest(info, test, record.results.get(test.id), record.retries.get(test.id)),
   )
-  const known = new Set(result.errors.map((error) => `${error.name}\0${error.message}`))
+  const own = [...result.errors, ...record.suiteErrors]
+  const known = new Set(own.map((error) => `${error.name}\0${error.message}`))
   const charged = record.unhandled.filter((error) => !known.has(`${error.name}\0${error.message}`))
-  const errors = [...result.errors, ...charged]
+  const errors = [...own, ...charged]
+  // Under `ignore` an unhandled error is still recorded, but it fails nothing.
+  const chargedFails = unhandledErrors === 'fail-run' && charged.length > 0
   const failedState = result.state === 'fail'
   let status: FileStatus
   if (result.workerExit !== undefined || (failedState && tests.length === 0)) status = 'crashed'
-  else if (failedState || charged.length > 0) status = 'failed'
+  else if (failedState || chargedFails) status = 'failed'
   else if (result.state === 'skip') status = 'skipped'
   else status = 'passed'
   const fileError =
-    status === 'crashed' || status === 'failed' ? normalizeErrors(errors) : undefined
+    status === 'crashed' || status === 'failed' || charged.length > 0
+      ? normalizeErrors(errors)
+      : undefined
   return {
     file: info.path,
     status,
@@ -164,17 +213,23 @@ function normalizeFile(info: FileInfo, record: FileRecord, result: FileResult): 
 /**
  * Builds the run: files sorted by path (they finish in any order), tests in collection order.
  * `snapshots`, `console` and `trace` are left out; they are T12.16's. `success` is false when a
- * file failed or crashed, a run error was reported, or the run was interrupted.
+ * file failed or crashed, a run error was reported, or the run was interrupted. Under
+ * `unhandledErrors: 'ignore'` unhandled errors are recorded but fail neither a file nor the run,
+ * as the orchestrator's exit code has it.
  */
 export function buildNormalizedRun(parts: RunParts): NormalizedRun {
+  const unhandledErrors = parts.unhandledErrors ?? 'fail-run'
   const files: NormalizedFile[] = []
   for (const record of parts.files.values()) {
     if (record.ended !== undefined) {
-      files.push(normalizeFile(record.ended.file, record, record.ended))
+      files.push(normalizeFile(record.ended.file, record, record.ended, unhandledErrors))
     }
   }
   files.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0))
-  const runErrors = parts.runErrors.map(normalizeError)
+  const runErrors = parts.runErrors.map(({ error }) => normalizeError(error))
+  const failingRunErrors = parts.runErrors.some(
+    ({ unhandled }) => !unhandled || unhandledErrors === 'fail-run',
+  )
   const clean = files.every((file) => file.status !== 'failed' && file.status !== 'crashed')
   return {
     schemaVersion: 1,
@@ -185,6 +240,6 @@ export function buildNormalizedRun(parts: RunParts): NormalizedRun {
     env: parts.env,
     files,
     runErrors,
-    success: clean && runErrors.length === 0 && parts.reason !== 'interrupted',
+    success: clean && !failingRunErrors && parts.reason !== 'interrupted',
   }
 }

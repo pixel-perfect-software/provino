@@ -1,8 +1,16 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import type { Reporter, RunEnvironment, SerializedError, TaskId } from '@provino/types'
+import type { Reporter, RunEnvironment, TaskId } from '@provino/types'
 import type { TextSink } from '../sink.ts'
-import { buildNormalizedRun, type FileRecord, newFileRecord, testsInOrder } from './build.ts'
+import {
+  buildNormalizedRun,
+  type FileRecord,
+  newFileRecord,
+  type RunError,
+  testsInOrder,
+  type UnhandledErrors,
+} from './build.ts'
 import { readRunEnvironment } from './environment.ts'
 
 /**
@@ -28,6 +36,13 @@ export interface NormalizedJsonReporterOptions {
    * environment variable (set to anything but empty, `0` or `false`, ignoring case and spaces).
    */
   readonly ci?: boolean
+  /**
+   * What the run does about unhandled errors: the orchestrator's `unhandledErrors` policy. Under
+   * `fail-run` (default) they fail the file they are charged to and the run; under `ignore` they
+   * are still recorded (`fileError`, `runErrors`) but `success` and the file's status ignore them,
+   * so `success` agrees with the exit code.
+   */
+  readonly unhandledErrors?: UnhandledErrors
   /** The wall clock, in epoch milliseconds, for `startedAt`. Default `Date.now`. */
   readonly now?: () => number
 }
@@ -36,6 +51,22 @@ export interface NormalizedJsonReporterOptions {
 function runEnvironment(options: NormalizedJsonReporterOptions): RunEnvironment {
   const machine = options.env ?? readRunEnvironment({ provino: options.runnerVersion })
   return options.ci === undefined ? machine : { ...machine, ci: options.ci }
+}
+
+/**
+ * Writes `text` to a temp file beside `path` and renames it over `path`, so a reader (or a second
+ * run writing the same path) never sees half a file. A failed write removes the temp file.
+ */
+async function writeAtomically(path: string, text: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  const temp = `${path}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`
+  try {
+    await writeFile(temp, text)
+    await rename(temp, path)
+  } catch (error) {
+    await rm(temp, { force: true })
+    throw error
+  }
 }
 
 /**
@@ -54,7 +85,7 @@ function runEnvironment(options: NormalizedJsonReporterOptions): RunEnvironment 
 export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): Reporter {
   const now = options.now ?? Date.now
   let files = new Map<TaskId, FileRecord>()
-  let runErrors: SerializedError[] = []
+  let runErrors: RunError[] = []
   let startedAt: string | undefined
 
   function record(fileId: TaskId): FileRecord {
@@ -80,7 +111,19 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
       for (const test of testsInOrder(event.tasks)) entry.tests.set(test.id, test)
     },
 
+    'test:attempt-end'(task, event) {
+      // Every attempt is noted, so a test with no retries reads 0, not "unknown".
+      const entry = record(task.fileId)
+      entry.retries.set(task.id, (entry.retries.get(task.id) ?? 0) + (event.willRetry ? 1 : 0))
+    },
+
     'task:end'(task, event) {
+      if (task.type === 'suite' && event.type === 'suite-end') {
+        // A suite's own failure (an `afterAll`) is in no test and no file result.
+        const { state, errors } = event.result
+        if (state === 'fail') record(task.fileId).suiteErrors.push(...errors)
+        return
+      }
       if (task.type !== 'test' || event.type !== 'test-end') return
       const entry = record(task.fileId)
       if (!entry.tests.has(task.id)) entry.tests.set(task.id, task)
@@ -88,7 +131,7 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
     },
 
     unhandled(file, event) {
-      if (file === null) runErrors.push(event.error)
+      if (file === null) runErrors.push({ error: event.error, unhandled: true })
       else record(file.fileId).unhandled.push(event.error)
     },
 
@@ -97,7 +140,7 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
     },
 
     error(error) {
-      runErrors.push(error)
+      runErrors.push({ error, unhandled: false })
     },
 
     async 'run:end'(summary) {
@@ -110,12 +153,12 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
         files,
         runErrors,
         reason: summary.reason,
+        unhandledErrors: options.unhandledErrors ?? 'fail-run',
       })
       const text = `${JSON.stringify(run, null, 2)}\n`
       if (options.outputFile !== undefined) {
         const path = resolve(options.outputFile)
-        await mkdir(dirname(path), { recursive: true })
-        await writeFile(path, text)
+        await writeAtomically(path, text)
       } else {
         await (options.stream ?? process.stdout).write(text)
       }

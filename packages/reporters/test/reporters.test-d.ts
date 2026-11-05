@@ -62,6 +62,11 @@ expectTypeOf(
 ).toEqualTypeOf<Reporter>()
 expectTypeOf<NormalizedJsonReporterOptions['env']>().toEqualTypeOf<RunEnvironment | undefined>()
 expectTypeOf<NormalizedJsonReporterOptions['ci']>().toEqualTypeOf<boolean | undefined>()
+expectTypeOf<NormalizedJsonReporterOptions['unhandledErrors']>().toEqualTypeOf<
+  'fail-run' | 'ignore' | undefined
+>()
+// @ts-expect-error -- only the orchestrator's two policy values
+normalizedJsonReporter({ suite: 's', runner: 'r', runnerVersion: '1', unhandledErrors: 'warn' })
 expectTypeOf<NormalizedJsonReporterOptions['stream']>().toEqualTypeOf<TextSink | undefined>()
 expectTypeOf<DefaultReporterOptions['report']>().toEqualTypeOf<ReportPolicy>()
 // Anything with a `write` is a sink: process.stdout, a buffer, a stream that returns a promise.

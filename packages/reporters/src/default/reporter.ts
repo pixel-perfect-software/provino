@@ -6,6 +6,7 @@ import type {
   RunSummary,
   SerializedError,
   TaskId,
+  TaskNode,
   TaskState,
 } from '@provino/types'
 import type { TextSink } from '../sink.ts'
@@ -30,7 +31,7 @@ export interface DefaultReporterOptions {
   readonly report: ReportPolicy
 }
 
-/** A test that failed, kept until its file ends. */
+/** A test, or a suite with errors of its own, that failed; kept until its file ends. */
 interface FailedTest {
   readonly title: string
   readonly errors: readonly SerializedError[]
@@ -53,6 +54,10 @@ const ERROR_LABELS = {
 export function defaultReporter(options: DefaultReporterOptions): Reporter {
   const { stream, report } = options
   let failures = new Map<TaskId, FailedTest[]>()
+  // Suites that ended `fail` with errors of their own, kept like failed tests, and each suite's
+  // name path (from the collected tree) for their titles.
+  let suiteFailures = new Map<TaskId, FailedTest[]>()
+  let suitePaths = new Map<TaskId, readonly string[]>()
   let files = zeroFiles()
   let tests = zeroTests()
   // Whether the last thing printed ended in a blank line, so the totals don't add a second.
@@ -68,11 +73,34 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
 
     'run:start'() {
       failures = new Map()
+      suiteFailures = new Map()
+      suitePaths = new Map()
       files = zeroFiles()
       tests = zeroTests()
     },
 
+    'file:collected'(_file, event) {
+      const byId = new Map(event.tasks.map((task) => [task.id, task]))
+      for (const task of event.tasks) {
+        if (task.type !== 'suite') continue
+        const path: string[] = []
+        for (let at: TaskNode | undefined = task; at?.type === 'suite'; ) {
+          path.unshift(at.name)
+          at = at.parentId === null ? undefined : byId.get(at.parentId)
+        }
+        suitePaths.set(task.id, path)
+      }
+    },
+
     'task:end'(task, event) {
+      if (task.type === 'suite' && event.type === 'suite-end') {
+        const { state, errors } = event.result
+        if (state !== 'fail' || errors.length === 0) return
+        const failed = suiteFailures.get(task.fileId) ?? []
+        failed.push({ title: testTitle(report, suitePaths.get(task.id) ?? [task.name]), errors })
+        suiteFailures.set(task.fileId, failed)
+        return
+      }
       if (task.type !== 'test' || event.type !== 'test-end') return
       const { state, errors } = event.result
       tests = tally(tests, state)
@@ -86,7 +114,9 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
       files = tallyFile(files, result)
       const failed = failures.get(result.file.fileId) ?? []
       failures.delete(result.file.fileId)
-      await print(fileText(result.file, result, failed))
+      const failedSuites = suiteFailures.get(result.file.fileId) ?? []
+      suiteFailures.delete(result.file.fileId)
+      await print(fileText(result.file, result, failed, failedSuites))
     },
 
     async error(error, origin) {
@@ -102,12 +132,22 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
     },
   }
 
-  function fileText(file: FileInfo, result: FileResult, failed: readonly FailedTest[]): string {
+  function fileText(
+    file: FileInfo,
+    result: FileResult,
+    failed: readonly FailedTest[],
+    failedSuites: readonly FailedTest[],
+  ): string {
     if (result.state === 'skip') return skipLine(file.path)
     if (result.state === 'pass') return passLine(file.path, result.durationMs)
-    const blocks = failed.map((test) => failureBlock(report, test.title, test.errors))
+    const blocks = [...failed, ...failedSuites].map((test) =>
+      failureBlock(report, test.title, test.errors),
+    )
     if (result.errors.length > 0) {
-      const title = failed.length === 0 ? 'Test suite failed to run' : 'Errors outside the tests'
+      const title =
+        failed.length + failedSuites.length === 0
+          ? 'Test suite failed to run'
+          : 'Errors outside the tests'
       blocks.push(failureBlock(report, title, result.errors))
     }
     return [failLine(file.path), ...blocks].join('\n')
