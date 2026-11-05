@@ -22,6 +22,7 @@ Tier 1 is project-wide. Read a Tier 1 file only when the task needs it; `.claude
 
 When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (under ~150 lines) and list it here, alphabetically.
 
+- `packages/bench/CLAUDE.md`: where the bench's pieces are, how the kill-check reads each R6 check, what its verdict and record hold, the dry run, and what today's numbers do and don't include.
 - `packages/config/CLAUDE.md`: loading a config file and resolving a project from it (dialect selection, policy layering, environment, isolation, the worker's `SerializedProjectConfig`), the `ConfigError` codes, and what is still stubbed (with owning tasks).
 - `packages/core/CLAUDE.md`: the runtime's module map, one store per test attempt, the per-attempt order, the two focus algorithms, how the corpus check runs core, and what is still stubbed (with owning tasks).
 - `packages/dialect-jest/CLAUDE.md`: the Jest dialect's value (`jestDialect`, `jestPolicy`) and globals (`jestGlobals`), its `expect` slice and matcher table, the vendored Jest matchers (their own tsconfig project, D17), and its tests.
