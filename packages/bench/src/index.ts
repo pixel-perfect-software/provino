@@ -2,6 +2,21 @@
 export { readRunRef } from './environment.ts'
 export { BenchError, type BenchErrorCode } from './errors.ts'
 export type { ExecOutcome, ExecProcess, ExecRequest } from './exec.ts'
+export {
+  evaluateKillCheck,
+  formatKillCheck,
+  ISOLATION_SUITE,
+  type IsolationCheck,
+  KILL_CRITERION,
+  type KillCheckSuite,
+  type KillCheckVerdict,
+  type KillCriterion,
+  type ParityCheck,
+  R6_SUITES,
+  type SpeedCheck,
+  type SuiteVerdict,
+} from './kill-check.ts'
+export type { StatusParity } from './parity.ts'
 export { buildRecord, LABEL_POLICY, type LabelPolicy, parseLabel } from './report.ts'
 export {
   type BenchSpec,

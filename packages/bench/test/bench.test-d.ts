@@ -10,7 +10,15 @@ import {
   type ExecOutcome,
   type ExecProcess,
   type ExecRequest,
+  evaluateKillCheck,
+  formatKillCheck,
   type Interval,
+  ISOLATION_SUITE,
+  type IsolationCheck,
+  KILL_CRITERION,
+  type KillCheckSuite,
+  type KillCheckVerdict,
+  type KillCriterion,
   LABEL_POLICY,
   type LabelPolicy,
   type ProcessEntry,
@@ -18,6 +26,7 @@ import {
   parseLabel,
   parseSuiteName,
   planRunner,
+  R6_SUITES,
   type RatioInterval,
   type RssSampler,
   type RunEvent,
@@ -27,6 +36,7 @@ import {
   ratioCi,
   readRunRef,
   runBench,
+  type StatusParity,
   type SuiteSpec,
   startRssSampler,
   sumTreeRssMib,
@@ -37,6 +47,7 @@ import type {
   BenchRecord,
   BenchResult,
   BenchSubject,
+  IsolationMode,
   RunEnvironment,
   RunRef,
   WallStats,
@@ -169,6 +180,10 @@ planRunner(parseSuiteName('app-5'), 'jest')
 planRunner(parseSuiteName('app-5'), 'vitest')
 planRunner(parseSuiteName('app-5'), 'provino')
 planRunner(parseSuiteName('app-5'), 'jest', { extraArgs: ['--json'] })
+planRunner(parseSuiteName('app-5'), 'provino', { isolation: 'none' })
+// @ts-expect-error Provino's tiers here are registry and none
+planRunner(parseSuiteName('app-5'), 'provino', { isolation: 'realm' })
+expectTypeOf<RunnerPlan['isolation']>().toEqualTypeOf<IsolationMode>()
 expectTypeOf<RunnerName>().toEqualTypeOf<'jest' | 'vitest' | 'provino'>()
 expectTypeOf<RunnerPlan['runner']>().toEqualTypeOf<RunnerName>()
 // @ts-expect-error only Jest, Vitest and Provino are runners
@@ -181,3 +196,35 @@ expectTypeOf<BenchError['code']>().toEqualTypeOf<BenchErrorCode>()
 new BenchError('BENCH_INVALID_SPEC', 'message')
 // @ts-expect-error not a bench error code
 new BenchError('BENCH_NOPE', 'message')
+
+// The kill-check's gate is a pure function of a record, the suites and the parity reads.
+declare const killRecord: BenchRecord
+declare const parity: StatusParity
+expectTypeOf(evaluateKillCheck).returns.toEqualTypeOf<KillCheckVerdict>()
+expectTypeOf(formatKillCheck).returns.toEqualTypeOf<readonly string[]>()
+expectTypeOf(KILL_CRITERION).toEqualTypeOf<KillCriterion>()
+expectTypeOf(R6_SUITES).toEqualTypeOf<readonly KillCheckSuite[]>()
+expectTypeOf(ISOLATION_SUITE).toEqualTypeOf<string>()
+expectTypeOf<KillCheckVerdict['outcome']>().toEqualTypeOf<'GO' | 'NO-GO'>()
+expectTypeOf<IsolationCheck['cache']>().toEqualTypeOf<'warm' | 'cold'>()
+evaluateKillCheck({
+  record: killRecord,
+  suites: R6_SUITES,
+  parity: new Map([['app-500', parity]]),
+  dryRun: false,
+})
+// @ts-expect-error a dry run flag is required
+evaluateKillCheck({ record: killRecord, suites: R6_SUITES, parity: new Map() })
+// @ts-expect-error parity is a map by suite name, not a list
+evaluateKillCheck({ record: killRecord, suites: R6_SUITES, parity: [parity], dryRun: false })
+// @ts-expect-error a pending reason is a string
+accept<KillCheckSuite>({ name: 'mobx', pending: 1 })
+// @ts-expect-error a suite needs a name
+accept<KillCheckSuite>({ pending: 'later' })
+// @ts-expect-error the criterion is read-only
+KILL_CRITERION.warmMaxRatio = 1
+declare const verdictValue: KillCheckVerdict
+// @ts-expect-error a verdict is read-only
+verdictValue.outcome = 'GO'
+// @ts-expect-error only a verdict formats
+formatKillCheck(killRecord)

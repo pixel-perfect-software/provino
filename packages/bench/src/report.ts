@@ -1,5 +1,12 @@
 import { join } from 'node:path'
-import type { BenchLabel, BenchRecord, BenchResult, RunEnvironment, RunRef } from '@provino/types'
+import type {
+  BenchLabel,
+  BenchRecord,
+  BenchResult,
+  BenchSubject,
+  RunEnvironment,
+  RunRef,
+} from '@provino/types'
 import { BenchError } from './errors.ts'
 import { DEFAULT_COLD_RUNS, DEFAULT_WARM_RUNS } from './run-bench.ts'
 import { ratioCi } from './stats.ts'
@@ -155,7 +162,11 @@ function ms(value: number): string {
   return value.toFixed(1)
 }
 
-function table(rows: readonly (readonly string[])[]): string[] {
+/**
+ * Pads rows of cells into aligned columns.
+ * @public
+ */
+export function table(rows: readonly (readonly string[])[]): string[] {
   const widths =
     rows[0]?.map((_, column) => Math.max(...rows.map((row) => row[column]?.length ?? 0))) ?? []
   return rows.map((row) =>
@@ -164,6 +175,15 @@ function table(rows: readonly (readonly string[])[]): string[] {
       .join('  ')
       .trimEnd(),
   )
+}
+
+/**
+ * A subject's name where a tier matters: ` (registry)` after the runner when its isolation was
+ * chosen (Provino's two tiers print differently), and nothing for a runner at its default.
+ * @public
+ */
+export function tierOf(subject: BenchSubject): string {
+  return subject.isolation === 'runner-default' ? '' : ` (${subject.isolation})`
 }
 
 /**
@@ -195,7 +215,7 @@ export function formatSummary(record: BenchRecord): string {
     const { wall } = result
     rows.push([
       result.benchId,
-      `${result.subject.runner} ${result.subject.version}`,
+      `${result.subject.runner} ${result.subject.version}${tierOf(result.subject)}`,
       result.cache,
       String(wall.runs),
       ms(wall.medianMs),
@@ -217,7 +237,7 @@ export function formatSummary(record: BenchRecord): string {
     for (const result of record.results) {
       if (result.subject.runner === 'jest') continue
       if (result.benchId !== baseline.benchId || result.cache !== baseline.cache) continue
-      const label = `${result.benchId} ${result.subject.runner}/jest ${result.cache}`
+      const label = `${result.benchId} ${result.subject.runner}${tierOf(result.subject)}/jest ${result.cache}`
       if (!result.ok || !baseline.ok) {
         out.push(`${tag} ${label}: no ratio, a run failed`)
         continue
@@ -231,7 +251,7 @@ export function formatSummary(record: BenchRecord): string {
   for (const result of record.results) {
     if (!result.ok) {
       out.push(
-        `${tag} WARNING: ${result.subject.runner} ${result.cache} had a failing run, so it is not a speed result`,
+        `${tag} WARNING: ${result.subject.runner}${tierOf(result.subject)} ${result.cache} had a failing run, so it is not a speed result`,
       )
     }
   }

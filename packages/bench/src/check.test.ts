@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { parseNormalizedRun, readRunEnvironment } from '@provino/harness'
+import { parseNormalizedRun, readRunEnvironment, runProcess } from '@provino/harness'
 import type { NormalizedFile, NormalizedRun, NormalizedTest } from '@provino/types'
 import {
   checkProblems,
@@ -13,7 +13,7 @@ import {
   summarize,
 } from './check.ts'
 import { code, scratch, scratchSuites } from './internal/test-helpers.ts'
-import { DEFAULT_PATHS, parseSuiteName, suiteDir, writeSuite } from './suites.ts'
+import { DEFAULT_PATHS, parseSuiteName, planRunner, suiteDir, writeSuite } from './suites.ts'
 
 const passing: Report = {
   numTotalTests: 40,
@@ -302,4 +302,39 @@ test('a Provino run with a failing test fails the check and names the test', asy
     '1 tests failed',
   ])
   assert.deepEqual(result.details, ['tests/app-0000.test.js > x fails on purpose: on purpose'])
+})
+
+// D19, as behaviour: a timed Provino run is passed no --no-cache. The results cache it keeps only
+// orders the next run's files (durations, last status); it never skips one, so a second run with
+// the cache present still reports every test.
+test('with the results cache kept, a second Provino run still runs and reports every test (D19)', async (t) => {
+  const root = await scratchSuites(t)
+  const spec = parseSuiteName('app-2')
+  await writeSuite(spec, root)
+  const paths = { ...DEFAULT_PATHS, suitesRoot: root }
+  const reportPath = join(suiteDir(spec, root), 'check', 'timed.json')
+  const plan = planRunner(spec, 'provino', {
+    paths,
+    extraArgs: ['--reporter', 'normalized-json', '--outputFile', reportPath],
+  })
+  assert.ok(!plan.argv.includes('--no-cache'))
+  const [command, ...args] = plan.argv
+  assert.ok(command)
+  const cache = plan.caches.find((entry) => entry.kind === 'provino')
+  assert.ok(cache)
+
+  for (const run of [1, 2]) {
+    const exit = await runProcess(command, args, {
+      cwd: plan.cwd,
+      env: { ...process.env, ...plan.env },
+      timeoutMs: 120_000,
+    })
+    assert.equal(exit.exitCode, 0, `run ${run}: ${exit.output}`)
+    const report = parseNormalizedRun(await readFile(reportPath, 'utf8'), reportPath)
+    const tests = report.files.flatMap((file) => file.tests)
+    assert.equal(tests.length, 16, `run ${run} reports every test`)
+    assert.ok(tests.every((test) => test.status === 'passed'))
+    // after the first run the cache is there, so the second run really had it
+    assert.ok((await readdir(cache.path)).includes('results.json'), `run ${run}: results cache`)
+  }
 })

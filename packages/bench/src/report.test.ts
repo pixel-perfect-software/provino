@@ -283,3 +283,31 @@ test('the run counts a label accepts are read from its policy', () => {
   assert.match(runsProblem('desktop', 'warm', 9) ?? '', /^a desktop record needs at least 10 warm/)
   assert.match(runsProblem('pinned', 'cold', 4) ?? '', /^a pinned record needs at least.* 5 cold/)
 })
+
+test('two Provino tiers are named by tier in the table and the ratio lines, and Jest and Vitest are not', () => {
+  const provino = (isolation: 'registry' | 'none', cache: 'warm' | 'cold', samples: number[]) => {
+    const base = result('jest', cache, samples)
+    return {
+      ...base,
+      subject: { ...base.subject, runner: 'provino:jest', version: '0.0.0', isolation },
+    }
+  }
+  const text = formatSummary(
+    record([
+      result('jest', 'warm', [100, 100, 100]),
+      provino('registry', 'warm', [50, 50, 50]),
+      provino('none', 'warm', [25, 25, 25]),
+    ]),
+  )
+  assert.match(text, /\[local\] app-50 +provino:jest 0\.0\.0 \(registry\) +warm/)
+  assert.match(text, /\[local\] app-50 +provino:jest 0\.0\.0 \(none\) +warm/)
+  assert.match(text, /app-50 provino:jest \(registry\)\/jest warm: median ratio 0\.500 /)
+  assert.match(text, /app-50 provino:jest \(none\)\/jest warm: median ratio 0\.250 /)
+  // runners at their defaults print as before
+  const plain = formatSummary(
+    record([result('jest', 'warm', [100]), result('vitest', 'warm', [50])]),
+  )
+  assert.doesNotMatch(plain, /\(runner-default\)|\(registry\)|\(none\)/)
+  assert.match(plain, /app-50 vitest\/jest warm: median ratio 0\.500 /)
+  assert.match(plain, / jest 30\.5\.2 +warm/)
+})

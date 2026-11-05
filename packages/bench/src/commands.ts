@@ -1,23 +1,27 @@
 import { resolve } from 'node:path'
 import { readRunEnvironment } from '@provino/harness'
+import type { BenchLabel, BenchRecord, BenchResult } from '@provino/types'
 import { type CheckResult, checkRunner } from './check.ts'
 import { type CliCommand, parseCli, USAGE } from './cli-args.ts'
 import { readRunRef } from './environment.ts'
 import { BenchError } from './errors.ts'
 import type { ExecProcess } from './exec.ts'
+import { evaluateKillCheck, formatKillCheck, ISOLATION_SUITE, R6_SUITES } from './kill-check.ts'
 import { prepareOutput, writeRecordFile } from './output.ts'
-import { checkStatusParity, parityLines } from './parity.ts'
+import { checkStatusParity, parityLines, type StatusParity } from './parity.ts'
 import {
   buildRecord,
   defaultMachineId,
   defaultOutPath,
   formatSummary,
   requireCleanTree,
+  tierOf,
 } from './report.ts'
-import { runBench } from './run-bench.ts'
+import { type BenchSubjectSpec, type RunEvent, runBench } from './run-bench.ts'
 import {
   type BenchPaths,
   DEFAULT_PATHS,
+  parseSuiteName,
   planRunner,
   type RunnerName,
   type SuiteSpec,
@@ -35,12 +39,15 @@ export interface CliIo {
 }
 
 /**
- * Test seams: the process runner (`run` only), where the repository, the generated suites and the
- * records live, and the clock. Each defaults to the real thing.
+ * Test seams: the process runner (`run` and `kill-check`), the kill-check's parity read, where the
+ * repository, the generated suites and the records live, and the clock. Each defaults to the real
+ * thing. `readParity` runs Jest and Provino once each, outside the timed runs, and compares their
+ * reports; a test with a fake `exec` replaces it so no real runner starts.
  * @public
  */
 export interface CliDeps {
   readonly exec?: ExecProcess
+  readonly readParity?: (suite: SuiteSpec) => Promise<StatusParity>
   readonly paths?: BenchPaths
   readonly now?: () => Date
 }
@@ -59,6 +66,39 @@ async function generated(suite: SuiteSpec, io: CliIo, suitesRoot: string): Promi
 
 function seconds(ms: number): string {
   return `${(ms / 1000).toFixed(1)} s`
+}
+
+// The progress line for each timed run, and the notes the runs raised (printed once, after).
+function progressReporter(
+  io: CliIo,
+  label: BenchLabel,
+): { readonly onRun: (event: RunEvent) => void; flush(): void } {
+  const warnings = new Set<string>()
+  return {
+    onRun: ({ benchId, subject, phase, round, rounds, outcome }) => {
+      for (const warning of outcome.warnings ?? []) warnings.add(warning)
+      io.err(
+        `[${label}] ${benchId} ${subject.runner}${tierOf(subject)} ${phase} ${round}/${rounds}: ${outcome.wallMs.toFixed(0)} ms, exit ${outcome.exitCode}`,
+      )
+    },
+    flush: () => {
+      for (const warning of warnings) io.err(`[${label}] note: ${warning}`)
+      warnings.clear()
+    },
+  }
+}
+
+// Writes the record, last resort included: if it can't be placed, the runs are already in the
+// summary on stdout, so the whole record goes to stderr and the error is rethrown.
+async function persistRecord(record: BenchRecord, out: string, io: CliIo): Promise<void> {
+  const text = `${JSON.stringify(record, null, 2)}\n`
+  try {
+    await writeRecordFile(out, text)
+  } catch (error) {
+    io.err(text.trimEnd())
+    throw error
+  }
+  io.out(`[${record.label}] wrote ${out}`)
 }
 
 // The `run` command. Everything that can fail without running a benchmark is done first: reading
@@ -87,7 +127,7 @@ async function runCommand(
   )
   await generated(suite, io, paths.suitesRoot)
 
-  const warnings = new Set<string>()
+  const progress = progressReporter(io, label)
   const results = await runBench({
     benchId: suite.name,
     subjects: plans.map(toSubjectSpec),
@@ -95,14 +135,9 @@ async function runCommand(
     coldRuns: command.cold,
     timeoutMs: command.timeoutMs,
     ...(deps.exec === undefined ? {} : { exec: deps.exec }),
-    onRun: ({ subject, phase, round, rounds, outcome }) => {
-      for (const warning of outcome.warnings ?? []) warnings.add(warning)
-      io.err(
-        `[${label}] ${suite.name} ${subject.runner} ${phase} ${round}/${rounds}: ${outcome.wallMs.toFixed(0)} ms, exit ${outcome.exitCode}`,
-      )
-    },
+    onRun: progress.onRun,
   })
-  for (const warning of warnings) io.err(`[${label}] note: ${warning}`)
+  progress.flush()
 
   const record = buildRecord({
     label,
@@ -112,16 +147,148 @@ async function runCommand(
     results,
   })
   io.out(formatSummary(record))
-  const text = `${JSON.stringify(record, null, 2)}\n`
-  try {
-    await writeRecordFile(out, text)
-  } catch (error) {
-    // Last resort: the runs are in the summary above; put the whole record where it can be saved.
-    io.err(text.trimEnd())
-    throw error
-  }
-  io.out(`[${label}] wrote ${out}`)
+  await persistRecord(record, out, io)
   return results.every((result) => result.ok) ? 0 : 1
+}
+
+// Jest and Provino each once, with reports, outside the timed runs (the report flags cost time),
+// then their per-test statuses compared. `checkStatusParity` reads a report from disk when it isn't
+// handed one, and a missing file would be a raw ENOENT, so it is called only when both runs wrote
+// a valid report. Parity is a fraction, so it is compared even when a run failed.
+async function readRealParity(
+  suite: SuiteSpec,
+  io: CliIo,
+  paths: BenchPaths,
+  timeoutMs: number,
+): Promise<StatusParity> {
+  const jest = await checkRunner(suite, 'jest', { paths, timeoutMs })
+  const provino = await checkRunner(suite, 'provino', { paths, timeoutMs })
+  for (const result of [jest, provino]) {
+    const { summary } = result
+    const counts =
+      summary === undefined ? 'no report' : `${summary.passed}/${summary.total} tests passed`
+    io.err(
+      `${suite.name} parity read: ${result.runner} ${result.version} ${result.ok ? 'passed' : 'FAILED'}: ${counts} in ${seconds(result.wallMs)} (not timed, not a result)`,
+    )
+    for (const problem of result.problems) io.err(`  ${problem}`)
+  }
+  const jestReport = jest.parsed?.jest
+  const provinoReport = provino.parsed?.provino
+  if (jestReport === undefined) return noParity('jest wrote no valid report')
+  if (provinoReport === undefined) return noParity('provino wrote no valid report')
+  return await checkStatusParity(
+    suite,
+    { jest: jest.version, provino: provino.version },
+    { paths, reports: { jest: jestReport, provino: provinoReport } },
+  )
+}
+
+// A parity that fails the gate closed: nothing could be compared.
+function noParity(reason: string): StatusParity {
+  return {
+    ok: false,
+    referenceTests: 0,
+    statusMatched: 0,
+    candidateOnlyTests: 0,
+    files: 0,
+    filesMatched: 0,
+    failing: [],
+    assertionDiffs: [],
+    unavailable: reason,
+  }
+}
+
+// The `kill-check` command (Track 12 R6, T12.15, provisional). Like `run`, everything that can fail
+// without running a benchmark happens first: the commit, the clean-tree rule, the record's path and
+// every subject's plan. Then, per measured suite: generate it, read parity (not on a dry run), and
+// run the subjects interleaved. Provino's timed runs are never passed `--no-cache`: its results
+// cache only orders the next run's files (D19's scheduling data), it never skips one, and every run
+// is a fresh process, so no pool or daemon carries over. All numbers are measured even when parity
+// failed: no run is skipped or dropped.
+async function killCheckCommand(
+  command: Extract<CliCommand, { readonly command: 'kill-check' }>,
+  io: CliIo,
+  deps: CliDeps,
+  paths: BenchPaths,
+): Promise<number> {
+  const { label, dryRun } = command
+  const now = deps.now?.()
+  const ref = readRunRef({ cwd: paths.repoRoot, ...(now === undefined ? {} : { now }) })
+  requireCleanTree(label, ref)
+  const out =
+    command.out === undefined
+      ? defaultOutPath(ref, dryRun ? 'kill-check-dry-run' : 'kill-check', paths.resultsDir)
+      : resolve(command.out)
+  await prepareOutput(out)
+
+  const planned = R6_SUITES.filter((entry) => entry.pending === undefined).map((entry) => {
+    const suite = parseSuiteName(entry.name)
+    const jest = planRunner(suite, 'jest', { paths })
+    const baseline = toSubjectSpec(jest)
+    const tiers =
+      suite.name === ISOLATION_SUITE ? (['registry', 'none'] as const) : (['registry'] as const)
+    if (dryRun) {
+      // Jest in Provino's place: the same argv, cwd, env, caches and command, with a runner id that
+      // can never be taken for Provino's record.
+      const standIns: BenchSubjectSpec[] = tiers.map((isolation) => ({
+        ...baseline,
+        subject: { ...baseline.subject, runner: 'jest-as-provino', isolation },
+      }))
+      return { suite, plans: [jest], subjects: [baseline, ...standIns] }
+    }
+    const provino = tiers.map((isolation) => planRunner(suite, 'provino', { paths, isolation }))
+    return { suite, plans: [jest, ...provino], subjects: [baseline, ...provino.map(toSubjectSpec)] }
+  })
+  // Only what actually runs is named: a dry run's record claims no Provino version.
+  const environment = readRunEnvironment(
+    Object.fromEntries(
+      planned.flatMap(({ plans }) => plans.map((plan) => [plan.runner, plan.version])),
+    ),
+  )
+
+  const readParity =
+    deps.readParity ?? ((suite: SuiteSpec) => readRealParity(suite, io, paths, command.timeoutMs))
+  const parity = new Map<string, StatusParity>()
+  const results: BenchResult[] = []
+  const progress = progressReporter(io, label)
+  for (const { suite, subjects } of planned) {
+    await generated(suite, io, paths.suitesRoot)
+    if (!dryRun) {
+      let read: StatusParity
+      try {
+        read = await readParity(suite)
+      } catch (error) {
+        if (!(error instanceof BenchError)) throw error
+        read = noParity(`${error.code}: ${error.message}`)
+      }
+      parity.set(suite.name, read)
+      for (const line of parityLines(read)) io.err(`[${label}] ${suite.name} ${line}`)
+    }
+    // R6 fixes 10 warm and 5 cold runs, so the defaults are used and no count is passed.
+    results.push(
+      ...(await runBench({
+        benchId: suite.name,
+        subjects,
+        timeoutMs: command.timeoutMs,
+        ...(deps.exec === undefined ? {} : { exec: deps.exec }),
+        onRun: progress.onRun,
+      })),
+    )
+    progress.flush()
+  }
+
+  const record = buildRecord({
+    label,
+    ref,
+    environment,
+    machineId: command.machineId ?? defaultMachineId(label),
+    results,
+  })
+  const verdict = evaluateKillCheck({ record, suites: R6_SUITES, parity, dryRun })
+  io.out(formatSummary(record))
+  for (const line of formatKillCheck(verdict)) io.out(line)
+  await persistRecord(record, out, io)
+  return verdict.outcome === 'GO' ? 0 : 1
 }
 
 // The `check` command: each runner once, then Provino against Jest when both ran and passed.
@@ -200,6 +367,8 @@ export async function runCli(
         return await checkCommand(command, io, paths)
       case 'run':
         return await runCommand(command, io, deps, paths)
+      case 'kill-check':
+        return await killCheckCommand(command, io, deps, paths)
     }
   } catch (error) {
     if (!(error instanceof BenchError)) throw error
