@@ -22,6 +22,7 @@ Tier 1 is project-wide. Read a Tier 1 file only when the task needs it; `.claude
 
 When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (under ~150 lines) and list it here, alphabetically.
 
+- `packages/config/CLAUDE.md`: loading a config file and resolving a project from it (dialect selection, policy layering, environment, isolation, the worker's `SerializedProjectConfig`), the `ConfigError` codes, and what is still stubbed (with owning tasks).
 - `packages/core/CLAUDE.md`: the runtime's module map, one store per test attempt, the per-attempt order, the two focus algorithms, how the corpus check runs core, and what is still stubbed (with owning tasks).
 - `packages/dialect-jest/CLAUDE.md`: the Jest dialect's value (`jestDialect`, `jestPolicy`) and globals (`jestGlobals`), its `expect` slice and matcher table, the vendored Jest matchers (their own tsconfig project, D17), and its tests.
 - `packages/env-node/CLAUDE.md`: how the Node environment restores the global (what is compared, the key-order limit, what an unrestorable key does, why setup reads every descriptor first).
@@ -29,6 +30,7 @@ When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (und
 - `packages/harness/CLAUDE.md`: the golden-fixture format and recorder (one format for every golden), converters, normalization and parity diffs.
 - `packages/loader/CLAUDE.md`: the engine's worker-wide and per-file halves, the module-runner wrapper shape, and what is still stubbed (with owning tasks).
 - `packages/orchestrator/CLAUDE.md`: the coordinator and worker halves (transports, `connectWorker`, `startWorker`, packer, console capture), how a worker boots and exits, the exit-reporting and link rules, the end-to-end tests, and what is still stubbed (with owning tasks).
+- `packages/reporters/CLAUDE.md`: the reporter bus (ordering, how a throwing reporter is handled), the default reporter's format and tallies, how the normalized-json reporter builds a `NormalizedRun`, and what is still stubbed (with owning tasks).
 - `tooling/boundaries/CLAUDE.md`: the package manifest, what is generated from it, and how to add a package or rule.
 
 ## Reference (read when named)

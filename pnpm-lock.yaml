@@ -434,6 +434,15 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
 
+  packages/config:
+    dependencies:
+      '@provino/policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
+
   packages/core:
     dependencies:
       '@provino/policy':
@@ -589,6 +598,12 @@ importers:
         version: link:../types
 
   packages/policy:
+    dependencies:
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
+
+  packages/reporters:
     dependencies:
       '@provino/types':
         specifier: workspace:*
