@@ -40,6 +40,7 @@ A missing result, a failing run or an unreadable parity read fails its check. No
 
 - **Result reuse is off (D19) without `--no-cache`.** Provino's results cache only orders the next run's files and never skips one. Every timed run is a fresh process. `--no-cache` is only on the one-off parity read, which goes through `check`.
 - **Provino runs from source** (`--conditions=provino-source`), so every process pays type stripping. There is no built `dist` to measure yet.
-- **`provino run` has no transform cache yet** (T3.6, B17), so warm gains little over cold. When it lands, its directory must be in the plan's `caches`, or cold runs stop being cold.
+- **`provino run` has no transform cache yet** (T3.6, B17). All of warm's gain over cold comes from the V8 compile cache and the results history, the only two things a cold Provino run deletes, and that gain is already large. When the transform cache lands, its directory must be in the plan's `caches`, or cold runs stop being cold.
+- **Peak RSS needs `ps`.** A run inside a sandbox that blocks `ps` records no `peakRssMb` and says so in a note.
 - **Both Provino tiers share a tree and caches.** That is safe, because a cold run clears them right before its own run and the results cache only orders files.
 - **`provino.config.mjs` states `isolation: 'registry'`** and `provino.none.config.mjs` states `none`. The explicit tier stops the gate silently measuring something else if the Jest default ever moves (build-plan §4 item 34).
