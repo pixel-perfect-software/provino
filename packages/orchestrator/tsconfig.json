@@ -12,6 +12,9 @@
       "path": "../policy"
     },
     {
+      "path": "../config"
+    },
+    {
       "path": "../loader"
     },
     {

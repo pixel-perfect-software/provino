@@ -1,7 +1,7 @@
 {
   "name": "@provino/orchestrator",
   "version": "0.0.0",
-  "description": "Provino's coordinator: worker transports (forks, threads, inline), the per-worker connection, and the worker-side event packer.",
+  "description": "Provino's coordinator: discovery, ordering, the worker pool and the run; worker transports (forks, threads, inline), the per-worker connection, and the worker runtime.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
     "url": "https://github.com/pixel-perfect-software/provino/issues"
@@ -42,11 +42,16 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },
   "dependencies": {
+    "@provino/config": "workspace:*",
     "@provino/core": "workspace:*",
     "@provino/expect": "workspace:*",
     "@provino/loader": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/rpc": "workspace:*",
-    "@provino/types": "workspace:*"
+    "@provino/types": "workspace:*",
+    "tinyglobby": "catalog:"
+  },
+  "devDependencies": {
+    "@provino/reporters": "workspace:*"
   }
 }

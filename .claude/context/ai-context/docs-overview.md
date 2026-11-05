@@ -29,7 +29,7 @@ When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (und
 - `packages/expect/CLAUDE.md`: the neutral expect engine (front end, per-attempt state, slot), the stack-anchoring rule, the worker's boot order, and what is still stubbed (with owning tasks).
 - `packages/harness/CLAUDE.md`: the golden-fixture format and recorder (one format for every golden), converters, normalization and parity diffs.
 - `packages/loader/CLAUDE.md`: the engine's worker-wide and per-file halves, the module-runner wrapper shape, and what is still stubbed (with owning tasks).
-- `packages/orchestrator/CLAUDE.md`: the coordinator and worker halves (transports, `connectWorker`, `startWorker`, packer, console capture), how a worker boots and exits, the exit-reporting and link rules, the end-to-end tests, and what is still stubbed (with owning tasks).
+- `packages/orchestrator/CLAUDE.md`: the coordinator and worker halves (transports, `connectWorker`, `startWorker`, packer, console capture), how a worker boots and exits, the exit-reporting and link rules, the coordinator's run (`runProject`: discovery, results cache, sequencer, pool, event dispatch, exit codes), the end-to-end tests, and what is still stubbed (with owning tasks).
 - `packages/reporters/CLAUDE.md`: the reporter bus (ordering, how a throwing reporter is handled), the default reporter's format and tallies, how the normalized-json reporter builds a `NormalizedRun`, and what is still stubbed (with owning tasks).
 - `tooling/boundaries/CLAUDE.md`: the package manifest, what is generated from it, and how to add a package or rule.
 

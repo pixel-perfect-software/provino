@@ -1,11 +1,12 @@
 // Shared by the end-to-end tests: worker inits, jobs, transports of each kind, and a stream that
 // keeps what a worker printed (so a crash's stderr doesn't land in the test output).
-import { mkdtempSync, realpathSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, realpathSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, sep } from 'node:path'
 import { Writable } from 'node:stream'
 import { after } from 'node:test'
+import type { ResolvedProject } from '@provino/config'
 import {
   connectWorker,
   type FileDone,
@@ -24,6 +25,8 @@ import type {
   FileJob,
   GlobalsFactory,
   IsolationTier,
+  Policy,
+  PolicyOverrides,
   PoolKind,
   SerializedPolicy,
   SerializedProjectConfig,
@@ -177,23 +180,26 @@ export function runtimeJob(config: SerializedProjectConfig, file: string): FileJ
 }
 
 /**
- * The test policy: the neutral one with the globals injected and an `expect` that builds the
- * fixtures' table. Every behaviour key stays a ref, so it crosses to a thread or a fork.
+ * The test policy's layer over the neutral one: the globals injected and an `expect` that builds
+ * the fixtures' table. Every behaviour key stays a ref, so it crosses to a thread or a fork.
  */
+function runtimePolicyOverrides(): PolicyOverrides {
+  return {
+    core: { injectGlobals: true },
+    expect: {
+      matcherTable: moduleRef<() => ExpectTable>(fixture('runtime-table.ts').href, 'testTable'),
+      errorShape: 'matcher-result',
+      equality: { errors: 'message', invalidDate: 'unequal' },
+      soft: false,
+      poll: { enabled: false, intervalMs: 50, timeoutMs: 1000 },
+      requireAssertions: false,
+    },
+  }
+}
+
+/** The test policy, serialized for a worker's config. */
 export function runtimePolicy(): SerializedPolicy {
-  return serializePolicy(
-    resolvePolicy({
-      core: { injectGlobals: true },
-      expect: {
-        matcherTable: moduleRef<() => ExpectTable>(fixture('runtime-table.ts').href, 'testTable'),
-        errorShape: 'matcher-result',
-        equality: { errors: 'message', invalidDate: 'unequal' },
-        soft: false,
-        poll: { enabled: false, intervalMs: 50, timeoutMs: 1000 },
-        requireAssertions: false,
-      },
-    }),
-  )
+  return serializePolicy(resolvePolicy(runtimePolicyOverrides()))
 }
 
 /**
@@ -290,4 +296,84 @@ export function eventsOf<Type extends WorkerEvent['type']>(
   return events.filter(
     (event): event is Extract<WorkerEvent, { readonly type: Type }> => event.type === type,
   )
+}
+
+// ---- The coordinator (`runProject`): a resolved project for the same fixtures.
+
+/** What `runtimeProject` can change. */
+export interface RuntimeProjectOptions {
+  /** The project name; default `rt`. */
+  readonly name?: string
+  /** What the recording environment gets (its `leak` option makes every file report leaked globals). */
+  readonly environmentOptions?: EnvironmentRef['options']
+  /** Test file globs; default every `*.test.js`. */
+  readonly include?: readonly string[]
+  readonly exclude?: readonly string[]
+  /** Layered over the test policy (the `orchestrator` slice's `include`/`exclude` are set from the options above). */
+  readonly policy?: PolicyOverrides
+}
+
+/**
+ * The project a coordinator test runs: the fixtures' environment, table and globals, the test
+ * files `include` finds under `rootDir`, and a policy and config that agree. The orchestrator may
+ * not depend on `@provino/config`'s callers (the dialects), so this is what `resolveProject`
+ * would build for a config that named no dialect.
+ */
+export function runtimeProject(
+  rootDir: string,
+  options: RuntimeProjectOptions = {},
+): ResolvedProject {
+  const include = options.include ?? ['**/*.test.js']
+  const exclude = options.exclude ?? ['**/node_modules/**']
+  const base = runtimePolicyOverrides()
+  const policy: Policy = resolvePolicy({
+    ...base,
+    ...options.policy,
+    core: { ...base.core, ...options.policy?.core },
+    expect: { ...base.expect, ...options.policy?.expect },
+    orchestrator: { ...options.policy?.orchestrator, include, exclude },
+  })
+  const name = options.name ?? 'rt'
+  return {
+    name,
+    rootDir,
+    dialect: null,
+    policy,
+    include,
+    exclude,
+    environment: 'recording',
+    isolation: 'registry',
+    config: runtimeConfig(rootDir, {
+      name,
+      policy: serializePolicy(policy),
+      ...(options.environmentOptions === undefined
+        ? {}
+        : { environmentOptions: options.environmentOptions }),
+    }),
+  }
+}
+
+/** The worker entry that records the pid of each forked worker: the real runtime otherwise. */
+export const PID_RECORDING_ENTRY: URL = fixture('pid-recording-main.ts')
+
+/**
+ * The pids of the forked workers that loaded `PID_RECORDING_ENTRY` for this test process, in the
+ * order they started, and removes the file. Empty when no worker was started.
+ */
+export async function takeWorkerPids(): Promise<readonly number[]> {
+  const file = join(tmpdir(), `provino-pids-${process.pid}`)
+  if (!existsSync(file)) return []
+  const pids = readFileSync(file, 'utf8').split('\n').filter(Boolean).map(Number)
+  await rm(file, { force: true })
+  return pids
+}
+
+/** Whether a process with this pid is still there (a reaped child is not). */
+export function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
 }

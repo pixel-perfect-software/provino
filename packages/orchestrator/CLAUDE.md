@@ -1,6 +1,6 @@
 # @provino/orchestrator
 
-The coordinator (`.`) and the worker entry (`./worker`), as two manifest nodes in one package. They never import each other: shared types come from `@provino/types` and shared runtime code from `@provino/rpc`. B09 built the transports, the per-worker connection and the worker-side packer. B10 built the worker runtime (U1): `./worker/main`, the entry that wires the loader, the environment, the dialect's globals, `@provino/expect` and `@provino/core` behind `startWorker`. The pool, scheduler and reporters come later (see "Not built yet").
+The coordinator (`.`) and the worker entry (`./worker`), as two manifest nodes in one package. They never import each other: shared types come from `@provino/types` and shared runtime code from `@provino/rpc`. B09 built the transports, the per-worker connection and the worker-side packer. B10 built the worker runtime (U1): `./worker/main`, the entry that wires the loader, the environment, the dialect's globals, `@provino/expect` and `@provino/core` behind `startWorker`. B11 built the coordinator's run: discovery, the results cache, the sequencer, the pool, event dispatch, `runProject` and the exit codes (see "The coordinator"). Watch, sharding, signals and the other reporters come later (see "Not built yet").
 
 ## Module map
 
@@ -10,6 +10,14 @@ The coordinator (`.`) and the worker entry (`./worker`), as two manifest nodes i
 | `src/transport/forks.ts`, `threads.ts`, `inline.ts` | coordinator | Each kind's `spawn`: starting one worker and mapping how it ends to a `WorkerExit`. An inline worker has ended when its entry's `main` has settled **and** the link has closed (see "How a worker runs" 5) |
 | `src/connect.ts` | coordinator | `connectWorker`: serves `CoordinatorMethods`, hands packs to `onEvents` in order, acks after it settles, and resolves `run()` on `fileDone` |
 | `src/file-id.ts` | coordinator | `fileIdOf(project, relativePath)` (`@public`): the file ids the coordinator assigns (D23) |
+| `src/discover.ts` | coordinator | `discoverFiles({ rootDir, include, exclude })`: tinyglobby (`dot: true`), sorted by code point, with absolute path, POSIX relative path and size |
+| `src/cache.ts` | coordinator | `createResultsCache(dir)`, `defaultCacheDir(rootDir)`: `results.json`, `{ version: 1, projects: { [name]: { [relPath]: FileHistory } } }` |
+| `src/sequencer.ts` | coordinator | `createHistorySequencer({ unknownFirst })`: Jest's `sort` with a total order; `shard` throws `ORCH_NOT_IMPLEMENTED` (T9.6) |
+| `src/key.ts` | coordinator | `workerKeyOf` (SHA-1 of stable JSON for the environment options, `execArgv` and env overrides), `sameWorkerKey` |
+| `src/pool.ts` | coordinator | `createPool(options, deps)`, `defaultMaxWorkers()`: lazy spawn, reuse by key, one file in flight per worker, replacement after a leak or a crash |
+| `src/dispatch.ts` | coordinator | `createFileDispatch` (a file's `WorkerEvent`s to bus events with their task nodes), `createIdleDispatch` (what a worker sends while it runs no file) |
+| `src/run.ts` | coordinator | `runProject(project, options)` → `RunSummary`: the whole flow below |
+| `src/exit-code.ts` | coordinator | `ExitCode` (Track 9 L476) and `exitCodeFor(summary, { policy, passWithNoTests, reporterFailures })` |
 | `src/worker/start.ts` | worker | `startWorker(port, runner)`: the worker side of the protocol; the runner is `createRuntimeRunner()` in the real worker. `FileOutcome.leakedGlobals` becomes `fileDone.leakedGlobals` (always sent, empty when clean). The promise it returns settles when the worker has ended: after `stopped`, or, if the link went away first, after the runner's best-effort `stop` |
 | `src/worker/main.ts` | worker | The real entry (`./worker/main`): `startWorker(port, createRuntimeRunner(), { serializeError: core's, console: { currentTaskId } })`. `currentTaskId` reads core's `currentTest`: the test, else the suite or file whose hook runs |
 | `src/worker/runtime/runner.ts` | worker | `createRuntimeRunner()`: `start`, `runFile` and `stop` of the runtime (see below) |
@@ -45,6 +53,20 @@ The environment and the dialect's globals load **by ref** (`config.environment`,
 - **Globals the environment can't remove are a warning (D22).** `teardown()` may return an `EnvironmentTeardownReport` (`{ leakedGlobals }`, `@provino/types`). For a **file-scoped** teardown the runner sends one `console` event through the context's sink after the file's own events and before it finishes: `taskId: null`, `stream: 'stderr'`, `level: 'warn'`, `origin: null`, text `Provino: <file> left N globals behind that the environment could not remove: a, b. Later files in this worker can see them.` (singular: `1 global ... see it`). It returns `{ leakedGlobals }` on the `FileOutcome`, which `startWorker` sends as `fileDone.leakedGlobals` (always present, `[]` when clean), so B11's pool can recycle the worker on `RecyclePolicy.onLeak`. A **worker-scoped** teardown (isolation `none`, in `stop`) sends `Provino: the environment could not remove N globals when the worker stopped: a, b.` before `stopped`, with nothing on any `fileDone`. If another teardown step of the same file also threw, the file is charged for it and its `fileDone.leakedGlobals` is `[]` (an error replaces the outcome), but the warning was still sent.
 - **`stop`.** `runtime.dispose()`, the worker-scoped environment's `teardown` (its report becomes the warning above), `loader[Symbol.dispose]()`, `slot.uninstall()`, then the worker-lifetime signal is aborted; errors collected and rethrown after all of them. It copes with a worker whose `start` threw half-way, and runs twice without harm.
 
+## The coordinator (`runProject`)
+
+Flow: pattern check (`ORCH_BAD_PATTERN`, `new RegExp(p, policy.core.testNamePatternFlags)`, before anything starts) → discover → no files: `run:start`, `run:end`, an empty summary → cache (`ResultsCache | false`; omitted means the default dir) → sort → `run:start(RunInfo, files)` → `file:queued` per file in order → every file through one pool → `pool.close()` (every worker has exited) → record and write the cache → `run:end`. A file goes `file:start(file, workerId)` when a worker takes it, its own events, then `file:end`. The worker entry defaults to `import.meta.resolve('@provino/orchestrator/worker/main')` (a string, not an import); `entry` overrides it.
+
+- **The pool owns the queue.** `run(request)` never rejects and resolves a `PoolOutcome` (`done`, `crashed`, `failed`, `start-failed`, `aborted`); waiting files are served in request order. A worker is started only when a file waits and fewer than `maxWorkers` are alive, **counting workers that are still stopping** (the cap is strict). An idle worker with another key is retired to make room. After a file whose `fileDone.leakedGlobals` is non-empty the worker is stopped, not reused (`recycle.onLeak`, default on; D22). `recycle.memoryLimitBytes` and `maxFilesPerWorker` throw `ORCH_NOT_IMPLEMENTED` rather than being ignored.
+- **Crashes and starts.** A worker that exits mid-file (`ORCH_WORKER_EXITED`, the `WorkerExit` as `cause`) fails that file: `FileResult.workerExit` plus one `WorkerCrash` error (`The worker running <path> exited: <describeExit>`). A worker that fails to start fails the file it was taking (with `workerExit` when the cause is an exit or a start timeout); after three starts in a row fail, every file left gets the third error, with no more attempts. A handler that throws (`ORCH_BAD_EVENT`, or a reporter bug) is `failed`: the file fails with that error and the worker is replaced, since its state is unknown.
+- **Abort.** `signal` aborting (or `close`) resolves waiting files `aborted`, force-kills a worker that is running a file, and stops the rest. Aborted files get no `file:end` and are not in `summary.files`; the run ends `reason: 'interrupted'`. A file in flight has had `file:start` and never gets `file:end`.
+- **A file's result** is its `file-end`: `pass`/`fail`/`skip` as sent, `todo` and `queued` as `skip` (nothing ran), `running` as `fail` (never finished). A `fileDone` with no `file-end` fails the file. `summary.files` is in queue order, not completion order. `summary.unhandled` holds **every** unhandled error of the run, including ones tied to a file (the default reporter prints them at `run:end`); with policy `unhandledErrors: 'fail-run'` any of them makes `reason` `failed`. A file's `FileResult` does not turn `fail` for one.
+- **Dispatch** pairs each `RuntimeEvent` with its node from the file's `file-collect-end`, awaits `bus.emit` inside `onEvents` (so a slow reporter holds the ack and the worker waits), and throws `ORCH_BAD_EVENT` for an id it never saw or a node of the wrong kind. `file-collect-start` and `file-end` have no bus event; `coverage` and `deps` events are ignored for now. What a worker sends while it runs no file (a worker-scoped environment's stop) goes to `createIdleDispatch`: `console` under the file the worker ran last, unhandled errors as `unhandled(null, …)`.
+- **The cache** is read once, synchronously, when it is created; a missing, unparsable or other-version file (or entry) is empty, never an error. `write()` is a temp file plus rename. A file that is `skip` or whose worker never started is not recorded. A failed write is a line on `stderr`, not a failed run. `FileHistory.tests` is the count `file-collect-end` announced.
+- **Worker `t` clocks differ.** Each worker's events carry its own `performance.now()`; `RunInfo.startTime` is the coordinator's. They are only comparable within one worker.
+- **`CoordinatorMethods`** served to workers: `resolveSnapshotPath` returns the file, `writeSnapshot` is a no-op (snapshots are T7.9, B17), `readTimings` returns the cache's duration.
+- **`exitCodeFor`** tries, in order: interrupted (`ExitCode.Sigint`; the summary doesn't say SIGINT from SIGTERM, T9.10), no files without `passWithNoTests` (`exitCodes.noTests`), a failed file (`failure`), an unhandled error under `fail-run` (`unhandled`), a reporter failure (`failure`), else 0. It takes the whole `Policy`, which the orchestrator may.
+
 ## Rules that aren't obvious
 
 - **Globals come in before `setupFiles`**, as the brief and Track 11 (T11.10) say. Real Jest installs `describe`/`expect` after `setupFiles`; B14 records a fixture and decides (a policy key, or a DIVERGENCES entry).
@@ -78,19 +100,24 @@ The environment and the dialect's globals load **by ref** (`config.environment`,
 - `src/worker/internal/runtime/*.test.ts`: the pure pieces (`config`, `environment`, `globals`, `leaks`, `sink`), which are `@internal` and sit beside their source.
 - `test/support.ts` holds the shared pieces (`initFor`, `job`, `methods`, `forceKilled`, `Collect`, `factoryFor`, and for the runtime `makeProject`, `trackedProjects` (a maker whose projects are removed after the file's tests; call it once at the top), `runtimeConfig`, `runJobs`, `runtimeJob` (a job with the id `fileIdOf` gives its file)); the `src/` tests keep their own, since they sit in the coordinator and worker nodes.
 - Workers print crash output (the OOM case's V8 fatal error). Pass a `Collect` stream as `stderr` to keep it out of the test output.
+- `src/*.test.ts` for the coordinator: `sequencer`, `cache`, `discover` (real temp dirs), `key`, `exit-code`, `dispatch` (synthetic events), and `pool` over fake transports (lazy spawn, the limit, reuse, leak, crash, start failures, abort, close).
+- `test/coordinator.test.ts`: `runProject` end to end with `runtimeProject(dir, options)` (a `ResolvedProject` over the fixtures; `include` defaults to `**/*.test.js`). Real forks: 6 files on 2 workers with the per-file event order, a file that sends itself SIGSEGV (`workerExit`, `WorkerCrash`, the other files pass, run with 1 and 2 workers; skipped on win32), an abort, workers that cannot start. Inline: a leak gets a new worker id, the cache puts a failed file first on the next run, `-t`, `ORCH_BAD_PATTERN` spawns nothing, no files. Its `run` helper uses `PID_RECORDING_ENTRY` for forks (`fixtures/pid-recording-main.ts`: the real entry plus a pid line in `$TMPDIR/provino-pids-<test pid>`; never for inline, which would record the test itself) and `takeWorkerPids`/`isRunning`, so every forks run also asserts no worker outlived `runProject`. The worker assigned to the first file is not deterministic with 2 workers (whichever starts first takes it), so assert on sets, or use 1 worker.
 
 ## Not built yet
 
 | What | Owner |
 |---|---|
-| Pool: `WorkerKey` reuse, recycling, lazy spawn, crash → file failed → replacement | T9.5 (B11 minimal, B21) |
+| Recycling a worker on memory or file count (`RecyclePolicy`; setting either throws), the per-file hang timeout | T9.5 (B21) |
+| Sharding (`--shard`), `provino.timings.json`, `--update-timings` | T9.6 (B21) |
+| SIGINT/SIGTERM handling, `--bail`, a second Ctrl+C (`signal` and `reason: 'interrupted'` are the hook) | T9.10 (B21) |
+| Auto run-in-band, `inject`/`provide`, global setup | T9.9 (B21) |
+| Watch, other built-in reporters, custom reporters | T9.7, T9.8, T9.11–T9.13 |
+| `coverage` and `deps` events (ignored by dispatch), the `workers` count from `process.constrainedMemory()` | Track 8, T9.8, T9.5 |
+| Snapshot RPCs (`writeSnapshot` is a no-op) | T7.9 (B17) |
 | `cancel` reaching core (a cancelled file stops mid-run): today it only keeps a queued file from starting | T5.12 |
 | The environment's `onTestEvent` (Jest `handleTestEvent`) | T11/T8 |
 | Docblock pragmas (`pragmas` is `{}` in the environment's setup context), `@provino-isolate` escalation | T2.11 |
 | Leak count (`FileOutcome.leakedHandles` is always 0) | T2.7 |
 | The `realm` tier (and an environment with realm `context`) | T2.8 |
 | `BulkPayload` for coverage and snapshots over 64 KiB | Track 8, T7.10 |
-| `inject`/`provide` backing store | T9.9 (B21) |
 | Jest's console `origin` (the call site) | B14 |
-| Reading config files and building the `SerializedProjectConfig`; spawning workers | B11 |
-| Scheduler, reporters, watch, global setup, exit codes | T9.6–T9.13 |
