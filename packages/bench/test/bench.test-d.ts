@@ -167,10 +167,11 @@ expectTypeOf<SuiteSpec['kind']>().toEqualTypeOf<'app' | 'mock-heavy' | 'isolate-
 expectTypeOf(planRunner).returns.toEqualTypeOf<RunnerPlan>()
 planRunner(parseSuiteName('app-5'), 'jest')
 planRunner(parseSuiteName('app-5'), 'vitest')
+planRunner(parseSuiteName('app-5'), 'provino')
 planRunner(parseSuiteName('app-5'), 'jest', { extraArgs: ['--json'] })
-expectTypeOf<RunnerName>().toEqualTypeOf<'jest' | 'vitest'>()
+expectTypeOf<RunnerName>().toEqualTypeOf<'jest' | 'vitest' | 'provino'>()
 expectTypeOf<RunnerPlan['runner']>().toEqualTypeOf<RunnerName>()
-// @ts-expect-error only Jest and Vitest are subjects
+// @ts-expect-error only Jest, Vitest and Provino are runners
 planRunner(parseSuiteName('app-5'), 'mocha')
 // @ts-expect-error extra arguments are strings
 planRunner(parseSuiteName('app-5'), 'jest', { extraArgs: [1] })

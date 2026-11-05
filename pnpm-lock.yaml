@@ -402,6 +402,9 @@ importers:
       '@provino/types':
         specifier: workspace:*
         version: link:../types
+      provino:
+        specifier: workspace:*
+        version: link:../provino
     devDependencies:
       '@swc/core':
         specifier: 'catalog:'

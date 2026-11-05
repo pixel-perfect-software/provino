@@ -32,7 +32,8 @@
     "@provino/policy": "workspace:*",
     "@provino/resolver": "workspace:*",
     "@provino/transform": "workspace:*",
-    "@provino/types": "workspace:*"
+    "@provino/types": "workspace:*",
+    "provino": "workspace:*"
   },
   "devDependencies": {
     "@swc/core": "catalog:",

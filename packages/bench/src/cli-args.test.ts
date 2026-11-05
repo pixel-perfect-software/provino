@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { parseCli } from './cli-args.ts'
+import { parseCli, USAGE } from './cli-args.ts'
 import { runCli } from './commands.ts'
 import { BenchError } from './errors.ts'
 import { code } from './internal/test-helpers.ts'
@@ -33,6 +33,35 @@ test('check takes one or more runners, once each', () => {
     'jest',
   ])
   assert.equal(parsed.command === 'check' && parsed.runners.join(), 'jest,vitest')
+})
+
+test('check takes provino beside jest, and run takes only the runners it records', () => {
+  const parsed = parseCli(['check', 'app-500', '--runner', 'jest', '--runner', 'provino'])
+  assert.equal(parsed.command === 'check' && parsed.runners.join(), 'jest,provino')
+  assert.match(USAGE, /--runner provino/)
+  // `run` would write a record for provino that the kill-check (B12) has not defined yet
+  for (const runners of [['provino'], ['jest', 'provino']]) {
+    assert.throws(
+      () => parseCli(['run', 'app-5', ...runners.flatMap((runner) => ['--runner', runner])]),
+      (error) =>
+        error instanceof BenchError &&
+        error.code === 'BENCH_USAGE' &&
+        /--runner provino is for check only; run records jest and vitest/.test(error.message) &&
+        /B12/.test(error.message),
+      runners.join(),
+    )
+  }
+  assert.throws(
+    () => parseCli(['run', 'app-5', '--runner', 'mocha']),
+    (error) =>
+      error instanceof BenchError && /must be jest or vitest; got mocha/.test(error.message),
+  )
+  assert.throws(
+    () => parseCli(['check', 'app-5', '--runner', 'mocha']),
+    (error) =>
+      error instanceof BenchError &&
+      /must be jest or vitest or provino; got mocha/.test(error.message),
+  )
 })
 
 test('check takes the same --timeout as run, with the same default', () => {
@@ -209,4 +238,8 @@ test('runCli prints usage for help and exits 2 on a usage error, without running
   assert.match(err.join('\n'), /BENCH_USAGE: pass at least one --runner/)
   assert.equal(await runCli(['generate', 'nope'], io), 1)
   assert.match(err.join('\n'), /BENCH_UNKNOWN_SUITE/)
+  // run does not take provino yet, and says why before generating or running anything
+  err.length = 0
+  assert.equal(await runCli(['run', 'app-5', '--runner', 'provino'], io), 2)
+  assert.match(err.join('\n'), /BENCH_USAGE: --runner provino is for check only.*B12/)
 })

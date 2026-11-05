@@ -128,7 +128,13 @@ export function json(value: unknown): string {
 
 /**
  * The files every suite shares, per flavour: the package manifest, the runner config, the setup
- * file, and for the Jest tree a placeholder Provino config.
+ * file, and for the Jest tree the Provino config.
+ *
+ * `provino.config.mjs` says the same as the tree's `jest.config.json`: the Jest dialect, the
+ * `testMatch` as `include`, and the `setupFilesAfterEnv` as the neutral `setupFiles` (which run
+ * after the environment). It is `.mjs` because the tree's `package.json` is CommonJS, which can't
+ * load an `export default` from a `.ts` file; it is generated into the gitignored `.suites/`, like
+ * the suites' other `.js` files, so the repository holds no `.js` or `.mjs` (D13).
  *
  * The setup file registers a custom matcher with `expect.extend` and global `beforeEach` and
  * `afterEach` hooks that count their calls. It uses only globals, so it is the same bytes in both
@@ -177,7 +183,16 @@ export function commonFiles(suite: string, flavour: Flavour): readonly Generated
           cacheDirectory: '<rootDir>/../.cache/jest',
         }),
       ),
-      file('provino.config.ts', lines(["export default { dialect: 'jest' }"])),
+      file(
+        'provino.config.mjs',
+        lines([
+          'export default {',
+          "  dialect: 'jest',",
+          "  include: ['tests/**/*.test.js'],",
+          "  setupFiles: ['./setup.js'],",
+          '}',
+        ]),
+      ),
       setup,
     ]
   }

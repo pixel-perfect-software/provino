@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
+import { BenchError } from './errors.ts'
 import { buildGraph, GRAPH, GRAPH_SIZE, simulate } from './generators/graph.ts'
 import { BIG_RECORD_COUNT } from './generators/isolate-heavy.ts'
 import type { Flavour, GeneratedFile } from './generators/render.ts'
@@ -181,11 +182,45 @@ test('every suite ships the configs, with Jest’s setup hook spelled setupFiles
   assert.match(vitestConfig, /setupFiles: \['\.\/setup\.js'\]/)
   assert.match(vitestConfig, /cacheDir: '\.\.\/\.cache\/vite'/)
   assert.doesNotMatch(vitestConfig, /import /)
-  assert.equal(file(files, 'jest/provino.config.ts'), "export default { dialect: 'jest' }\n")
+  assert.equal(
+    file(files, 'jest/provino.config.mjs'),
+    [
+      'export default {',
+      "  dialect: 'jest',",
+      "  include: ['tests/**/*.test.js'],",
+      "  setupFiles: ['./setup.js'],",
+      '}',
+      '',
+    ].join('\n'),
+  )
+  assert.equal(
+    files.some((generated) => generated.path === 'jest/provino.config.ts'),
+    false,
+  )
   assert.equal(JSON.parse(file(files, 'jest/package.json')).type, 'commonjs')
   assert.equal(JSON.parse(file(files, 'vitest/package.json')).type, 'module')
   assert.equal(file(files, 'jest/setup.js'), file(files, 'vitest/setup.js'))
   assert.match(file(files, 'jest/setup.js'), /expect\.extend\(\{\n {2}toBeWithinRange/)
+})
+
+test('every kind of suite ships a Provino config that says what its jest.config.json says', () => {
+  for (const name of ['app-2', 'mock-heavy-2', 'isolate-heavy']) {
+    const files = buildSuite(suite(name))
+    const jestConfig = JSON.parse(file(files, 'jest/jest.config.json'))
+    const strip = (path: string): string => path.replace('<rootDir>/', './')
+    const include = jestConfig.testMatch.map((pattern: string) => pattern.replace('<rootDir>/', ''))
+    const setupFiles = jestConfig.setupFilesAfterEnv.map(strip)
+    assert.equal(
+      file(files, 'jest/provino.config.mjs'),
+      `export default {\n  dialect: 'jest',\n  include: ${JSON.stringify(include).replaceAll('"', "'")},\n  setupFiles: ${JSON.stringify(setupFiles).replaceAll('"', "'")},\n}\n`,
+      name,
+    )
+    // the config is generated into .suites/, never committed: nothing but TypeScript is in the repo
+    assert.equal(
+      files.some((generated) => generated.path.endsWith('provino.config.ts')),
+      false,
+    )
+  }
 })
 
 test('app-N has N files of exactly 8 tests, over a 24-module graph', () => {
@@ -348,6 +383,51 @@ test('the runner plans carry the commands, caches and compile-cache env from the
     ['vite', 'node-compile'],
   )
   assert.ok(vitest.env.NODE_COMPILE_CACHE?.endsWith('/.cache/node-vitest'))
+})
+
+test('the provino plan runs the bin from source on the Jest tree, with its results cache under it', () => {
+  const plan = planRunner(suite('app-5'), 'provino', {
+    extraArgs: ['--reporter', 'normalized-json', '--no-cache'],
+  })
+  assert.equal(plan.argv[0], process.execPath)
+  assert.equal(plan.argv[1], '--conditions=provino-source')
+  assert.ok(plan.argv[2]?.endsWith('/packages/provino/src/cli.ts'), plan.argv[2])
+  assert.deepEqual(plan.argv.slice(3), [
+    'run',
+    '--config',
+    'provino.config.mjs',
+    '--reporter',
+    'normalized-json',
+    '--no-cache',
+  ])
+  // it shares the Jest tree, so its config sits next to jest.config.json
+  assert.ok(plan.cwd.endsWith('/.suites/app-5/jest'))
+  assert.equal(plan.configPath, 'packages/bench/.suites/app-5/jest/provino.config.mjs')
+  assert.deepEqual(
+    plan.caches.map((cache) => [cache.kind, cache.path.split('.suites/app-5/')[1]]),
+    [
+      ['provino', 'jest/node_modules/.cache/provino'],
+      ['node-compile', '.cache/node-provino'],
+    ],
+  )
+  assert.equal(
+    plan.command,
+    'cd packages/bench/.suites/app-5/jest && NODE_COMPILE_CACHE=../.cache/node-provino node --conditions=provino-source ../../../node_modules/provino/src/cli.ts run --config provino.config.mjs --reporter normalized-json --no-cache',
+  )
+  assert.equal(
+    plan.version,
+    JSON.parse(readFileSync(join(PACKAGE_DIR, '../provino/package.json'), 'utf8')).version,
+  )
+})
+
+test('a provino plan is not a bench subject yet', () => {
+  assert.throws(
+    () => toSubjectSpec(planRunner(suite('app-5'), 'provino')),
+    (error) =>
+      error instanceof BenchError &&
+      error.code === 'BENCH_INVALID_SPEC' &&
+      /provino is checked, not benchmarked yet/.test(error.message),
+  )
 })
 
 test('runners resolve to real bin scripts, not .bin shims', () => {

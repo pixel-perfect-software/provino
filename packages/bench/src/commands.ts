@@ -1,11 +1,12 @@
 import { resolve } from 'node:path'
 import { readRunEnvironment } from '@provino/harness'
-import { checkRunner } from './check.ts'
+import { type CheckResult, checkRunner } from './check.ts'
 import { type CliCommand, parseCli, USAGE } from './cli-args.ts'
 import { readRunRef } from './environment.ts'
 import { BenchError } from './errors.ts'
 import type { ExecProcess } from './exec.ts'
 import { prepareOutput, writeRecordFile } from './output.ts'
+import { checkStatusParity, parityLines } from './parity.ts'
 import {
   buildRecord,
   defaultMachineId,
@@ -18,6 +19,7 @@ import {
   type BenchPaths,
   DEFAULT_PATHS,
   planRunner,
+  type RunnerName,
   type SuiteSpec,
   toSubjectSpec,
   writeSuite,
@@ -145,21 +147,40 @@ export async function runCli(
       case 'check': {
         await generated(command.suite, io, paths.suitesRoot)
         let failed = false
+        const results = new Map<RunnerName, CheckResult>()
         for (const runner of command.runners) {
           const result = await checkRunner(command.suite, runner, {
             paths,
             timeoutMs: command.timeoutMs,
           })
+          results.set(runner, result)
           const { summary } = result
           const counts =
             summary === undefined ? 'no report' : `${summary.passed}/${summary.total} tests passed`
           io.out(
-            `${result.ok ? 'PASS' : 'FAIL'} ${runner} ${result.version} ${command.suite.name}: ${counts} in ${seconds(result.wallMs)}`,
+            `${result.ok ? 'PASS' : 'FAIL'} ${runner} ${result.version} ${command.suite.name}: ${counts} in ${seconds(result.wallMs)} (local, one run: not a result)`,
           )
+          for (const note of result.notes) io.out(`  ${note}`)
           if (!result.ok) {
             failed = true
             for (const problem of result.problems) io.out(`  ${problem}`)
             for (const detail of result.details) io.out(`  ${detail}`)
+          }
+        }
+        // Provino against Jest, once both have passed: every test the same status.
+        const jest = results.get('jest')
+        const provino = results.get('provino')
+        if (jest !== undefined && provino !== undefined) {
+          if (jest.ok && provino.ok) {
+            const parity = await checkStatusParity(
+              command.suite,
+              { jest: jest.version, provino: provino.version },
+              { paths },
+            )
+            for (const line of parityLines(parity)) io.out(line)
+            if (!parity.ok) failed = true
+          } else {
+            io.out('status parity: not compared, because a run above failed')
           }
         }
         return failed ? 1 : 0

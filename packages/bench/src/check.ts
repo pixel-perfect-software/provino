@@ -1,7 +1,16 @@
 import { mkdir, readFile, rm } from 'node:fs/promises'
+import { availableParallelism } from 'node:os'
 import { dirname, join } from 'node:path'
 import { stripVTControlCharacters } from 'node:util'
-import { type ProcessResult, parseJestJson, parseVitestJson, runProcess } from '@provino/harness'
+import {
+  type ProcessResult,
+  parseJestJson,
+  parseNormalizedRun,
+  parseVitestJson,
+  runProcess,
+} from '@provino/harness'
+import { defaultMaxWorkers } from '@provino/orchestrator'
+import type { NormalizedRun } from '@provino/types'
 import { BenchError } from './errors.ts'
 import {
   checkMs,
@@ -10,7 +19,7 @@ import {
   exitCodeOf,
   TIMEOUT_EXIT_CODE,
 } from './exec.ts'
-import { hasCode } from './internal/guards.ts'
+import { errorMessage, hasCode } from './internal/guards.ts'
 import {
   type BenchPaths,
   DEFAULT_PATHS,
@@ -54,15 +63,77 @@ export interface Report {
   }[]
 }
 
-// How each runner is asked for a JSON report, and how the report is parsed.
+/**
+ * A Provino run as a report: Provino writes its own model (`normalized-json`), so the check reads
+ * it the way it reads the others. A crashed file is a failed file, with its error as the message.
+ */
+function reportOfRun(run: NormalizedRun): Report {
+  const tests = run.files.flatMap((file) => file.tests)
+  const count = (status: string): number => tests.filter((test) => test.status === status).length
+  return {
+    numTotalTests: tests.length,
+    numPassedTests: count('passed'),
+    numFailedTests: count('failed'),
+    success: run.success,
+    testResults: run.files.map((file) => ({
+      name: file.file,
+      status: file.status === 'crashed' ? 'failed' : file.status,
+      message: file.fileError?.message ?? '',
+      assertionResults: file.tests.map((test) => ({
+        title: test.id.path.at(-1) ?? '',
+        fullName: test.id.path.join(' '),
+        status: test.status,
+        failureMessages: test.errors.map((error) => error.message),
+      })),
+    })),
+  }
+}
+
+// How each runner is asked for a report and how the report is parsed. Provino is asked for both
+// reporters (the console one is what a person reads, the JSON one is what the check judges) and
+// for no results cache, so a check always runs every file, in the order it computes, from scratch.
 const REPORTERS: Readonly<
   Record<
     RunnerName,
-    { readonly flag: string; readonly parse: (text: string, source: string) => Report }
+    {
+      readonly args: (outputFile: string) => readonly string[]
+      readonly parse: (text: string, source: string) => Report
+    }
   >
 > = {
-  jest: { flag: '--json', parse: parseJestJson },
-  vitest: { flag: '--reporter=json', parse: parseVitestJson },
+  jest: { args: (outputFile) => ['--json', `--outputFile=${outputFile}`], parse: parseJestJson },
+  vitest: {
+    args: (outputFile) => ['--reporter=json', `--outputFile=${outputFile}`],
+    parse: parseVitestJson,
+  },
+  provino: {
+    args: (outputFile) => [
+      '--reporter',
+      'default',
+      '--reporter',
+      'normalized-json',
+      '--outputFile',
+      outputFile,
+      '--no-cache',
+    ],
+    parse: (text, source) => reportOfRun(parseNormalizedRun(text, source)),
+  },
+}
+
+/** What reading a report found: the report, or why there is none (`invalid` is set for a file that exists but isn't this runner's report). */
+interface ReportRead {
+  readonly report?: Report
+  readonly invalid?: string
+}
+
+async function loadReport(runner: RunnerName, path: string): Promise<ReportRead> {
+  try {
+    return { report: REPORTERS[runner].parse(await readFile(path, 'utf8'), path) }
+  } catch (error) {
+    if (hasCode(error, 'ENOENT')) return {}
+    if (hasCode(error, 'HARNESS_RESULT_INVALID')) return { invalid: errorMessage(error) }
+    throw error
+  }
 }
 
 /**
@@ -71,12 +142,7 @@ const REPORTERS: Readonly<
  * @public
  */
 export async function readReport(runner: RunnerName, path: string): Promise<Report | undefined> {
-  try {
-    return REPORTERS[runner].parse(await readFile(path, 'utf8'), path)
-  } catch (error) {
-    if (hasCode(error, 'ENOENT') || hasCode(error, 'HARNESS_RESULT_INVALID')) return undefined
-    throw error
-  }
+  return (await loadReport(runner, path)).report
 }
 
 /**
@@ -163,15 +229,32 @@ export interface CheckResult {
   readonly problems: readonly string[]
   /** The first failures from the report, and for a run that wrote no report, the output's tail. */
   readonly details: readonly string[]
+  /** Facts about the run worth printing next to the verdict, e.g. Provino's worker count. */
+  readonly notes: readonly string[]
 }
 
 const TAIL_CHARS = 6000
 
 /**
- * Runs a suite once under a runner with JSON output, and judges it. The report goes to
+ * What the check says of a Provino run besides the verdict: how many workers it ran with (it is
+ * never passed `--maxWorkers`, so the default is part of what is checked; the bench computes it
+ * the way the pool does, on the same machine), and, once its JSON was read, that the JSON passed
+ * `parseNormalizedRun`.
+ */
+function provinoNotes(parsed: boolean): readonly string[] {
+  const notes = [
+    `maxWorkers ${defaultMaxWorkers()}: the default, ${availableParallelism()} cores - 1 and at least 1 (no --maxWorkers passed)`,
+  ]
+  if (parsed) notes.push('normalized-json: schema valid (parseNormalizedRun accepted it)')
+  return notes
+}
+
+/**
+ * Runs a suite once under a runner with a report, and judges it. The report goes to
  * `<suite>/check/<runner>.json`. A run that takes longer than `timeoutMs` (default
  * `DEFAULT_RUN_TIMEOUT_MS`) has its whole process group killed and fails the check with exit
- * `TIMEOUT_EXIT_CODE`.
+ * `TIMEOUT_EXIT_CODE`. A Provino run is judged on the same terms as the others, after its
+ * `normalized-json` passes `parseNormalizedRun`; a file that doesn't is named in `details`.
  * @public
  */
 export async function checkRunner(
@@ -183,8 +266,7 @@ export async function checkRunner(
   const timeoutMs = options?.timeoutMs ?? DEFAULT_RUN_TIMEOUT_MS
   checkMs(timeoutMs, 'timeoutMs', 1)
   const reportPath = join(suiteDir(spec, paths.suitesRoot), 'check', `${runner}.json`)
-  const flags = [REPORTERS[runner].flag, `--outputFile=${reportPath}`]
-  const plan = planRunner(spec, runner, { paths, extraArgs: flags })
+  const plan = planRunner(spec, runner, { paths, extraArgs: REPORTERS[runner].args(reportPath) })
   await mkdir(dirname(reportPath), { recursive: true })
   await rm(reportPath, { force: true })
 
@@ -203,14 +285,19 @@ export async function checkRunner(
   }
 
   const exitCode = run.timedOut ? TIMEOUT_EXIT_CODE : exitCodeOf(run.exitCode, run.signal)
-  const report = await readReport(runner, reportPath)
+  const { report, invalid } = await loadReport(runner, reportPath)
   const summary = report === undefined ? undefined : summarize(report)
   const problems = [...checkProblems(exitCode, summary, expectedTests(spec))]
   if (run.timedOut) problems.push(`timed out after ${describeDuration(timeoutMs)} and was killed`)
   for (const problem of run.problems) problems.push(`could not stop the process group: ${problem}`)
   const failures = report === undefined ? [] : failureDetails(report)
   const details =
-    problems.length === 0 ? [] : failures.length > 0 ? failures : [`output tail:\n${run.output}`]
+    problems.length === 0
+      ? []
+      : [
+          ...(invalid === undefined ? [] : [`${runner}'s report is not valid: ${invalid}`]),
+          ...(failures.length > 0 ? failures : [`output tail:\n${run.output}`]),
+        ]
   return {
     runner,
     version: plan.version,
@@ -220,5 +307,6 @@ export async function checkRunner(
     summary,
     problems,
     details,
+    notes: runner === 'provino' ? provinoNotes(report !== undefined) : [],
   }
 }
