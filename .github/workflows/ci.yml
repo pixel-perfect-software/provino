@@ -53,7 +53,15 @@ jobs:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-node${{ matrix.node }}-${{ github.sha }}
           restore-keys: turbo-${{ runner.os }}-node${{ matrix.node }}-
-      - run: pnpm test
+      # The crash tests kill a worker with SIGSEGV and must see it die at once. The runner pipes
+      # core dumps to a crash handler, and the kernel ignores `ulimit -c` for a pipe, so each
+      # crashing worker first streams its whole memory image: 48-185 s per crash test in run
+      # 42072223325. A plain file pattern with core files off ends a crashed worker as locally.
+      - name: Turn core dumps off
+        run: |
+          echo "core_pattern was: $(cat /proc/sys/kernel/core_pattern)"
+          echo core | sudo tee /proc/sys/kernel/core_pattern
+      - run: ulimit -c 0 && pnpm test
         env:
           NODE_OPTIONS: ${{ matrix.node-options }}
 
@@ -120,7 +128,9 @@ jobs:
       # The app-500 check also runs Provino itself (`--runner provino`), so it depends on the
       # source and manifests of every package a Provino run loads: provino, orchestrator, config,
       # reporters, core, expect, loader, env-node, dialect-jest, policy, transform, resolver, rpc
-      # and types. Add a package to `inputs` below when a Provino run starts to load it.
+      # and types. Add a package to `inputs` below when a Provino run starts to load it. Unit tests
+      # beside that source (`*.test.ts`, `*.test-d.ts`) are not loaded by a run, so editing one
+      # alone doesn't count.
       # They run on main, and on a task branch whose changes against main touch any of those.
       - id: scope
         name: Decide whether the suite checks run
@@ -136,13 +146,31 @@ jobs:
           fi
           provino_packages='provino|orchestrator|config|reporters|core|expect|loader|env-node|dialect-jest|policy|transform|resolver|rpc|types'
           inputs="^(packages/bench/|packages/harness/src/|packages/($provino_packages)/(src/|package\\.json\$)|pnpm-lock\\.yaml\$|pnpm-workspace\\.yaml\$|\\.tool-versions\$|package\\.json\$|\\.github/workflows/ci\\.yml\$)"
+          unit_tests="^packages/($provino_packages)/src/.*\\.test(-d)?\\.ts\$"
           # --no-renames lists both paths of a move, so moving a file out of an input counts.
           if ! files=$(git diff --no-renames --name-only "$base" HEAD); then
             echo "Couldn't diff against main; running the suite checks."
             run true
             exit 0
           fi
-          changed=$(printf '%s\n' "$files" | grep -E "$inputs" || true)
+          # grep exits 1 when nothing matches, which is an answer, and 2 or more on an error, which
+          # is not: that fails closed like the steps above.
+          status=0
+          changed=$(printf '%s\n' "$files" | grep -E "$inputs") || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "Couldn't match the changed files; running the suite checks."
+            run true
+            exit 0
+          fi
+          if [ -n "$changed" ]; then
+            status=0
+            changed=$(printf '%s\n' "$changed" | grep -vE "$unit_tests") || status=$?
+            if [ "$status" -gt 1 ]; then
+              echo "Couldn't match the changed files; running the suite checks."
+              run true
+              exit 0
+            fi
+          fi
           if [ -n "$changed" ]; then
             printf 'Suite inputs changed against main:\n%s\n' "$changed"
             run true
