@@ -3,18 +3,18 @@
 // worker back. Every event arrives once, in order, before the file's `fileDone`.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { connectWorker } from '@provino/orchestrator'
+import { connectWorker, transportFor } from '@provino/orchestrator'
 import type { CoordinatorToWorker, Transport, WorkerEvent } from '@provino/types'
 import { numberOf } from './fixtures/events-worker.ts'
 import { gap, int, seeded } from './fixtures/random.ts'
-import { factoryFor, fixture, initFor, job, KINDS, methods } from './support.ts'
+import { fixture, initFor, job, KINDS, methods } from './support.ts'
 
 const COUNT = 10_000
 
 for (const kind of KINDS) {
   describe(`${kind}: 10k events`, () => {
     it('arrive once, in order, before fileDone, with at most 8 packs unacked', async () => {
-      const raw = await factoryFor(kind, { entry: fixture('events-worker.ts') }).create(
+      const raw = await transportFor(kind, { entry: fixture('events-worker.ts') }).create(
         initFor(kind),
       )
       let packsArrived = 0

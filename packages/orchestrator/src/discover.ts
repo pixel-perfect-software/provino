@@ -1,8 +1,10 @@
 // U2, minimal: the project's `include` and `exclude` globs through tinyglobby. `roots`,
 // `testRegex` and regex ignores are B14's; this is `include`/`exclude` and nothing else.
 import { realpath, stat } from 'node:fs/promises'
-import { relative, resolve, sep } from 'node:path'
+import { resolve } from 'node:path'
 import { glob } from 'tinyglobby'
+import { relativePosix } from './file-id.ts'
+import { byText } from './util.ts'
 
 /**
  * Where to look for test files.
@@ -27,12 +29,27 @@ export interface DiscoveredFile {
   readonly sizeBytes: number
 }
 
-/** How many files are `stat`ed at once. */
-const STAT_BATCH = 256
+/** How many files are `stat`ed (or resolved) at once: a project can have thousands. */
+const BATCH = 256
 
-/** Code point order, the same on every machine. */
-function byText(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0
+/** `fn` over `items`, a bounded number at a time; the results are in the items' order. */
+async function mapInBatches<Item, Result>(
+  items: readonly Item[],
+  size: number,
+  fn: (item: Item) => Promise<Result>,
+): Promise<Result[]> {
+  const results: Result[] = []
+  for (let from = 0; from < items.length; from += size) {
+    results.push(...(await Promise.all(items.slice(from, from + size).map((item) => fn(item)))))
+  }
+  return results
+}
+
+/** What `stat` says of one found path: its size and which file on which device it is. */
+interface Found {
+  readonly path: string
+  readonly sizeBytes: number
+  readonly id: string
 }
 
 /**
@@ -51,47 +68,55 @@ export async function discoverFiles(options: DiscoverOptions): Promise<readonly 
     absolute: true,
     dot: true,
   })
-  const paths = await uniqueFiles([...new Set(matches.map((match) => resolve(match)))])
-  const found: DiscoveredFile[] = []
-  // A bounded number of `stat`s at a time: a project can have thousands of files.
-  for (let from = 0; from < paths.length; from += STAT_BATCH) {
-    const batch = await Promise.all(
-      paths.slice(from, from + STAT_BATCH).map((path) => describe(rootDir, path)),
-    )
-    for (const file of batch) if (file !== undefined) found.push(file)
+  const paths = [...new Set(matches.map((match) => resolve(match)))]
+  const stats = await mapInBatches(paths, BATCH, statOf)
+  // Paths that are one file on one device may be one file reached twice (a symlinked directory);
+  // only those are resolved.
+  const byId = new Map<string, Found[]>()
+  for (const found of stats) {
+    if (found === undefined) continue
+    const same = byId.get(found.id)
+    if (same === undefined) byId.set(found.id, [found])
+    else same.push(found)
   }
-  return found.sort((a, b) => byText(a.relativePath, b.relativePath))
+  const unique: Found[] = []
+  for (const same of byId.values()) {
+    if (same.length === 1) unique.push(...same)
+    else unique.push(...(await oneEach(same)))
+  }
+  return unique
+    .map(({ path, sizeBytes }) => ({ path, relativePath: relativePosix(rootDir, path), sizeBytes }))
+    .sort((a, b) => byText(a.relativePath, b.relativePath))
 }
 
 /**
- * One path per real file: a file reached through a symlinked directory (or a loop of them) is
- * found at several paths: the real path is kept when it was found, else the first in sort order. A path that can't be resolved
- * (vanished since the glob) is kept as it is: `describe` decides about it.
+ * One path per real file out of paths that `stat` could not tell apart: a file reached through a
+ * symlinked directory (or a loop of them) is found at several paths, and the real path is kept
+ * when it was found, else the first in sort order. (A hard link is another path to the same inode
+ * but not the same real path: it stays.) A path that can't be resolved (vanished since the glob)
+ * is kept as it is.
  */
-async function uniqueFiles(paths: readonly string[]): Promise<string[]> {
-  const real: string[] = []
-  for (let from = 0; from < paths.length; from += STAT_BATCH) {
-    real.push(
-      ...(await Promise.all(
-        paths.slice(from, from + STAT_BATCH).map((path) => realpath(path).catch(() => path)),
-      )),
-    )
-  }
-  const firstOf = new Map<string, string>()
-  const sorted = paths.map((path, index) => ({ path, real: real[index] ?? path }))
-  sorted.sort((a, b) => byText(a.path, b.path))
+async function oneEach(same: readonly Found[]): Promise<Found[]> {
+  const real = await mapInBatches(same, BATCH, (found) =>
+    realpath(found.path).catch(() => found.path),
+  )
+  const sorted = same
+    .map((found, index) => ({ found, real: real[index] ?? found.path }))
+    .sort((a, b) => byText(a.found.path, b.found.path))
+  const firstOf = new Map<string, Found>()
   // The real path itself wins when the glob found it (not `a/loop/a/x.test.js` over `a/x.test.js`);
   // else the first in sort order.
-  for (const entry of sorted) if (entry.path === entry.real) firstOf.set(entry.real, entry.path)
-  for (const entry of sorted) if (!firstOf.has(entry.real)) firstOf.set(entry.real, entry.path)
+  for (const entry of sorted)
+    if (entry.found.path === entry.real) firstOf.set(entry.real, entry.found)
+  for (const entry of sorted) if (!firstOf.has(entry.real)) firstOf.set(entry.real, entry.found)
   return [...firstOf.values()]
 }
 
 /** The file at `path`, or `undefined` when it vanished since the glob saw it. */
-async function describe(rootDir: string, path: string): Promise<DiscoveredFile | undefined> {
+async function statOf(path: string): Promise<Found | undefined> {
   try {
-    const { size } = await stat(path)
-    return { path, relativePath: relative(rootDir, path).split(sep).join('/'), sizeBytes: size }
+    const { size, dev, ino } = await stat(path, { bigint: true })
+    return { path, sizeBytes: Number(size), id: `${dev}:${ino}` }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
     throw error

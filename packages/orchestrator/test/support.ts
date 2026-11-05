@@ -3,7 +3,7 @@
 import { existsSync, mkdtempSync, readFileSync, realpathSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative, sep } from 'node:path'
+import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
 import { after } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
@@ -11,10 +11,8 @@ import {
   connectWorker,
   type FileDone,
   fileIdOf,
-  forksTransport,
-  inlineTransport,
-  type TransportOptions,
-  threadsTransport,
+  relativePosix,
+  transportFor,
 } from '@provino/orchestrator'
 import { moduleRef, neutralPolicy, resolvePolicy, serializePolicy } from '@provino/policy'
 import type { RpcHandlers } from '@provino/rpc'
@@ -31,7 +29,6 @@ import type {
   SerializedPolicy,
   SerializedProjectConfig,
   TaskId,
-  TransportFactory,
   WorkerEvent,
   WorkerExit,
   WorkerInit,
@@ -110,25 +107,6 @@ export class Collect extends Writable {
   }
 }
 
-export function factoryFor(
-  pool: PoolKind,
-  options: TransportOptions & {
-    readonly memoryLimitMb?: number
-    readonly execArgv?: readonly string[]
-  },
-): TransportFactory {
-  switch (pool) {
-    case 'forks':
-      return forksTransport(options)
-    case 'threads':
-      return threadsTransport(options)
-    case 'inline':
-      return inlineTransport(options)
-    default:
-      return pool satisfies never
-  }
-}
-
 // ---- The real runtime (U1): a project on disk, a config for it, and a run through `worker/main`.
 
 /** The worker entry every runtime test starts: the real runtime. */
@@ -175,7 +153,7 @@ export function trackedProjects(): (files: Readonly<Record<string, string>>) => 
 
 /** The job for `file` in a project: with the id the coordinator assigns it (D23). */
 export function runtimeJob(config: SerializedProjectConfig, file: string): FileJob {
-  const path = relative(config.rootDir, file).split(sep).join('/')
+  const path = relativePosix(config.rootDir, file)
   return { file, fileId: fileIdOf(config.name, path), updateSnapshots: 'none' }
 }
 
@@ -272,7 +250,7 @@ export async function runJobs(options: {
   const previous = Reflect.get(globalThis, '__trace')
   if (options.trace !== undefined) Reflect.set(globalThis, '__trace', options.trace)
   try {
-    const transport = await factoryFor(pool, { entry: RUNTIME_ENTRY, stderr }).create(init)
+    const transport = await transportFor(pool, { entry: RUNTIME_ENTRY, stderr }).create(init)
     const connection = connectWorker(transport, {
       methods,
       onEvents: (batch) => void events.push(...batch),

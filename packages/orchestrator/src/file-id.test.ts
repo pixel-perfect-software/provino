@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
+import { join, sep } from 'node:path'
 import { describe, test } from 'node:test'
-import { fileIdOf } from './file-id.ts'
+import { fileIdOf, relativePosix } from './file-id.ts'
 
 describe('fileIdOf', () => {
   test('is the first ten hex digits of the SHA-1 over <project>\\0<path>', () => {
@@ -22,5 +23,18 @@ describe('fileIdOf', () => {
 
   test('does not confuse a project name and a path that join to the same text', () => {
     assert.notEqual(fileIdOf('ab', 'c'), fileIdOf('a', 'bc'))
+  })
+})
+
+describe('relativePosix', () => {
+  test('is the path relative to the root, with / separators', () => {
+    const root = join(sep, 'repo', 'app')
+    assert.equal(relativePosix(root, join(root, 'src', 'deep', 'a.test.ts')), 'src/deep/a.test.ts')
+    assert.equal(relativePosix(root, join(root, 'a.test.ts')), 'a.test.ts')
+  })
+
+  test('climbs out of the root with ..', () => {
+    const root = join(sep, 'repo', 'app')
+    assert.equal(relativePosix(root, join(sep, 'repo', 'other', 'a.test.ts')), '../other/a.test.ts')
   })
 })

@@ -2,6 +2,7 @@
 // not built (T9.6, B21).
 import type { Sequencer } from '@provino/types'
 import { OrchestratorError } from './errors.ts'
+import { byText } from './util.ts'
 
 /**
  * Options for `createHistorySequencer`.
@@ -13,11 +14,6 @@ export interface HistorySequencerOptions {
    * .unknownFirst`; Jest runs them first). Either way, files with no history go largest first.
    */
   readonly unknownFirst: boolean
-}
-
-/** `-1`, `0` or `1` by code point order, which is the same on every machine (`localeCompare` is not). */
-function byText(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0
 }
 
 /**

@@ -19,11 +19,15 @@ import {
   type OrchestratorErrorCode,
   type Pool,
   type PoolDeps,
+  type PoolErrorKind,
   type PoolOutcome,
   type ResultsCache,
   type RunProjectOptions,
+  relativePosix,
   runProject,
   sameWorkerKey,
+  type TransportForOptions,
+  transportFor,
   workerKeyOf,
 } from '@provino/orchestrator'
 import type {
@@ -34,6 +38,7 @@ import type {
   RunSummary,
   Sequencer,
   TaskId,
+  TransportFactory,
   WorkerExit,
   WorkerKey,
 } from '@provino/types'
@@ -53,6 +58,14 @@ expectTypeOf(fileIdOf).returns.toEqualTypeOf<TaskId>()
 fileIdOf('web')
 // @ts-expect-error the project name is a string
 fileIdOf(undefined, 'a.test.ts')
+
+// A file's path relative to the root, with POSIX separators.
+expectTypeOf(relativePosix).parameters.toEqualTypeOf<[rootDir: string, file: string]>()
+expectTypeOf(relativePosix).returns.toEqualTypeOf<string>()
+// @ts-expect-error both the root and the file are required
+relativePosix('/p')
+// @ts-expect-error a path, not a URL
+relativePosix('/p', new URL('file:///p/a.test.ts'))
 
 // ---- runProject: a resolved project and a bus in, a summary out.
 expectTypeOf(runProject).parameters.toEqualTypeOf<[ResolvedProject, RunProjectOptions]>()
@@ -154,6 +167,30 @@ expectTypeOf(createPool).returns.toEqualTypeOf<Pool>()
 expectTypeOf(defaultMaxWorkers).returns.toEqualTypeOf<number>()
 expectTypeOf<Pool['run']>().returns.toEqualTypeOf<Promise<PoolOutcome>>()
 expectTypeOf<Pool['close']>().returns.toEqualTypeOf<Promise<void>>()
+expectTypeOf<Pool['drain']>().toEqualTypeOf<() => void>()
+// The pool's error callback is told whether a worker was lost.
+expectTypeOf<PoolErrorKind>().toEqualTypeOf<'worker-lost' | 'other'>()
+expectTypeOf<NonNullable<PoolDeps['onError']>>().toEqualTypeOf<
+  (error: unknown, kind: PoolErrorKind) => void
+>()
+// @ts-expect-error the kind is a closed set
+const lost: PoolErrorKind = 'crashed'
+void lost
+// A transport can cap the pool; the inline one does.
+expectTypeOf<TransportFactory['maxWorkers']>().toEqualTypeOf<number | undefined>()
+// ---- The transport for a pool kind.
+expectTypeOf(transportFor).parameters.toEqualTypeOf<
+  [kind: PoolKind, options: TransportForOptions]
+>()
+expectTypeOf(transportFor).returns.toEqualTypeOf<TransportFactory>()
+transportFor('threads', { entry: '/w.ts', memoryLimitMb: 64 })
+transportFor('forks', { entry: new URL('file:///w.ts'), execArgv: [] })
+// @ts-expect-error the worker entry is required
+transportFor('inline', {})
+// @ts-expect-error a kind is forks, threads or inline
+transportFor('processes', { entry: '/w.ts' })
+// @ts-expect-error the thread's heap limit is a number of megabytes
+transportFor('threads', { entry: '/w.ts', memoryLimitMb: '64' })
 // @ts-expect-error a pool is made with its options and what it needs from the run
 createPool(poolOptions)
 // @ts-expect-error `PoolDeps.transport` takes the kind and returns a factory
@@ -172,6 +209,7 @@ function describeOutcome(outcome: PoolOutcome): string {
       return 'failed'
     case 'start-failed':
       expectTypeOf(outcome.workerId).toEqualTypeOf<number>()
+      expectTypeOf(outcome.exit).toEqualTypeOf<WorkerExit | undefined>()
       return 'start-failed'
     case 'aborted':
       return 'aborted'

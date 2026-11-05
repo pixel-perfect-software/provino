@@ -27,8 +27,6 @@ export interface FileDispatch {
   readonly result: TaskResult | undefined
   /** How many tests the file collected (`file-collect-end`). */
   readonly tests: number
-  /** The file's unhandled errors, in arrival order. */
-  readonly unhandled: readonly SerializedError[]
 }
 
 /**
@@ -57,7 +55,6 @@ function badEvent(event: WorkerEvent, why: string): OrchestratorError {
 export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
   const { bus, file, onUnhandled } = options
   const nodes = new Map<TaskId, TaskNode>()
-  const unhandled: SerializedError[] = []
   let result: TaskResult | undefined
   let tests = 0
 
@@ -115,7 +112,6 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
       case 'console':
         return await bus.emit('console', file, event)
       case 'unhandled-error':
-        unhandled.push(event.error)
         onUnhandled(event.error)
         // An error charged to the run, not to a task, belongs to no file.
         return await bus.emit('unhandled', event.ownerId === null ? null : file, event)
@@ -137,7 +133,6 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
     get tests() {
       return tests
     },
-    unhandled,
   }
 }
 

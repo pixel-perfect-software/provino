@@ -34,11 +34,11 @@ import {
 export type InlineTransportOptions = TransportOptions
 
 /**
- * Runs each worker in this process.
+ * Runs each worker in this process. At most one is alive at a time (`maxWorkers: 1`).
  * @public
  */
 export function inlineTransport(options: InlineTransportOptions): TransportFactory {
-  return createTransport('inline', options, async (entry) => {
+  const factory = createTransport('inline', options, async (entry) => {
     const loaded: unknown = await import(entry)
     const main = (loaded as { readonly default?: unknown }).default
     if (typeof main !== 'function') {
@@ -81,4 +81,5 @@ export function inlineTransport(options: InlineTransportOptions): TransportFacto
       },
     }
   })
+  return { ...factory, maxWorkers: 1 }
 }

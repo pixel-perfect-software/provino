@@ -16,6 +16,7 @@ import type {
   WorkerKey,
   WorkerToCoordinator,
 } from '@provino/types'
+import { OrchestratorError } from './errors.ts'
 import { workerKeyOf } from './key.ts'
 import {
   createPool,
@@ -618,6 +619,98 @@ describe('createPool', () => {
     await pool.close()
     assert.equal(bad.type, 'failed')
     assert.equal(next.type === 'done' && next.workerId, 2)
+  })
+
+  it('tells the error callback a lost worker from any other error', async () => {
+    const stopExit: WorkerExit = { type: 'signal', signal: 'SIGSEGV', likelyOom: false }
+    const f = fake(
+      () => 'idle-console',
+      () => false,
+      { stopExit },
+    )
+    const kinds: string[] = []
+    const pool = createPool(
+      options(1),
+      deps(f, {
+        onIdleEvents: () => {
+          throw new Error('the bus failed')
+        },
+        onError: (_error, kind) => void kinds.push(kind),
+      }),
+    )
+    await pool.run(request('late'))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await pool.close()
+    assert.deepEqual(kinds.toSorted(), ['other', 'worker-lost'])
+  })
+
+  it('gives the start-failed outcome the exit its error carries', async () => {
+    const exit: WorkerExit = { type: 'exit', code: 3 }
+    const f = fake(() => 'ok')
+    const create = f.factory.create
+    let first = true
+    const factory: TransportFactory = {
+      ...f.factory,
+      create: async (init, signal) => {
+        if (first) {
+          first = false
+          throw new OrchestratorError('ORCH_WORKER_EXITED', 'gone before ready', { cause: exit })
+        }
+        return await create(init, signal)
+      },
+    }
+    const pool = createPool(options(1), deps({ ...f, factory }))
+    const [lost, fine] = [await pool.run(request('a')), await pool.run(request('b'))]
+    await pool.close()
+    assert.ok(lost.type === 'start-failed')
+    assert.deepEqual(lost.exit, exit)
+    assert.ok(fine.type === 'done')
+  })
+
+  it("never starts more workers than the transport's own maxWorkers", async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(4), deps({ ...f, factory: { ...f.factory, maxWorkers: 1 } }))
+    const outcomes = await runAll(pool, ['a', 'b', 'c'])
+    assert.ok(outcomes.every((o) => o.type === 'done'))
+    assert.deepEqual(f.started, [1])
+    assert.equal(f.peak(), 1)
+  })
+
+  it('keeps an idle worker until it is drained, then stops it at once, before close', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(2), deps(f))
+    await pool.run(request('a'))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.deepEqual([...f.exited], [], 'an idle worker waits for a next file')
+    pool.drain()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.deepEqual([...f.exited], [1])
+    await pool.close()
+  })
+
+  it('stops each worker after its last file once drained, while other files still run', async () => {
+    const f = fake((file) => (file === 'slow' ? 'hang' : 'ok'))
+    const pool = createPool(options(2), deps(f))
+    const slow = pool.run(request('slow'))
+    const quick = pool.run(request('b'))
+    pool.drain()
+    await quick
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.deepEqual([...f.exited], [2], 'the worker with nothing left to do is gone')
+    const closed = pool.close()
+    assert.deepEqual(await slow, { type: 'aborted' })
+    await closed
+  })
+
+  it('runs every waiting file before stopping the workers it drained', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(1), deps(f))
+    const outcomes = await Promise.all(['a', 'b', 'c'].map((file) => pool.run(request(file))))
+    pool.drain()
+    await pool.close()
+    assert.ok(outcomes.every((o) => o.type === 'done'))
+    assert.deepEqual(f.ran.get(1), ['a', 'b', 'c'])
+    assert.deepEqual([...f.exited], [1])
   })
 
   it('refuses recycling by memory or file count, which are not built', () => {

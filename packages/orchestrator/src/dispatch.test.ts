@@ -237,7 +237,6 @@ describe('createFileDispatch', () => {
       },
     ])
     assert.deepEqual(reported, [boom, boom])
-    assert.deepEqual(dispatch.unhandled, [boom, boom])
     assert.equal(seen[1]?.[1], info)
     assert.equal(seen[2]?.[1], null)
   })

@@ -2,17 +2,17 @@
 // WorkerExit as their cause, and so does every call made after.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { connectWorker } from '@provino/orchestrator'
+import { connectWorker, transportFor } from '@provino/orchestrator'
 import { createRpc, RpcError, type RpcPort } from '@provino/rpc'
 import type { RpcCall, RpcReply, WorkerExit } from '@provino/types'
 import type { PeerMethods } from './fixtures/rpc-worker.ts'
-import { factoryFor, fixture, forceKilled, initFor, job, methods } from './support.ts'
+import { fixture, forceKilled, initFor, job, methods } from './support.ts'
 
 type None = Record<never, never>
 
 /** The coordinator's RPC to the test peer, which serves its own schema rather than WorkerMethods. */
 async function peer(kind: 'forks' | 'threads' | 'inline') {
-  const transport = await factoryFor(kind, { entry: fixture('rpc-worker.ts') }).create(
+  const transport = await transportFor(kind, { entry: fixture('rpc-worker.ts') }).create(
     initFor(kind),
   )
   const client = createRpc<None, PeerMethods>(
@@ -65,7 +65,7 @@ describe('inline: pending calls when the link closes', () => {
 
 describe('connectWorker after a worker dies', () => {
   it('rejects the running file and WorkerMethods calls with the WorkerExit', async () => {
-    const transport = await factoryFor('forks', { entry: fixture('isolation-worker.ts') }).create(
+    const transport = await transportFor('forks', { entry: fixture('isolation-worker.ts') }).create(
       initFor('forks'),
     )
     const connection = connectWorker(transport, {
@@ -85,7 +85,7 @@ describe('connectWorker after a worker dies', () => {
 
 describe('a call the worker couldn’t send', () => {
   it('leaves a fork able to stop cleanly', async () => {
-    const transport = await factoryFor('forks', {
+    const transport = await transportFor('forks', {
       entry: fixture('unsendable-call-worker.ts'),
       teardownTimeoutMs: 5000,
     }).create(initFor('forks'))

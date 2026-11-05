@@ -19,7 +19,7 @@ export {
 } from './dispatch.ts'
 export { OrchestratorError, type OrchestratorErrorCode } from './errors.ts'
 export { ExitCode, type ExitCodeOptions, exitCodeFor } from './exit-code.ts'
-export { fileIdOf } from './file-id.ts'
+export { fileIdOf, relativePosix } from './file-id.ts'
 export { sameWorkerKey, type WorkerKeyInput, workerKeyOf } from './key.ts'
 export {
   createPool,
@@ -27,6 +27,7 @@ export {
   type FileRequest,
   type Pool,
   type PoolDeps,
+  type PoolErrorKind,
   type PoolOutcome,
 } from './pool.ts'
 export {
@@ -36,6 +37,7 @@ export {
   runProject,
 } from './run.ts'
 export { createHistorySequencer, type HistorySequencerOptions } from './sequencer.ts'
+export { type TransportForOptions, transportFor } from './transport/for-kind.ts'
 export { type ForksTransportOptions, forksTransport } from './transport/forks.ts'
 export { type InlineTransportOptions, inlineTransport } from './transport/inline.ts'
 export { describeExit, type TransportOptions } from './transport/shared.ts'

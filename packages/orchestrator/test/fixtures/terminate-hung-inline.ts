@@ -1,10 +1,10 @@
 // Run as its own process by transport.test.ts: an inline worker stuck in a file holds no handle,
 // so nothing but the transport's bound keeps this process alive while `terminate` waits.
 
-import { connectWorker } from '@provino/orchestrator'
-import { Collect, factoryFor, fixture, initFor, job, methods } from '../support.ts'
+import { connectWorker, transportFor } from '@provino/orchestrator'
+import { Collect, fixture, initFor, job, methods } from '../support.ts'
 
-const transport = await factoryFor('inline', {
+const transport = await transportFor('inline', {
   entry: fixture('hang-worker.ts'),
   stderr: new Collect(),
   teardownTimeoutMs: 50,

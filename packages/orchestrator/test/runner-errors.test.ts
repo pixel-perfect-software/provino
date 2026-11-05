@@ -3,12 +3,12 @@
 // covers it.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { connectWorker } from '@provino/orchestrator'
+import { connectWorker, transportFor } from '@provino/orchestrator'
 import type { RuntimeEventOf, WorkerEvent } from '@provino/types'
-import { factoryFor, fixture, initFor, job, methods } from './support.ts'
+import { fixture, initFor, job, methods } from './support.ts'
 
 async function connect(workerId: number) {
-  const transport = await factoryFor('inline', { entry: fixture('failing-worker.ts') }).create(
+  const transport = await transportFor('inline', { entry: fixture('failing-worker.ts') }).create(
     initFor('inline', workerId),
   )
   const events: WorkerEvent[] = []
@@ -57,7 +57,7 @@ describe('a runner that throws', () => {
 for (const kind of ['forks', 'threads'] as const) {
   describe(`${kind}: output a file leaves behind`, () => {
     it('arrives before its fileDone', async () => {
-      const transport = await factoryFor(kind, { entry: fixture('late-worker.ts') }).create(
+      const transport = await transportFor(kind, { entry: fixture('late-worker.ts') }).create(
         initFor(kind),
       )
       const order: string[] = []

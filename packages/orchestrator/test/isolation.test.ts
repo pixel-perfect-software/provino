@@ -6,9 +6,9 @@ import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { connectWorker, type WorkerConnection } from '@provino/orchestrator'
+import { connectWorker, transportFor, type WorkerConnection } from '@provino/orchestrator'
 import type { PoolKind, RuntimeEventOf, WorkerEvent, WorkerExit } from '@provino/types'
-import { Collect, factoryFor, fixture, initFor, job, methods } from './support.ts'
+import { Collect, fixture, initFor, job, methods } from './support.ts'
 
 async function startIsolation(
   kind: 'forks' | 'threads',
@@ -20,7 +20,7 @@ async function startIsolation(
 ): Promise<{ connection: WorkerConnection; events: WorkerEvent[]; stderr: Collect }> {
   const stderr = new Collect()
   const events: WorkerEvent[] = []
-  const transport = await factoryFor(kind, {
+  const transport = await transportFor(kind, {
     entry: fixture('isolation-worker.ts'),
     stderr,
     ...options,

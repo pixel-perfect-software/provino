@@ -6,18 +6,14 @@ import { ChildProcess, spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { connectWorker, OrchestratorError, type WorkerConnection } from '@provino/orchestrator'
-import type { PoolKind, Transport, WorkerExit, WorkerInit } from '@provino/types'
 import {
-  Collect,
-  factoryFor,
-  fixture,
-  forceKilled,
-  initFor,
-  job,
-  KINDS,
-  methods,
-} from './support.ts'
+  connectWorker,
+  OrchestratorError,
+  transportFor,
+  type WorkerConnection,
+} from '@provino/orchestrator'
+import type { PoolKind, Transport, WorkerExit, WorkerInit } from '@provino/types'
+import { Collect, fixture, forceKilled, initFor, job, KINDS, methods } from './support.ts'
 
 async function start(
   kind: PoolKind,
@@ -25,7 +21,7 @@ async function start(
   options: { readonly teardownTimeoutMs?: number; readonly startTimeoutMs?: number } = {},
 ): Promise<{ transport: Transport; connection: WorkerConnection; stderr: Collect }> {
   const stderr = new Collect()
-  const transport = await factoryFor(kind, { entry: fixture(entry), stderr, ...options }).create(
+  const transport = await transportFor(kind, { entry: fixture(entry), stderr, ...options }).create(
     initFor(kind),
   )
   return {
@@ -71,7 +67,7 @@ for (const kind of KINDS) {
 
     it('times out a worker that never says ready, and kills it', async () => {
       const stderr = new Collect()
-      const error = await factoryFor(kind, {
+      const error = await transportFor(kind, {
         entry: fixture('silent-worker.ts'),
         stderr,
         startTimeoutMs: 100,
@@ -92,7 +88,7 @@ for (const kind of ['forks', 'threads'] as const) {
   describe(`${kind} transport, killing`, () => {
     it('reports a worker that exits before ready', async () => {
       await assert.rejects(
-        factoryFor(kind, { entry: fixture('early-exit-worker.ts') }).create(initFor(kind)),
+        transportFor(kind, { entry: fixture('early-exit-worker.ts') }).create(initFor(kind)),
         (error: unknown) => {
           assert.ok(error instanceof OrchestratorError)
           assert.equal(error.code, 'ORCH_WORKER_EXITED')
@@ -128,7 +124,7 @@ for (const kind of ['forks', 'threads'] as const) {
     it('pipes the worker’s own stdout and stderr without ending the sinks', async () => {
       const stdout = new Collect()
       const stderr = new Collect()
-      const transport = await factoryFor(kind, {
+      const transport = await transportFor(kind, {
         entry: fixture('noisy-worker.ts'),
         stdout,
         stderr,
@@ -172,7 +168,7 @@ for (const kind of KINDS) {
         ...initFor(kind),
         provided: { fn: () => 1 } as unknown as WorkerInit['provided'],
       }
-      await assert.rejects(factoryFor(kind, { entry: fixture('echo-worker.ts') }).create(init), {
+      await assert.rejects(transportFor(kind, { entry: fixture('echo-worker.ts') }).create(init), {
         code: 'ORCH_BAD_INIT',
       })
     })
@@ -184,7 +180,7 @@ for (const kind of ['forks', 'threads'] as const) {
     it('prints an error the entry throws as it loads to the stderr sink', async () => {
       const stderr = new Collect()
       await assert.rejects(
-        factoryFor(kind, { entry: fixture('throwing-entry.ts'), stderr }).create(initFor(kind)),
+        transportFor(kind, { entry: fixture('throwing-entry.ts'), stderr }).create(initFor(kind)),
         { code: 'ORCH_WORKER_EXITED' },
       )
       assert.match(stderr.text, /boom from the entry module/)
@@ -194,7 +190,7 @@ for (const kind of ['forks', 'threads'] as const) {
       const stdout = new Collect()
       const stderr = new Collect()
       const before = stdout.eventNames().length + stderr.eventNames().length
-      const transport = await factoryFor(kind, {
+      const transport = await transportFor(kind, {
         entry: fixture('echo-worker.ts'),
         stdout,
         stderr,
@@ -208,7 +204,7 @@ for (const kind of ['forks', 'threads'] as const) {
 describe('inline transport', () => {
   it('refuses an entry without a default-exported function', async () => {
     await assert.rejects(
-      factoryFor('inline', { entry: fixture('../support.ts') }).create(initFor('inline')),
+      transportFor('inline', { entry: fixture('../support.ts') }).create(initFor('inline')),
       { code: 'ORCH_BAD_ENTRY' },
     )
   })
@@ -216,7 +212,7 @@ describe('inline transport', () => {
   it('reports a main that throws as exit code 1, after printing it', async () => {
     const stderr = new Collect()
     await assert.rejects(
-      factoryFor('inline', { entry: fixture('throwing-main.ts'), stderr }).create(
+      transportFor('inline', { entry: fixture('throwing-main.ts'), stderr }).create(
         initFor('inline'),
       ),
       (error: unknown) => {
@@ -237,7 +233,7 @@ describe('inline transport', () => {
     Reflect.set(globalThis, '__steps', steps)
     try {
       for (const workerId of [1, 2]) {
-        const transport = await factoryFor('inline', {
+        const transport = await transportFor('inline', {
           entry: fixture('slow-stop-worker.ts'),
         }).create(initFor('inline', workerId))
         const connection = connectWorker(transport, { methods, onEvents: () => {} })
@@ -258,7 +254,7 @@ describe('inline transport', () => {
     const steps: string[] = []
     Reflect.set(globalThis, '__steps', steps)
     try {
-      const transport = await factoryFor('inline', {
+      const transport = await transportFor('inline', {
         entry: fixture('slow-stop-worker.ts'),
       }).create(initFor('inline'))
       const connection = connectWorker(transport, { methods, onEvents: () => {} })

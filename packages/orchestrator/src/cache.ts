@@ -148,10 +148,9 @@ export function createResultsCache(dir: string): ResultsCache {
       filesOf(recorded, project).set(path, history)
     },
     prune(project, keep) {
-      const paths = new Set(keep)
-      kept.set(project, paths)
-      dropOutside(projects.get(project), paths)
-      dropOutside(recorded.get(project), paths)
+      kept.set(project, keep)
+      dropOutside(projects.get(project), keep)
+      dropOutside(recorded.get(project), keep)
     },
     async write() {
       // Another run may have written since this cache was opened: start from the file as it is.

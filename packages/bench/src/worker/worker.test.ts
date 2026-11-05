@@ -5,10 +5,10 @@
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative, sep } from 'node:path'
+import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
 import { after, describe, it } from 'node:test'
-import { fileIdOf } from '@provino/orchestrator'
+import { fileIdOf, relativePosix } from '@provino/orchestrator'
 import type { IsolationTier, TaskId, WorkerEvent } from '@provino/types'
 import { checkSuite, meetsBar, TIERS, writeJestSuite } from './check.ts'
 import { POOLS, PROJECT_NAME, runWorkerFiles, type WorkerRunResult } from './run.ts'
@@ -460,7 +460,7 @@ describe('each test’s events arrive in order', () => {
       const ends = result.events.filter((event) => event.type === 'file-end')
       assert.deepEqual(
         ends.map((event) => event.fileId),
-        files.map((file) => fileIdOf(PROJECT_NAME, relative(dir, file).split(sep).join('/'))),
+        files.map((file) => fileIdOf(PROJECT_NAME, relativePosix(dir, file))),
       )
       const logs = result.events.filter((event) => event.type === 'console')
       if (pool === 'inline') assert.equal(logs.length, 0)

@@ -721,6 +721,28 @@ describe('runProject: pool and run lifecycle', () => {
     assert.ok(performance.now() - started < 4000, 'did not wait for the start timeout')
   })
 
+  it('shows what a worker sends when it stops after its last file’s file:end, though it stops while other files run', async () => {
+    // Under `none` the environment's leak report comes at stop, as a console warning. Workers are
+    // stopped as soon as no file is left to wait for, which can be before that file's `file:end`.
+    const p = await makeProject({ 'a.test.js': passing('aaaa'), 'b.test.js': passing() })
+    const project = {
+      ...runtimeProject(p.dir, { environmentOptions: { leak: '__stuck' } }),
+      isolation: 'none' as const,
+    }
+    const { summary, seen } = await run(project, { pool: { kind: 'forks', maxWorkers: 2 } })
+    assert.equal(summary.reason, 'passed')
+    const warnings = seen.flatMap((entry, index) =>
+      entry.name === 'console' && String(entry.detail.text).includes('when the worker stopped')
+        ? [{ index, fileId: entry.fileId }]
+        : [],
+    )
+    assert.equal(warnings.length, 2, 'one warning per worker')
+    for (const { index, fileId } of warnings) {
+      const ended = seen.findIndex((entry) => entry.name === 'file:end' && entry.fileId === fileId)
+      assert.ok(ended >= 0 && ended < index, 'under the file it ran last, after its file:end')
+    }
+  })
+
   it('reports a worker that crashes when told to stop, and does not pass the run', {
     skip: process.platform === 'win32',
   }, async () => {

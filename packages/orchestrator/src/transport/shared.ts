@@ -14,6 +14,7 @@ import type {
   WorkerToCoordinator,
 } from '@provino/types'
 import { OrchestratorError } from '../errors.ts'
+import { messageOf } from '../util.ts'
 
 /** Track 9: the wait between SIGTERM and SIGKILL. */
 const KILL_GRACE_MS = 500
@@ -220,10 +221,9 @@ function handshake(
 }
 
 function badInit(kind: PoolKind, error: unknown): OrchestratorError {
-  const reason = error instanceof Error ? error.message : String(error)
   return new OrchestratorError(
     'ORCH_BAD_INIT',
-    `The ${kind} worker's init can't be sent to it: ${reason}`,
+    `The ${kind} worker's init can't be sent to it: ${messageOf(error)}`,
     { cause: error },
   )
 }
