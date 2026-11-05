@@ -3,6 +3,7 @@ import {
   ConfigError,
   type ConfigErrorCode,
   type ConfigIssue,
+  formatConfigIssue,
   loadConfigFile,
   loadProject,
   type ResolvedProject,
@@ -82,3 +83,7 @@ resolveProject({ isolation: 'vm' }, complete)
 ;(null as unknown as ResolvedProject).name = 'x'
 // @ts-expect-error `configPath` is loadProject's first argument, not one of its options
 loadProject('/a', { dialects: [], environments: {}, ci: false, configPath: '/a' })
+
+expectTypeOf(formatConfigIssue).toEqualTypeOf<(issue: ConfigIssue) => string>()
+// @ts-expect-error an issue is { path, message }, not a string
+formatConfigIssue('path: message')

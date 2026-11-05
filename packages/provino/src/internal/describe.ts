@@ -1,4 +1,4 @@
-import { ConfigError } from '@provino/config'
+import { ConfigError, formatConfigIssue } from '@provino/config'
 import { OrchestratorError } from '@provino/orchestrator'
 import { UsageError } from './usage-error.ts'
 
@@ -21,11 +21,7 @@ function describeError(error: Error): string {
   if (error instanceof ConfigError) {
     for (const issue of error.issues) {
       // Some messages (the dialect options') already list their issues.
-      if (
-        error.message.includes(`${issue.path === '' ? '(options)' : issue.path}: ${issue.message}`)
-      ) {
-        continue
-      }
+      if (error.message.includes(formatConfigIssue(issue))) continue
       lines.push(`  - ${issue.path === '' ? issue.message : `${issue.path}: ${issue.message}`}`)
     }
   }

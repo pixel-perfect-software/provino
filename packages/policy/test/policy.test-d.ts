@@ -4,7 +4,9 @@ import {
   createBehaviourLoader,
   defineDialect,
   diffPolicy,
+  forEachModuleRef,
   formatPolicyDiff,
+  isImportableLocation,
   isModuleRef,
   moduleRef,
   neutralPolicy,
@@ -97,6 +99,29 @@ formatPolicyDiff([], ['only one'])
 // isModuleRef narrows.
 declare const unknownValue: unknown
 if (isModuleRef(unknownValue)) expectTypeOf(unknownValue).toEqualTypeOf<ModuleRef>()
+
+// isImportableLocation takes a string and answers a boolean.
+expectTypeOf(isImportableLocation).toEqualTypeOf<(location: string) => boolean>()
+// @ts-expect-error a location is a string
+isImportableLocation(1)
+
+// forEachModuleRef hands the visitor a ModuleRef by default, and the guard's type when given one.
+forEachModuleRef(unknownValue, 'policy', (ref, path) => {
+  expectTypeOf(ref).toEqualTypeOf<ModuleRef>()
+  expectTypeOf(path).toEqualTypeOf<string>()
+})
+forEachModuleRef<{ readonly module: unknown }>(
+  unknownValue,
+  'policy',
+  (ref) => {
+    expectTypeOf(ref).toEqualTypeOf<{ readonly module: unknown }>()
+  },
+  (value): value is { readonly module: unknown } => typeof value === 'object',
+)
+// @ts-expect-error the path is required
+forEachModuleRef(unknownValue, () => {})
+// @ts-expect-error the visitor's path is a string
+forEachModuleRef(unknownValue, 'policy', (_ref, path: number) => path)
 
 // createBehaviourLoader takes an optional importer that returns a module namespace.
 expectTypeOf(createBehaviourLoader).returns.toEqualTypeOf<BehaviourLoader>()

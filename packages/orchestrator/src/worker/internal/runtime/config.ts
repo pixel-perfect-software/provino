@@ -3,7 +3,7 @@
 // and the name of the key, instead of a `TypeError` from the middle of the boot. The policy's data
 // keys are checked where they are used; where its behaviour refs point is checked here (D21).
 import { isAbsolute } from 'node:path'
-import { isModuleRef, neutralPolicy } from '@provino/policy'
+import { forEachModuleRef, isImportableLocation, isModuleRef, neutralPolicy } from '@provino/policy'
 import type {
   EnvironmentRef,
   GlobalsFactory,
@@ -44,7 +44,7 @@ function texts(value: unknown, path: string): readonly string[] {
  */
 function moduleLocation(value: unknown, path: string): string {
   const location = text(value, path)
-  if (!isAbsolute(location) && !URL.canParse(location)) {
+  if (!isImportableLocation(location)) {
     return invalid(
       path,
       'an absolute path or URL, such as a file: URL (the coordinator resolves package specifiers)',
@@ -54,38 +54,18 @@ function moduleLocation(value: unknown, path: string): string {
 }
 
 /**
- * Every behaviour in the policy is a `{ module, export }` ref, nested under its slice (the key path
- * is dotted, `policy.core.formatEachTitle`, and an array item is indexed). A worker imports each
- * `module` as it is, so each is an absolute location like the environment's (D21); the policy's
- * own refs (`neutralPolicy`'s, a dialect's) are no exception. `seen` stops a cyclic value, which
- * structured clone can carry, from looping.
- */
-function absoluteBehaviourRefs(value: unknown, path: string, seen: Set<object>): void {
-  if (isModuleRef(value)) {
-    moduleLocation(value.module, `${path}.module`)
-    return
-  }
-  if (typeof value !== 'object' || value === null || seen.has(value)) return
-  seen.add(value)
-  if (Array.isArray(value)) {
-    value.forEach((item: unknown, index) => {
-      absoluteBehaviourRefs(item, `${path}[${index}]`, seen)
-    })
-    return
-  }
-  for (const [key, item] of Object.entries(value)) {
-    absoluteBehaviourRefs(item, `${path}.${key}`, seen)
-  }
-}
-
-/**
  * Every slice of the policy is there as an object (the shape `SerializedPolicy` promises) and every
  * behaviour ref in it is absolute.
  */
 function serializedPolicy(value: unknown): SerializedPolicy {
   const policy = record(value, 'policy')
   for (const slice of Object.keys(neutralPolicy)) record(policy[slice], `policy.${slice}`)
-  absoluteBehaviourRefs(policy, 'policy', new Set())
+  // Every behaviour in the policy is a `{ module, export }` ref under its slice (D21): a worker
+  // imports each `module` as it is, so each is absolute like the environment's, the policy's own
+  // refs (`neutralPolicy`'s, a dialect's) included.
+  forEachModuleRef(policy, 'policy', (ref, path) => {
+    moduleLocation(ref.module, `${path}.module`)
+  })
   return policy as SerializedPolicy
 }
 

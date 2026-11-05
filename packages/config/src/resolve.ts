@@ -16,7 +16,7 @@ import type {
 } from '@provino/types'
 import { ConfigError } from './errors.ts'
 import { dialectPolicy, selectDialect } from './internal/dialect.ts'
-import { describe, parseInput } from './internal/input.ts'
+import { describe, isStringArray, messageOf, parseInput } from './internal/input.ts'
 import { assertWorkerConfig } from './internal/refs.ts'
 import { resolveSetupFiles } from './internal/setup-files.ts'
 
@@ -93,6 +93,20 @@ async function assertDirectory(rootDir: string): Promise<void> {
   }
 }
 
+/**
+ * Awaits two independent promises together. If both fail, `first`'s error is thrown, as it would
+ * be had `first` been awaited alone before `second` started; `second`'s is never left unhandled.
+ */
+async function inParallel<First, Second>(
+  first: Promise<First>,
+  second: Promise<Second>,
+): Promise<[First, Second]> {
+  const [a, b] = await Promise.allSettled([first, second])
+  if (a.status === 'rejected') throw a.reason
+  if (b.status === 'rejected') throw b.reason
+  return [a.value, b.value]
+}
+
 /** A record's own entry for a name from config (`constructor` is not an entry). */
 function entry<Value>(record: Readonly<Record<string, Value>>, key: string): Value | undefined {
   return Object.hasOwn(record, key) ? record[key] : undefined
@@ -131,7 +145,7 @@ async function loaderConditions(policy: Policy, environment: string): Promise<re
       { cause },
     )
   }
-  if (!Array.isArray(conditions) || !conditions.every(isString)) {
+  if (!isStringArray(conditions)) {
     throw new ConfigError(
       'CONFIG_INVALID',
       `the policy's orchestrator.environmentConditions must return an array of strings (got ${describe(conditions)})`,
@@ -166,9 +180,11 @@ export async function resolveProject(
   }
   const parsed = parseInput(input)
   const rootDir = resolve(dirname(options.configPath), parsed.root ?? '.')
-  await assertDirectory(rootDir)
-
-  const dialect = await selectDialect(parsed.dialect, parsed.dialects ?? options.dialects, rootDir)
+  // The root check and `detect`'s read of the root are independent; a bad root is reported first.
+  const [, dialect] = await inParallel(
+    assertDirectory(rootDir),
+    selectDialect(parsed.dialect, parsed.dialects ?? options.dialects, rootDir),
+  )
   const dialectLayer =
     dialect === null
       ? undefined
@@ -217,6 +233,10 @@ export async function resolveProject(
     )
   }
 
+  const [setupFilesAfterEnv, conditions] = await inParallel(
+    resolveSetupFiles(parsed.setupFiles ?? [], rootDir),
+    loaderConditions(policy, environment),
+  )
   const config: SerializedProjectConfig = {
     name: parsed.name ?? '',
     rootDir,
@@ -225,10 +245,10 @@ export async function resolveProject(
     environment: { module: environmentRef.module, export: environmentRef.export, options: {} },
     globals: globalsFactory,
     setupFiles: [],
-    setupFilesAfterEnv: await resolveSetupFiles(parsed.setupFiles ?? [], rootDir),
+    setupFilesAfterEnv,
     loader: {
       extensions: Object.freeze([...LOADER_EXTENSIONS]),
-      conditions: await loaderConditions(policy, environment),
+      conditions,
       tsconfig: 'auto',
       mappers: [],
       typescript: 'oxc',
@@ -247,12 +267,4 @@ export async function resolveProject(
     isolation,
     config,
   }
-}
-
-function isString(value: unknown): value is string {
-  return typeof value === 'string'
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

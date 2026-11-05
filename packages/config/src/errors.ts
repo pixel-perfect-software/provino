@@ -31,6 +31,15 @@ export interface ConfigIssue {
 }
 
 /**
+ * One issue as the line a message lists it on: `  path: message`, with `(options)` for the
+ * options as a whole.
+ * @public
+ */
+export function formatConfigIssue(issue: ConfigIssue): string {
+  return `  ${issue.path === '' ? '(options)' : issue.path}: ${issue.message}`
+}
+
+/**
  * A config error with a stable code. `issues` is set for `CONFIG_BAD_DIALECT_OPTIONS` when the
  * dialect's schema rejected the options; `cause` holds the underlying error where there is one.
  * @public

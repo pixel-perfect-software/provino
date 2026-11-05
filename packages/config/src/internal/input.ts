@@ -56,32 +56,31 @@ function invalid(key: string, expected: string, value: unknown): ConfigError {
   )
 }
 
-function string(input: object, key: string): string | undefined {
-  const value: unknown = Reflect.get(input, key)
-  if (value === undefined) return undefined
-  if (typeof value !== 'string') throw invalid(key, 'a string', value)
-  return value
-}
-
-function strings(input: object, key: string): readonly string[] | undefined {
-  const value: unknown = Reflect.get(input, key)
-  if (value === undefined) return undefined
-  if (!Array.isArray(value) || !value.every(isString)) {
-    throw invalid(key, 'an array of strings', value)
-  }
-  return value
-}
-
-function isString(value: unknown): value is string {
+/** Whether a value is a string. */
+export function isString(value: unknown): value is string {
   return typeof value === 'string'
 }
 
-function dialects(input: object): readonly Dialect[] | undefined {
-  const value: unknown = Reflect.get(input, 'dialects')
+/** An error's message, or the text of whatever was thrown. */
+export function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** Whether a value is an array of strings. */
+export function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every(isString)
+}
+
+/** `input[key]` when it is absent (`undefined`) or passes `guard`, else `CONFIG_INVALID`. */
+function optional<Value>(
+  input: object,
+  key: string,
+  expected: string,
+  guard: (value: unknown) => value is Value,
+): Value | undefined {
+  const value: unknown = Reflect.get(input, key)
   if (value === undefined) return undefined
-  if (!Array.isArray(value) || !value.every(isDialect)) {
-    throw invalid('dialects', 'an array of dialects (each with a name and a policy)', value)
-  }
+  if (!guard(value)) throw invalid(key, expected, value)
   return value
 }
 
@@ -90,21 +89,16 @@ function isDialect(value: unknown): value is Dialect {
   return typeof value.policy === 'function' || isRecord(value.policy)
 }
 
-function isolation(input: object): IsolationTier | undefined {
-  const value: unknown = Reflect.get(input, 'isolation')
-  if (value === undefined) return undefined
-  const tier = ISOLATION_TIERS.find((candidate) => candidate === value)
-  if (tier === undefined) {
-    throw invalid('isolation', `one of ${ISOLATION_TIERS.map((t) => `"${t}"`).join(', ')}`, value)
-  }
-  return tier
+function isDialectList(value: unknown): value is readonly Dialect[] {
+  return Array.isArray(value) && value.every(isDialect)
 }
 
-function boolean(input: object, key: string): boolean | undefined {
-  const value: unknown = Reflect.get(input, key)
-  if (value === undefined) return undefined
-  if (typeof value !== 'boolean') throw invalid(key, 'a boolean', value)
-  return value
+function isTier(value: unknown): value is IsolationTier {
+  return ISOLATION_TIERS.some((candidate) => candidate === value)
+}
+
+function isBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean'
 }
 
 /**
@@ -127,15 +121,25 @@ export function parseInput(input: ProvinoConfigInput): ParsedInput {
     }
   }
   return {
-    name: string(input, 'name'),
-    root: string(input, 'root'),
-    dialect: string(input, 'dialect'),
-    dialects: dialects(input),
-    include: strings(input, 'include'),
-    exclude: strings(input, 'exclude'),
-    environment: string(input, 'environment'),
-    isolation: isolation(input),
-    globals: boolean(input, 'globals'),
-    setupFiles: strings(input, 'setupFiles'),
+    name: optional(input, 'name', 'a string', isString),
+    root: optional(input, 'root', 'a string', isString),
+    dialect: optional(input, 'dialect', 'a string', isString),
+    dialects: optional(
+      input,
+      'dialects',
+      'an array of dialects (each with a name and a policy)',
+      isDialectList,
+    ),
+    include: optional(input, 'include', 'an array of strings', isStringArray),
+    exclude: optional(input, 'exclude', 'an array of strings', isStringArray),
+    environment: optional(input, 'environment', 'a string', isString),
+    isolation: optional(
+      input,
+      'isolation',
+      `one of ${ISOLATION_TIERS.map((t) => `"${t}"`).join(', ')}`,
+      isTier,
+    ),
+    globals: optional(input, 'globals', 'a boolean', isBoolean),
+    setupFiles: optional(input, 'setupFiles', 'an array of strings', isStringArray),
   }
 }

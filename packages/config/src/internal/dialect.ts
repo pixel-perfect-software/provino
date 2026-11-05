@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { DetectContext, Dialect, PolicyOverrides } from '@provino/types'
-import { ConfigError, type ConfigIssue } from '../errors.ts'
+import { ConfigError, type ConfigIssue, formatConfigIssue } from '../errors.ts'
 import { isRecord } from './input.ts'
 
 /** The names of `dialects`, for a message. */
@@ -136,7 +136,7 @@ export async function dialectPolicy(dialect: Dialect, options: unknown): Promise
     }
     if (result.issues !== undefined) {
       const issues = result.issues.map(issueOf)
-      const lines = issues.map((i) => `  ${i.path === '' ? '(options)' : i.path}: ${i.message}`)
+      const lines = issues.map(formatConfigIssue)
       throw new ConfigError(
         'CONFIG_BAD_DIALECT_OPTIONS',
         `invalid options for the "${dialect.name}" dialect:\n${lines.join('\n')}`,

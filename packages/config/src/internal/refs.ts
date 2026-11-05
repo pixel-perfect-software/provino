@@ -1,26 +1,23 @@
-import { isAbsolute } from 'node:path'
+import { forEachModuleRef, isImportableLocation, isModuleRef } from '@provino/policy'
 import type { SerializedProjectConfig } from '@provino/types'
 import { ConfigError } from '../errors.ts'
-import { describe, isRecord } from './input.ts'
+import { describe, isRecord, messageOf } from './input.ts'
 
 /** Whether a value is a plain `{ module: string, export: string }` and nothing else. */
 function isRefShape(value: unknown): value is { readonly module: string; readonly export: string } {
-  return (
-    isRecord(value) &&
-    Object.getPrototypeOf(value) === Object.prototype &&
-    Object.keys(value).length === (Object.hasOwn(value, 'options') ? 3 : 2) &&
-    typeof value.module === 'string' &&
-    typeof value.export === 'string'
-  )
+  if (!isRecord(value) || Object.getPrototypeOf(value) !== Object.prototype) return false
+  // The environment ref also carries `options`.
+  if (Object.keys(value).length !== (Object.hasOwn(value, 'options') ? 3 : 2)) return false
+  return isModuleRef({ module: value.module, export: value.export })
 }
 
 /**
  * The worker imports a ref's `module` as it is (D21), so it must be an absolute path or a URL:
- * the same rule as the worker's `moduleLocation`. A bare or relative specifier would resolve from
- * the worker's own location, not the project's.
+ * the same rule as the worker's (`isImportableLocation`). A bare or relative specifier would
+ * resolve from the worker's own location, not the project's.
  */
 function checkModule(module: string, path: string): void {
-  if (isAbsolute(module) || URL.canParse(module)) return
+  if (isImportableLocation(module)) return
   throw new ConfigError(
     'CONFIG_INVALID',
     `${path}.module must be an absolute path or a URL such as a file: URL (got ${describe(module)}); a worker can't resolve a package specifier or a relative path`,
@@ -38,31 +35,16 @@ function checkRef(ref: unknown, path: string): void {
   checkModule(ref.module, path)
 }
 
-/** A policy ref is exactly `{ module, export }`: any object holding both string keys is one. */
-function looksLikeRef(value: object): boolean {
-  return 'module' in value && 'export' in value
-}
-
-function walkPolicy(value: unknown, path: string, seen: Set<object>): void {
-  if (typeof value === 'function') {
-    throw new ConfigError(
-      'CONFIG_INVALID',
-      `${path} is a function, which can't cross to a worker; give it as a { module, export } ref`,
-    )
-  }
-  if (typeof value !== 'object' || value === null || seen.has(value)) return
-  seen.add(value)
-  if (Array.isArray(value)) {
-    value.forEach((item: unknown, index) => {
-      walkPolicy(item, `${path}[${index}]`, seen)
-    })
-    return
-  }
-  if (looksLikeRef(value)) {
-    checkRef(value, path)
-    return
-  }
-  for (const [key, item] of Object.entries(value)) walkPolicy(item, `${path}.${key}`, seen)
+/**
+ * What the policy walk stops at: a function (which can't cross, and which `serializePolicy` only
+ * catches in plain objects), or any object holding both `module` and `export`, which is meant as
+ * a ref and checked as one even when malformed.
+ */
+function isRefOrFunction(value: unknown): value is object {
+  return (
+    typeof value === 'function' ||
+    (typeof value === 'object' && value !== null && 'module' in value && 'export' in value)
+  )
 }
 
 /**
@@ -74,7 +56,20 @@ function walkPolicy(value: unknown, path: string, seen: Set<object>): void {
  * @internal
  */
 export function assertWorkerConfig(config: SerializedProjectConfig): void {
-  walkPolicy(config.policy, 'policy', new Set())
+  forEachModuleRef(
+    config.policy,
+    'policy',
+    (ref, path) => {
+      if (typeof ref === 'function') {
+        throw new ConfigError(
+          'CONFIG_INVALID',
+          `${path} is a function, which can't cross to a worker; give it as a { module, export } ref`,
+        )
+      }
+      checkRef(ref, path)
+    },
+    isRefOrFunction,
+  )
   if (config.globals !== null) checkRef(config.globals, 'globals')
   checkRef(config.environment, 'environment')
   try {
@@ -82,7 +77,7 @@ export function assertWorkerConfig(config: SerializedProjectConfig): void {
   } catch (cause) {
     throw new ConfigError(
       'CONFIG_INVALID',
-      `the worker config can't be cloned to a worker: ${cause instanceof Error ? cause.message : String(cause)}`,
+      `the worker config can't be cloned to a worker: ${messageOf(cause)}`,
       { cause },
     )
   }
