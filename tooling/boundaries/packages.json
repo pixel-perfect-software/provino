@@ -420,7 +420,7 @@
       "runsIn": "dev",
       "deps": ["@provino/*", "provino"],
       "slices": "all",
-      "note": "Runs Provino only through provino/node (DECISIONS S4)."
+      "note": "Runs Provino only through provino/node or the provino bin (DECISIONS S4)."
     },
     "@provino/bench": {
       "dir": "packages/bench",
@@ -428,7 +428,7 @@
       "runsIn": "dev",
       "deps": ["@provino/*", "@provino/harness", "provino"],
       "slices": "all",
-      "note": "Runs Provino only through provino/node (DECISIONS S4)."
+      "note": "Runs Provino only through provino/node or the provino bin (DECISIONS S4)."
     },
     "provino-site": {
       "dir": null,
