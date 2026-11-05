@@ -265,6 +265,43 @@ describe('run()', () => {
     })
   })
 
+  describe('env.ci in the normalized run is the ci the run resolved', () => {
+    /** Runs a passing project with `CI` set to `value` (unset when `undefined`) and reads `env.ci`. */
+    async function ciOf(value: string | undefined, options: Partial<RunOptions> = {}) {
+      const project = await makeProject({ 'tests/a.test.js': passing('a') })
+      const before = process.env.CI
+      try {
+        if (value === undefined) delete process.env.CI
+        else process.env.CI = value
+        const ran = await runProject(project, {
+          pool: 'inline',
+          reporters: ['normalized-json'],
+          ...options,
+        })
+        assert.equal(ran.exitCode, 0, ran.stderr)
+        return viewOfNormalized(ran.stdout).ci
+      } finally {
+        if (before === undefined) delete process.env.CI
+        else process.env.CI = before
+      }
+    }
+
+    it('reads CI the way isCi does: case and spaces do not make false a CI', async () => {
+      assert.equal(await ciOf(undefined), false)
+      for (const value of ['', '0', 'false', 'FALSE', ' false ']) {
+        assert.equal(await ciOf(value), false, JSON.stringify(value))
+      }
+      for (const value of ['true', '1', ' TRUE ']) {
+        assert.equal(await ciOf(value), true, JSON.stringify(value))
+      }
+    })
+
+    it('is the ci option when it is given, whatever CI says', async () => {
+      assert.equal(await ciOf(undefined, { ci: true }), true)
+      assert.equal(await ciOf('true', { ci: false }), false)
+    })
+  })
+
   it('runs a reporter object, and several reporters see every event in order', async () => {
     const project = await makeProject({ 'tests/a.test.js': passing('a') })
     const seen: string[] = []

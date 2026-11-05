@@ -61,6 +61,7 @@ expectTypeOf(
   normalizedJsonReporter({ suite: 's', runner: 'r', runnerVersion: '1' }),
 ).toEqualTypeOf<Reporter>()
 expectTypeOf<NormalizedJsonReporterOptions['env']>().toEqualTypeOf<RunEnvironment | undefined>()
+expectTypeOf<NormalizedJsonReporterOptions['ci']>().toEqualTypeOf<boolean | undefined>()
 expectTypeOf<NormalizedJsonReporterOptions['stream']>().toEqualTypeOf<TextSink | undefined>()
 expectTypeOf<DefaultReporterOptions['report']>().toEqualTypeOf<ReportPolicy>()
 // Anything with a `write` is a sink: process.stdout, a buffer, a stream that returns a promise.
@@ -107,3 +108,5 @@ normalizedJsonReporter({ outputFile: 'run.json' })
 normalizedJsonReporter({ suite: 's', runner: 'r', runnerVersion: '1', outputFile: 3 })
 // @ts-expect-error the environment is a RunEnvironment, not a name
 normalizedJsonReporter({ suite: 's', runner: 'r', runnerVersion: '1', env: 'node' })
+// @ts-expect-error ci is the run's answer, a boolean, not the CI variable's text
+normalizedJsonReporter({ suite: 's', runner: 'r', runnerVersion: '1', ci: 'true' })

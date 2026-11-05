@@ -1,8 +1,10 @@
 // T9.6's local results cache: per file, how the last run went and how long it took. It orders the
-// next run (failed files first, longest first). Read once, written once per run.
+// next run (failed files first, longest first). Read when it is opened, written once per run: the
+// write reads the file again and puts this run's entries on top, so runs that overlap keep each
+// other's history.
 import { randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { FileHistory } from '@provino/types'
 
@@ -30,9 +32,20 @@ export interface ResultsCache {
   /** Replaces the file's history in memory. Nothing reaches the disk until `write`. */
   record(project: string, path: string, history: FileHistory): void
   /**
-   * Writes the cache to its directory (created if need be): a temporary file, then a rename, so a
-   * reader or a second run never sees half a file. Rejects when the directory can't be written;
-   * the caller decides whether that matters.
+   * Forgets the project's history of every file not in `keep`: at once in memory, and on the disk
+   * at `write` (including entries another run wrote since this cache was opened). `keep` must be
+   * the project's whole file set, so call it only for a run that looked at all of it; a run that
+   * only saw some of the files (a filter) would drop the history of the rest.
+   */
+  prune(project: string, keep: ReadonlySet<string>): void
+  /**
+   * Writes the cache to its directory (created if need be). It reads `results.json` again first
+   * (a missing, unreadable or other-version file is empty, as when the cache was opened), applies
+   * this cache's `record`ed entries and `prune`s on top of what is there, and writes the result as
+   * a temporary file, then a rename, so a reader or a second run never sees half a file and a run
+   * that wrote in the meantime keeps its entries. Two writes in the very same instant can still
+   * lose one run's entries: the history is a hint for the order of the next run, not a ledger.
+   * Rejects when the directory can't be written; the caller decides whether that matters.
    */
   write(): Promise<void>
 }
@@ -84,31 +97,72 @@ function read(file: string): Projects {
   }
 }
 
+async function load(file: string): Promise<Projects> {
+  try {
+    return parse(await readFile(file, 'utf8'))
+  } catch {
+    return new Map()
+  }
+}
+
+function filesOf(projects: Projects, project: string): Map<string, FileHistory> {
+  let files = projects.get(project)
+  if (files === undefined) {
+    files = new Map()
+    projects.set(project, files)
+  }
+  return files
+}
+
+/** Removes the entries whose path is not in `keep`. */
+function dropOutside(files: Map<string, FileHistory> | undefined, keep: ReadonlySet<string>): void {
+  if (files === undefined) return
+  for (const path of [...files.keys()]) {
+    if (!keep.has(path)) files.delete(path)
+  }
+}
+
 /**
- * Opens the results cache in `dir` (see `defaultCacheDir`): reads `results.json` once, now. A file
- * that is missing, can't be read, isn't JSON, or has another `version` is an empty cache, never an
- * error; so is a bad entry. The cache is a value the caller passes along, not module state, so two
- * runs in one process don't share one by accident.
+ * Opens the results cache in `dir` (see `defaultCacheDir`): reads `results.json` now, for `get`
+ * (`write` reads it again). A file that is missing, can't be read, isn't JSON, or has another
+ * `version` is an empty cache, never an error; so is a bad entry. The cache is a value the caller
+ * passes along, not module state, so two runs in one process don't share one by accident.
  * @public
  */
 export function createResultsCache(dir: string): ResultsCache {
   const file = join(dir, FILE_NAME)
+  /** What `get` answers from: the file as it was when opened, plus what this cache recorded. */
   const projects = read(file)
+  /** Only what this cache recorded: what `write` puts on top of the disk's. */
+  const recorded: Projects = new Map()
+  /** The files `prune` kept, by project: what `write` drops from the disk's. */
+  const kept = new Map<string, ReadonlySet<string>>()
   return {
     get: (project, path) => projects.get(project)?.get(path),
     record(project, path, history) {
-      let files = projects.get(project)
-      if (files === undefined) {
-        files = new Map()
-        projects.set(project, files)
-      }
-      files.set(path, history)
+      filesOf(projects, project).set(path, history)
+      filesOf(recorded, project).set(path, history)
+    },
+    prune(project, keep) {
+      const paths = new Set(keep)
+      kept.set(project, paths)
+      dropOutside(projects.get(project), paths)
+      dropOutside(recorded.get(project), paths)
     },
     async write() {
+      // Another run may have written since this cache was opened: start from the file as it is.
+      const merged = await load(file)
+      for (const [project, paths] of kept) dropOutside(merged.get(project), paths)
+      for (const [project, files] of recorded) {
+        const into = filesOf(merged, project)
+        for (const [path, history] of files) into.set(path, history)
+      }
       const body = {
         version: VERSION,
         projects: Object.fromEntries(
-          [...projects].map(([project, files]) => [project, Object.fromEntries(files)]),
+          [...merged]
+            .filter(([, files]) => files.size > 0)
+            .map(([project, files]) => [project, Object.fromEntries(files)]),
         ),
       }
       await mkdir(dir, { recursive: true })

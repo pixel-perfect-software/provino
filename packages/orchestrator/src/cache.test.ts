@@ -79,6 +79,109 @@ describe('createResultsCache', () => {
     assert.deepEqual(third.get('p', 'new.test.ts'), history(7))
   })
 
+  it('keeps what a run that overlapped wrote: two caches opened from one file, each with its own entry', async () => {
+    const dir = await scratch()
+    const seed = createResultsCache(dir)
+    seed.record('p', 'seed.test.ts', history(9))
+    await seed.write()
+
+    // Both runs read `results.json` before either one writes.
+    const first = createResultsCache(dir)
+    const second = createResultsCache(dir)
+    first.record('p', 'a.test.ts', history(1))
+    second.record('p', 'b.test.ts', history(2))
+    await first.write()
+    await second.write()
+
+    const merged = createResultsCache(dir)
+    assert.deepEqual(merged.get('p', 'a.test.ts'), history(1), 'the first run’s entry survives')
+    assert.deepEqual(merged.get('p', 'b.test.ts'), history(2))
+    assert.deepEqual(merged.get('p', 'seed.test.ts'), history(9))
+  })
+
+  it('lets its own entry win over the disk’s for the same file', async () => {
+    const dir = await scratch()
+    const first = createResultsCache(dir)
+    const second = createResultsCache(dir)
+    first.record('p', 'a.test.ts', history(1))
+    second.record('p', 'a.test.ts', history(2))
+    await first.write()
+    await second.write()
+    assert.deepEqual(createResultsCache(dir).get('p', 'a.test.ts'), history(2))
+  })
+
+  it('reads the file again when it writes: a file that went bad since is empty, not an error', async () => {
+    const dir = await scratch()
+    const seed = createResultsCache(dir)
+    seed.record('p', 'seed.test.ts', history(9))
+    await seed.write()
+    const cache = createResultsCache(dir)
+    cache.record('p', 'a.test.ts', history(1))
+    await writeFile(join(dir, 'results.json'), '{"version":1,"projects":')
+    await cache.write()
+    const next = createResultsCache(dir)
+    assert.deepEqual(next.get('p', 'a.test.ts'), history(1))
+    assert.equal(next.get('p', 'seed.test.ts'), undefined, 'unreadable history is no history')
+  })
+
+  it('writes the same file again without duplicating or losing anything', async () => {
+    const dir = await scratch()
+    const cache = createResultsCache(dir)
+    cache.record('p', 'a.test.ts', history(1))
+    await cache.write()
+    await cache.write()
+    assert.deepEqual(createResultsCache(dir).get('p', 'a.test.ts'), history(1))
+  })
+
+  it('prune drops the project’s entries for files that are not kept, from memory and from the disk', async () => {
+    const dir = await scratch()
+    const seed = createResultsCache(dir)
+    seed.record('p', 'kept.test.ts', history(1))
+    seed.record('p', 'gone.test.ts', history(2))
+    seed.record('q', 'gone.test.ts', history(3))
+    await seed.write()
+
+    const cache = createResultsCache(dir)
+    cache.prune('p', new Set(['kept.test.ts', 'new.test.ts']))
+    assert.equal(cache.get('p', 'gone.test.ts'), undefined)
+    assert.deepEqual(cache.get('p', 'kept.test.ts'), history(1))
+    cache.record('p', 'new.test.ts', history(4))
+    await cache.write()
+
+    const next = createResultsCache(dir)
+    assert.equal(next.get('p', 'gone.test.ts'), undefined, 'a file that is gone has no history')
+    assert.deepEqual(next.get('p', 'kept.test.ts'), history(1))
+    assert.deepEqual(next.get('p', 'new.test.ts'), history(4))
+    assert.deepEqual(next.get('q', 'gone.test.ts'), history(3), 'another project is untouched')
+  })
+
+  it('prune also drops what another run wrote to the disk for a file that is not kept', async () => {
+    const dir = await scratch()
+    const cache = createResultsCache(dir)
+    cache.prune('p', new Set(['kept.test.ts']))
+    const other = createResultsCache(dir)
+    other.record('p', 'stale.test.ts', history(5))
+    other.record('p', 'kept.test.ts', history(6))
+    await other.write()
+    await cache.write()
+    const next = createResultsCache(dir)
+    assert.equal(next.get('p', 'stale.test.ts'), undefined)
+    assert.deepEqual(next.get('p', 'kept.test.ts'), history(6))
+  })
+
+  it('prune with no files kept empties the project, and leaves no empty project behind', async () => {
+    const dir = await scratch()
+    const seed = createResultsCache(dir)
+    seed.record('p', 'a.test.ts', history(1))
+    seed.record('q', 'b.test.ts', history(2))
+    await seed.write()
+    const cache = createResultsCache(dir)
+    cache.prune('p', new Set())
+    await cache.write()
+    const written: unknown = JSON.parse(await readFile(join(dir, 'results.json'), 'utf8'))
+    assert.deepEqual(written, { version: 1, projects: { q: { 'b.test.ts': history(2) } } })
+  })
+
   it('reads the file once: a later change on disk is not seen', async () => {
     const dir = await scratch()
     const first = createResultsCache(dir)

@@ -186,6 +186,8 @@ export interface NormalizedView {
   readonly runner: unknown
   readonly suite: unknown
   readonly success: unknown
+  /** The run's `env.ci`. */
+  readonly ci: unknown
   readonly files: ReadonlyMap<string, NormalizedFileView>
 }
 
@@ -227,6 +229,7 @@ export function viewOfNormalized(text: string): NormalizedView {
     runner: run.runner,
     suite: run.suite,
     success: run.success,
+    ci: record(run.env, 'env').ci,
     files,
   }
 }

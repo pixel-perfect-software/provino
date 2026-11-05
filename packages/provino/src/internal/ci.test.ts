@@ -15,4 +15,13 @@ describe('isCi', () => {
       assert.equal(isCi({ CI: value }), false, JSON.stringify(value))
     }
   })
+
+  it('ignores case and surrounding spaces, as the normalized-json reporter did', () => {
+    for (const value of ['FALSE', 'False', ' false ', '\tfalse\n', ' 0 ', ' ', '  ']) {
+      assert.equal(isCi({ CI: value }), false, JSON.stringify(value))
+    }
+    for (const value of [' true ', ' TRUE', ' 1 ', ' yes']) {
+      assert.equal(isCi({ CI: value }), true, JSON.stringify(value))
+    }
+  })
 })

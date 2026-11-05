@@ -12,7 +12,7 @@ The reporter bus and the two built-in reporters B11 needs (coordinator side; imp
 | `src/default/format.ts` | Every string the default reporter prints. Not a golden (T9.7 adds those) |
 | `src/normalized-json/reporter.ts` | `normalizedJsonReporter(options)`: collects events, writes one `NormalizedRun` at `run:end` |
 | `src/normalized-json/build.ts` | The pure part: `testsInOrder`, `normalizeError`, `buildNormalizedRun` |
-| `src/normalized-json/environment.ts` | `RunEnvironment` from `node:os` and `process` (the harness has the same; this package can't import it) |
+| `src/normalized-json/environment.ts` | `RunEnvironment` from `node:os` and `process` (the harness has the same; this package can't import it); `ci` from `CI` (trimmed, lowercased, not empty, `0` or `false`) when the reporter isn't given one |
 | `src/sink.ts` | `TextSink`: anything with `write(chunk)`; a returned promise is awaited |
 | `src/internal/serialize-error.ts` | Thrown value → `SerializedError` (same shape as `@provino/rpc`'s, which this package can't import) |
 | `src/internal/test-support.ts` | Synthetic runs built to the real types: `buildFile`, `emitFile`, `playRun`, `recorder` |
@@ -33,6 +33,7 @@ The reporter bus and the two built-in reporters B11 needs (coordinator side; imp
 - Identity is the file path, `TestTask.fullName` and `dupIndex`. Tests are listed in declaration order by walking the tree from the file node, since `file-collect-end.tasks` is only "parents before children". A test collected but never ended (or ended `queued`/`running`) is `notRun` with no assertion count or duration.
 - A file with `workerExit`, or one that failed with no tests collected, is `crashed`; otherwise `failed`/`skipped`/`passed` from `FileResult.state`. `fileError` is the file's own errors (several are joined). An unhandled error tied to a file is added to that file (and fails a passing one); one tied to no file, and every `error` event, is a `runErrors` entry.
 - `success` is false for a failed or crashed file, a run error, or an `interrupted` run. `snapshots`, `console` and `trace` are left out (T12.16). `retries`, `expectedToFail` and `location` are filled the way the harness's Jest converter fills them.
+- `env.ci` is the `ci` option when given (over `env.ci` of an `env` option too): `provino`'s `run()` passes the ci it resolved, so the file agrees with the run. Only without one does the reporter read `CI` itself, by the same rule.
 - `startedAt` is the wall clock at `run:start` (`now`, default `Date.now`). A failed write throws out of `run:end`, so the bus records it and the run fails.
 - The tests assert the JSON's shape directly: `parseNormalizedRun` lives in `@provino/harness`, which this package's manifest node may not import. B11's bench check runs it on real output.
 

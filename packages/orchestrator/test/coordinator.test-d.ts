@@ -125,10 +125,18 @@ expectTypeOf<ResultsCache['get']>().toEqualTypeOf<
   (project: string, path: string) => FileHistory | undefined
 >()
 expectTypeOf<ResultsCache['write']>().toEqualTypeOf<() => Promise<void>>()
+expectTypeOf<ResultsCache['prune']>().toEqualTypeOf<
+  (project: string, keep: ReadonlySet<string>) => void
+>()
 declare const cache: ResultsCache
 cache.record('web', 'a.test.ts', { durationMs: 1, failed: false, tests: 1, at: 0 })
 // @ts-expect-error a history has all four fields
 cache.record('web', 'a.test.ts', { durationMs: 1 })
+cache.prune('web', new Set(['a.test.ts']))
+// @ts-expect-error `keep` is the project's whole file set, a Set, not one path
+cache.prune('web', 'a.test.ts')
+// @ts-expect-error `prune` needs the project's name
+cache.prune(new Set(['a.test.ts']))
 // @ts-expect-error the directory is a path
 createResultsCache()
 
@@ -163,6 +171,7 @@ function describeOutcome(outcome: PoolOutcome): string {
     case 'failed':
       return 'failed'
     case 'start-failed':
+      expectTypeOf(outcome.workerId).toEqualTypeOf<number>()
       return 'start-failed'
     case 'aborted':
       return 'aborted'

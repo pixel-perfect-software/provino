@@ -20,7 +20,7 @@ import { connectWorker, type FileDone, type WorkerConnection } from './connect.t
 import { OrchestratorError } from './errors.ts'
 import { sameWorkerKey } from './key.ts'
 
-/** After this many workers in a row that fail to start, the pool gives up (Track 9). */
+/** After this many workers in a row fail to start, the pool starts no more (Track 9). */
 const MAX_START_FAILURES = 3
 
 /**
@@ -75,8 +75,11 @@ export interface FileRequest {
  * - `done`: the worker finished the file (it may have failed; its events say).
  * - `crashed`: the worker exited while it ran the file; a replacement serves the next one.
  * - `failed`: the file's `onEvents` threw, so the worker's state is unknown and it was replaced.
- * - `start-failed`: no worker could be started for the file (`error` is why). After three in a row
- *   every file gets the third one's error, without another attempt.
+ * - `start-failed`: no worker could be started for the file (`error` is why, `workerId` the worker
+ *   whose start failed). After three failures in a row the pool starts no more workers; the files
+ *   still waiting wait for any worker that is alive or still starting, and once none is, each gets
+ *   the last failure's `error` and `workerId` (no worker took those files, so the id is the one
+ *   their error belongs to).
  * - `aborted`: the pool was aborted or closed before the file finished.
  * @public
  */
@@ -84,7 +87,7 @@ export type PoolOutcome =
   | { readonly type: 'done'; readonly workerId: number; readonly done: FileDone }
   | { readonly type: 'crashed'; readonly workerId: number; readonly exit: WorkerExit }
   | { readonly type: 'failed'; readonly workerId: number; readonly error: unknown }
-  | { readonly type: 'start-failed'; readonly error: unknown }
+  | { readonly type: 'start-failed'; readonly workerId: number; readonly error: unknown }
   | { readonly type: 'aborted' }
 
 /**
@@ -151,6 +154,11 @@ export function workerExitOf(error: unknown): WorkerExit | undefined {
  * After a file whose `fileDone.leakedGlobals` is not empty, the worker is stopped rather than
  * reused (`recycle.onLeak`, default on; D22): the next file would see what the first left behind.
  *
+ * Three workers in a row that fail to start end the starting (a worker that starts resets the
+ * count). The pool then gives up only when no worker is alive or still starting: until then, the
+ * files left wait for the workers that are, and the pool never fails a file a healthy worker could
+ * run.
+ *
  * `recycle.memoryLimitBytes` and `recycle.maxFilesPerWorker` are not built (T9.5, B21); setting
  * either throws `ORCH_NOT_IMPLEMENTED`.
  * @public
@@ -173,7 +181,8 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   let spawning = 0
   let nextWorkerId = 1
   let startFailures = 0
-  let broken: { readonly error: unknown } | undefined
+  /** Set while the last `MAX_START_FAILURES` or more starts in a row have failed: the latest one. */
+  let exhausted: { readonly workerId: number; readonly error: unknown } | undefined
   let aborted = false
   let closing: Promise<void> | undefined
 
@@ -226,11 +235,22 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     }
   }
 
+  /** Whether a worker is alive (and not being stopped) or still starting: one that may take a file. */
+  function canServe(): boolean {
+    if (spawning > 0) return true
+    for (const slot of slots) {
+      if (slot.state !== 'stopping' && !slot.dead) return true
+    }
+    return false
+  }
+
   /** Gives waiting files to idle workers, starts workers for the rest while there is room. */
   function pump(): void {
     if (aborted) return
-    if (broken !== undefined) {
-      settleWaiters({ type: 'start-failed', error: broken.error })
+    // Too many starts failed in a row. The files left fail only once no worker is left that could
+    // run them; while one is alive or starting, they wait for it.
+    if (exhausted !== undefined && !canServe()) {
+      settleWaiters({ type: 'start-failed', ...exhausted })
       return
     }
     for (let waiter = waiters[0]; waiter !== undefined; waiter = waiters[0]) {
@@ -241,7 +261,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       if (idle !== undefined) {
         waiters.shift()
         void execute(idle, waiter)
-      } else if (slots.size + spawning < maxWorkers) {
+      } else if (exhausted === undefined && slots.size + spawning < maxWorkers) {
         waiters.shift()
         const spawn = spawnFor(waiter)
         spawns.add(spawn)
@@ -292,13 +312,14 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         return
       }
       startFailures++
-      if (startFailures >= MAX_START_FAILURES) broken ??= { error }
-      waiter.resolve({ type: 'start-failed', error })
+      if (startFailures >= MAX_START_FAILURES) exhausted = { workerId, error }
+      waiter.resolve({ type: 'start-failed', workerId, error })
       pump()
       return
     }
     spawning--
     startFailures = 0
+    exhausted = undefined
     slots.add(slot)
     void slot.connection.exited.then(() => forget(slot))
     // `close` may have come while the worker was starting: it is stopped, and the file not run.
@@ -342,8 +363,6 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   return {
     run(request) {
       if (aborted) return Promise.resolve({ type: 'aborted' })
-      if (broken !== undefined)
-        return Promise.resolve({ type: 'start-failed', error: broken.error })
       return new Promise<PoolOutcome>((resolve) => {
         waiters.push({ request, resolve })
         pump()

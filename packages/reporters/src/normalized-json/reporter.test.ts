@@ -580,6 +580,65 @@ describe('the normalized-json reporter', () => {
       assert.equal(typeof env.ci, 'boolean')
     })
 
+    test('takes env.ci from the ci option, over the env it is given', async () => {
+      for (const [fromEnv, ci] of [
+        [false, true],
+        [true, false],
+      ] as const) {
+        const out = output()
+        const bus = createReporterBus([
+          normalizedJsonReporter({
+            stream: out,
+            suite: 's',
+            runner: 'r',
+            runnerVersion: '1',
+            env: { ...FIXED_ENV, ci: fromEnv },
+            ci,
+          }),
+        ])
+        await playRun(bus, [])
+        assert.deepEqual(parse(out).env, { ...FIXED_ENV, ci })
+      }
+    })
+
+    test('leaves the env it is given alone without a ci option', async () => {
+      for (const ci of [false, true]) {
+        const out = output()
+        const bus = createReporterBus([
+          normalizedJsonReporter({
+            stream: out,
+            suite: 's',
+            runner: 'r',
+            runnerVersion: '1',
+            env: { ...FIXED_ENV, ci },
+          }),
+        ])
+        await playRun(bus, [])
+        assert.equal(parse(out).env.ci, ci)
+      }
+    })
+
+    test('the ci option is the answer whatever CI says in the environment it reads', async () => {
+      // Both values, so one of them disagrees with this process's CI variable, whatever it is.
+      for (const ci of [false, true]) {
+        const out = output()
+        const bus = createReporterBus([
+          normalizedJsonReporter({
+            stream: out,
+            suite: 's',
+            runner: 'provino:test',
+            runnerVersion: '9.9.9',
+            ci,
+          }),
+        ])
+        await playRun(bus, [])
+        const { env } = parse(out)
+        assert.equal(env.ci, ci)
+        assert.deepEqual(env.runners, { provino: '9.9.9' })
+        assert.equal(env.node, process.version)
+      }
+    })
+
     test('starts over at each run:start', async () => {
       const out = output()
       const bus = createReporterBus([reporter(out)])

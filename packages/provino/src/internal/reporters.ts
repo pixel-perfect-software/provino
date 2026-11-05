@@ -60,6 +60,8 @@ function normalizedJson(context: ReporterContext, options: unknown): Reporter {
     suite: suite ?? basename(project.rootDir),
     runner: `provino:${project.dialect?.name ?? 'neutral'}`,
     runnerVersion: context.runnerVersion,
+    // The run's own answer, so `env.ci` in the file is what the run used.
+    ci: project.config.ci,
   })
 }
 

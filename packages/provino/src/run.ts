@@ -1,14 +1,7 @@
 import { resolve } from 'node:path'
 import { loadProject } from '@provino/config'
 import { jestDialect } from '@provino/dialect-jest'
-import {
-  createResultsCache,
-  defaultCacheDir,
-  ExitCode,
-  exitCodeFor,
-  type RunProjectOptions,
-  runProject,
-} from '@provino/orchestrator'
+import { ExitCode, exitCodeFor, type RunProjectOptions, runProject } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import { isCi } from './internal/ci.ts'
 import { usageMessage } from './internal/describe.ts'
@@ -63,8 +56,9 @@ async function execute(
   const summary = await runProject(project, {
     bus,
     pool,
-    cache: options.cache === false ? false : createResultsCache(defaultCacheDir(project.rootDir)),
     stderr,
+    // Omitted, `runProject` keeps the cache in the project's `node_modules/.cache/provino`.
+    ...(options.cache === false ? { cache: false } : {}),
     ...(options.testNamePattern === undefined ? {} : { testNamePattern: options.testNamePattern }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
   })

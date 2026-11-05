@@ -6,7 +6,7 @@ Loads a project's config file and resolves it into everything the coordinator an
 
 | Path | Role |
 |---|---|
-| `src/load.ts` | `loadConfigFile(path, env)`: `import()` of the file; the default export is an object, or a (maybe async) function of `ConfigEnv`. `loadProject(path, options)`: load, then resolve (`env` defaults to `{ command: 'run', mode: 'test' }`) |
+| `src/load.ts` | `loadConfigFile(path, env)`: `import()` of the file (read afresh on every call, see below); the default export is an object, or a (maybe async) function of `ConfigEnv`. `loadProject(path, options)`: load, then resolve (`env` defaults to `{ command: 'run', mode: 'test' }`) |
 | `src/resolve.ts` | `resolveProject(input, options)` → `ResolvedProject`: root, dialect, policy, globs, environment, isolation, and the `SerializedProjectConfig` |
 | `src/errors.ts` | `ConfigError` with a `code` (`ConfigErrorCode`) and, for bad dialect options, `issues` |
 | `src/internal/input.ts` | `parseInput`: checks each key `resolveProject` reads (`CONFIG_INVALID`) and refuses `projects`, `plugins`, `alsoServe` when non-empty (`CONFIG_UNSUPPORTED`, naming T1.4) |
@@ -23,7 +23,7 @@ Loads a project's config file and resolves it into everything the coordinator an
 - **Setup files:** the neutral `setupFiles` become the worker's `setupFilesAfterEnv` (as Track 11 maps Vitest's), resolved against `rootDir`; the worker's `setupFiles` stays `[]`.
 - **Loader conditions** come from calling the policy's `orchestrator.environmentConditions` behaviour in the coordinator, with the environment's *name* only. An `Environment` object's own `conditions` live in the worker and are not seen here.
 - **Every failure is a `ConfigError`.** Policy errors (`resolvePolicy`, `serializePolicy`), a throwing dialect `detect` or factory or schema, and an unloadable behaviour are wrapped with the original as `cause`.
-- **Node caches imports by URL,** so loading one path twice in a process returns the first contents. Watch mode (T9.8) must bust it.
+- **Every load reads the file again.** Node caches an import by URL, so `loadConfigFile` imports `file:///…/config.mjs?provino-load=<uuid>`: a URL of its own per call, which reloads `.mjs`, `.mts`, and `.js`/`.ts` under a package of `type: module` (checked on Node 24.22). Node's CommonJS loader ignores the query and keys by file name (`.cjs`, `.cts`, `.js`/`.ts` under `type: commonjs`), so the file's `require.cache` entry is deleted first (`createRequire(import.meta.url).cache`). Limits: each load stays in the ES module map for the life of the process (a small leak, accepted for config files), and only the config file itself is reloaded: a module it imports or requires keeps its cached copy, so edit-and-reload of a helper needs the process to restart. A config *function* runs on every call either way (it is called with `env` each time), so one that reads `process.env` always sees the current value; module-level code reads it at load time, and now does so per load. `import.meta.url` in the config carries the query; `import.meta.filename` and `dirname` don't.
 - Tests use small fake dialects (`defineDialect`) and real config files written to `$TMPDIR` at test time (no `.js` is committed, D13). The package may not import `@provino/dialect-jest` (not in its manifest deps), so the real Jest dialect is exercised in `provino`'s tests.
 
 ## Not built yet

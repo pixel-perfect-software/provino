@@ -16,12 +16,12 @@ The umbrella package (layer 6, composition root). B11 built its first part: `pro
 
 ## `run()`
 
-Flow: check `config` and `maxWorkers` → `loadProject(config against cwd, { dialects: [jestDialect], environments: { node: env-node }, ci })` → build the reporters and the bus → `runProject` (pool kind and `maxWorkers` only when given, the results cache unless `cache: false`, `stderr` for the workers' own stderr) → `exitCodeFor(summary, { policy, passWithNoTests, reporterFailures })`.
+Flow: check `config` and `maxWorkers` → `loadProject(config against cwd, { dialects: [jestDialect], environments: { node: env-node }, ci })` → build the reporters and the bus → `runProject` (pool kind and `maxWorkers` only when given, `cache: false` only when asked (otherwise `runProject` keeps its own default cache in `node_modules/.cache/provino`), `stderr` for the workers' own stderr) → `exitCodeFor(summary, { policy, passWithNoTests, reporterFailures })`.
 
 - **Bad input never rejects.** A `UsageError` (no config path, `maxWorkers` not a whole number of at least 1, an unknown reporter), a `ConfigError` (with its issues and `cause` chain) and `OrchestratorError` `ORCH_BAD_PATTERN` are written to `stderr` as `Provino: <message>` and become `{ exitCode: ExitCode.UsageError (2), summary: null }`. Every other error is a bug and rejects. The pattern is checked by `runProject` before anything starts, so no reporter has said anything.
 - **Output.** `default` writes to `stderr` (as Jest does, so stdout can carry the JSON); `normalized-json` writes to `outputFile` (resolved against `cwd`) or `stdout`, with `suite` the root directory's name, `runner` `provino:<dialect name, or neutral>` and `runnerVersion` this package's version. A reporter that throws fails the run (exit 1), and `run()` also says so on `stderr`, since only `default` shows reporter errors.
-- **Re-entrant.** No `process.exit`, no module-level state: the pool and the cache belong to one call, so calls follow each other or overlap on different projects. (A config file is imported by URL, and Node caches that: one path loaded twice in a process gives the first contents.)
-- `ci` defaults to `isCi(process.env)`: `CI` set, and not empty, `false` or `0`. `signal` aborting ends the run with exit 130.
+- **Re-entrant.** No `process.exit`, no module-level state: the pool and the cache belong to one call, so calls follow each other or overlap on different projects. A config file is read afresh on every call (`loadConfigFile` busts Node's module cache for it; the files it imports are still cached).
+- `ci` defaults to `isCi(process.env)`: `CI` set, and not empty, `0` or `false`, ignoring case and spaces (`CI=FALSE` and `CI=' false '` are not CI). That is the one answer for the run: the project is loaded with it, and the `normalized-json` reporter is given the same value (`env.ci`), so the file never disagrees with `--ci`, the `ci` option or the variable. `signal` aborting ends the run with exit 130.
 
 ## The bin
 
@@ -31,7 +31,7 @@ Flow: check `config` and `maxWorkers` → `loadProject(config against cwd, { dia
 
 - `src/internal/*.test.ts`: `parseRunArgs`/`main` and `isCi`.
 - `test/*.test.ts`: real projects generated into `$TMPDIR` as text (no `.js` is committed, D13): a Jest-style `tests/*.test.js`, a `provino.config.mjs` and a CommonJS `package.json` (`test/support.ts`: `makeProject`, `trackedProjects`, `spawnCli` with a deadline, `viewOfNormalized`). Real forks by default.
-  - `run.test.ts`: `run()` (pass, fail, the exit-2 cases, no files, `-t`, both reporters, the cache, the pools, `maxWorkers`, sequential and concurrent calls, an aborted signal).
+  - `run.test.ts`: `run()` (pass, fail, the exit-2 cases, no files, `-t`, both reporters, `env.ci` in the JSON, the cache, the pools, `maxWorkers`, sequential and concurrent calls, an aborted signal).
   - `cli.test.ts`: the bin as a child process.
   - `crash.test.ts`: B11's acceptance check: a test that sends its worker SIGSEGV fails that file (`workerExit` `{ type: 'signal', signal: 'SIGSEGV' }`, `FAIL` with "killed by SIGSEGV", `crashed` in the JSON), the other files pass, no worker outlives the run; through `run()` and through the bin. Skipped on win32.
   - `run.test-d.ts`: the types of `run`'s options and result.

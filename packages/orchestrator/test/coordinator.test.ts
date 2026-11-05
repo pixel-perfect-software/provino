@@ -3,6 +3,7 @@
 // The Jest dialect with the real node environment runs this through `provino/node` in B11's bench
 // check; here the orchestrator may not depend on either, so the fixtures stand in.
 import assert from 'node:assert/strict'
+import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
@@ -16,7 +17,7 @@ import {
   runProject,
 } from '@provino/orchestrator'
 import { createReporterBus, type ReporterBusHandle } from '@provino/reporters'
-import type { Reporter, RunSummary, TaskId } from '@provino/types'
+import type { Reporter, ReporterBus, RunSummary, TaskId } from '@provino/types'
 import {
   Collect,
   isRunning,
@@ -56,6 +57,7 @@ function recorder(): { reporter: Reporter; seen: Seen[] } {
     console: (file, event) => note('console', file.fileId, { text: event.text }),
     'file:end': (result) => note('file:end', result.file.fileId, { state: result.state }),
     'run:end': (summary) => note('run:end', null, { reason: summary.reason }),
+    error: (error, origin) => note('error', null, { message: error.message, origin }),
   }
   return { reporter, seen }
 }
@@ -97,6 +99,21 @@ async function run(
 /** The names of the events of one file, in order. */
 const namesOf = (seen: readonly Seen[], fileId: TaskId): string[] =>
   seen.filter((entry) => entry.fileId === fileId).map((entry) => entry.name)
+
+/**
+ * The pairing every file keeps: a `file:start` is followed by exactly one `file:end`, and a
+ * `file:end` never comes without its `file:start` (and never before it).
+ */
+function assertStartEndPaired(seen: readonly Seen[]): void {
+  const ids = new Set(seen.flatMap((entry) => (entry.fileId === null ? [] : [entry.fileId])))
+  for (const id of ids) {
+    const names = namesOf(seen, id).filter((name) => name === 'file:start' || name === 'file:end')
+    assert.ok(
+      names.length === 0 || (names.length === 2 && names[0] === 'file:start'),
+      `${id}: ${names.join(', ') || 'neither'}`,
+    )
+  }
+}
 
 const passing = (extra = ''): string =>
   [
@@ -223,6 +240,7 @@ describe('runProject over forks', () => {
       const crashedId = boom?.file.fileId
       assert.ok(crashedId !== undefined)
       assert.equal(namesOf(seen, crashedId).at(-1), 'file:end')
+      assertStartEndPaired(seen)
 
       // The crash cost one worker; the files after it ran on others (`run` has checked that
       // none of them, the crashed one included, is still running).
@@ -241,7 +259,7 @@ describe('runProject over forks', () => {
     })
   }
 
-  it('stops the run and kills the workers when the signal aborts, reporting only what finished', async () => {
+  it('stops the run and kills the workers when the signal aborts: the file that had started ends as a failure, the rest are not reported', async () => {
     const p = await makeProject({
       // The biggest file runs first (no history) and never ends.
       'a-hangs.test.js': [
@@ -269,11 +287,35 @@ describe('runProject over forks', () => {
     const pids = await takeWorkerPids()
 
     assert.equal(summary.reason, 'interrupted')
-    assert.deepEqual(summary.files, [])
     assert.equal(exitCodeFor(summary, { policy: runtimeProject(p.dir).policy }), ExitCode.Sigint)
-    assert.equal(seen.filter((entry) => entry.name === 'file:end').length, 0)
+
+    // The file that had started is reported: it was cut off, so it failed, and says why.
+    assert.deepEqual(
+      summary.files.map((f) => [f.file.path, f.state]),
+      [['a-hangs.test.js', 'fail']],
+    )
+    const [cut] = summary.files
+    assert.equal(cut?.errors.length, 1)
+    assert.match(cut?.errors[0]?.message ?? '', /interrupted/i)
+    assert.match(cut?.errors[0]?.message ?? '', /a-hangs\.test\.js/)
+    const ends = seen.filter((entry) => entry.name === 'file:end')
+    assert.deepEqual(
+      ends.map((entry) => [entry.fileId, entry.detail.state]),
+      [[cut?.file.fileId, 'fail']],
+    )
+
+    // The files that never started have neither `file:start` nor `file:end`, and are not in the summary.
     assert.equal(seen.filter((entry) => entry.name === 'file:start').length, 1)
+    assertStartEndPaired(seen)
+    for (const path of ['b.test.js', 'c.test.js']) {
+      const id = fileIdOf('rt', path)
+      assert.deepEqual(namesOf(seen, id), ['file:queued'], path)
+    }
+    // `file:end` comes before `run:end`, which closes the run.
+    const names = seen.map((entry) => entry.name)
+    assert.ok(names.lastIndexOf('file:end') < names.indexOf('run:end'))
     assert.equal(seen.at(-1)?.name, 'run:end')
+    assert.equal(seen.at(-1)?.detail.reason, 'interrupted')
     assert.equal(pids.length, 1)
     for (const pid of pids) assert.equal(isRunning(pid), false)
   })
@@ -296,9 +338,23 @@ describe('runProject over forks', () => {
     const third = summary.files[2]?.errors[0]?.message
     assert.equal(summary.files[3]?.errors[0]?.message, third)
     assert.equal(summary.files[4]?.errors[0]?.message, third)
-    assert.equal(seen.filter((entry) => entry.name === 'file:start').length, 0)
     assert.equal(seen.filter((entry) => entry.name === 'file:end').length, 5)
     assert.ok(stderr.text.length > 0, 'the worker’s own error reached the stderr sink')
+
+    // A file that fails without a worker still has `file:start` before its `file:end`, with the
+    // worker whose failed start it reports: its own (1, 2, 3), then the last one for the files
+    // left when the pool gave up.
+    assertStartEndPaired(seen)
+    assert.equal(seen.filter((entry) => entry.name === 'file:start').length, 5)
+    const startedOn = summary.files.map(
+      (f) =>
+        seen.find((entry) => entry.name === 'file:start' && entry.fileId === f.file.fileId)?.detail
+          .workerId,
+    )
+    assert.deepEqual(startedOn, [1, 2, 3, 3, 3])
+    for (const { file } of summary.files) {
+      assert.deepEqual(namesOf(seen, file.fileId), ['file:queued', 'file:start', 'file:end'])
+    }
   })
 })
 
@@ -408,6 +464,79 @@ describe('runProject over inline workers', () => {
     assert.deepEqual(await takeWorkerPids(), [], 'no worker was spawned')
   })
 
+  it('reports nothing for any file when the signal is already aborted: no file:start, no file:end, an interrupted run', async () => {
+    const p = await makeProject({ 'a.test.js': passing('a'), 'b.test.js': passing('b') })
+    const { summary, seen } = await run(runtimeProject(p.dir), {
+      pool: { kind: 'inline', maxWorkers: 1 },
+      signal: AbortSignal.abort(),
+    })
+    assert.equal(summary.reason, 'interrupted')
+    assert.deepEqual(summary.files, [])
+    assert.deepEqual(
+      seen.map((entry) => entry.name),
+      ['run:start', 'file:queued', 'file:queued', 'run:end'],
+    )
+  })
+
+  it('rejects a recycle option that is not built before run:start: reporters never see a run that cannot happen', async () => {
+    const p = await makeProject({ 'a.test.js': passing() })
+    for (const recycle of [{ maxFilesPerWorker: 2 }, { memoryLimitBytes: 1_000_000 }]) {
+      const { reporter, seen } = recorder()
+      await assert.rejects(
+        runProject(runtimeProject(p.dir), {
+          bus: createReporterBus([reporter]),
+          cache: false,
+          stderr: new Collect(),
+          pool: { kind: 'inline', recycle },
+        }),
+        { code: 'ORCH_NOT_IMPLEMENTED' },
+      )
+      assert.deepEqual(seen, [], 'not even run:start')
+    }
+  })
+
+  it('closes the pool, tells the bus and ends the run with run:end when something throws after run:start', async () => {
+    const p = await makeProject({
+      'a.test.js': passing('a'),
+      'b.test.js': passing('b'),
+      'c.test.js': passing('c'),
+    })
+    const { reporter, seen } = recorder()
+    const inner = createReporterBus([reporter])
+    // A bus that breaks once the first file has run: `file:end` rejects.
+    const broken: ReporterBus = {
+      add: (added) => inner.add(added),
+      emit: (event, ...args) =>
+        event === 'file:end'
+          ? Promise.reject(new Error('the bus broke'))
+          : inner.emit(event, ...args),
+    }
+    await assert.rejects(
+      runProject(runtimeProject(p.dir), {
+        bus: broken,
+        cache: false,
+        stderr: new Collect(),
+        entry: PID_RECORDING_ENTRY,
+        pool: { kind: 'forks', maxWorkers: 2 },
+      }),
+      { message: 'the bus broke' },
+    )
+    const pids = await takeWorkerPids()
+    assert.ok(pids.length > 0)
+    for (const pid of pids) assert.equal(isRunning(pid), false, `worker ${pid} is still running`)
+
+    // `run:start` was emitted, so the run is closed: the error, then `run:end` as failed.
+    assert.equal(seen[0]?.name, 'run:start')
+    assert.deepEqual(
+      seen.slice(-2).map((entry) => [entry.name, entry.detail.message ?? entry.detail.reason]),
+      [
+        ['error', 'the bus broke'],
+        ['run:end', 'failed'],
+      ],
+    )
+    assert.equal(seen.at(-2)?.detail.origin, 'coordinator')
+  })
+
   it('finds no files: run:start and run:end only, and the no-tests exit code', async () => {
     const p = await makeProject({ 'readme.md': 'no tests here' })
     const project = runtimeProject(p.dir)
@@ -439,6 +568,38 @@ describe('runProject over inline workers', () => {
     assert.equal(byPath.get('bad.test.js')?.state, 'fail')
     assert.match(byPath.get('bad.test.js')?.errors[0]?.message ?? '', /cannot collect/)
     assert.equal(summary.reason, 'failed')
+  })
+
+  it('drops the history of a file that is no longer discovered, and keeps the files that are', async () => {
+    const p = await makeProject({ 'a.test.js': passing('a'), 'b.test.js': passing('b') })
+    const dir = join(p.dir, 'cache')
+    const inline = { kind: 'inline', maxWorkers: 1 } as const
+    await run(runtimeProject(p.dir), { cache: createResultsCache(dir), pool: inline })
+    const first = createResultsCache(dir)
+    assert.notEqual(first.get('rt', 'a.test.js'), undefined)
+    assert.notEqual(first.get('rt', 'b.test.js'), undefined)
+
+    await rm(p.path('b.test.js'))
+    await run(runtimeProject(p.dir), { cache: createResultsCache(dir), pool: inline })
+    const second = createResultsCache(dir)
+    assert.notEqual(second.get('rt', 'a.test.js'), undefined)
+    assert.equal(second.get('rt', 'b.test.js'), undefined, 'a deleted file has no history')
+  })
+
+  it('keeps what another run wrote to the cache while this one was running', async () => {
+    const p = await makeProject({ 'a.test.js': passing('a') })
+    const dir = join(p.dir, 'cache')
+    const inline = { kind: 'inline', maxWorkers: 1 } as const
+    // This run's cache is opened first; then another project’s run writes the file.
+    const early = createResultsCache(dir)
+    await run(runtimeProject(p.dir, { name: 'other' }), {
+      cache: createResultsCache(dir),
+      pool: inline,
+    })
+    await run(runtimeProject(p.dir), { cache: early, pool: inline })
+    const merged = createResultsCache(dir)
+    assert.notEqual(merged.get('other', 'a.test.js'), undefined, 'the other run’s history survives')
+    assert.notEqual(merged.get('rt', 'a.test.js'), undefined)
   })
 
   it('records the run in the cache it is given, replacing the old history', async () => {

@@ -336,6 +336,96 @@ describe('createPool', () => {
     assert.ok(outcomes.every((o) => o.type === 'start-failed'))
     const errors = outcomes.map((o) => (o as { error: Error }).error.message)
     assert.deepEqual(errors.slice(2), Array(3).fill(errors[2]))
+    // Each outcome names the worker whose failed start its error is: a file’s own, or, for the
+    // files left when the pool gave up, the last one.
+    assert.deepEqual(
+      outcomes.map((o) => (o.type === 'start-failed' ? o.workerId : undefined)),
+      [1, 2, 3, 3, 3],
+    )
+  })
+
+  it('fails only the files whose own start failed while a healthy worker exists: three failures, then a start that works', async () => {
+    const f = fake(
+      () => 'ok',
+      (attempt) => attempt <= 3,
+    )
+    const pool = createPool(options(4), deps(f))
+    const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    const outcomes = await runAll(pool, files)
+    assert.deepEqual(
+      outcomes.map((o) => o.type),
+      ['start-failed', 'start-failed', 'start-failed', 'done', 'done', 'done', 'done', 'done'],
+      'the three files the failed spawns were for fail (they are not retried); every other file runs',
+    )
+    assert.deepEqual(
+      outcomes.slice(0, 3).map((o) => (o.type === 'start-failed' ? o.workerId : undefined)),
+      [1, 2, 3],
+    )
+    const ran = [...f.ran.values()].flat().sort()
+    assert.deepEqual(ran, ['d', 'e', 'f', 'g', 'h'])
+  })
+
+  it('does not give up while a worker is alive: files wait for it even after three failed starts in a row', async () => {
+    // Worker 1 starts; every later start fails. By the third failure the limit is reached, but
+    // worker 1 is busy, so `e` waits for it instead of failing.
+    let attempts = 0
+    const f = fake(
+      () => 'ok',
+      (attempt) => {
+        attempts = attempt
+        return attempt >= 2
+      },
+    )
+    const pool = createPool(options(2), deps(f))
+    const outcomes = await runAll(pool, ['a', 'b', 'c', 'd', 'e'])
+    assert.deepEqual(
+      outcomes.map((o) => o.type),
+      ['done', 'start-failed', 'start-failed', 'start-failed', 'done'],
+    )
+    assert.deepEqual(f.ran.get(1), ['a', 'e'])
+    assert.equal(attempts, 4, 'no start was attempted after the limit')
+  })
+
+  it('does not give up while a worker is still starting: the last file waits, then gets the error of the start that ended it', async () => {
+    const gate = Promise.withResolvers<void>()
+    let attempts = 0
+    const f = fake(() => 'ok')
+    const pool = createPool(
+      options(2),
+      deps(f, {
+        transport: () => ({
+          kind: 'inline',
+          create: async () => {
+            const attempt = ++attempts
+            if (attempt === 1) {
+              await gate.promise
+              throw new Error('the slow start failed too')
+            }
+            throw new Error(`start ${attempt} failed`)
+          },
+        }),
+      }),
+    )
+    const outcomes = Promise.all(['a', 'b', 'c', 'd', 'e'].map((file) => pool.run(request(file))))
+    // Starts 2, 3 and 4 fail at once; the first, slow one is still starting.
+    let settled = false
+    void outcomes.then(() => {
+      settled = true
+    })
+    for (let turn = 0; turn < 5; turn++) await new Promise((resolve) => setImmediate(resolve))
+    assert.equal(settled, false, 'e waits: a worker is still starting')
+    gate.resolve()
+    const results = await outcomes
+    await pool.close()
+    assert.equal(attempts, 4, 'no start was attempted after the limit')
+    assert.deepEqual(
+      results.map((o) => o.type),
+      Array(5).fill('start-failed'),
+    )
+    const last = results[4]
+    assert.ok(last?.type === 'start-failed')
+    assert.match(String(last.error), /the slow start failed too/)
+    assert.equal(last.workerId, 1)
   })
 
   it('counts only failures in a row: a worker that starts resets the count', async () => {

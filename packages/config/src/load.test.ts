@@ -128,6 +128,136 @@ describe('loadConfigFile', () => {
   })
 })
 
+describe('loading the same file again', () => {
+  let temp: TempDir
+  before(async () => {
+    temp = await makeTempDir()
+  })
+  after(() => temp.dispose())
+
+  const esmSource = (include: string): string =>
+    `export default { include: [${JSON.stringify(include)}] }\n`
+  const cjsSource = (include: string): string =>
+    `module.exports = { include: [${JSON.stringify(include)}] }\n`
+
+  // Node reloads an ES module for a new URL, but a CommonJS one by file name, so both families
+  // are covered: the extension alone, and the extension under each `package.json` `type`.
+  interface Case {
+    readonly name: string
+    /** The `type` of a `package.json` written beside the file, if any. */
+    readonly packageType?: 'module' | 'commonjs'
+    readonly file: string
+    readonly source: (include: string) => string
+  }
+  const CASES: readonly Case[] = [
+    { name: '.mjs', file: 'mjs/provino.config.mjs', source: esmSource },
+    { name: '.mts', file: 'mts/provino.config.mts', source: esmSource },
+    { name: '.cjs', file: 'cjs/provino.config.cjs', source: cjsSource },
+    {
+      name: '.js in an ES module package',
+      packageType: 'module',
+      file: 'js-esm/c.js',
+      source: esmSource,
+    },
+    {
+      name: '.js in a CommonJS package',
+      packageType: 'commonjs',
+      file: 'js-cjs/c.js',
+      source: cjsSource,
+    },
+    {
+      name: '.ts in an ES module package',
+      packageType: 'module',
+      file: 'ts-esm/c.ts',
+      source: esmSource,
+    },
+    {
+      name: '.ts in a CommonJS package',
+      packageType: 'commonjs',
+      file: 'ts-cjs/c.ts',
+      source: cjsSource,
+    },
+  ]
+  for (const { name, packageType, file, source } of CASES) {
+    test(`a ${name} file edited between two loads gives the new contents`, async () => {
+      if (packageType !== undefined) {
+        const manifest = file.replace(/[^/]+$/, 'package.json')
+        await temp.write(manifest, JSON.stringify({ type: packageType }))
+      }
+      const path = await temp.write(file, source('first/**'))
+      assert.deepEqual(await loadConfigFile(path, ENV), { include: ['first/**'] })
+      await temp.write(file, source('second/**'))
+      assert.deepEqual(await loadConfigFile(path, ENV), { include: ['second/**'] })
+      await temp.write(file, source('third/**'))
+      assert.deepEqual(await loadConfigFile(path, ENV), { include: ['third/**'] })
+    })
+  }
+
+  test('a file that reads the environment as it loads sees the environment of each load', async () => {
+    const path = await temp.write(
+      'module-level-env.mjs',
+      'const name = process.env.PROVINO_TEST_LOAD_ENV\nexport default { name }\n',
+    )
+    const before = process.env.PROVINO_TEST_LOAD_ENV
+    try {
+      process.env.PROVINO_TEST_LOAD_ENV = 'one'
+      assert.deepEqual(await loadConfigFile(path, ENV), { name: 'one' })
+      process.env.PROVINO_TEST_LOAD_ENV = 'two'
+      assert.deepEqual(await loadConfigFile(path, ENV), { name: 'two' })
+    } finally {
+      if (before === undefined) delete process.env.PROVINO_TEST_LOAD_ENV
+      else process.env.PROVINO_TEST_LOAD_ENV = before
+    }
+  })
+
+  test('a config function runs again on every load, in ES module and CommonJS files alike', async () => {
+    const esm = await temp.write(
+      'fn-env.mjs',
+      'export default () => ({ name: process.env.PROVINO_TEST_LOAD_ENV })\n',
+    )
+    const cjs = await temp.write(
+      'fn-env.cjs',
+      'module.exports = () => ({ name: process.env.PROVINO_TEST_LOAD_ENV })\n',
+    )
+    const before = process.env.PROVINO_TEST_LOAD_ENV
+    try {
+      for (const path of [esm, cjs]) {
+        process.env.PROVINO_TEST_LOAD_ENV = 'one'
+        assert.deepEqual(await loadConfigFile(path, ENV), { name: 'one' }, path)
+        process.env.PROVINO_TEST_LOAD_ENV = 'two'
+        assert.deepEqual(await loadConfigFile(path, ENV), { name: 'two' }, path)
+      }
+    } finally {
+      if (before === undefined) delete process.env.PROVINO_TEST_LOAD_ENV
+      else process.env.PROVINO_TEST_LOAD_ENV = before
+    }
+  })
+
+  test('a file that is fixed after a failed load loads', async () => {
+    const path = await temp.write('fixed-later.mjs', 'export default {\n')
+    await rejectsWith(loadConfigFile(path, ENV), 'CONFIG_LOAD_FAILED')
+    await temp.write('fixed-later.mjs', esmSource('fixed/**'))
+    assert.deepEqual(await loadConfigFile(path, ENV), { include: ['fixed/**'] })
+  })
+
+  test('import.meta of an ES module config still names its file', async () => {
+    const path = await temp.write(
+      'meta/provino.config.mjs',
+      'export default { name: import.meta.filename, root: import.meta.dirname }\n',
+    )
+    assert.deepEqual(await loadConfigFile(path, ENV), { name: path, root: `${temp.dir}/meta` })
+  })
+
+  test('loadProject reads the edited file too', async () => {
+    const path = await temp.write('project/provino.config.mjs', esmSource('before/**'))
+    const environments = { node: { module: '/env/node.mjs', export: 'nodeEnvironment' } }
+    const options = { dialects: [], environments, ci: false }
+    assert.deepEqual((await loadProject(path, options)).include, ['before/**'])
+    await temp.write('project/provino.config.mjs', esmSource('after/**'))
+    assert.deepEqual((await loadProject(path, options)).include, ['after/**'])
+  })
+})
+
 describe('loadProject', () => {
   let temp: TempDir
   before(async () => {

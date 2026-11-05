@@ -63,7 +63,7 @@ export interface RunProjectOptions {
   /**
    * The results cache that orders the run and records it. Omitted: the one in
    * `<rootDir>/node_modules/.cache/provino`. `false`: none, so the run neither reads nor writes
-   * history.
+   * history. A run prunes the project's history of files it did not discover (see `prune`).
    */
   readonly cache?: ResultsCache | false
   /** Run only tests whose full name matches (`-t`). Validated once, here, before anything starts. */
@@ -73,9 +73,10 @@ export interface RunProjectOptions {
   /** The worker entry, a `file:` URL or an absolute path. Default: `@provino/orchestrator/worker/main`. */
   readonly entry?: string | URL
   /**
-   * Aborting stops the run: no file starts, the workers running files are killed, and the files
-   * that did not finish are not reported (no `file:end`, not in the summary). The run ends with
-   * `reason: 'interrupted'`.
+   * Aborting stops the run: no file starts, and the workers running files are killed. A file that
+   * had started ends as a failure (`file:end`, one error naming the interruption, in the summary);
+   * a file that had not is not reported (no `file:start` or `file:end`, not in the summary). The
+   * run ends with `reason: 'interrupted'`.
    */
   readonly signal?: AbortSignal
 }
@@ -94,6 +95,12 @@ function checkPattern(pattern: string | undefined, flags: string): void {
       { cause: error },
     )
   }
+}
+
+/** A discovered file with the identity the bus knows it by. */
+interface QueuedFile {
+  readonly info: FileInfo
+  readonly file: DiscoveredFile
 }
 
 interface TransportSettings {
@@ -155,25 +162,33 @@ function crashError(file: FileInfo, exit: WorkerExit): SerializedError {
 /**
  * Runs a project's test files and reports to the bus.
  *
- * Discovery, then the results cache, then the order (`createHistorySequencer`), then `run:start`
- * and a `file:queued` per file in that order, then the files through a pool, then the pool is
- * closed (every worker has exited), then the cache is written, then `run:end`. A run that finds no
- * files emits `run:start` and `run:end` and nothing between.
+ * Everything that can fail on a bad option comes first, before the bus hears of the run: the
+ * pattern, the worker entry, the pool (recycling by memory or file count is not built, so setting
+ * it rejects with `ORCH_NOT_IMPLEMENTED`). Then discovery, the results cache, the order
+ * (`createHistorySequencer`), `run:start` and a `file:queued` per file in that order, the files
+ * through the pool, the pool is closed (every worker has exited), the cache is written, and
+ * `run:end`. A run that finds no files emits `run:start` and `run:end` and nothing between.
  *
  * Per file the bus sees `file:start(file, workerId)` when a worker takes it, the file's own events
- * as the worker sends them, and `file:end` after the last of them. A file's result is its
- * `file-end` (`todo` and `queued` count as `skip`, `running` as `fail`); a worker that dies
- * running it fails it with a `WorkerCrash` error and `workerExit`; a worker that cannot start
- * fails the file it was starting for, and after three such failures in a row every file left.
- * Files that fail to produce a result a worker's event stream can't explain (a worker that ended
- * the file without a `file-end`) fail too.
+ * as the worker sends them, and `file:end` after the last of them: **every `file:start` is
+ * followed by exactly one `file:end`, and a `file:end` never comes without its `file:start`.** A
+ * file's result is its `file-end` (`todo` and `queued` count as `skip`, `running` as `fail`); a
+ * worker that dies running it fails it with a `WorkerCrash` error and `workerExit`. A worker that
+ * cannot start fails the file it was starting for, and after three such failures in a row every
+ * file left once no worker is alive or starting; those files get `file:start` (with the worker
+ * whose failed start their error is) just before their `file:end`. A file whose worker ended it
+ * without a `file-end` fails too. When the run is aborted, a file that had started is cut off: it
+ * gets a `file:end` (`fail`, one error naming the interruption) and is in the summary; a file
+ * that had not started gets neither event and is not in the summary.
  *
  * The summary lists the files in the order they were queued. `unhandled` holds every unhandled
- * error of the run. `reason` is `failed` when a file failed or, if the policy says `fail-run`,
- * an error went unhandled.
+ * error of the run. `reason` is `interrupted` when the run was aborted, else `failed` when a file
+ * failed or, if the policy says `fail-run`, an error went unhandled.
  *
- * Rejects with `ORCH_BAD_PATTERN` before anything starts when `testNamePattern` isn't a regular
- * expression. Coverage and `deps` events are not used yet.
+ * Rejects with `ORCH_BAD_PATTERN` or `ORCH_NOT_IMPLEMENTED` before anything is emitted. If
+ * something throws after `run:start`, the pool is closed, the bus gets `error(…, 'coordinator')`
+ * and a `run:end` with `reason: 'failed'` (the files that finished so far), and then the error
+ * propagates. Coverage and `deps` events are not used yet.
  * @public
  */
 export async function runProject(
@@ -185,71 +200,11 @@ export async function runProject(
   checkPattern(options.testNamePattern, core.testNamePatternFlags)
 
   const startedAt = performance.now()
-  const discovered = await discoverFiles({
-    rootDir: project.rootDir,
-    include: project.include,
-    exclude: project.exclude,
-  })
-  const info: RunInfo = {
-    root: project.rootDir,
-    projects: [project.name],
-    startTime: startedAt,
-    watch: false,
-  }
-  if (discovered.length === 0) {
-    await bus.emit('run:start', info, [])
-    const summary: RunSummary = {
-      reason: signal?.aborted === true ? 'interrupted' : 'passed',
-      files: [],
-      unhandled: [],
-      durationMs: performance.now() - startedAt,
-    }
-    await bus.emit('run:end', summary)
-    return summary
-  }
-
+  const stderr = options.stderr ?? process.stderr
   const cache =
     options.cache === false
       ? undefined
       : (options.cache ?? createResultsCache(defaultCacheDir(project.rootDir)))
-  const inputs: ScheduleInput[] = discovered.map((file) => {
-    const history = cache?.get(project.name, file.relativePath)
-    return {
-      path: file.relativePath,
-      project: project.name,
-      sizeBytes: file.sizeBytes,
-      ...(history === undefined ? {} : { history }),
-    }
-  })
-  const ordered = createHistorySequencer({
-    unknownFirst: orchestrator.sequence.unknownFirst,
-  }).sort(inputs)
-  const byPath = new Map(discovered.map((file) => [file.relativePath, file]))
-  const queue: { readonly info: FileInfo; readonly file: DiscoveredFile }[] = ordered.flatMap(
-    (input) => {
-      const file = byPath.get(input.path)
-      return file === undefined
-        ? []
-        : [
-            {
-              file,
-              info: {
-                fileId: fileIdOf(project.name, file.relativePath),
-                path: file.relativePath,
-                project: project.name,
-              },
-            },
-          ]
-    },
-  )
-
-  await bus.emit(
-    'run:start',
-    info,
-    queue.map((entry) => entry.info),
-  )
-  for (const entry of queue) await bus.emit('file:queued', entry.info)
-
   const kind = options.pool?.kind ?? orchestrator.pool.default
   const execArgv = options.pool?.execArgv
   const key = workerKeyOf({
@@ -267,10 +222,11 @@ export async function runProject(
     startTimeoutMs: options.pool?.startTimeoutMs ?? START_TIMEOUT_MS,
   }
   const workerEntry = options.entry ?? import.meta.resolve('@provino/orchestrator/worker/main')
-  const stderr = options.stderr ?? process.stderr
 
   const unhandled: SerializedError[] = []
   const lastFile = new Map<number, FileInfo>()
+  // Nothing starts until a file is run, but this is where a bad option throws (`recycle`, the
+  // transport's own entry), so it comes before `run:start`.
   const pool = createPool(poolOptions, {
     transport: (poolKind) =>
       transportFor(poolKind, {
@@ -307,8 +263,18 @@ export async function runProject(
     ...(signal === undefined ? {} : { signal }),
   })
 
-  /** One file, from its turn in the queue to its `file:end`; `undefined` if the run ended first. */
-  async function runFile(entry: (typeof queue)[number]): Promise<FileResult | undefined> {
+  /** The result of each file that has one, by path. */
+  const results = new Map<string, FileResult>()
+  let queue: readonly QueuedFile[] = []
+  let interrupted = false
+  let announced = false
+
+  /** The files that have a result, in queue order. */
+  const finishedFiles = (): FileResult[] =>
+    queue.flatMap((entry) => results.get(entry.info.path) ?? [])
+
+  /** One file, from its turn in the queue to its `file:end`. */
+  async function runFile(entry: QueuedFile): Promise<void> {
     const dispatch = createFileDispatch({
       bus,
       file: entry.info,
@@ -323,20 +289,32 @@ export async function runProject(
         : { testNamePattern: options.testNamePattern }),
     }
     let taken = performance.now()
+    let started = false
     const outcome = await pool.run({
       key,
       job,
       onStart: async (workerId) => {
         taken = performance.now()
+        started = true
         lastFile.set(workerId, entry.info)
         await bus.emit('file:start', entry.info, workerId)
       },
       onEvents: dispatch.handle,
     })
+    if (outcome.type === 'aborted') {
+      interrupted = true
+      // A file that never started was never announced as started: nothing to end.
+      if (!started) return
+    }
+    if (outcome.type === 'start-failed') {
+      // No worker took the file, but a `file:end` always has a `file:start` before it: this one
+      // names the worker whose failed start the file's error is.
+      await bus.emit('file:start', entry.info, outcome.workerId)
+    }
     const result = resultOf(entry.info, outcome, dispatch, performance.now() - taken)
-    if (result === undefined) return undefined
-    // A start failure says nothing about the file; a skipped file isn't remembered (as Jest's).
-    if (outcome.type !== 'start-failed' && result.state !== 'skip') {
+    // A start failure or an interruption says nothing about the file; a skipped file isn't
+    // remembered (as Jest's).
+    if (outcome.type !== 'start-failed' && outcome.type !== 'aborted' && result.state !== 'skip') {
       cache?.record(project.name, entry.info.path, {
         durationMs: result.durationMs,
         failed: result.state === 'fail',
@@ -344,49 +322,143 @@ export async function runProject(
         at: Date.now(),
       })
     }
+    results.set(entry.info.path, result)
     await bus.emit('file:end', result)
-    return result
   }
 
-  let results: readonly (FileResult | undefined)[]
   try {
-    results = await Promise.all(queue.map((entry) => runFile(entry)))
-  } finally {
-    await pool.close()
-  }
-  try {
-    await cache?.write()
-  } catch (error) {
-    // The history is a convenience: a read-only directory must not fail a run that passed.
-    stderr.write(
-      `Provino: could not write the results cache: ${error instanceof Error ? error.message : String(error)}\n`,
+    const discovered = await discoverFiles({
+      rootDir: project.rootDir,
+      include: project.include,
+      exclude: project.exclude,
+    })
+    const info: RunInfo = {
+      root: project.rootDir,
+      projects: [project.name],
+      startTime: startedAt,
+      watch: false,
+    }
+    if (discovered.length === 0) {
+      announced = true
+      await bus.emit('run:start', info, [])
+      await pool.close()
+      const summary: RunSummary = {
+        reason: signal?.aborted === true ? 'interrupted' : 'passed',
+        files: [],
+        unhandled: [],
+        durationMs: performance.now() - startedAt,
+      }
+      await bus.emit('run:end', summary)
+      return summary
+    }
+
+    // Discovery is unfiltered, so what it found is the project's whole file set, and the history
+    // of any other file is stale. A run that filters its files (T11.13, U2) sees only some of
+    // them and must not prune.
+    cache?.prune(project.name, new Set(discovered.map((file) => file.relativePath)))
+    const inputs: ScheduleInput[] = discovered.map((file) => {
+      const history = cache?.get(project.name, file.relativePath)
+      return {
+        path: file.relativePath,
+        project: project.name,
+        sizeBytes: file.sizeBytes,
+        ...(history === undefined ? {} : { history }),
+      }
+    })
+    const ordered = createHistorySequencer({
+      unknownFirst: orchestrator.sequence.unknownFirst,
+    }).sort(inputs)
+    const byPath = new Map(discovered.map((file) => [file.relativePath, file]))
+    queue = ordered.flatMap((input) => {
+      const file = byPath.get(input.path)
+      return file === undefined
+        ? []
+        : [
+            {
+              file,
+              info: {
+                fileId: fileIdOf(project.name, file.relativePath),
+                path: file.relativePath,
+                project: project.name,
+              },
+            },
+          ]
+    })
+
+    announced = true
+    await bus.emit(
+      'run:start',
+      info,
+      queue.map((entry) => entry.info),
     )
-  }
+    for (const entry of queue) await bus.emit('file:queued', entry.info)
 
-  const files = results.filter((result): result is FileResult => result !== undefined)
-  const failed =
-    files.some((file) => file.state === 'fail') ||
-    (orchestrator.unhandledErrors === 'fail-run' && unhandled.length > 0)
-  const summary: RunSummary = {
-    reason: files.length < results.length ? 'interrupted' : failed ? 'failed' : 'passed',
-    files,
-    unhandled,
-    durationMs: performance.now() - startedAt,
+    await Promise.all(queue.map((entry) => runFile(entry)))
+    await pool.close()
+    try {
+      await cache?.write()
+    } catch (error) {
+      // The history is a convenience: a read-only directory must not fail a run that passed.
+      stderr.write(
+        `Provino: could not write the results cache: ${error instanceof Error ? error.message : String(error)}\n`,
+      )
+    }
+
+    const files = finishedFiles()
+    const failed =
+      files.some((file) => file.state === 'fail') ||
+      (orchestrator.unhandledErrors === 'fail-run' && unhandled.length > 0)
+    const summary: RunSummary = {
+      reason: interrupted ? 'interrupted' : failed ? 'failed' : 'passed',
+      files,
+      unhandled,
+      durationMs: performance.now() - startedAt,
+    }
+    await bus.emit('run:end', summary)
+    return summary
+  } catch (error) {
+    await pool.close()
+    // Reporters that heard `run:start` hear how it ended, whatever threw.
+    if (announced) {
+      try {
+        await bus.emit('error', serializeError(error), 'coordinator')
+        await bus.emit('run:end', {
+          reason: 'failed',
+          files: finishedFiles(),
+          unhandled,
+          durationMs: performance.now() - startedAt,
+        })
+      } catch (reportFailure) {
+        stderr.write(
+          `Provino: could not report the failure to the reporters: ${reportFailure instanceof Error ? reportFailure.message : String(reportFailure)}\n`,
+        )
+      }
+    }
+    throw error
   }
-  await bus.emit('run:end', summary)
-  return summary
 }
 
-/** How a file's pool outcome becomes its result; `undefined` for a file the run never finished. */
+/** How a file's pool outcome becomes its result. */
 function resultOf(
   file: FileInfo,
   outcome: PoolOutcome,
   dispatch: ReturnType<typeof createFileDispatch>,
   elapsedMs: number,
-): FileResult | undefined {
+): FileResult {
   switch (outcome.type) {
     case 'aborted':
-      return undefined
+      // Only a file that had started gets here: the run ended while it was running.
+      return {
+        file,
+        state: 'fail',
+        durationMs: elapsedMs,
+        errors: [
+          {
+            name: 'Interrupted',
+            message: `The run was interrupted while ${file.path} was running`,
+          },
+        ],
+      }
     case 'crashed':
       return {
         file,

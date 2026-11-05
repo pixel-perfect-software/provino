@@ -22,8 +22,20 @@ export interface NormalizedJsonReporterOptions {
   readonly runnerVersion: string
   /** The machine. Default: read from `node:os` and `process`, with `runners: { provino: runnerVersion }`. */
   readonly env?: RunEnvironment
+  /**
+   * Whether the run is a CI run: `NormalizedRun.env.ci`, over `env.ci` when both are given. Give
+   * the run's own answer, so the file agrees with what the run did. Default: read from the `CI`
+   * environment variable (set to anything but empty, `0` or `false`, ignoring case and spaces).
+   */
+  readonly ci?: boolean
   /** The wall clock, in epoch milliseconds, for `startedAt`. Default `Date.now`. */
   readonly now?: () => number
+}
+
+/** The machine the run is on: `options.env` or the one read from this process, with `options.ci` over its `ci`. */
+function runEnvironment(options: NormalizedJsonReporterOptions): RunEnvironment {
+  const machine = options.env ?? readRunEnvironment({ provino: options.runnerVersion })
+  return options.ci === undefined ? machine : { ...machine, ci: options.ci }
 }
 
 /**
@@ -94,7 +106,7 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
         runnerVersion: options.runnerVersion,
         suite: options.suite,
         startedAt: startedAt ?? new Date(now()).toISOString(),
-        env: options.env ?? readRunEnvironment({ provino: options.runnerVersion }),
+        env: runEnvironment(options),
         files,
         runErrors,
         reason: summary.reason,
