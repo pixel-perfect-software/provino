@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
-import { join } from 'node:path'
+import { symlink } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
+import { pathToFileURL } from 'node:url'
 import { defineDialect, moduleRef, resolvePolicy, serializePolicy } from '@provino/policy'
 import type {
   Dialect,
@@ -86,7 +88,7 @@ describe('resolveProject', () => {
       assert.deepEqual(project.config.setupFilesAfterEnv, [])
       assert.equal(project.config.ci, true)
       assert.deepEqual(project.config.loader, {
-        extensions: ['.js', '.ts', '.mjs', '.cjs', '.json'],
+        extensions: ['.js', '.mjs', '.cjs', '.jsx', '.ts', '.mts', '.cts', '.tsx', '.json'],
         conditions: ['node'],
         tsconfig: 'auto',
         mappers: [],
@@ -95,7 +97,8 @@ describe('resolveProject', () => {
     })
 
     test('gives a worker config that survives structuredClone', async () => {
-      const { config } = await resolveWith({ setupFiles: ['setup.ts'] })
+      await temp.write('setup.ts', '')
+      const { config } = await resolveWith({ setupFiles: ['./setup.ts'] })
       assert.deepEqual(structuredClone(config), config)
     })
 
@@ -118,15 +121,33 @@ describe('resolveProject', () => {
 
   describe('root', () => {
     test('is resolved against the config file’s directory', async () => {
+      await temp.write('packages/app/.keep', '')
       const project = await resolveWith({ root: 'packages/app' })
       assert.equal(project.rootDir, join(temp.dir, 'packages/app'))
-      const up = await resolveWith({ root: '../sibling' })
-      assert.equal(up.rootDir, join(temp.dir, '..', 'sibling'))
+      const up = await resolveWith({ root: '../' })
+      assert.equal(up.rootDir, dirname(temp.dir))
     })
 
     test('stays as it is when absolute', async () => {
-      const project = await resolveWith({ root: '/somewhere/else' })
-      assert.equal(project.rootDir, '/somewhere/else')
+      await temp.write('abs-root/.keep', '')
+      const root = join(temp.dir, 'abs-root')
+      const project = await resolveWith({ root })
+      assert.equal(project.rootDir, root)
+    })
+
+    test('a root that doesn’t exist is CONFIG_INVALID, with or without a detecting dialect', async () => {
+      const error = await rejectsWith(resolveWith({ root: 'no-such-root' }), 'CONFIG_INVALID')
+      assert.match(error.message, /"root"/)
+      await rejectsWith(
+        resolveWith({ root: 'no-such-root' }, { dialects: [pipe] }),
+        'CONFIG_INVALID',
+      )
+    })
+
+    test('a root that is a file is CONFIG_INVALID', async () => {
+      await temp.write('root-is-file.txt', 'x\n')
+      const error = await rejectsWith(resolveWith({ root: 'root-is-file.txt' }), 'CONFIG_INVALID')
+      assert.match(error.message, /"root"/)
     })
 
     test('must belong to an absolute config path', async () => {
@@ -311,6 +332,32 @@ describe('resolveProject', () => {
       ])
     })
 
+    test('sees a symlink to a file, and not a dangling link or a link to a directory', async () => {
+      await temp.write('link-root/real/target.config.js', 'x\n')
+      await temp.write('link-root/dir/.keep', '')
+      await symlink(
+        join(temp.dir, 'link-root/real/target.config.js'),
+        join(temp.dir, 'link-root/x.config.js'),
+      )
+      await symlink(
+        join(temp.dir, 'link-root/missing'),
+        join(temp.dir, 'link-root/dangling.config.js'),
+      )
+      await symlink(join(temp.dir, 'link-root/dir'), join(temp.dir, 'link-root/dirlink'))
+      let seen: readonly string[] = []
+      const spy = defineDialect({
+        name: 'linkspy',
+        version: '1',
+        policy: {},
+        detect: (context) => {
+          seen = context.configFiles
+          return 1
+        },
+      })
+      await resolveWith({ root: 'link-root' }, { dialects: [spy] })
+      assert.deepEqual(seen, ['x.config.js'])
+    })
+
     test('has no package.json to show when the root has none', async () => {
       await temp.write('bare-root/only.txt', 'x\n')
       const seen: unknown[] = []
@@ -325,15 +372,6 @@ describe('resolveProject', () => {
       })
       await resolveWith({ root: 'bare-root' }, { dialects: [spy] })
       assert.deepEqual(seen, [undefined])
-    })
-
-    test('a root that doesn’t exist is CONFIG_INVALID, but only when something detects', async () => {
-      await rejectsWith(
-        resolveWith({ root: 'no-such-dir' }, { dialects: [scoring('d', 1)] }),
-        'CONFIG_INVALID',
-      )
-      const project = await resolveWith({ root: 'no-such-dir' }, { dialects: [pipe] })
-      assert.equal(project.dialect, null)
     })
 
     test('a package.json that isn’t JSON is CONFIG_INVALID', async () => {
@@ -681,19 +719,199 @@ describe('resolveProject', () => {
     })
   })
 
+  describe('dialect options', () => {
+    test('are read from an own key only: `constructor` is not an option', async () => {
+      let received: unknown = 'unset'
+      const named = defineDialect({
+        name: 'constructor',
+        version: '1',
+        policy: (options: unknown) => {
+          received = options
+          return {}
+        },
+      })
+      await resolveWith({ dialect: 'constructor' as never }, { dialects: [named] })
+      assert.equal(received, undefined)
+    })
+  })
+
   describe('setup files', () => {
+    before(async () => {
+      await temp.write('app/setup.ts', '')
+      await temp.write('app/nested/setup2.ts', '')
+      await temp.write('abs-setup.ts', '')
+      await temp.write('app/a dir/setup 4.ts', '')
+    })
+
     test('go to setupFilesAfterEnv, absolute against the root, and setupFiles stays empty', async () => {
       const project = await resolveWith({
         root: 'app',
-        setupFiles: ['./setup.ts', 'nested/setup2.ts', '/abs/setup3.ts'],
+        setupFiles: [
+          './setup.ts',
+          './nested/setup2.ts',
+          join(temp.dir, 'abs-setup.ts'),
+          '../abs-setup.ts',
+        ],
       })
       const root = join(temp.dir, 'app')
       assert.deepEqual(project.config.setupFilesAfterEnv, [
         join(root, 'setup.ts'),
         join(root, 'nested/setup2.ts'),
-        '/abs/setup3.ts',
+        join(temp.dir, 'abs-setup.ts'),
+        join(temp.dir, 'abs-setup.ts'),
       ])
       assert.deepEqual(project.config.setupFiles, [])
+    })
+
+    test('a file: URL goes through fileURLToPath', async () => {
+      const path = join(temp.dir, 'app/a dir/setup 4.ts')
+      const project = await resolveWith({ root: 'app', setupFiles: [pathToFileURL(path).href] })
+      assert.deepEqual(project.config.setupFilesAfterEnv, [path])
+    })
+
+    for (const entry of [
+      '@testing-library/jest-dom/vitest',
+      'setup-pkg',
+      'nested/setup2.ts',
+      '<rootDir>/setup.ts',
+    ]) {
+      test(`${JSON.stringify(entry)} is CONFIG_INVALID: package specifiers aren't supported yet`, async () => {
+        const error = await rejectsWith(
+          resolveWith({ root: 'app', setupFiles: [entry] }),
+          'CONFIG_INVALID',
+        )
+        assert.match(error.message, /setupFiles\[0\]/)
+        assert.match(error.message, /T1\.4/)
+      })
+    }
+
+    test('an entry that doesn’t exist is CONFIG_INVALID, naming it', async () => {
+      const error = await rejectsWith(
+        resolveWith({ root: 'app', setupFiles: ['./setup.ts', './missing.ts'] }),
+        'CONFIG_INVALID',
+      )
+      assert.match(error.message, /setupFiles\[1\]/)
+      assert.match(error.message, /missing\.ts/)
+    })
+
+    test('an entry that is a directory is CONFIG_INVALID', async () => {
+      const error = await rejectsWith(
+        resolveWith({ root: 'app', setupFiles: ['./nested'] }),
+        'CONFIG_INVALID',
+      )
+      assert.match(error.message, /setupFiles\[0\]/)
+    })
+  })
+
+  describe('loader extensions', () => {
+    test('include the JSX, TSX and module-flavoured TypeScript extensions', async () => {
+      const { loader } = (await resolveWith({})).config
+      for (const extension of ['.jsx', '.tsx', '.mts', '.cts']) {
+        assert.ok(loader.extensions.includes(extension), extension)
+      }
+    })
+
+    test('are a fresh frozen array per project', async () => {
+      const a = (await resolveWith({})).config.loader.extensions
+      const b = (await resolveWith({})).config.loader.extensions
+      assert.notEqual(a, b)
+      assert.ok(Object.isFrozen(a))
+    })
+  })
+
+  describe('refs that must cross to a worker (D21)', () => {
+    const globalsFactory = moduleRef<GlobalsFactory>('file:///dialect/globals.mjs', 'makeGlobals')
+    const fakeEnvironments = { node: NODE_ENV }
+
+    test('a bare policy ref is CONFIG_INVALID, naming the key path', async () => {
+      const bare = defineDialect({
+        name: 'bare',
+        version: '1',
+        policy: { core: { formatEachTitle: moduleRef('some-package/titles', 'format') } },
+      })
+      const error = await rejectsWith(
+        resolveWith({ dialect: 'bare' as never }, { dialects: [bare] }),
+        'CONFIG_INVALID',
+      )
+      assert.match(error.message, /policy\.core\.formatEachTitle\.module/)
+    })
+
+    test('a relative policy ref is CONFIG_INVALID, naming the key path', async () => {
+      const relative = defineDialect({
+        name: 'relative',
+        version: '1',
+        policy: { snapshot: { key: moduleRef('./key.ts', 'key') } },
+      })
+      const error = await rejectsWith(
+        resolveWith({ dialect: 'relative' as never }, { dialects: [relative] }),
+        'CONFIG_INVALID',
+      )
+      assert.match(error.message, /policy\.snapshot\.key\.module/)
+    })
+
+    test('a closure in the policy is CONFIG_INVALID, naming the key path', async () => {
+      const closure = defineDialect({
+        name: 'closure',
+        version: '1',
+        policy: { core: { formatEachTitle: (() => 'x') as never } },
+      })
+      const error = await rejectsWith(
+        resolveWith({ dialect: 'closure' as never }, { dialects: [closure] }),
+        'CONFIG_INVALID',
+      )
+      assert.match(error.message, /core\.formatEachTitle/)
+    })
+
+    test('a relative globals module is CONFIG_INVALID, naming globals.module', async () => {
+      const relative = defineDialect({
+        name: 'relglobals',
+        version: '1',
+        policy: { core: { injectGlobals: true } },
+        globals: { factory: moduleRef<GlobalsFactory>('./globals.ts', 'make'), names: ['it'] },
+      })
+      const error = await rejectsWith(
+        resolveWith({ dialect: 'relglobals' as never }, { dialects: [relative] }),
+        'CONFIG_INVALID',
+      )
+      assert.match(error.message, /globals\.module/)
+    })
+
+    test('a closure as the globals factory is CONFIG_INVALID, naming globals', async () => {
+      const closure = defineDialect({
+        name: 'fnglobals',
+        version: '1',
+        policy: { core: { injectGlobals: true } },
+        globals: { factory: (() => ({})) as never, names: ['it'] },
+      })
+      const error = await rejectsWith(
+        resolveWith({ dialect: 'fnglobals' as never }, { dialects: [closure] }),
+        'CONFIG_INVALID',
+      )
+      assert.match(error.message, /globals/)
+    })
+
+    test('a relative environment module is CONFIG_INVALID, naming environment.module', async () => {
+      const error = await rejectsWith(
+        resolveWith({}, { environments: { node: { module: 'env-pkg', export: 'node' } } }),
+        'CONFIG_INVALID',
+      )
+      assert.match(error.message, /environment\.module/)
+    })
+
+    test('absolute paths and URLs pass', async () => {
+      const ok = defineDialect({
+        name: 'okrefs',
+        version: '1',
+        policy: {
+          core: { injectGlobals: true, formatEachTitle: moduleRef('/abs/titles.mjs', 'f') },
+        },
+        globals: { factory: globalsFactory, names: ['it'] },
+      })
+      const project = await resolveWith(
+        { dialect: 'okrefs' as never },
+        { dialects: [ok], environments: fakeEnvironments },
+      )
+      assert.equal(project.config.globals?.module, globalsFactory.module)
     })
   })
 

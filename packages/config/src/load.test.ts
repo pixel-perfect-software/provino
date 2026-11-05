@@ -55,6 +55,19 @@ describe('loadConfigFile', () => {
     assert.deepEqual(await loadConfigFile(path, ENV), { name: 'cjs' })
   })
 
+  test('unwraps a CommonJS config compiled from `export default` (__esModule)', async () => {
+    const path = await temp.write(
+      'compiled.cjs',
+      "Object.defineProperty(exports, '__esModule', { value: true })\nexports.default = { name: 'compiled' }\n",
+    )
+    assert.deepEqual(await loadConfigFile(path, ENV), { name: 'compiled' })
+    const plain = await temp.write(
+      'compiled-enumerable.cjs',
+      "exports.__esModule = true\nexports.default = () => ({ name: 'compiled-fn' })\n",
+    )
+    assert.deepEqual(await loadConfigFile(plain, ENV), { name: 'compiled-fn' })
+  })
+
   test('a missing file is CONFIG_LOAD_FAILED, with the import error as the cause', async () => {
     const error = await rejectsWith(
       loadConfigFile(`${temp.dir}/nope.mjs`, ENV),

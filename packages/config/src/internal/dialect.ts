@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises'
+import { readdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { DetectContext, Dialect, PolicyOverrides } from '@provino/types'
 import { ConfigError, type ConfigIssue } from '../errors.ts'
@@ -17,8 +17,19 @@ async function detectContext(rootDir: string): Promise<DetectContext> {
   let configFiles: readonly string[]
   try {
     const entries = await readdir(rootDir, { withFileTypes: true })
+    const files = await Promise.all(
+      entries.map(async (entry) => {
+        if (entry.isFile()) return true
+        if (!entry.isSymbolicLink()) return false
+        try {
+          return (await stat(join(rootDir, entry.name))).isFile()
+        } catch {
+          return false // a dangling link
+        }
+      }),
+    )
     configFiles = entries
-      .filter((entry) => entry.isFile())
+      .filter((_, index) => files[index])
       .map((entry) => entry.name)
       .toSorted()
   } catch (cause) {

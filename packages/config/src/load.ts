@@ -8,7 +8,7 @@ import { describe, isRecord } from './internal/input.ts'
 import { type ResolvedProject, type ResolveProjectOptions, resolveProject } from './resolve.ts'
 
 /** What `loadProject` does when the caller gives no `ConfigEnv`. */
-const DEFAULT_ENV: ConfigEnv = { command: 'run', mode: 'test' }
+const DEFAULT_ENV: ConfigEnv = Object.freeze({ command: 'run', mode: 'test' })
 
 /** `require.cache` is Node's CommonJS module cache, which the ESM loader's CommonJS path shares. */
 const nodeRequire = createRequire(import.meta.url)
@@ -38,6 +38,17 @@ function freshUrl(file: string): string {
 }
 
 /**
+ * A CommonJS file compiled from `export default` (tsc, Babel) sets `exports.__esModule = true` and
+ * `exports.default = …`, which Node's ESM loader hands over as `default` = the whole `exports`
+ * object. Unwraps it as Jest's `interopRequireDefault` does.
+ */
+function interopDefault(value: unknown): unknown {
+  return isRecord(value) && value.__esModule === true && Object.hasOwn(value, 'default')
+    ? value.default
+    : value
+}
+
+/**
  * Imports a config file and returns what its default export gives: the object itself, or what a
  * function (sync or async) returns when called with `env`. Node's own loader reads the file, so
  * `.mjs`, `.js` (per the nearest `package.json`'s `type`), `.mts` and `.ts` load as Node loads
@@ -64,7 +75,7 @@ export async function loadConfigFile(path: string, env: ConfigEnv): Promise<Prov
       `the config file "${file}" has no default export; use "export default { … }"`,
     )
   }
-  let value = namespace.default
+  let value = interopDefault(namespace.default)
   if (typeof value === 'function') {
     try {
       value = await value(env)

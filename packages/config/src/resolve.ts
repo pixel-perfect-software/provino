@@ -1,3 +1,4 @@
+import { stat } from 'node:fs/promises'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import {
   callBehaviour,
@@ -16,6 +17,8 @@ import type {
 import { ConfigError } from './errors.ts'
 import { dialectPolicy, selectDialect } from './internal/dialect.ts'
 import { describe, parseInput } from './internal/input.ts'
+import { assertWorkerConfig } from './internal/refs.ts'
+import { resolveSetupFiles } from './internal/setup-files.ts'
 
 /**
  * What `resolveProject` needs besides the config itself. The dialects and environments come from
@@ -58,8 +61,37 @@ export interface ResolvedProject {
   readonly config: SerializedProjectConfig
 }
 
-/** The extensions a specifier without one is tried with, in order. */
-const LOADER_EXTENSIONS: readonly string[] = ['.js', '.ts', '.mjs', '.cjs', '.json']
+/**
+ * The extensions a specifier without one is tried with, in order: Jest's `moduleFileExtensions`
+ * without `.node`. A neutral default of ours.
+ */
+const LOADER_EXTENSIONS: readonly string[] = [
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.jsx',
+  '.ts',
+  '.mts',
+  '.cts',
+  '.tsx',
+  '.json',
+]
+
+/** `rootDir` must be a directory that exists, whether or not a dialect detects. */
+async function assertDirectory(rootDir: string): Promise<void> {
+  let isDirectory = false
+  try {
+    isDirectory = (await stat(rootDir)).isDirectory()
+  } catch {
+    // Missing or unreadable: reported below.
+  }
+  if (!isDirectory) {
+    throw new ConfigError(
+      'CONFIG_INVALID',
+      `config key "root" must be an existing directory ("${rootDir}" is not)`,
+    )
+  }
+}
 
 /** A record's own entry for a name from config (`constructor` is not an entry). */
 function entry<Value>(record: Readonly<Record<string, Value>>, key: string): Value | undefined {
@@ -134,10 +166,16 @@ export async function resolveProject(
   }
   const parsed = parseInput(input)
   const rootDir = resolve(dirname(options.configPath), parsed.root ?? '.')
+  await assertDirectory(rootDir)
 
   const dialect = await selectDialect(parsed.dialect, parsed.dialects ?? options.dialects, rootDir)
   const dialectLayer =
-    dialect === null ? undefined : await dialectPolicy(dialect, Reflect.get(input, dialect.name))
+    dialect === null
+      ? undefined
+      : await dialectPolicy(
+          dialect,
+          Object.hasOwn(input, dialect.name) ? Reflect.get(input, dialect.name) : undefined,
+        )
   let policy: Policy
   try {
     policy = resolvePolicy(
@@ -179,6 +217,25 @@ export async function resolveProject(
     )
   }
 
+  const config: SerializedProjectConfig = {
+    name: parsed.name ?? '',
+    rootDir,
+    ci: options.ci,
+    policy: serialized,
+    environment: { module: environmentRef.module, export: environmentRef.export, options: {} },
+    globals: globalsFactory,
+    setupFiles: [],
+    setupFilesAfterEnv: await resolveSetupFiles(parsed.setupFiles ?? [], rootDir),
+    loader: {
+      extensions: Object.freeze([...LOADER_EXTENSIONS]),
+      conditions: await loaderConditions(policy, environment),
+      tsconfig: 'auto',
+      mappers: [],
+      typescript: 'oxc',
+    },
+  }
+  assertWorkerConfig(config)
+
   return {
     name: parsed.name ?? '',
     rootDir,
@@ -188,23 +245,7 @@ export async function resolveProject(
     exclude: policy.orchestrator.exclude,
     environment,
     isolation,
-    config: {
-      name: parsed.name ?? '',
-      rootDir,
-      ci: options.ci,
-      policy: serialized,
-      environment: { module: environmentRef.module, export: environmentRef.export, options: {} },
-      globals: globalsFactory,
-      setupFiles: [],
-      setupFilesAfterEnv: (parsed.setupFiles ?? []).map((file) => resolve(rootDir, file)),
-      loader: {
-        extensions: LOADER_EXTENSIONS,
-        conditions: await loaderConditions(policy, environment),
-        tsconfig: 'auto',
-        mappers: [],
-        typescript: 'oxc',
-      },
-    },
+    config,
   }
 }
 
