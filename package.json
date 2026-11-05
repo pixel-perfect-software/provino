@@ -27,6 +27,7 @@
     "format:check": "biome format",
     "boundaries": "node tooling/boundaries/src/cli.ts check",
     "boundaries:write": "node tooling/boundaries/src/cli.ts write",
+    "provino": "node --conditions=provino-source packages/provino/src/cli.ts",
     "provino-bench": "node --conditions=provino-source packages/bench/src/cli.ts",
     "provino-harness": "node --conditions=provino-source packages/harness/src/cli.ts",
     "record:runtime": "node --conditions=provino-source packages/harness/src/cli.ts record packages/harness/fixtures/runtime",

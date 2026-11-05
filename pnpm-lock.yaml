@@ -616,6 +616,27 @@ importers:
         specifier: workspace:*
         version: link:../types
 
+  packages/provino:
+    dependencies:
+      '@provino/config':
+        specifier: workspace:*
+        version: link:../config
+      '@provino/dialect-jest':
+        specifier: workspace:*
+        version: link:../dialect-jest
+      '@provino/env-node':
+        specifier: workspace:*
+        version: link:../env-node
+      '@provino/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
+      '@provino/reporters':
+        specifier: workspace:*
+        version: link:../reporters
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
+
   packages/reporters:
     dependencies:
       '@provino/types':

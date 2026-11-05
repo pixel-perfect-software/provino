@@ -45,6 +45,9 @@
     },
     {
       "path": "packages/reporters/test"
+    },
+    {
+      "path": "packages/provino/test"
     }
   ]
 }

@@ -54,6 +54,9 @@
     },
     {
       "path": "packages/reporters"
+    },
+    {
+      "path": "packages/provino"
     }
   ]
 }

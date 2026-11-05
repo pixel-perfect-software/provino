@@ -47,6 +47,7 @@ Keep this table current: a wrong command here costs every session. Run everythin
 | Format / format check | `pnpm format` / `pnpm format:check` (Biome; Markdown is excluded)             |
 | Custom lint rules     | part of `pnpm lint` (Biome GritQL plugins `neutral-no-dialect-name`, `slice-discipline`; tests are exempt) |
 | Boundaries            | `pnpm boundaries` (manifest check, then dependency-cruiser); after editing `tooling/boundaries/packages.json`, `pnpm boundaries:write` |
+| Run Provino           | `pnpm provino run --config <file> [--maxWorkers n] [--pool forks\|threads\|inline] [--reporter default\|normalized-json]… [--outputFile path] [-t pattern] [--ci] [--passWithNoTests] [--no-cache]` (temporary bin, B11; T11.13 adds `provino jest`); exit 0 pass, 1 test failure, 2 usage or config error |
 | Bench suites          | `pnpm provino-bench check <suite> --runner jest --runner vitest` (suites: `app-N`, `mock-heavy-N`, `isolate-heavy`); `pnpm provino-bench run --runner jest <suite>` writes a `local` BenchRecord to `packages/bench/.results/`|
 | Resolver / transform corpora | `pnpm bench:resolve` (agreement with Node ESM; `--max-warm-us 15` adds the timing bar); `pnpm bench:excalidraw` (needs `.refs/excalidraw`, see `docs/plan/bundles/B05.md`; `--max-median-ms 0.5` adds the timing bar) |
 | Expect bench          | `pnpm bench:expect` (passing `toBe`/`toEqual`, Provino vs `expect@30.5.2`, interleaved, `local`); `--max-tobe-us 1 --max-toequal-us 4` adds T7.3's bar |
