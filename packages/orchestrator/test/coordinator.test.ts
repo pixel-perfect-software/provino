@@ -13,6 +13,7 @@ import {
   ExitCode,
   exitCodeFor,
   fileIdOf,
+  projectCacheKey,
   type RunProjectOptions,
   runProject,
 } from '@provino/orchestrator'
@@ -20,6 +21,7 @@ import { createReporterBus, type ReporterBusHandle } from '@provino/reporters'
 import type { Reporter, ReporterBus, RunSummary, TaskId } from '@provino/types'
 import {
   Collect,
+  fixture,
   isRunning,
   PID_RECORDING_ENTRY,
   runtimeProject,
@@ -405,10 +407,16 @@ describe('runProject over inline workers', () => {
     assert.equal(first.summary.reason, 'failed')
 
     const history = createResultsCache(defaultCacheDir(p.dir))
-    assert.equal(history.get('rt', 'small-fails.test.js')?.failed, true)
-    assert.equal(history.get('rt', 'small-fails.test.js')?.tests, 1)
-    assert.equal(history.get('rt', 'big.test.js')?.failed, false)
-    assert.equal(history.get('rt', 'big.test.js')?.tests, 2)
+    assert.equal(
+      history.get(projectCacheKey(runtimeProject(p.dir)), 'small-fails.test.js')?.failed,
+      true,
+    )
+    assert.equal(
+      history.get(projectCacheKey(runtimeProject(p.dir)), 'small-fails.test.js')?.tests,
+      1,
+    )
+    assert.equal(history.get(projectCacheKey(runtimeProject(p.dir)), 'big.test.js')?.failed, false)
+    assert.equal(history.get(projectCacheKey(runtimeProject(p.dir)), 'big.test.js')?.tests, 2)
 
     const second = await run(project, {
       defaultCache: true,
@@ -422,7 +430,13 @@ describe('runProject over inline workers', () => {
   it('runs and records nothing in the cache when it is off', async () => {
     const p = await makeProject({ 'a.test.js': passing() })
     await run(runtimeProject(p.dir), { cache: false, pool: { kind: 'inline', maxWorkers: 1 } })
-    assert.equal(createResultsCache(defaultCacheDir(p.dir)).get('rt', 'a.test.js'), undefined)
+    assert.equal(
+      createResultsCache(defaultCacheDir(p.dir)).get(
+        projectCacheKey(runtimeProject(p.dir)),
+        'a.test.js',
+      ),
+      undefined,
+    )
   })
 
   it('hands -t to the workers: other tests are skipped', async () => {
@@ -576,14 +590,18 @@ describe('runProject over inline workers', () => {
     const inline = { kind: 'inline', maxWorkers: 1 } as const
     await run(runtimeProject(p.dir), { cache: createResultsCache(dir), pool: inline })
     const first = createResultsCache(dir)
-    assert.notEqual(first.get('rt', 'a.test.js'), undefined)
-    assert.notEqual(first.get('rt', 'b.test.js'), undefined)
+    assert.notEqual(first.get(projectCacheKey(runtimeProject(p.dir)), 'a.test.js'), undefined)
+    assert.notEqual(first.get(projectCacheKey(runtimeProject(p.dir)), 'b.test.js'), undefined)
 
     await rm(p.path('b.test.js'))
     await run(runtimeProject(p.dir), { cache: createResultsCache(dir), pool: inline })
     const second = createResultsCache(dir)
-    assert.notEqual(second.get('rt', 'a.test.js'), undefined)
-    assert.equal(second.get('rt', 'b.test.js'), undefined, 'a deleted file has no history')
+    assert.notEqual(second.get(projectCacheKey(runtimeProject(p.dir)), 'a.test.js'), undefined)
+    assert.equal(
+      second.get(projectCacheKey(runtimeProject(p.dir)), 'b.test.js'),
+      undefined,
+      'a deleted file has no history',
+    )
   })
 
   it('keeps what another run wrote to the cache while this one was running', async () => {
@@ -598,14 +616,23 @@ describe('runProject over inline workers', () => {
     })
     await run(runtimeProject(p.dir), { cache: early, pool: inline })
     const merged = createResultsCache(dir)
-    assert.notEqual(merged.get('other', 'a.test.js'), undefined, 'the other run’s history survives')
-    assert.notEqual(merged.get('rt', 'a.test.js'), undefined)
+    assert.notEqual(
+      merged.get(projectCacheKey(runtimeProject(p.dir, { name: 'other' })), 'a.test.js'),
+      undefined,
+      'the other run’s history survives',
+    )
+    assert.notEqual(merged.get(projectCacheKey(runtimeProject(p.dir)), 'a.test.js'), undefined)
   })
 
   it('records the run in the cache it is given, replacing the old history', async () => {
     const p = await makeProject({ 'a.test.js': passing() })
     const cache = createResultsCache(join(p.dir, 'cache'))
-    cache.record('rt', 'a.test.js', { durationMs: 12, failed: false, tests: 2, at: 0 })
+    cache.record(projectCacheKey(runtimeProject(p.dir)), 'a.test.js', {
+      durationMs: 12,
+      failed: false,
+      tests: 2,
+      at: 0,
+    })
     const { summary } = await run(runtimeProject(p.dir), {
       cache,
       pool: { kind: 'inline', maxWorkers: 1 },
@@ -613,9 +640,100 @@ describe('runProject over inline workers', () => {
     assert.equal(summary.reason, 'passed')
     await cache.write()
     // The file ran, so the cache holds this run's duration and test count.
-    const history = createResultsCache(join(p.dir, 'cache')).get('rt', 'a.test.js')
+    const history = createResultsCache(join(p.dir, 'cache')).get(
+      projectCacheKey(runtimeProject(p.dir)),
+      'a.test.js',
+    )
     assert.notEqual(history?.durationMs, 12)
     assert.equal(history?.tests, 2)
     assert.equal(history?.failed, false)
+  })
+})
+
+describe('runProject: pool and run lifecycle', () => {
+  it('runs an inline pool on one worker whatever maxWorkers says: three passing files all pass', async () => {
+    const p = await makeProject({
+      'a.test.js': passing('a'),
+      'b.test.js': passing('b'),
+      'c.test.js': passing('c'),
+    })
+    const { summary, seen } = await run(runtimeProject(p.dir), {
+      pool: { kind: 'inline', maxWorkers: 4 },
+    })
+    assert.deepEqual(
+      summary.files.map((file) => file.state),
+      ['pass', 'pass', 'pass'],
+    )
+    assert.equal(summary.reason, 'passed')
+    assert.deepEqual(summary.unhandled, [])
+    const workers = seen
+      .filter((entry) => entry.name === 'file:start')
+      .map((e) => e.detail.workerId)
+    assert.equal(new Set(workers).size, 1, 'one inline worker took every file')
+  })
+
+  it('keeps the history of two unnamed projects in one root, run in turn', async () => {
+    const p = await makeProject({ 'a1.test.js': passing('a'), 'b1.test.js': passing('b') })
+    const dir = join(p.dir, 'cache')
+    const inline = { kind: 'inline', maxWorkers: 1 } as const
+    const onlyA = runtimeProject(p.dir, { name: '', include: ['a*.test.js'] })
+    const onlyB = runtimeProject(p.dir, { name: '', include: ['b*.test.js'] })
+    for (const project of [onlyA, onlyB, onlyA, onlyB]) {
+      await run(project, { cache: createResultsCache(dir), pool: inline })
+    }
+    const cache = createResultsCache(dir)
+    assert.notEqual(cache.get(projectCacheKey(onlyA), 'a1.test.js'), undefined)
+    assert.notEqual(cache.get(projectCacheKey(onlyB), 'b1.test.js'), undefined)
+    assert.notEqual(projectCacheKey(onlyA), projectCacheKey(onlyB))
+  })
+
+  it('sends a fork’s direct stdout writes to the stdout sink, not the process’s', async () => {
+    const p = await makeProject({
+      'raw.test.js': [
+        "import { writeSync } from 'node:fs'",
+        "test('writes to fd 1', () => { writeSync(1, 'RAW\\n') })",
+      ].join('\n'),
+    })
+    const stdout = new Collect()
+    const { summary } = await run(runtimeProject(p.dir), {
+      pool: { kind: 'forks', maxWorkers: 1 },
+      stdout,
+    })
+    assert.equal(summary.reason, 'passed')
+    assert.match(stdout.text, /RAW/)
+  })
+
+  it('ends promptly when the signal aborts while a worker is still starting', async () => {
+    const p = await makeProject({ 'a.test.js': passing() })
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), 200)
+    const started = performance.now()
+    const stderr = new Collect()
+    const summary = await runProject(runtimeProject(p.dir), {
+      bus: createReporterBus([]),
+      cache: false,
+      stderr,
+      entry: fixture('silent-worker.ts').href,
+      pool: { kind: 'forks', maxWorkers: 1, startTimeoutMs: 8000 },
+      signal: controller.signal,
+    })
+    assert.equal(summary.reason, 'interrupted')
+    assert.ok(performance.now() - started < 4000, 'did not wait for the start timeout')
+  })
+
+  it('reports a worker that crashes when told to stop, and does not pass the run', {
+    skip: process.platform === 'win32',
+  }, async () => {
+    const p = await makeProject({ 'a.test.js': passing() })
+    const { summary, seen } = await run(runtimeProject(p.dir), {
+      pool: { kind: 'forks', maxWorkers: 1 },
+      entry: fixture('crash-on-stop-main.ts'),
+    })
+    const errors = seen.filter((entry) => entry.name === 'error')
+    assert.equal(errors.length, 1)
+    assert.match(String(errors[0]?.detail.message), /exited while it ran no file/)
+    assert.equal(errors[0]?.detail.origin, 'coordinator')
+    assert.equal(summary.unhandled.length, 1)
+    assert.equal(summary.reason, 'failed')
   })
 })

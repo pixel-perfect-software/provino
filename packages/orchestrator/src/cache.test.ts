@@ -49,13 +49,13 @@ describe('createResultsCache', () => {
     assert.equal(next.get('other', 'a.test.ts'), undefined)
   })
 
-  it('writes version 1 with the projects keyed by name and path', async () => {
+  it('writes version 2 with the projects keyed by name and path', async () => {
     const dir = await scratch()
     const cache = createResultsCache(dir)
     cache.record('', 'a.test.ts', history(1))
     await cache.write()
     const written: unknown = JSON.parse(await readFile(join(dir, 'results.json'), 'utf8'))
-    assert.deepEqual(written, { version: 1, projects: { '': { 'a.test.ts': history(1) } } })
+    assert.deepEqual(written, { version: 2, projects: { '': { 'a.test.ts': history(1) } } })
   })
 
   it('creates the directory, and leaves no temporary file behind', async () => {
@@ -117,7 +117,7 @@ describe('createResultsCache', () => {
     await seed.write()
     const cache = createResultsCache(dir)
     cache.record('p', 'a.test.ts', history(1))
-    await writeFile(join(dir, 'results.json'), '{"version":1,"projects":')
+    await writeFile(join(dir, 'results.json'), '{"version":2,"projects":')
     await cache.write()
     const next = createResultsCache(dir)
     assert.deepEqual(next.get('p', 'a.test.ts'), history(1))
@@ -179,7 +179,7 @@ describe('createResultsCache', () => {
     cache.prune('p', new Set())
     await cache.write()
     const written: unknown = JSON.parse(await readFile(join(dir, 'results.json'), 'utf8'))
-    assert.deepEqual(written, { version: 1, projects: { q: { 'b.test.ts': history(2) } } })
+    assert.deepEqual(written, { version: 2, projects: { q: { 'b.test.ts': history(2) } } })
   })
 
   it('reads the file once: a later change on disk is not seen', async () => {
@@ -205,14 +205,14 @@ describe('createResultsCache', () => {
     const dir = await scratch()
     const entry = { 'a.test.ts': history(1) }
     for (const text of [
-      '{"version":1,"projects":{"p":',
+      '{"version":2,"projects":{"p":',
       '',
       'null',
       '[]',
-      JSON.stringify({ version: 2, projects: { p: entry } }),
+      JSON.stringify({ version: 1, projects: { p: entry } }),
       JSON.stringify({ projects: { p: entry } }),
-      JSON.stringify({ version: 1 }),
-      JSON.stringify({ version: 1, projects: [] }),
+      JSON.stringify({ version: 2 }),
+      JSON.stringify({ version: 2, projects: [] }),
     ]) {
       await writeFile(join(dir, 'results.json'), text)
       assert.equal(createResultsCache(dir).get('p', 'a.test.ts'), undefined, text)
@@ -224,7 +224,7 @@ describe('createResultsCache', () => {
     await writeFile(
       join(dir, 'results.json'),
       JSON.stringify({
-        version: 1,
+        version: 2,
         projects: {
           p: {
             'good.test.ts': history(4),

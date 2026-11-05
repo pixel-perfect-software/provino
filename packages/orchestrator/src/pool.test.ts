@@ -43,6 +43,12 @@ interface Fake {
 function fake(
   plan: (file: string) => Plan,
   createFails: (attempt: number) => boolean = () => false,
+  extra: {
+    /** How long `create` takes; aborting its signal ends it early, as a transport would. */
+    readonly createMs?: number
+    /** How a worker ends when told to stop. */
+    readonly stopExit?: WorkerExit
+  } = {},
 ): Fake {
   const started: number[] = []
   const exited = new Set<number>()
@@ -52,8 +58,17 @@ function fake(
   let peak = 0
   const factory: TransportFactory = {
     kind: 'inline',
-    async create(init: WorkerInit): Promise<Transport> {
+    async create(init: WorkerInit, signal?: AbortSignal): Promise<Transport> {
       attempts++
+      if (extra.createMs !== undefined) {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, extra.createMs)
+          signal?.addEventListener('abort', () => {
+            clearTimeout(timer)
+            reject(new Error('killed while starting'))
+          })
+        })
+      }
       if (createFails(attempts)) throw new Error(`worker ${init.workerId} would not start`)
       started.push(init.workerId)
       const messages: ((message: WorkerToCoordinator) => void)[] = []
@@ -74,7 +89,9 @@ function fake(
         kind: 'inline',
         pid: undefined,
         send(message: CoordinatorToWorker) {
-          if (message.t === 'stop') setImmediate(() => finish({ type: 'exit', code: 0 }))
+          if (message.t === 'stop') {
+            setImmediate(() => finish(extra.stopExit ?? { type: 'exit', code: 0 }))
+          }
           if (message.t !== 'run') return
           const { seq, job } = message
           current = job.file
@@ -119,7 +136,7 @@ function fake(
           if (force) finish({ type: 'signal', signal: 'SIGKILL', likelyOom: false })
           else {
             await new Promise((resolve) => setImmediate(resolve))
-            finish({ type: 'exit', code: 0 })
+            finish(extra.stopExit ?? { type: 'exit', code: 0 })
           }
         },
       }
@@ -527,6 +544,56 @@ describe('createPool', () => {
     gate.resolve()
     assert.deepEqual(await running, { type: 'aborted' })
     await pool.close()
+  })
+
+  it('kills a worker that is still starting when the signal aborts, without waiting for it', async () => {
+    const f = fake(
+      () => 'ok',
+      () => false,
+      { createMs: 5000 },
+    )
+    const controller = new AbortController()
+    const pool = createPool(options(1), deps(f, { signal: controller.signal }))
+    const started = performance.now()
+    const running = pool.run(request('a'))
+    setTimeout(() => controller.abort(), 30)
+    assert.deepEqual(await running, { type: 'aborted' })
+    await pool.close()
+    assert.ok(performance.now() - started < 2000)
+  })
+
+  it('reports a worker that ends badly while told to stop, as ORCH_WORKER_EXITED', async () => {
+    const stopExit: WorkerExit = { type: 'signal', signal: 'SIGSEGV', likelyOom: false }
+    const f = fake(
+      () => 'ok',
+      () => false,
+      { stopExit },
+    )
+    const errors: unknown[] = []
+    const pool = createPool(options(1), deps(f, { onError: (error) => void errors.push(error) }))
+    const outcome = await pool.run(request('a'))
+    assert.equal(outcome.type, 'done')
+    await pool.close()
+    assert.equal(errors.length, 1)
+    assert.equal((errors[0] as { code?: string }).code, 'ORCH_WORKER_EXITED')
+    assert.deepEqual((errors[0] as { cause?: unknown }).cause, stopExit)
+  })
+
+  it('reports nothing for a worker that stops cleanly or that the pool killed', async () => {
+    const f = fake((file) => (file === 'stuck' ? 'hang' : 'ok'))
+    const errors: unknown[] = []
+    const controller = new AbortController()
+    const pool = createPool(
+      options(2),
+      deps(f, { signal: controller.signal, onError: (error) => void errors.push(error) }),
+    )
+    await pool.run(request('a'))
+    const stuck = pool.run(request('stuck'))
+    await new Promise((resolve) => setImmediate(resolve))
+    controller.abort()
+    await stuck
+    await pool.close()
+    assert.deepEqual(errors, [])
   })
 
   it('starts no worker for a pool that is already aborted', async () => {

@@ -44,6 +44,12 @@ export interface RecyclePolicy {
  */
 export interface PoolOptions {
   readonly kind: PoolKind
+  /**
+   * The most workers alive at once. An `inline` pool runs exactly one, whatever this says
+   * (`--runInBand`): the expect slot is process-global, so a second inline worker cannot boot.
+   * Two inline runs overlapping in one process share that slot and are not supported; use forks
+   * or threads.
+   */
   readonly maxWorkers: number
   readonly recycle: RecyclePolicy
   /** Then SIGTERM, then SIGKILL after 500 ms. */
@@ -309,7 +315,11 @@ export type WorkerMain = (port: WorkerPort) => void | Promise<void>
  */
 export interface TransportFactory {
   readonly kind: PoolKind
-  create(init: WorkerInit): Promise<Transport>
+  /**
+   * Starts a worker and resolves once it is ready. Aborting `signal` while it starts kills the
+   * worker and rejects, so a pool that is closing does not wait for a start.
+   */
+  create(init: WorkerInit, signal?: AbortSignal): Promise<Transport>
 }
 
 /**

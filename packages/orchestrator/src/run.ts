@@ -1,5 +1,6 @@
 // The coordinator's run (U3, minimal): discover the project's files, order them, push them
 // through the pool, and report to the bus. The CLI, `run()` and config loading are `provino`'s.
+import { createHash } from 'node:crypto'
 import { isAbsolute, relative, sep } from 'node:path'
 import type { ResolvedProject } from '@provino/config'
 import { serializeError } from '@provino/rpc'
@@ -43,7 +44,12 @@ const TEARDOWN_TIMEOUT_MS = 10_000
 export interface RunPoolOptions {
   /** Default `policy.orchestrator.pool.default`. */
   readonly kind?: PoolKind
-  /** Default `defaultMaxWorkers()`. */
+  /**
+   * Default `defaultMaxWorkers()`. An `inline` pool ignores it and runs exactly one worker
+   * (`--runInBand`): the expect slot is process-global, so a second inline worker in this
+   * process cannot boot. Two inline runs overlapping in one process share that slot and are not
+   * supported; use forks or threads.
+   */
   readonly maxWorkers?: number
   readonly recycle?: RecyclePolicy
   readonly startTimeoutMs?: number
@@ -68,6 +74,13 @@ export interface RunProjectOptions {
   readonly cache?: ResultsCache | false
   /** Run only tests whose full name matches (`-t`). Validated once, here, before anything starts. */
   readonly testNamePattern?: string
+  /**
+   * Where the workers' own stdout goes (a fork's or thread's direct write to fd 1; not the
+   * tests' `console`, which is an event). Default: this process's. A caller that prints
+   * machine-readable output on its own stdout passes its stderr here. An inline worker shares
+   * this process, so its direct writes reach the process's stdout whatever this says.
+   */
+  readonly stdout?: NodeJS.WritableStream
   /** Where the workers' own stderr goes (a crash's last words). Default: this process's. */
   readonly stderr?: NodeJS.WritableStream
   /** The worker entry, a `file:` URL or an absolute path. Default: `@provino/orchestrator/worker/main`. */
@@ -79,6 +92,21 @@ export interface RunProjectOptions {
    * run ends with `reason: 'interrupted'`.
    */
   readonly signal?: AbortSignal
+}
+
+/**
+ * What the results cache keys a project's history by: its name and a short hash of what makes
+ * the config different (root, include, exclude), so two configs without a name in one root don't
+ * prune each other's history.
+ * @public
+ */
+export function projectCacheKey(project: ResolvedProject): string {
+  const identity = JSON.stringify([
+    project.rootDir,
+    [...project.include].sort(),
+    [...project.exclude].sort(),
+  ])
+  return `${project.name}#${createHash('sha1').update(identity).digest('hex').slice(0, 8)}`
 }
 
 /** `new RegExp` with the policy's flags, once; the workers get the string. */
@@ -105,6 +133,7 @@ interface QueuedFile {
 
 interface TransportSettings {
   readonly entry: string | URL
+  readonly stdout: NodeJS.WritableStream | undefined
   readonly stderr: NodeJS.WritableStream | undefined
   readonly startTimeoutMs: number
   readonly teardownTimeoutMs: number
@@ -116,6 +145,7 @@ function transportFor(kind: PoolKind, settings: TransportSettings): TransportFac
     entry: settings.entry,
     startTimeoutMs: settings.startTimeoutMs,
     teardownTimeoutMs: settings.teardownTimeoutMs,
+    ...(settings.stdout === undefined ? {} : { stdout: settings.stdout }),
     ...(settings.stderr === undefined ? {} : { stderr: settings.stderr }),
   }
   const withFlags = {
@@ -197,6 +227,7 @@ export async function runProject(
 ): Promise<RunSummary> {
   const { bus, signal } = options
   const { orchestrator, core } = project.policy
+  const cacheProject = projectCacheKey(project)
   checkPattern(options.testNamePattern, core.testNamePatternFlags)
 
   const startedAt = performance.now()
@@ -216,7 +247,8 @@ export async function runProject(
   })
   const poolOptions: PoolOptions = {
     kind,
-    maxWorkers: options.pool?.maxWorkers ?? defaultMaxWorkers(),
+    // One inline worker at most: the expect slot is process-global (see `RunPoolOptions`).
+    maxWorkers: kind === 'inline' ? 1 : (options.pool?.maxWorkers ?? defaultMaxWorkers()),
     recycle: options.pool?.recycle ?? {},
     teardownTimeoutMs: options.pool?.teardownTimeoutMs ?? TEARDOWN_TIMEOUT_MS,
     startTimeoutMs: options.pool?.startTimeoutMs ?? START_TIMEOUT_MS,
@@ -231,6 +263,7 @@ export async function runProject(
     transport: (poolKind) =>
       transportFor(poolKind, {
         entry: workerEntry,
+        stdout: options.stdout,
         stderr: options.stderr,
         startTimeoutMs: poolOptions.startTimeoutMs,
         teardownTimeoutMs: poolOptions.teardownTimeoutMs,
@@ -250,7 +283,7 @@ export async function runProject(
         const path = (isAbsolute(file) ? relative(project.rootDir, file) : file)
           .split(sep)
           .join('/')
-        return cache?.get(project.name, path)?.durationMs
+        return cache?.get(cacheProject, path)?.durationMs
       },
     },
     onIdleEvents: createIdleDispatch({
@@ -259,7 +292,13 @@ export async function runProject(
       onUnhandled: (error) => void unhandled.push(error),
     }),
     // Late output that couldn't be handed to the bus is an error of the run, not of a file.
-    onError: (error) => void bus.emit('error', serializeError(error), 'coordinator'),
+    onError: (error) => {
+      // A worker that ended badly with no file to blame is a failure of the run, not of a file.
+      if (error instanceof OrchestratorError && error.code === 'ORCH_WORKER_EXITED') {
+        unhandled.push(serializeError(error))
+      }
+      void bus.emit('error', serializeError(error), 'coordinator')
+    },
     ...(signal === undefined ? {} : { signal }),
   })
 
@@ -315,7 +354,7 @@ export async function runProject(
     // A start failure or an interruption says nothing about the file; a skipped file isn't
     // remembered (as Jest's).
     if (outcome.type !== 'start-failed' && outcome.type !== 'aborted' && result.state !== 'skip') {
-      cache?.record(project.name, entry.info.path, {
+      cache?.record(cacheProject, entry.info.path, {
         durationMs: result.durationMs,
         failed: result.state === 'fail',
         tests: dispatch.tests,
@@ -355,9 +394,9 @@ export async function runProject(
     // Discovery is unfiltered, so what it found is the project's whole file set, and the history
     // of any other file is stale. A run that filters its files (T11.13, U2) sees only some of
     // them and must not prune.
-    cache?.prune(project.name, new Set(discovered.map((file) => file.relativePath)))
+    cache?.prune(cacheProject, new Set(discovered.map((file) => file.relativePath)))
     const inputs: ScheduleInput[] = discovered.map((file) => {
-      const history = cache?.get(project.name, file.relativePath)
+      const history = cache?.get(cacheProject, file.relativePath)
       return {
         path: file.relativePath,
         project: project.name,

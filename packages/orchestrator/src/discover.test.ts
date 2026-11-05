@@ -1,7 +1,7 @@
 // Discovery over real directories under $TMPDIR: include and exclude globs, dot files, sorted
 // output, POSIX relative paths and sizes.
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, it } from 'node:test'
@@ -97,6 +97,18 @@ describe('discoverFiles', () => {
     assert.deepEqual(
       files.map((f) => f.relativePath),
       ['B.test.ts', '_x.test.ts', 'a.test.ts'],
+    )
+  })
+
+  it('returns a file reached through a symlinked directory once, at the first path in sort order', async () => {
+    const rootDir = await tree({ 'a/x.test.js': 'x', 'b.test.js': 'b' })
+    await symlink(join(rootDir, 'a'), join(rootDir, 'alias'), 'dir')
+    // A loop: `a/loop` leads back to the root, which holds everything again.
+    await symlink(rootDir, join(rootDir, 'a', 'loop'), 'dir')
+    const files = await discoverFiles({ rootDir, include: ['**/*.test.js'], exclude: [] })
+    assert.deepEqual(
+      files.map((f) => f.relativePath),
+      ['a/x.test.js', 'b.test.js'],
     )
   })
 })

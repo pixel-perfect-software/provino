@@ -19,6 +19,7 @@ import type {
 import { connectWorker, type FileDone, type WorkerConnection } from './connect.ts'
 import { OrchestratorError } from './errors.ts'
 import { sameWorkerKey } from './key.ts'
+import { describeExit } from './transport/shared.ts'
 
 /** After this many workers in a row fail to start, the pool starts no more (Track 9). */
 const MAX_START_FAILURES = 3
@@ -120,6 +121,12 @@ interface Slot {
   dead: boolean
   /** Settles when the worker has been told to stop and has exited. */
   stopped: Promise<void> | undefined
+  /** How the worker ended, once it has. */
+  exit: WorkerExit | undefined
+  /** Whether it was running a file when it ended: that file takes the blame, not the run. */
+  diedBusy: boolean
+  /** Whether the pool itself killed it (an abort), so its exit is no news. */
+  killed: boolean
 }
 
 interface Waiter {
@@ -184,6 +191,8 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   /** Set while the last `MAX_START_FAILURES` or more starts in a row have failed: the latest one. */
   let exhausted: { readonly workerId: number; readonly error: unknown } | undefined
   let aborted = false
+  /** Aborted with the pool: kills the workers that have not said `ready` yet. */
+  const starting = new AbortController()
   let closing: Promise<void> | undefined
 
   /** Reports an error no caller waits on: to `onError`, else thrown uncaught, as `connectWorker` does. */
@@ -231,8 +240,30 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     settleWaiters({ type: 'aborted' })
     // A worker running a file is killed at once; its `run` then rejects, which is `aborted`.
     for (const slot of slots) {
-      if (slot.state === 'busy') void slot.transport.terminate(true)
+      if (slot.state === 'busy') {
+        slot.killed = true
+        void slot.transport.terminate(true)
+      }
     }
+    // A worker still starting is killed too, rather than waited for.
+    starting.abort()
+  }
+
+  /**
+   * A worker that ended without being asked to, or ended badly while it was asked to stop, and
+   * wasn't running a file (a running file takes the blame as `crashed`), is an error of the run.
+   */
+  function reportExit(slot: Slot): void {
+    const { exit } = slot
+    if (exit === undefined || slot.diedBusy || slot.killed) return
+    if (exit.type === 'exit' && exit.code === 0) return
+    report(
+      new OrchestratorError(
+        'ORCH_WORKER_EXITED',
+        `Worker ${slot.id} exited while it ran no file (${describeExit(exit)})`,
+        { cause: exit },
+      ),
+    )
   }
 
   /** Whether a worker is alive (and not being stopped) or still starting: one that may take a file. */
@@ -282,7 +313,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     const route: Slot['route'] = { handler: undefined }
     let slot: Slot
     try {
-      const transport = await factory.create(deps.init(key, workerId))
+      const transport = await factory.create(deps.init(key, workerId), starting.signal)
       const connection = connectWorker(transport, {
         methods: deps.methods,
         onEvents: (events) =>
@@ -300,9 +331,14 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         state: 'idle',
         dead: false,
         stopped: undefined,
+        exit: undefined,
+        diedBusy: false,
+        killed: false,
       }
-      transport.onExit(() => {
+      transport.onExit((exit) => {
         slot.dead = true
+        slot.exit = exit
+        slot.diedBusy = slot.state === 'busy'
       })
     } catch (error) {
       spawning--
@@ -321,7 +357,10 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     startFailures = 0
     exhausted = undefined
     slots.add(slot)
-    void slot.connection.exited.then(() => forget(slot))
+    void slot.connection.exited.then(() => {
+      reportExit(slot)
+      forget(slot)
+    })
     // `close` may have come while the worker was starting: it is stopped, and the file not run.
     if (aborted) waiter.resolve({ type: 'aborted' })
     else await execute(slot, waiter)

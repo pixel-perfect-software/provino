@@ -56,6 +56,9 @@ async function execute(
   const summary = await runProject(project, {
     bus,
     pool,
+    // Jest writes all test output to stderr and keeps stdout for `--json`: a worker's own stdout
+    // (a direct write to fd 1) goes there too, so it can't land in the middle of a reporter's.
+    stdout: stderr,
     stderr,
     // Omitted, `runProject` keeps the cache in the project's `node_modules/.cache/provino`.
     ...(options.cache === false ? { cache: false } : {}),

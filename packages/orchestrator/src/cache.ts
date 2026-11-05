@@ -11,8 +11,11 @@ import type { FileHistory } from '@provino/types'
 /** The file's name inside the cache directory. */
 const FILE_NAME = 'results.json'
 
-/** The format version; a file with another one is treated as empty. */
-const VERSION = 1
+/**
+ * The format version; a file with another one is treated as empty. 2: the project key is the
+ * project's name and a hash of its root and globs (1 keyed by the bare name).
+ */
+const VERSION = 2
 
 /**
  * The directory the results cache lives in by default: `<rootDir>/node_modules/.cache/provino`.
@@ -23,7 +26,8 @@ export function defaultCacheDir(rootDir: string): string {
 }
 
 /**
- * The history of past runs, per project and file.
+ * The history of past runs, per project and file. `project` is whatever key tells the project's
+ * configs apart (`runProject` uses its name and a hash of its root and globs).
  * @public
  */
 export interface ResultsCache {

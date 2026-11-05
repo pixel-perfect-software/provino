@@ -29,7 +29,12 @@ export {
   type PoolDeps,
   type PoolOutcome,
 } from './pool.ts'
-export { type RunPoolOptions, type RunProjectOptions, runProject } from './run.ts'
+export {
+  projectCacheKey,
+  type RunPoolOptions,
+  type RunProjectOptions,
+  runProject,
+} from './run.ts'
 export { createHistorySequencer, type HistorySequencerOptions } from './sequencer.ts'
 export { type ForksTransportOptions, forksTransport } from './transport/forks.ts'
 export { type InlineTransportOptions, inlineTransport } from './transport/inline.ts'
