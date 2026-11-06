@@ -62,10 +62,8 @@ type MockFn = Impl & SlotHolder
 /** A policy's answers, read once, plus the frozen prototype and the function maker. */
 interface Layout {
   readonly proto: object
-  /** The function's own name before any spied function's replaces it. */
-  readonly ownName: string
-  /** The compiled makers by arity, filled on first use. */
-  readonly makers: Array<((slot: MockSlot) => Impl) | undefined>
+  /** The function makers by arity (0 to 9), with this policy's own name. */
+  readonly makers: readonly Maker[]
   /** `.mock` is an accessor. Otherwise a non-writable data property holding one state object. */
   readonly accessor: PropertyDescriptor | null
   readonly construct: boolean
@@ -76,6 +74,11 @@ interface Layout {
 }
 
 function noop(): void {}
+
+// Captured at module load, so `jest.spyOn(Function.prototype, 'bind')` isn't inflated by a mock
+// binding a method on first read.
+const reflectApply = Reflect.apply
+const functionBind: (this: Impl, thisArg: unknown) => Impl = Function.prototype.bind
 
 /**
  * `lastCall` as an own enumerable getter, under `lastCallKey: 'always'`. One shared descriptor, as
@@ -122,9 +125,15 @@ class MockSlot implements DirtyMock {
   readonly registry: MockRegistry
   readonly layout: Layout
   fn: MockFn | null = null
+  /** Falsy once the state object is replaced by `fn.mock = undefined`, as jest-mock's check is. */
   state: RawState | null = null
-  impl: Impl | null = null
-  onces: Impl[] | null = null
+  /**
+   * The persistent implementation. `undefined` is "none", as in jest-mock; a `null` the user set is
+   * kept apart from it, which `whenCalledWith`'s dispatcher can tell (`mockImpl !== undefined`).
+   */
+  impl: Impl | null | undefined = undefined
+  /** The `mockImplementationOnce` queue; an entry can be a falsy value the caller passed. */
+  onces: Array<Impl | null | undefined> | null = null
   /** What a call runs with no implementation: a spied function or `options.fallback`. */
   fallback: Impl | null = null
   /** What it was built from: what `mockReset` returns to, and what `mockRestore` runs. */
@@ -138,6 +147,8 @@ class MockSlot implements DirtyMock {
   /** The methods read so far, each bound to this mock. */
   bound: BoundMethods | null = null
   resets: number
+  /** Bumped by every `resetMock`, so a restore queued before a reset can tell it is stale. */
+  epoch = 0
 
   constructor(policy: MockPolicy, registry: MockRegistry, layout: Layout) {
     this.policy = policy
@@ -151,7 +162,7 @@ class MockSlot implements DirtyMock {
     if (this.resets === this.registry.resets) return
     this.resets = this.registry.resets
     if (this.policy.resetTo === 'empty') {
-      this.impl = null
+      this.impl = undefined
       this.fallback = (this.options?.fallback as Impl | undefined) ?? null
     }
   }
@@ -175,7 +186,8 @@ class MockSlot implements DirtyMock {
 
   currentState(): RawState {
     let state = this.state
-    if (state === null) {
+    // Falsy, not only null: jest-mock's `_ensureMockState` recovers from `fn.mock = undefined`.
+    if (!state) {
       state = freshState(this.policy)
       this.state = state
     }
@@ -190,7 +202,7 @@ class MockSlot implements DirtyMock {
       return
     }
     const state = this.state
-    if (state === null) return
+    if (!state) return
     state.calls = []
     state.contexts = []
     state.instances = []
@@ -201,6 +213,7 @@ class MockSlot implements DirtyMock {
 
   resetMock(): void {
     this.resets = this.registry.resets
+    this.epoch++
     this.clearState()
     const when = this.when
     if (when !== null) {
@@ -210,23 +223,23 @@ class MockSlot implements DirtyMock {
     this.onces = null
     this.name = null
     if (this.policy.resetTo === 'empty') {
-      this.impl = null
+      this.impl = undefined
       this.fallback = (this.options?.fallback as Impl | undefined) ?? null
     } else {
-      this.impl = (this.options?.impl as Impl | undefined) ?? null
+      this.impl = this.options?.impl as Impl | undefined
     }
     if (this.layout.chain) this.syncPrototype(this.impl ?? this.fallback)
   }
 
-  setImpl(impl: Impl): void {
+  setImpl(impl: Impl | null | undefined): void {
     this.touchConfig()
     const when = this.when
-    if (when !== null && this.impl === when.dispatcher) when.fallback = impl
+    if (when !== null && this.impl === when.dispatcher) when.fallback = impl ?? null
     else this.impl = impl
     if (this.layout.chain) this.syncPrototype(this.nextImpl())
   }
 
-  addOnce(impl: Impl): void {
+  addOnce(impl: Impl | null | undefined): void {
     this.touchConfig()
     if (this.onces === null) this.onces = [impl]
     else this.onces.push(impl)
@@ -234,7 +247,7 @@ class MockSlot implements DirtyMock {
   }
 
   /** What the next call runs, without consuming it. */
-  nextImpl(): Impl | null {
+  nextImpl(): Impl | null | undefined {
     return this.onces?.[0] ?? this.impl ?? this.fallback
   }
 
@@ -244,7 +257,7 @@ class MockSlot implements DirtyMock {
    * `reparentMockPrototype`). An implementation with no prototype, such as an arrow, leaves
    * `fn.prototype` unallocated.
    */
-  syncPrototype(next: Impl | null): void {
+  syncPrototype(next: Impl | null | undefined): void {
     const parent = (next?.prototype as object | null | undefined) ?? null
     if (parent === null && !this.chained) return
     const own = (this.fn as MockFn).prototype as object | null | undefined
@@ -257,7 +270,7 @@ class MockSlot implements DirtyMock {
   }
 
   /** One call of the mock. */
-  invoke(self: unknown, args: unknown[], newTarget: Newable | undefined): unknown {
+  invoke(self: unknown, args: unknown[], newTarget: unknown): unknown {
     if (!this.stateDirty) this.enterStateDirty()
     const state = this.currentState()
     const layout = this.layout
@@ -276,21 +289,32 @@ class MockSlot implements DirtyMock {
     }
     state.invocationCallOrder.push(this.registry.nextInvocationOrder())
 
+    // jest-mock's order (index.ts L805-L820). A queued entry that is `undefined` falls back to the
+    // persistent implementation on a plain call, and runs nothing under `new`; any other falsy
+    // entry runs nothing.
     const onces = this.onces
-    const impl =
-      onces !== null && onces.length > 0
-        ? (onces.shift() as Impl)
-        : (this.impl ?? this.fallback ?? null)
+    let impl: Impl | null | undefined
+    if (onces !== null && onces.length > 0) {
+      const queued = onces.shift()
+      if (queued) impl = queued
+      else if (newTarget !== undefined) impl = null
+      else impl = (queued === undefined ? this.impl : null) || this.fallback
+    } else {
+      impl = this.impl || this.fallback
+    }
 
     let value: unknown
     try {
       if (constructing) {
         if (layout.chain) this.syncPrototype(impl)
-        value = Reflect.construct(impl ?? noop, args, newTarget)
-        // Written through `state` rather than pushed: a `mockClear` in the call empties the arrays.
+        value = Reflect.construct(impl || noop, args, newTarget as Newable)
+        // As @vitest/spy does (`state.contexts[contextIndex - 1] = returnValue`, after the
+        // construction returns): written into whatever arrays are current then. A `mockClear`
+        // during the construction leaves the instance at index 0 of the new arrays, with `calls`
+        // empty. A throw writes nothing.
         state.contexts[contextIndex] = value
         state.instances[instanceIndex] = value
-      } else if (impl !== null) {
+      } else if (impl) {
         value = impl.apply(self, args)
       }
     } catch (error) {
@@ -333,7 +357,7 @@ class MockSlot implements DirtyMock {
     this.catchUpOnResets()
     if (this.policy.getImplPrefersOnce) {
       const once = this.onces?.[0]
-      if (once !== undefined) return once
+      if (once != null) return once
     }
     const when = this.when
     if (when !== null && this.impl === when.dispatcher) return when.fallback ?? undefined
@@ -346,10 +370,14 @@ class MockSlot implements DirtyMock {
     const { impl: previous, onces: previousOnces } = this
     const when = this.when
     const previousFallback = when?.fallback ?? null
+    const epoch = this.epoch
     this.impl = impl
     this.onces = null
     if (this.layout.chain) this.syncPrototype(impl)
     return () => {
+      // A reset since the swap took the old configuration away, as jest-mock's restore into a
+      // detached config does (index.ts L944-L964): the mock stays reset.
+      if (this.epoch !== epoch) return
       this.touchConfig()
       this.impl = previous
       this.onces = previousOnces
@@ -372,7 +400,9 @@ class MockSlot implements DirtyMock {
     }
     let closure = bound[key]
     if (closure === undefined) {
-      closure = method.bind(this.fn)
+      // Not `method.bind(...)`: reading `bind` off the method would go through a spied
+      // `Function.prototype.bind`. These are captured at module load.
+      closure = reflectApply(functionBind, method, [this.fn])
       bound[key] = closure
     }
     return closure
@@ -415,7 +445,8 @@ function makeDispatcher(slot: MockSlot): Impl {
     if (queued !== undefined) return queued.subMock.apply(this, args)
     for (let index = matching.length - 1; index >= 0; index--) {
       const branch = matching[index]
-      if (branch !== undefined && branch.subMock[SLOT].impl !== null) {
+      // jest-mock's `mockImpl !== undefined`: a `null` implementation is a branch, `undefined` isn't.
+      if (branch !== undefined && branch.subMock[SLOT].impl !== undefined) {
         return branch.subMock.apply(this, args)
       }
     }
@@ -559,7 +590,7 @@ const METHODS = {
     slot.touchConfig()
     const when = slot.whenState()
     if (slot.impl !== when.dispatcher) {
-      when.fallback = slot.impl
+      when.fallback = slot.impl ?? null
       slot.impl = when.dispatcher
     }
     const subMock = createMockFn(slot.policy, slot.registry)
@@ -596,10 +627,36 @@ function methodAccessor(key: PropertyKey, method: Impl): PropertyDescriptor {
   }
 }
 
+/**
+ * `_isMockFunction` and `MOCK_BRAND`: `true` only where there is a slot. `Function.prototype.bind`
+ * gives a bound function the mock's prototype, so a plain `true` there would make a bound mock look
+ * like one, with no slot to back it. `Object.create(mock)` children and `util.promisify` copies
+ * have the slot (an inherited or copied symbol key), so they still answer `true`. A write defines
+ * an own data property, as the method accessors' does.
+ */
+function flagAccessor(key: PropertyKey): PropertyDescriptor {
+  return {
+    enumerable: true,
+    get(this: unknown): true | undefined {
+      return (this as Partial<SlotHolder> | null | undefined)?.[SLOT] !== undefined
+        ? true
+        : undefined
+    },
+    set(this: object, value: unknown): void {
+      Object.defineProperty(this, key, {
+        value,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      })
+    },
+  }
+}
+
 function prototypeDescriptors(): PropertyDescriptorMap {
   const descriptors: PropertyDescriptorMap & Record<symbol, PropertyDescriptor> = {
-    _isMockFunction: { value: true, enumerable: true },
-    [MOCK_BRAND]: { value: true, enumerable: true },
+    _isMockFunction: flagAccessor('_isMockFunction'),
+    [MOCK_BRAND]: flagAccessor(MOCK_BRAND),
   }
   for (const key of Reflect.ownKeys(METHODS)) {
     const method = (METHODS as unknown as Record<PropertyKey, Impl>)[key] as Impl
@@ -618,19 +675,192 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
   )
 }
 
-/**
- * The function maker for one name and arity. `Object.defineProperty(fn, 'length')` costs more than
- * the rest of creation, so as jest-mock's `matchArity` does (index.ts L352-L465), the arity is in the
- * source: 0 to 9 parameters, one compiled maker each, made on first use. The name is fixed at
- * compile time too.
- */
-function compileMaker(name: string, arity: number): (slot: MockSlot) => Impl {
-  const params = Array.from({ length: arity }, (_, index) => `_${index}`).join(',')
-  return new Function(
-    'slot',
-    `'use strict';return function ${name}(${params}){return slot.invoke(this,Array.prototype.slice.call(arguments),new.target)}`,
-  ) as (slot: MockSlot) => Impl
+/** Copies `arguments` with an indexed loop: no global or prototype lookup on the call path. */
+function copyArguments(source: IArguments): unknown[] {
+  const copy: unknown[] = []
+  for (let index = 0; index < source.length; index++) copy[index] = source[index]
+  return copy
 }
+
+type Maker = (slot: MockSlot) => Impl
+
+/**
+ * The function makers by arity, 0 to 9, for each own name. `Object.defineProperty(fn, 'length')` costs
+ * more than the rest of creation, so as jest-mock's `matchArity` does (index.ts L352-L465), the
+ * arity is in the source, written out rather than compiled: nothing here generates code from a
+ * string, which a host can forbid. Each maker is a plain closure over the slot.
+ */
+// biome-ignore-start lint/complexity/noArguments: a rest parameter would allocate before the copy and change `length`
+const MOCK_CONSTRUCTOR_MAKERS: readonly Maker[] = [
+  (slot) =>
+    function mockConstructor(this: unknown) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function mockConstructor(this: unknown, _0: unknown) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function mockConstructor(this: unknown, _0: unknown, _1: unknown) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function mockConstructor(this: unknown, _0: unknown, _1: unknown, _2: unknown) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function mockConstructor(this: unknown, _0: unknown, _1: unknown, _2: unknown, _3: unknown) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function mockConstructor(
+      this: unknown,
+      _0: unknown,
+      _1: unknown,
+      _2: unknown,
+      _3: unknown,
+      _4: unknown,
+    ) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function mockConstructor(
+      this: unknown,
+      _0: unknown,
+      _1: unknown,
+      _2: unknown,
+      _3: unknown,
+      _4: unknown,
+      _5: unknown,
+    ) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function mockConstructor(
+      this: unknown,
+      _0: unknown,
+      _1: unknown,
+      _2: unknown,
+      _3: unknown,
+      _4: unknown,
+      _5: unknown,
+      _6: unknown,
+    ) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function mockConstructor(
+      this: unknown,
+      _0: unknown,
+      _1: unknown,
+      _2: unknown,
+      _3: unknown,
+      _4: unknown,
+      _5: unknown,
+      _6: unknown,
+      _7: unknown,
+    ) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function mockConstructor(
+      this: unknown,
+      _0: unknown,
+      _1: unknown,
+      _2: unknown,
+      _3: unknown,
+      _4: unknown,
+      _5: unknown,
+      _6: unknown,
+      _7: unknown,
+      _8: unknown,
+    ) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+]
+
+const MOCK_MAKERS: readonly Maker[] = [
+  (slot) =>
+    function Mock(this: unknown) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function Mock(this: unknown, _0: unknown) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function Mock(this: unknown, _0: unknown, _1: unknown) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function Mock(this: unknown, _0: unknown, _1: unknown, _2: unknown) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function Mock(this: unknown, _0: unknown, _1: unknown, _2: unknown, _3: unknown) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function Mock(this: unknown, _0: unknown, _1: unknown, _2: unknown, _3: unknown, _4: unknown) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function Mock(
+      this: unknown,
+      _0: unknown,
+      _1: unknown,
+      _2: unknown,
+      _3: unknown,
+      _4: unknown,
+      _5: unknown,
+    ) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function Mock(
+      this: unknown,
+      _0: unknown,
+      _1: unknown,
+      _2: unknown,
+      _3: unknown,
+      _4: unknown,
+      _5: unknown,
+      _6: unknown,
+    ) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function Mock(
+      this: unknown,
+      _0: unknown,
+      _1: unknown,
+      _2: unknown,
+      _3: unknown,
+      _4: unknown,
+      _5: unknown,
+      _6: unknown,
+      _7: unknown,
+    ) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function Mock(
+      this: unknown,
+      _0: unknown,
+      _1: unknown,
+      _2: unknown,
+      _3: unknown,
+      _4: unknown,
+      _5: unknown,
+      _6: unknown,
+      _7: unknown,
+      _8: unknown,
+    ) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+]
+
+// biome-ignore-end lint/complexity/noArguments: see above
 
 const MAX_COMPILED_ARITY = 9
 
@@ -654,8 +884,7 @@ function buildLayout(policy: MockPolicy): Layout {
   }
   return {
     proto,
-    ownName: policy.functionName === 'mockConstructor' ? 'mockConstructor' : 'Mock',
-    makers: [],
+    makers: policy.functionName === 'mockConstructor' ? MOCK_CONSTRUCTOR_MAKERS : MOCK_MAKERS,
     accessor,
     construct: policy.newCall === 'construct',
     settled: policy.settledResults,
@@ -712,13 +941,16 @@ function applyRareOptions(
   const original = options.original as Impl | undefined
   if (options.fallback !== undefined) slot.fallback = options.fallback as Impl
   if (original !== undefined) {
-    slot.fallback = original
     if (slot.policy.spyReportsBridgeImpl) {
       // Under this policy a spy's implementation is a bridge, not the original itself, and is a
-      // configuration change like any other: it is what `resetAll` takes away.
+      // configuration change like any other: it is what `resetAll` takes away. As in jest-mock's
+      // `spyOn`, it is the only route to the original, so clearing the implementation (even with
+      // `mockImplementation(undefined)`) drops the call-through; no fallback holds the original.
       slot.setImpl(function spyBridge(this: unknown, ...args: unknown[]): unknown {
         return original.apply(this, args)
       })
+    } else {
+      slot.fallback = original
     }
   }
   const ownName = options.name ?? (slot.layout.ownNameFromOriginal ? original?.name : undefined)
@@ -734,12 +966,7 @@ function lengthFor(options: CreateMockOptions<MockTarget>, layout: Layout): numb
 
 function makeFunction(layout: Layout, slot: MockSlot, length: number): MockFn {
   const arity = length >= 0 && length <= MAX_COMPILED_ARITY ? length : 0
-  let maker = layout.makers[arity]
-  if (maker === undefined) {
-    maker = compileMaker(layout.ownName, arity)
-    layout.makers[arity] = maker
-  }
-  const fn = maker(slot) as MockFn
+  const fn = (layout.makers[arity] as Maker)(slot) as MockFn
   if (arity !== length) Object.defineProperty(fn, 'length', { value: length, configurable: true })
   return fn
 }

@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { describe, test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { flipped, neutral, policies } from './internal/test-support.ts'
 import { createMockFn, isMockFunction, MOCK_BRAND } from './mock-fn.ts'
 import { createMockRegistry } from './registry.ts'
+import { spyOn } from './spy.ts'
 import type { UnknownFunction } from './types.ts'
 
 const fnOf = (policy: typeof neutral) => {
@@ -198,7 +201,7 @@ for (const [name, policy] of policies) {
       assert.notEqual((g as unknown as { mockClear: unknown }).mockClear, replacement)
     })
 
-    test('`for...in` lists the methods; the brand is plain data', () => {
+    test('`for...in` lists the methods; the brand is an accessor that needs a slot', () => {
       const { fn } = fnOf(policy)
       const f = fn()
       const keys: string[] = []
@@ -207,9 +210,15 @@ for (const [name, policy] of policies) {
         keys.includes('mockClear') && keys.includes('mock') && keys.includes('_isMockFunction'),
       )
       const proto = Object.getPrototypeOf(f) as object
-      assert.equal(Object.getOwnPropertyDescriptor(proto, '_isMockFunction')?.value, true)
-      assert.equal(Object.getOwnPropertyDescriptor(proto, MOCK_BRAND)?.value, true)
+      assert.equal(
+        typeof Object.getOwnPropertyDescriptor(proto, '_isMockFunction')?.get,
+        'function',
+      )
+      assert.equal(typeof Object.getOwnPropertyDescriptor(proto, MOCK_BRAND)?.get, 'function')
       assert.equal(typeof Object.getOwnPropertyDescriptor(proto, 'mockClear')?.get, 'function')
+      assert.equal(f._isMockFunction, true)
+      assert.equal((f as unknown as Record<symbol, unknown>)[MOCK_BRAND], true)
+      assert.equal(Reflect.get(proto, '_isMockFunction'), undefined)
     })
 
     test('a Proxy around a mock keeps working', () => {
@@ -529,5 +538,280 @@ describe('createMockFn options', () => {
     assert.equal(mock(), 'proto')
     mock.mockReturnValue('own')
     assert.equal(mock(), 'own')
+  })
+})
+
+describe('creation without code generation', () => {
+  test('fn() and fn(impl) work under --disallow-code-generation-from-strings', () => {
+    const fixture = fileURLToPath(new URL('./internal/no-codegen.fixture.ts', import.meta.url))
+    // Both own names have their own makers.
+    for (const [, policy] of policies) {
+      const result = spawnSync(
+        process.execPath,
+        [
+          ...process.execArgv,
+          '--disallow-code-generation-from-strings',
+          fixture,
+          JSON.stringify(policy),
+        ],
+        { encoding: 'utf8', timeout: 30_000 },
+      )
+      assert.equal(result.status, 0, result.stderr)
+      assert.match(result.stdout, /created/)
+    }
+  })
+
+  test('the name and length stay exact, with no defineProperty on the way', () => {
+    for (const [, policy] of policies) {
+      const { fn } = fnOf(policy)
+      const expected = policy.functionName === 'mockConstructor' ? 'mockConstructor' : 'Mock'
+      for (let arity = 0; arity <= 9; arity++) {
+        const impl = Object.defineProperty(() => undefined, 'length', { value: arity })
+        const f = fn(impl as UnknownFunction)
+        assert.equal(f.length, arity)
+        assert.equal(f.name, expected)
+      }
+      const bare = fn()
+      assert.equal(bare.length, 0)
+      assert.equal(bare.name, expected)
+      assert.deepEqual(Object.getOwnPropertyNames(bare).sort(), [
+        'length',
+        'mock',
+        'name',
+        'prototype',
+      ])
+    }
+  })
+})
+
+for (const [name, policy] of policies) {
+  describe(`review fixes (${name})`, () => {
+    test('a bound mock is not a mock, and spyOn wraps it', () => {
+      const { fn, registry } = fnOf(policy)
+      const f = fn()
+      const bound = f.bind(null)
+      assert.equal(isMockFunction(policy, bound), false)
+      assert.equal(Reflect.get(bound, MOCK_BRAND), undefined)
+      assert.equal(isMockFunction(policy, f), true)
+      assert.equal((Object.create(f) as { _isMockFunction: unknown })._isMockFunction, true)
+
+      const target = { bar: bound as () => unknown }
+      const spy = spyOn(policy, registry, target, 'bar')
+      assert.notEqual(spy, bound)
+      spy.mockReturnValue('stubbed')
+      assert.equal(target.bar(), 'stubbed')
+    })
+
+    test('_isMockFunction can be assigned, and the assignment is an own property', () => {
+      const { fn } = fnOf(policy)
+      const f = fn()
+      ;(f as unknown as { _isMockFunction: unknown })._isMockFunction = false
+      assert.equal(f._isMockFunction, false)
+      assert.equal(Object.hasOwn(f, '_isMockFunction'), true)
+      assert.equal(fn()._isMockFunction, true)
+    })
+
+    test('withImplementation does not revive an implementation a reset took away', async () => {
+      const { fn, registry } = fnOf(policy)
+      const sync = fn()
+      sync.mockReturnValue('orig')
+      sync.mockReturnValueOnce('once')
+      sync.withImplementation(
+        () => 'tmp',
+        () => {
+          sync.mockReset()
+        },
+      )
+      assert.equal(sync(), undefined)
+      assert.equal(sync(), undefined)
+
+      const all = fn()
+      all.mockReturnValue('orig')
+      all.withImplementation(
+        () => 'tmp',
+        () => {
+          registry.resetAll()
+        },
+      )
+      assert.equal(all(), undefined)
+
+      const later = fn()
+      later.mockReturnValue('orig')
+      let release: () => void = () => {}
+      const pending = later.withImplementation(
+        () => 'tmp',
+        () =>
+          new Promise<void>((resolve) => {
+            release = resolve
+          }),
+      )
+      registry.resetAll()
+      release()
+      await pending
+      assert.equal(later(), undefined)
+    })
+
+    test('withImplementation still restores after a mockClear', () => {
+      const { fn } = fnOf(policy)
+      const f = fn()
+      f.mockReturnValue('orig')
+      f.withImplementation(
+        () => 'tmp',
+        () => {
+          assert.equal(f(), 'tmp')
+          f.mockClear()
+        },
+      )
+      assert.equal(f(), 'orig')
+    })
+
+    test('a queued undefined falls back to the implementation on a plain call', () => {
+      const { fn } = fnOf(policy)
+      const f = fn()
+      f.mockReturnValue(7)
+      f.mockImplementationOnce(undefined as unknown as UnknownFunction)
+      assert.equal(f(), 7)
+      assert.equal(f(), 7)
+      const g = fn()
+      g.mockReturnValue(7)
+      g.mockImplementationOnce(null as unknown as UnknownFunction)
+      assert.equal(g(), undefined)
+      assert.equal(g(), 7)
+    })
+
+    test('under new, a queued undefined runs nothing', () => {
+      const { fn } = fnOf(policy)
+      const f = fn()
+      f.mockImplementation(function (this: { v?: number }) {
+        this.v = 7
+      })
+      f.mockImplementationOnce(undefined as unknown as UnknownFunction)
+      const first = new (f as unknown as new () => { v?: number })()
+      assert.equal(first.v, undefined)
+      const second = new (f as unknown as new () => { v?: number })()
+      assert.equal(second.v, 7)
+    })
+
+    test('whenCalledWith falls through for an undefined implementation, not for null', () => {
+      const { fn } = fnOf(policy)
+      const f = fn()
+      f.mockImplementation(() => 'fb')
+      const branch = f.whenCalledWith(1)
+      branch.mockImplementation(() => 'a')
+      assert.equal(f(1), 'a')
+      branch.mockImplementation(undefined as unknown as UnknownFunction)
+      assert.equal(f(1), 'fb')
+      branch.mockImplementation(null as unknown as UnknownFunction)
+      assert.equal(f(1), undefined)
+      assert.equal(f(2), 'fb')
+    })
+
+    test('creating and calling a mock does not read Array.prototype.slice or Function.prototype.call', () => {
+      const { fn, registry } = fnOf(policy)
+      for (const key of ['slice', 'call'] as const) {
+        const subject = key === 'slice' ? Array.prototype : Function.prototype
+        const spy = spyOn(policy, registry, subject as never, key as never) as unknown as {
+          mockRestore(): void
+          mock: { calls: unknown[][] }
+        }
+        let calls: unknown[][] = []
+        let recorded: unknown[][] = []
+        try {
+          const g = fn()
+          g(1, 2)
+          recorded = g.mock.calls
+          calls = spy.mock.calls
+        } finally {
+          spy.mockRestore()
+        }
+        assert.deepEqual(recorded, [[1, 2]])
+        assert.equal(calls.length, 0)
+      }
+    })
+
+    test('reading a method does not go through Function.prototype.bind', () => {
+      const { fn, registry } = fnOf(policy)
+      const spy = spyOn(
+        policy,
+        registry,
+        Function.prototype as never,
+        'bind' as never,
+      ) as unknown as {
+        mockRestore(): void
+        mock: { calls: unknown[][] }
+      }
+      let count = -1
+      try {
+        const f = fn()
+        void f.mockClear
+        void f.mockReturnValue
+        count = spy.mock.calls.length
+      } finally {
+        spy.mockRestore()
+      }
+      assert.equal(count, 0)
+    })
+  })
+}
+
+describe('review fixes: state edges', () => {
+  test('a mock whose .mock was assigned undefined recovers on the next call', () => {
+    const { fn } = fnOf(flipped)
+    const f = fn()
+    ;(f as unknown as { mock: unknown }).mock = undefined
+    f(1)
+    assert.deepEqual(f.mock.calls, [[1]])
+    ;(f as unknown as { mock: unknown }).mock = null
+    f(2)
+    assert.deepEqual(f.mock.calls, [[2]])
+  })
+
+  test('newCall: construct writes the instance into the arrays current after a mockClear, as @vitest/spy does', () => {
+    const { fn } = fnOf(neutral)
+    let clear = true
+    const f = fn(function (this: { x?: number }) {
+      if (clear) f.mockClear()
+      this.x = 1
+    })
+    const instance = new (f as unknown as new (arg: number) => unknown)(1)
+    clear = false
+    assert.deepEqual(f.mock.calls, [])
+    assert.deepEqual(f.mock.results, [])
+    assert.deepEqual(f.mock.contexts, [instance])
+    assert.deepEqual(f.mock.instances, [instance])
+  })
+
+  test('newCall: construct writes nothing for a construction that throws, and a plain call never writes', () => {
+    const { fn } = fnOf(neutral)
+    const boom = fn(() => {
+      throw new Error('boom')
+    })
+    assert.throws(() => new (boom as unknown as new () => unknown)())
+    assert.deepEqual(boom.mock.instances, [undefined])
+    assert.deepEqual(boom.mock.contexts, [undefined])
+    const plain = fn(() => 1)
+    const self = { plain }
+    self.plain()
+    assert.deepEqual(plain.mock.contexts, [self])
+    assert.deepEqual(plain.mock.instances, [self])
+  })
+
+  test('a spy under a bridge policy loses its call-through with mockImplementation(undefined)', () => {
+    const target = { m: (value: string) => `original:${value}` }
+    for (const [policy, calls] of [
+      [flipped, false],
+      [neutral, true],
+    ] as const) {
+      const registry = createMockRegistry()
+      const subject = { ...target }
+      const spy = spyOn(policy, registry, subject, 'm')
+      spy.mockReturnValue('stubbed')
+      assert.equal(subject.m('x'), 'stubbed')
+      spy.mockImplementation(undefined as never)
+      assert.equal(subject.m('x'), calls ? 'original:x' : undefined)
+      if (!calls) assert.equal(spy.getMockImplementation(), undefined)
+      spy.mockReset()
+      assert.equal(subject.m('x'), calls ? 'original:x' : undefined)
+    }
   })
 })
