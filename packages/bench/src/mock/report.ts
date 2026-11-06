@@ -35,12 +35,15 @@ export const CELL_LABELS: Record<CreateCell, string> = {
 }
 
 /** The keys of one engine's sample: ns per mock created for each shape, and ns per call. */
-export const SAMPLE_KEYS: readonly ['create', 'createArrow', 'createFunction', 'call'] = [
+export const SAMPLE_KEYS: readonly [
   'create',
   'createArrow',
   'createFunction',
+  'createArrowUse',
   'call',
-]
+] = ['create', 'createArrow', 'createFunction', 'createArrowUse', 'call']
+/** `fn(arrow)+use`: create from a new closure, call once, read `.mock.calls.length`. No bar. */
+export const USE_LABEL = 'fn(arrow)+use'
 export type Sample = Record<(typeof SAMPLE_KEYS)[number], number>
 
 export interface Bars {
@@ -85,6 +88,18 @@ export function exitCodeFor(missed: readonly string[]): 0 | 1 {
 }
 
 /**
+ * `value` to `base` decimals, with decimals added until it prints differently from `limit`, so a
+ * failed value never reads as equal to its bar (1000.4 ns is not "1.000 µs ≤ 1 µs").
+ */
+export function pastLimit(value: number, limit: number, base: number): string {
+  for (let decimals = base; decimals < 12; decimals += 1) {
+    const text = value.toFixed(decimals)
+    if (Number(text) !== limit) return text
+  }
+  return value.toFixed(12)
+}
+
+/**
  * Every bar a Provino policy misses, one line per cell. A cell is named by engine and shape (or
  * "call"). Written `!(x <= bar)` so a NaN misses. No cell is exempt.
  */
@@ -97,7 +112,7 @@ export function failures(medians: Readonly<Record<Engine, Sample>>, bars: Bars):
         const us = sample[cell] / 1000
         if (!(us <= bars.maxCreateUs)) {
           out.push(
-            `FAIL ${engine} ${CELL_LABELS[cell]} creation is ${us.toFixed(3)} µs; the bar is ≤ ${bars.maxCreateUs} µs`,
+            `FAIL ${engine} ${CELL_LABELS[cell]} creation is ${pastLimit(us, bars.maxCreateUs, 3)} µs; the bar is ≤ ${bars.maxCreateUs} µs`,
           )
         }
       }
@@ -106,7 +121,7 @@ export function failures(medians: Readonly<Record<Engine, Sample>>, bars: Bars):
       const ratio = callRatio(sample, medians['vitest-spy'])
       if (!(ratio <= bars.maxCallRatio)) {
         out.push(
-          `FAIL ${engine} call is ${ratio.toFixed(2)}× @vitest/spy; the bar is ≤ ${bars.maxCallRatio}×`,
+          `FAIL ${engine} call is ${pastLimit(ratio, bars.maxCallRatio, 2)}× @vitest/spy; the bar is ≤ ${bars.maxCallRatio}×`,
         )
       }
     }

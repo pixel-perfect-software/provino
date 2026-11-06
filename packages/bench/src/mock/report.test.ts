@@ -15,6 +15,7 @@ const sample = (over: Partial<Sample> = {}): Sample => ({
   create: 200,
   createArrow: 250,
   createFunction: 260,
+  createArrowUse: 400,
   call: 10,
   ...over,
 })
@@ -73,6 +74,18 @@ test('a call over the ratio bar is named; the baselines have no bar', () => {
   )
   assert.equal(missed.length, 1)
   assert.match(missed[0] ?? '', /^FAIL provino-jest call is 1\.60× @vitest\/spy/)
+})
+
+test('a failed value never prints equal to its bar', () => {
+  const create = failures(all({ 'provino-jest': sample({ create: 1000.4 }) }), bars)
+  assert.match(create[0] ?? '', /creation is 1\.0004 µs; the bar is ≤ 1 µs/)
+  const call = failures(all({ 'provino-jest': sample({ call: 15.04 }) }), bars)
+  assert.match(call[0] ?? '', /call is 1\.504× @vitest\/spy; the bar is ≤ 1\.5×/)
+})
+
+test('the first-use column has no bar', () => {
+  const med = all({ 'provino-vitest': sample({ createArrowUse: 99_999 }) })
+  assert.deepEqual(failures(med, bars), [])
 })
 
 test('a NaN measurement misses instead of passing', () => {

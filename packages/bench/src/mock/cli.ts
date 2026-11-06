@@ -7,7 +7,7 @@
 // (`--max-create-us 1 --max-call-ratio 1.5`). Every number is `local`. Exit 0 when no bar is
 // missed (or none is on), 1 when a cell misses (each is named), 2 on bad usage.
 import { fileURLToPath } from 'node:url'
-import { runProcess } from '@provino/harness'
+import { exitOnSignals, runProcess } from '@provino/harness'
 import { BenchError } from '../errors.ts'
 import { readSample } from '../internal/limits.ts'
 import {
@@ -24,8 +24,12 @@ import {
   RUNS,
   SAMPLE_KEYS,
   type Sample,
+  USE_LABEL,
   WARMUP_ROUNDS,
 } from './report.ts'
+
+// Each child runs in its own process group, so Ctrl-C must end them through this hook.
+exitOnSignals()
 
 let bars: ReturnType<typeof parseBars>
 try {
@@ -71,11 +75,12 @@ const ns = (value: number): string => `${value.toFixed(0)} ns`
 const width = Math.max(...ENGINES.map((engine) => engine.length)) + 2
 const lines = [
   `mock bench (local, Node ${process.version}, ${process.platform} ${process.arch}, ${RUNS} interleaved runs per engine, one process each; ${ROUNDS} rounds per process, first ${WARMUP_ROUNDS} discarded, median of the rest)`,
-  `  ${''.padEnd(width)}${CREATE_CELLS.map((cell) => CELL_LABELS[cell].padStart(14)).join('')}${'call'.padStart(14)}`,
+  `  ${''.padEnd(width)}${CREATE_CELLS.map((cell) => CELL_LABELS[cell].padStart(14)).join('')}${USE_LABEL.padStart(14)}${'call'.padStart(14)}`,
   ...ENGINES.map(
     (engine) =>
-      `  ${engine.padEnd(width)}${CREATE_CELLS.map((cell) => ns(medians[engine][cell]).padStart(14)).join('')}${ns(medians[engine].call).padStart(14)}`,
+      `  ${engine.padEnd(width)}${CREATE_CELLS.map((cell) => ns(medians[engine][cell]).padStart(14)).join('')}${ns(medians[engine].createArrowUse).padStart(14)}${ns(medians[engine].call).padStart(14)}`,
   ),
+  `  creation excludes first-use cost (a mock's state is allocated on its first call or .mock read); ${USE_LABEL} shows it and has no bar`,
   `  call ratio to @vitest/spy: provino-jest ${callRatio(medians['provino-jest'], medians['vitest-spy']).toFixed(2)}×, provino-vitest ${callRatio(medians['provino-vitest'], medians['vitest-spy']).toFixed(2)}×`,
   `  call ratio to jest-mock:   provino-jest ${callRatio(medians['provino-jest'], medians['jest-mock']).toFixed(2)}×, provino-vitest ${callRatio(medians['provino-vitest'], medians['jest-mock']).toFixed(2)}×`,
 ]

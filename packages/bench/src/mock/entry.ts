@@ -105,6 +105,13 @@ const result: Sample = {
       return i
     }),
   ),
+  // First use, which creation defers: one call and one read of `.mock.calls`, then kept like the rest.
+  createArrowUse: timeCreate((i) => {
+    const mock = make(() => i) as ((n: number) => unknown) & { mock: { calls: unknown[] } }
+    mock(0)
+    sink += mock.mock.calls.length
+    return mock
+  }),
   call: timeCall(callable()),
 }
 // Print the retained count and the call sum, so both are read.
