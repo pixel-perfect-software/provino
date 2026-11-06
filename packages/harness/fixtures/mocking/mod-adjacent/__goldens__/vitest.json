@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "mocking/mod-adjacent",
+  "files": [
+    {
+      "file": "mod-adjacent.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-adjacent.vitest.test.ts",
+            "path": [
+              "an adjacent __mocks__ file is not used without a mock call"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-adjacent.vitest.test.ts",
+            "path": [
+              "mock(path) with no factory uses the adjacent __mocks__ file"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-adjacent.vitest.test.ts",
+            "path": [
+              "requireMock uses the adjacent __mocks__ file for a module that was not mocked"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"an adjacent __mocks__ file is not used without a mock call\",\"value\":{\"untouched\":\"real-untouched\"}}",
+    "{\"id\":\"mock(path) with no factory uses the adjacent __mocks__ file\",\"value\":{\"called\":\"adjacent-called\"}}",
+    "{\"id\":\"requireMock uses the adjacent __mocks__ file for a module that was not mocked\",\"value\":{\"mock\":\"adjacent-asked\",\"actual\":\"real-asked\"}}"
+  ]
+}

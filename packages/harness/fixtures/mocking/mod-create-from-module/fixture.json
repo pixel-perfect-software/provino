@@ -1,0 +1,5 @@
+{
+  "description": "createMockFromModule (Jest only) ignores an adjacent __mocks__ file and automocks the real module, where requireMock returns the __mocks__ file.",
+  "runners": ["jest"],
+  "jestEsm": true
+}

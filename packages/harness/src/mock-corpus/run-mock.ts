@@ -36,7 +36,7 @@ type Loose = (...args: never[]) => unknown
  * the methods are loosely typed; the engine's own types are covered by `@provino/mock`'s type
  * tests.
  */
-function createViFacade(
+export function createViFacade(
   policy: MockPolicy,
   registry: MockRegistry,
   stubs: Stubs,

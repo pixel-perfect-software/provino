@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/mod-automock-shape",
+  "files": [
+    {
+      "file": "mod-automock-shape.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-automock-shape.jest.test.ts",
+            "path": [
+              "a function export becomes a mock that returns undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-automock-shape.jest.test.ts",
+            "path": [
+              "a class becomes a constructor mock whose body never runs, with per-instance method mocks"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-automock-shape.jest.test.ts",
+            "path": [
+              "statics, nested objects and getters are mocked; getters return undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-automock-shape.jest.test.ts",
+            "path": [
+              "arrays become empty, Maps and primitives and null are kept"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-automock-shape.jest.test.ts",
+            "path": [
+              "a subclass instance is not an instance of the mocked base"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-automock-shape.jest.test.ts",
+            "path": [
+              "the module object itself: an __esModule key, and what happens to RegExp, Date and BigInt"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"a function export becomes a mock that returns undefined\",\"value\":{\"result\":{\"$\":\"undefined\"},\"isMock\":true,\"calls\":[[1]],\"name\":\"fn\"}}",
+    "{\"id\":\"a class becomes a constructor mock whose body never runs, with per-instance method mocks\",\"value\":{\"isMock\":true,\"field\":{\"$\":\"undefined\"},\"methodResult\":{\"$\":\"undefined\"},\"ownMethod\":true,\"instanceMethodIsProto\":false,\"instanceMethodCalls\":1,\"protoMethodCalls\":2,\"constructorCalls\":2,\"instances\":2,\"instanceofKlass\":true}}",
+    "{\"id\":\"statics, nested objects and getters are mocked; getters return undefined\",\"value\":{\"staticCall\":{\"$\":\"undefined\"},\"staticIsMock\":true,\"staticValue\":\"static value\",\"deepCall\":{\"$\":\"undefined\"},\"deepIsMock\":true,\"deepValue\":7,\"label\":\"nested label\",\"getter\":{\"$\":\"undefined\"},\"accessor\":{\"$\":\"undefined\"}}}",
+    "{\"id\":\"arrays become empty, Maps and primitives and null are kept\",\"value\":{\"list\":[],\"isArray\":true,\"map\":{\"$\":\"map\",\"entries\":[[\"k\",\"v\"]]},\"text\":\"a string\",\"count\":42,\"flag\":true,\"nothing\":null}}",
+    "{\"id\":\"a subclass instance is not an instance of the mocked base\",\"value\":{\"subInstanceofSub\":true,\"subInstanceofKlass\":false,\"extra\":{\"$\":\"undefined\"}}}",
+    "{\"id\":\"the module object itself: an __esModule key, and what happens to RegExp, Date and BigInt\",\"value\":{\"esModule\":true,\"keys\":[\"__esModule\",\"Klass\",\"Sub\",\"count\",\"flag\",\"fn\",\"list\",\"map\",\"nested\",\"nothing\",\"pattern\",\"text\"],\"pattern\":{\"$\":\"regexp\",\"value\":\"/(?:)/\"},\"when\":{\"$\":\"undefined\"},\"big\":{\"$\":\"undefined\"}}}"
+  ]
+}

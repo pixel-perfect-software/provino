@@ -433,3 +433,57 @@ test('readFixture does not list files in node_modules or nested goldens director
     assert.deepEqual(fixture.files, ['a.test.ts', 'sub/b.ts'])
   })
 })
+
+test('jestEsm is optional, true only, and needs a fixture that runs Jest', () => {
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, jestEsm: true })), {
+    ...VALID,
+    jestEsm: true,
+  })
+  assert.equal('jestEsm' in parseFixtureManifest(JSON.stringify(VALID)), false)
+  for (const jestEsm of [false, 'true', 1, null]) {
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, jestEsm })),
+      rejects('HARNESS_FIXTURE_BAD_JEST_ESM'),
+    )
+  }
+  assert.throws(
+    () => parseFixtureManifest(JSON.stringify({ ...VALID, runners: ['vitest'], jestEsm: true })),
+    rejects('HARNESS_FIXTURE_BAD_JEST_ESM'),
+  )
+})
+
+test('packages keeps plain and scoped packages with their files', () => {
+  const packages = {
+    left: { 'package.json': '{"main":"index.js"}', 'index.js': 'module.exports = 1' },
+    '@scope/right': { 'lib/index.js': 'module.exports = 2' },
+  }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, packages })), {
+    ...VALID,
+    packages,
+  })
+  assert.equal('packages' in parseFixtureManifest(JSON.stringify(VALID)), false)
+})
+
+test('packages refuses a bad shape, a name or a file that escapes its directory', () => {
+  const bad = (packages: unknown): void =>
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, packages })),
+      rejects('HARNESS_FIXTURE_BAD_PACKAGES'),
+    )
+  bad({})
+  bad([])
+  bad({ a: {} })
+  bad({ a: 'index.js' })
+  bad({ a: { 'index.js': 1 } })
+  bad({ '../a': { 'index.js': '' } })
+  bad({ '/abs': { 'index.js': '' } })
+  bad({ 'a/b': { 'index.js': '' } })
+  bad({ '@scope': { 'index.js': '' } })
+  bad({ A: { 'index.js': '' } })
+  bad({ a: { '../index.js': '' } })
+  bad({ a: { 'x/../../index.js': '' } })
+  bad({ a: { '/etc/passwd': '' } })
+  bad({ a: { 'x\\..\\y.js': '' } })
+  bad({ a: { '': '' } })
+  bad({ a: { '.': '' } })
+})

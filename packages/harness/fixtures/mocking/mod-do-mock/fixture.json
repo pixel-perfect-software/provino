@@ -1,0 +1,5 @@
+{
+  "description": "doMock is not hoisted and applies to the next load without resetModules: a module not yet loaded gets the mock, and a module already loaded gets it on the next load too.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

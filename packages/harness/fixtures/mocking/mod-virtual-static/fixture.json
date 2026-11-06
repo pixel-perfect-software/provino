@@ -1,0 +1,6 @@
+{
+  "description": "A static import of a mocked relative path that is not on disk: Jest takes it with { virtual: true }; Vitest fails the whole file at resolution even though vi.mock covers the path.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true,
+  "expectCrash": { "vitest": "not-on-disk" }
+}

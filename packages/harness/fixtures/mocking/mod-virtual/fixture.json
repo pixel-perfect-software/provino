@@ -1,0 +1,5 @@
+{
+  "description": "A mock for a path that is not on disk, loaded lazily: Jest needs { virtual: true } and takes a relative path or a bare name; Vitest takes a bare name but cannot resolve a missing relative path.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

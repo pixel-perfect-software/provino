@@ -101,6 +101,7 @@ export type {
 export type {
   FactoryReferenceRule,
   HoistArgRule,
+  HoistErrorCode,
   HoistPolicy,
   MockObjectMatcher,
 } from './hoist.ts'

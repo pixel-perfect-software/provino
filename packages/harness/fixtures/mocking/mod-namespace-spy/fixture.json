@@ -1,0 +1,5 @@
+{
+  "description": "spyOn on an ESM namespace object: both runners compile ESM, so the spy replaces the export for every importer, and restoring puts the original back.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

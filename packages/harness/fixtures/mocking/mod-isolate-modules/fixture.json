@@ -1,0 +1,5 @@
+{
+  "description": "isolateModules (Jest only): a fresh registry for real modules while an outer mock instance stays visible inside, and a nested isolateModules throws.",
+  "runners": ["jest"],
+  "jestEsm": true
+}

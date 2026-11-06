@@ -29,14 +29,22 @@
     "@provino/types": "workspace:*"
   },
   "devDependencies": {
+    "@babel/core": "catalog:",
+    "@babel/plugin-transform-modules-commonjs": "catalog:",
+    "@babel/preset-react": "catalog:",
     "@jest/test-result": "catalog:",
     "@provino/core": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
     "@provino/expect": "workspace:*",
     "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
+    "@provino/resolver": "workspace:*",
+    "@provino/transform": "workspace:*",
+    "@vitest/mocker": "catalog:",
     "babel-jest": "catalog:",
+    "babel-plugin-jest-hoist": "catalog:",
     "jest": "catalog:",
+    "oxc-parser": "catalog:",
     "vitest": "catalog:"
   }
 }

@@ -1,0 +1,5 @@
+{
+  "description": "A __mocks__ file next to its module (src/__mocks__/x.ts): not used without a mock call, used by a bare mock(path) with no factory, and used by requireMock / importMock.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

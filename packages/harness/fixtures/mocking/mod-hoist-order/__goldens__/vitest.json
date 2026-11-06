@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "mocking/mod-hoist-order",
+  "files": [
+    {
+      "file": "mod-hoist-order.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-hoist-order.vitest.test.ts",
+            "path": [
+              "a mock call below the imports still applies to them"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 35,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-hoist-order.vitest.test.ts",
+            "path": [
+              "two calls for one module keep source order: the last one wins and the first never runs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 35,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-hoist-order.vitest.test.ts",
+            "path": [
+              "a factory has run once when the file body starts, before the mock call line"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 35,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-hoist-order.vitest.test.ts",
+            "path": [
+              "a factory for a module nobody imported yet has not run until the first import"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 35,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"a mock call below the imports still applies to them\",\"value\":{\"aName\":\"mock-a\"}}",
+    "{\"id\":\"two calls for one module keep source order: the last one wins and the first never runs\",\"value\":{\"bName\":\"mock-b-second\",\"runs\":{\"first\":{\"$\":\"undefined\"},\"second\":1}}}",
+    "{\"id\":\"a factory has run once when the file body starts, before the mock call line\",\"value\":{\"atLoad\":{\"a\":1,\"b-second\":1,\"c\":1},\"cName\":\"mock-c\"}}",
+    "{\"id\":\"a factory for a module nobody imported yet has not run until the first import\",\"value\":{\"before\":{\"$\":\"undefined\"},\"after\":1,\"name\":\"mock-lazy\",\"same\":true}}"
+  ]
+}

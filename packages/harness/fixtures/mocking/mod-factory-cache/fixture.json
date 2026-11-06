@@ -1,0 +1,5 @@
+{
+  "description": "A factory runs once per file however often the module is imported, every importer gets the same object, and the actual module behind requireActual/importActual is the real one, loaded and cached once.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

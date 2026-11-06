@@ -3,9 +3,12 @@
 // the shape below isn't a claim about any runner: `@provino/dialect-jest` and the corpus check own
 // that (dialect.test.ts, mock-corpus.test.ts).
 import { neutralPolicy } from '@provino/policy'
-import type { MockPolicy } from '@provino/types'
+import type { MockPolicy, ModulePolicy } from '@provino/types'
 
 export const neutral: MockPolicy = neutralPolicy.mock
+
+/** The neutral `module` slice: the module registry's tests build their two ends from it. */
+export const neutralModule: ModulePolicy = neutralPolicy.module
 
 export const flipped: MockPolicy = {
   resetTo: 'empty',

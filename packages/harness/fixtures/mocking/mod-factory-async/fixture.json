@@ -1,0 +1,5 @@
+{
+  "description": "An async factory: Jest hands importers the Promise as the module (its named exports are undefined), Vitest awaits it.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

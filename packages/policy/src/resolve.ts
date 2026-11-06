@@ -19,6 +19,7 @@ type RecordPaths<T, Prefix extends string = ''> = T extends PolicyAtom
  */
 const RECORD_PATHS = [
   'mock.messages',
+  'module.messages',
   'orchestrator.isolationDefault.byEnvironment',
 ] as const satisfies readonly RecordPaths<Policy>[]
 type UnlistedRecord = Exclude<RecordPaths<Policy>, (typeof RECORD_PATHS)[number]>

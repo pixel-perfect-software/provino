@@ -66,7 +66,7 @@ export type { CoveragePolicy } from './coverage.ts'
 export type { ExpectPolicy, MatcherTableFactory } from './expect.ts'
 export type { LazyPolicy } from './lazy.ts'
 export type { MockCleanupStep, MockMessages, MockPolicy } from './mock.ts'
-export type { ModulePolicy } from './module.ts'
+export type { ModuleMessages, ModulePolicy } from './module.ts'
 export type {
   EnvironmentConditions,
   EnvironmentRequest,

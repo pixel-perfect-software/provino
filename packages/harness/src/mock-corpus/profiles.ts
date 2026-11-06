@@ -4,7 +4,7 @@
 // corpus goldens back the values they exercise, and T1.7 verifies every one, so each stays marked
 // unverified (CLAUDE.md non-negotiable 2). Messages are `@vitest/spy` 5.0.5's dist text.
 import { jestMockPolicy } from '@provino/dialect-jest'
-import type { MockPolicy } from '@provino/types'
+import type { HoistPolicy, MockPolicy, ModulePolicy } from '@provino/types'
 import type { FixtureProfile } from '../fixture.ts'
 
 /**
@@ -73,6 +73,110 @@ export const vitestMockPolicy: MockPolicy = {
       'Cannot use `{name}` when called with `new`. Use `mockImplementation` with a `class` keyword instead. See https://vitest.dev/api/mock#class-support for more information.',
     'new-not-a-constructor':
       "[vitest] The {name} mock did not use 'function' or 'class' in its implementation, see https://vitest.dev/api/vi#vi-spyon for examples.",
+  },
+}
+
+/**
+ * Vitest 5.0's mock-hoisting rules (T3.4), from `@vitest/mocker` 5.0.5 `hoistMocks.ts` and
+ * `hoistMocksPlugin.ts`. Moves to `@provino/dialect-vitest` with T1.8 (B14a), which also verifies
+ * each value against a recorded fixture. The hoist corpus (`hoist-corpus.test.ts`) checks that
+ * hoisting under these values agrees with the real hoister on every upstream case.
+ * @public
+ */
+export const vitestHoistPolicy: HoistPolicy = {
+  // unverified: track-03 L612 (hoist corpus agrees)
+  id: 'vitest-5.0',
+  // unverified: track-03 L612 (hoist corpus agrees). hoistMocks.ts L139: utilsObjectNames
+  objects: [
+    { kind: 'name', name: 'vi' },
+    { kind: 'name', name: 'vitest' },
+  ],
+  // unverified: track-03 L612 (hoist corpus agrees). hoistMocks.ts L136: hoistableMockMethodNames
+  hoistCalls: { mock: 'any', unmock: 'any' },
+  // unverified: track-03 L612 (hoist corpus agrees). hoistMocks.ts L138: hoistedMethodNames
+  hoistValues: ['hoisted'],
+  // unverified: track-03 L612 (hoist corpus agrees). hoistMocks.ts L137: dynamicImportMockMethodNames
+  rewriteImportArg: ['mock', 'unmock', 'doMock', 'doUnmock'],
+  // unverified: track-03 L612 (hoist corpus agrees). `vi.mock(a).mock(b)` is not a hoisted chain
+  chainable: false,
+  // unverified: track-03 L612 (hoist corpus agrees). hoistMocks.ts L531-L567
+  placement: 'top-level-only',
+  // unverified: track-03 L612 (hoist corpus agrees). hoistMocks.ts L266 (`isImportMetaVitestCheck`)
+  topLevelGuards: ['import.meta.vitest'],
+  // unverified: track-03 L612 (hoist corpus agrees). Factories may use imports (they are rewritten)
+  factoryReferences: 'allow',
+  // unverified: track-03 L612 (hoist corpus agrees). hoistMocks.ts L140 and L110
+  runnerModules: ['vitest', 'vite-plus/test'],
+  reExports: 'static', // unverified: track-03 L612 (hoist corpus agrees; hoistMocks.ts rewrites only ImportDeclaration)
+  messages: {
+    // Vitest never raises these two: it allows factory references and takes any arguments.
+    HOIST_FACTORY_OUT_OF_SCOPE: '',
+    HOIST_FACTORY_NOT_FUNCTION: '',
+    // unverified: hoistMocks.ts L551-L563, the one-call wording without the file and location
+    HOIST_NOT_TOP_LEVEL:
+      "{call} was defined outside of the module's top level scope. Although it appears nested, it will be hoisted and executed before anything in this file. Move it to the top level to reflect its actual execution order.\nSee: https://vitest.dev/guide/mocking/modules#how-it-works",
+    // unverified: hoistMocks.ts L506-L510; `{name}` is the outer call
+    HOIST_NESTED:
+      'Cannot call {call} inside {name}: both methods are hoisted to the top of the file and not actually called inside each other.',
+    // unverified: hoistMocks.ts L349 (`vi.mock`/`vi.unmock`); `vi.hoisted` says "Cannot export hoisted
+    // variable. You can control hoisting behavior by placing the import from this file first." (L438)
+    HOIST_EXPORTED:
+      'Cannot export the result of "{call}". Remove export declaration because "{call}" doesn\'t return anything.',
+  },
+}
+
+/**
+ * Vitest 5.0's `module` slice, for the mod corpus (T4.7). Moves to `@provino/dialect-vitest` with
+ * T1.8 (B14a). The texts are copied from `.refs/vitest` (v5.0.5); the two with `{raw}` carry the
+ * specifier as written.
+ * @public
+ */
+export const vitestModulePolicy: ModulePolicy = {
+  // unverified: track-04 L308 (mod corpus agrees)
+  factoryShape: 'namespace',
+  // unverified: track-04 L311 (mod corpus agrees)
+  rootMocksAutoApply: false,
+  // unverified: track-01 L209
+  automock: false,
+  // unverified: track-01 L210
+  actual: 'async-import',
+  // unverified: track-01 L213
+  resetModulesBetween: false,
+  // unverified: track-01 L214
+  injectCjsGlobals: true,
+  // unverified: track-02 L452
+  interopDefault: 'babel',
+  // unverified: track-02 L454
+  resetModulesClearsMocks: false,
+  // unverified: track-04 L309 (mod corpus agrees)
+  awaitFactory: true,
+  // unverified: track-04 L310 (mod corpus agrees)
+  missingFactoryExport: 'throw',
+  // unverified: track-04 L312 (mod corpus agrees)
+  resetModulesReRunsFactory: false,
+  // unverified: track-04 L313 (mod corpus agrees)
+  requireVirtualFlag: false,
+  // unverified: mod corpus `mod-missing`, `mod-virtual` and `mod-virtual-static` (agree)
+  virtualRelative: false,
+  // unverified: track-04 L314 (mod corpus agrees)
+  automockShape: 'deep',
+  // unverified: track-04 L316
+  unmockedPathPatterns: [],
+  // unverified: track-04 (mod corpus agrees)
+  messages: {
+    // packages/mocker/src/registry.ts L308-L310 (`assertValidExports`)
+    'factory-not-object':
+      '[vitest] vi.mock("{raw}", factory?: () => unknown) is not returning an object. Did you mean to return an object with a "default" key?',
+    // packages/vitest/src/runtime/moduleRunner/moduleMocker.ts L104-L106 (the code frame that
+    // follows it is a separate `codeFrame` property there)
+    'missing-factory-export':
+      '[vitest] No "{name}" export is defined on the "{raw}" mock. Did you forget to return it from "vi.mock"?\nIf you need to partially mock a module, you can use "importOriginal" helper inside:\n',
+    // Vite's module runner raises it for the file that is not there (not in `.refs/vitest`): the
+    // text is the recorded one, `mod-missing` and `mod-virtual` (vitest). `{id}` is root-relative.
+    'unresolved-relative-mock': "Cannot find module '{id}'",
+    // packages/mocker/src/registry.ts L298-L300 (`createHelpfulError`; the original is the cause)
+    'factory-error':
+      '[vitest] There was an error when mocking a module. If you are using "vi.mock" factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock',
   },
 }
 

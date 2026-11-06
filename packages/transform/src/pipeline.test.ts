@@ -7,6 +7,7 @@ import { after, test } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import type { HoistPolicy, TransformRequest } from '@provino/types'
 import { composeMaps } from './internal/maps.ts'
+import { toModuleRunner } from './module-runner.ts'
 import { createPipeline, type PipelineOptions } from './pipeline.ts'
 
 const roots: string[] = []
@@ -54,6 +55,14 @@ const HOIST: HoistPolicy = {
     hoistPureConsts: true,
   },
   runnerModules: ['@jest/globals'],
+  reExports: 'in-order',
+  messages: {
+    HOIST_FACTORY_OUT_OF_SCOPE: '{call} factory references {name}',
+    HOIST_NOT_TOP_LEVEL: '{call} is not at the top level',
+    HOIST_NESTED: '{call} is nested',
+    HOIST_EXPORTED: '{call} is exported',
+    HOIST_FACTORY_NOT_FUNCTION: '{call} factory is not a function',
+  },
 }
 
 test('a thrown stack maps to the original .ts line and column', async () => {
@@ -262,14 +271,141 @@ test('a tsconfig base that cannot be found is a warning, and the rest still appl
   )
 })
 
-test('the hoist hook runs for test and setup files only, and is a no-op until T3.4', () => {
+test('hoisting runs for every role but dependency, and says when imports became awaited', () => {
   const root = writeTree({})
-  const source = "jest.mock('./dep.js')\nimport { dep } from './dep.js'\nexport { dep }\n"
+  const source = "import { dep } from './dep.js'\nexport const v = dep\njest.mock('./dep.js')\n"
   const pipeline = createPipeline(options(root, { hoist: HOIST }))
-  const asTest = pipeline.transform(request(join(root, 'a.test.ts'), source, { role: 'test' }))
-  const asSource = pipeline.transform(request(join(root, 'a.test.ts'), source))
-  assert.deepEqual(asTest.staticMocks, [])
-  assert.equal(asTest.code, asSource.code)
+  const file = join(root, 'a.test.ts')
+  for (const role of ['test', 'setup', 'source'] as const) {
+    const record = pipeline.transform(request(file, source, { role }))
+    assert.deepEqual(
+      record.staticMocks.map((call) => call.specifier),
+      ['./dep.js'],
+      role,
+    )
+    assert.ok(
+      record.code.indexOf("jest.mock('./dep.js')") < record.code.indexOf('await import'),
+      role,
+    )
+    assert.equal(record.hasTopLevelAwait, true, role)
+    assert.notEqual(record.map, null, role)
+  }
+  const dependency = pipeline.transform(request(file, source, { role: 'dependency' }))
+  assert.deepEqual(dependency.staticMocks, [])
+  assert.equal(dependency.hasTopLevelAwait, false)
+  assert.ok(dependency.code.indexOf('import { dep }') < dependency.code.indexOf('jest.mock'))
+})
+
+test('a file whose mocks stay in a block keeps its imports and has no top-level await', () => {
+  const root = writeTree({})
+  const source =
+    "import { dep } from './dep.js'\ndescribe('s', () => {\n  jest.mock('./dep.js')\n  dep()\n})\n"
+  const record = createPipeline(options(root, { hoist: HOIST })).transform(
+    request(join(root, 'b.test.ts'), source, { role: 'test' }),
+  )
+  assert.equal(record.hasTopLevelAwait, false)
+  assert.match(record.code, /import \{ dep \}/)
+  assert.deepEqual(
+    record.staticMocks.map((call) => call.specifier),
+    ['./dep.js'],
+  )
+})
+
+test('hoisting violations come back as diagnostics beside the others', () => {
+  const root = writeTree({
+    'tsconfig.json': JSON.stringify({ extends: './missing.json' }),
+  })
+  const record = createPipeline(options(root, { hoist: HOIST })).transform(
+    request(
+      join(root, 'c.test.ts'),
+      "const outside = f()\njest.mock('./dep.js', () => outside)\n",
+      { role: 'test' },
+    ),
+  )
+  assert.deepEqual(
+    record.diagnostics.map(({ severity, code }) => ({ severity, code })),
+    [
+      { severity: 'warning', code: 'TSCONFIG_EXTENDS_NOT_FOUND' },
+      { severity: 'error', code: 'HOIST_FACTORY_OUT_OF_SCOPE' },
+    ],
+  )
+  assert.equal(record.diagnostics[1]?.message, 'jest.mock factory references outside')
+})
+
+test('a file without a mock call passes through the hoist step untouched', () => {
+  const root = writeTree({})
+  const source = "import { dep } from './dep.js'\nexport const v = dep\n"
+  const record = createPipeline(options(root, { hoist: HOIST })).transform(
+    request(join(root, 'd.test.ts'), source, { role: 'test' }),
+  )
+  assert.equal(record.hasTopLevelAwait, false)
+  assert.deepEqual(record.staticMocks, [])
+  const plain = createPipeline(options(root)).transform(
+    request(join(root, 'd.test.ts'), source, { role: 'test' }),
+  )
+  assert.equal(record.code, plain.code)
+})
+
+// T3.5: a stack trace thrown from a hoisted test file maps to the original `.ts` line and column,
+// through the pipeline and the module-runner transform that actually runs it.
+test('a stack thrown from a hoisted .ts file maps to the original line and column', async () => {
+  const root = writeTree({})
+  const tsFile = join(root, 'hoisted.ts')
+  const source = [
+    "import { dep } from './dep.js'",
+    'const mockCount: number = 3',
+    "jest.mock('./dep.js', () => ({ dep: mockCount }))",
+    'export function boom(): never {',
+    "  throw new Error('depth ' + String(dep as number))",
+    '}',
+    '',
+  ].join('\n')
+  const record = createPipeline(options(root, { hoist: HOIST })).transform(
+    request(tsFile, source, { role: 'test' }),
+  )
+  assert.deepEqual(record.diagnostics, [])
+  assert.equal(record.hasTopLevelAwait, true)
+  const output = toModuleRunner(tsFile, record)
+  assert.deepEqual(
+    output.dynamicDeps,
+    ['./dep.js'],
+    'the import is dynamic now, so mocks can apply',
+  )
+  assert.deepEqual(output.deps, [])
+  assert.notEqual(output.map, null)
+
+  const inline = Buffer.from(JSON.stringify(output.map)).toString('base64')
+  const jsFile = join(root, 'hoisted.mjs')
+  // The wrapper header stays on the first line, so no line number moves.
+  writeFileSync(
+    jsFile,
+    `export default async function (__vite_ssr_import__, __vite_ssr_dynamic_import__, __vite_ssr_exports__, __vite_ssr_exportAll__, __vite_ssr_import_meta__) { ${output.code}\n}\n//# sourceMappingURL=data:application/json;base64,${inline}\n`,
+  )
+  const calls: string[] = []
+  Object.assign(globalThis, { jest: { mock: (path: string) => calls.push(path) } })
+  process.setSourceMapsEnabled(true)
+  const run: (...args: unknown[]) => Promise<void> = (await import(pathToFileURL(jsFile).href))
+    .default
+  const exports: { boom?: () => never } = {}
+  await run(
+    () => assert.fail('no static imports'),
+    () => Promise.resolve({ dep: 1 }),
+    exports,
+    () => undefined,
+    {},
+  )
+  Reflect.deleteProperty(globalThis, 'jest')
+  assert.deepEqual(calls, ['./dep.js'], 'the mock ran before the import')
+  const stack = (() => {
+    try {
+      exports.boom?.()
+    } catch (error) {
+      return error instanceof Error ? (error.stack ?? '') : ''
+    }
+    return ''
+  })()
+  // `throw new Error` is on line 5 of the .ts; `new` starts at column 9.
+  assert.match(stack, /hoisted\.ts:5:9\)/)
 })
 
 test('cache keys and the fingerprint change with their inputs', () => {

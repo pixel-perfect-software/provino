@@ -1,0 +1,153 @@
+// Runs one `mod-*` fixture's test file through `@provino/core` over the fake loader (B13b, T4.7),
+// the way `mock-corpus/run-mock.ts` runs a mocking fixture. The fixture is copied to a temp
+// directory with its `packages` installed, loaded by the fake loader (real resolver, real hoister,
+// real module-mock registry) and removed afterwards, also on failure.
+import { copyFile, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { createRuntime } from '@provino/core'
+import type { JestGlobalsHost } from '@provino/dialect-jest/runtime'
+import { createMockRegistry, createStubs } from '@provino/mock'
+import { createBehaviourLoader } from '@provino/policy'
+import type {
+  CorePolicy,
+  HoistPolicy,
+  MockPolicy,
+  ModulePolicy,
+  RuntimeEvent,
+} from '@provino/types'
+import type { Fixture } from '../fixture.ts'
+import { installGlobals } from '../internal/globals.ts'
+import '../internal/observe-setup.ts'
+import { installPackages } from '../record.ts'
+import { type CoreRun, summarizeRun } from '../runtime-corpus/run-core.ts'
+import { createFacades } from './facades.ts'
+import { FakeLoader } from './fake-loader.ts'
+
+/** Everything a profile contributes. */
+export interface ModProfile {
+  readonly facade: 'jest' | 'vi'
+  readonly core: CorePolicy
+  readonly mock: MockPolicy
+  readonly module: ModulePolicy
+  readonly hoist: HoistPolicy
+  /** Whether the runner compiled source ES modules the way Babel does (Jest). */
+  readonly babelExports: boolean
+}
+
+/** Replaces the registry for the non-vacuity check: it decides nothing is mocked. */
+export interface RunModOptions {
+  readonly neverMock?: boolean
+}
+
+/**
+ * Runs `testFile` (relative to the fixture) under `profile`. `cleanup` is the fixture's
+ * `mockCleanup`. Returns what core reported; `trace` holds the `observe` lines in order.
+ */
+export async function runModFile(
+  fixture: Fixture,
+  testFile: string,
+  profile: ModProfile,
+  options: RunModOptions = {},
+): Promise<CoreRun> {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'provino-mod-')))
+  try {
+    for (const file of fixture.files) {
+      const target = path.join(root, file)
+      await mkdir(path.dirname(target), { recursive: true })
+      await copyFile(path.join(fixture.dir, file), target)
+    }
+    await installPackages(fixture, root)
+    return await runIn(fixture, root, testFile, profile, options)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+async function runIn(
+  fixture: Fixture,
+  root: string,
+  testFile: string,
+  profile: ModProfile,
+  options: RunModOptions,
+): Promise<CoreRun> {
+  const lines: string[] = []
+  const events: RuntimeEvent[] = []
+  const mocks = createMockRegistry()
+  const stubs = createStubs(mocks, process.env, globalThis)
+  const cleanup = fixture.manifest.mockCleanup ?? {}
+  const runtime = await createRuntime({
+    policy: profile.core,
+    behaviours: createBehaviourLoader(),
+    sink: { emit: (event) => events.push(event) },
+    importFile: async (file) => {
+      runtime.api.beforeEach(() => {
+        mocks.beforeEach(cleanup, profile.mock.between)
+      })
+      await loader.loadTestFile(file)
+      return {}
+    },
+    rootDir: root,
+    ci: true,
+  })
+  const jestHost: JestGlobalsHost = {
+    api: runtime.api,
+    expect: (() => {
+      throw new Error('the mod corpus does not use expect')
+    }) as unknown as JestGlobalsHost['expect'],
+    registry: () => {
+      throw new Error('the mod corpus does not use the loader registry')
+    },
+    mocks: () => mocks,
+    mockPolicy: profile.mock,
+  }
+  const loader: FakeLoader = new FakeLoader({
+    root,
+    hoist: profile.hoist,
+    babelExports: profile.babelExports,
+    policy: profile.module,
+    mockPolicy: profile.mock,
+    mocks,
+    facades: (from, ops) =>
+      createFacades(
+        {
+          facade: profile.facade,
+          policy: profile.module,
+          mockPolicy: profile.mock,
+          mocks,
+          jestHost,
+          stubs,
+          inert: options.neverMock === true,
+        },
+        from,
+        ops,
+      ),
+  })
+  // The fixtures keep counters on `globalThis`; a real run starts a process per profile, so what a
+  // run added is removed afterwards.
+  const before = new Set(Reflect.ownKeys(globalThis))
+  const restoreInstalled = installGlobals({
+    trace: (step: string): void => {
+      lines.push(step)
+    },
+    ...runtime.api,
+  })
+  const restore = (): void => {
+    restoreInstalled()
+    for (const key of Reflect.ownKeys(globalThis)) {
+      if (!before.has(key)) Reflect.deleteProperty(globalThis, key)
+    }
+  }
+  try {
+    await runtime.runFile(path.join(root, testFile))
+  } finally {
+    try {
+      loader.registry.dispose()
+      mocks.dispose()
+    } finally {
+      restore()
+      await runtime.dispose()
+    }
+  }
+  return summarizeRun(events, lines)
+}
