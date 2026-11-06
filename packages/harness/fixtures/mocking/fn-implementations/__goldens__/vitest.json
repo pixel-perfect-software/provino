@@ -192,6 +192,96 @@
           "id": {
             "file": "fn-implementations.test.ts",
             "path": [
+              "the settled shorthands return a promise, not the bare value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-implementations.test.ts",
+            "path": [
+              "mockImplementationOnce(undefined) after mockReturnValue"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-implementations.test.ts",
+            "path": [
+              "mockImplementationOnce(undefined) under new"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-implementations.test.ts",
+            "path": [
+              "mockImplementation(undefined) on a mock with an implementation"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-implementations.test.ts",
+            "path": [
+              "mockReset inside a withImplementation callback"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-implementations.test.ts",
+            "path": [
+              "mockReset while an async withImplementation callback is pending"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-implementations.test.ts",
+            "path": [
               "a later mockImplementation replaces an earlier mockReturnValue"
             ],
             "dupIndex": 0
@@ -236,6 +326,12 @@
     "{\"id\":\"withImplementation when the callback throws\",\"value\":{\"error\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"callback failed\"},\"next\":\"temporary\",\"after\":\"temporary\"}}",
     "{\"id\":\"getMockImplementation returns the persistent implementation, or a queued one first\",\"value\":{\"before\":true,\"withQueuedIsPersistent\":false,\"withQueuedIsQueued\":true}}",
     "{\"id\":\"getMockImplementation of a bare mock\",\"value\":{\"$\":\"undefined\"}}",
+    "{\"id\":\"the settled shorthands return a promise, not the bare value\",\"value\":{\"mockResolvedValue\":{\"thenType\":\"function\",\"tag\":\"[object Promise]\"},\"mockResolvedValueOnce\":{\"thenType\":\"function\",\"tag\":\"[object Promise]\"},\"mockRejectedValue\":{\"thenType\":\"function\",\"tag\":\"[object Promise]\"},\"mockRejectedValueOnce\":{\"thenType\":\"function\",\"tag\":\"[object Promise]\"}}}",
+    "{\"id\":\"mockImplementationOnce(undefined) after mockReturnValue\",\"value\":{\"value\":[7,7,7]}}",
+    "{\"id\":\"mockImplementationOnce(undefined) under new\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Cannot use `mockReturnValue` when called with `new`. Use `mockImplementation` with a `class` keyword instead. See https://vitest.dev/api/mock#class-support for more information.\"}}}",
+    "{\"id\":\"mockImplementation(undefined) on a mock with an implementation\",\"value\":{\"value\":[{\"$\":\"undefined\"},true]}}",
+    "{\"id\":\"mockReset inside a withImplementation callback\",\"value\":{\"inside\":\"original\",\"after\":\"original\"}}",
+    "{\"id\":\"mockReset while an async withImplementation callback is pending\",\"value\":{\"inside\":\"original\",\"during\":\"original\",\"after\":\"original\"}}",
     "{\"id\":\"a later mockImplementation replaces an earlier mockReturnValue\",\"value\":\"impl\"}"
   ]
 }

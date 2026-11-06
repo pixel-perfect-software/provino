@@ -1,10 +1,12 @@
-// Runs one mocking-corpus test file through `@provino/core` with `jest` or `vi` built from
-// `@provino/mock` under a profile's `MockPolicy` (B13a's corpus check, T4.3, T4.4). The recorder's
-// real `observe-setup` and a `trace` global reduce and record each case, so both sides of the
-// comparison run the same reduction. A root `beforeEach` runs the registry's between-test cleanup,
-// as a real run will once T4.10 wires it (B13a Gap 9).
+// Runs one mocking-corpus test file through `@provino/core` with `jest` or `vi` over a
+// `@provino/mock` registry under a profile's `MockPolicy` (B13a's corpus check, T4.3, T4.4). The
+// recorder's real `observe-setup` and a `trace` global reduce and record each case, so both sides of
+// the comparison run the same reduction. A root `beforeEach` runs the registry's between-test
+// cleanup, as a real run will once T4.10 wires it (B13a Gap 9). What core reports for each test is
+// returned too, so a test that fails inside the fixture (outside `observe`) is seen.
 import { pathToFileURL } from 'node:url'
 import { createRuntime } from '@provino/core'
+import { type JestGlobalsHost, jestGlobals } from '@provino/dialect-jest/runtime'
 import {
   createMockFn,
   createMockRegistry,
@@ -12,16 +14,16 @@ import {
   isMockFunction,
   type Mock,
   type MockRegistry,
-  replaceProperty,
   type Stubs,
   spyOn,
   type UnknownFunction,
 } from '@provino/mock'
 import { createBehaviourLoader } from '@provino/policy'
-import type { CorePolicy, MockPolicy } from '@provino/types'
+import type { CorePolicy, MockPolicy, RuntimeEvent } from '@provino/types'
 import type { MockCleanup } from '../fixture.ts'
 import { installGlobals } from '../internal/globals.ts'
 import '../internal/observe-setup.ts'
+import { type CoreRun, summarizeRun } from '../runtime-corpus/run-core.ts'
 
 /** Which test-object name the file under test sees. */
 export type MockFacade = 'jest' | 'vi'
@@ -29,12 +31,12 @@ export type MockFacade = 'jest' | 'vi'
 type Loose = (...args: never[]) => unknown
 
 /**
- * The part of the `jest` / `vi` object the corpus uses, built over one registry. The corpus files
- * pass arbitrary values, so the methods are loosely typed here; the engine's own types are covered
- * by `@provino/mock`'s type tests.
+ * The part of the `vi` object the corpus uses, built over one registry. It stays here until
+ * `@provino/dialect-vitest` ships its own (T1.8, B14a). The corpus files pass arbitrary values, so
+ * the methods are loosely typed; the engine's own types are covered by `@provino/mock`'s type
+ * tests.
  */
-function createFacade(
-  facade: MockFacade,
+function createViFacade(
   policy: MockPolicy,
   registry: MockRegistry,
   stubs: Stubs,
@@ -59,27 +61,22 @@ function createFacade(
       registry.restoreAll()
       return object
     },
-  }
-  if (facade === 'jest') {
-    object.replaceProperty = (target: object, key: string, value: unknown): unknown =>
-      replaceProperty(policy, registry, target as Record<string, unknown>, key, value)
-  } else {
-    object.stubEnv = (name: string, value: string | undefined): unknown => {
+    stubEnv: (name: string, value: string | undefined): unknown => {
       stubs.stubEnv(name, value)
       return object
-    }
-    object.stubGlobal = (name: string, value: unknown): unknown => {
+    },
+    stubGlobal: (name: string, value: unknown): unknown => {
       stubs.stubGlobal(name, value)
       return object
-    }
-    object.unstubAllEnvs = (): unknown => {
+    },
+    unstubAllEnvs: (): unknown => {
       stubs.unstubAllEnvs()
       return object
-    }
-    object.unstubAllGlobals = (): unknown => {
+    },
+    unstubAllGlobals: (): unknown => {
       stubs.unstubAllGlobals()
       return object
-    }
+    },
   }
   return object
 }
@@ -88,8 +85,10 @@ let imports = 0
 
 /**
  * Runs `file` (absolute) under `corePolicy` with `jest` or `vi` over a fresh registry built with
- * `mockPolicy`, and returns the lines `observe` traced, in order. `cleanup` is the fixture's
- * `mockCleanup`. The registry is disposed afterwards, as the worker will.
+ * `mockPolicy`. Under `jest` the object is the one `jestGlobals` ships, over a host whose `mocks()`
+ * is this file's registry, so a bug in its wiring shows here. `cleanup` is the fixture's
+ * `mockCleanup`. The registry is disposed afterwards, as the worker will. Returns what core
+ * reported (`trace` holds the `observe` lines, in order).
  */
 export async function runMockFile(
   file: string,
@@ -98,14 +97,15 @@ export async function runMockFile(
   mockPolicy: MockPolicy,
   facade: MockFacade,
   cleanup: MockCleanup,
-): Promise<readonly string[]> {
+): Promise<CoreRun> {
   const lines: string[] = []
+  const events: RuntimeEvent[] = []
   const registry = createMockRegistry()
   const stubs = createStubs(registry, process.env, globalThis)
   const runtime = await createRuntime({
     policy: corePolicy,
     behaviours: createBehaviourLoader(),
-    sink: { emit: () => undefined },
+    sink: { emit: (event) => events.push(event) },
     importFile: (path) => {
       // Before the file's own hooks, so the cleanup runs first in every test.
       runtime.api.beforeEach(() => {
@@ -116,12 +116,30 @@ export async function runMockFile(
     rootDir,
     ci: true,
   })
+  let object: unknown
+  if (facade === 'jest') {
+    const host: JestGlobalsHost = {
+      api: runtime.api,
+      // The mocking fixtures observe values; none of them reads `expect`.
+      expect: Object.assign(() => {
+        throw new Error('the mocking corpus does not use expect')
+      }) as unknown as JestGlobalsHost['expect'],
+      registry: () => {
+        throw new Error('the mocking corpus does not use the module registry')
+      },
+      mocks: () => registry,
+      mockPolicy,
+    }
+    object = jestGlobals(host).jest
+  } else {
+    object = createViFacade(mockPolicy, registry, stubs)
+  }
   const restore = installGlobals({
     trace: (step: string): void => {
       lines.push(step)
     },
     ...runtime.api,
-    [facade]: createFacade(facade, mockPolicy, registry, stubs),
+    [facade]: object,
   })
   try {
     await runtime.runFile(file)
@@ -133,5 +151,5 @@ export async function runMockFile(
       await runtime.dispose()
     }
   }
-  return lines
+  return summarizeRun(events, lines)
 }

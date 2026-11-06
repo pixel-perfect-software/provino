@@ -4,6 +4,14 @@ const c = (id: string, run: () => unknown) => {
   test(id, () => observe(id, run))
 }
 
+const attempt = (run: () => unknown) => {
+  try {
+    return { value: run() }
+  } catch (error) {
+    return { threw: error }
+  }
+}
+
 c('name of a bare mock, of a mock of a named function, and of a mock of an arrow', () => {
   function named() {}
   const arrow = () => {}
@@ -78,3 +86,45 @@ c(
   'length of a mock of a function with two parameters',
   () => M.fn((a: number, b: number) => a + b).length,
 )
+
+c('a method taken off its mock still works on that mock', () => {
+  const f = M.fn()
+  f('a')
+  const { mockClear, mockReturnValue } = f
+  const before = f.mock.calls.length
+  mockClear()
+  mockReturnValue('detached')
+  return { before, after: f.mock.calls.length, value: f() }
+})
+
+c('a method read twice is the same function', () => {
+  const f = M.fn()
+  const clearFirst = f.mockClear
+  const clearSecond = f.mockClear
+  const returnFirst = f.mockReturnValue
+  const returnSecond = f.mockReturnValue
+  return { mockClear: clearFirst === clearSecond, mockReturnValue: returnFirst === returnSecond }
+})
+
+c('assigning to a method replaces it for that mock', () => {
+  const f = M.fn()
+  const replacement = () => 'replacement'
+  const result = attempt(() => {
+    ;(f as { mockClear: unknown }).mockClear = replacement
+  })
+  return { result, identity: f.mockClear === replacement, other: M.fn().mockClear === replacement }
+})
+
+c('length of a method, read off the mock and taken off it', () => {
+  const f = M.fn()
+  const { mockReturnValue } = f
+  return { onMock: f.mockReturnValue.length, detached: mockReturnValue.length }
+})
+
+c('a bound mock is not a mock function', () => {
+  const bound = M.fn().bind(null)
+  return {
+    isMockFunction: M.isMockFunction(bound),
+    flag: (bound as { _isMockFunction?: unknown })._isMockFunction,
+  }
+})

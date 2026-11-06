@@ -118,8 +118,12 @@ export async function runExpectFile(
       restore()
     }
   } finally {
-    mocks?.dispose()
-    slot.uninstall()
+    // A restorer that throws must not leave the matcher slot installed.
+    try {
+      mocks?.dispose()
+    } finally {
+      slot.uninstall()
+    }
   }
 
   return summarizeExpectRun(events, (id, run) => source.stateOf(id, run))

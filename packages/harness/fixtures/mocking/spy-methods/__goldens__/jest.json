@@ -252,6 +252,54 @@
           "id": {
             "file": "spy-methods.test.ts",
             "path": [
+              "spyOn a bound mock, then mockReturnValue"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "mockImplementation(undefined) on a spy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "spyOn Array.prototype.slice calls through and a mock called under it works"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
               "spyOn the same method twice"
             ],
             "dupIndex": 0
@@ -300,6 +348,9 @@
     "{\"id\":\"spyOn a missing key\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"Property `missing` does not exist in the provided object\"}}}",
     "{\"id\":\"spyOn a property that is not a function\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Cannot spy on the `a` property because it is not a function; number given instead. If you are trying to mock a property, use `jest.replaceProperty(object, 'a', value)` instead.\"}}}",
     "{\"id\":\"spyOn something that is not an object\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"Cannot use spyOn on a primitive value; undefined given\"}}}",
+    "{\"id\":\"spyOn a bound mock, then mockReturnValue\",\"value\":{\"value\":\"stubbed\",\"isMock\":true,\"innerCalls\":0}}",
+    "{\"id\":\"mockImplementation(undefined) on a spy\",\"value\":{\"value\":{\"value\":{\"$\":\"undefined\"},\"impl\":{\"$\":\"undefined\"}}}}",
+    "{\"id\":\"spyOn Array.prototype.slice calls through and a mock called under it works\",\"value\":{\"seen\":{\"sliced\":[2,3],\"result\":2,\"calls\":[[[1,2]]],\"spySawOurs\":true,\"isMock\":true},\"restored\":true}}",
     "{\"id\":\"spyOn the same method twice\",\"value\":{\"same\":true}}"
   ]
 }

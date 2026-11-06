@@ -4,6 +4,13 @@ const M = typeof jest === 'undefined' ? vi : jest
 const c = (id: string, run: () => unknown) => {
   test(id, () => observe(id, run))
 }
+const attempt = (run: () => unknown) => {
+  try {
+    return { value: run() }
+  } catch (error) {
+    return { threw: error }
+  }
+}
 const settle = (promise: Promise<unknown>) =>
   promise.then(
     (value) => ({ resolved: value }),
@@ -114,6 +121,77 @@ c('getMockImplementation returns the persistent implementation, or a queued one 
 })
 
 c('getMockImplementation of a bare mock', () => M.fn().getMockImplementation())
+
+c('the settled shorthands return a promise, not the bare value', () => {
+  const promiseOf = (value: unknown) => {
+    // A rejected promise nobody handles would fail the run.
+    ;(value as Promise<unknown>).catch?.(() => {})
+    return {
+      thenType: typeof (value as { then?: unknown } | undefined)?.then,
+      tag: Object.prototype.toString.call(value),
+    }
+  }
+  const resolved = M.fn().mockResolvedValue('v')
+  const resolvedOnce = M.fn().mockResolvedValueOnce('v')
+  const rejected = M.fn().mockRejectedValue(new Error('r'))
+  const rejectedOnce = M.fn().mockRejectedValueOnce(new Error('r'))
+  return {
+    mockResolvedValue: promiseOf(resolved()),
+    mockResolvedValueOnce: promiseOf(resolvedOnce()),
+    mockRejectedValue: promiseOf(rejected()),
+    mockRejectedValueOnce: promiseOf(rejectedOnce()),
+  }
+})
+
+c('mockImplementationOnce(undefined) after mockReturnValue', () => {
+  const f = M.fn()
+  f.mockReturnValue(7)
+  f.mockImplementationOnce(undefined as never)
+  return attempt(() => [f(), f(), f()])
+})
+
+c('mockImplementationOnce(undefined) under new', () => {
+  const f = M.fn()
+  f.mockReturnValue({ seven: 7 })
+  f.mockImplementationOnce(undefined as never)
+  return attempt(() => [typeof new f(), typeof new f(), typeof new f()])
+})
+
+c('mockImplementation(undefined) on a mock with an implementation', () => {
+  const f = M.fn(() => 'impl')
+  f.mockReturnValue('value')
+  f.mockImplementation(undefined as never)
+  return attempt(() => [f(), f.getMockImplementation() === undefined])
+})
+
+c('mockReset inside a withImplementation callback', () => {
+  const f = M.fn(() => 'original')
+  let inside: unknown
+  f.withImplementation(
+    () => 'temporary',
+    () => {
+      f.mockReset()
+      inside = f()
+    },
+  )
+  return { inside, after: f() }
+})
+
+c('mockReset while an async withImplementation callback is pending', async () => {
+  const f = M.fn(() => 'original')
+  let inside: unknown
+  const pending = f.withImplementation(
+    () => 'temporary',
+    async () => {
+      await Promise.resolve()
+      inside = f()
+    },
+  )
+  f.mockReset()
+  const during = f()
+  await pending
+  return { inside, during, after: f() }
+})
 
 c('a later mockImplementation replaces an earlier mockReturnValue', () => {
   const f = M.fn()

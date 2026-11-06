@@ -16,7 +16,10 @@ export const vitestMockPolicy: MockPolicy = {
   resetTo: 'original-impl',
   // unverified: track-01 L199, track-04 L253
   defaultName: 'vi.fn()',
-  // unverified: track-01 L200, track-04 L275 (mock corpus `config-default` agrees on `clear`)
+  // unverified: track-01 L200, track-04 L275 (mock corpus `config-default` and `config-no-clear`
+  // agree on `clear`; `config-reset`, `config-restore`, `config-unstub-envs` and
+  // `config-unstub-globals` on their flags. `order` has no corpus backing: no case tells one order
+  // from another)
   between: {
     order: ['restore', 'reset', 'clear', 'unstubEnvs', 'unstubGlobals'],
     clear: true,

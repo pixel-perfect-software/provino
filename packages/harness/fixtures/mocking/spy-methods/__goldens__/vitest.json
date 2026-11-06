@@ -237,6 +237,51 @@
           "id": {
             "file": "spy-methods.test.ts",
             "path": [
+              "spyOn a bound mock, then mockReturnValue"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "mockImplementation(undefined) on a spy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "spyOn Array.prototype.slice calls through and a mock called under it works"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
               "spyOn the same method twice"
             ],
             "dupIndex": 0
@@ -284,6 +329,9 @@
     "{\"id\":\"spyOn a missing key\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"The property \\\"missing\\\" is not defined on the object.\"}}}",
     "{\"id\":\"spyOn a property that is not a function\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"vi.spyOn() can only spy on a function. Received number.\"}}}",
     "{\"id\":\"spyOn something that is not an object\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"The vi.spyOn() function could not find an object to spy upon. The first argument must be defined.\"}}}",
+    "{\"id\":\"spyOn a bound mock, then mockReturnValue\",\"value\":{\"value\":\"stubbed\",\"isMock\":true,\"innerCalls\":0}}",
+    "{\"id\":\"mockImplementation(undefined) on a spy\",\"value\":{\"value\":{\"value\":\"original:x\",\"impl\":{\"$\":\"undefined\"}}}}",
+    "{\"id\":\"spyOn Array.prototype.slice calls through and a mock called under it works\",\"value\":{\"seen\":{\"sliced\":[2,3],\"result\":2,\"calls\":[[[1,2]]],\"spySawOurs\":true,\"isMock\":true},\"restored\":true}}",
     "{\"id\":\"spyOn the same method twice\",\"value\":{\"same\":true}}"
   ]
 }

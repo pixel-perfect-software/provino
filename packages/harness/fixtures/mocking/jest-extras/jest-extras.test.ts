@@ -91,3 +91,29 @@ c('replaceProperty on a getter', () =>
 c('replaceProperty on a function', () =>
   attempt(() => jest.replaceProperty({ a: () => 1 }, 'a', () => 2)),
 )
+
+// Jest treats every falsy implementation as none (jest-mock `fn(implementation)`).
+c('fn(false) when called', () => attempt(() => jest.fn(false as never)()))
+c('fn(0) when called', () => attempt(() => jest.fn(0 as never)()))
+c("fn('') when called", () => attempt(() => jest.fn('' as never)()))
+
+c('a call after mock is assigned undefined', () => {
+  const f = jest.fn(() => 'impl')
+  f.mock = undefined as never
+  const result = attempt(() => f())
+  return { result, mockIsUndefined: f.mock === undefined }
+})
+
+c('whenCalledWith sub-mock mockImplementation(undefined)', () => {
+  const f = jest.fn(() => 'fallback')
+  f.whenCalledWith(1).mockReturnValue('one')
+  f.whenCalledWith(1).mockImplementation(undefined as never)
+  return attempt(() => [f(1), f(2)])
+})
+
+c('whenCalledWith sub-mock mockImplementation(null)', () => {
+  const f = jest.fn(() => 'fallback')
+  f.whenCalledWith(1).mockReturnValue('one')
+  f.whenCalledWith(1).mockImplementation(null as never)
+  return attempt(() => [f(1), f(2)])
+})

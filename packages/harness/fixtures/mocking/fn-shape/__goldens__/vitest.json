@@ -187,6 +187,81 @@
             "line": 4,
             "column": 3
           }
+        },
+        {
+          "id": {
+            "file": "fn-shape.test.ts",
+            "path": [
+              "a method taken off its mock still works on that mock"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-shape.test.ts",
+            "path": [
+              "a method read twice is the same function"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-shape.test.ts",
+            "path": [
+              "assigning to a method replaces it for that mock"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-shape.test.ts",
+            "path": [
+              "length of a method, read off the mock and taken off it"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-shape.test.ts",
+            "path": [
+              "a bound mock is not a mock function"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 4,
+            "column": 3
+          }
         }
       ]
     }
@@ -220,6 +295,11 @@
     "{\"id\":\"fn of an existing mock is the same mock or a wrapper\",\"value\":{\"same\":true,\"outerCalls\":[[\"x\"]],\"innerCalls\":[[\"x\"]]}}",
     "{\"id\":\"static properties of the implementation\",\"value\":{\"extra\":\"static\",\"hasOwn\":true}}",
     "{\"id\":\"assigning to mock\",\"value\":{\"error\":\"TypeError\",\"replaced\":false,\"calls\":[]}}",
-    "{\"id\":\"length of a mock of a function with two parameters\",\"value\":2}"
+    "{\"id\":\"length of a mock of a function with two parameters\",\"value\":2}",
+    "{\"id\":\"a method taken off its mock still works on that mock\",\"value\":{\"before\":1,\"after\":0,\"value\":\"detached\"}}",
+    "{\"id\":\"a method read twice is the same function\",\"value\":{\"mockClear\":true,\"mockReturnValue\":true}}",
+    "{\"id\":\"assigning to a method replaces it for that mock\",\"value\":{\"result\":{\"value\":{\"$\":\"undefined\"}},\"identity\":true,\"other\":false}}",
+    "{\"id\":\"length of a method, read off the mock and taken off it\",\"value\":{\"onMock\":1,\"detached\":1}}",
+    "{\"id\":\"a bound mock is not a mock function\",\"value\":{\"isMockFunction\":false,\"flag\":{\"$\":\"undefined\"}}}"
   ]
 }

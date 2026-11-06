@@ -12,8 +12,11 @@ export const jestMockPolicy: MockPolicy = {
   resetTo: 'empty',
   // unverified: track-01 L199, track-04 L253 (mock corpus `fn-shape` agrees)
   defaultName: 'jest.fn()',
-  // unverified: track-01 L200, track-04 L275 (Jest has no unstub steps, so they are off;
-  // mock corpus `config-default` agrees)
+  // unverified: track-01 L200, track-04 L275. The mock corpus `config-default` agrees on `clear`,
+  // `reset` and `restore` (the `config-*` goldens show their effect when on or off). `order` has no
+  // corpus backing: no case tells one order from another (permuting it changes no observation).
+  // `unstubEnvs` and `unstubGlobals` are Jest-has-none, off by definition, with no corpus backing
+  // either: Jest cannot record them (an `unstub*` key under `jest` is a fixture error).
   between: {
     order: ['clear', 'reset', 'restore'],
     clear: false,

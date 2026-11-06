@@ -151,6 +151,22 @@
             "line": 5,
             "column": 3
           }
+        },
+        {
+          "id": {
+            "file": "fn-new.test.ts",
+            "path": [
+              "mockClear during a construction, and what mock holds after it"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
         }
       ]
     }
@@ -181,6 +197,7 @@
     "{\"id\":\"instanceof the mock, and the prototype chain of an instance\",\"value\":{\"instanceOfMock\":true,\"constructorIsMock\":true}}",
     "{\"id\":\"instances and contexts hold the object created by new\",\"value\":{\"instancesHoldIt\":true,\"contextsHoldIt\":true,\"length\":1}}",
     "{\"id\":\"new on a mock whose implementation returns an object\",\"value\":{\"isReturned\":true,\"instances\":1}}",
-    "{\"id\":\"a once value under new\",\"value\":{\"first\":{\"value\":{\"once\":true}},\"second\":{\"value\":\"object\"}}}"
+    "{\"id\":\"a once value under new\",\"value\":{\"first\":{\"value\":{\"once\":true}},\"second\":{\"value\":\"object\"}}}",
+    "{\"id\":\"mockClear during a construction, and what mock holds after it\",\"value\":{\"made\":{\"value\":{\"x\":1}},\"calls\":[],\"contexts\":[],\"instances\":[],\"results\":[]}}"
   ]
 }

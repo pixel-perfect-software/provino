@@ -54,3 +54,13 @@ export function compareObservations(
   }
   return results
 }
+
+/**
+ * Whether the run made its cases in the golden's order. `compareObservations` pairs by id, so it
+ * cannot see a run that observed the same lines in another order; `invocationCallOrder` and every
+ * state that builds on an earlier case depend on the order.
+ */
+export function sameOrder(golden: readonly string[], run: readonly string[]): boolean {
+  const ids = (lines: readonly string[]): string => JSON.stringify(lines.map(caseId))
+  return ids(golden) === ids(run)
+}

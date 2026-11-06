@@ -167,6 +167,102 @@
             "line": 10,
             "column": 3
           }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "fn(false) when called"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "fn(0) when called"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "fn('') when called"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "a call after mock is assigned undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "whenCalledWith sub-mock mockImplementation(undefined)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "whenCalledWith sub-mock mockImplementation(null)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
         }
       ]
     }
@@ -198,6 +294,12 @@
     "{\"id\":\"replaceProperty on a primitive\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"Cannot use replaceProperty on a primitive value; number given\"}}}",
     "{\"id\":\"replaceProperty on a property that does not exist\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"Property `a` does not exist in the provided object\"}}}",
     "{\"id\":\"replaceProperty on a getter\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"Cannot replace the `a` property because it has a getter. Use `jest.spyOn(object, 'a', 'get').mockReturnValue(value)` instead.\"}}}",
-    "{\"id\":\"replaceProperty on a function\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Cannot replace the `a` property because it is a function. Use `jest.spyOn(object, 'a')` instead.\"}}}"
+    "{\"id\":\"replaceProperty on a function\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Cannot replace the `a` property because it is a function. Use `jest.spyOn(object, 'a')` instead.\"}}}",
+    "{\"id\":\"fn(false) when called\",\"value\":{\"value\":{\"$\":\"undefined\"}}}",
+    "{\"id\":\"fn(0) when called\",\"value\":{\"value\":{\"$\":\"undefined\"}}}",
+    "{\"id\":\"fn('') when called\",\"value\":{\"value\":{\"$\":\"undefined\"}}}",
+    "{\"id\":\"a call after mock is assigned undefined\",\"value\":{\"result\":{\"value\":\"impl\"},\"mockIsUndefined\":false}}",
+    "{\"id\":\"whenCalledWith sub-mock mockImplementation(undefined)\",\"value\":{\"value\":[\"one\",\"fallback\"]}}",
+    "{\"id\":\"whenCalledWith sub-mock mockImplementation(null)\",\"value\":{\"value\":[{\"$\":\"undefined\"},\"fallback\"]}}"
   ]
 }

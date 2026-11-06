@@ -151,6 +151,47 @@ c('spyOn something that is not an object', () =>
   attempt(() => M.spyOn(undefined as never, 'a' as never)),
 )
 
+c('spyOn a bound mock, then mockReturnValue', () => {
+  const inner = M.fn(() => 'original')
+  const holder = { bound: inner.bind(null) }
+  const spy = M.spyOn(holder, 'bound')
+  spy.mockReturnValue('stubbed')
+  return {
+    value: holder.bound(),
+    isMock: M.isMockFunction(holder.bound),
+    innerCalls: inner.mock.calls.length,
+  }
+})
+
+c('mockImplementation(undefined) on a spy', () => {
+  const target = make()
+  const spy = M.spyOn(target, 'm')
+  spy.mockReturnValue('stubbed')
+  spy.mockImplementation(undefined as never)
+  return attempt(() => ({ value: target.m('x'), impl: spy.getMockImplementation() }))
+})
+
+// The runners call `slice` themselves, so the spy lives for one synchronous block only.
+c('spyOn Array.prototype.slice calls through and a mock called under it works', () => {
+  const spy = M.spyOn(Array.prototype, 'slice')
+  let seen: unknown
+  try {
+    const sliced = [1, 2, 3].slice(1)
+    const f = M.fn((a: number[]) => a.length)
+    const result = f([1, 2])
+    seen = {
+      sliced,
+      result,
+      calls: f.mock.calls,
+      spySawOurs: spy.mock.calls.some((args) => args.length === 1 && args[0] === 1),
+      isMock: M.isMockFunction(Array.prototype.slice),
+    }
+  } finally {
+    spy.mockRestore()
+  }
+  return { seen, restored: !M.isMockFunction(Array.prototype.slice) }
+})
+
 c('spyOn the same method twice', () => {
   const target = make()
   const first = M.spyOn(target, 'm')

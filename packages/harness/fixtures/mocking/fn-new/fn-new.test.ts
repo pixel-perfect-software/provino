@@ -87,3 +87,18 @@ c('a once value under new', () => {
   f.mockReturnValueOnce({ once: true })
   return { first: attempt(() => new f()), second: attempt(() => typeof new f()) }
 })
+
+c('mockClear during a construction, and what mock holds after it', () => {
+  const f = M.fn(function (this: { x?: number }) {
+    f.mockClear()
+    this.x = 1
+  })
+  const made = attempt(() => new f())
+  return {
+    made,
+    calls: f.mock.calls,
+    contexts: f.mock.contexts,
+    instances: f.mock.instances,
+    results: f.mock.results,
+  }
+})
