@@ -36,6 +36,8 @@ const pinned: Readonly<Record<string, unknown>> = {
   'module.factoryShape': 'namespace',
   'module.missingFactoryExport': 'throw',
   'module.rootMocksAutoApply': false,
+  // No text of its own: `@provino/mock` supplies the neutral wording for every module message code.
+  'module.messages': {},
   'snapshot.header': '// Provino Snapshot v1',
   'expect.errorShape': 'assertion-error',
   'orchestrator.isolationDefault': {

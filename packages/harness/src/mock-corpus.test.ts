@@ -70,10 +70,18 @@ const EXPECTED_COUNTED: Readonly<Partial<Record<FixtureProfile, number>>> = {
   vitest: 111,
 }
 
+/**
+ * The `mod-*` fixtures mock modules, which this check's `jest`/`vi` (no loader) cannot; B13b's
+ * `mod-corpus.test.ts` runs them through the fake loader and counts them there.
+ */
+function isModFixture(id: string): boolean {
+  return path.posix.basename(id).startsWith('mod-')
+}
+
 const root = path.join(defaultFixturesRoot(), 'mocking')
 const dirs = await findFixtures(root)
 const fixtures = (await Promise.all(dirs.map((dir) => readFixture(dir)))).filter(
-  (fixture) => !UNCOUNTED.has(fixture.id),
+  (fixture) => !UNCOUNTED.has(fixture.id) && !isModFixture(fixture.id),
 )
 
 const counted: Partial<Record<FixtureProfile, number>> = {}

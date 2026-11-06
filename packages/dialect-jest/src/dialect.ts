@@ -9,7 +9,9 @@
 //
 // - No value in the research (B03's key-merge record):
 //   core.doneDeprecatedMessage, timers.notFaked, timers.setSystemTimeWithoutFakes,
-//   timers.facadeReturns, module.missingFactoryExport.
+//   timers.facadeReturns.
+//   (`module.missingFactoryExport` and `module.messages` were here; B13b sets them from the
+//   Jest 30.5 sources, and the mod corpus agrees.)
 // - Track 1 gives a value that does not map onto the key:
 //   timers.fakeTemporal ("via sinon 15.4", a condition on the version of @sinonjs/fake-timers,
 //   not true or false; B14 confirms it).
@@ -24,6 +26,7 @@
 import { defineDialect, moduleRef } from '@provino/policy'
 import type { Dialect, GlobalsFactory, PolicyOverrides } from '@provino/types'
 import { jestExpectPolicy } from './expect-policy.ts'
+import { jestHoistPolicy } from './hoist-policy.ts'
 import { jestMockPolicy } from './mock-policy.ts'
 
 /**
@@ -161,10 +164,28 @@ export const jestPolicy: PolicyOverrides = {
     resetModulesReRunsFactory: true,
     // unverified: track-04 L313
     requireVirtualFlag: true,
+    // unverified: track-04 L313 (mod corpus agrees: `mod-virtual-static`)
+    virtualRelative: true,
     // unverified: track-04 L314
     automockShape: 'metadata',
     // unverified: track-04 L316
     unmockedPathPatterns: [],
+    // unverified: track-04 L310 (mod corpus agrees: `mod-factory-shape`, reading `b` gives `undefined`)
+    missingFactoryExport: 'undefined',
+    // The registry's error texts, copied from the Jest 30.5 sources under `.refs/jest`.
+    // unverified: track-04 L310 (mod corpus agrees)
+    messages: {
+      // jest-resolve `resolver.ts` L523 (`_throwModNotFoundError`), then the hint jest-runtime adds
+      // in `internals/MockState.ts` L377 (`getModuleIdForMockRegistration`). `{from}` is the
+      // importer's path relative to the root, as jest-resolve prints it.
+      'module-missing':
+        "Cannot find module '{specifier}' from '{from}'\n\nTo mock a module that does not exist on disk, pass `{virtual: true}` in the mock options. See https://jestjs.io/docs/jest-object#jestmockmodulename-factory-options",
+      // jest-runtime `internals/MockState.ts` L552-L554 (`generateMock`); `{id}` is the module path.
+      'automock-no-metadata':
+        'Failed to get mock metadata: {id}\n\nSee: https://jestjs.io/docs/manual-mocks#content',
+      // jest-runtime `internals/ModuleRegistries.ts` L132 (`enterIsolated`).
+      'nested-isolation': '{caller} cannot be nested inside another {caller} or {other}.',
+    },
   },
   snapshot: {
     // unverified: track-01 L215, track-07 L468, track-11 L520
@@ -312,4 +333,6 @@ export const jestDialect: Dialect<'jest'> = defineDialect({
     ),
     names: JEST_GLOBAL_NAMES,
   },
+  // Nothing reads it until B13c turns hoisting on in `createProjectLoader`.
+  loader: { hoist: jestHoistPolicy },
 })

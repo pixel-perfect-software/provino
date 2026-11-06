@@ -141,8 +141,11 @@ export const neutralPolicy: Policy = deepFreeze({
     missingFactoryExport: 'throw',
     resetModulesReRunsFactory: true,
     requireVirtualFlag: false,
+    virtualRelative: true,
     automockShape: 'deep',
     unmockedPathPatterns: [],
+    // Empty: `@provino/mock` falls back to its own neutral text for every module message code.
+    messages: {},
   },
   snapshot: {
     header: '// Provino Snapshot v1',

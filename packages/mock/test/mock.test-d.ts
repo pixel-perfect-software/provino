@@ -1,24 +1,32 @@
 // The public API of @provino/mock: first-cut `fn` and `spyOn` inference and misuse (T4.5 ports the
 // rest).
 import {
+  type AutomockMaker,
+  automock,
   createMockFn,
   createMockRegistry,
+  createModuleMockRegistry,
   createStubs,
+  findManualMock,
   isMockFunction,
+  type ManualMock,
   MOCK_BRAND,
   type Mock,
   type MockCleanupConfig,
+  type MockDecision,
   type MockError,
   type MockInstance,
   type MockRegistry,
   type MockTypeError,
+  type ModuleMockRegistry,
+  type RegisterOptions,
   type Replaced,
   replaceProperty,
   type Stubs,
   spyOn,
   type UnknownFunction,
 } from '@provino/mock'
-import type { MockPolicy } from '@provino/types'
+import type { MockPolicy, ModulePolicy, Resolver } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
 declare const policy: MockPolicy
@@ -136,3 +144,66 @@ registry.beforeEach({ clearMocks: true }, policy.between)
 expectTypeOf<MockError['code']>().toEqualTypeOf<string>()
 expectTypeOf<MockError>().toExtend<Error>()
 expectTypeOf<MockTypeError>().toExtend<TypeError>()
+
+// The module-mock registry (T4.7).
+declare const resolver: Resolver
+declare const modulePolicy: ModulePolicy
+
+const modules = createModuleMockRegistry({
+  policy: modulePolicy,
+  mockPolicy: policy,
+  mocks: registry,
+  resolver,
+  roots: ['/proj'],
+  extensions: ['.ts'],
+  loadActual: () => ({}),
+})
+expectTypeOf(modules).toEqualTypeOf<ModuleMockRegistry>()
+expectTypeOf(modules.decide('/a.ts', '/b.ts', 'esm')).toEqualTypeOf<MockDecision>()
+expectTypeOf(modules.decide('/a.ts', '/b.ts', 'cjs', './a')).toEqualTypeOf<MockDecision>()
+expectTypeOf(modules.decideUnresolved('x', '/b.ts')).toEqualTypeOf<MockDecision>()
+expectTypeOf(modules.materialize('/a.ts')).toBeUnknown()
+expectTypeOf<RegisterOptions['from']>().toEqualTypeOf<string>()
+modules.register('./a', { kind: 'factory', factory: () => ({}) }, { from: '/b.ts' })
+modules.register(
+  './a',
+  {
+    kind: 'factory',
+    factory: async (importOriginal) => ({ ...((await importOriginal()) as object) }),
+  },
+  { from: '/b.ts', virtual: true },
+)
+modules.register('./a', { kind: 'unmock' }, { from: '/b.ts' })
+
+// A decision is a union on `mocked`.
+declare const decision: MockDecision
+if (decision.mocked) expectTypeOf(decision.id).toEqualTypeOf<string>()
+// @ts-expect-error `id` exists only on a mocked decision
+decision.id
+
+// @ts-expect-error a registration needs the importer
+modules.register('./a', { kind: 'unmock' }, {})
+modules.register(
+  './a',
+  // @ts-expect-error the factory's result shape is the policy's, not the spec's
+  { kind: 'factory', factory: () => ({}), shape: 'namespace' },
+  { from: '/b.ts' },
+)
+// @ts-expect-error the kind of an import edge is esm, cjs or builtin
+modules.decide('/a.ts', '/b.ts', 'dynamic')
+// @ts-expect-error the registry takes a resolver
+createModuleMockRegistry({ policy: modulePolicy, mockPolicy: policy, mocks: registry })
+
+// `findManualMock` and `automock`.
+expectTypeOf(
+  findManualMock('pkg', { roots: [], extensions: [] }),
+).toEqualTypeOf<ManualMock | null>()
+// @ts-expect-error the search needs its roots and extensions
+findManualMock('pkg', {})
+const maker: AutomockMaker = (options) => createMockFn(policy, registry, options)
+expectTypeOf(automock({}, 'metadata', 'automock', maker)).toBeUnknown()
+expectTypeOf(automock({}, 'deep', 'autospy', maker)).toBeUnknown()
+// @ts-expect-error the shape is the policy's `metadata` or `deep`
+automock({}, 'jest-metadata', 'automock', maker)
+// @ts-expect-error the mode is automock or autospy
+automock({}, 'deep', 'spy', maker)

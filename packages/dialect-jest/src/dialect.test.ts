@@ -107,6 +107,17 @@ test('the divergences from the neutral policy are Jest`s', () => {
   })
 })
 
+test('the module slice: a missing export reads undefined, and the registry texts are Jest`s', () => {
+  assert.equal(resolved.module.missingFactoryExport, 'undefined')
+  assert.deepEqual(resolved.module.messages, {
+    'module-missing':
+      "Cannot find module '{specifier}' from '{from}'\n\nTo mock a module that does not exist on disk, pass `{virtual: true}` in the mock options. See https://jestjs.io/docs/jest-object#jestmockmodulename-factory-options",
+    'automock-no-metadata':
+      'Failed to get mock metadata: {id}\n\nSee: https://jestjs.io/docs/manual-mocks#content',
+    'nested-isolation': '{caller} cannot be nested inside another {caller} or {other}.',
+  })
+})
+
 test('values that equal the neutral ones are not divergences', () => {
   const paths = new Set(diffPolicy(neutralPolicy, resolved).map((row) => row.path))
   for (const path of [
@@ -154,7 +165,7 @@ test('every behaviour ref is absolute, so a worker imports it as it is (D21)', (
   }
 })
 
-/** The leaf values of a policy: the paths a layer can set (`mock.messages` and `byEnvironment` are open records). */
+/** The leaf values of a policy: the paths a layer can set (`mock.messages`, `module.messages` and `byEnvironment` are open records). */
 function leafPaths(value: unknown, path = ''): string[] {
   const leaf =
     typeof value !== 'object' ||
@@ -163,6 +174,7 @@ function leafPaths(value: unknown, path = ''): string[] {
     value instanceof RegExp ||
     isModuleRef(value) ||
     path === 'mock.messages' ||
+    path === 'module.messages' ||
     path === 'orchestrator.isolationDefault.byEnvironment'
   if (leaf) return [path]
   return Object.entries(value).flatMap(([key, child]) =>
@@ -183,7 +195,6 @@ test('the keys the dialect leaves to the neutral policy are the ones listed in d
       'timers.notFaked',
       'timers.setSystemTimeWithoutFakes',
       'timers.facadeReturns',
-      'module.missingFactoryExport',
       'snapshot.key',
       'snapshot.serializers',
       'snapshot.resolvePath',
