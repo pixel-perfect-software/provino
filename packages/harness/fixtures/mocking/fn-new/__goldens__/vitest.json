@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "mocking/fn-new",
+  "files": [
+    {
+      "file": "fn-new.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "fn-new.test.ts",
+            "path": [
+              "new on a mock of an arrow function"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-new.test.ts",
+            "path": [
+              "new on a mock of a function sets fields on the new instance"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-new.test.ts",
+            "path": [
+              "new on a mock of a class"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-new.test.ts",
+            "path": [
+              "mockReturnValue under new"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-new.test.ts",
+            "path": [
+              "methods on the prototype of a function implementation reach the instance"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-new.test.ts",
+            "path": [
+              "instanceof the mock, and the prototype chain of an instance"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-new.test.ts",
+            "path": [
+              "instances and contexts hold the object created by new"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-new.test.ts",
+            "path": [
+              "new on a mock whose implementation returns an object"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-new.test.ts",
+            "path": [
+              "a once value under new"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"new on a mock of an arrow function\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"() => ({ made: \\\"by arrow\\\" }) is not a constructor\"}}}",
+    "{\"id\":\"new on a mock of a function sets fields on the new instance\",\"value\":{\"result\":{\"value\":{\"field\":5}},\"instances\":[{\"field\":5}],\"results\":[{\"type\":\"return\",\"value\":{\"field\":5}}]}}",
+    "{\"id\":\"new on a mock of a class\",\"value\":{\"result\":{\"value\":{\"value\":\"from class\"}},\"calls\":1}}",
+    "{\"id\":\"mockReturnValue under new\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Cannot use `mockReturnValue` when called with `new`. Use `mockImplementation` with a `class` keyword instead. See https://vitest.dev/api/mock#class-support for more information.\"}}}",
+    "{\"id\":\"methods on the prototype of a function implementation reach the instance\",\"value\":{\"hello\":\"function\",\"x\":1}}",
+    "{\"id\":\"instanceof the mock, and the prototype chain of an instance\",\"value\":{\"instanceOfMock\":true,\"constructorIsMock\":true}}",
+    "{\"id\":\"instances and contexts hold the object created by new\",\"value\":{\"instancesHoldIt\":true,\"contextsHoldIt\":true,\"length\":1}}",
+    "{\"id\":\"new on a mock whose implementation returns an object\",\"value\":{\"isReturned\":true,\"instances\":1}}",
+    "{\"id\":\"a once value under new\",\"value\":{\"first\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Cannot use `mockReturnValueOnce` when called with `new`. Use `mockImplementation` with a `class` keyword instead. See https://vitest.dev/api/mock#class-support for more information.\"}},\"second\":{\"value\":\"object\"}}}"
+  ]
+}

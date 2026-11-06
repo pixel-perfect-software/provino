@@ -1,0 +1,5 @@
+{
+  "description": "The frozen-spy hazard: the throw from spying a frozen object, then restoreAllMocks() in a second observation. Jest's registry keeps the failed spy's restorer, so both throw and Jest's own teardown restoreAllMocks() throws too, which fails the whole file after the tests ran (the golden is a crash with both observations traced). Vitest's registry stays clean.",
+  "runners": ["jest", "vitest"],
+  "expectCrash": { "jest": "Cannot assign to read only property" }
+}

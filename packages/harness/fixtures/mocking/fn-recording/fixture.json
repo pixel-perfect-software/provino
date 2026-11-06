@@ -1,0 +1,4 @@
+{
+  "description": "What a mock function records: calls as references, results with an incomplete entry before the implementation runs, contexts, instances, invocation order from 1, thrown results, settledResults, lastCall, and mockClear inside the implementation. Each case is one observation.",
+  "runners": ["jest", "vitest"]
+}

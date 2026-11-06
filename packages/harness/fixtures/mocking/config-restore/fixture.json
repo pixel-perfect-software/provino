@@ -1,0 +1,5 @@
+{
+  "description": "Per-test mock cleanup with restore on (restoreMocks in both), seen in test 2 on mocks made in test 1.",
+  "runners": ["jest", "vitest"],
+  "mockCleanup": { "restore": true }
+}

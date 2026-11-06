@@ -1,0 +1,4 @@
+{
+  "description": "The runner's default per-test mock cleanup (Jest: all off; Vitest 5: clearMocks on), seen in test 2 on mocks made in test 1.",
+  "runners": ["jest", "vitest"]
+}

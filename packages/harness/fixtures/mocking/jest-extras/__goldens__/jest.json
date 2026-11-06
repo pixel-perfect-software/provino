@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/jest-extras",
+  "files": [
+    {
+      "file": "jest-extras.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "whenCalledWith routes a call by its arguments and falls through otherwise"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "whenCalledWith on a mock with no implementation, and its sub-mock records"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "replaceProperty swaps a value and replaceValue swaps it again"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "restore puts the original value back, and an own property stays own"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "replaceProperty on an inherited property, restored by deleting the own copy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "replacing the same property twice reuses the replacement, and restoreAllMocks restores it"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "replaceProperty on a primitive"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "replaceProperty on a property that does not exist"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "replaceProperty on a getter"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "jest-extras.test.ts",
+            "path": [
+              "replaceProperty on a function"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"whenCalledWith routes a call by its arguments and falls through otherwise\",\"value\":{\"one\":\"one\",\"two\":\"two\",\"other\":\"fallback\",\"partial\":\"fallback\",\"calls\":4}}",
+    "{\"id\":\"whenCalledWith on a mock with no implementation, and its sub-mock records\",\"value\":{\"hit\":\"routed\",\"miss\":{\"$\":\"undefined\"},\"subCalls\":[[\"x\"]],\"ownCalls\":2}}",
+    "{\"id\":\"replaceProperty swaps a value and replaceValue swaps it again\",\"value\":{\"first\":\"first\",\"second\":\"second\",\"replaceValueReturnsSelf\":true,\"keys\":[\"replaceValue\",\"restore\"]}}",
+    "{\"id\":\"restore puts the original value back, and an own property stays own\",\"value\":{\"value\":\"original\",\"restoreReturns\":{\"$\":\"undefined\"},\"own\":true}}",
+    "{\"id\":\"replaceProperty on an inherited property, restored by deleting the own copy\",\"value\":{\"during\":{\"value\":\"shadow\",\"own\":true},\"after\":{\"value\":\"base\",\"own\":false}}}",
+    "{\"id\":\"replacing the same property twice reuses the replacement, and restoreAllMocks restores it\",\"value\":{\"sameReplaced\":true,\"replacedValue\":\"b\",\"afterRestoreAll\":\"original\"}}",
+    "{\"id\":\"replaceProperty on a primitive\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"Cannot use replaceProperty on a primitive value; number given\"}}}",
+    "{\"id\":\"replaceProperty on a property that does not exist\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"Property `a` does not exist in the provided object\"}}}",
+    "{\"id\":\"replaceProperty on a getter\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"Cannot replace the `a` property because it has a getter. Use `jest.spyOn(object, 'a', 'get').mockReturnValue(value)` instead.\"}}}",
+    "{\"id\":\"replaceProperty on a function\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Cannot replace the `a` property because it is a function. Use `jest.spyOn(object, 'a')` instead.\"}}}"
+  ]
+}

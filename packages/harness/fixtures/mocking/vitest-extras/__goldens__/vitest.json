@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "mocking/vitest-extras",
+  "files": [
+    {
+      "file": "vitest-extras.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "vitest-extras.test.ts",
+            "path": [
+              "mockThrow makes every call throw and records the throw"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "vitest-extras.test.ts",
+            "path": [
+              "mockThrowOnce throws once and then falls back"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "vitest-extras.test.ts",
+            "path": [
+              "mockThrow with a value that is not an error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "vitest-extras.test.ts",
+            "path": [
+              "stubEnv sets a variable and unstubAllEnvs removes one that did not exist"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "vitest-extras.test.ts",
+            "path": [
+              "unstubAllEnvs restores the value a variable had"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "vitest-extras.test.ts",
+            "path": [
+              "stubEnv with a value that is not a string"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "vitest-extras.test.ts",
+            "path": [
+              "stubGlobal sets a global and unstubAllGlobals removes one that did not exist"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "vitest-extras.test.ts",
+            "path": [
+              "unstubAllGlobals restores the value a global had"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"mockThrow makes every call throw and records the throw\",\"value\":{\"returnsSelf\":true,\"first\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"always\"}},\"second\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"always\"}},\"results\":[{\"type\":\"throw\",\"value\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"always\"}},{\"type\":\"throw\",\"value\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"always\"}}]}}",
+    "{\"id\":\"mockThrowOnce throws once and then falls back\",\"value\":[{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"once\"}},{\"value\":\"impl\"}]}",
+    "{\"id\":\"mockThrow with a value that is not an error\",\"value\":{\"threw\":\"just a string\"}}",
+    "{\"id\":\"stubEnv sets a variable and unstubAllEnvs removes one that did not exist\",\"value\":{\"before\":{\"$\":\"undefined\"},\"during\":\"stubbed\",\"after\":{\"$\":\"undefined\"},\"returnsVi\":true}}",
+    "{\"id\":\"unstubAllEnvs restores the value a variable had\",\"value\":{\"during\":\"changed\",\"after\":\"original\"}}",
+    "{\"id\":\"stubEnv with a value that is not a string\",\"value\":{\"value\":\"5\"}}",
+    "{\"id\":\"stubGlobal sets a global and unstubAllGlobals removes one that did not exist\",\"value\":{\"before\":false,\"during\":42,\"after\":false,\"returnsVi\":true}}",
+    "{\"id\":\"unstubAllGlobals restores the value a global had\",\"value\":{\"during\":\"changed\",\"after\":\"original\"}}"
+  ]
+}

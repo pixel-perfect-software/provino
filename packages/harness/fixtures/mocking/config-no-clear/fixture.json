@@ -1,0 +1,5 @@
+{
+  "description": "Vitest 5 with clearMocks turned off (its default is on), seen in test 2 on mocks made in test 1.",
+  "runners": ["vitest"],
+  "mockCleanup": { "clear": false }
+}

@@ -1,0 +1,5 @@
+{
+  "description": "Per-test mock cleanup with reset on (Jest resetMocks, Vitest mockReset), seen in test 2 on mocks made in test 1.",
+  "runners": ["jest", "vitest"],
+  "mockCleanup": { "reset": true }
+}
