@@ -76,6 +76,23 @@ function findDescriptor(object: object, key: PropertyKey): PropertyDescriptor | 
   return undefined
 }
 
+/** An own property gets its descriptor back; one that was inherited is deleted. */
+function putBackDescriptor(
+  isOwner: boolean,
+  subject: object,
+  key: PropertyKey,
+  descriptor: PropertyDescriptor | undefined,
+): void {
+  if (isOwner && descriptor !== undefined) Object.defineProperty(subject, key, descriptor)
+  else Reflect.deleteProperty(subject, key)
+}
+
+/** An own property gets its value assigned back; one that was inherited is deleted. */
+function putBackValue(isOwner: boolean, target: AnyObject, key: PropertyKey, value: unknown): void {
+  if (isOwner) target[key] = value
+  else delete target[key]
+}
+
 function makeSpy(
   policy: MockPolicy,
   registry: MockRegistry,
@@ -115,22 +132,15 @@ function spyAssign(
   }
   const isOwner = Object.hasOwn(subject, key)
   const descriptor = findDescriptor(subject, key)
-  const bridged = original as FunctionLike
   if (descriptor?.get !== undefined) {
     const installed: PropertyDescriptor = { ...descriptor }
-    const restore = (): void => {
-      if (isOwner) Object.defineProperty(subject, key, descriptor)
-      else Reflect.deleteProperty(subject, key)
-    }
-    const spy = makeSpy(policy, registry, bridged, restore)
+    const restore = (): void => putBackDescriptor(isOwner, subject, key, descriptor)
+    const spy = makeSpy(policy, registry, original as FunctionLike, restore)
     installed.get = () => spy
     return install(registry, spy, restore, () => Object.defineProperty(subject, key, installed))
   }
-  const restore = (): void => {
-    if (isOwner) target[key] = original
-    else delete target[key]
-  }
-  const spy = makeSpy(policy, registry, bridged, restore)
+  const restore = (): void => putBackValue(isOwner, target, key, original)
+  const spy = makeSpy(policy, registry, original as FunctionLike, restore)
   return install(registry, spy, restore, () => {
     try {
       target[key] = spy
@@ -176,10 +186,7 @@ function spyAssignAccessor(
   const original = descriptor[access]
   if (original === undefined) fail(policy, 'spy-no-access-type', key, access)
   if (isMockFunction(policy, original)) return original
-  const restore = (): void => {
-    if (isOwner) Object.defineProperty(subject, key, descriptor)
-    else Reflect.deleteProperty(subject, key)
-  }
+  const restore = (): void => putBackDescriptor(isOwner, subject, key, descriptor)
   const spy = makeSpy(policy, registry, original as FunctionLike, restore)
   return install(registry, spy, restore, () =>
     Object.defineProperty(subject, key, { ...descriptor, [access]: spy }),
@@ -231,9 +238,9 @@ function spyDefine(
     Object.defineProperty(subject, key, { ...rest, [slot]: value })
   }
   const restore = (): void => {
-    if (!isOwner) Reflect.deleteProperty(subject, key)
-    else if (descriptor !== undefined && !original) Object.defineProperty(subject, key, descriptor)
-    else define(original)
+    if (!isOwner || (descriptor !== undefined && !original)) {
+      putBackDescriptor(isOwner, subject, key, descriptor)
+    } else define(original)
   }
   const spy = makeSpy(policy, registry, implementation as FunctionLike | undefined, restore)
   return install(registry, spy, restore, () => {
@@ -334,10 +341,8 @@ export function replaceProperty<T extends object, K extends keyof T>(
 
   const isOwner = Object.hasOwn(object, key)
   const originalValue = descriptor.value as T[K]
-  const restorer: Restorer = () => {
-    if (isOwner) object[key] = originalValue
-    else delete object[key]
-  }
+  const restorer: Restorer = () =>
+    putBackValue(isOwner, object as AnyObject, key as PropertyKey, originalValue)
   const replaced: Replaced<T[K]> = {
     replaceValue(next: T[K]): Replaced<T[K]> {
       object[key] = next

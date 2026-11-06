@@ -66,9 +66,6 @@ interface Layout {
   readonly makers: readonly Maker[]
   /** `.mock` is an accessor. Otherwise a non-writable data property holding one state object. */
   readonly accessor: PropertyDescriptor | null
-  readonly construct: boolean
-  readonly settled: boolean
-  readonly lastCallOnRead: boolean
   readonly chain: boolean
   readonly ownNameFromOriginal: boolean
 }
@@ -146,7 +143,8 @@ class MockSlot implements DirtyMock {
   ref: WeakRef<DirtyMock> | null = null
   /** The methods read so far, each bound to this mock. */
   bound: BoundMethods | null = null
-  resets: number
+  /** The last `registry.resets` generation this mock saw. */
+  seenResets: number
   /** Bumped by every `resetMock`, so a restore queued before a reset can tell it is stale. */
   epoch = 0
 
@@ -154,20 +152,24 @@ class MockSlot implements DirtyMock {
     this.policy = policy
     this.registry = registry
     this.layout = layout
-    this.resets = registry.resets
+    this.seenResets = registry.resets
   }
 
   /** A `resetAll` this mock wasn't in a dirty set for. See the top of the file. */
   catchUpOnResets(): void {
-    if (this.resets === this.registry.resets) return
-    this.resets = this.registry.resets
-    if (this.policy.resetTo === 'empty') {
-      this.impl = undefined
-      this.fallback = (this.options?.fallback as Impl | undefined) ?? null
-    }
+    if (this.seenResets === this.registry.resets) return
+    this.seenResets = this.registry.resets
+    if (this.policy.resetTo === 'empty') this.dropImplementation()
+  }
+
+  /** `resetTo: 'empty'`: nothing is left but what the options built the mock with as a fallback. */
+  dropImplementation(): void {
+    this.impl = undefined
+    this.fallback = (this.options?.fallback as Impl | undefined) ?? null
   }
 
   enterStateDirty(): void {
+    if (this.stateDirty) return
     this.catchUpOnResets()
     this.registry.markStateDirty(this)
   }
@@ -180,7 +182,7 @@ class MockSlot implements DirtyMock {
 
   /** `fn.mock`, read. */
   readState(): RawState {
-    if (!this.stateDirty && this.policy.clearReplacesStateObject) this.enterStateDirty()
+    if (this.policy.clearReplacesStateObject) this.enterStateDirty()
     return this.currentState()
   }
 
@@ -192,7 +194,9 @@ class MockSlot implements DirtyMock {
       this.state = state
     }
     // jest-mock's `_ensureMockState` (index.ts L681): the key appears on a read after a call.
-    if (this.layout.lastCallOnRead && state.calls.length > 0) state.lastCall = state.calls.at(-1)
+    if (this.policy.lastCallKey === 'after-first-call' && state.calls.length > 0) {
+      state.lastCall = state.calls.at(-1)
+    }
     return state
   }
 
@@ -208,11 +212,11 @@ class MockSlot implements DirtyMock {
     state.instances = []
     state.invocationCallOrder = []
     state.results = []
-    if (this.layout.settled) state.settledResults = []
+    if (this.policy.settledResults) state.settledResults = []
   }
 
   resetMock(): void {
-    this.resets = this.registry.resets
+    this.seenResets = this.registry.resets
     this.epoch++
     this.clearState()
     const when = this.when
@@ -222,13 +226,15 @@ class MockSlot implements DirtyMock {
     }
     this.onces = null
     this.name = null
-    if (this.policy.resetTo === 'empty') {
-      this.impl = undefined
-      this.fallback = (this.options?.fallback as Impl | undefined) ?? null
-    } else {
-      this.impl = this.options?.impl as Impl | undefined
-    }
+    if (this.policy.resetTo === 'empty') this.dropImplementation()
+    else this.impl = this.options?.impl as Impl | undefined
     if (this.layout.chain) this.syncPrototype(this.impl ?? this.fallback)
+  }
+
+  /** `mockRestore` and `[Symbol.dispose]`: a reset, then whatever put the original back. */
+  restore(): void {
+    this.resetMock()
+    this.options?.restore?.()
   }
 
   setImpl(impl: Impl | null | undefined): void {
@@ -271,23 +277,38 @@ class MockSlot implements DirtyMock {
 
   /** One call of the mock. */
   invoke(self: unknown, args: unknown[], newTarget: unknown): unknown {
-    if (!this.stateDirty) this.enterStateDirty()
-    const state = this.currentState()
-    const layout = this.layout
-    const constructing = newTarget !== undefined && layout.construct
+    this.enterStateDirty()
+    const policy = this.policy
+    const constructing = newTarget !== undefined && policy.newCall === 'construct'
     // A construction's `this` is only known once it returns.
     const context = constructing ? undefined : self
-    state.calls.push(args)
-    const instanceIndex = state.instances.push(context) - 1
-    const contextIndex = state.contexts.push(context) - 1
     const result: MockResult<unknown> = { type: 'incomplete', value: undefined }
-    state.results.push(result)
     let settled: MockSettledResult<unknown> | null = null
-    if (layout.settled) {
-      settled = { type: 'incomplete', value: undefined }
-      state.settledResults?.push(settled)
+    if (policy.settledResults) settled = { type: 'incomplete', value: undefined }
+    const order = this.registry.nextInvocationOrder()
+    let state = this.state
+    let instanceIndex = 0
+    let contextIndex = 0
+    if (!state && !policy.settledResults && policy.lastCallKey !== 'always') {
+      // The first call, as literals: five empty arrays pushed onto would each keep a larger store.
+      // The keys are `freshState`'s, in its order.
+      state = {
+        calls: [args],
+        contexts: [context],
+        instances: [context],
+        invocationCallOrder: [order],
+        results: [result],
+      }
+      this.state = state
+    } else {
+      state = this.currentState()
+      state.calls.push(args)
+      instanceIndex = state.instances.push(context) - 1
+      contextIndex = state.contexts.push(context) - 1
+      state.results.push(result)
+      if (settled !== null) state.settledResults?.push(settled)
+      state.invocationCallOrder.push(order)
     }
-    state.invocationCallOrder.push(this.registry.nextInvocationOrder())
 
     // jest-mock's order (index.ts L805-L820). A queued entry that is `undefined` falls back to the
     // persistent implementation on a plain call, and runs nothing under `new`; any other falsy
@@ -306,7 +327,7 @@ class MockSlot implements DirtyMock {
     let value: unknown
     try {
       if (constructing) {
-        if (layout.chain) this.syncPrototype(impl)
+        if (this.layout.chain) this.syncPrototype(impl)
         value = Reflect.construct(impl || noop, args, newTarget as Newable)
         // As @vitest/spy does (`state.contexts[contextIndex - 1] = returnValue`, after the
         // construction returns): written into whatever arrays are current then. A `mockClear`
@@ -319,20 +340,12 @@ class MockSlot implements DirtyMock {
       }
     } catch (error) {
       // Mutated, not pushed: a `mockClear` during the call must not get this result back.
-      const thrown = result as { type: string; value: unknown }
-      thrown.type = 'throw'
-      thrown.value = error
-      if (settled !== null) {
-        const rejected = settled as { type: string; value: unknown }
-        rejected.type = 'rejected'
-        rejected.value = error
-      }
+      finish(result, 'throw', error)
+      if (settled !== null) finish(settled, 'rejected', error)
       if (constructing) this.warnIfNotConstructor(error)
       throw error
     }
-    const returned = result as { type: string; value: unknown }
-    returned.type = 'return'
-    returned.value = value
+    finish(result, 'return', value)
     if (settled !== null) settle(settled, value)
     return value
   }
@@ -416,23 +429,41 @@ class MockSlot implements DirtyMock {
   }
 }
 
+/** Settles a result cell in place: the cell is what the arrays hold, so it is mutated, not replaced. */
+function finish(
+  cell: MockResult<unknown> | MockSettledResult<unknown>,
+  type: string,
+  value: unknown,
+) {
+  const target = cell as { type: string; value: unknown }
+  target.type = type
+  target.value = value
+}
+
 function settle(settled: MockSettledResult<unknown>, value: unknown): void {
-  const target = settled as { type: string; value: unknown }
   if (value instanceof Promise) {
     value.then(
-      (fulfilled: unknown) => {
-        target.type = 'fulfilled'
-        target.value = fulfilled
-      },
-      (rejected: unknown) => {
-        target.type = 'rejected'
-        target.value = rejected
-      },
+      (fulfilled: unknown) => finish(settled, 'fulfilled', fulfilled),
+      (rejected: unknown) => finish(settled, 'rejected', rejected),
     )
     return
   }
-  target.type = 'fulfilled'
-  target.value = value
+  finish(settled, 'fulfilled', value)
+}
+
+/** The slot of a mock, or `undefined` for anything else (a bound copy, the prototype, a non-function). */
+function peekSlot(value: unknown): MockSlot | undefined {
+  return (value as Partial<SlotHolder> | null | undefined)?.[SLOT]
+}
+
+/** An assignment to an accessor over a mock's own name: an own data property on the receiver. */
+function setOwn(target: object, key: PropertyKey, value: unknown): void {
+  Object.defineProperty(target, key, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  })
 }
 
 /** The order of jest-mock's dispatcher (index.ts L616-L625). Targets always run through `apply`. */
@@ -456,7 +487,7 @@ function makeDispatcher(slot: MockSlot): Impl {
 }
 
 function slotOf(fn: unknown): MockSlot {
-  const slot = (fn as Partial<SlotHolder> | null | undefined)?.[SLOT]
+  const slot = peekSlot(fn)
   if (slot === undefined) {
     throw new MockTypeError(
       'MOCK_DETACHED_METHOD',
@@ -514,9 +545,7 @@ const METHODS = {
     return this
   },
   mockRestore(this: unknown): void {
-    const slot = slotOf(this)
-    slot.resetMock()
-    slot.options?.restore?.()
+    slotOf(this).restore()
   },
   mockImplementation<S>(this: S, impl: Impl): S {
     slotOf(this).setImpl(impl)
@@ -598,9 +627,7 @@ const METHODS = {
     return subMock
   },
   [Symbol.dispose](this: unknown): void {
-    const slot = slotOf(this)
-    slot.resetMock()
-    slot.options?.restore?.()
+    slotOf(this).restore()
   },
 }
 
@@ -613,16 +640,11 @@ function methodAccessor(key: PropertyKey, method: Impl): PropertyDescriptor {
   return {
     enumerable: true,
     get(this: unknown): unknown {
-      const slot = (this as Partial<SlotHolder> | null | undefined)?.[SLOT]
+      const slot = peekSlot(this)
       return slot === undefined ? method : slot.boundMethod(key, method)
     },
     set(this: object, value: unknown): void {
-      Object.defineProperty(this, key, {
-        value,
-        writable: true,
-        enumerable: true,
-        configurable: true,
-      })
+      setOwn(this, key, value)
     },
   }
 }
@@ -638,17 +660,10 @@ function flagAccessor(key: PropertyKey): PropertyDescriptor {
   return {
     enumerable: true,
     get(this: unknown): true | undefined {
-      return (this as Partial<SlotHolder> | null | undefined)?.[SLOT] !== undefined
-        ? true
-        : undefined
+      return peekSlot(this) !== undefined ? true : undefined
     },
     set(this: object, value: unknown): void {
-      Object.defineProperty(this, key, {
-        value,
-        writable: true,
-        enumerable: true,
-        configurable: true,
-      })
+      setOwn(this, key, value)
     },
   }
 }
@@ -675,105 +690,88 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
   )
 }
 
-/** Copies `arguments` with an indexed loop: no global or prototype lookup on the call path. */
+/**
+ * Copies `arguments` with no global or prototype lookup on the call path. The common short lists are
+ * exact literals: storing into `[]` by index would keep a 17-slot store for even one argument, and
+ * `state.calls` holds each list until a clear.
+ */
 function copyArguments(source: IArguments): unknown[] {
+  switch (source.length) {
+    case 0:
+      return []
+    case 1:
+      return [source[0]]
+    case 2:
+      return [source[0], source[1]]
+    case 3:
+      return [source[0], source[1], source[2]]
+    case 4:
+      return [source[0], source[1], source[2], source[3]]
+  }
   const copy: unknown[] = []
   for (let index = 0; index < source.length; index++) copy[index] = source[index]
   return copy
 }
 
 type Maker = (slot: MockSlot) => Impl
+type U = unknown
 
 /**
  * The function makers by arity, 0 to 9, for each own name. `Object.defineProperty(fn, 'length')` costs
  * more than the rest of creation, so as jest-mock's `matchArity` does (index.ts L352-L465), the
- * arity is in the source, written out rather than compiled: nothing here generates code from a
+ * arity is in the source, written out rather than generated: nothing here builds code from a
  * string, which a host can forbid. Each maker is a plain closure over the slot.
  */
 // biome-ignore-start lint/complexity/noArguments: a rest parameter would allocate before the copy and change `length`
 const MOCK_CONSTRUCTOR_MAKERS: readonly Maker[] = [
   (slot) =>
-    function mockConstructor(this: unknown) {
+    function mockConstructor(this: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function mockConstructor(this: unknown, _0: unknown) {
+    function mockConstructor(this: U, _0: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function mockConstructor(this: unknown, _0: unknown, _1: unknown) {
+    function mockConstructor(this: U, _0: U, _1: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function mockConstructor(this: unknown, _0: unknown, _1: unknown, _2: unknown) {
+    function mockConstructor(this: U, _0: U, _1: U, _2: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function mockConstructor(this: unknown, _0: unknown, _1: unknown, _2: unknown, _3: unknown) {
+    function mockConstructor(this: U, _0: U, _1: U, _2: U, _3: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function mockConstructor(
-      this: unknown,
-      _0: unknown,
-      _1: unknown,
-      _2: unknown,
-      _3: unknown,
-      _4: unknown,
-    ) {
+    function mockConstructor(this: U, _0: U, _1: U, _2: U, _3: U, _4: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function mockConstructor(
-      this: unknown,
-      _0: unknown,
-      _1: unknown,
-      _2: unknown,
-      _3: unknown,
-      _4: unknown,
-      _5: unknown,
-    ) {
+    function mockConstructor(this: U, _0: U, _1: U, _2: U, _3: U, _4: U, _5: U) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function mockConstructor(this: U, _0: U, _1: U, _2: U, _3: U, _4: U, _5: U, _6: U) {
+      return slot.invoke(this, copyArguments(arguments), new.target)
+    },
+  (slot) =>
+    function mockConstructor(this: U, _0: U, _1: U, _2: U, _3: U, _4: U, _5: U, _6: U, _7: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
     function mockConstructor(
-      this: unknown,
-      _0: unknown,
-      _1: unknown,
-      _2: unknown,
-      _3: unknown,
-      _4: unknown,
-      _5: unknown,
-      _6: unknown,
-    ) {
-      return slot.invoke(this, copyArguments(arguments), new.target)
-    },
-  (slot) =>
-    function mockConstructor(
-      this: unknown,
-      _0: unknown,
-      _1: unknown,
-      _2: unknown,
-      _3: unknown,
-      _4: unknown,
-      _5: unknown,
-      _6: unknown,
-      _7: unknown,
-    ) {
-      return slot.invoke(this, copyArguments(arguments), new.target)
-    },
-  (slot) =>
-    function mockConstructor(
-      this: unknown,
-      _0: unknown,
-      _1: unknown,
-      _2: unknown,
-      _3: unknown,
-      _4: unknown,
-      _5: unknown,
-      _6: unknown,
-      _7: unknown,
-      _8: unknown,
+      this: U,
+      _0: U,
+      _1: U,
+      _2: U,
+      _3: U,
+      _4: U,
+      _5: U,
+      _6: U,
+      _7: U,
+      _8: U,
     ) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
@@ -781,88 +779,48 @@ const MOCK_CONSTRUCTOR_MAKERS: readonly Maker[] = [
 
 const MOCK_MAKERS: readonly Maker[] = [
   (slot) =>
-    function Mock(this: unknown) {
+    function Mock(this: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function Mock(this: unknown, _0: unknown) {
+    function Mock(this: U, _0: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function Mock(this: unknown, _0: unknown, _1: unknown) {
+    function Mock(this: U, _0: U, _1: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function Mock(this: unknown, _0: unknown, _1: unknown, _2: unknown) {
+    function Mock(this: U, _0: U, _1: U, _2: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function Mock(this: unknown, _0: unknown, _1: unknown, _2: unknown, _3: unknown) {
+    function Mock(this: U, _0: U, _1: U, _2: U, _3: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function Mock(this: unknown, _0: unknown, _1: unknown, _2: unknown, _3: unknown, _4: unknown) {
+    function Mock(this: U, _0: U, _1: U, _2: U, _3: U, _4: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function Mock(
-      this: unknown,
-      _0: unknown,
-      _1: unknown,
-      _2: unknown,
-      _3: unknown,
-      _4: unknown,
-      _5: unknown,
-    ) {
+    function Mock(this: U, _0: U, _1: U, _2: U, _3: U, _4: U, _5: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function Mock(
-      this: unknown,
-      _0: unknown,
-      _1: unknown,
-      _2: unknown,
-      _3: unknown,
-      _4: unknown,
-      _5: unknown,
-      _6: unknown,
-    ) {
+    function Mock(this: U, _0: U, _1: U, _2: U, _3: U, _4: U, _5: U, _6: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function Mock(
-      this: unknown,
-      _0: unknown,
-      _1: unknown,
-      _2: unknown,
-      _3: unknown,
-      _4: unknown,
-      _5: unknown,
-      _6: unknown,
-      _7: unknown,
-    ) {
+    function Mock(this: U, _0: U, _1: U, _2: U, _3: U, _4: U, _5: U, _6: U, _7: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
   (slot) =>
-    function Mock(
-      this: unknown,
-      _0: unknown,
-      _1: unknown,
-      _2: unknown,
-      _3: unknown,
-      _4: unknown,
-      _5: unknown,
-      _6: unknown,
-      _7: unknown,
-      _8: unknown,
-    ) {
+    function Mock(this: U, _0: U, _1: U, _2: U, _3: U, _4: U, _5: U, _6: U, _7: U, _8: U) {
       return slot.invoke(this, copyArguments(arguments), new.target)
     },
 ]
 
 // biome-ignore-end lint/complexity/noArguments: see above
-
-const MAX_COMPILED_ARITY = 9
 
 function readMock(this: SlotHolder): RawState {
   return this[SLOT].readState()
@@ -871,7 +829,7 @@ function readMock(this: SlotHolder): RawState {
 function writeMock(this: SlotHolder, value: RawState): void {
   const slot = this[SLOT]
   slot.state = value
-  if (!slot.stateDirty) slot.enterStateDirty()
+  slot.enterStateDirty()
 }
 
 function buildLayout(policy: MockPolicy): Layout {
@@ -886,9 +844,6 @@ function buildLayout(policy: MockPolicy): Layout {
     proto,
     makers: policy.functionName === 'mockConstructor' ? MOCK_CONSTRUCTOR_MAKERS : MOCK_MAKERS,
     accessor,
-    construct: policy.newCall === 'construct',
-    settled: policy.settledResults,
-    lastCallOnRead: policy.lastCallKey === 'after-first-call',
     chain: policy.classMockPrototype === 'chain-to-impl',
     ownNameFromOriginal: policy.functionName === 'impl-or-Mock',
   }
@@ -965,7 +920,7 @@ function lengthFor(options: CreateMockOptions<MockTarget>, layout: Layout): numb
 }
 
 function makeFunction(layout: Layout, slot: MockSlot, length: number): MockFn {
-  const arity = length >= 0 && length <= MAX_COMPILED_ARITY ? length : 0
+  const arity = length >= 0 && length < layout.makers.length ? length : 0
   const fn = (layout.makers[arity] as Maker)(slot) as MockFn
   if (arity !== length) Object.defineProperty(fn, 'length', { value: length, configurable: true })
   return fn
@@ -981,11 +936,7 @@ export function createMockFn<T extends MockTarget = UnknownFunction>(
   registry: MockRegistry,
   options?: CreateMockOptions<T>,
 ): Mock<T> {
-  if (
-    options !== undefined &&
-    policy.fnOfMockReturnsSame &&
-    (options.impl as Partial<SlotHolder> | undefined)?.[SLOT] !== undefined
-  ) {
+  if (options !== undefined && policy.fnOfMockReturnsSame && peekSlot(options.impl) !== undefined) {
     return options.impl as unknown as Mock<T>
   }
   const layout = layoutOf(policy)
