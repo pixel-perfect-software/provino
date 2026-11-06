@@ -5,13 +5,7 @@ import { DEFAULT_RUN_TIMEOUT_MS, isTimerMs, MAX_RUN_TIMEOUT_MS } from './exec.ts
 import { errorMessage } from './internal/guards.ts'
 import { parseLabel, runsProblem } from './report.ts'
 import { DEFAULT_COLD_RUNS, DEFAULT_WARM_RUNS } from './run-bench.ts'
-import {
-  BENCHMARKED_RUNNERS,
-  parseSuiteName,
-  RUNNERS,
-  type RunnerName,
-  type SuiteSpec,
-} from './suites.ts'
+import { parseSuiteName, RUNNERS, type RunnerName, type SuiteSpec } from './suites.ts'
 
 /**
  * A parsed command line.
@@ -39,6 +33,16 @@ export type CliCommand =
       /** The longest one run may take, in milliseconds. */
       readonly timeoutMs: number
     }
+  | {
+      readonly command: 'kill-check'
+      readonly label: BenchLabel
+      /** Run Jest in Provino's place: the gate's plumbing, never a quotable record. */
+      readonly dryRun: boolean
+      readonly out: string | undefined
+      readonly machineId: string | undefined
+      /** The longest one run may take, in milliseconds. */
+      readonly timeoutMs: number
+    }
 
 /**
  * The usage text.
@@ -49,15 +53,24 @@ export const USAGE: string = `provino-bench: Provino's benchmark protocol (Track
 Usage:
   provino-bench generate <suite>
   provino-bench check <suite> --runner jest [--runner vitest] [--runner provino] [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}]
-  provino-bench run <suite> --runner jest|vitest [--runner ...]
+  provino-bench run <suite> --runner jest|vitest|provino [--runner ...]
                     [--warm ${DEFAULT_WARM_RUNS}] [--cold ${DEFAULT_COLD_RUNS}] [--label local|desktop|pinned]
                     [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}] [--out <file>] [--machine-id <id>]
+  provino-bench kill-check [--label local|desktop|pinned] [--dry-run] [--out <file>]
+                    [--machine-id <id>] [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}]
 
 Suites: app-N, mock-heavy-N (N from 1 to 9999), isolate-heavy.
-Runners: jest, vitest, and provino, which \`check\` only: it runs the provino bin on the suite's jest/
-  tree (all cores but one, the default) and requires every test to pass; with --runner jest in the
-  same check it also requires Provino's per-test statuses to equal Jest's. \`run\` doesn't take it
-  yet: Provino's record is the kill-check's (B12).
+Runners: jest, vitest, and provino, which runs the provino bin on the suite's jest/ tree (all cores
+  but one, the default) at isolation registry, with its results cache kept (it only orders files).
+  \`check\` requires every test to pass; with --runner jest in the same check it also requires
+  Provino's per-test statuses to equal Jest's.
+kill-check: Track 12 R6 on the R6 suite set: Provino against Jest, warm and cold, with the 10 warm and
+  5 cold runs R6 fixes (so no --warm or --cold), plus registry/none on app-500. Suites that can't run
+  yet print PENDING. The verdict is PROVISIONAL unless the label is pinned and every suite ran. Exit
+  0 when no measured check failed, which on a PROVISIONAL verdict is not a GO decision; 1 for NO-GO,
+  or when no verdict was reached (a refusal or a failure: it prints an error and no VERDICT line).
+  --dry-run runs Jest in Provino's place, so every ratio is about 1.0 and the verdict is NO-GO; it
+  needs --label local and is never a result, and its exit 1 says nothing about the plumbing.
 Options: each applies only to the commands above that show it.
   --warm, --cold   Timed runs per subject: whole numbers of 1 or more. The R5 protocol is
                    ${DEFAULT_WARM_RUNS} warm and ${DEFAULT_COLD_RUNS} cold. desktop and pinned records need at least that
@@ -70,6 +83,7 @@ Records are labelled local by default; only pinned numbers decide GO or appear p
 and pinned refuse a dirty git tree; a local record on one says dirty.`
 
 const options = {
+  'dry-run': { type: 'boolean' },
   runner: { type: 'string', multiple: true },
   warm: { type: 'string' },
   cold: { type: 'string' },
@@ -83,10 +97,13 @@ const options = {
 type OptionName = keyof typeof options
 
 // Which options each command reads. Anything else on the command line is an error, not ignored.
-const COMMAND_OPTIONS: Readonly<Record<'generate' | 'check' | 'run', readonly OptionName[]>> = {
+const COMMAND_OPTIONS: Readonly<
+  Record<'generate' | 'check' | 'run' | 'kill-check', readonly OptionName[]>
+> = {
   generate: [],
   check: ['runner', 'timeout'],
   run: ['runner', 'warm', 'cold', 'label', 'out', 'machine-id', 'timeout'],
+  'kill-check': ['label', 'dry-run', 'out', 'machine-id', 'timeout'],
 }
 
 function read(argv: readonly string[]) {
@@ -136,25 +153,33 @@ function onlyOptions(
   }
 }
 
-// `run` records only the runners whose numbers are a result; `check` takes them all.
-function runners(
-  values: readonly string[] | undefined,
-  command: 'check' | 'run',
-): readonly RunnerName[] {
+function runners(values: readonly string[] | undefined): readonly RunnerName[] {
   if (values === undefined || values.length === 0) throw usage('pass at least one --runner')
-  const allowed = command === 'run' ? BENCHMARKED_RUNNERS : RUNNERS
   const parsed: RunnerName[] = []
   for (const value of values) {
     const runner = RUNNERS.find((candidate) => candidate === value)
-    if (runner === undefined) throw usage(`--runner must be ${allowed.join(' or ')}; got ${value}`)
-    if (!allowed.includes(runner)) {
-      throw usage(
-        `--runner ${runner} is for check only; run records ${allowed.join(' and ')} (Provino's record is the kill-check's, B12)`,
-      )
-    }
+    if (runner === undefined) throw usage(`--runner must be ${RUNNERS.join(' or ')}; got ${value}`)
     if (!parsed.includes(runner)) parsed.push(runner)
   }
   return parsed
+}
+
+// What `run` and `kill-check` share: the record's label, where it goes, its machine id and the run
+// timeout. The caller parses the label first (it may need it before these).
+function recordOptions(
+  values: {
+    readonly out?: string | undefined
+    readonly 'machine-id'?: string | undefined
+    readonly timeout?: string | undefined
+  },
+  label: BenchLabel,
+) {
+  return {
+    label,
+    out: nonEmpty(values.out, '--out'),
+    machineId: nonEmpty(values['machine-id'], '--machine-id'),
+    timeoutMs: timeoutMs(values.timeout),
+  }
 }
 
 /**
@@ -165,6 +190,19 @@ export function parseCli(argv: readonly string[]): CliCommand {
   const { values, positionals } = read(argv)
   const [command, suiteName, ...extra] = positionals
   if (values.help || command === undefined || command === 'help') return { command: 'help' }
+  if (command === 'kill-check') {
+    // The suite set is R6's, not the caller's.
+    if (suiteName !== undefined) throw usage(`kill-check takes no suite; got ${suiteName}`)
+    onlyOptions(command, values)
+    const label = parseLabel(values.label ?? 'local')
+    const dryRun = values['dry-run'] === true
+    if (dryRun && label !== 'local') {
+      throw usage(
+        `--dry-run needs --label local: a dry run is never a quotable record; got ${label}`,
+      )
+    }
+    return { command, dryRun, ...recordOptions(values, label) }
+  }
   if (suiteName === undefined) throw usage(`${command} needs a suite`)
   if (extra.length > 0) throw usage(`unexpected argument ${extra[0]}`)
   const suite = parseSuiteName(suiteName)
@@ -177,7 +215,7 @@ export function parseCli(argv: readonly string[]): CliCommand {
       return {
         command,
         suite,
-        runners: runners(values.runner, 'check'),
+        runners: runners(values.runner),
         timeoutMs: timeoutMs(values.timeout),
       }
     case 'run': {
@@ -191,13 +229,10 @@ export function parseCli(argv: readonly string[]): CliCommand {
       return {
         command,
         suite,
-        runners: runners(values.runner, 'run'),
+        runners: runners(values.runner),
         warm,
         cold,
-        label,
-        out: nonEmpty(values.out, '--out'),
-        machineId: nonEmpty(values['machine-id'], '--machine-id'),
-        timeoutMs: timeoutMs(values.timeout),
+        ...recordOptions(values, label),
       }
     }
     default:

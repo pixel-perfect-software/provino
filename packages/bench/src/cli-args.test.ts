@@ -35,26 +35,18 @@ test('check takes one or more runners, once each', () => {
   assert.equal(parsed.command === 'check' && parsed.runners.join(), 'jest,vitest')
 })
 
-test('check takes provino beside jest, and run takes only the runners it records', () => {
+test('check and run both take provino beside jest', () => {
   const parsed = parseCli(['check', 'app-500', '--runner', 'jest', '--runner', 'provino'])
   assert.equal(parsed.command === 'check' && parsed.runners.join(), 'jest,provino')
+  const run = parseCli(['run', 'app-5', '--runner', 'jest', '--runner', 'provino'])
+  assert.equal(run.command === 'run' && run.runners.join(), 'jest,provino')
   assert.match(USAGE, /--runner provino/)
-  // `run` would write a record for provino that the kill-check (B12) has not defined yet
-  for (const runners of [['provino'], ['jest', 'provino']]) {
-    assert.throws(
-      () => parseCli(['run', 'app-5', ...runners.flatMap((runner) => ['--runner', runner])]),
-      (error) =>
-        error instanceof BenchError &&
-        error.code === 'BENCH_USAGE' &&
-        /--runner provino is for check only; run records jest and vitest/.test(error.message) &&
-        /B12/.test(error.message),
-      runners.join(),
-    )
-  }
+  assert.doesNotMatch(USAGE, /B12|doesn't take it/)
   assert.throws(
     () => parseCli(['run', 'app-5', '--runner', 'mocha']),
     (error) =>
-      error instanceof BenchError && /must be jest or vitest; got mocha/.test(error.message),
+      error instanceof BenchError &&
+      /must be jest or vitest or provino; got mocha/.test(error.message),
   )
   assert.throws(
     () => parseCli(['check', 'app-5', '--runner', 'mocha']),
@@ -62,6 +54,63 @@ test('check takes provino beside jest, and run takes only the runners it records
       error instanceof BenchError &&
       /must be jest or vitest or provino; got mocha/.test(error.message),
   )
+})
+
+test('kill-check takes a label, dry run, out, machine id and timeout, and no suite or run counts', () => {
+  assert.deepEqual(parseCli(['kill-check']), {
+    command: 'kill-check',
+    label: 'local',
+    dryRun: false,
+    out: undefined,
+    machineId: undefined,
+    timeoutMs: 30 * 60_000,
+  })
+  assert.deepEqual(
+    parseCli([
+      'kill-check',
+      '--label',
+      'desktop',
+      '--out',
+      'r.json',
+      '--machine-id',
+      'box',
+      '--timeout',
+      '45',
+    ]),
+    {
+      command: 'kill-check',
+      label: 'desktop',
+      dryRun: false,
+      out: 'r.json',
+      machineId: 'box',
+      timeoutMs: 45 * 60_000,
+    },
+  )
+  const dry = parseCli(['kill-check', '--dry-run'])
+  assert.equal(dry.command === 'kill-check' && dry.dryRun, true)
+  assert.match(USAGE, /provino-bench kill-check \[--label local\|desktop\|pinned\] \[--dry-run\]/)
+  for (const bad of [
+    ['kill-check', 'app-500'],
+    ['kill-check', '--warm', '3'],
+    ['kill-check', '--cold', '3'],
+    ['kill-check', '--runner', 'jest'],
+    ['kill-check', '--label', 'nope'],
+    ['kill-check', '--out', ' '],
+    ['kill-check', '--dry-run', '--label', 'desktop'],
+    ['kill-check', '--dry-run', '--label', 'pinned'],
+  ]) {
+    assert.throws(() => parseCli(bad), code('BENCH_USAGE'), bad.join(' '))
+  }
+})
+
+test('--dry-run belongs to kill-check only', () => {
+  for (const argv of [
+    ['run', 'app-5', '--runner', 'jest', '--dry-run'],
+    ['check', 'app-5', '--runner', 'jest', '--dry-run'],
+    ['generate', 'app-5', '--dry-run'],
+  ]) {
+    assert.throws(() => parseCli(argv), code('BENCH_USAGE'), argv.join(' '))
+  }
 })
 
 test('check takes the same --timeout as run, with the same default', () => {
@@ -238,8 +287,9 @@ test('runCli prints usage for help and exits 2 on a usage error, without running
   assert.match(err.join('\n'), /BENCH_USAGE: pass at least one --runner/)
   assert.equal(await runCli(['generate', 'nope'], io), 1)
   assert.match(err.join('\n'), /BENCH_UNKNOWN_SUITE/)
-  // run does not take provino yet, and says why before generating or running anything
+  // a kill-check usage error exits 2 before anything runs
   err.length = 0
-  assert.equal(await runCli(['run', 'app-5', '--runner', 'provino'], io), 2)
-  assert.match(err.join('\n'), /BENCH_USAGE: --runner provino is for check only.*B12/)
+  assert.equal(await runCli(['kill-check', 'app-500'], io), 2)
+  assert.match(err.join('\n'), /BENCH_USAGE: kill-check takes no suite/)
+  assert.equal(await runCli(['kill-check', '--dry-run', '--label', 'pinned'], io), 2)
 })

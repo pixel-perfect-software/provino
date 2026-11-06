@@ -5,7 +5,6 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
-import { BenchError } from './errors.ts'
 import { buildGraph, GRAPH, GRAPH_SIZE, simulate } from './generators/graph.ts'
 import { BIG_RECORD_COUNT } from './generators/isolate-heavy.ts'
 import type { Flavour, GeneratedFile } from './generators/render.ts'
@@ -143,6 +142,25 @@ test('regenerating repairs edited files, removes stale ones, and leaves .cache a
   assert.equal((await stat(join(dir, 'jest', 'setup.js'))).mtime.getTime(), old.getTime())
 })
 
+test('regenerating keeps anything under a node_modules directory, such as Provino’s results cache', async (t) => {
+  const root = await scratch(t, 'bench-suite-')
+  const spec = suite('app-3')
+  await writeSuite(spec, root)
+  const jest = join(root, 'app-3', 'jest')
+  const cache = join(jest, 'node_modules', '.cache', 'provino', 'results.json')
+  await mkdir(join(jest, 'node_modules', '.cache', 'provino'), { recursive: true })
+  await writeFile(cache, '{}\n')
+  const summary = await writeSuite(spec, root)
+  assert.equal(summary.removed, 0)
+  assert.equal(await readFile(cache, 'utf8'), '{}\n')
+
+  const stale = join(jest, 'tests', 'app-0099.test.js')
+  await writeFile(stale, 'stale\n')
+  assert.equal((await writeSuite(spec, root)).removed, 1)
+  assert.equal(existsSync(stale), false)
+  assert.equal(await readFile(cache, 'utf8'), '{}\n')
+})
+
 test('the two flavours are one model: same files, same test bodies, different module syntax', () => {
   for (const name of ['app-3', 'mock-heavy-3', 'isolate-heavy']) {
     const files = buildSuite(suite(name))
@@ -187,11 +205,24 @@ test('every suite ships the configs, with Jest’s setup hook spelled setupFiles
     [
       'export default {',
       "  dialect: 'jest',",
+      "  isolation: 'registry',",
       "  include: ['tests/**/*.test.js'],",
       "  setupFiles: ['./setup.js'],",
       '}',
       '',
     ].join('\n'),
+  )
+  // The no-isolation config is the same file with the other tier (the kill-check's registry/none).
+  assert.equal(
+    file(files, 'jest/provino.none.config.mjs'),
+    file(files, 'jest/provino.config.mjs').replace("isolation: 'registry'", "isolation: 'none'"),
+  )
+  assert.match(file(files, 'jest/provino.none.config.mjs'), /isolation: 'none'/)
+  assert.equal(
+    files.some(
+      (generated) => generated.path.startsWith('vitest/') && /provino/.test(generated.path),
+    ),
+    false,
   )
   assert.equal(
     files.some((generated) => generated.path === 'jest/provino.config.ts'),
@@ -212,7 +243,12 @@ test('every kind of suite ships a Provino config that says what its jest.config.
     const setupFiles = jestConfig.setupFilesAfterEnv.map(strip)
     assert.equal(
       file(files, 'jest/provino.config.mjs'),
-      `export default {\n  dialect: 'jest',\n  include: ${JSON.stringify(include).replaceAll('"', "'")},\n  setupFiles: ${JSON.stringify(setupFiles).replaceAll('"', "'")},\n}\n`,
+      `export default {\n  dialect: 'jest',\n  isolation: 'registry',\n  include: ${JSON.stringify(include).replaceAll('"', "'")},\n  setupFiles: ${JSON.stringify(setupFiles).replaceAll('"', "'")},\n}\n`,
+      name,
+    )
+    assert.equal(
+      file(files, 'jest/provino.none.config.mjs'),
+      file(files, 'jest/provino.config.mjs').replace("'registry'", "'none'"),
       name,
     )
     // the config is generated into .suites/, never committed: nothing but TypeScript is in the repo
@@ -420,14 +456,50 @@ test('the provino plan runs the bin from source on the Jest tree, with its resul
   )
 })
 
-test('a provino plan is not a bench subject yet', () => {
-  assert.throws(
-    () => toSubjectSpec(planRunner(suite('app-5'), 'provino')),
-    (error) =>
-      error instanceof BenchError &&
-      error.code === 'BENCH_INVALID_SPEC' &&
-      /provino is checked, not benchmarked yet/.test(error.message),
-  )
+test('the provino plan is at registry by default, and none picks the other config on the same tree and caches', () => {
+  const registry = planRunner(suite('app-5'), 'provino')
+  const none = planRunner(suite('app-5'), 'provino', { isolation: 'none' })
+  assert.equal(registry.isolation, 'registry')
+  assert.equal(none.isolation, 'none')
+  assert.deepEqual(registry.argv.slice(3), ['run', '--config', 'provino.config.mjs'])
+  assert.deepEqual(none.argv.slice(3), ['run', '--config', 'provino.none.config.mjs'])
+  assert.equal(none.configPath, 'packages/bench/.suites/app-5/jest/provino.none.config.mjs')
+  assert.match(none.command, /--config provino\.none\.config\.mjs$/)
+  assert.equal(none.cwd, registry.cwd)
+  assert.deepEqual(none.caches, registry.caches)
+  // the results cache is kept in a timed run: only the check asks for --no-cache
+  assert.ok(!registry.argv.includes('--no-cache'))
+})
+
+test('jest and vitest ignore the isolation option and run at their defaults', () => {
+  for (const runner of ['jest', 'vitest'] as const) {
+    const plain = planRunner(suite('app-5'), runner)
+    const asked = planRunner(suite('app-5'), runner, { isolation: 'none' })
+    assert.equal(plain.isolation, 'runner-default')
+    assert.deepEqual(asked, plain)
+  }
+})
+
+test('every plan is a bench subject: jest and vitest at their defaults, provino as provino:jest at its tier', () => {
+  const jest = toSubjectSpec(planRunner(suite('app-5'), 'jest')).subject
+  assert.equal(jest.runner, 'jest')
+  assert.equal(jest.isolation, 'runner-default')
+  assert.equal(toSubjectSpec(planRunner(suite('app-5'), 'vitest')).subject.runner, 'vitest')
+  for (const isolation of ['registry', 'none'] as const) {
+    const spec = toSubjectSpec(planRunner(suite('app-5'), 'provino', { isolation }))
+    assert.equal(spec.subject.runner, 'provino:jest')
+    assert.equal(spec.subject.isolation, isolation)
+    assert.ok(
+      spec.subject.configPath?.endsWith(
+        isolation === 'none' ? 'provino.none.config.mjs' : 'provino.config.mjs',
+      ),
+    )
+    assert.ok(spec.argv.includes('--conditions=provino-source'))
+    assert.deepEqual(
+      spec.caches.map((cache) => cache.kind),
+      ['provino', 'node-compile'],
+    )
+  }
 })
 
 test('runners resolve to real bin scripts, not .bin shims', () => {

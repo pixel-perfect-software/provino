@@ -30,7 +30,7 @@ provino/
 │   ├── loader/                   # @provino/loader: createLoader, the module-runner engine (none and registry tiers)
 │   ├── core/                     # @provino/core: collector, executor, current test (B07)
 │   ├── harness/                  # @provino/harness (dev): result converters, golden-fixture recorder, parity diffs
-│   └── bench/                    # @provino/bench (dev): synthetic suites, provino-bench, and the loader benches (src/loader/)
+│   └── bench/                    # @provino/bench (dev): synthetic suites, provino-bench (run, check, kill-check), and the loader benches (src/loader/)
 ├── tooling/                      # private workspace tools, never published (pnpm-workspace `tooling/*`)
 │   └── boundaries/               # provino-boundaries: packages.json manifest, generator, GritQL plugins
 ├── .refs/                        # gitignored upstream sources at pinned commits (DECISIONS S3); excalidraw/ is GitHub's tarball (the sandbox blocks nested git)

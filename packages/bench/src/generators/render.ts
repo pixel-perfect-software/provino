@@ -127,14 +127,37 @@ export function json(value: unknown): string {
 }
 
 /**
+ * The isolation tiers Provino can be planned at: the two the kill-check compares (R6).
+ * @public
+ */
+export type ProvinoIsolation = 'registry' | 'none'
+
+/**
+ * Each Provino tier's config file in the `jest/` tree.
+ * @public
+ */
+export const PROVINO_CONFIG: Readonly<Record<ProvinoIsolation, string>> = {
+  registry: 'provino.config.mjs',
+  none: 'provino.none.config.mjs',
+}
+
+const PROVINO_ISOLATIONS = Object.keys(PROVINO_CONFIG) as ProvinoIsolation[]
+
+/**
  * The files every suite shares, per flavour: the package manifest, the runner config, the setup
  * file, and for the Jest tree the Provino config.
  *
  * `provino.config.mjs` says the same as the tree's `jest.config.json`: the Jest dialect, the
  * `testMatch` as `include`, and the `setupFilesAfterEnv` as the neutral `setupFiles` (which run
- * after the environment). It is `.mjs` because the tree's `package.json` is CommonJS, which can't
- * load an `export default` from a `.ts` file; it is generated into the gitignored `.suites/`, like
- * the suites' other `.js` files, so the repository holds no `.js` or `.mjs` (D13).
+ * after the environment). It states `isolation: 'registry'` explicitly, and
+ * `provino.none.config.mjs` is the same with `isolation: 'none'`, for the kill-check's registry/none
+ * ratio. R6 fixes the registry tier, and build-plan section 4 item 34 warns that Jest's default
+ * could move to `realm`: an explicit config stops the kill-check from silently measuring a
+ * different tier.
+ *
+ * They are `.mjs` because the tree's `package.json` is CommonJS, which can't load an
+ * `export default` from a `.ts` file; they are generated into the gitignored `.suites/`, like the
+ * suites' other `.js` files, so the repository holds no `.js` or `.mjs` (D13).
  *
  * The setup file registers a custom matcher with `expect.extend` and global `beforeEach` and
  * `afterEach` hooks that count their calls. It uses only globals, so it is the same bytes in both
@@ -171,6 +194,18 @@ export function commonFiles(suite: string, flavour: Flavour): readonly Generated
       '})',
     ]),
   )
+  const provinoConfig = (isolation: ProvinoIsolation): GeneratedFile =>
+    file(
+      PROVINO_CONFIG[isolation],
+      lines([
+        'export default {',
+        "  dialect: 'jest',",
+        `  isolation: '${isolation}',`,
+        "  include: ['tests/**/*.test.js'],",
+        "  setupFiles: ['./setup.js'],",
+        '}',
+      ]),
+    )
   if (flavour === 'cjs') {
     return [
       file('package.json', json({ name: `bench-${suite}-jest`, private: true, type: 'commonjs' })),
@@ -183,16 +218,7 @@ export function commonFiles(suite: string, flavour: Flavour): readonly Generated
           cacheDirectory: '<rootDir>/../.cache/jest',
         }),
       ),
-      file(
-        'provino.config.mjs',
-        lines([
-          'export default {',
-          "  dialect: 'jest',",
-          "  include: ['tests/**/*.test.js'],",
-          "  setupFiles: ['./setup.js'],",
-          '}',
-        ]),
-      ),
+      ...PROVINO_ISOLATIONS.map(provinoConfig),
       setup,
     ]
   }

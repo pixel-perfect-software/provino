@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { parseNormalizedRun, readRunEnvironment } from '@provino/harness'
 import type { NormalizedFile, NormalizedRun, NormalizedTest } from '@provino/types'
@@ -12,8 +12,16 @@ import {
   readReport,
   summarize,
 } from './check.ts'
-import { code, scratch, scratchSuites } from './internal/test-helpers.ts'
-import { DEFAULT_PATHS, parseSuiteName, suiteDir, writeSuite } from './suites.ts'
+import { commonFiles } from './generators/render.ts'
+import { code, execPlan, scratch, scratchSuites } from './internal/test-helpers.ts'
+import {
+  DEFAULT_PATHS,
+  expectedTests,
+  parseSuiteName,
+  planRunner,
+  suiteDir,
+  writeSuite,
+} from './suites.ts'
 
 const passing: Report = {
   numTotalTests: 40,
@@ -302,4 +310,97 @@ test('a Provino run with a failing test fails the check and names the test', asy
     '1 tests failed',
   ])
   assert.deepEqual(result.details, ['tests/app-0000.test.js > x fails on purpose: on purpose'])
+})
+
+// The kill-check's registry/none ratio means nothing if `provino.none.config.mjs` doesn't really
+// run at `none`: the ratio would drift to about 1.0 and the check would pass for nothing. Two files
+// require one module with a module-level counter and log what they see: one worker shares the
+// module under `none` (1 and 2) and gives each file a fresh copy under `registry` (1 and 1).
+test('the generated configs run Provino at the tier they state, through the real bin', async (t) => {
+  const root = await scratchSuites(t)
+  const spec = parseSuiteName('app-1')
+  const dir = suiteDir(spec, root)
+  const log = join(dir, 'seen.log')
+  const files = [
+    ...commonFiles(spec.name, 'cjs'),
+    {
+      path: 'jest/shared.js',
+      contents: 'let calls = 0\nmodule.exports = () => ++calls\n',
+    },
+    ...['a', 'b'].map((name) => ({
+      path: `jest/tests/${name}.test.js`,
+      contents: [
+        "const fs = require('node:fs')",
+        "const next = require('../shared.js')",
+        `test('${name}', () => {`,
+        `  fs.appendFileSync(${JSON.stringify(log)}, next() + '\\n')`,
+        '})',
+        '',
+      ].join('\n'),
+    })),
+  ]
+  for (const file of files) {
+    await mkdir(dirname(join(dir, file.path)), { recursive: true })
+    await writeFile(join(dir, file.path), file.contents)
+  }
+  const paths = { ...DEFAULT_PATHS, suitesRoot: root }
+  const seen = async (isolation: 'registry' | 'none'): Promise<string[]> => {
+    await rm(log, { force: true })
+    const plan = planRunner(spec, 'provino', { paths, isolation, extraArgs: ['--maxWorkers', '1'] })
+    const exit = await execPlan(plan)
+    assert.equal(exit.exitCode, 0, `${isolation}: ${exit.output}`)
+    return (await readFile(log, 'utf8')).trim().split('\n').sort()
+  }
+  assert.deepEqual(await seen('none'), ['1', '2'])
+  assert.deepEqual(await seen('registry'), ['1', '1'])
+})
+
+// D19, as behaviour: a timed Provino run is passed no --no-cache. The results cache it keeps only
+// orders the next run's files (durations, last status); it never skips one, so a second run with
+// the cache present still reports every test.
+test('with the results cache kept, a second Provino run still runs and reports every test (D19)', async (t) => {
+  const root = await scratchSuites(t)
+  const spec = parseSuiteName('app-2')
+  await writeSuite(spec, root)
+  const paths = { ...DEFAULT_PATHS, suitesRoot: root }
+  const reportPath = join(suiteDir(spec, root), 'check', 'timed.json')
+  const plan = planRunner(spec, 'provino', {
+    paths,
+    extraArgs: ['--reporter', 'normalized-json', '--outputFile', reportPath],
+  })
+  assert.ok(!plan.argv.includes('--no-cache'))
+  const cache = plan.caches.find((entry) => entry.kind === 'provino')
+  assert.ok(cache)
+
+  // The `at` of every file in the results cache, by file path.
+  const stamps = async (): Promise<Map<string, number>> => {
+    const data: unknown = JSON.parse(await readFile(join(cache.path, 'results.json'), 'utf8'))
+    const found = new Map<string, number>()
+    const { projects } = data as { projects: Record<string, Record<string, { at: number }>> }
+    for (const files of Object.values(projects)) {
+      for (const [path, history] of Object.entries(files)) found.set(path, history.at)
+    }
+    return found
+  }
+
+  const seen: Map<string, number>[] = []
+  for (const run of [1, 2]) {
+    // A stale report from the run before must not be what is read.
+    await rm(reportPath, { force: true })
+    const exit = await execPlan(plan)
+    assert.equal(exit.exitCode, 0, `run ${run}: ${exit.output}`)
+    const report = parseNormalizedRun(await readFile(reportPath, 'utf8'), reportPath)
+    const tests = report.files.flatMap((file) => file.tests)
+    assert.equal(tests.length, expectedTests(spec), `run ${run} reports every test`)
+    assert.ok(tests.every((test) => test.status === 'passed'))
+    seen.push(await stamps())
+  }
+  // Every file ran again, not replayed: `cache.record` stamps `at` only for a file that ran.
+  const [first, second] = seen
+  assert.ok(first && second)
+  assert.equal(first.size, spec.files, 'the cache holds every file')
+  for (const [path, at] of first) {
+    const later = second.get(path)
+    assert.ok(later !== undefined && later > at, `${path} ran again (at ${at} then ${later})`)
+  }
 })

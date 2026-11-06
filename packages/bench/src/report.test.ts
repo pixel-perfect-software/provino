@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { BenchRecord, BenchResult, BenchSubject, RunEnvironment } from '@provino/types'
-import { code } from './internal/test-helpers.ts'
+import type { BenchRecord, BenchResult, BenchSubject } from '@provino/types'
+import { code, testEnvironment, testRecord } from './internal/test-helpers.ts'
 import {
   BENCH_LABELS,
   buildRecord,
@@ -15,17 +15,7 @@ import {
 } from './report.ts'
 import { wallStats } from './stats.ts'
 
-const environment: RunEnvironment = {
-  os: 'darwin',
-  osRelease: '27.2.0',
-  arch: 'arm64',
-  cpuModel: 'Test CPU',
-  cpuCount: 8,
-  memoryMb: 16384,
-  node: 'v24.0.0',
-  runners: { jest: '30.5.2', vitest: '5.0.5' },
-  ci: false,
-}
+const environment = testEnvironment({ jest: '30.5.2', vitest: '5.0.5' })
 
 function result(
   runner: 'jest' | 'vitest',
@@ -43,13 +33,7 @@ function result(
 }
 
 function record(results: BenchResult[], label: BenchRecord['label'] = 'local'): BenchRecord {
-  return buildRecord({
-    label,
-    ref: { sha: 'a'.repeat(40), date: '2026-11-02T10:00:00.000Z', dirty: false },
-    environment,
-    machineId: `${label}-darwin-arm64`,
-    results,
-  })
+  return testRecord(results, label, environment.runners)
 }
 
 test('labels are local, desktop or pinned, and nothing else', () => {
@@ -282,4 +266,32 @@ test('the run counts a label accepts are read from its policy', () => {
   assert.equal(runsProblem('desktop', 'cold', 5), undefined)
   assert.match(runsProblem('desktop', 'warm', 9) ?? '', /^a desktop record needs at least 10 warm/)
   assert.match(runsProblem('pinned', 'cold', 4) ?? '', /^a pinned record needs at least.* 5 cold/)
+})
+
+test('two Provino tiers are named by tier in the table and the ratio lines, and Jest and Vitest are not', () => {
+  const provino = (isolation: 'registry' | 'none', cache: 'warm' | 'cold', samples: number[]) => {
+    const base = result('jest', cache, samples)
+    return {
+      ...base,
+      subject: { ...base.subject, runner: 'provino:jest', version: '0.0.0', isolation },
+    }
+  }
+  const text = formatSummary(
+    record([
+      result('jest', 'warm', [100, 100, 100]),
+      provino('registry', 'warm', [50, 50, 50]),
+      provino('none', 'warm', [25, 25, 25]),
+    ]),
+  )
+  assert.match(text, /\[local\] app-50 +provino:jest 0\.0\.0 \(registry\) +warm/)
+  assert.match(text, /\[local\] app-50 +provino:jest 0\.0\.0 \(none\) +warm/)
+  assert.match(text, /app-50 provino:jest \(registry\)\/jest warm: median ratio 0\.500 /)
+  assert.match(text, /app-50 provino:jest \(none\)\/jest warm: median ratio 0\.250 /)
+  // runners at their defaults print as before
+  const plain = formatSummary(
+    record([result('jest', 'warm', [100]), result('vitest', 'warm', [50])]),
+  )
+  assert.doesNotMatch(plain, /\(runner-default\)|\(registry\)|\(none\)/)
+  assert.match(plain, /app-50 vitest\/jest warm: median ratio 0\.500 /)
+  assert.match(plain, / jest 30\.5\.2 +warm/)
 })

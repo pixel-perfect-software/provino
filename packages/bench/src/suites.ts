@@ -1,9 +1,9 @@
 import type { Dirent } from 'node:fs'
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, join, normalize, relative } from 'node:path'
+import { dirname, isAbsolute, join, normalize, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type RunnerPackage, resolveRunnerPackage } from '@provino/harness'
-import type { BenchSubject } from '@provino/types'
+import type { BenchSubject, IsolationMode, RunnerId } from '@provino/types'
 import { BenchError } from './errors.ts'
 import { APP_TESTS_PER_FILE, appFiles } from './generators/app.ts'
 import {
@@ -13,7 +13,14 @@ import {
   isolateHeavyFiles,
 } from './generators/isolate-heavy.ts'
 import { MOCK_HEAVY_TESTS_PER_FILE, mockHeavyFiles } from './generators/mock-heavy.ts'
-import { FLAVOUR_DIR, FLAVOURS, type GeneratedFile, MAX_SUITE_FILES } from './generators/render.ts'
+import {
+  FLAVOUR_DIR,
+  FLAVOURS,
+  type GeneratedFile,
+  MAX_SUITE_FILES,
+  PROVINO_CONFIG,
+  type ProvinoIsolation,
+} from './generators/render.ts'
 import type { BenchSubjectSpec, CacheDir, CacheKind } from './run-bench.ts'
 
 /**
@@ -171,8 +178,9 @@ async function inBatches<T>(items: readonly T[], work: (item: T) => Promise<void
 /**
  * Generates a suite into `<root>/<name>/`, idempotently: files with the right bytes are left
  * alone (so their mtimes and the runners' caches stay valid), changed files are rewritten, and
- * stale files in the `jest/` and `vitest/` trees are removed. `.cache/` and everything else in
- * the suite directory is untouched.
+ * stale files in the `jest/` and `vitest/` trees are removed. `.cache/`, everything else in the
+ * suite directory and anything under a `node_modules` directory inside those trees (Provino's
+ * results cache, `jest/node_modules/.cache/provino/`) is untouched.
  * @public
  */
 export async function writeSuite(spec: SuiteSpec, root?: string): Promise<WriteSummary> {
@@ -188,8 +196,12 @@ export async function writeSuite(spec: SuiteSpec, root?: string): Promise<WriteS
 
   let removed = 0
   for (const flavour of FLAVOURS) {
-    for (const existing of await listFiles(join(dir, FLAVOUR_DIR[flavour]))) {
+    const tree = join(dir, FLAVOUR_DIR[flavour])
+    for (const existing of await listFiles(tree)) {
       if (wanted.has(existing)) continue
+      // Not ours: Provino's results cache lives under node_modules/.cache, and so will T3.6's
+      // transform cache.
+      if (relative(tree, existing).split(sep).includes('node_modules')) continue
       await rm(existing, { force: true })
       removed += 1
     }
@@ -216,9 +228,8 @@ export async function writeSuite(spec: SuiteSpec, root?: string): Promise<WriteS
 }
 
 /**
- * The runners a suite can be checked under. `jest` and `vitest` can also be benchmarked; `provino`
- * (the `provino` bin, run on the suite's `jest/` tree) is checked only, until the kill-check
- * (B12) gives it a record.
+ * The runners a suite can be checked and benchmarked under. `provino` is the `provino` bin, run on
+ * the suite's `jest/` tree.
  * @public
  */
 export type RunnerName = 'jest' | 'vitest' | 'provino'
@@ -228,13 +239,6 @@ export type RunnerName = 'jest' | 'vitest' | 'provino'
  * @public
  */
 export const RUNNERS: readonly RunnerName[] = ['jest', 'vitest', 'provino']
-
-/**
- * The runners `provino-bench run` can record: the ones whose numbers are a result. `provino`
- * isn't, yet.
- * @public
- */
-export const BENCHMARKED_RUNNERS: readonly RunnerName[] = ['jest', 'vitest']
 
 /**
  * How each runner is started: the tree under the suite it runs in, the Node arguments before its
@@ -248,6 +252,8 @@ const RUNNER_SETUP: Readonly<
     {
       /** The tree it runs in under the suite; the runner's own name when left out. */
       readonly tree?: string
+      /** The runner id its results carry: Provino runs the Jest tree, so it is the Jest dialect's. */
+      readonly subjectRunner: RunnerId
       readonly nodeArgs: readonly string[]
       readonly config: string
       readonly args: readonly string[]
@@ -258,21 +264,24 @@ const RUNNER_SETUP: Readonly<
   >
 > = {
   jest: {
+    subjectRunner: 'jest',
     nodeArgs: [],
     config: 'jest.config.json',
     args: ['--ci'],
     cacheKind: 'jest',
   },
   vitest: {
+    subjectRunner: 'vitest',
     nodeArgs: [],
     config: 'vitest.config.ts',
     args: ['run'],
     cacheKind: 'vite',
   },
   provino: {
+    subjectRunner: 'provino:jest',
     tree: 'jest',
     nodeArgs: ['--conditions=provino-source'],
-    config: 'provino.config.mjs',
+    config: PROVINO_CONFIG.registry,
     args: ['run'],
     cacheKind: 'provino',
     cacheDir: 'jest/node_modules/.cache/provino',
@@ -307,6 +316,8 @@ export interface RunnerPlan {
   readonly command: string
   /** The runner's config file, relative to the repository root. */
   readonly configPath: string
+  /** Provino's isolation tier; `runner-default` for Jest and Vitest, which run at their defaults. */
+  readonly isolation: IsolationMode
 }
 
 /**
@@ -316,16 +327,37 @@ export interface RunnerPlan {
  * `<suite>/.cache/node-<runner>` so a cold run can delete it. `extraArgs` go last (the check uses
  * them for the report output). The runner's package is the one installed for this package; without
  * it, `BENCH_RUNNER_NOT_FOUND`.
+ *
+ * `options.isolation` is Provino's tier: it picks the config file (`provino.config.mjs` for
+ * `registry`, the default, or `provino.none.config.mjs`). Jest and Vitest ignore it and run at their
+ * defaults (`runner-default`).
+ *
+ * Both Provino tiers share one tree and one set of cache directories. That is safe: a cold run
+ * deletes them right before its own run, and Provino's results cache only orders the next run's
+ * files (it never skips one), so a run of the other tier can't change what a run measures.
  * @public
  */
 export function planRunner(
   spec: SuiteSpec,
   runner: RunnerName,
-  options?: { readonly paths?: BenchPaths; readonly extraArgs?: readonly string[] },
+  options?: {
+    readonly paths?: BenchPaths
+    readonly extraArgs?: readonly string[]
+    readonly isolation?: ProvinoIsolation
+  },
 ): RunnerPlan {
   const { repoRoot, suitesRoot } = options?.paths ?? DEFAULT_PATHS
-  const { nodeArgs, config, args: leading, cacheKind } = RUNNER_SETUP[runner]
-  const { tree = runner, cacheDir = join('.cache', cacheKind) } = RUNNER_SETUP[runner]
+  const setup = RUNNER_SETUP[runner]
+  const {
+    nodeArgs,
+    args: leading,
+    cacheKind,
+    tree = runner,
+    cacheDir = join('.cache', cacheKind),
+  } = setup
+  const tier = options?.isolation ?? 'registry'
+  const isolation: IsolationMode = runner === 'provino' ? tier : 'runner-default'
+  const config = runner === 'provino' ? PROVINO_CONFIG[tier] : setup.config
   const root = suiteDir(spec, suitesRoot)
   const pkg = installedPackage(runner)
   const cwd = join(root, tree)
@@ -355,26 +387,20 @@ export function planRunner(
     ],
     command,
     configPath: relative(repoRoot, join(cwd, config)),
+    isolation,
   }
 }
 
 /**
- * The bench subject and run spec for a planned runner. Both runners are measured at their
- * defaults, so isolation is `runner-default`. A `provino` plan is refused (`BENCH_INVALID_SPEC`):
- * its record needs the dialect-named runner id and the kill-check's protocol, which B12 builds.
+ * The bench subject and run spec for a planned runner. Jest and Vitest are measured at their
+ * defaults (`runner-default`); Provino is `provino:jest` (the Jest dialect) at the plan's tier.
  * @public
  */
 export function toSubjectSpec(plan: RunnerPlan): BenchSubjectSpec {
-  if (!BENCHMARKED_RUNNERS.includes(plan.runner)) {
-    throw new BenchError(
-      'BENCH_INVALID_SPEC',
-      `${plan.runner} is checked, not benchmarked yet: its record is the kill-check's (B12)`,
-    )
-  }
   const subject: BenchSubject = {
-    runner: plan.runner,
+    runner: RUNNER_SETUP[plan.runner].subjectRunner,
     version: plan.version,
-    isolation: 'runner-default',
+    isolation: plan.isolation,
     command: plan.command,
     configPath: plan.configPath,
   }

@@ -6,8 +6,9 @@ import type { BenchRecord } from '@provino/types'
 import { type CliDeps, runCli } from './commands.ts'
 import { BenchError } from './errors.ts'
 import type { ExecOutcome, ExecRequest } from './exec.ts'
-import { scratch } from './internal/test-helpers.ts'
+import { assertBenchRecord, parityOf, scratch } from './internal/test-helpers.ts'
 import { makeRepo } from './internal/test-repo.ts'
+import type { StatusParity } from './parity.ts'
 
 const START = Date.UTC(2026, 10, 2, 10, 11, 12)
 
@@ -32,6 +33,7 @@ async function setup(
     readonly onRun?: (
       index: number,
       paths: { readonly dir: string; readonly out: string },
+      request: ExecRequest,
     ) => Promise<Partial<ExecOutcome>>
   },
 ): Promise<Setup> {
@@ -51,7 +53,11 @@ async function setup(
       const index = calls.length
       calls.push(request)
       clockReadsAtRun.push(clockReads)
-      return { exitCode: 0, wallMs: 100 + index, ...(await options?.onRun?.(index, { dir, out })) }
+      return {
+        exitCode: 0,
+        wallMs: 100 + index,
+        ...(await options?.onRun?.(index, { dir, out }, request)),
+      }
     },
   }
   const stdout: string[] = []
@@ -230,4 +236,256 @@ test('--timeout reaches every run', async (t) => {
   assert.equal(await bench.run(runArgs(bench.out, '--timeout', '7', ...SHORT)), 0)
   assert.ok(bench.calls.length > 0)
   assert.ok(bench.calls.every((call) => call.timeoutMs === 7 * 60_000))
+})
+
+test('run takes provino: its subject is provino:jest at registry, with its results cache kept', async (t) => {
+  const bench = await setup(t)
+  assert.equal(
+    await bench.run([
+      'run',
+      'app-1',
+      '--runner',
+      'jest',
+      '--runner',
+      'provino',
+      '--out',
+      bench.out,
+      ...SHORT,
+    ]),
+    0,
+  )
+  const record = await readRecord(bench.out)
+  assertBenchRecord(record)
+  const provino = record.results.filter((entry) => entry.subject.runner === 'provino:jest')
+  assert.equal(provino.length, 2)
+  assert.ok(provino.every((entry) => entry.subject.isolation === 'registry'))
+  assert.ok(
+    bench.calls.every((call) => !call.argv.includes('--no-cache')),
+    'a timed run keeps the results cache',
+  )
+  assert.match(bench.stdout.join('\n'), /app-1 provino:jest \(registry\)\/jest warm: median ratio/)
+})
+
+// ---- kill-check ----
+
+const isProvino = (call: ExecRequest): boolean =>
+  call.argv.some((arg) => arg.endsWith('provino/src/cli.ts'))
+const configOf = (call: ExecRequest): string | undefined =>
+  call.argv[call.argv.indexOf('--config') + 1]
+
+// Walls by subject: Jest 1000 ms, Provino registry 200, none 150.
+const bySubject = async (_index: number, _paths: unknown, request: ExecRequest) => ({
+  wallMs: !isProvino(request) ? 1000 : configOf(request) === 'provino.none.config.mjs' ? 150 : 200,
+})
+const fixedWall = async () => ({ wallMs: 100 })
+
+function withParity(bench: Setup, read: (suite: string) => Promise<StatusParity>): string[] {
+  const reads: string[] = []
+  ;(bench.deps as { readParity?: CliDeps['readParity'] }).readParity = async (suite) => {
+    reads.push(suite.name)
+    return read(suite.name)
+  }
+  return reads
+}
+
+test('kill-check --dry-run runs Jest for every subject, reads no parity, and is NO-GO at ratio 1.000', async (t) => {
+  const bench = await setup(t, { onRun: fixedWall })
+  const reads = withParity(bench, async () => parityOf(1, 1))
+  assert.equal(await bench.run(['kill-check', '--dry-run', '--out', bench.out]), 1)
+  const stdout = bench.stdout.join('\n')
+  assert.match(stdout, /NO-GO/)
+  assert.match(stdout, /1\.000/)
+  assert.equal(stdout.match(/ {2}PENDING:/g)?.length, 6)
+  assert.match(stdout, /PROVISIONAL \(local\)/)
+  assert.match(stdout, /DRY RUN/)
+  // 3 subjects (Jest, registry stand-in, none stand-in) x (1 warm-up + 10 warm + 5 cold)
+  assert.equal(bench.calls.length, 48)
+  assert.ok(
+    bench.calls.every((call) => !isProvino(call)),
+    'every argv is Jest',
+  )
+  assert.ok(bench.calls.every((call) => configOf(call) === 'jest.config.json'))
+  assert.deepEqual(reads, [], 'a dry run reads no parity')
+  const record = await readRecord(bench.out)
+  assertBenchRecord(record)
+  assert.deepEqual([...new Set(record.results.map((entry) => entry.subject.runner))].sort(), [
+    'jest',
+    'jest-as-provino',
+  ])
+  assert.deepEqual([...new Set(record.results.map((entry) => entry.subject.isolation))].sort(), [
+    'none',
+    'registry',
+    'runner-default',
+  ])
+})
+
+test('kill-check names its default record for a dry run apart from a real one', async (t) => {
+  const bench = await setup(t, { onRun: fixedWall })
+  assert.equal(await bench.run(['kill-check', '--dry-run']), 1)
+  const names = await readdir(join(bench.dir, 'results'))
+  assert.equal(names.length, 1)
+  assert.match(names[0] ?? '', /-kill-check-dry-run-[0-9a-f]{7}\.json$/)
+})
+
+test('kill-check measures Provino at both tiers against Jest and is a provisional GO when it is fast enough', async (t) => {
+  const bench = await setup(t, { onRun: bySubject })
+  const reads = withParity(bench, async () => parityOf(4000, 4000))
+  assert.equal(await bench.run(['kill-check', '--out', bench.out]), 0)
+  const stdout = bench.stdout.join('\n')
+  assert.match(
+    stdout,
+    /app-500 +100\.0% \(4000\/4000\) +0\.200 \(0\.200-0\.200\) +pass +0\.200 \(0\.200-0\.200\) +pass/,
+  )
+  assert.match(stdout, /isolation app-500 registry\/none warm: median ratio 1\.333/)
+  assert.match(stdout, /VERDICT: GO, PROVISIONAL \(local\)/)
+  assert.match(stdout, /1 of 7 suites measured, 6 PENDING/)
+  assert.match(stdout, /app-500 provino:jest \(none\)\/jest cold: median ratio 0\.150/)
+  assert.deepEqual(reads, ['app-500'])
+  assert.equal(bench.calls.length, 48)
+
+  const record = await readRecord(bench.out)
+  assertBenchRecord(record)
+  const subjects = new Set(
+    record.results.map((entry) => `${entry.subject.runner}/${entry.subject.isolation}`),
+  )
+  assert.deepEqual([...subjects].sort(), [
+    'jest/runner-default',
+    'provino:jest/none',
+    'provino:jest/registry',
+  ])
+  assert.equal(record.results.length, 6)
+
+  const provino = bench.calls.filter(isProvino)
+  assert.equal(provino.length, 32)
+  assert.ok(
+    provino.every((call) => !call.argv.includes('--no-cache')),
+    'the results cache is kept (D19)',
+  )
+  assert.equal(provino.filter((call) => configOf(call) === 'provino.config.mjs').length, 16)
+  assert.equal(provino.filter((call) => configOf(call) === 'provino.none.config.mjs').length, 16)
+})
+
+test('kill-check keeps measuring when parity is low, and says NO-GO', async (t) => {
+  const bench = await setup(t, { onRun: bySubject })
+  withParity(bench, async () => parityOf(3000, 4000))
+  assert.equal(await bench.run(['kill-check', '--out', bench.out]), 1)
+  const stdout = bench.stdout.join('\n')
+  assert.match(stdout, /NO-GO: app-500 parity: 3000\/4000/)
+  assert.match(stdout, /VERDICT: NO-GO, PROVISIONAL \(local\)/)
+  assert.equal(bench.calls.length, 48, 'every timed run still happens')
+  assert.equal((await readRecord(bench.out)).results.length, 6)
+})
+
+test('a parity read that cannot compare, or throws, fails the gate closed', async (t) => {
+  const unreadable = await setup(t, { onRun: bySubject })
+  withParity(unreadable, async () =>
+    parityOf(0, 0, { ok: false, unavailable: 'provino wrote no valid report' }),
+  )
+  assert.equal(await unreadable.run(['kill-check', '--out', unreadable.out]), 1)
+  assert.match(
+    unreadable.stdout.join('\n'),
+    /NO-GO: app-500 parity: could not compare: provino wrote no valid report/,
+  )
+  assert.equal(unreadable.calls.length, 48)
+
+  const thrown = await setup(t, { onRun: bySubject })
+  withParity(thrown, async () => {
+    throw new BenchError('BENCH_EXEC_FAILED', 'could not run jest')
+  })
+  assert.equal(await thrown.run(['kill-check', '--out', thrown.out]), 1)
+  assert.match(
+    thrown.stdout.join('\n'),
+    /NO-GO: app-500 parity: could not compare: BENCH_EXEC_FAILED/,
+  )
+  assert.equal(thrown.calls.length, 48)
+})
+
+test('kill-check is NO-GO when Provino is not fast enough, and exits 1', async (t) => {
+  const bench = await setup(t, { onRun: fixedWall })
+  withParity(bench, async () => parityOf(4000, 4000))
+  assert.equal(await bench.run(['kill-check', '--out', bench.out]), 1)
+  assert.match(bench.stdout.join('\n'), /NO-GO: app-500 warm/)
+})
+
+test('kill-check refuses a dirty desktop tree, and an existing --out, before any run or parity read', async (t) => {
+  const dirty = await setup(t, { dirty: true })
+  const reads = withParity(dirty, async () => parityOf(1, 1))
+  assert.equal(await dirty.run(['kill-check', '--label', 'desktop', '--out', dirty.out]), 1)
+  assert.match(dirty.stderr.join('\n'), /BENCH_DIRTY_TREE/)
+  assert.equal(dirty.calls.length, 0)
+  assert.deepEqual(reads, [])
+
+  const existing = await setup(t)
+  const existingReads = withParity(existing, async () => parityOf(1, 1))
+  await mkdir(join(existing.dir, 'records'))
+  await writeFile(existing.out, 'precious')
+  assert.equal(await existing.run(['kill-check', '--out', existing.out]), 1)
+  assert.match(existing.stderr.join('\n'), /BENCH_OUT_INVALID: .*already exists/)
+  assert.equal(existing.calls.length, 0)
+  assert.deepEqual(existingReads, [])
+  assert.equal(await readFile(existing.out, 'utf8'), 'precious')
+})
+
+test('kill-check on a usage error exits 2 before any run', async (t) => {
+  const bench = await setup(t)
+  assert.equal(await bench.run(['kill-check', '--dry-run', '--label', 'desktop']), 2)
+  assert.equal(await bench.run(['kill-check', 'app-500']), 2)
+  assert.equal(bench.calls.length, 0)
+})
+
+test('kill-check saves the record before printing, so a failing summary loses no run', async (t) => {
+  // A zero wall time makes the summary's ratio throw (a zero denominator).
+  const bench = await setup(t, { onRun: async () => ({ wallMs: 0 }) })
+  withParity(bench, async () => parityOf(1, 1))
+  assert.equal(await bench.run(['kill-check', '--dry-run', '--out', bench.out]), 1)
+  assert.match(bench.stderr.join('\n'), /provino-bench: BENCH_/)
+  assertBenchRecord(await readRecord(bench.out))
+})
+
+test('kill-check that cannot place its record still prints the verdict, then dumps the JSON and fails', async (t) => {
+  const bench = await setup(t, {
+    onRun: async (index, { out }) => {
+      if (index === 3) await writeFile(out, 'intruder')
+      return { wallMs: 100 }
+    },
+  })
+  await mkdir(join(bench.dir, 'records'))
+  withParity(bench, async () => parityOf(1, 1))
+  assert.equal(await bench.run(['kill-check', '--dry-run', '--out', bench.out]), 1)
+  const stderr = bench.stderr.join('\n')
+  assert.match(stderr, /BENCH_OUT_WRITE_FAILED/)
+  assert.match(bench.stdout.join('\n'), /VERDICT: NO-GO/)
+  assert.ok(!bench.stdout.some((line) => line.includes('] wrote ')), 'nothing was written')
+  const printed = bench.stderr.find((line) => line.startsWith('{'))
+  assert.equal((JSON.parse(printed ?? 'null') as BenchRecord).schemaVersion, 1)
+})
+
+test('the wrote line comes after the summary and the verdict', async (t) => {
+  const bench = await setup(t, { onRun: bySubject })
+  withParity(bench, async () => parityOf(4000, 4000))
+  assert.equal(await bench.run(['kill-check', '--out', bench.out]), 0)
+  assert.match(bench.stdout.at(-1) ?? '', /^\[local\] wrote /)
+  assert.ok(bench.stdout.findIndex((line) => line.includes('VERDICT')) < bench.stdout.length - 1)
+})
+
+test('run saves the record before printing the summary', async (t) => {
+  const bench = await setup(t, { onRun: async () => ({ wallMs: 0 }) })
+  const code = await bench.run(['run', 'app-1', '--runner', 'jest', '--out', bench.out, ...SHORT])
+  assert.ok(code === 0 || code === 1)
+  assertBenchRecord(await readRecord(bench.out))
+  assert.match(bench.stdout.at(-1) ?? '', /^\[local\] wrote /)
+})
+
+test('a parity read that throws a plain Error fails the gate closed with its message', async (t) => {
+  const bench = await setup(t, { onRun: bySubject })
+  withParity(bench, async () => {
+    throw new Error('ENOENT: no such file, open report.json')
+  })
+  assert.equal(await bench.run(['kill-check', '--out', bench.out]), 1)
+  assert.match(
+    bench.stdout.join('\n'),
+    /NO-GO: app-500 parity: could not compare: .*ENOENT: no such file/,
+  )
+  assert.equal(bench.calls.length, 48, 'every timed run still happens')
+  assertBenchRecord(await readRecord(bench.out))
 })
