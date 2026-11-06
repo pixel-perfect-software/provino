@@ -524,6 +524,58 @@ describe('the mock registry', () => {
     ])
   })
 
+  it('keeps a file`s registries for the async work it leaves behind (a stale callback)', async () => {
+    // A's promise continuation fires while B runs, released by B itself: no timer, no wait. It asks
+    // the host for the registry and the mocks, and must get A's, not B's.
+    // The hand-over goes through properties of the trace array: the environment deletes any global
+    // a file adds, so a global of A's would be gone by the time B runs.
+    const a = [
+      'probeMocks()',
+      '__trace.stale = new Promise((resolve) => { __trace.fire = resolve }).then(() => {',
+      "  __trace.push('stale ' + currentRegistryFile())",
+      '  probeMocks()',
+      '})',
+      "test('a', () => {})",
+    ].join('\n')
+    const b = [
+      'probeMocks()',
+      "test('b', async () => { __trace.fire(); await __trace.stale })",
+    ].join('\n')
+    const p = await project({ 'a.test.js': a, 'b.test.js': b })
+    const config = runtimeConfig(p.dir)
+    const trace: string[] = []
+    await runJobs({
+      config,
+      trace,
+      jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
+    })
+    assert.deepEqual(
+      trace.filter((step) => step.startsWith('stale ')),
+      [`stale ${p.path('a.test.js')}`],
+    )
+    // A's registry, seen again from the callback while B runs: r1, r2 (B's own), r1.
+    assert.deepEqual(
+      mockSteps(trace).filter((step) => step.startsWith('mocks:registry')),
+      ['mocks:registry r1', 'mocks:registry r2', 'mocks:registry r1'],
+    )
+  })
+
+  it('refuses the host once the worker has stopped, under none too', async () => {
+    // A file keeps the probe on the trace array (the environment deletes globals a file adds).
+    const p = await project({ 'a.test.js': "__trace.probe = probeMocks\ntest('t', () => {})" })
+    const config = runtimeConfig(p.dir)
+    const trace: string[] & { probe?: () => void } = []
+    await runJobs({
+      config,
+      isolation: 'none',
+      trace,
+      jobs: [runtimeJob(config, p.path('a.test.js'))],
+    })
+    const probe = trace.probe
+    assert.equal(typeof probe, 'function')
+    assert.throws(() => probe?.(), { code: 'ORCH_NO_ACTIVE_FILE' })
+  })
+
   it('hands the globals the policy`s mock slice', async () => {
     const p = await project({
       'a.test.js': "test('t', () => { __trace.push('policy ' + mockPolicyName()) })",

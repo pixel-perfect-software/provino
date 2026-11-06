@@ -146,5 +146,87 @@ for (const pool of ['forks', 'inline'] as const) {
       )
       assert.equal(result.exitCode, 0, stderr)
     })
+
+    it('restores a spy on a global the test itself added before the environment removes it', async () => {
+      // With the environment's teardown first, it deletes `__added` and the restore then puts it
+      // back, so B would see it. Disposing the mocks first leaves B nothing to see.
+      const project = await makeProject((dir) => ({
+        'tests/a.test.js': [
+          "const { writeFileSync } = require('node:fs')",
+          "test('a adds a global and spies on it', () => {",
+          '  globalThis.__added = () => 1',
+          "  jest.spyOn(globalThis, '__added').mockReturnValue(2)",
+          '  expect(globalThis.__added()).toBe(2)',
+          `  writeFileSync(${JSON.stringify(`${dir}/a.ran`)}, 'yes')`,
+          '})',
+          `// padding, so this file is larger and goes first ${'.'.repeat(300)}`,
+          '',
+        ].join('\n'),
+        'tests/b.test.js': [
+          "const { existsSync } = require('node:fs')",
+          "test('b does not see the global', () => {",
+          `  expect(existsSync(${JSON.stringify(`${dir}/a.ran`)})).toBe(true)`,
+          "  expect(typeof globalThis.__added).toBe('undefined')",
+          '})',
+          '',
+        ].join('\n'),
+      }))
+      const { result, view, stderr } = await runWithJson(project, pool)
+      assert.equal(
+        view.files.get('tests/a.test.js')?.tests.get('a adds a global and spies on it'),
+        'passed',
+        stderr,
+      )
+      assert.equal(
+        view.files.get('tests/b.test.js')?.tests.get('b does not see the global'),
+        'passed',
+        stderr,
+      )
+      assert.equal(result.exitCode, 0, stderr)
+    })
+
+    it('keeps file A`s jest bound to A when its leaked callback fires during file B', async () => {
+      // A leaks an interval that waits for B to have started, then resets A's mocks and says so
+      // through a marker file; B waits (a bounded poll, no fixed delay) for that marker and checks
+      // its own mock still works. `jest` is one object on a shared global, so only the worker's
+      // per-file scope keeps A's callback away from B's registry.
+      const project = await makeProject((dir) => ({
+        'tests/a.test.js': [
+          "const { existsSync, writeFileSync } = require('node:fs')",
+          `const bStarted = ${JSON.stringify(`${dir}/b.started`)}`,
+          `const aReset = ${JSON.stringify(`${dir}/a.reset`)}`,
+          'const poll = setInterval(() => {',
+          '  if (!existsSync(bStarted)) return',
+          '  clearInterval(poll)',
+          '  jest.resetAllMocks()',
+          "  writeFileSync(aReset, 'yes')",
+          '}, 1)',
+          "test('a leaks a callback', () => {})",
+          `// padding, so this file is larger and goes first ${'.'.repeat(300)}`,
+          '',
+        ].join('\n'),
+        'tests/b.test.js': [
+          "const { existsSync, writeFileSync } = require('node:fs')",
+          "test('b keeps its mock', async () => {",
+          '  const fn = jest.fn(() => 1)',
+          `  writeFileSync(${JSON.stringify(`${dir}/b.started`)}, 'yes')`,
+          '  for (let i = 0; i < 2000; i++) {',
+          `    if (existsSync(${JSON.stringify(`${dir}/a.reset`)})) break`,
+          '    await new Promise((resolve) => setTimeout(resolve, 5))',
+          '  }',
+          `  expect(existsSync(${JSON.stringify(`${dir}/a.reset`)})).toBe(true)`,
+          '  expect(fn()).toBe(1)',
+          '})',
+          '',
+        ].join('\n'),
+      }))
+      const { result, view, stderr } = await runWithJson(project, pool)
+      assert.equal(
+        view.files.get('tests/b.test.js')?.tests.get('b keeps its mock'),
+        'passed',
+        stderr,
+      )
+      assert.equal(result.exitCode, 0, stderr)
+    })
   })
 }

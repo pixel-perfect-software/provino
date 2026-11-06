@@ -15,6 +15,7 @@
 // warning and, for a file, `leakedGlobals` on its outcome; it is never a failure.
 // The environment and the globals come in by ref, never by import: this node knows no dialect and
 // no environment package.
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { createRuntime, currentTest, type Runtime } from '@provino/core'
 import {
   createExpect,
@@ -113,6 +114,12 @@ export interface RuntimeGlobalsHost extends GlobalsHost {
   mocks(): MockRegistry
 }
 
+/** What a file's code finds through the host: its own registries, whoever runs when it asks. */
+interface FileScope {
+  readonly registry: FileRegistry
+  readonly mocks: MockRegistry
+}
+
 /** The worker's own mock registry (isolation `none`), made on first use. */
 function sharedMocks(worker: Booted): MockRegistry {
   worker.workerMocks ??= createMockRegistry()
@@ -181,18 +188,29 @@ export function createRuntimeRunner(): WorkerRunner {
   /** The mock registry of the file running now, or the worker's under `none`. */
   let currentMocks: MockRegistry | undefined
 
+  /**
+   * The registries of the file whose code is running, carried along its async work. `jest` is one
+   * object on a shared global, so a callback a file leaves behind (a timer, a promise) would
+   * otherwise find the registries of whichever file runs when it fires. Entered around
+   * `runtime.runFile`; the variables above are the fallback for code outside that context (the
+   * setup of the globals, a teardown, a worker-scoped run's `stop`).
+   */
+  const scope = new AsyncLocalStorage<FileScope>()
+
   const activeMocks = (): MockRegistry => {
-    if (currentMocks === undefined) {
+    const mocks = scope.getStore()?.mocks ?? currentMocks
+    if (mocks === undefined) {
       throw new WorkerError('ORCH_NO_ACTIVE_FILE', 'No test file is running in this worker')
     }
-    return currentMocks
+    return mocks
   }
 
   const activeRegistry = (): FileRegistry => {
-    if (current === undefined) {
+    const registry = scope.getStore()?.registry ?? current
+    if (registry === undefined) {
       throw new WorkerError('ORCH_NO_ACTIVE_FILE', 'No test file is running in this worker')
     }
-    return current
+    return registry
   }
 
   async function boot(context: WorkerContext): Promise<void> {
@@ -338,7 +356,9 @@ export function createRuntimeRunner(): WorkerRunner {
         if (worker.globals !== undefined) installGlobals(instance.global, worker.globals)
         worker.source.startFile(job.file)
         // The coordinator's id for the file (D23), so every event carries the id it expects.
-        await worker.runtime.runFile(job.file, { fileId: job.fileId, ...filtersOf(job) })
+        await scope.run({ registry, mocks }, () =>
+          worker.runtime.runFile(job.file, { fileId: job.fileId, ...filtersOf(job) }),
+        )
       } catch (error) {
         errors.push(error)
       }
@@ -377,6 +397,8 @@ export function createRuntimeRunner(): WorkerRunner {
     async stop(context): Promise<void> {
       const torn = parts
       parts = {}
+      // Under `none` the worker's registry is disposed below; nothing may reach it afterwards.
+      currentMocks = undefined
       let leaked: readonly string[] = []
       const errors = await runAll([
         // First, while the worker environment is alive (isolation `none`).

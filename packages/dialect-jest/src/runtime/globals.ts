@@ -172,7 +172,9 @@ export function jestGlobals(host: JestGlobalsHost): JestGlobals {
       return createMockFn<T>(
         host.mockPolicy,
         host.mocks(),
-        impl === undefined ? undefined : { impl },
+        // Jest treats every falsy value as no implementation (jest-mock `index.ts` L1233-L1241).
+        // Jest treats every falsy value as no implementation (jest-mock `index.ts` L1233-L1241).
+        impl ? { impl } : undefined,
       )
     },
     // The engine's overloads take the access kind last; one signature serves all three.

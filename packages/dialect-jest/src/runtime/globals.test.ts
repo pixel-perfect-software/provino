@@ -457,6 +457,17 @@ test('jest.fn follows the dialect`s mock policy and spyOn takes an accessor kind
   assert.throws(() => jest.spyOn({}, 'missing' as never), /missing/)
 })
 
+test('jest.fn treats every falsy implementation as none, as Jest does', async (t) => {
+  const { jest } = await globalsFor(t)
+  // jest-mock `index.ts` L1233-L1241: `if (implementation)` guards the default implementation.
+  for (const falsy of [false, 0, '', null, undefined]) {
+    const fn = jest.fn<(...args: number[]) => unknown>(falsy as never)
+    assert.ok(jest.isMockFunction(fn))
+    assert.equal(fn(1), undefined, `jest.fn(${JSON.stringify(falsy)}) returns undefined`)
+    assert.deepEqual(fn.mock.calls, [[1]])
+  }
+})
+
 test('a registry error reaches the caller', async (t) => {
   const { jest } = await globalsFor(t)
   assert.throws(() => jest.resetModules(), /does not use the registry/)
