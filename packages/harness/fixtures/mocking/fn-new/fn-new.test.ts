@@ -13,7 +13,7 @@ const attempt = (run: () => unknown) => {
 }
 
 c('new on a mock of an arrow function', () => {
-  const f = M.fn(() => ({ made: 'by arrow' }))
+  const f = M.fn(() => ({ made: 1 }))
   return attempt(() => new f())
 })
 

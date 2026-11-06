@@ -164,7 +164,7 @@
   "runErrors": [],
   "success": true,
   "trace": [
-    "{\"id\":\"new on a mock of an arrow function\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"() => ({ made: \\\"by arrow\\\" }) is not a constructor\"}}}",
+    "{\"id\":\"new on a mock of an arrow function\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"() => ({ made: 1 }) is not a constructor\"}}}",
     "{\"id\":\"new on a mock of a function sets fields on the new instance\",\"value\":{\"result\":{\"value\":{\"field\":5}},\"instances\":[{\"field\":5}],\"results\":[{\"type\":\"return\",\"value\":{\"field\":5}}]}}",
     "{\"id\":\"new on a mock of a class\",\"value\":{\"result\":{\"value\":{\"value\":\"from class\"}},\"calls\":1}}",
     "{\"id\":\"mockReturnValue under new\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Cannot use `mockReturnValue` when called with `new`. Use `mockImplementation` with a `class` keyword instead. See https://vitest.dev/api/mock#class-support for more information.\"}}}",

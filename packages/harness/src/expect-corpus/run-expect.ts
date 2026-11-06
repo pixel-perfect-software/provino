@@ -5,7 +5,7 @@
 // would carry them, and the passing-assertion count.
 import { pathToFileURL } from 'node:url'
 import { createRuntime, currentTest } from '@provino/core'
-import { jestExpectPolicy } from '@provino/dialect-jest'
+import { jestExpectPolicy, jestMockPolicy } from '@provino/dialect-jest'
 import {
   createExpect,
   createMatcherRegistry,
@@ -13,6 +13,13 @@ import {
   installMatchersSlot,
   type TestRun,
 } from '@provino/expect'
+import {
+  createMockFn,
+  createMockRegistry,
+  type MockRegistry,
+  spyOn,
+  type UnknownFunction,
+} from '@provino/mock'
 import { createBehaviourLoader } from '@provino/policy'
 import type {
   CorePolicy,
@@ -22,7 +29,6 @@ import type {
   TaskId,
   TestTask,
 } from '@provino/types'
-import { ModuleMocker } from 'jest-mock'
 import { installGlobals } from '../internal/globals.ts'
 import { type Reported, reported } from '../runtime-corpus/run-core.ts'
 
@@ -58,8 +64,8 @@ function failureOf(error: SerializedError): ExpectFailure {
 
 /**
  * Runs `file` (absolute; imported once per process, so its frames are plain `file:` URLs) under
- * `policy`. `runtime.api`, `expect` and `jest` (`fn`, `spyOn` from `jest-mock`, until
- * `@provino/mock`) are globals for the duration.
+ * `policy`. `runtime.api`, `expect` and `jest` (`fn`, `spyOn` from `@provino/mock` under
+ * `jestMockPolicy`) are globals for the duration.
  */
 export async function runExpectFile(
   file: string,
@@ -74,11 +80,13 @@ export async function runExpectFile(
   const registry = createMatcherRegistry()
   const slot = installMatchersSlot(source, registry)
   const events: RuntimeEvent[] = []
+  let mocks: MockRegistry | undefined
   try {
     if (jestExpectPolicy.matcherTable === null) throw new Error('the Jest dialect has a table')
     const table = (await behaviours.load(jestExpectPolicy.matcherTable))()
     const expect = createExpect({ policy: jestExpectPolicy, table, source, registry })
-    const mocker = new ModuleMocker(globalThis)
+    mocks = createMockRegistry()
+    const mockRegistry = mocks
     const runtime = await createRuntime({
       policy,
       behaviours,
@@ -90,7 +98,14 @@ export async function runExpectFile(
     const restore = installGlobals({
       ...runtime.api,
       expect,
-      jest: { fn: mocker.fn.bind(mocker), spyOn: mocker.spyOn.bind(mocker) },
+      jest: {
+        fn: (impl?: UnknownFunction) =>
+          impl === undefined
+            ? createMockFn(jestMockPolicy, mockRegistry)
+            : createMockFn(jestMockPolicy, mockRegistry, { impl }),
+        spyOn: (target: Record<string, (...args: never[]) => unknown>, key: string) =>
+          spyOn(jestMockPolicy, mockRegistry, target, key),
+      },
     })
     try {
       source.startFile(file)
@@ -103,6 +118,7 @@ export async function runExpectFile(
       restore()
     }
   } finally {
+    mocks?.dispose()
     slot.uninstall()
   }
 

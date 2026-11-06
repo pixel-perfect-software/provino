@@ -173,7 +173,7 @@
   "runErrors": [],
   "success": true,
   "trace": [
-    "{\"id\":\"new on a mock of an arrow function\",\"value\":{\"value\":{\"made\":\"by arrow\"}}}",
+    "{\"id\":\"new on a mock of an arrow function\",\"value\":{\"value\":{\"made\":1}}}",
     "{\"id\":\"new on a mock of a function sets fields on the new instance\",\"value\":{\"result\":{\"value\":{\"field\":5}},\"instances\":[{\"field\":5}],\"results\":[{\"type\":\"return\",\"value\":{\"$\":\"undefined\"}}]}}",
     "{\"id\":\"new on a mock of a class\",\"value\":{\"result\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Class constructor Klass cannot be invoked without 'new'\"}},\"calls\":1}}",
     "{\"id\":\"mockReturnValue under new\",\"value\":{\"value\":{\"fixed\":true}}}",

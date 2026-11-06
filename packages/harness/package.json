@@ -37,7 +37,6 @@
     "@provino/policy": "workspace:*",
     "babel-jest": "catalog:",
     "jest": "catalog:",
-    "jest-mock": "catalog:",
     "vitest": "catalog:"
   }
 }
