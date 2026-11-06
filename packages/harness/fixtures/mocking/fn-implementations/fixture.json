@@ -1,0 +1,4 @@
+{
+  "description": "What a mock function does when called: mockImplementation, mockReturnValue, resolved and rejected values and their Once forms, mockReturnThis, once-queue order, withImplementation (sync, async, return value, throwing callback), and getMockImplementation with a once queued.",
+  "runners": ["jest", "vitest"]
+}

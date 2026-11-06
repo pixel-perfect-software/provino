@@ -11,6 +11,7 @@ import {
 import type { Policy } from '@provino/types'
 import { jestDialect, jestPolicy } from './dialect.ts'
 import { jestExpectPolicy } from './expect-policy.ts'
+import { jestMockPolicy } from './mock-policy.ts'
 
 const resolved = resolvePolicy(jestPolicy)
 
@@ -19,6 +20,42 @@ test('the dialect is Jest 30.5, with the policy this package exports', () => {
   assert.equal(jestDialect.version, '30.5')
   assert.equal(jestDialect.policy, jestPolicy)
   assert.equal(jestPolicy.expect, jestExpectPolicy)
+  assert.equal(jestPolicy.mock, jestMockPolicy)
+})
+
+test('the mock slice is whole, so no `mock.*` key is left at the neutral value', () => {
+  assert.deepEqual(Object.keys(jestMockPolicy).sort(), Object.keys(neutralPolicy.mock).sort())
+  assert.deepEqual(
+    Object.keys(jestMockPolicy.between).sort(),
+    Object.keys(neutralPolicy.mock.between).sort(),
+  )
+  assert.equal(resolved.mock.newCall, 'apply')
+  assert.deepEqual(resolved.mock.messages, jestMockPolicy.messages)
+})
+
+test('the mock messages are jest-mock`s, with the two placeholders the engine fills', () => {
+  const messages = jestMockPolicy.messages
+  assert.equal(messages['spy-primitive'], 'Cannot use spyOn on a primitive value; {type} given')
+  assert.equal(
+    messages['spy-not-a-function-primitive'],
+    "Cannot spy on the `{key}` property because it is not a function; {type} given instead. If you are trying to mock a property, use `jest.replaceProperty(object, '{key}', value)` instead.",
+  )
+  for (const code of [
+    'spy-no-key',
+    'spy-missing',
+    'spy-not-a-function',
+    'spy-not-configurable',
+    'spy-no-access-type',
+    'replace-primitive',
+    'replace-no-key',
+    'replace-missing',
+    'replace-not-configurable',
+    'replace-getter',
+    'replace-setter',
+    'replace-function',
+  ]) {
+    assert.equal(typeof messages[code], 'string', code)
+  }
 })
 
 test('the divergences from the neutral policy are Jest`s', () => {
@@ -142,8 +179,6 @@ test('the keys the dialect leaves to the neutral policy are the ones listed in d
       'core.doneDeprecatedMessage',
       'core.formatEachTitle',
       'core.orderHooks',
-      'mock.newCall',
-      'mock.messages',
       'timers.fakeTemporal',
       'timers.notFaked',
       'timers.setSystemTimeWithoutFakes',

@@ -3,10 +3,25 @@
 // registry of the file running now. Nothing here is module-level state.
 import type { RuntimeApi, SuiteApi, TestApi } from '@provino/core'
 import type { createExpect } from '@provino/expect'
+import {
+  createMockFn,
+  isMockFunction,
+  type Mock,
+  type MockRegistry,
+  type MockTarget,
+  type Replaced,
+  replaceProperty,
+  type SpiedGetter,
+  type SpiedMethod,
+  type SpiedSetter,
+  type SpyableKeys,
+  spyOn,
+  type UnknownFunction,
+} from '@provino/mock'
 import type { FileRegistry, GlobalsHost } from '@provino/types'
 
 /**
- * What `jestGlobals` builds the globals from: `GlobalsHost` with the real types of the two
+ * What `jestGlobals` builds the globals from: `GlobalsHost` with the real types of the
  * objects it declares as `object`. `GlobalsFactory` is bivariant in the host, so `jestGlobals`
  * is still a `GlobalsFactory`; through that type it accepts any host, so the worker must pass
  * the one it declares here.
@@ -17,13 +32,17 @@ export interface JestGlobalsHost extends GlobalsHost {
   readonly api: RuntimeApi
   /** The worker's `expect`, from `createExpect`. */
   readonly expect: ReturnType<typeof createExpect>
+  /** The mock registry of the file running now (the worker's, under isolation `none`). */
+  mocks(): MockRegistry
 }
 
 /**
  * The `jest` global, as far as the worker runtime goes: the module registry methods, which act on
  * the registry of the file running when they are called. `isolateModules` and
- * `isolateModulesAsync` refuse to nest or overlap (on one registry), as Jest does. Mocks, timers, `setTimeout`,
- * `retryTimes` and the rest of Jest's `jest` object are not here yet (T11.10 and B13).
+ * `isolateModulesAsync` refuse to nest or overlap (on one registry), as Jest does. The mock
+ * functions (`fn`, `spyOn`, `replaceProperty`, the three `*AllMocks`) act on the mock registry of
+ * the file running. `jest.mock` and friends (B13c), timers (T4.9), `setTimeout`, `retryTimes` and
+ * the rest of Jest's `jest` object are not here yet (T11.10).
  * @public
  */
 export interface JestObject {
@@ -33,6 +52,28 @@ export interface JestObject {
   isolateModulesAsync(fn: () => Promise<void>): Promise<void>
   /** Forgets every module loaded so far in the file, then returns `jest`. */
   resetModules(): JestObject
+  /** A mock function, running `impl` when it has one. */
+  fn<T extends MockTarget = UnknownFunction>(impl?: T): Mock<T>
+  /** Replaces a method with a spy that calls through. */
+  spyOn<T extends object, K extends SpyableKeys<T>>(object: T, key: K): SpiedMethod<Required<T>[K]>
+  /** Replaces an accessor's getter with a spy that calls through. */
+  spyOn<T extends object, K extends keyof T>(object: T, key: K, access: 'get'): SpiedGetter<T[K]>
+  /** Replaces an accessor's setter with a spy that calls through. */
+  spyOn<T extends object, K extends keyof T>(object: T, key: K, access: 'set'): SpiedSetter<T[K]>
+  /** Whether `value` is a mock function. */
+  isMockFunction(value: unknown): value is Mock<UnknownFunction>
+  /** Replaces a data property with `value` until `restore()` or `restoreAllMocks()`. */
+  replaceProperty<T extends object, K extends keyof T>(
+    object: T,
+    key: K,
+    value: T[K],
+  ): Replaced<T[K]>
+  /** `mockClear` on every mock, then returns `jest`. */
+  clearAllMocks(): JestObject
+  /** `mockReset` on every mock, then returns `jest`. */
+  resetAllMocks(): JestObject
+  /** Restores every spy and replaced property, then returns `jest`. */
+  restoreAllMocks(): JestObject
 }
 
 /**
@@ -68,8 +109,11 @@ export type JestGlobals = {
  * the `f` and `x` forms are core's `only` and `skip` modifiers; `expect` is the worker's. Each
  * call returns new objects, and the worker installs them on the environment's global.
  *
- * The `jest` object has `isolateModules`, `isolateModulesAsync` and `resetModules`, nothing else.
- * Each reads `host.registry()` when it is called, because every file has its own registry.
+ * The `jest` object has `isolateModules`, `isolateModulesAsync` and `resetModules` (each reads
+ * `host.registry()` when it is called, because every file has its own registry), and the mock
+ * functions `fn`, `spyOn`, `isMockFunction`, `replaceProperty`, `clearAllMocks`, `resetAllMocks`
+ * and `restoreAllMocks` (each reads `host.mocks()` and `host.mockPolicy` when it is called).
+ * Nothing else.
  * @public
  */
 export function jestGlobals(host: JestGlobalsHost): JestGlobals {
@@ -122,6 +166,45 @@ export function jestGlobals(host: JestGlobalsHost): JestGlobals {
     resetModules() {
       host.registry().resetModules()
       // unverified: jest-runtime 30.5.2 `JestGlobals.ts` L263-L266 returns `jestObject`; read from source, not recorded
+      return jest
+    },
+    fn<T extends MockTarget = UnknownFunction>(impl?: T): Mock<T> {
+      return createMockFn<T>(
+        host.mockPolicy,
+        host.mocks(),
+        // Jest treats every falsy value as no implementation (jest-mock `index.ts` L1233-L1241).
+        impl ? { impl } : undefined,
+      )
+    },
+    // The engine's overloads take the access kind last; one signature serves all three.
+    spyOn: ((object: object, key: PropertyKey, access?: 'get' | 'set'): unknown =>
+      (spyOn as (...args: readonly unknown[]) => unknown)(
+        host.mockPolicy,
+        host.mocks(),
+        object,
+        key,
+        access,
+      )) as JestObject['spyOn'],
+    isMockFunction(value: unknown): value is Mock<UnknownFunction> {
+      return isMockFunction(host.mockPolicy, value)
+    },
+    replaceProperty<T extends object, K extends keyof T>(
+      object: T,
+      key: K,
+      value: T[K],
+    ): Replaced<T[K]> {
+      return replaceProperty(host.mockPolicy, host.mocks(), object, key, value)
+    },
+    clearAllMocks() {
+      host.mocks().clearAll()
+      return jest
+    },
+    resetAllMocks() {
+      host.mocks().resetAll()
+      return jest
+    },
+    restoreAllMocks() {
+      host.mocks().restoreAll()
       return jest
     },
   }

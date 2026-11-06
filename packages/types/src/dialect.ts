@@ -2,7 +2,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { BaseConfig } from './config.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { FileRegistry } from './loader.ts'
-import type { ModuleRef, PolicyOverrides } from './policy/index.ts'
+import type { MockPolicy, ModuleRef, PolicyOverrides } from './policy/index.ts'
 
 /**
  * Dialect option types by dialect name. Each dialect package augments it:
@@ -133,6 +133,13 @@ export interface GlobalsHost {
    * when the global is called, not when the factory runs, because each file gets its own.
    */
   registry(): FileRegistry
+  /**
+   * The mock registry of the file running now (`MockRegistry` from `@provino/mock`; one per
+   * worker under isolation `none`). Read it when the global is called, like `registry()`.
+   */
+  mocks(): object
+  /** The mock slice of the resolved policy: what a mock function built here follows. */
+  readonly mockPolicy: MockPolicy
 }
 
 /**

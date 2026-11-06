@@ -1,0 +1,4 @@
+{
+  "description": "mockClear identity, mockReset and mockRestore on a mock of an implementation, the three *AllMocks on one, and whether mock keeps its identity across clearAllMocks on a never-called mock.",
+  "runners": ["jest", "vitest"]
+}

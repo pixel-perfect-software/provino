@@ -1,0 +1,5 @@
+{
+  "description": "Per-test mock cleanup with clear, reset and restore all on, seen in test 2 on mocks made in test 1. It pins the end state with all three on, not the order the steps run in: no case here tells one order from another.",
+  "runners": ["jest", "vitest"],
+  "mockCleanup": { "clear": true, "reset": true, "restore": true }
+}

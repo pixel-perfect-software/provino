@@ -5,10 +5,13 @@ import path from 'node:path'
 import { test } from 'node:test'
 import {
   jestConfig,
+  jestMockCleanupOptions,
+  OBSERVE_SETUP_PATH,
   runnerEnv,
   TRACE_ENV,
   traceSetupSource,
   vitestConfigSource,
+  vitestMockCleanupOptions,
 } from './runner-config.ts'
 
 test('the Jest config runs *.test.ts except the Vitest-only files, with locations and a local cache', () => {
@@ -59,6 +62,64 @@ test('only the vitest-list profile sets sequence.hooks, and to list', () => {
     { ...testOptions('vitest-list'), sequence: undefined },
     { ...testOptions('vitest'), sequence: undefined },
   )
+})
+
+test('mockCleanup maps to Jest options: clear, reset and restore only, and only the keys given', () => {
+  assert.deepEqual(jestMockCleanupOptions(undefined), {})
+  assert.deepEqual(jestMockCleanupOptions({ clear: false, reset: true, restore: true }), {
+    clearMocks: false,
+    resetMocks: true,
+    restoreMocks: true,
+  })
+  const config = jestConfig('/work/x', '/t.ts', '/s.ts', { mockCleanup: { reset: true } })
+  assert.equal(config.resetMocks, true)
+  assert.equal('clearMocks' in config, false)
+  assert.equal('restoreMocks' in jestConfig('/work/x', '/t.ts', '/s.ts'), false)
+})
+
+test('mockCleanup maps to Vitest options: mockReset for reset, and the two unstubs by name', () => {
+  assert.deepEqual(vitestMockCleanupOptions(undefined), {})
+  assert.deepEqual(
+    vitestMockCleanupOptions({
+      clear: false,
+      reset: true,
+      restore: true,
+      unstubEnvs: true,
+      unstubGlobals: false,
+    }),
+    {
+      clearMocks: false,
+      mockReset: true,
+      restoreMocks: true,
+      unstubEnvs: true,
+      unstubGlobals: false,
+    },
+  )
+  const source = vitestConfigSource('/work/x', '/s.ts', 'vitest', {
+    mockCleanup: { clear: false, unstubEnvs: true },
+  })
+  const test = JSON.parse(source.replace(/^export default /, '')).test
+  assert.equal(test.clearMocks, false)
+  assert.equal(test.unstubEnvs, true)
+  assert.equal('mockReset' in test, false)
+})
+
+test('the observe setup is loaded after the trace setup, in both runners, when given', () => {
+  const options = { observeSetupFile: '/work/x/.harness-out/observe-setup.ts' }
+  assert.deepEqual(jestConfig('/work/x', '/t.ts', '/work/x/trace.ts', options).setupFiles, [
+    '/work/x/trace.ts',
+    '/work/x/.harness-out/observe-setup.ts',
+  ])
+  const source = vitestConfigSource('/work/x', '/work/x/trace.ts', 'vitest', options)
+  assert.deepEqual(JSON.parse(source.replace(/^export default /, '')).test.setupFiles, [
+    '/work/x/trace.ts',
+    '/work/x/.harness-out/observe-setup.ts',
+  ])
+})
+
+test('OBSERVE_SETUP_PATH names the one observe-setup.ts, next to this module', async () => {
+  assert.equal(OBSERVE_SETUP_PATH, path.join(import.meta.dirname, 'observe-setup.ts'))
+  assert.match(await readFile(OBSERVE_SETUP_PATH, 'utf8'), /target\.observe =/)
 })
 
 test('the trace setup appends one line per call, in call order, to the file named by the environment', async () => {

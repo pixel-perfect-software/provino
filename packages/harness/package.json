@@ -33,10 +33,10 @@
     "@provino/core": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
     "@provino/expect": "workspace:*",
+    "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
     "babel-jest": "catalog:",
     "jest": "catalog:",
-    "jest-mock": "catalog:",
     "vitest": "catalog:"
   }
 }

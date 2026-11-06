@@ -1,0 +1,4 @@
+{
+  "description": "A mock function called with new: arrow, function and class implementations, mockReturnValue and a once value under new, prototype methods, instanceof, and mock.instances.",
+  "runners": ["jest", "vitest"]
+}

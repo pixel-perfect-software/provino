@@ -1,0 +1,4 @@
+{
+  "description": "What only Vitest 5.0 has: mockThrow and mockThrowOnce, stubEnv, stubGlobal, and unstubAllEnvs and unstubAllGlobals restoring a value or removing a variable that did not exist.",
+  "runners": ["vitest"]
+}

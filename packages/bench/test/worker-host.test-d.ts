@@ -5,8 +5,9 @@
 import type { RuntimeApi } from '@provino/core'
 import type { JestGlobalsHost, jestGlobals } from '@provino/dialect-jest/runtime'
 import type { createExpect } from '@provino/expect'
+import type { MockRegistry } from '@provino/mock'
 import type { RuntimeGlobalsHost } from '@provino/orchestrator/worker'
-import type { FileRegistry, GlobalsHost } from '@provino/types'
+import type { FileRegistry, GlobalsHost, MockPolicy } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
 // What the worker passes is what the Jest dialect's factory takes.
@@ -20,17 +21,27 @@ expectTypeOf<RuntimeGlobalsHost['expect']>().toEqualTypeOf<ReturnType<typeof cre
 expectTypeOf<JestGlobalsHost['api']>().toEqualTypeOf<RuntimeGlobalsHost['api']>()
 expectTypeOf<JestGlobalsHost['expect']>().toEqualTypeOf<RuntimeGlobalsHost['expect']>()
 
+expectTypeOf<RuntimeGlobalsHost['mocks']>().returns.toEqualTypeOf<MockRegistry>()
+expectTypeOf<JestGlobalsHost['mocks']>().returns.toEqualTypeOf<MockRegistry>()
+expectTypeOf<RuntimeGlobalsHost['mockPolicy']>().toEqualTypeOf<MockPolicy>()
+
 declare const registry: () => FileRegistry
+declare const mocks: () => MockRegistry
+declare const mockPolicy: MockPolicy
 declare const api: RuntimeGlobalsHost['api']
 declare const expectStatic: RuntimeGlobalsHost['expect']
 
 // A host with the wrong objects is not a `RuntimeGlobalsHost`, and so not what the dialect takes.
 // @ts-expect-error `api` must be core's, not any object
-const wrongApi: RuntimeGlobalsHost = { api: {}, expect: expectStatic, registry }
+const wrongApi: RuntimeGlobalsHost = { api: {}, expect: expectStatic, registry, mocks, mockPolicy }
 // @ts-expect-error `expect` must be the worker's `expect`, not any object
-const wrongExpect: RuntimeGlobalsHost = { api, expect: {}, registry }
+const wrongExpect: RuntimeGlobalsHost = { api, expect: {}, registry, mocks, mockPolicy }
 // @ts-expect-error `registry` is part of the host
-const noRegistry: RuntimeGlobalsHost = { api, expect: expectStatic }
-const right: RuntimeGlobalsHost = { api, expect: expectStatic, registry }
+const noRegistry: RuntimeGlobalsHost = { api, expect: expectStatic, mocks, mockPolicy }
+// @ts-expect-error `mocks` is part of the host
+const noMocks: RuntimeGlobalsHost = { api, expect: expectStatic, registry, mockPolicy }
+// @ts-expect-error `mockPolicy` is part of the host
+const noMockPolicy: RuntimeGlobalsHost = { api, expect: expectStatic, registry, mocks }
+const right: RuntimeGlobalsHost = { api, expect: expectStatic, registry, mocks, mockPolicy }
 
-export { noRegistry, right, wrongApi, wrongExpect }
+export { noMockPolicy, noMocks, noRegistry, right, wrongApi, wrongExpect }

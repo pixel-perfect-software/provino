@@ -1,0 +1,4 @@
+{
+  "description": "spyOn with the 'get' and 'set' access types, the wrong access type, a non-configurable property, a configurable getter export spied as a method (the Vite SSR rule), and an accessor or data property spied with the wrong form.",
+  "runners": ["jest", "vitest"]
+}

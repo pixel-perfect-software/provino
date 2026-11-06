@@ -1,5 +1,6 @@
 import { readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
+import type { MockCleanupStep } from '@provino/types'
 import { HarnessError } from './errors.ts'
 import { compareStrings, isNotFound, isRecord } from './internal/guards.ts'
 import { isNodeModules, walkFiles } from './internal/walk.ts'
@@ -59,7 +60,24 @@ export interface FixtureManifest {
    * profile not listed here.
    */
   readonly expectCrash?: Readonly<Partial<Record<FixtureProfile, string>>>
+  /**
+   * The per-test mock cleanup the runner runs under, by the neutral names of `MockPolicy.between`.
+   * Only the keys given are set, so the runner's own default stands for the rest (Vitest 5's
+   * `clearMocks` is on by default, Jest's is off). `recorder/runner-config.ts` maps them to Jest's
+   * and Vitest's options. `unstubEnvs` and `unstubGlobals` are Vitest-only, so they are an error
+   * in a fixture that lists `jest`.
+   */
+  readonly mockCleanup?: MockCleanup
 }
+
+/**
+ * The keys of a fixture's `mockCleanup`: whether each cleanup runs before every test.
+ * @public
+ */
+export type MockCleanup = { readonly [K in MockCleanupStep]?: boolean }
+
+const MOCK_CLEANUP_KEYS = ['clear', 'reset', 'restore', 'unstubEnvs', 'unstubGlobals'] as const
+const VITEST_ONLY_CLEANUP_KEYS: readonly string[] = ['unstubEnvs', 'unstubGlobals']
 
 /**
  * A fixture read from disk.
@@ -86,7 +104,13 @@ export const GOLDENS_DIR = '__goldens__'
  */
 export const MANIFEST_FILE = 'fixture.json'
 
-const KNOWN_KEYS: ReadonlySet<string> = new Set(['description', 'runners', 'env', 'expectCrash'])
+const KNOWN_KEYS: ReadonlySet<string> = new Set([
+  'description',
+  'runners',
+  'env',
+  'expectCrash',
+  'mockCleanup',
+])
 
 function isFixtureProfile(value: unknown): value is FixtureProfile {
   return FIXTURE_PROFILES.some((profile) => profile === value)
@@ -119,12 +143,12 @@ export function parseFixtureManifest(
     if (!KNOWN_KEYS.has(key)) {
       throw new HarnessError(
         'HARNESS_FIXTURE_UNKNOWN_KEY',
-        `${source}: unknown key "${key}" (expected description, runners, env, expectCrash)`,
+        `${source}: unknown key "${key}" (expected description, runners, env, expectCrash, mockCleanup)`,
         { path: source },
       )
     }
   }
-  const { description, runners, env, expectCrash } = value
+  const { description, runners, env, expectCrash, mockCleanup } = value
   if (typeof description !== 'string' || description.trim() === '') {
     throw new HarnessError(
       'HARNESS_FIXTURE_BAD_DESCRIPTION',
@@ -153,7 +177,41 @@ export function parseFixtureManifest(
     ...(expectCrash === undefined
       ? {}
       : { expectCrash: parseExpectCrash(expectCrash, runners, source) }),
+    ...(mockCleanup === undefined
+      ? {}
+      : { mockCleanup: parseMockCleanup(mockCleanup, runners, source) }),
   }
+}
+
+/**
+ * `mockCleanup` is a non-empty object of the five neutral names to booleans. `unstubEnvs` and
+ * `unstubGlobals` have no Jest option, so a fixture that lists `jest` cannot set them.
+ */
+function parseMockCleanup(
+  mockCleanup: unknown,
+  runners: readonly FixtureProfile[],
+  source: string,
+): MockCleanup {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_MOCK_CLEANUP', `${source}: "mockCleanup" ${reason}`, {
+      path: source,
+    })
+  if (!isRecord(mockCleanup) || Object.keys(mockCleanup).length === 0) {
+    throw bad(`must be a non-empty object with keys from ${MOCK_CLEANUP_KEYS.join(', ')}`)
+  }
+  const cleanup: { -readonly [K in keyof MockCleanup]: MockCleanup[K] } = {}
+  for (const [key, flag] of Object.entries(mockCleanup)) {
+    const known = MOCK_CLEANUP_KEYS.find((name) => name === key)
+    if (known === undefined) {
+      throw bad(`has unknown key "${key}" (expected ${MOCK_CLEANUP_KEYS.join(', ')})`)
+    }
+    if (typeof flag !== 'boolean') throw bad(`must give "${key}" true or false`)
+    if (VITEST_ONLY_CLEANUP_KEYS.includes(key) && runners.includes('jest')) {
+      throw bad(`sets "${key}", which Jest has no option for, but "runners" lists "jest"`)
+    }
+    cleanup[known] = flag
+  }
+  return cleanup
 }
 
 function parseEnv(env: unknown, source: string): Record<string, string> {

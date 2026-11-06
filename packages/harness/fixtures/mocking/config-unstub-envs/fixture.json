@@ -1,0 +1,5 @@
+{
+  "description": "Vitest with unstubEnvs on: an environment variable and a global stubbed in test 1, seen in test 2.",
+  "runners": ["vitest"],
+  "mockCleanup": { "unstubEnvs": true }
+}

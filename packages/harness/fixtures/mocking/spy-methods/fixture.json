@@ -1,0 +1,4 @@
+{
+  "description": "spyOn on a method: install and call-through, mockReset, mockRestore, resetAllMocks, restoreAllMocks, getMockName, the bridge implementation, spyOn of a constructor then new, an inherited method that restore deletes, Symbol.dispose, and the errors for a missing key, a non-function and a non-object.",
+  "runners": ["jest", "vitest"]
+}

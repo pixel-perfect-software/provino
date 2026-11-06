@@ -1,0 +1,4 @@
+{
+  "description": "What a mock function looks like from outside: name, getMockName and mockName, the keys of mock before and after the first call, Object.keys of the function itself, isMockFunction on an object, fn of an existing mock, static properties of the implementation, and assigning to mock.",
+  "runners": ["jest", "vitest"]
+}

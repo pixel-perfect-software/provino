@@ -8,9 +8,8 @@
 // Keys left out, so the neutral value stands. Setting one would be inventing a Jest value.
 //
 // - No value in the research (B03's key-merge record):
-//   core.doneDeprecatedMessage, mock.newCall, mock.messages (Track 4's codes are B13a's),
-//   timers.notFaked, timers.setSystemTimeWithoutFakes, timers.facadeReturns,
-//   module.missingFactoryExport.
+//   core.doneDeprecatedMessage, timers.notFaked, timers.setSystemTimeWithoutFakes,
+//   timers.facadeReturns, module.missingFactoryExport.
 // - Track 1 gives a value that does not map onto the key:
 //   timers.fakeTemporal ("via sinon 15.4", a condition on the version of @sinonjs/fake-timers,
 //   not true or false; B14 confirms it).
@@ -25,6 +24,7 @@
 import { defineDialect, moduleRef } from '@provino/policy'
 import type { Dialect, GlobalsFactory, PolicyOverrides } from '@provino/types'
 import { jestExpectPolicy } from './expect-policy.ts'
+import { jestMockPolicy } from './mock-policy.ts'
 
 /**
  * Jest 30.5's policy: every key the research gives a Jest value for, layered over the neutral
@@ -123,51 +123,7 @@ export const jestPolicy: PolicyOverrides = {
     // unverified: track-01 L197
     readInBeforeAll: 'error',
   },
-  mock: {
-    // unverified: track-01 L198, track-04 L256
-    resetTo: 'empty',
-    // unverified: track-01 L199, track-04 L253
-    defaultName: 'jest.fn()',
-    // unverified: track-01 L200, track-04 L275 (Jest has no unstub steps, so they are off)
-    between: {
-      order: ['clear', 'reset', 'restore'],
-      clear: false,
-      reset: false,
-      restore: false,
-      unstubEnvs: false,
-      unstubGlobals: false,
-    },
-    // unverified: track-01 L201, track-04 L261
-    classMockPrototype: 'own',
-    // unverified: track-04 L254
-    spyNameFromMethod: false,
-    // unverified: track-04 L255
-    functionName: 'mockConstructor',
-    // unverified: track-04 L258
-    valueShorthandsThrowOnNew: false,
-    // unverified: track-04 L259
-    fnOfMockReturnsSame: false,
-    // unverified: track-04 L260
-    copyStaticProps: false,
-    // unverified: track-04 L262
-    settledResults: false,
-    // unverified: track-04 L263
-    lastCallKey: 'after-first-call',
-    // unverified: track-04 L264
-    clearReplacesStateObject: true,
-    // unverified: track-04 L265
-    mockPropertyWritable: true,
-    // unverified: track-04 L266
-    withImplementationReturnsMock: false,
-    // unverified: track-04 L267
-    getImplPrefersOnce: false,
-    // unverified: track-04 L268
-    spyReportsBridgeImpl: true,
-    // unverified: track-04 L269
-    isMockAcceptsObjects: true,
-    // unverified: track-04 L270
-    spyInstall: 'assign',
-  },
+  mock: jestMockPolicy,
   timers: {
     // unverified: track-01 L202, track-04 L348 (`excludeFromDefaultToFake: []`)
     toFakeDefault: 'all',

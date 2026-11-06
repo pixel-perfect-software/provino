@@ -9,7 +9,8 @@ The benchmark protocol (Track 12 R5/R6), the synthetic suites, and the `provino-
 - `src/commands.ts`: the CLI commands, including `killCheckCommand`, which does the running.
 - `src/check.ts`, `src/parity.ts`: one run of a runner with a report, and Jest's statuses against Provino's.
 - `src/generators/`: the suites. `.suites/` and `.results/` are gitignored.
-- `src/loader/`, `src/worker/`, `src/expect/`: the `bench:*` benches, which run Provino's pieces in-process.
+- `src/loader/`, `src/worker/`, `src/expect/`, `src/mock/`: the `bench:*` benches, which run Provino's pieces in-process.
+- `src/mock/`: `pnpm bench:mock [--max-create-us n] [--max-call-ratio n]`, T4.3's bars. `@provino/mock` under the Jest and Vitest mock policies against `@vitest/spy` and `jest-mock`, one process per engine, 5 interleaved runs, medians (8 rounds per process, first 2 discarded). `report.ts` is the pure part (flags, medians, ratio, the bars) and has the tests; `entry.ts` is one engine's side; `cli.ts` runs and prints. Creation cells exclude first-use cost, which `createMockFn` defers on purpose (state arrays and the dirty set, on the first call or `.mock` read), while the baselines pay it at creation. The `fn(arrow)+use` column (create, call once, read `.mock.calls.length`) shows it for every engine; it has no bar and is not in `failures()`, because the bar is on creation alone (automock's untouched mocks). Failure text adds decimals until a failed value differs from its bar. `cli.ts` calls `exitOnSignals()`, since each child runs in its own group. Every number is `local`. **It exits 1 today, by D31:** `fn(function)` under the Vitest policy (`chain-to-impl`) misses 1 µs (about 1.3 to 1.4 µs). No cell is exempt in code; it is named in the output, and T4.3 stays partial until the real `vitestPolicy` is re-measured. Exit 2 is bad usage.
 
 ## The kill-check
 

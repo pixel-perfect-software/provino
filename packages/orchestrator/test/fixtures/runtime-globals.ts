@@ -3,6 +3,10 @@
 import type { GlobalsHost } from '@provino/types'
 import { slotMatchers, trace } from './runtime-env.ts'
 
+/** The ids `probeMocks` gave the mock registries it has seen (also: which it already wrapped). */
+const mockIds = new WeakMap<object, number>()
+let nextMockId = 1
+
 type Probe = {
   [name: string]: unknown
 }
@@ -33,6 +37,26 @@ export function testGlobals(host: GlobalsHost): Probe {
         return dispose()
       }
     },
+    /**
+     * Traces which mock registry the running file has (`mocks:registry <n>`, the same n for the
+     * same registry) and, once per registry, when it is disposed. `probeMocks(true)` makes that
+     * `dispose` throw after tracing, so a test can see the rest of the teardown still run.
+     */
+    probeMocks: (throws = false) => {
+      const mocks = host.mocks() as { dispose(): void }
+      const known = mockIds.has(mocks)
+      if (!known) mockIds.set(mocks, nextMockId++)
+      trace(`mocks:registry ${mockIds.get(mocks)}`)
+      if (known) return
+      const dispose = mocks.dispose.bind(mocks)
+      mocks.dispose = () => {
+        trace(`mocks:dispose ${mockIds.get(mocks)}`)
+        dispose()
+        if (throws) throw new Error('mock dispose failed')
+      }
+    },
+    /** The mock policy the host carries, as its `defaultName`: a probe that it arrived. */
+    mockPolicyName: () => host.mockPolicy.defaultName,
   }
 }
 

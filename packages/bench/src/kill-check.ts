@@ -9,6 +9,7 @@
 // hold it and `@provino/types` is not ours to change here.
 import type { BenchLabel, BenchRecord, BenchResult } from '@provino/types'
 import { BenchError } from './errors.ts'
+import { pastLimit } from './internal/limits.ts'
 import type { StatusParity } from './parity.ts'
 import { formatRatio, table } from './report.ts'
 import { type RatioInterval, ratioCi } from './stats.ts'
@@ -83,17 +84,6 @@ export const DRY_RUN_RUNNER = 'jest-as-provino'
 type Cache = 'warm' | 'cold'
 
 const MIN_PARITY_PERCENT = KILL_CRITERION.minStatusParity * 100
-
-// A failed value printed beside its limit must never read as equal to it: toFixed can round 3599 of
-// 4000 up to "90.0", 0.500004 down to "0.500" and 3.0004 to "3.000", which would call a miss a tie.
-// This raises the decimals from `base` until the printed number differs from the limit.
-function pastLimit(value: number, limit: number, base: number): string {
-  for (let decimals = base; decimals < 12; decimals += 1) {
-    const text = value.toFixed(decimals)
-    if (Number(text) !== limit) return text
-  }
-  return value.toString()
-}
 
 // A value to `base` decimals, raised past `limit` when it failed (`ok` false).
 function shown(value: number, limit: number, ok: boolean, base = 3): string {

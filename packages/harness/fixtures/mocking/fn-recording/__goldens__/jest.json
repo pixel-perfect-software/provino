@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/fn-recording",
+  "files": [
+    {
+      "file": "fn-recording.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "fn-recording.test.ts",
+            "path": [
+              "invocationCallOrder counts from 1 across mocks"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-recording.test.ts",
+            "path": [
+              "calls hold the argument references"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-recording.test.ts",
+            "path": [
+              "results hold return values, with undefined for no return"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-recording.test.ts",
+            "path": [
+              "a call is incomplete until its implementation returns"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-recording.test.ts",
+            "path": [
+              "a thrown error is a throw result and the call is still recorded"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-recording.test.ts",
+            "path": [
+              "contexts hold the receiver of each call"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-recording.test.ts",
+            "path": [
+              "instances hold the receiver of each call too"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-recording.test.ts",
+            "path": [
+              "lastCall is the newest call, and undefined before any"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-recording.test.ts",
+            "path": [
+              "settledResults follow an async implementation"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-recording.test.ts",
+            "path": [
+              "mockClear inside the implementation wipes the call in flight"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn-recording.test.ts",
+            "path": [
+              "calls recorded after a clear start a fresh list"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"invocationCallOrder counts from 1 across mocks\",\"value\":{\"a\":[1,3],\"b\":[2]}}",
+    "{\"id\":\"calls hold the argument references\",\"value\":{\"calls\":[[{\"n\":1},2],[]],\"sameReference\":true}}",
+    "{\"id\":\"results hold return values, with undefined for no return\",\"value\":[{\"type\":\"return\",\"value\":4},{\"type\":\"return\",\"value\":{\"$\":\"undefined\"}}]}",
+    "{\"id\":\"a call is incomplete until its implementation returns\",\"value\":{\"during\":{\"results\":[{\"type\":\"incomplete\",\"value\":{\"$\":\"undefined\"}}],\"calls\":1},\"after\":[{\"type\":\"return\",\"value\":\"done\"}]}}",
+    "{\"id\":\"a thrown error is a throw result and the call is still recorded\",\"value\":{\"caught\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"boom\"},\"calls\":[[1]],\"results\":[{\"type\":\"throw\",\"value\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"boom\"}}]}}",
+    "{\"id\":\"contexts hold the receiver of each call\",\"value\":[\"<owner>\",{\"tag\":\"other\"}]}",
+    "{\"id\":\"instances hold the receiver of each call too\",\"value\":{\"instances\":[\"<owner>\"],\"sameAsContexts\":true}}",
+    "{\"id\":\"lastCall is the newest call, and undefined before any\",\"value\":{\"before\":{\"$\":\"undefined\"},\"after\":[2,3]}}",
+    "{\"id\":\"settledResults follow an async implementation\",\"value\":{\"duringPending\":{\"$\":\"undefined\"},\"settled\":{\"$\":\"undefined\"},\"results\":[\"return\",\"return\"]}}",
+    "{\"id\":\"mockClear inside the implementation wipes the call in flight\",\"value\":{\"returned\":\"after clear\",\"calls\":[],\"results\":[]}}",
+    "{\"id\":\"calls recorded after a clear start a fresh list\",\"value\":{\"calls\":[[2]],\"order\":1}}"
+  ]
+}

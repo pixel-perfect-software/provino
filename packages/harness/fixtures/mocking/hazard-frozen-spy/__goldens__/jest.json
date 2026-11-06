@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/hazard-frozen-spy",
+  "files": [
+    {
+      "file": "hazard-frozen-spy.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    TypeError: Cannot assign to read only property 'm' of object '[object Object]'"
+      },
+      "tests": []
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "{\"id\":\"spyOn a frozen object\",\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Cannot assign to read only property 'm' of object '[object Object]'\"}}",
+    "{\"id\":\"restoreAllMocks after the failed spy\",\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Cannot assign to read only property 'm' of object '[object Object]'\"}}"
+  ]
+}

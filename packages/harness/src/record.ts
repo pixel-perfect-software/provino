@@ -12,6 +12,7 @@ import {
   type Fixture,
   type FixtureProfile,
   type FixtureRunner,
+  type MockCleanup,
   readFixture,
   runnerOfProfile,
   testFilesFor,
@@ -20,6 +21,7 @@ import { goldenPath, type RecordOutcome, serializeGolden, toGolden } from './gol
 import { assertNoPathLeak, assertRunComplete, commitGolden } from './internal/recording.ts'
 import {
   jestConfig,
+  OBSERVE_SETUP_PATH,
   runnerEnv,
   TRACE_ENV,
   traceSetupSource,
@@ -127,6 +129,11 @@ interface Recording {
   readonly trace: readonly string[]
 }
 
+function mockCleanupOption(fixture: Fixture): { mockCleanup?: MockCleanup } {
+  const { mockCleanup } = fixture.manifest
+  return mockCleanup === undefined ? {} : { mockCleanup }
+}
+
 async function runUnderRunner(
   fixture: Fixture,
   profile: FixtureProfile,
@@ -141,18 +148,21 @@ async function runUnderRunner(
   const setupFile = path.join(outDir, 'trace-setup.ts')
   const traceFile = path.join(outDir, 'trace.txt')
   await writeFile(setupFile, traceSetupSource())
+  const observeSetupFile = path.join(outDir, 'observe-setup.ts')
+  await copyFile(OBSERVE_SETUP_PATH, observeSetupFile)
+  const configOptions = { observeSetupFile, ...mockCleanupOption(fixture) }
 
   let args: string[]
   if (runner === 'jest') {
     const configFile = path.join(outDir, 'jest.config.json')
     await writeFile(
       configFile,
-      `${JSON.stringify(jestConfig(workDir, TRANSFORMER_PATH, setupFile), null, 2)}\n`,
+      `${JSON.stringify(jestConfig(workDir, TRANSFORMER_PATH, setupFile, configOptions), null, 2)}\n`,
     )
     args = [install.bin, '--ci', '--json', `--outputFile=${outputFile}`, '--config', configFile]
   } else {
     const configFile = path.join(workDir, 'vitest.config.ts')
-    await writeFile(configFile, vitestConfigSource(workDir, setupFile, profile))
+    await writeFile(configFile, vitestConfigSource(workDir, setupFile, profile, configOptions))
     args = [
       install.bin,
       'run',

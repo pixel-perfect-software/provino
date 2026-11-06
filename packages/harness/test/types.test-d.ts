@@ -39,6 +39,7 @@ import {
   spawnInGroup,
   testKey,
   type VitestConvertOptions,
+  vitestMockPolicy,
 } from '@provino/harness'
 import type {
   ApiRow,
@@ -50,6 +51,7 @@ import type {
   SiteIndex,
 } from '@provino/harness/site'
 import type {
+  MockPolicy,
   NormalizedError,
   NormalizedRun,
   NormalizedTest,
@@ -194,6 +196,8 @@ expectTypeOf<Golden>().not.toHaveProperty('startedAt')
 expectTypeOf<Golden>().not.toHaveProperty('env')
 expectTypeOf<Golden['files'][number]['tests'][number]>().not.toHaveProperty('durationMs')
 expectTypeOf<Golden['runErrors'][number]>().not.toHaveProperty('raw')
+// The Vitest mock profile the bench shares is a whole `MockPolicy` slice.
+expectTypeOf(vitestMockPolicy).toEqualTypeOf<MockPolicy>()
 // The profile and the traced steps are optional, and the steps are plain strings.
 expectTypeOf<Golden['profile']>().toEqualTypeOf<FixtureProfile | undefined>()
 expectTypeOf<Golden['trace']>().toEqualTypeOf<readonly string[] | undefined>()

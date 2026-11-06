@@ -44,6 +44,8 @@ catalog:
   "@types/sinonjs__fake-timers": 15.0.1
   # Interop tests only: our asymmetric matchers inside Vitest's expect, and its inside ours (T7.4).
   "@vitest/expect": 5.0.5
+  # The mock bench's bar: calls within 1.5x of @vitest/spy (T4.3).
+  "@vitest/spy": 5.0.5
   # The TypeScript 6 API, as tsc6, for tools that need it (dependency-cruiser, API Extractor).
   "@typescript/typescript6": 6.0.2
   # The recorder's Jest transform runs after type stripping (Jest's default transform).
@@ -59,7 +61,7 @@ catalog:
   # jest-matcher-utils, jest-message-util and jest-util: the Jest dialect's expect (D18, above).
   jest-matcher-utils: 30.5.2
   jest-message-util: 30.5.1
-  # The expect corpus check's jest.fn, until @provino/mock (B13a).
+  # The mock bench's second baseline (T4.3), and the Jest dialect's upstream expect tests.
   jest-mock: 30.5.2
   jest-util: 30.5.1
   # jsdom (Track 8's version): the propagation test's DOM rows, later the jsdom environment.

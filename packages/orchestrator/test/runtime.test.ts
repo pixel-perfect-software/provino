@@ -461,6 +461,154 @@ describe('teardown', () => {
   })
 })
 
+describe('the mock registry', () => {
+  const probe = ['probeRegistry()', 'probeMocks()', "test('t', () => {})"].join('\n')
+
+  /**
+   * The mock steps of a trace, with the registry ids (which count up across the whole process)
+   * renamed r1, r2, ... in order of first appearance, and the matcher notes dropped.
+   */
+  function mockSteps(trace: readonly string[]): string[] {
+    const names = new Map<string, string>()
+    return trace
+      .filter((step) => /^(mocks:|env:teardown|registry:dispose)/.test(step))
+      .map((step) => step.replace(/ matchers=.*/, ''))
+      .map((step) =>
+        step.replace(/^(mocks:\w+) (\d+)$/, (_, kind: string, id: string) => {
+          if (!names.has(id)) names.set(id, `r${names.size + 1}`)
+          return `${kind} ${names.get(id)}`
+        }),
+      )
+  }
+
+  it('is new for every file under registry, and disposed before the environment goes', async () => {
+    const p = await project({ 'a.test.js': probe, 'b.test.js': probe })
+    const config = runtimeConfig(p.dir)
+    const trace: string[] = []
+    await runJobs({
+      config,
+      trace,
+      jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
+    })
+    // Per file: the mocks first (the environment is alive), then the environment, then the registry.
+    assert.deepEqual(mockSteps(trace), [
+      'mocks:registry r1',
+      'mocks:dispose r1',
+      'env:teardown',
+      'registry:dispose',
+      'mocks:registry r2',
+      'mocks:dispose r2',
+      'env:teardown',
+      'registry:dispose',
+    ])
+  })
+
+  it('is the worker`s own under none: every file shares it, and stop disposes it first', async () => {
+    const p = await project({ 'a.test.js': probe, 'b.test.js': probe })
+    const config = runtimeConfig(p.dir)
+    const trace: string[] = []
+    await runJobs({
+      config,
+      isolation: 'none',
+      trace,
+      jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
+    })
+    // Nothing is disposed between the files; at stop the mocks go before the environment.
+    assert.deepEqual(mockSteps(trace), [
+      'mocks:registry r1',
+      'registry:dispose',
+      'mocks:registry r1',
+      'registry:dispose',
+      'mocks:dispose r1',
+      'env:teardown',
+    ])
+  })
+
+  it('keeps a file`s registries for the async work it leaves behind (a stale callback)', async () => {
+    // A's promise continuation fires while B runs, released by B itself: no timer, no wait. It asks
+    // the host for the registry and the mocks, and must get A's, not B's.
+    // The hand-over goes through properties of the trace array: the environment deletes any global
+    // a file adds, so a global of A's would be gone by the time B runs.
+    const a = [
+      'probeMocks()',
+      '__trace.stale = new Promise((resolve) => { __trace.fire = resolve }).then(() => {',
+      "  __trace.push('stale ' + currentRegistryFile())",
+      '  probeMocks()',
+      '})',
+      "test('a', () => {})",
+    ].join('\n')
+    const b = [
+      'probeMocks()',
+      "test('b', async () => { __trace.fire(); await __trace.stale })",
+    ].join('\n')
+    const p = await project({ 'a.test.js': a, 'b.test.js': b })
+    const config = runtimeConfig(p.dir)
+    const trace: string[] = []
+    await runJobs({
+      config,
+      trace,
+      jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
+    })
+    assert.deepEqual(
+      trace.filter((step) => step.startsWith('stale ')),
+      [`stale ${p.path('a.test.js')}`],
+    )
+    // A's registry, seen again from the callback while B runs: r1, r2 (B's own), r1.
+    assert.deepEqual(
+      mockSteps(trace).filter((step) => step.startsWith('mocks:registry')),
+      ['mocks:registry r1', 'mocks:registry r2', 'mocks:registry r1'],
+    )
+  })
+
+  it('refuses the host once the worker has stopped, under none too', async () => {
+    // A file keeps the probe on the trace array (the environment deletes globals a file adds).
+    const p = await project({ 'a.test.js': "__trace.probe = probeMocks\ntest('t', () => {})" })
+    const config = runtimeConfig(p.dir)
+    const trace: string[] & { probe?: () => void } = []
+    await runJobs({
+      config,
+      isolation: 'none',
+      trace,
+      jobs: [runtimeJob(config, p.path('a.test.js'))],
+    })
+    const probe = trace.probe
+    assert.equal(typeof probe, 'function')
+    assert.throws(() => probe?.(), { code: 'ORCH_NO_ACTIVE_FILE' })
+  })
+
+  it('hands the globals the policy`s mock slice', async () => {
+    const p = await project({
+      'a.test.js': "test('t', () => { __trace.push('policy ' + mockPolicyName()) })",
+    })
+    const config = runtimeConfig(p.dir)
+    const trace: string[] = []
+    await runJobs({ config, trace, jobs: [runtimeJob(config, p.path('a.test.js'))] })
+    assert.ok(trace.some((step) => /^policy \S/.test(step)))
+  })
+
+  it('charges a throwing dispose to the file and still runs the rest of the teardown', async () => {
+    const p = await project({
+      'a.test.js': ['probeRegistry()', 'probeMocks(true)', "test('t', () => {})"].join('\n'),
+    })
+    const config = runtimeConfig(p.dir)
+    const trace: string[] = []
+    const job = runtimeJob(config, p.path('a.test.js'))
+    const run = await runJobs({ config, trace, jobs: [job] })
+    assert.equal(run.done.length, 1)
+    assert.deepEqual(
+      eventsOf(run.events, 'unhandled-error').map((event) => [event.ownerId, event.error.message]),
+      [[job.fileId, 'mock dispose failed']],
+    )
+    assert.deepEqual(mockSteps(trace), [
+      'mocks:registry r1',
+      'mocks:dispose r1',
+      'env:teardown',
+      'registry:dispose',
+    ])
+    assert.equal(states(run.events).t, 'pass')
+  })
+})
+
 describe('globals the environment could not remove (D22)', () => {
   const files = { 'a.test.js': "test('a', () => {})", 'b.test.js': "test('b', () => {})" }
   const consoleWarnings = (events: readonly WorkerEvent[]) =>

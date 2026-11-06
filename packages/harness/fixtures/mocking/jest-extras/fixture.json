@@ -1,0 +1,4 @@
+{
+  "description": "What only Jest 30.5 has: whenCalledWith routing, replaceProperty, replaceValue, restore (and restoreAllMocks restoring a replacement), and the error text for a primitive, a missing property, a getter and a function.",
+  "runners": ["jest"]
+}

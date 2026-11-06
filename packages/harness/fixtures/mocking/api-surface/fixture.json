@@ -1,0 +1,4 @@
+{
+  "description": "Object.keys of the jest object and of vi. Recorded for T11.10, which owns the rest of the jest object; nothing reads it yet and it is not counted.",
+  "runners": ["jest", "vitest"]
+}

@@ -114,6 +114,67 @@ test('expectCrash is an optional, non-empty object from runners to the text thei
   assert.equal('expectCrash' in parseFixtureManifest(JSON.stringify(VALID)), false)
 })
 
+test('mockCleanup is optional and keeps the neutral names it was given', () => {
+  const mockCleanup = { clear: false, reset: true, restore: true }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, mockCleanup })), {
+    ...VALID,
+    mockCleanup,
+  })
+  assert.equal('mockCleanup' in parseFixtureManifest(JSON.stringify(VALID)), false)
+})
+
+test('unstubEnvs and unstubGlobals are accepted when only Vitest runs the fixture', () => {
+  const mockCleanup = { unstubEnvs: true, unstubGlobals: false }
+  for (const runners of [['vitest'], ['vitest', 'vitest-list']]) {
+    assert.deepEqual(
+      parseFixtureManifest(JSON.stringify({ ...VALID, runners, mockCleanup })).mockCleanup,
+      mockCleanup,
+    )
+  }
+})
+
+test('an unstub key with jest in runners is HARNESS_FIXTURE_BAD_MOCK_CLEANUP and names the key', () => {
+  for (const key of ['unstubEnvs', 'unstubGlobals']) {
+    assert.throws(
+      () =>
+        parseFixtureManifest(
+          JSON.stringify({ ...VALID, mockCleanup: { [key]: true } }),
+          'f/fixture.json',
+        ),
+      (error: unknown) =>
+        rejects('HARNESS_FIXTURE_BAD_MOCK_CLEANUP')(error) &&
+        error instanceof Error &&
+        error.message.includes(`"${key}"`) &&
+        error.message.includes('"jest"') &&
+        error.message.includes('f/fixture.json'),
+    )
+  }
+})
+
+test('a bad mockCleanup is HARNESS_FIXTURE_BAD_MOCK_CLEANUP', () => {
+  const cases: [unknown, string][] = [
+    [{}, 'non-empty object'],
+    [null, 'non-empty object'],
+    [['clear'], 'non-empty object'],
+    ['clear', 'non-empty object'],
+    [{ clean: true }, 'unknown key "clean"'],
+    [{ clear: 'yes' }, 'must give "clear" true or false'],
+    [{ reset: 1 }, 'must give "reset" true or false'],
+    [{ restore: null }, 'must give "restore" true or false'],
+  ]
+  for (const [mockCleanup, mention] of cases) {
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, mockCleanup }), 'f/fixture.json'),
+      (error: unknown) =>
+        rejects('HARNESS_FIXTURE_BAD_MOCK_CLEANUP')(error) &&
+        error instanceof Error &&
+        error.message.includes('"mockCleanup"') &&
+        error.message.includes(mention),
+      JSON.stringify(mockCleanup),
+    )
+  }
+})
+
 test('a bad expectCrash is HARNESS_FIXTURE_BAD_EXPECT_CRASH and says what is wrong', () => {
   const nonEmptyObject = 'non-empty object'
   const cases: [unknown, string][] = [

@@ -1,0 +1,356 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/spy-methods",
+  "files": [
+    {
+      "file": "spy-methods.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "spyOn installs a mock that calls through"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "a spy with a return value stops calling through"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "mockReset on a spy keeps it installed"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "mockRestore on a spy puts the original back"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "resetAllMocks on a spy keeps it installed"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "restoreAllMocks restores a spy and keeps its state and implementation"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "clearAllMocks clears a spy and keeps it installed"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "getMockName of a spy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "getMockImplementation of a spy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "spyOn a constructor on a namespace object, then new"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "spying an inherited method defines an own property that restore deletes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "a spy can be disposed through Symbol.dispose"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "spyOn a missing key"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "spyOn a property that is not a function"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "spyOn something that is not an object"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "spyOn a bound mock, then mockReturnValue"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "mockImplementation(undefined) on a spy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "spyOn Array.prototype.slice calls through and a mock called under it works"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "spy-methods.test.ts",
+            "path": [
+              "spyOn the same method twice"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"spyOn installs a mock that calls through\",\"value\":{\"installed\":true,\"isMock\":true,\"value\":\"original:x\",\"calls\":[[\"x\"]],\"results\":[{\"type\":\"return\",\"value\":\"original:x\"}],\"originalDiffers\":true}}",
+    "{\"id\":\"a spy with a return value stops calling through\",\"value\":\"stubbed\"}",
+    "{\"id\":\"mockReset on a spy keeps it installed\",\"value\":{\"installed\":true,\"returnsSelf\":true,\"callsAfterReset\":0,\"value\":{\"$\":\"undefined\"}}}",
+    "{\"id\":\"mockRestore on a spy puts the original back\",\"value\":{\"restored\":true,\"callsAfterRestore\":0,\"value\":\"original:x\",\"spyValue\":{\"$\":\"undefined\"}}}",
+    "{\"id\":\"resetAllMocks on a spy keeps it installed\",\"value\":{\"installed\":true,\"value\":{\"$\":\"undefined\"}}}",
+    "{\"id\":\"restoreAllMocks restores a spy and keeps its state and implementation\",\"value\":{\"restored\":true,\"calls\":1,\"value\":\"original:x\",\"spyValue\":\"stubbed\"}}",
+    "{\"id\":\"clearAllMocks clears a spy and keeps it installed\",\"value\":{\"installed\":true,\"calls\":0,\"value\":\"original:b\"}}",
+    "{\"id\":\"getMockName of a spy\",\"value\":\"jest.fn()\"}",
+    "{\"id\":\"getMockImplementation of a spy\",\"value\":{\"type\":\"function\",\"value\":{\"value\":\"original:z\"}}}",
+    "{\"id\":\"spyOn a constructor on a namespace object, then new\",\"value\":{\"instance\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Class constructor Klass cannot be invoked without 'new'\"}},\"calls\":1,\"instances\":1}}",
+    "{\"id\":\"spying an inherited method defines an own property that restore deletes\",\"value\":{\"before\":false,\"during\":true,\"after\":false,\"value\":\"base\"}}",
+    "{\"id\":\"a spy can be disposed through Symbol.dispose\",\"value\":{\"type\":\"function\",\"restored\":true}}",
+    "{\"id\":\"spyOn a missing key\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"Property `missing` does not exist in the provided object\"}}}",
+    "{\"id\":\"spyOn a property that is not a function\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"TypeError\",\"message\":\"Cannot spy on the `a` property because it is not a function; number given instead. If you are trying to mock a property, use `jest.replaceProperty(object, 'a', value)` instead.\"}}}",
+    "{\"id\":\"spyOn something that is not an object\",\"value\":{\"threw\":{\"$\":\"error\",\"name\":\"Error\",\"message\":\"Cannot use spyOn on a primitive value; undefined given\"}}}",
+    "{\"id\":\"spyOn a bound mock, then mockReturnValue\",\"value\":{\"value\":\"stubbed\",\"isMock\":true,\"innerCalls\":0}}",
+    "{\"id\":\"mockImplementation(undefined) on a spy\",\"value\":{\"value\":{\"value\":{\"$\":\"undefined\"},\"impl\":{\"$\":\"undefined\"}}}}",
+    "{\"id\":\"spyOn Array.prototype.slice calls through and a mock called under it works\",\"value\":{\"seen\":{\"sliced\":[2,3],\"result\":2,\"calls\":[[[1,2]]],\"spySawOurs\":true,\"isMock\":true},\"restored\":true}}",
+    "{\"id\":\"spyOn the same method twice\",\"value\":{\"same\":true}}"
+  ]
+}

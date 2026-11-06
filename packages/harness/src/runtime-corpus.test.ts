@@ -9,18 +9,12 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, test } from 'node:test'
 import type { CoreErrorCode } from '@provino/core'
-import {
-  defaultFixturesRoot,
-  type Fixture,
-  type FixtureProfile,
-  findFixtures,
-  readFixture,
-  testFilesFor,
-} from './fixture.ts'
+import { defaultFixturesRoot, findFixtures, readFixture, testFilesFor } from './fixture.ts'
 import type { Golden } from './golden.ts'
 import { assertRunMatchesGolden, testsWithoutLocation } from './runtime-corpus/compare.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
 import { runUnderCore } from './runtime-corpus/run-core.ts'
+import { pairLabel } from './test-support.ts'
 
 /**
  * The collection error core reports for each fixture and profile whose golden is a crash (Jest
@@ -43,11 +37,6 @@ const COLLECTION_ERROR_CODES: Readonly<Record<string, CoreErrorCode>> = {
  */
 const UNLOCATED_TESTS: Readonly<Record<string, readonly string[]>> = {
   'runtime/timeouts (jest)': ['timeouts.jest.test.ts::test over its timeout#0'],
-}
-
-/** A fixture recorded under one of its profiles, named as the recorder names it in its errors. */
-function pairLabel(fixture: Fixture, profile: FixtureProfile): string {
-  return `${fixture.id} (${profile})`
 }
 
 const root = path.join(defaultFixturesRoot(), 'runtime')
