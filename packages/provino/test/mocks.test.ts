@@ -201,6 +201,9 @@ for (const pool of ['forks', 'inline'] as const) {
           '  jest.resetAllMocks()',
           "  writeFileSync(aReset, 'yes')",
           '}, 1)',
+          // Unref'd: an inline worker shares this test's process, so if B fails before its marker,
+          // a live interval would hang the run instead of letting this test fail.
+          'poll.unref()',
           "test('a leaks a callback', () => {})",
           `// padding, so this file is larger and goes first ${'.'.repeat(300)}`,
           '',
