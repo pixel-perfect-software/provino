@@ -4,10 +4,13 @@
 //                  slot, table, `createExpect`) → core → environment `prepare` → the dialect's
 //                  globals factory → registry snapshot (last, so a matcher the factory adds is part
 //                  of the baseline a file's restore returns to)
-//   runFile        back-pressure → file registry → environment `setup` → globals → expect state →
-//                  core (setup files, then the test file, imported inside collection) → teardown
-//   stop           core's worker teardowns → the worker environment → loader → the matcher slot →
-//                  the worker's lifetime signal
+//   runFile        back-pressure → file registry → mock registry (new per file; one per worker
+//                  under `none`) → environment `setup` → globals → expect state → core (setup
+//                  files, then the test file, imported inside collection) → teardown, which
+//                  disposes the mock registry first, while the environment is still alive, so a
+//                  spy on a global is restored before the next file sees it
+//   stop           the worker's mock registry (isolation `none`) → core's worker teardowns → the
+//                  worker environment → loader → the matcher slot → the worker's lifetime signal
 // An environment's teardown may report globals it could not remove (D22): that is a `console`
 // warning and, for a file, `leakedGlobals` on its outcome; it is never a failure.
 // The environment and the globals come in by ref, never by import: this node knows no dialect and
@@ -25,6 +28,7 @@ import {
   snapshotRegistry,
 } from '@provino/expect'
 import { createProjectLoader } from '@provino/loader'
+import { createMockRegistry, type MockRegistry } from '@provino/mock'
 import { createBehaviourLoader } from '@provino/policy'
 import type {
   EnvironmentInstance,
@@ -72,6 +76,8 @@ interface Booted {
   scope: EnvironmentScope
   /** The instance of a worker-scoped environment, set up for the first file; `stop` tears it down. */
   workerEnvironment: { readonly instance: EnvironmentInstance; readonly name: string } | undefined
+  /** The mock registry of a worker-scoped run (isolation `none`); `stop` disposes it. */
+  workerMocks: MockRegistry | undefined
 }
 
 /** The pieces `boot` builds. `globals` and `workerEnvironment` may stay `undefined`. */
@@ -103,6 +109,14 @@ export interface RuntimeGlobalsHost extends GlobalsHost {
   readonly api: Runtime['api']
   /** The worker's `expect`, from `createExpect`. */
   readonly expect: ReturnType<typeof createExpect>
+  /** The mock registry of the file running now (the worker's, under isolation `none`). */
+  mocks(): MockRegistry
+}
+
+/** The worker's own mock registry (isolation `none`), made on first use. */
+function sharedMocks(worker: Booted): MockRegistry {
+  worker.workerMocks ??= createMockRegistry()
+  return worker.workerMocks
 }
 
 /**
@@ -163,6 +177,16 @@ export function createRuntimeRunner(): WorkerRunner {
   const workerLifetime = new AbortController()
   /** The registry of the file running now, for `importFile` and the globals' `registry()`. */
   let current: FileRegistry | undefined
+
+  /** The mock registry of the file running now, or the worker's under `none`. */
+  let currentMocks: MockRegistry | undefined
+
+  const activeMocks = (): MockRegistry => {
+    if (currentMocks === undefined) {
+      throw new WorkerError('ORCH_NO_ACTIVE_FILE', 'No test file is running in this worker')
+    }
+    return currentMocks
+  }
 
   const activeRegistry = (): FileRegistry => {
     if (current === undefined) {
@@ -233,7 +257,13 @@ export function createRuntimeRunner(): WorkerRunner {
 
     if (policy.core.injectGlobals && config.globals !== null) {
       const factory = await behaviours.load(config.globals)
-      const host: RuntimeGlobalsHost = { api: coreRuntime.api, expect, registry: activeRegistry }
+      const host: RuntimeGlobalsHost = {
+        api: coreRuntime.api,
+        expect,
+        registry: activeRegistry,
+        mocks: activeMocks,
+        mockPolicy: policy.mock,
+      }
       const built: unknown = factory(host)
       if (typeof built !== 'object' || built === null) {
         throw new WorkerError(
@@ -297,6 +327,10 @@ export function createRuntimeRunner(): WorkerRunner {
       // Throws for the tier `realm` (the loader's LOADER_NOT_IMPLEMENTED), with nothing set up yet.
       const registry = worker.loader.createFileRegistry(job.file, { tier: worker.tier })
       current = registry
+      // The worker owns the mock registry, not core: a new one per file, or (isolation `none`, where
+      // everything is kept) the worker's own, made for the first file and disposed in `stop`.
+      const mocks = worker.scope === 'worker' ? sharedMocks(worker) : createMockRegistry()
+      currentMocks = mocks
       let instance: EnvironmentInstance | undefined
       const errors: unknown[] = []
       try {
@@ -309,9 +343,11 @@ export function createRuntimeRunner(): WorkerRunner {
         errors.push(error)
       }
 
-      // Teardown, always, in this order. A step that throws doesn't stop the next ones. With `none`
-      // the environment, the custom matchers and the globals persist for the next file, as with
-      // Vitest's `isolate: false`: only the registry goes.
+      // Teardown, always, in this order. A step that throws doesn't stop the next ones. The mock
+      // registry goes first, while the environment is alive: a spy on a global (`Math.random`) is
+      // put back before the environment's own check of the global, and before the next file. With
+      // `none` the environment, the custom matchers, the globals and the mocks persist for the
+      // next file, as with Vitest's `isolate: false`: only the file registry goes.
       let leaked: readonly string[] = []
       const teardownEnvironment = async (): Promise<void> => {
         // The environment reports a global it couldn't remove instead of throwing (D22).
@@ -320,13 +356,17 @@ export function createRuntimeRunner(): WorkerRunner {
       }
       const restoreMatchers = () => worker.snapshot.restore()
       const disposeRegistry = () => registry.dispose()
+      const disposeMocks = () => mocks.dispose()
       errors.push(
-        ...(await runAll([
-          ...(worker.scope === 'file' ? [teardownEnvironment, restoreMatchers] : []),
-          disposeRegistry,
-        ])),
+        ...(await runAll(
+          worker.scope === 'file'
+            ? [disposeMocks, teardownEnvironment, restoreMatchers, disposeRegistry]
+            : [disposeRegistry],
+        )),
       )
       current = undefined
+      // Under `none` the worker's registry stays (and is read again by the next file's globals).
+      if (worker.scope === 'file') currentMocks = undefined
       // A warning, before the file finishes: through the same sink as the file's own events, so it
       // arrives after them and before `fileDone`. It has no task: the file's tasks have ended.
       if (leaked.length > 0) context.sink.emit(fileLeakEvent(job.file, leaked))
@@ -339,6 +379,8 @@ export function createRuntimeRunner(): WorkerRunner {
       parts = {}
       let leaked: readonly string[] = []
       const errors = await runAll([
+        // First, while the worker environment is alive (isolation `none`).
+        () => torn.workerMocks?.dispose(),
         () => torn.runtime?.dispose(),
         async () => {
           if (torn.workerEnvironment === undefined) return

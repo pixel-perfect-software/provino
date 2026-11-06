@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { type TestContext, test } from 'node:test'
+import { createMockRegistry, type MockRegistry } from '@provino/mock'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
 import type { FileRegistry, LeakReport, RuntimeEvent, TaskNode, TestTask } from '@provino/types'
 import { jestDialect, jestPolicy } from '../dialect.ts'
@@ -7,6 +8,13 @@ import { type JestGlobals, jestGlobals } from './globals.ts'
 import { runRegistered, setUpJestExpect } from './internal/test-support.ts'
 
 const jestCore = resolvePolicy(jestPolicy).core
+const jestMock = resolvePolicy(jestPolicy).mock
+
+/** The two host members the mock functions read: a registry that can be swapped, and the policy. */
+function mockHost(mocks?: () => MockRegistry) {
+  const own = createMockRegistry()
+  return { mocks: mocks ?? (() => own), mockPolicy: jestMock }
+}
 
 /** A registry that records the calls the `jest` object makes, and runs the function it is given. */
 function recordingRegistry(label: string, calls: string[]): FileRegistry {
@@ -59,11 +67,12 @@ function unusedRegistry(): never {
 async function globalsFor(
   t: TestContext,
   registry: () => FileRegistry = unusedRegistry,
+  mocks?: () => MockRegistry,
 ): Promise<JestGlobals> {
   const { expect } = setUpJestExpect(t)
   let built: JestGlobals | undefined
   await runRegistered((api) => {
-    built = jestGlobals({ api, expect, registry })
+    built = jestGlobals({ api, expect, registry, ...mockHost(mocks) })
   }, jestCore)
   assert.ok(built)
   return built
@@ -119,7 +128,7 @@ test('describe, it, test and the hooks are core`s; the f and x forms are its onl
   let g: JestGlobals | undefined
   await runRegistered((registered) => {
     api = registered
-    g = jestGlobals({ api: registered, expect, registry: unusedRegistry })
+    g = jestGlobals({ api: registered, expect, registry: unusedRegistry, ...mockHost() })
   }, jestCore)
   assert.ok(api && g)
   assert.equal(g.describe, api.describe)
@@ -140,7 +149,7 @@ test('describe, it, test and the hooks are core`s; the f and x forms are its onl
 test('fit registers a focused test; xit and xtest skipped ones', async (t) => {
   const { expect } = setUpJestExpect(t)
   const events = await runRegistered((api) => {
-    const g = jestGlobals({ api, expect, registry: unusedRegistry })
+    const g = jestGlobals({ api, expect, registry: unusedRegistry, ...mockHost() })
     g.it('plain', () => {})
     g.fit('focused', () => {})
     g.xit('skipped by xit', () => {})
@@ -165,7 +174,7 @@ test('fit registers a focused test; xit and xtest skipped ones', async (t) => {
 test('fdescribe focuses a suite and xdescribe skips one', async (t) => {
   const { expect } = setUpJestExpect(t)
   const events = await runRegistered((api) => {
-    const g = jestGlobals({ api, expect, registry: unusedRegistry })
+    const g = jestGlobals({ api, expect, registry: unusedRegistry, ...mockHost() })
     g.describe('plain suite', () => g.it('outside', () => {}))
     g.fdescribe('focused suite', () => g.it('inside focused', () => {}))
     g.xdescribe('skipped suite', () => g.it('inside skipped', () => {}))
@@ -191,7 +200,7 @@ test('the hooks run around the tests, and expect is the one the host gave', asyn
   const { expect } = setUpJestExpect(t)
   const order: string[] = []
   const events = await runRegistered((api) => {
-    const g = jestGlobals({ api, expect, registry: unusedRegistry })
+    const g = jestGlobals({ api, expect, registry: unusedRegistry, ...mockHost() })
     g.beforeAll(() => void order.push('beforeAll'))
     g.beforeEach(() => void order.push('beforeEach'))
     g.afterEach(() => void order.push('afterEach'))
@@ -374,8 +383,8 @@ test('a second jestGlobals call has its own record of what is isolating', async 
   let one: JestGlobals | undefined
   let two: JestGlobals | undefined
   await runRegistered((api) => {
-    one = jestGlobals({ api, expect, registry: () => registry })
-    two = jestGlobals({ api, expect, registry: () => registry })
+    one = jestGlobals({ api, expect, registry: () => registry, ...mockHost() })
+    two = jestGlobals({ api, expect, registry: () => registry, ...mockHost() })
   }, jestCore)
   assert.ok(one && two)
   const gate = Promise.withResolvers<void>()
@@ -387,13 +396,65 @@ test('a second jestGlobals call has its own record of what is isolating', async 
   await pending
 })
 
-test('the jest object has the registry methods and nothing else', async (t) => {
+test('the jest object has the registry methods, the mock functions and nothing else', async (t) => {
   const { jest } = await globalsFor(t)
   assert.deepEqual(Object.keys(jest).sort(), [
+    'clearAllMocks',
+    'fn',
+    'isMockFunction',
     'isolateModules',
     'isolateModulesAsync',
+    'replaceProperty',
+    'resetAllMocks',
     'resetModules',
+    'restoreAllMocks',
+    'spyOn',
   ])
+})
+
+test('the mock functions act on the registry of the moment, read when they are called', async (t) => {
+  let current = createMockRegistry()
+  const { jest } = await globalsFor(t, unusedRegistry, () => current)
+  const first = jest.fn((a: number) => a + 1)
+  assert.equal(first(1), 2)
+  assert.deepEqual(first.mock.calls, [[1]])
+  assert.ok(jest.isMockFunction(first))
+  assert.ok(!jest.isMockFunction(() => {}))
+  // `clearAllMocks` reaches the mocks of the registry it is called under, and returns `jest`.
+  assert.equal(jest.clearAllMocks(), jest)
+  assert.deepEqual(first.mock.calls, [])
+  const target = { greet: () => 'hi', value: 1 }
+  const spy = jest.spyOn(target, 'greet')
+  assert.equal(target.greet(), 'hi')
+  assert.equal(spy.mock.calls.length, 1)
+  const replaced = jest.replaceProperty(target, 'value', 2)
+  assert.equal(target.value, 2)
+  // A new file's registry: restoring there leaves the first file's spy alone.
+  const second = createMockRegistry()
+  current = second
+  assert.equal(jest.restoreAllMocks(), jest)
+  assert.equal(target.value, 2)
+  replaced.restore()
+  assert.equal(target.value, 1)
+  assert.equal(jest.resetAllMocks(), jest)
+  spy.mockRestore()
+  assert.equal(target.greet(), 'hi')
+})
+
+test('jest.fn follows the dialect`s mock policy and spyOn takes an accessor kind', async (t) => {
+  const { jest } = await globalsFor(t)
+  const fn = jest.fn()
+  assert.equal(fn.getMockName(), jestMock.defaultName)
+  const object = {
+    get answer() {
+      return 42
+    },
+  }
+  const getter = jest.spyOn(object, 'answer', 'get')
+  assert.equal(object.answer, 42)
+  assert.equal(getter.mock.calls.length, 1)
+  getter.mockRestore()
+  assert.throws(() => jest.spyOn({}, 'missing' as never), /missing/)
 })
 
 test('a registry error reaches the caller', async (t) => {

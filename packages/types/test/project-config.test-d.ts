@@ -10,6 +10,7 @@ import type {
   GlobalsFactory,
   GlobalsHost,
   JsonValue,
+  MockPolicy,
   ModuleId,
   ModuleMapper,
   ModuleMapperFactory,
@@ -130,6 +131,8 @@ declare const host: GlobalsHost
 expectTypeOf(host.api).toEqualTypeOf<object>()
 expectTypeOf(host.expect).toEqualTypeOf<object>()
 expectTypeOf(host.registry).toEqualTypeOf<() => FileRegistry>()
+expectTypeOf(host.mocks).toEqualTypeOf<() => object>()
+expectTypeOf(host.mockPolicy).toEqualTypeOf<MockPolicy>()
 expectTypeOf<GlobalsFactory>().returns.toEqualTypeOf<Readonly<Record<string, unknown>>>()
 expectTypeOf<ReturnType<GlobalsFactory>>().toEqualTypeOf<Readonly<Record<string, unknown>>>()
 

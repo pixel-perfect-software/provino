@@ -96,6 +96,7 @@ expectTypeOf(jestGlobals).toExtend<GlobalsFactory>()
 expectTypeOf(jestGlobals).parameter(0).toEqualTypeOf<JestGlobalsHost>()
 expectTypeOf(jestGlobals).returns.toEqualTypeOf<JestGlobals>()
 expectTypeOf<JestGlobalsHost>().toExtend<GlobalsHost>()
+expectTypeOf<JestGlobalsHost['mocks']>().returns.not.toEqualTypeOf<object>()
 expectTypeOf<JestGlobals>().toExtend<Readonly<Record<string, unknown>>>()
 expectTypeOf<JestGlobals['jest']>().toEqualTypeOf<JestObject>()
 expectTypeOf<JestObject['isolateModules']>().returns.toEqualTypeOf<JestObject>()
@@ -111,8 +112,22 @@ useRef(moduleRef<() => number>('file:///x.ts', 'count'))
 
 declare const host: JestGlobalsHost
 const globals = jestGlobals(host)
-// @ts-expect-error the full `jest` object (mocks, timers) is T11.10, not here yet
-globals.jest.fn()
+// The mock functions are here; the rest of the `jest` object (`mock`, timers, ...) is not.
+expectTypeOf(globals.jest.fn).toBeFunction()
+expectTypeOf(globals.jest.clearAllMocks).returns.toEqualTypeOf<JestObject>()
+expectTypeOf(globals.jest.isMockFunction).parameter(0).toBeUnknown()
+const spied = globals.jest.spyOn({ run: (n: number) => n }, 'run')
+expectTypeOf(spied.mock.calls).toEqualTypeOf<[n: number][]>()
+// @ts-expect-error `jest.mock` is B13c's
+globals.jest.mock('./module')
+// @ts-expect-error `jest.useFakeTimers` is T4.9's
+globals.jest.useFakeTimers()
+// @ts-expect-error a key that is not on the object can't be spied on
+globals.jest.spyOn({ run: () => 1 }, 'nope')
+// @ts-expect-error `replaceProperty` takes a value of the property's type
+globals.jest.replaceProperty({ n: 1 }, 'n', 'one')
+// @ts-expect-error a host needs the mock registry and policy
+jestGlobals({ api: host.api, expect: host.expect, registry: host.registry })
 // @ts-expect-error the globals are read-only
 globals.fit = globals.it
 // @ts-expect-error a host needs core's API and an `expect`
