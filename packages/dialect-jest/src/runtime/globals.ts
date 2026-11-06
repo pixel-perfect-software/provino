@@ -173,7 +173,6 @@ export function jestGlobals(host: JestGlobalsHost): JestGlobals {
         host.mockPolicy,
         host.mocks(),
         // Jest treats every falsy value as no implementation (jest-mock `index.ts` L1233-L1241).
-        // Jest treats every falsy value as no implementation (jest-mock `index.ts` L1233-L1241).
         impl ? { impl } : undefined,
       )
     },

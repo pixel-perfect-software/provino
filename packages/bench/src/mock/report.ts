@@ -2,7 +2,8 @@
 // miss them. Nothing here runs a benchmark, so the tests can cover all of it.
 import { parseArgs } from 'node:util'
 import { BenchError } from '../errors.ts'
-import { parseLimit } from '../internal/limits.ts'
+import { errorMessage } from '../internal/guards.ts'
+import { parseLimit, pastLimit } from '../internal/limits.ts'
 import { median } from '../stats.ts'
 
 /** The engines, in the order they print. The first two are Provino under each dialect's policy. */
@@ -16,17 +17,10 @@ export const WARMUP_ROUNDS = 2
 export const RUNS = 5
 
 /** The engines T4.3's bars apply to. */
-export const BARRED_ENGINES: readonly ['provino-jest', 'provino-vitest'] = [
-  'provino-jest',
-  'provino-vitest',
-]
+export const BARRED_ENGINES = ['provino-jest', 'provino-vitest'] as const
 
 /** The creation cells, as keys of a sample and as printed. */
-export const CREATE_CELLS: readonly ['create', 'createArrow', 'createFunction'] = [
-  'create',
-  'createArrow',
-  'createFunction',
-]
+export const CREATE_CELLS = ['create', 'createArrow', 'createFunction'] as const
 export type CreateCell = (typeof CREATE_CELLS)[number]
 export const CELL_LABELS: Record<CreateCell, string> = {
   create: 'fn()',
@@ -62,7 +56,7 @@ export function parseBars(argv: readonly string[]): Bars {
       options: { 'max-create-us': { type: 'string' }, 'max-call-ratio': { type: 'string' } },
     }).values
   } catch (error) {
-    throw new BenchError('BENCH_USAGE', error instanceof Error ? error.message : String(error))
+    throw new BenchError('BENCH_USAGE', errorMessage(error))
   }
   return {
     maxCreateUs: parseLimit('max-create-us', values['max-create-us']),
@@ -85,18 +79,6 @@ export function callRatio(engine: Sample, baseline: Sample): number {
 /** The process exit code for the missed bars: 1 if any cell missed, otherwise 0. */
 export function exitCodeFor(missed: readonly string[]): 0 | 1 {
   return missed.length === 0 ? 0 : 1
-}
-
-/**
- * `value` to `base` decimals, with decimals added until it prints differently from `limit`, so a
- * failed value never reads as equal to its bar (1000.4 ns is not "1.000 µs ≤ 1 µs").
- */
-export function pastLimit(value: number, limit: number, base: number): string {
-  for (let decimals = base; decimals < 12; decimals += 1) {
-    const text = value.toFixed(decimals)
-    if (Number(text) !== limit) return text
-  }
-  return value.toFixed(12)
 }
 
 /**

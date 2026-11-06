@@ -121,7 +121,7 @@ export async function runMockFile(
     const host: JestGlobalsHost = {
       api: runtime.api,
       // The mocking fixtures observe values; none of them reads `expect`.
-      expect: Object.assign(() => {
+      expect: (() => {
         throw new Error('the mocking corpus does not use expect')
       }) as unknown as JestGlobalsHost['expect'],
       registry: () => {

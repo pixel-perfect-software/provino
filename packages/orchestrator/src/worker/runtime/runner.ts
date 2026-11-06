@@ -120,11 +120,20 @@ interface FileScope {
   readonly mocks: MockRegistry
 }
 
-/** The worker's own mock registry (isolation `none`), made on first use. */
-function sharedMocks(worker: Booted): MockRegistry {
-  worker.workerMocks ??= createMockRegistry()
-  return worker.workerMocks
-}
+/**
+ * The registries of the file whose code is running, carried along its async work. `jest` is one
+ * object on a shared global, so a callback a file leaves behind (a timer, a promise) would
+ * otherwise find the registries of whichever file runs when it fires. Entered around
+ * `runtime.runFile`.
+ *
+ * Built when the module loads, never per runner (core's rule for its own store, `currentTest`);
+ * sequential inline runners share it, which is fine because `run` scopes the store. The cost of a
+ * second active store: about 8 ns per await on Node 24 and about 20 ns on Node 22's `async_hooks`
+ * path (`local`, measured 2026-11-06; 44 to 52 ns and 182 to 202 ns per await in all). It is
+ * accepted because the alternative is threading an opaque context through core's three `newStore`
+ * sites for a rare edge.
+ */
+const fileScope = new AsyncLocalStorage<FileScope>()
 
 /**
  * Runs every step, in order, whatever the earlier ones threw, and returns what they threw.
@@ -182,36 +191,24 @@ export function createRuntimeRunner(): WorkerRunner {
    * first file, whose own signal belongs to that file's run, and `stop` aborts it.
    */
   const workerLifetime = new AbortController()
-  /** The registry of the file running now, for `importFile` and the globals' `registry()`. */
-  let current: FileRegistry | undefined
-
-  /** The mock registry of the file running now, or the worker's under `none`. */
-  let currentMocks: MockRegistry | undefined
-
   /**
-   * The registries of the file whose code is running, carried along its async work. `jest` is one
-   * object on a shared global, so a callback a file leaves behind (a timer, a promise) would
-   * otherwise find the registries of whichever file runs when it fires. Entered around
-   * `runtime.runFile`; the variables above are the fallback for code outside that context (the
-   * setup of the globals, a teardown, a worker-scoped run's `stop`).
+   * The registries of the file running now (the same object `fileScope` holds; the mocks are the
+   * worker's under `none`). The fallback for code that lost its async context, such as a callback
+   * from a native addon, and for `importFile`, the globals' setup and the teardown, which run
+   * outside `fileScope.run`. Do not delete it in favour of throwing on an empty store: such a
+   * callback must still find the current file, or a green suite goes red.
    */
-  const scope = new AsyncLocalStorage<FileScope>()
+  let fallback: FileScope | undefined
 
-  const activeMocks = (): MockRegistry => {
-    const mocks = scope.getStore()?.mocks ?? currentMocks
-    if (mocks === undefined) {
+  const activeScope = (): FileScope => {
+    const found = fileScope.getStore() ?? fallback
+    if (found === undefined) {
       throw new WorkerError('ORCH_NO_ACTIVE_FILE', 'No test file is running in this worker')
     }
-    return mocks
+    return found
   }
-
-  const activeRegistry = (): FileRegistry => {
-    const registry = scope.getStore()?.registry ?? current
-    if (registry === undefined) {
-      throw new WorkerError('ORCH_NO_ACTIVE_FILE', 'No test file is running in this worker')
-    }
-    return registry
-  }
+  const activeMocks = (): MockRegistry => activeScope().mocks
+  const activeRegistry = (): FileRegistry => activeScope().registry
 
   async function boot(context: WorkerContext): Promise<void> {
     const config = parseProjectConfig(context.init.config)
@@ -344,11 +341,12 @@ export function createRuntimeRunner(): WorkerRunner {
 
       // Throws for the tier `realm` (the loader's LOADER_NOT_IMPLEMENTED), with nothing set up yet.
       const registry = worker.loader.createFileRegistry(job.file, { tier: worker.tier })
-      current = registry
       // The worker owns the mock registry, not core: a new one per file, or (isolation `none`, where
       // everything is kept) the worker's own, made for the first file and disposed in `stop`.
-      const mocks = worker.scope === 'worker' ? sharedMocks(worker) : createMockRegistry()
-      currentMocks = mocks
+      const mocks = worker.workerMocks ?? createMockRegistry()
+      if (worker.scope === 'worker') worker.workerMocks = mocks
+      const thisFile: FileScope = { registry, mocks }
+      fallback = thisFile
       let instance: EnvironmentInstance | undefined
       const errors: unknown[] = []
       try {
@@ -356,7 +354,7 @@ export function createRuntimeRunner(): WorkerRunner {
         if (worker.globals !== undefined) installGlobals(instance.global, worker.globals)
         worker.source.startFile(job.file)
         // The coordinator's id for the file (D23), so every event carries the id it expects.
-        await scope.run({ registry, mocks }, () =>
+        await fileScope.run(thisFile, () =>
           worker.runtime.runFile(job.file, { fileId: job.fileId, ...filtersOf(job) }),
         )
       } catch (error) {
@@ -384,9 +382,7 @@ export function createRuntimeRunner(): WorkerRunner {
             : [disposeRegistry],
         )),
       )
-      current = undefined
-      // Under `none` the worker's registry stays (and is read again by the next file's globals).
-      if (worker.scope === 'file') currentMocks = undefined
+      fallback = undefined
       // A warning, before the file finishes: through the same sink as the file's own events, so it
       // arrives after them and before `fileDone`. It has no task: the file's tasks have ended.
       if (leaked.length > 0) context.sink.emit(fileLeakEvent(job.file, leaked))
@@ -398,7 +394,7 @@ export function createRuntimeRunner(): WorkerRunner {
       const torn = parts
       parts = {}
       // Under `none` the worker's registry is disposed below; nothing may reach it afterwards.
-      currentMocks = undefined
+      fallback = undefined
       let leaked: readonly string[] = []
       const errors = await runAll([
         // First, while the worker environment is alive (isolation `none`).

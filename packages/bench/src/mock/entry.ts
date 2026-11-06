@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // One engine's side of `bench:mock` (T4.3): times creating mocks and calling one, and prints
-// `PROVINO_SAMPLE {"create": ns, "createArrow": ns, "createFunction": ns, "call": ns}`.
+// `PROVINO_SAMPLE {"create": ns, "createArrow": ns, "createFunction": ns, "createArrowUse": ns, "call": ns}`.
 // Usage: entry.ts <provino-jest|provino-vitest|vitest-spy|jest-mock>. One engine per process.
 //   creation  ns per mock; a batch of mocks is built, each from a new impl closure, and kept alive
 //             (in `retained`) until the sample is printed, so the optimizer can't drop the creation

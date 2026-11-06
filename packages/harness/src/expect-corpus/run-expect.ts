@@ -6,6 +6,7 @@
 import { pathToFileURL } from 'node:url'
 import { createRuntime, currentTest } from '@provino/core'
 import { jestExpectPolicy, jestMockPolicy } from '@provino/dialect-jest'
+import { jestGlobals } from '@provino/dialect-jest/runtime'
 import {
   createExpect,
   createMatcherRegistry,
@@ -13,13 +14,7 @@ import {
   installMatchersSlot,
   type TestRun,
 } from '@provino/expect'
-import {
-  createMockFn,
-  createMockRegistry,
-  type MockRegistry,
-  spyOn,
-  type UnknownFunction,
-} from '@provino/mock'
+import { createMockRegistry, type MockRegistry } from '@provino/mock'
 import { createBehaviourLoader } from '@provino/policy'
 import type {
   CorePolicy,
@@ -64,8 +59,8 @@ function failureOf(error: SerializedError): ExpectFailure {
 
 /**
  * Runs `file` (absolute; imported once per process, so its frames are plain `file:` URLs) under
- * `policy`. `runtime.api`, `expect` and `jest` (`fn`, `spyOn` from `@provino/mock` under
- * `jestMockPolicy`) are globals for the duration.
+ * `policy`. `runtime.api`, `expect` and `jest` (the one `jestGlobals` ships, over a
+ * `@provino/mock` registry under `jestMockPolicy`) are globals for the duration.
  */
 export async function runExpectFile(
   file: string,
@@ -85,8 +80,8 @@ export async function runExpectFile(
     if (jestExpectPolicy.matcherTable === null) throw new Error('the Jest dialect has a table')
     const table = (await behaviours.load(jestExpectPolicy.matcherTable))()
     const expect = createExpect({ policy: jestExpectPolicy, table, source, registry })
-    mocks = createMockRegistry()
-    const mockRegistry = mocks
+    const mockRegistry = createMockRegistry()
+    mocks = mockRegistry
     const runtime = await createRuntime({
       policy,
       behaviours,
@@ -98,14 +93,15 @@ export async function runExpectFile(
     const restore = installGlobals({
       ...runtime.api,
       expect,
-      jest: {
-        fn: (impl?: UnknownFunction) =>
-          impl === undefined
-            ? createMockFn(jestMockPolicy, mockRegistry)
-            : createMockFn(jestMockPolicy, mockRegistry, { impl }),
-        spyOn: (target: Record<string, (...args: never[]) => unknown>, key: string) =>
-          spyOn(jestMockPolicy, mockRegistry, target, key),
-      },
+      jest: jestGlobals({
+        api: runtime.api,
+        expect,
+        registry: () => {
+          throw new Error('the expect corpus does not use the module registry')
+        },
+        mocks: () => mockRegistry,
+        mockPolicy: jestMockPolicy,
+      }).jest,
     })
     try {
       source.startFile(file)

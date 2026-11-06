@@ -10,17 +10,17 @@ import path from 'node:path'
 import { describe, test } from 'node:test'
 import {
   defaultFixturesRoot,
-  type Fixture,
   type FixtureProfile,
   findFixtures,
   readFixture,
   testFilesFor,
 } from './fixture.ts'
-import type { Golden } from './golden.ts'
+import { type Golden, goldenPath } from './golden.ts'
 import { compareObservations, sameOrder } from './mock-corpus/compare.ts'
 import { mockPolicyFor } from './mock-corpus/profiles.ts'
 import { runMockFile } from './mock-corpus/run-mock.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
+import { pairLabel } from './test-support.ts'
 
 /**
  * The fixture that records `Object.keys` of the `jest` and `vi` objects for T11.10. Nothing reads
@@ -61,13 +61,6 @@ const DECLARED: Readonly<Record<string, Declared>> = {
 }
 
 /**
- * Pairs whose golden is `crashed` with no tests, so there are no test statuses to compare: Jest's
- * own teardown `restoreAllMocks()` throws after the frozen spy (DV7), while its trace holds both
- * lines. Ours must still run at least one test and pass all of them.
- */
-const CRASHED_GOLDENS = new Set(['mocking/hazard-frozen-spy (jest)'])
-
-/**
  * The counted cases the corpus has under each profile, exactly. B13a's brief set the bar at Jest 72
  * and Vitest 74 (the spike's 59 and 60 plus the cleanup and hazard cases); the corpus is larger,
  * and a fixture that went silent must fail, so the floor is the real total.
@@ -75,10 +68,6 @@ const CRASHED_GOLDENS = new Set(['mocking/hazard-frozen-spy (jest)'])
 const EXPECTED_COUNTED: Readonly<Partial<Record<FixtureProfile, number>>> = {
   jest: 117,
   vitest: 111,
-}
-
-function pairLabel(fixture: Fixture, profile: FixtureProfile): string {
-  return `${fixture.id} (${profile})`
 }
 
 const root = path.join(defaultFixturesRoot(), 'mocking')
@@ -96,7 +85,7 @@ for (const fixture of fixtures) {
       test(profile, async () => {
         const label = pairLabel(fixture, profile)
         const golden = JSON.parse(
-          await readFile(path.join(fixture.dir, '__goldens__', `${profile}.json`), 'utf8'),
+          await readFile(goldenPath(fixture.dir, profile), 'utf8'),
         ) as Golden
         const files = testFilesFor(fixture.files, profile)
         const [testFile] = files
@@ -114,7 +103,10 @@ for (const fixture of fixtures) {
         const [goldenFile] = golden.files
         assert.ok(goldenFile !== undefined && golden.files.length === 1, 'one golden file')
         assert.ok(run.tests.length > 0, 'the file ran at least one test')
-        if (CRASHED_GOLDENS.has(label)) {
+        // A golden that crashed has no tests to compare. Here that is Jest's own teardown
+        // `restoreAllMocks()` throwing after the frozen spy (DV7), while its trace holds both
+        // lines. Ours must still run at least one test and pass all of them.
+        if (fixture.manifest.expectCrash?.[profile] !== undefined) {
           assert.equal(goldenFile.status, 'crashed', 'the exemption is for a crashed golden')
           assert.deepEqual(
             run.tests.filter((t) => t.status !== 'passed').map((t) => t.path),

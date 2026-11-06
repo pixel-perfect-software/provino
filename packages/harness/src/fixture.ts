@@ -1,5 +1,6 @@
 import { readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
+import type { MockCleanupStep } from '@provino/types'
 import { HarnessError } from './errors.ts'
 import { compareStrings, isNotFound, isRecord } from './internal/guards.ts'
 import { isNodeModules, walkFiles } from './internal/walk.ts'
@@ -73,13 +74,7 @@ export interface FixtureManifest {
  * The keys of a fixture's `mockCleanup`: whether each cleanup runs before every test.
  * @public
  */
-export interface MockCleanup {
-  readonly clear?: boolean
-  readonly reset?: boolean
-  readonly restore?: boolean
-  readonly unstubEnvs?: boolean
-  readonly unstubGlobals?: boolean
-}
+export type MockCleanup = { readonly [K in MockCleanupStep]?: boolean }
 
 const MOCK_CLEANUP_KEYS = ['clear', 'reset', 'restore', 'unstubEnvs', 'unstubGlobals'] as const
 const VITEST_ONLY_CLEANUP_KEYS: readonly string[] = ['unstubEnvs', 'unstubGlobals']

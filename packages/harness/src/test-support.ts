@@ -7,7 +7,13 @@ import type {
   TestStatus,
 } from '@provino/types'
 import type { ConvertOptions } from './convert-options.ts'
+import type { Fixture, FixtureProfile } from './fixture.ts'
 import { SCHEMA_VERSION } from './schema.ts'
+
+/** A fixture recorded under one of its profiles, named as the recorder names it in its errors. */
+export function pairLabel(fixture: Fixture, profile: FixtureProfile): string {
+  return `${fixture.id} (${profile})`
+}
 
 export const ROOT = '/work/fixture'
 

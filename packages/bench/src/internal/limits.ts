@@ -25,6 +25,20 @@ export function parseLimit(flag: string, value: string | undefined): number | un
 }
 
 /**
+ * A failed value printed beside its limit must never read as equal to it: `toFixed` can round 3599
+ * of 4000 up to "90.0", 0.500004 down to "0.500" and 3.0004 to "3.000", which would call a miss a
+ * tie. This raises the decimals from `base` until the printed number differs from the limit.
+ * @internal
+ */
+export function pastLimit(value: number, limit: number, base: number): string {
+  for (let decimals = base; decimals < 12; decimals += 1) {
+    const text = value.toFixed(decimals)
+    if (Number(text) !== limit) return text
+  }
+  return value.toString()
+}
+
+/**
  * The first `SAMPLE_PREFIX` line of `output` whose JSON object has every one of `keys` as a finite
  * number, or `undefined`. Lines without the prefix (warnings, logs that look like JSON) are ignored.
  * @internal
