@@ -1,35 +1,18 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type {
-  BenchLabel,
-  BenchRecord,
-  BenchResult,
-  IsolationMode,
-  RunEnvironment,
-} from '@provino/types'
+import type { BenchLabel, BenchRecord, BenchResult, IsolationMode } from '@provino/types'
+import { parityOf, testRecord } from './internal/test-helpers.ts'
 import {
   evaluateKillCheck,
   formatKillCheck,
   ISOLATION_SUITE,
   KILL_CRITERION,
   type KillCheckSuite,
+  type KillCheckVerdict,
   R6_SUITES,
 } from './kill-check.ts'
 import type { StatusParity } from './parity.ts'
-import { buildRecord } from './report.ts'
 import { wallStats } from './stats.ts'
-
-const environment: RunEnvironment = {
-  os: 'darwin',
-  osRelease: '27.2.0',
-  arch: 'arm64',
-  cpuModel: 'Test CPU',
-  cpuCount: 8,
-  memoryMb: 16384,
-  node: 'v24.0.0',
-  runners: { jest: '30.5.2' },
-  ci: false,
-}
 
 const APP: readonly KillCheckSuite[] = [{ name: 'app-500' }]
 
@@ -86,27 +69,7 @@ function suiteResults(
 }
 
 function recordOf(results: BenchResult[], label: BenchLabel = 'local'): BenchRecord {
-  return buildRecord({
-    label,
-    ref: { sha: 'a'.repeat(40), date: '2026-11-02T10:00:00.000Z', dirty: false },
-    environment,
-    machineId: `${label}-darwin-arm64`,
-    results,
-  })
-}
-
-function parityOf(matched: number, total: number, extra: Partial<StatusParity> = {}): StatusParity {
-  return {
-    ok: matched === total,
-    referenceTests: total,
-    statusMatched: matched,
-    candidateOnlyTests: 0,
-    files: 1,
-    filesMatched: 1,
-    failing: [],
-    assertionDiffs: [],
-    ...extra,
-  }
+  return testRecord(results, label)
 }
 
 const GOOD_PARITY = new Map([['app-500', parityOf(4000, 4000)]])
@@ -126,6 +89,11 @@ function verdictOf(
     parity: options.parity ?? GOOD_PARITY,
     dryRun: options.dryRun ?? false,
   })
+}
+
+// The suites the gate measured, narrowed from the verdict's union.
+function measuredOf(verdict: KillCheckVerdict) {
+  return verdict.suites.flatMap((suite) => ('pending' in suite ? [] : [suite]))
 }
 
 const passing = (): BenchResult[] =>
@@ -169,18 +137,18 @@ test('a passing app-500 is GO, provisional because six suites are pending', () =
   assert.equal(verdict.outcome, 'GO')
   assert.deepEqual(verdict.failures, [])
   assert.equal(verdict.provisional, true)
-  assert.equal(verdict.measured, 1)
-  assert.equal(verdict.pendingCount, 6)
+  assert.equal(measuredOf(verdict).length, 1)
+  assert.equal(verdict.suites.length - measuredOf(verdict).length, 6)
 })
 
 test('warm: exactly 0.50 passes, a hair over fails', () => {
   const at = verdictOf(suiteResults('app-500', { jest: 100, registry: 50, none: 50 }, FINE_COLD))
-  assert.equal(at.suites[0]?.warm?.ok, true)
+  assert.equal(measuredOf(at)[0]?.warm.ok, true)
   assert.equal(at.outcome, 'GO')
   const over = verdictOf(
     suiteResults('app-500', { jest: 100, registry: 50.1, none: 50 }, FINE_COLD),
   )
-  assert.equal(over.suites[0]?.warm?.ok, false)
+  assert.equal(measuredOf(over)[0]?.warm.ok, false)
   assert.equal(over.outcome, 'NO-GO')
   assert.match(over.failures.join('\n'), /app-500 warm: .*upper bound 0\.501 is above 0\.50/)
 })
@@ -188,10 +156,10 @@ test('warm: exactly 0.50 passes, a hair over fails', () => {
 test('cold: exactly 0.80 passes, a hair over fails', () => {
   const warm: Walls = { jest: 100, registry: 10, none: 10 }
   const at = verdictOf(suiteResults('app-500', warm, { jest: 100, registry: 80, none: 80 }))
-  assert.equal(at.suites[0]?.cold?.ok, true)
+  assert.equal(measuredOf(at)[0]?.cold.ok, true)
   assert.equal(at.outcome, 'GO')
   const over = verdictOf(suiteResults('app-500', warm, { jest: 100, registry: 80.1, none: 80 }))
-  assert.equal(over.suites[0]?.cold?.ok, false)
+  assert.equal(measuredOf(over)[0]?.cold.ok, false)
   assert.equal(over.outcome, 'NO-GO')
 })
 
@@ -200,7 +168,7 @@ test('a median ratio under the limit with an upper bound over it is NO-GO', () =
   const verdict = verdictOf(
     suiteResults('app-500', { jest: 100, registry: noisy, none: 45 }, FINE_COLD),
   )
-  const warm = verdict.suites[0]?.warm
+  const warm = measuredOf(verdict)[0]?.warm
   assert.ok(warm?.ratio)
   assert.ok(warm.ratio.ratio <= 0.5, `median ratio ${warm.ratio.ratio}`)
   assert.ok(warm.ratio.high > 0.5, `upper bound ${warm.ratio.high}`)
@@ -215,8 +183,8 @@ test('a failing run or a missing result fails with no ratio', () => {
       : entry,
   )
   const failedVerdict = verdictOf(failed)
-  assert.equal(failedVerdict.suites[0]?.warm?.ok, false)
-  assert.equal(failedVerdict.suites[0]?.warm?.ratio, undefined)
+  assert.equal(measuredOf(failedVerdict)[0]?.warm.ok, false)
+  assert.equal(measuredOf(failedVerdict)[0]?.warm.ratio, undefined)
   assert.match(
     failedVerdict.failures.join('\n'),
     /app-500 warm: the Provino registry result has a failing run/,
@@ -224,7 +192,7 @@ test('a failing run or a missing result fails with no ratio', () => {
   assert.equal(failedVerdict.outcome, 'NO-GO')
 
   const noJest = verdictOf(passing().filter((entry) => entry.subject.runner !== 'jest'))
-  assert.equal(noJest.suites[0]?.cold?.ratio, undefined)
+  assert.equal(measuredOf(noJest)[0]?.cold.ratio, undefined)
   assert.match(noJest.failures.join('\n'), /app-500 cold: no Jest result/)
   assert.equal(noJest.outcome, 'NO-GO')
 
@@ -300,19 +268,19 @@ test('parity: 9/10 passes, 899/1000 fails, and anything unreadable fails', () =>
 
 test('a dry run skips parity and never fails on it', () => {
   const verdict = verdictOf(passing(), { parity: new Map(), dryRun: true })
-  assert.equal(verdict.suites[0]?.parity?.status, 'skipped')
+  assert.equal(measuredOf(verdict)[0]?.parity.status, 'skipped')
   assert.equal(verdict.outcome, 'GO')
   assert.equal(verdict.provisional, true)
 })
 
 test('pending suites are listed and never measured', () => {
   const verdict = verdictOf(passing(), { suites: R6_SUITES })
-  const pending = verdict.suites.filter((suite) => suite.pending !== undefined)
+  const pending = verdict.suites.filter((suite) => 'pending' in suite)
   assert.equal(pending.length, 6)
   for (const suite of pending) {
-    assert.equal(suite.warm, undefined)
-    assert.equal(suite.cold, undefined)
-    assert.equal(suite.parity, undefined)
+    assert.equal('warm' in suite, false)
+    assert.equal('cold' in suite, false)
+    assert.equal('parity' in suite, false)
   }
 })
 
@@ -390,7 +358,7 @@ test('provisional is judged against the seven R6 suites, not the caller list', (
 
   const empty = pinned([], [])
   assert.equal(empty.outcome, 'NO-GO')
-  assert.equal(empty.measured, 0)
+  assert.equal(measuredOf(empty).length, 0)
   assert.match(empty.failures.join('\n'), /no suite was measured/)
 
   const pending = pinned(
@@ -504,7 +472,10 @@ test('each ratio is matched on suite and cache: Jest differs by both', () => {
     { suites: both, parity },
   )
   assert.equal(verdict.outcome, 'GO')
-  const ratios = verdict.suites.map((suite) => [suite.warm?.ratio?.ratio, suite.cold?.ratio?.ratio])
+  const ratios = measuredOf(verdict).map((suite) => [
+    suite.warm.ratio?.ratio,
+    suite.cold.ratio?.ratio,
+  ])
   assert.deepEqual(ratios, [
     [0.4, 0.5],
     [0.3, 0.5],
@@ -516,7 +487,7 @@ test('a ratio of 1.0 is NO-GO', () => {
     dryRun: true,
   })
   assert.equal(verdict.outcome, 'NO-GO')
-  assert.equal(verdict.suites[0]?.warm?.ratio?.ratio, 1)
+  assert.equal(measuredOf(verdict)[0]?.warm.ratio?.ratio, 1)
 })
 
 test('the report has the literal strings, three decimals, and the label on every line', () => {

@@ -3,9 +3,18 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TestContext } from 'node:test'
-import type { BenchRecord, IsolationMode } from '@provino/types'
+import { runProcess } from '@provino/harness'
+import type {
+  BenchLabel,
+  BenchRecord,
+  BenchResult,
+  IsolationMode,
+  RunEnvironment,
+} from '@provino/types'
 import { BenchError, type BenchErrorCode } from '../errors.ts'
-import { PACKAGE_DIR } from '../suites.ts'
+import type { StatusParity } from '../parity.ts'
+import { buildRecord } from '../report.ts'
+import { PACKAGE_DIR, type RunnerPlan } from '../suites.ts'
 
 /**
  * Makes a temp directory named `<prefix>…` under the OS temp dir and removes it when the test
@@ -219,5 +228,79 @@ export function assertBenchRecord(value: unknown): asserts value is BenchRecord 
       `${where}.wall.samplesMs must be finite numbers`,
     )
     assert.equal(samples.length, wall.runs, `${where}.wall.runs must equal the sample count`)
+  })
+}
+
+/**
+ * A status parity with `matched` of `total` reference tests matching; `extra` overrides any field.
+ * @internal
+ */
+export function parityOf(
+  matched: number,
+  total: number,
+  extra: Partial<StatusParity> = {},
+): StatusParity {
+  return {
+    ok: matched === total,
+    referenceTests: total,
+    statusMatched: matched,
+    candidateOnlyTests: 0,
+    files: 1,
+    filesMatched: 1,
+    failing: [],
+    assertionDiffs: [],
+    ...extra,
+  }
+}
+
+/**
+ * A fixed test machine with these runner versions.
+ * @internal
+ */
+export function testEnvironment(runners: Readonly<Record<string, string>>): RunEnvironment {
+  return {
+    os: 'darwin',
+    osRelease: '27.2.0',
+    arch: 'arm64',
+    cpuModel: 'Test CPU',
+    cpuCount: 8,
+    memoryMb: 16384,
+    node: 'v24.0.0',
+    runners,
+    ci: false,
+  }
+}
+
+/**
+ * A clean-tree record of `results` on the test machine (`testEnvironment`), with machine id
+ * `<label>-darwin-arm64`. `runners` are the versions its machine lists.
+ * @internal
+ */
+export function testRecord(
+  results: readonly BenchResult[],
+  label: BenchLabel = 'local',
+  runners: Readonly<Record<string, string>> = { jest: '30.5.2' },
+): BenchRecord {
+  return buildRecord({
+    label,
+    ref: { sha: 'a'.repeat(40), date: '2026-11-02T10:00:00.000Z', dirty: false },
+    environment: testEnvironment(runners),
+    machineId: `${label}-darwin-arm64`,
+    results,
+  })
+}
+
+/**
+ * Runs a planned runner for real, from its own cwd with its env on top of this process's, and gives
+ * its exit (`exitCode`, `output`). A plan with no command is a failed assertion.
+ * @internal
+ */
+export async function execPlan(plan: RunnerPlan): Promise<Awaited<ReturnType<typeof runProcess>>> {
+  const [command, ...args] = plan.argv
+  assert.ok(command)
+  return await runProcess(command, args, {
+    cwd: plan.cwd,
+    env: { ...process.env, ...plan.env },
+    timeoutMs: 120_000,
   })
 }

@@ -1,21 +1,29 @@
 import { resolve } from 'node:path'
 import { readRunEnvironment } from '@provino/harness'
-import type { BenchLabel, BenchRecord, BenchResult } from '@provino/types'
+import type { BenchLabel, BenchRecord, BenchResult, RunRef } from '@provino/types'
 import { type CheckResult, checkRunner } from './check.ts'
 import { type CliCommand, parseCli, USAGE } from './cli-args.ts'
 import { readRunRef } from './environment.ts'
 import { BenchError } from './errors.ts'
 import type { ExecProcess } from './exec.ts'
-import { evaluateKillCheck, formatKillCheck, ISOLATION_SUITE, R6_SUITES } from './kill-check.ts'
+import { errorMessage } from './internal/guards.ts'
+import {
+  DRY_RUN_RUNNER,
+  evaluateKillCheck,
+  formatKillCheck,
+  ISOLATION_SUITE,
+  type KillCheckSuite,
+  R6_SUITES,
+} from './kill-check.ts'
 import { prepareOutput, writeRecordFile } from './output.ts'
-import { checkStatusParity, parityLines, type StatusParity } from './parity.ts'
+import { checkStatusParity, parityLines, type StatusParity, unavailableParity } from './parity.ts'
 import {
   buildRecord,
   defaultMachineId,
   defaultOutPath,
   formatSummary,
   requireCleanTree,
-  tierOf,
+  subjectName,
 } from './report.ts'
 import { type BenchSubjectSpec, type RunEvent, runBench } from './run-bench.ts'
 import {
@@ -24,6 +32,7 @@ import {
   parseSuiteName,
   planRunner,
   type RunnerName,
+  type RunnerPlan,
   type SuiteSpec,
   toSubjectSpec,
   writeSuite,
@@ -78,7 +87,7 @@ function progressReporter(
     onRun: ({ benchId, subject, phase, round, rounds, outcome }) => {
       for (const warning of outcome.warnings ?? []) warnings.add(warning)
       io.err(
-        `[${label}] ${benchId} ${subject.runner}${tierOf(subject)} ${phase} ${round}/${rounds}: ${outcome.wallMs.toFixed(0)} ms, exit ${outcome.exitCode}`,
+        `[${label}] ${benchId} ${subjectName(subject)} ${phase} ${round}/${rounds}: ${outcome.wallMs.toFixed(0)} ms, exit ${outcome.exitCode}`,
       )
     },
     flush: () => {
@@ -99,28 +108,47 @@ async function persistRecord<T>(
   out: string,
   io: CliIo,
   report: () => T,
-): Promise<T> {
+): Promise<Awaited<T>> {
   const text = `${JSON.stringify(record, null, 2)}\n`
-  let writeFailed = false
-  let writeError: unknown
-  try {
-    await writeRecordFile(out, text)
-  } catch (error) {
-    writeFailed = true
-    writeError = error
-    io.err(text.trimEnd())
-  }
-  let reported: { readonly value: T } | undefined
-  let reportError: unknown
-  try {
-    reported = { value: report() }
-  } catch (error) {
-    reportError = error
-  }
-  if (writeFailed) throw writeError
+  const written = await settle(() => writeRecordFile(out, text))
+  if (!written.ok) io.err(text.trimEnd())
+  const reported = await settle(report)
+  if (!written.ok) throw written.error
   io.out(`[${record.label}] wrote ${out}`)
-  if (reported === undefined) throw reportError
+  if (!reported.ok) throw reported.error
   return reported.value
+}
+
+type Settled<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: unknown }
+
+// Runs `fn` and holds its outcome, so a caller can finish what must happen before it rethrows.
+async function settle<T>(fn: () => T): Promise<Settled<Awaited<T>>> {
+  try {
+    return { ok: true, value: await fn() }
+  } catch (error) {
+    return { ok: false, error }
+  }
+}
+
+// What `run` and `kill-check` settle before they run anything: the commit, the clean-tree rule and
+// the record's path (`defaultName` names the file when `--out` isn't given), which must be writable.
+async function prepareRun(
+  command: { readonly label: BenchLabel; readonly out: string | undefined },
+  defaultName: string,
+  deps: CliDeps,
+  paths: BenchPaths,
+): Promise<{ readonly ref: RunRef; readonly out: string }> {
+  const now = deps.now?.()
+  const ref = readRunRef({ cwd: paths.repoRoot, ...(now === undefined ? {} : { now }) })
+  requireCleanTree(command.label, ref)
+  const out =
+    command.out === undefined
+      ? defaultOutPath(ref, defaultName, paths.resultsDir)
+      : resolve(command.out)
+  await prepareOutput(out)
+  return { ref, out }
 }
 
 // The `run` command. Everything that can fail without running a benchmark is done first: reading
@@ -135,14 +163,7 @@ async function runCommand(
   paths: BenchPaths,
 ): Promise<number> {
   const { suite, label } = command
-  const now = deps.now?.()
-  const ref = readRunRef({ cwd: paths.repoRoot, ...(now === undefined ? {} : { now }) })
-  requireCleanTree(label, ref)
-  const out =
-    command.out === undefined
-      ? defaultOutPath(ref, suite.name, paths.resultsDir)
-      : resolve(command.out)
-  await prepareOutput(out)
+  const { ref, out } = await prepareRun(command, suite.name, deps, paths)
   const plans = command.runners.map((runner) => planRunner(suite, runner, { paths }))
   const environment = readRunEnvironment(
     Object.fromEntries(plans.map((plan) => [plan.runner, plan.version])),
@@ -198,8 +219,8 @@ async function readRealParity(
   }
   const jestReport = jest.parsed?.jest
   const provinoReport = provino.parsed?.provino
-  if (jestReport === undefined) return noParity('jest wrote no valid report')
-  if (provinoReport === undefined) return noParity('provino wrote no valid report')
+  if (jestReport === undefined) return unavailableParity('jest wrote no valid report')
+  if (provinoReport === undefined) return unavailableParity('provino wrote no valid report')
   return await checkStatusParity(
     suite,
     { jest: jest.version, provino: provino.version },
@@ -207,18 +228,48 @@ async function readRealParity(
   )
 }
 
-// A parity that fails the gate closed: nothing could be compared.
-function noParity(reason: string): StatusParity {
-  return {
-    ok: false,
-    referenceTests: 0,
-    statusMatched: 0,
-    candidateOnlyTests: 0,
-    files: 0,
-    filesMatched: 0,
-    failing: [],
-    assertionDiffs: [],
-    unavailable: reason,
+// One measured suite of the gate: Jest as the baseline, then Provino at `registry` (and at `none` on
+// `ISOLATION_SUITE`), or on a dry run Jest in Provino's place.
+function planKillCheckSuite(
+  entry: KillCheckSuite,
+  dryRun: boolean,
+  paths: BenchPaths,
+): {
+  readonly suite: SuiteSpec
+  readonly plans: readonly RunnerPlan[]
+  readonly subjects: readonly BenchSubjectSpec[]
+} {
+  const suite = parseSuiteName(entry.name)
+  const jest = planRunner(suite, 'jest', { paths })
+  const baseline = toSubjectSpec(jest)
+  const tiers =
+    suite.name === ISOLATION_SUITE ? (['registry', 'none'] as const) : (['registry'] as const)
+  if (dryRun) {
+    // Jest in Provino's place: the same argv, cwd, env, caches and command, with a runner id that
+    // can never be taken for Provino's record.
+    const standIns: BenchSubjectSpec[] = tiers.map((isolation) => ({
+      ...baseline,
+      subject: { ...baseline.subject, runner: DRY_RUN_RUNNER, isolation },
+    }))
+    return { suite, plans: [jest], subjects: [baseline, ...standIns] }
+  }
+  const provino = tiers.map((isolation) => planRunner(suite, 'provino', { paths, isolation }))
+  return { suite, plans: [jest, ...provino], subjects: [baseline, ...provino.map(toSubjectSpec)] }
+}
+
+// A parity read that throws fails the gate closed rather than ending the run: the timed runs still
+// happen and the record is still saved.
+async function readParityOrFail(
+  readParity: (suite: SuiteSpec) => Promise<StatusParity>,
+  suite: SuiteSpec,
+): Promise<StatusParity> {
+  try {
+    return await readParity(suite)
+  } catch (error) {
+    if (!(error instanceof Error)) throw error
+    return unavailableParity(
+      error instanceof BenchError ? `${error.code}: ${error.message}` : errorMessage(error),
+    )
   }
 }
 
@@ -236,33 +287,16 @@ async function killCheckCommand(
   paths: BenchPaths,
 ): Promise<number> {
   const { label, dryRun } = command
-  const now = deps.now?.()
-  const ref = readRunRef({ cwd: paths.repoRoot, ...(now === undefined ? {} : { now }) })
-  requireCleanTree(label, ref)
-  const out =
-    command.out === undefined
-      ? defaultOutPath(ref, dryRun ? 'kill-check-dry-run' : 'kill-check', paths.resultsDir)
-      : resolve(command.out)
-  await prepareOutput(out)
+  const { ref, out } = await prepareRun(
+    command,
+    dryRun ? 'kill-check-dry-run' : 'kill-check',
+    deps,
+    paths,
+  )
 
-  const planned = R6_SUITES.filter((entry) => entry.pending === undefined).map((entry) => {
-    const suite = parseSuiteName(entry.name)
-    const jest = planRunner(suite, 'jest', { paths })
-    const baseline = toSubjectSpec(jest)
-    const tiers =
-      suite.name === ISOLATION_SUITE ? (['registry', 'none'] as const) : (['registry'] as const)
-    if (dryRun) {
-      // Jest in Provino's place: the same argv, cwd, env, caches and command, with a runner id that
-      // can never be taken for Provino's record.
-      const standIns: BenchSubjectSpec[] = tiers.map((isolation) => ({
-        ...baseline,
-        subject: { ...baseline.subject, runner: 'jest-as-provino', isolation },
-      }))
-      return { suite, plans: [jest], subjects: [baseline, ...standIns] }
-    }
-    const provino = tiers.map((isolation) => planRunner(suite, 'provino', { paths, isolation }))
-    return { suite, plans: [jest, ...provino], subjects: [baseline, ...provino.map(toSubjectSpec)] }
-  })
+  const planned = R6_SUITES.filter((entry) => entry.pending === undefined).map((entry) =>
+    planKillCheckSuite(entry, dryRun, paths),
+  )
   // Only what actually runs is named: a dry run's record claims no Provino version.
   const environment = readRunEnvironment(
     Object.fromEntries(
@@ -278,15 +312,7 @@ async function killCheckCommand(
   for (const { suite, subjects } of planned) {
     await generated(suite, io, paths.suitesRoot)
     if (!dryRun) {
-      let read: StatusParity
-      try {
-        read = await readParity(suite)
-      } catch (error) {
-        if (!(error instanceof Error)) throw error
-        read = noParity(
-          error instanceof BenchError ? `${error.code}: ${error.message}` : error.message,
-        )
-      }
+      const read = await readParityOrFail(readParity, suite)
       parity.set(suite.name, read)
       for (const line of parityLines(read)) io.err(`[${label}] ${suite.name} ${line}`)
     }

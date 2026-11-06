@@ -164,6 +164,24 @@ function runners(values: readonly string[] | undefined): readonly RunnerName[] {
   return parsed
 }
 
+// What `run` and `kill-check` share: the record's label, where it goes, its machine id and the run
+// timeout. The caller parses the label first (it may need it before these).
+function recordOptions(
+  values: {
+    readonly out?: string | undefined
+    readonly 'machine-id'?: string | undefined
+    readonly timeout?: string | undefined
+  },
+  label: BenchLabel,
+) {
+  return {
+    label,
+    out: nonEmpty(values.out, '--out'),
+    machineId: nonEmpty(values['machine-id'], '--machine-id'),
+    timeoutMs: timeoutMs(values.timeout),
+  }
+}
+
 /**
  * Parses the arguments after `node cli.ts`.
  * @public
@@ -183,14 +201,7 @@ export function parseCli(argv: readonly string[]): CliCommand {
         `--dry-run needs --label local: a dry run is never a quotable record; got ${label}`,
       )
     }
-    return {
-      command,
-      label,
-      dryRun,
-      out: nonEmpty(values.out, '--out'),
-      machineId: nonEmpty(values['machine-id'], '--machine-id'),
-      timeoutMs: timeoutMs(values.timeout),
-    }
+    return { command, dryRun, ...recordOptions(values, label) }
   }
   if (suiteName === undefined) throw usage(`${command} needs a suite`)
   if (extra.length > 0) throw usage(`unexpected argument ${extra[0]}`)
@@ -221,10 +232,7 @@ export function parseCli(argv: readonly string[]): CliCommand {
         runners: runners(values.runner),
         warm,
         cold,
-        label,
-        out: nonEmpty(values.out, '--out'),
-        machineId: nonEmpty(values['machine-id'], '--machine-id'),
-        timeoutMs: timeoutMs(values.timeout),
+        ...recordOptions(values, label),
       }
     }
     default:

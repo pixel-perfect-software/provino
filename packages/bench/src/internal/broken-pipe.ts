@@ -1,3 +1,5 @@
+import { hasCode } from './guards.ts'
+
 /**
  * Keeps a closed reader from killing the process. When the other end of a pipe goes away (`| head`),
  * the next write to the stream emits an `'error'` (EPIPE), and with no listener that is an uncaught
@@ -6,7 +8,7 @@
  * @internal
  */
 export function ignoreBrokenPipe(stream: NodeJS.WritableStream): void {
-  stream.on('error', (error: NodeJS.ErrnoException) => {
-    if (error.code !== 'EPIPE') throw error
+  stream.on('error', (error: unknown) => {
+    if (!hasCode(error, 'EPIPE')) throw error
   })
 }

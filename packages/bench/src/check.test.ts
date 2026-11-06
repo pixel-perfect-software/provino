@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
-import { parseNormalizedRun, readRunEnvironment, runProcess } from '@provino/harness'
+import { parseNormalizedRun, readRunEnvironment } from '@provino/harness'
 import type { NormalizedFile, NormalizedRun, NormalizedTest } from '@provino/types'
 import {
   checkProblems,
@@ -13,7 +13,7 @@ import {
   summarize,
 } from './check.ts'
 import { commonFiles } from './generators/render.ts'
-import { code, scratch, scratchSuites } from './internal/test-helpers.ts'
+import { code, execPlan, scratch, scratchSuites } from './internal/test-helpers.ts'
 import {
   DEFAULT_PATHS,
   expectedTests,
@@ -347,13 +347,7 @@ test('the generated configs run Provino at the tier they state, through the real
   const seen = async (isolation: 'registry' | 'none'): Promise<string[]> => {
     await rm(log, { force: true })
     const plan = planRunner(spec, 'provino', { paths, isolation, extraArgs: ['--maxWorkers', '1'] })
-    const [command, ...args] = plan.argv
-    assert.ok(command)
-    const exit = await runProcess(command, args, {
-      cwd: plan.cwd,
-      env: { ...process.env, ...plan.env },
-      timeoutMs: 120_000,
-    })
+    const exit = await execPlan(plan)
     assert.equal(exit.exitCode, 0, `${isolation}: ${exit.output}`)
     return (await readFile(log, 'utf8')).trim().split('\n').sort()
   }
@@ -375,8 +369,6 @@ test('with the results cache kept, a second Provino run still runs and reports e
     extraArgs: ['--reporter', 'normalized-json', '--outputFile', reportPath],
   })
   assert.ok(!plan.argv.includes('--no-cache'))
-  const [command, ...args] = plan.argv
-  assert.ok(command)
   const cache = plan.caches.find((entry) => entry.kind === 'provino')
   assert.ok(cache)
 
@@ -395,11 +387,7 @@ test('with the results cache kept, a second Provino run still runs and reports e
   for (const run of [1, 2]) {
     // A stale report from the run before must not be what is read.
     await rm(reportPath, { force: true })
-    const exit = await runProcess(command, args, {
-      cwd: plan.cwd,
-      env: { ...process.env, ...plan.env },
-      timeoutMs: 120_000,
-    })
+    const exit = await execPlan(plan)
     assert.equal(exit.exitCode, 0, `run ${run}: ${exit.output}`)
     const report = parseNormalizedRun(await readFile(reportPath, 'utf8'), reportPath)
     const tests = report.files.flatMap((file) => file.tests)

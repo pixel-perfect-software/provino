@@ -21,6 +21,7 @@ import {
   type KillCriterion,
   LABEL_POLICY,
   type LabelPolicy,
+  type ParityCheck,
   type ProcessEntry,
   type ProcessTableReader,
   parseLabel,
@@ -36,8 +37,10 @@ import {
   ratioCi,
   readRunRef,
   runBench,
+  type SpeedCheck,
   type StatusParity,
   type SuiteSpec,
+  type SuiteVerdict,
   startRssSampler,
   sumTreeRssMib,
   wallStats,
@@ -226,5 +229,15 @@ KILL_CRITERION.warmMaxRatio = 1
 declare const verdictValue: KillCheckVerdict
 // @ts-expect-error a verdict is read-only
 verdictValue.outcome = 'GO'
+// A suite is either pending with a reason or measured with its three checks, never both.
+declare const suiteVerdict: SuiteVerdict
+if ('pending' in suiteVerdict) {
+  expectTypeOf(suiteVerdict.pending).toEqualTypeOf<string>()
+  // @ts-expect-error a pending suite has no warm check
+  suiteVerdict.warm
+} else {
+  expectTypeOf(suiteVerdict.warm).toEqualTypeOf<SpeedCheck>()
+  expectTypeOf(suiteVerdict.parity).toEqualTypeOf<ParityCheck>()
+}
 // @ts-expect-error only a verdict formats
 formatKillCheck(killRecord)

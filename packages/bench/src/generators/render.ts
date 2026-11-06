@@ -127,6 +127,23 @@ export function json(value: unknown): string {
 }
 
 /**
+ * The isolation tiers Provino can be planned at: the two the kill-check compares (R6).
+ * @public
+ */
+export type ProvinoIsolation = 'registry' | 'none'
+
+/**
+ * Each Provino tier's config file in the `jest/` tree.
+ * @public
+ */
+export const PROVINO_CONFIG: Readonly<Record<ProvinoIsolation, string>> = {
+  registry: 'provino.config.mjs',
+  none: 'provino.none.config.mjs',
+}
+
+const PROVINO_ISOLATIONS = Object.keys(PROVINO_CONFIG) as ProvinoIsolation[]
+
+/**
  * The files every suite shares, per flavour: the package manifest, the runner config, the setup
  * file, and for the Jest tree the Provino config.
  *
@@ -177,9 +194,9 @@ export function commonFiles(suite: string, flavour: Flavour): readonly Generated
       '})',
     ]),
   )
-  const provinoConfig = (isolation: 'registry' | 'none'): GeneratedFile =>
+  const provinoConfig = (isolation: ProvinoIsolation): GeneratedFile =>
     file(
-      isolation === 'registry' ? 'provino.config.mjs' : 'provino.none.config.mjs',
+      PROVINO_CONFIG[isolation],
       lines([
         'export default {',
         "  dialect: 'jest',",
@@ -201,8 +218,7 @@ export function commonFiles(suite: string, flavour: Flavour): readonly Generated
           cacheDirectory: '<rootDir>/../.cache/jest',
         }),
       ),
-      provinoConfig('registry'),
-      provinoConfig('none'),
+      ...PROVINO_ISOLATIONS.map(provinoConfig),
       setup,
     ]
   }

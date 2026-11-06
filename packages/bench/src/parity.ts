@@ -46,6 +46,20 @@ const ZERO_COUNTS = {
 } as const
 
 /**
+ * A parity that fails the gate closed: nothing could be compared, for this reason.
+ * @public
+ */
+export function unavailableParity(reason: string): StatusParity {
+  return {
+    ok: false,
+    ...ZERO_COUNTS,
+    failing: [],
+    assertionDiffs: [],
+    unavailable: reason,
+  }
+}
+
+/**
  * Compares the reports `checkRunner` wrote for Jest and Provino on a suite
  * (`<suite>/check/jest.json` and `provino.json`). Jest's is converted with the suite's `jest/`
  * directory as the root (its real path, the way Provino reports it), and `diffRuns` compares them
@@ -100,13 +114,7 @@ export async function checkStatusParity(
     // A report the check already read can still fail the converter or the diff (a repeated test
     // key, say). That is a failed comparison, not a crash of the bench.
     if (!(error instanceof HarnessError)) throw error
-    return {
-      ok: false,
-      ...ZERO_COUNTS,
-      failing: [],
-      assertionDiffs: [],
-      unavailable: `${error.code}: ${error.message}`,
-    }
+    return unavailableParity(`${error.code}: ${error.message}`)
   }
 }
 

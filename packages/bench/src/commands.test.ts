@@ -6,7 +6,7 @@ import type { BenchRecord } from '@provino/types'
 import { type CliDeps, runCli } from './commands.ts'
 import { BenchError } from './errors.ts'
 import type { ExecOutcome, ExecRequest } from './exec.ts'
-import { assertBenchRecord, scratch } from './internal/test-helpers.ts'
+import { assertBenchRecord, parityOf, scratch } from './internal/test-helpers.ts'
 import { makeRepo } from './internal/test-repo.ts'
 import type { StatusParity } from './parity.ts'
 
@@ -278,20 +278,6 @@ const bySubject = async (_index: number, _paths: unknown, request: ExecRequest) 
   wallMs: !isProvino(request) ? 1000 : configOf(request) === 'provino.none.config.mjs' ? 150 : 200,
 })
 const fixedWall = async () => ({ wallMs: 100 })
-
-function parityOf(matched: number, total: number, extra: Partial<StatusParity> = {}): StatusParity {
-  return {
-    ok: matched === total,
-    referenceTests: total,
-    statusMatched: matched,
-    candidateOnlyTests: 0,
-    files: 1,
-    filesMatched: 1,
-    failing: [],
-    assertionDiffs: [],
-    ...extra,
-  }
-}
 
 function withParity(bench: Setup, read: (suite: string) => Promise<StatusParity>): string[] {
   const reads: string[] = []

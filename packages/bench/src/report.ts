@@ -9,7 +9,7 @@ import type {
 } from '@provino/types'
 import { BenchError } from './errors.ts'
 import { DEFAULT_COLD_RUNS, DEFAULT_WARM_RUNS } from './run-bench.ts'
-import { ratioCi } from './stats.ts'
+import { type RatioInterval, ratioCi } from './stats.ts'
 import { RESULTS_DIR } from './suites.ts'
 
 /**
@@ -177,13 +177,38 @@ export function table(rows: readonly (readonly string[])[]): string[] {
   )
 }
 
+// ` (registry)` when a subject's isolation was chosen (Provino's two tiers print differently), and
+// nothing for a runner at its default.
+function tierOf(subject: BenchSubject): string {
+  return subject.isolation === 'runner-default' ? '' : ` (${subject.isolation})`
+}
+
 /**
- * A subject's name where a tier matters: ` (registry)` after the runner when its isolation was
- * chosen (Provino's two tiers print differently), and nothing for a runner at its default.
+ * A subject's name where a tier matters: the runner, then ` (registry)` when its isolation was
+ * chosen, and nothing more for a runner at its default.
  * @public
  */
-export function tierOf(subject: BenchSubject): string {
-  return subject.isolation === 'runner-default' ? '' : ` (${subject.isolation})`
+export function subjectName(subject: BenchSubject): string {
+  return `${subject.runner}${tierOf(subject)}`
+}
+
+/**
+ * A ratio of medians to three decimals, as a table `cell` (`0.500 (0.400-0.600)`) or as a
+ * `sentence` (`median ratio 0.500 (95% CI 0.400-0.600)`). `shown` replaces the printed median or
+ * upper bound, for a failed value that must not round onto its limit.
+ * @public
+ */
+export function formatRatio(
+  interval: RatioInterval,
+  form: 'cell' | 'sentence',
+  shown: { readonly ratio?: string; readonly high?: string } = {},
+): string {
+  const median = shown.ratio ?? interval.ratio.toFixed(3)
+  const low = interval.low.toFixed(3)
+  const high = shown.high ?? interval.high.toFixed(3)
+  return form === 'cell'
+    ? `${median} (${low}-${high})`
+    : `median ratio ${median} (95% CI ${low}-${high})`
 }
 
 /**
@@ -237,21 +262,19 @@ export function formatSummary(record: BenchRecord): string {
     for (const result of record.results) {
       if (result.subject.runner === 'jest') continue
       if (result.benchId !== baseline.benchId || result.cache !== baseline.cache) continue
-      const label = `${result.benchId} ${result.subject.runner}${tierOf(result.subject)}/jest ${result.cache}`
+      const label = `${result.benchId} ${subjectName(result.subject)}/jest ${result.cache}`
       if (!result.ok || !baseline.ok) {
         out.push(`${tag} ${label}: no ratio, a run failed`)
         continue
       }
       const ratio = ratioCi(result.wall.samplesMs, baseline.wall.samplesMs)
-      out.push(
-        `${tag} ${label}: median ratio ${ratio.ratio.toFixed(3)} (95% CI ${ratio.low.toFixed(3)}-${ratio.high.toFixed(3)})`,
-      )
+      out.push(`${tag} ${label}: ${formatRatio(ratio, 'sentence')}`)
     }
   }
   for (const result of record.results) {
     if (!result.ok) {
       out.push(
-        `${tag} WARNING: ${result.subject.runner}${tierOf(result.subject)} ${result.cache} had a failing run, so it is not a speed result`,
+        `${tag} WARNING: ${subjectName(result.subject)} ${result.cache} had a failing run, so it is not a speed result`,
       )
     }
   }

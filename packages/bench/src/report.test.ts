@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { BenchRecord, BenchResult, BenchSubject, RunEnvironment } from '@provino/types'
-import { code } from './internal/test-helpers.ts'
+import type { BenchRecord, BenchResult, BenchSubject } from '@provino/types'
+import { code, testEnvironment, testRecord } from './internal/test-helpers.ts'
 import {
   BENCH_LABELS,
   buildRecord,
@@ -15,17 +15,7 @@ import {
 } from './report.ts'
 import { wallStats } from './stats.ts'
 
-const environment: RunEnvironment = {
-  os: 'darwin',
-  osRelease: '27.2.0',
-  arch: 'arm64',
-  cpuModel: 'Test CPU',
-  cpuCount: 8,
-  memoryMb: 16384,
-  node: 'v24.0.0',
-  runners: { jest: '30.5.2', vitest: '5.0.5' },
-  ci: false,
-}
+const environment = testEnvironment({ jest: '30.5.2', vitest: '5.0.5' })
 
 function result(
   runner: 'jest' | 'vitest',
@@ -43,13 +33,7 @@ function result(
 }
 
 function record(results: BenchResult[], label: BenchRecord['label'] = 'local'): BenchRecord {
-  return buildRecord({
-    label,
-    ref: { sha: 'a'.repeat(40), date: '2026-11-02T10:00:00.000Z', dirty: false },
-    environment,
-    machineId: `${label}-darwin-arm64`,
-    results,
-  })
+  return testRecord(results, label, environment.runners)
 }
 
 test('labels are local, desktop or pinned, and nothing else', () => {

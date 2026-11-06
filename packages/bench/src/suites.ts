@@ -3,7 +3,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, normalize, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type RunnerPackage, resolveRunnerPackage } from '@provino/harness'
-import type { BenchSubject, IsolationMode } from '@provino/types'
+import type { BenchSubject, IsolationMode, RunnerId } from '@provino/types'
 import { BenchError } from './errors.ts'
 import { APP_TESTS_PER_FILE, appFiles } from './generators/app.ts'
 import {
@@ -13,7 +13,14 @@ import {
   isolateHeavyFiles,
 } from './generators/isolate-heavy.ts'
 import { MOCK_HEAVY_TESTS_PER_FILE, mockHeavyFiles } from './generators/mock-heavy.ts'
-import { FLAVOUR_DIR, FLAVOURS, type GeneratedFile, MAX_SUITE_FILES } from './generators/render.ts'
+import {
+  FLAVOUR_DIR,
+  FLAVOURS,
+  type GeneratedFile,
+  MAX_SUITE_FILES,
+  PROVINO_CONFIG,
+  type ProvinoIsolation,
+} from './generators/render.ts'
 import type { BenchSubjectSpec, CacheDir, CacheKind } from './run-bench.ts'
 
 /**
@@ -234,12 +241,6 @@ export type RunnerName = 'jest' | 'vitest' | 'provino'
 export const RUNNERS: readonly RunnerName[] = ['jest', 'vitest', 'provino']
 
 /**
- * The isolation tiers Provino can be planned at: the two the kill-check compares (R6).
- * @public
- */
-export type ProvinoIsolation = 'registry' | 'none'
-
-/**
  * How each runner is started: the tree under the suite it runs in, the Node arguments before its
  * bin, its config file, the arguments before `--config <config>`, and the kind of its own cache
  * directory (`cacheDir`, relative to the suite). Provino runs the Jest tree with the Jest dialect,
@@ -251,6 +252,8 @@ const RUNNER_SETUP: Readonly<
     {
       /** The tree it runs in under the suite; the runner's own name when left out. */
       readonly tree?: string
+      /** The runner id its results carry: Provino runs the Jest tree, so it is the Jest dialect's. */
+      readonly subjectRunner: RunnerId
       readonly nodeArgs: readonly string[]
       readonly config: string
       readonly args: readonly string[]
@@ -261,21 +264,24 @@ const RUNNER_SETUP: Readonly<
   >
 > = {
   jest: {
+    subjectRunner: 'jest',
     nodeArgs: [],
     config: 'jest.config.json',
     args: ['--ci'],
     cacheKind: 'jest',
   },
   vitest: {
+    subjectRunner: 'vitest',
     nodeArgs: [],
     config: 'vitest.config.ts',
     args: ['run'],
     cacheKind: 'vite',
   },
   provino: {
+    subjectRunner: 'provino:jest',
     tree: 'jest',
     nodeArgs: ['--conditions=provino-source'],
-    config: 'provino.config.mjs',
+    config: PROVINO_CONFIG.registry,
     args: ['run'],
     cacheKind: 'provino',
     cacheDir: 'jest/node_modules/.cache/provino',
@@ -341,14 +347,17 @@ export function planRunner(
   },
 ): RunnerPlan {
   const { repoRoot, suitesRoot } = options?.paths ?? DEFAULT_PATHS
-  const { nodeArgs, args: leading, cacheKind } = RUNNER_SETUP[runner]
-  const isolation: IsolationMode =
-    runner === 'provino' ? (options?.isolation ?? 'registry') : 'runner-default'
-  const config =
-    runner === 'provino' && isolation === 'none'
-      ? 'provino.none.config.mjs'
-      : RUNNER_SETUP[runner].config
-  const { tree = runner, cacheDir = join('.cache', cacheKind) } = RUNNER_SETUP[runner]
+  const setup = RUNNER_SETUP[runner]
+  const {
+    nodeArgs,
+    args: leading,
+    cacheKind,
+    tree = runner,
+    cacheDir = join('.cache', cacheKind),
+  } = setup
+  const tier = options?.isolation ?? 'registry'
+  const isolation: IsolationMode = runner === 'provino' ? tier : 'runner-default'
+  const config = runner === 'provino' ? PROVINO_CONFIG[tier] : setup.config
   const root = suiteDir(spec, suitesRoot)
   const pkg = installedPackage(runner)
   const cwd = join(root, tree)
@@ -389,7 +398,7 @@ export function planRunner(
  */
 export function toSubjectSpec(plan: RunnerPlan): BenchSubjectSpec {
   const subject: BenchSubject = {
-    runner: plan.runner === 'provino' ? 'provino:jest' : plan.runner,
+    runner: RUNNER_SETUP[plan.runner].subjectRunner,
     version: plan.version,
     isolation: plan.isolation,
     command: plan.command,

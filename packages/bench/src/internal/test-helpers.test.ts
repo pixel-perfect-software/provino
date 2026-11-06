@@ -2,35 +2,18 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { BenchRecord } from '@provino/types'
 import { wallStats } from '../stats.ts'
-import { assertBenchRecord } from './test-helpers.ts'
+import { assertBenchRecord, testRecord } from './test-helpers.ts'
 
 function valid(): BenchRecord {
-  return {
-    schemaVersion: 1,
-    label: 'local',
-    ref: { sha: 'a'.repeat(40), date: '2026-11-02T10:00:00.000Z', dirty: false },
-    machine: {
-      os: 'darwin',
-      osRelease: '27.2.0',
-      arch: 'arm64',
-      cpuModel: 'Test CPU',
-      cpuCount: 8,
-      memoryMb: 16384,
-      node: 'v24.0.0',
-      runners: { jest: '30.5.2' },
-      ci: false,
-      id: 'local-darwin-arm64',
+  return testRecord([
+    {
+      benchId: 'app-1',
+      subject: { runner: 'jest', version: '30.5.2', isolation: 'runner-default', command: 'run' },
+      cache: 'warm',
+      wall: wallStats([1, 2, 3]),
+      ok: true,
     },
-    results: [
-      {
-        benchId: 'app-1',
-        subject: { runner: 'jest', version: '30.5.2', isolation: 'runner-default', command: 'run' },
-        cache: 'warm',
-        wall: wallStats([1, 2, 3]),
-        ok: true,
-      },
-    ],
-  }
+  ])
 }
 
 const REMOVE = Symbol('remove')
