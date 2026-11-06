@@ -52,26 +52,31 @@ test('a well-formed record passes, through JSON too', () => {
 })
 
 test('a broken record fails, whichever field is wrong', () => {
-  const breaks: readonly [string, readonly (string | number)[], unknown][] = [
-    ['schemaVersion', ['schemaVersion'], 2],
-    ['label', ['label'], 'production'],
-    ['ref.dirty', ['ref', 'dirty'], REMOVE],
-    ['ref.date', ['ref', 'date'], 'yesterday'],
-    ['machine.id', ['machine', 'id'], REMOVE],
-    ['machine.cpuCount', ['machine', 'cpuCount'], null],
-    ['machine.runners', ['machine', 'runners', 'jest'], 30],
-    ['results', ['results'], {}],
-    ['result.cache', ['results', 0, 'cache'], 'hot'],
-    ['result.ok', ['results', 0, 'ok'], 'yes'],
-    ['result.peakRssMb', ['results', 0, 'peakRssMb'], null],
-    ['subject.isolation', ['results', 0, 'subject', 'isolation'], REMOVE],
-    ['wall.medianMs NaN', ['results', 0, 'wall', 'medianMs'], null],
-    ['wall.samplesMs', ['results', 0, 'wall', 'samplesMs'], [1, null, 3]],
-    ['wall.runs', ['results', 0, 'wall', 'runs'], 9],
-    ['an extra field', ['verdict'], 'GO'],
+  // `assert.throws(fn, 'text')` treats the string as the failure message, so each case passes if
+  // anything throws; a pattern for the field name makes it the right assertion that threw.
+  const breaks: readonly [RegExp, readonly (string | number)[], unknown][] = [
+    [/schemaVersion must be 1/, ['schemaVersion'], 2],
+    [/label is invalid/, ['label'], 'production'],
+    [/ref\.dirty must be a boolean/, ['ref', 'dirty'], REMOVE],
+    [/ref\.date must be a date/, ['ref', 'date'], 'yesterday'],
+    [/machine\.id must be a string/, ['machine', 'id'], REMOVE],
+    [/machine\.cpuCount must be a finite number/, ['machine', 'cpuCount'], null],
+    [/runners\.jest must be a string/, ['machine', 'runners', 'jest'], 30],
+    [/results must be an array/, ['results'], {}],
+    [/\.cache is invalid/, ['results', 0, 'cache'], 'hot'],
+    [/\.ok must be a boolean/, ['results', 0, 'ok'], 'yes'],
+    [/\.peakRssMb must be a finite number/, ['results', 0, 'peakRssMb'], null],
+    [/subject\.isolation must be a string/, ['results', 0, 'subject', 'isolation'], REMOVE],
+    [/wall\.medianMs must be a finite number/, ['results', 0, 'wall', 'medianMs'], null],
+    [/samplesMs must be finite numbers/, ['results', 0, 'wall', 'samplesMs'], [1, null, 3]],
+    [/wall\.runs must equal the sample count/, ['results', 0, 'wall', 'runs'], 9],
+    [/unexpected field verdict/, ['verdict'], 'GO'],
+    [/isolation must be one of/, ['results', 0, 'subject', 'isolation'], 'registy'],
+    [/isolation must be one of/, ['results', 0, 'subject', 'isolation'], 'jest'],
+    [/wall\.runs must be an integer/, ['results', 0, 'wall', 'runs'], 2.5],
   ]
-  for (const [name, path, value] of breaks) {
-    assert.throws(() => assertBenchRecord(broken(path, value)), name)
+  for (const [pattern, path, value] of breaks) {
+    assert.throws(() => assertBenchRecord(broken(path, value)), pattern, String(pattern))
   }
   assert.throws(() => assertBenchRecord(null))
 })

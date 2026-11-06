@@ -88,17 +88,39 @@ function progressReporter(
   }
 }
 
-// Writes the record, last resort included: if it can't be placed, the runs are already in the
-// summary on stdout, so the whole record goes to stderr and the error is rethrown.
-async function persistRecord(record: BenchRecord, out: string, io: CliIo): Promise<void> {
+// Saves the record first and only then prints, so a throw while formatting or judging can never
+// lose runs that are already measured. The order: write the record; run `report` (it prints the
+// summary and the verdict, and returns what the caller needs); print `wrote <path>` last. If the
+// write fails, the whole record goes to stderr at once, `report` still runs, and the write error is
+// rethrown. If `report` fails after a good write, the wrote line still prints and its error is
+// rethrown.
+async function persistRecord<T>(
+  record: BenchRecord,
+  out: string,
+  io: CliIo,
+  report: () => T,
+): Promise<T> {
   const text = `${JSON.stringify(record, null, 2)}\n`
+  let writeFailed = false
+  let writeError: unknown
   try {
     await writeRecordFile(out, text)
   } catch (error) {
+    writeFailed = true
+    writeError = error
     io.err(text.trimEnd())
-    throw error
   }
+  let reported: { readonly value: T } | undefined
+  let reportError: unknown
+  try {
+    reported = { value: report() }
+  } catch (error) {
+    reportError = error
+  }
+  if (writeFailed) throw writeError
   io.out(`[${record.label}] wrote ${out}`)
+  if (reported === undefined) throw reportError
+  return reported.value
 }
 
 // The `run` command. Everything that can fail without running a benchmark is done first: reading
@@ -146,8 +168,7 @@ async function runCommand(
     machineId: command.machineId ?? defaultMachineId(label),
     results,
   })
-  io.out(formatSummary(record))
-  await persistRecord(record, out, io)
+  await persistRecord(record, out, io, () => io.out(formatSummary(record)))
   return results.every((result) => result.ok) ? 0 : 1
 }
 
@@ -170,7 +191,10 @@ async function readRealParity(
     io.err(
       `${suite.name} parity read: ${result.runner} ${result.version} ${result.ok ? 'passed' : 'FAILED'}: ${counts} in ${seconds(result.wallMs)} (not timed, not a result)`,
     )
-    for (const problem of result.problems) io.err(`  ${problem}`)
+    if (!result.ok) {
+      for (const problem of result.problems) io.err(`  ${problem}`)
+      for (const detail of result.details) io.err(`  ${detail}`)
+    }
   }
   const jestReport = jest.parsed?.jest
   const provinoReport = provino.parsed?.provino
@@ -258,8 +282,10 @@ async function killCheckCommand(
       try {
         read = await readParity(suite)
       } catch (error) {
-        if (!(error instanceof BenchError)) throw error
-        read = noParity(`${error.code}: ${error.message}`)
+        if (!(error instanceof Error)) throw error
+        read = noParity(
+          error instanceof BenchError ? `${error.code}: ${error.message}` : error.message,
+        )
       }
       parity.set(suite.name, read)
       for (const line of parityLines(read)) io.err(`[${label}] ${suite.name} ${line}`)
@@ -284,11 +310,13 @@ async function killCheckCommand(
     machineId: command.machineId ?? defaultMachineId(label),
     results,
   })
-  const verdict = evaluateKillCheck({ record, suites: R6_SUITES, parity, dryRun })
-  io.out(formatSummary(record))
-  for (const line of formatKillCheck(verdict)) io.out(line)
-  await persistRecord(record, out, io)
-  return verdict.outcome === 'GO' ? 0 : 1
+  const outcome = await persistRecord(record, out, io, () => {
+    io.out(formatSummary(record))
+    const verdict = evaluateKillCheck({ record, suites: R6_SUITES, parity, dryRun })
+    for (const line of formatKillCheck(verdict)) io.out(line)
+    return verdict.outcome
+  })
+  return outcome === 'GO' ? 0 : 1
 }
 
 // The `check` command: each runner once, then Provino against Jest when both ran and passed.

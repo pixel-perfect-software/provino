@@ -1,6 +1,6 @@
 import type { Dirent } from 'node:fs'
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, join, normalize, relative } from 'node:path'
+import { dirname, isAbsolute, join, normalize, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type RunnerPackage, resolveRunnerPackage } from '@provino/harness'
 import type { BenchSubject, IsolationMode } from '@provino/types'
@@ -171,8 +171,9 @@ async function inBatches<T>(items: readonly T[], work: (item: T) => Promise<void
 /**
  * Generates a suite into `<root>/<name>/`, idempotently: files with the right bytes are left
  * alone (so their mtimes and the runners' caches stay valid), changed files are rewritten, and
- * stale files in the `jest/` and `vitest/` trees are removed. `.cache/` and everything else in
- * the suite directory is untouched.
+ * stale files in the `jest/` and `vitest/` trees are removed. `.cache/`, everything else in the
+ * suite directory and anything under a `node_modules` directory inside those trees (Provino's
+ * results cache, `jest/node_modules/.cache/provino/`) is untouched.
  * @public
  */
 export async function writeSuite(spec: SuiteSpec, root?: string): Promise<WriteSummary> {
@@ -188,8 +189,12 @@ export async function writeSuite(spec: SuiteSpec, root?: string): Promise<WriteS
 
   let removed = 0
   for (const flavour of FLAVOURS) {
-    for (const existing of await listFiles(join(dir, FLAVOUR_DIR[flavour]))) {
+    const tree = join(dir, FLAVOUR_DIR[flavour])
+    for (const existing of await listFiles(tree)) {
       if (wanted.has(existing)) continue
+      // Not ours: Provino's results cache lives under node_modules/.cache, and so will T3.6's
+      // transform cache.
+      if (relative(tree, existing).split(sep).includes('node_modules')) continue
       await rm(existing, { force: true })
       removed += 1
     }

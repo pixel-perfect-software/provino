@@ -75,6 +75,17 @@ export const ISOLATION_SUITE = 'app-500'
 
 type Cache = 'warm' | 'cold'
 
+// A failed value printed beside its limit must never read as equal to it: toFixed can round 3599 of
+// 4000 up to "90.0", 0.500004 down to "0.500" and 3.0004 to "3.000", which would call a miss a tie.
+// This raises the decimals from `base` until the printed number differs from the limit.
+function pastLimit(value: number, limit: number, base: number): string {
+  for (let decimals = base; decimals < 12; decimals += 1) {
+    const shown = value.toFixed(decimals)
+    if (Number(shown) !== limit) return shown
+  }
+  return value.toString()
+}
+
 /**
  * Provino against Jest on one suite and cache state.
  * @public
@@ -219,7 +230,7 @@ function speed(record: BenchRecord, suite: string, cache: Cache): SpeedCheck {
     ...(ok
       ? {}
       : {
-          reason: `${suite} ${cache}: the 95% CI's upper bound ${ratio.high.toFixed(3)} is above ${limit.toFixed(2)} (median ratio ${ratio.ratio.toFixed(3)})`,
+          reason: `${suite} ${cache}: the 95% CI's upper bound ${pastLimit(ratio.high, limit, 3)} is above ${limit.toFixed(2)} (median ratio ${ratio.ratio.toFixed(3)})`,
         }),
   }
 }
@@ -256,9 +267,15 @@ function isolation(record: BenchRecord, cache: Cache): IsolationCheck {
     ...(ok
       ? {}
       : {
-          reason: `isolation ${suite} ${cache}: registry/none median ratio ${ratio.ratio.toFixed(3)} is above ${limit.toFixed(1)}`,
+          reason: `isolation ${suite} ${cache}: registry/none median ratio ${pastLimit(ratio.ratio, limit, 3)} is above ${limit.toFixed(1)}`,
         }),
   }
+}
+
+// A share as a percentage to one decimal; a failed share never prints as the minimum.
+function percent(share: number, failed: boolean): string {
+  const limit = KILL_CRITERION.minStatusParity * 100
+  return `${failed ? pastLimit(share * 100, limit, 1) : (share * 100).toFixed(1)}%`
 }
 
 function parityOf(
@@ -284,7 +301,7 @@ function parityOf(
   if (share < KILL_CRITERION.minStatusParity) {
     return {
       ...fail(
-        `${counts} tests have Jest's status (${(share * 100).toFixed(1)}%), below ${minimum}`,
+        `${counts} tests have Jest's status (${percent(share, true)}), below ${minimum}`,
         read.statusMatched,
         read.referenceTests,
       ),
@@ -306,8 +323,10 @@ function parityOf(
  * - Parity (R2): at least 90% of Jest's tests have Provino's status on every measured suite, and
  *   anything unreadable fails. A dry run skips it.
  *
- * The outcome is `NO-GO` if any check fails. It stays `provisional` unless the record is pinned,
- * no suite is pending and it isn't a dry run.
+ * The outcome is `NO-GO` if any check fails, or if no suite was measured. It stays `provisional`
+ * unless the record is pinned, every one of `R6_SUITES` was measured (judged against that list,
+ * not the caller's) and it isn't a dry run. `redesign` needs a real speed miss (a ratio over its
+ * limit) on two suites and is never set by a dry run.
  * @public
  */
 export function evaluateKillCheck(input: {
@@ -336,7 +355,10 @@ export function evaluateKillCheck(input: {
     const speedFailures = [verdict.warm, verdict.cold].flatMap((check) =>
       check?.reason === undefined ? [] : [check.reason],
     )
-    if (speedFailures.length > 0) speedFailedSuites += 1
+    // Only a measured ratio over its limit is a speed miss: no result or a failing run timed nothing.
+    if ([verdict.warm, verdict.cold].some((check) => check?.ratio !== undefined && !check.ok)) {
+      speedFailedSuites += 1
+    }
     failures.push(...speedFailures)
     if (verdict.parity?.reason !== undefined) failures.push(verdict.parity.reason)
   }
@@ -345,6 +367,12 @@ export function evaluateKillCheck(input: {
   }
 
   const pendingCount = verdicts.filter((verdict) => verdict.pending !== undefined).length
+  const measured = verdicts.length - pendingCount
+  if (measured === 0) failures.push('no suite was measured, so there is nothing to judge')
+  // Completeness is R6's seven suites, not whatever list the caller passed.
+  const complete = R6_SUITES.every((required) =>
+    suites.some(({ name, pending }) => name === required.name && pending === undefined),
+  )
   return {
     label: record.label,
     dryRun,
@@ -352,26 +380,27 @@ export function evaluateKillCheck(input: {
     isolation: isolationChecks,
     failures,
     outcome: failures.length === 0 ? 'GO' : 'NO-GO',
-    provisional: !(record.label === 'pinned' && pendingCount === 0 && !dryRun),
-    // R6's last paragraph: two failed suites mean a redesign, not another tuning pass.
-    redesign: speedFailedSuites >= 2,
+    provisional: !(record.label === 'pinned' && complete && !dryRun),
+    // R6's last paragraph: two failed suites mean a redesign, not another tuning pass. A dry run
+    // is Jest against itself, so it decides nothing.
+    redesign: !dryRun && speedFailedSuites >= 2,
     speedFailedSuites,
-    measured: verdicts.length - pendingCount,
+    measured,
     pendingCount,
   }
 }
 
 function ratioCell(check: SpeedCheck | undefined): string {
   const ratio = check?.ratio
-  return ratio === undefined
-    ? 'no ratio'
-    : `${ratio.ratio.toFixed(3)} (${ratio.low.toFixed(3)}-${ratio.high.toFixed(3)})`
+  if (check === undefined || ratio === undefined) return 'no ratio'
+  const high = check.ok ? ratio.high.toFixed(3) : pastLimit(ratio.high, check.limit, 3)
+  return `${ratio.ratio.toFixed(3)} (${ratio.low.toFixed(3)}-${high})`
 }
 
 function parityCell(parity: ParityCheck | undefined): string {
   if (parity === undefined || parity.status === 'skipped') return 'skipped'
   if (parity.share === undefined) return 'no data FAIL'
-  const share = `${(parity.share * 100).toFixed(1)}% (${parity.matched}/${parity.total})`
+  const share = `${percent(parity.share, parity.status !== 'pass')} (${parity.matched}/${parity.total})`
   return parity.status === 'pass' ? share : `${share} FAIL`
 }
 
@@ -411,7 +440,7 @@ export function formatKillCheck(verdict: KillCheckVerdict): readonly string[] {
     const detail =
       check.ratio === undefined
         ? 'no ratio'
-        : `median ratio ${check.ratio.ratio.toFixed(3)} (95% CI ${check.ratio.low.toFixed(3)}-${check.ratio.high.toFixed(3)})`
+        : `median ratio ${check.ok ? check.ratio.ratio.toFixed(3) : pastLimit(check.ratio.ratio, check.limit, 3)} (95% CI ${check.ratio.low.toFixed(3)}-${check.ratio.high.toFixed(3)})`
     out.push(
       `${tag} isolation ${check.suite} registry/none ${check.cache}: ${detail}, <=${check.limit.toFixed(1)} ${check.ok ? 'pass' : 'FAIL'}`,
     )
@@ -419,7 +448,7 @@ export function formatKillCheck(verdict: KillCheckVerdict): readonly string[] {
   for (const failure of verdict.failures) out.push(`${tag} NO-GO: ${failure}`)
   if (verdict.redesign) {
     out.push(
-      `${tag} R6: the speed condition failed on ${verdict.speedFailedSuites} suites, so Phase 1 stops for a redesign (Track 2).`,
+      `${tag} R6: the speed condition failed on ${verdict.speedFailedSuites} suites, so Phase 1 stops for a redesign (Track 2).${verdict.provisional ? ` (provisional: only a pinned run of all ${R6_SUITES.length} decides that)` : ''}`,
     )
   }
   if (verdict.dryRun) {
@@ -430,10 +459,14 @@ export function formatKillCheck(verdict: KillCheckVerdict): readonly string[] {
   out.push(
     `${tag} VERDICT: ${verdict.outcome}${verdict.provisional ? `, PROVISIONAL (${verdict.label})` : ''}${verdict.dryRun ? ', DRY RUN' : ''}`,
   )
-  const total = verdict.suites.length
+  const total = R6_SUITES.length
   if (verdict.pendingCount > 0) {
     out.push(
       `${tag} ${verdict.measured} of ${total} suites measured, ${verdict.pendingCount} PENDING: only a pinned run of all ${total} decides GO.`,
+    )
+  } else if (verdict.measured < total) {
+    out.push(
+      `${tag} ${verdict.measured} of ${total} suites measured: only a pinned run of all ${total} decides GO.`,
     )
   } else if (verdict.provisional) {
     out.push(`${tag} all ${total} suites measured, but only a pinned run decides GO.`)

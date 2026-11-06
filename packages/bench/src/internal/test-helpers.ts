@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TestContext } from 'node:test'
-import type { BenchRecord } from '@provino/types'
+import type { BenchRecord, IsolationMode } from '@provino/types'
 import { BenchError, type BenchErrorCode } from '../errors.ts'
 import { PACKAGE_DIR } from '../suites.ts'
 
@@ -39,6 +39,15 @@ export async function scratchSuites(t: Pick<TestContext, 'after'>): Promise<stri
 export function code(expected: BenchErrorCode): (error: unknown) => boolean {
   return (error) => error instanceof BenchError && error.code === expected
 }
+
+// `IsolationMode` (packages/types/src/bench.ts): the four tiers and the runner's own default.
+const ISOLATION_MODES: readonly string[] = [
+  'none',
+  'registry',
+  'realm',
+  'process',
+  'runner-default',
+] satisfies readonly IsolationMode[]
 
 type Fields = Readonly<Record<string, unknown>>
 
@@ -166,6 +175,10 @@ export function assertBenchRecord(value: unknown): asserts value is BenchRecord 
     for (const key of ['runner', 'version', 'isolation', 'command']) {
       str(subject, key, `${where}.subject`)
     }
+    assert.ok(
+      ISOLATION_MODES.includes(String(subject.isolation)),
+      `${where}.subject.isolation must be one of ${ISOLATION_MODES.join(', ')}; got ${JSON.stringify(subject.isolation)}`,
+    )
     optionalStr(subject, 'configPath', `${where}.subject`)
 
     const wall = object(result.wall, `${where}.wall`)
@@ -198,6 +211,7 @@ export function assertBenchRecord(value: unknown): asserts value is BenchRecord 
     ]) {
       num(wall, key, `${where}.wall`)
     }
+    assert.ok(Number.isInteger(wall.runs), `${where}.wall.runs must be an integer`)
     const samples = wall.samplesMs
     assert.ok(
       Array.isArray(samples) &&

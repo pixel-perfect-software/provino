@@ -67,9 +67,10 @@ Runners: jest, vitest, and provino, which runs the provino bin on the suite's je
 kill-check: Track 12 R6 on the R6 suite set: Provino against Jest, warm and cold, with the 10 warm and
   5 cold runs R6 fixes (so no --warm or --cold), plus registry/none on app-500. Suites that can't run
   yet print PENDING. The verdict is PROVISIONAL unless the label is pinned and every suite ran. Exit
-  0 when no measured check failed, which on a PROVISIONAL verdict is not a GO decision; 1 for NO-GO.
+  0 when no measured check failed, which on a PROVISIONAL verdict is not a GO decision; 1 for NO-GO,
+  or when no verdict was reached (a refusal or a failure: it prints an error and no VERDICT line).
   --dry-run runs Jest in Provino's place, so every ratio is about 1.0 and the verdict is NO-GO; it
-  needs --label local and is never a result.
+  needs --label local and is never a result, and its exit 1 says nothing about the plumbing.
 Options: each applies only to the commands above that show it.
   --warm, --cold   Timed runs per subject: whole numbers of 1 or more. The R5 protocol is
                    ${DEFAULT_WARM_RUNS} warm and ${DEFAULT_COLD_RUNS} cold. desktop and pinned records need at least that

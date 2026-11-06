@@ -142,6 +142,25 @@ test('regenerating repairs edited files, removes stale ones, and leaves .cache a
   assert.equal((await stat(join(dir, 'jest', 'setup.js'))).mtime.getTime(), old.getTime())
 })
 
+test('regenerating keeps anything under a node_modules directory, such as Provino’s results cache', async (t) => {
+  const root = await scratch(t, 'bench-suite-')
+  const spec = suite('app-3')
+  await writeSuite(spec, root)
+  const jest = join(root, 'app-3', 'jest')
+  const cache = join(jest, 'node_modules', '.cache', 'provino', 'results.json')
+  await mkdir(join(jest, 'node_modules', '.cache', 'provino'), { recursive: true })
+  await writeFile(cache, '{}\n')
+  const summary = await writeSuite(spec, root)
+  assert.equal(summary.removed, 0)
+  assert.equal(await readFile(cache, 'utf8'), '{}\n')
+
+  const stale = join(jest, 'tests', 'app-0099.test.js')
+  await writeFile(stale, 'stale\n')
+  assert.equal((await writeSuite(spec, root)).removed, 1)
+  assert.equal(existsSync(stale), false)
+  assert.equal(await readFile(cache, 'utf8'), '{}\n')
+})
+
 test('the two flavours are one model: same files, same test bodies, different module syntax', () => {
   for (const name of ['app-3', 'mock-heavy-3', 'isolate-heavy']) {
     const files = buildSuite(suite(name))

@@ -446,3 +446,60 @@ test('kill-check on a usage error exits 2 before any run', async (t) => {
   assert.equal(await bench.run(['kill-check', 'app-500']), 2)
   assert.equal(bench.calls.length, 0)
 })
+
+test('kill-check saves the record before printing, so a failing summary loses no run', async (t) => {
+  // A zero wall time makes the summary's ratio throw (a zero denominator).
+  const bench = await setup(t, { onRun: async () => ({ wallMs: 0 }) })
+  withParity(bench, async () => parityOf(1, 1))
+  assert.equal(await bench.run(['kill-check', '--dry-run', '--out', bench.out]), 1)
+  assert.match(bench.stderr.join('\n'), /provino-bench: BENCH_/)
+  assertBenchRecord(await readRecord(bench.out))
+})
+
+test('kill-check that cannot place its record still prints the verdict, then dumps the JSON and fails', async (t) => {
+  const bench = await setup(t, {
+    onRun: async (index, { out }) => {
+      if (index === 3) await writeFile(out, 'intruder')
+      return { wallMs: 100 }
+    },
+  })
+  await mkdir(join(bench.dir, 'records'))
+  withParity(bench, async () => parityOf(1, 1))
+  assert.equal(await bench.run(['kill-check', '--dry-run', '--out', bench.out]), 1)
+  const stderr = bench.stderr.join('\n')
+  assert.match(stderr, /BENCH_OUT_WRITE_FAILED/)
+  assert.match(bench.stdout.join('\n'), /VERDICT: NO-GO/)
+  assert.ok(!bench.stdout.some((line) => line.includes('] wrote ')), 'nothing was written')
+  const printed = bench.stderr.find((line) => line.startsWith('{'))
+  assert.equal((JSON.parse(printed ?? 'null') as BenchRecord).schemaVersion, 1)
+})
+
+test('the wrote line comes after the summary and the verdict', async (t) => {
+  const bench = await setup(t, { onRun: bySubject })
+  withParity(bench, async () => parityOf(4000, 4000))
+  assert.equal(await bench.run(['kill-check', '--out', bench.out]), 0)
+  assert.match(bench.stdout.at(-1) ?? '', /^\[local\] wrote /)
+  assert.ok(bench.stdout.findIndex((line) => line.includes('VERDICT')) < bench.stdout.length - 1)
+})
+
+test('run saves the record before printing the summary', async (t) => {
+  const bench = await setup(t, { onRun: async () => ({ wallMs: 0 }) })
+  const code = await bench.run(['run', 'app-1', '--runner', 'jest', '--out', bench.out, ...SHORT])
+  assert.ok(code === 0 || code === 1)
+  assertBenchRecord(await readRecord(bench.out))
+  assert.match(bench.stdout.at(-1) ?? '', /^\[local\] wrote /)
+})
+
+test('a parity read that throws a plain Error fails the gate closed with its message', async (t) => {
+  const bench = await setup(t, { onRun: bySubject })
+  withParity(bench, async () => {
+    throw new Error('ENOENT: no such file, open report.json')
+  })
+  assert.equal(await bench.run(['kill-check', '--out', bench.out]), 1)
+  assert.match(
+    bench.stdout.join('\n'),
+    /NO-GO: app-500 parity: could not compare: .*ENOENT: no such file/,
+  )
+  assert.equal(bench.calls.length, 48, 'every timed run still happens')
+  assertBenchRecord(await readRecord(bench.out))
+})

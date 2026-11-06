@@ -365,6 +365,152 @@ test('redesign is false on one suite failing speed and true on two', () => {
   assert.doesNotMatch(formatKillCheck(one).join('\n'), /redesign/)
 })
 
+const EVERY: KillCheckSuite[] = R6_SUITES.map((suite) => ({ name: suite.name }))
+const everyParity = new Map(EVERY.map((suite) => [suite.name, parityOf(10, 10)]))
+const everyResults = (): BenchResult[] =>
+  EVERY.flatMap((suite) => {
+    const none = suite.name === ISOLATION_SUITE ? { none: 20 } : {}
+    return suiteResults(
+      suite.name,
+      { jest: 100, registry: 30, ...none },
+      { jest: 100, registry: 40, ...none },
+    )
+  })
+
+test('provisional is judged against the seven R6 suites, not the caller list', () => {
+  const pinned = (
+    results: BenchResult[],
+    suites: readonly KillCheckSuite[],
+    parity = GOOD_PARITY,
+  ) => verdictOf(results, { label: 'pinned', suites, parity })
+  const subset = pinned(passing(), [{ name: 'app-500' }])
+  assert.equal(subset.outcome, 'GO')
+  assert.equal(subset.provisional, true)
+  assert.doesNotMatch(formatKillCheck(subset).join('\n'), /all 1 suites measured/)
+
+  const empty = pinned([], [])
+  assert.equal(empty.outcome, 'NO-GO')
+  assert.equal(empty.measured, 0)
+  assert.match(empty.failures.join('\n'), /no suite was measured/)
+
+  const pending = pinned(
+    passing(),
+    R6_SUITES.map((suite) => ({ name: suite.name, pending: 'later' })),
+  )
+  assert.equal(pending.outcome, 'NO-GO')
+  assert.match(pending.failures.join('\n'), /no suite was measured/)
+
+  const final = pinned(everyResults(), EVERY, everyParity)
+  assert.equal(final.outcome, 'GO')
+  assert.equal(final.provisional, false)
+})
+
+test('redesign counts only a real speed miss, never a missing result or a dry run', () => {
+  const both: KillCheckSuite[] = [{ name: 'app-500' }, { name: 'other' }]
+  const parity = new Map([
+    ['app-500', parityOf(10, 10)],
+    ['other', parityOf(10, 10)],
+  ])
+  const failing = (bench: string) =>
+    suiteResults(bench, { jest: 100, registry: 30 }).map((entry) => ({ ...entry, ok: false }))
+  const none = suiteResults('app-500', { none: 20 })
+  const broken = verdictOf([...failing('app-500'), ...failing('other'), ...none], {
+    suites: both,
+    parity,
+  })
+  assert.equal(broken.outcome, 'NO-GO')
+  assert.equal(broken.speedFailedSuites, 0)
+  assert.equal(broken.redesign, false)
+  const missing = verdictOf(none, { suites: both, parity })
+  assert.equal(missing.outcome, 'NO-GO')
+  assert.equal(missing.redesign, false)
+
+  const slow = (bench: string) => suiteResults(bench, { jest: 100, registry: 90 })
+  const slowNone = suiteResults('app-500', { none: 90 })
+  const over = verdictOf([...slow('app-500'), ...slow('other'), ...slowNone], {
+    suites: both,
+    parity,
+  })
+  assert.equal(over.speedFailedSuites, 2)
+  assert.equal(over.redesign, true)
+  assert.match(
+    formatKillCheck(over).join('\n'),
+    /stops for a redesign \(Track 2\)\. \(provisional: only a pinned run of all 7 decides that\)/,
+  )
+  const dry = verdictOf([...slow('app-500'), ...slow('other'), ...slowNone], {
+    suites: both,
+    parity,
+    dryRun: true,
+  })
+  assert.equal(dry.redesign, false)
+  assert.doesNotMatch(formatKillCheck(dry).join('\n'), /redesign/)
+})
+
+test('failure text never rounds a miss onto the limit', () => {
+  // 3599/4000 is 89.975%, which toFixed(1) prints as 90.0%
+  const low = verdictOf(passing(), { parity: new Map([['app-500', parityOf(3599, 4000)]]) })
+  assert.equal(low.outcome, 'NO-GO')
+  const lowText = [...low.failures, ...formatKillCheck(low)].join('\n')
+  assert.doesNotMatch(lowText, /\b90\.0%/)
+  assert.match(lowText, /\(89\.98%\), below 90%/)
+  assert.match(lowText, /89\.98% \(3599\/4000\) FAIL/)
+
+  // 0.500004 prints as 0.500, over the 0.50 limit
+  const warm = verdictOf(
+    suiteResults('app-500', { jest: 1000000, registry: 500004, none: 500004 }, FINE_COLD),
+  )
+  assert.equal(warm.outcome, 'NO-GO')
+  const warmText = [...warm.failures, ...formatKillCheck(warm)].join('\n')
+  assert.match(warmText, /upper bound 0\.500004 is above 0\.50/)
+  assert.match(warmText, /0\.500 \(0\.500-0\.500004\) +FAIL/)
+
+  // 3.0004 prints as 3.000, over the 3.0 limit
+  const iso = verdictOf(suiteResults('app-500', { jest: 1000000, registry: 300040, none: 100000 }))
+  assert.equal(iso.outcome, 'NO-GO')
+  const isoText = [...iso.failures, ...formatKillCheck(iso)].join('\n')
+  assert.match(isoText, /registry\/none median ratio 3\.0004 is above 3\.0/)
+  assert.match(isoText, /registry\/none warm: median ratio 3\.0004 \(.*\), <=3\.0 FAIL/)
+  // a passing value keeps its three decimals
+  assert.match(formatKillCheck(verdictOf(passing())).join('\n'), /median ratio 1\.500 \(95% CI/)
+})
+
+test('isolation is held to the point ratio, not the CI upper bound', () => {
+  const noisy = [100, 100, 100, 100, 290, 290, 290, 500, 500, 500]
+  const warm: Walls = { jest: 1000, registry: noisy, none: 100 }
+  const verdict = verdictOf(suiteResults('app-500', warm, { jest: 1000, registry: 200, none: 100 }))
+  const check = verdict.isolation[0]
+  assert.ok(check?.ratio)
+  assert.ok(check.ratio.ratio <= 3, `point ratio ${check.ratio.ratio}`)
+  assert.ok(check.ratio.high > 3, `upper bound ${check.ratio.high}`)
+  assert.equal(check.ok, true)
+  assert.equal(verdict.outcome, 'GO')
+})
+
+test('each ratio is matched on suite and cache: Jest differs by both', () => {
+  const both: KillCheckSuite[] = [{ name: 'app-500' }, { name: 'other' }]
+  const parity = new Map([
+    ['app-500', parityOf(10, 10)],
+    ['other', parityOf(10, 10)],
+  ])
+  const verdict = verdictOf(
+    [
+      ...suiteResults(
+        'app-500',
+        { jest: 100, registry: 40, none: 20 },
+        { jest: 400, registry: 200, none: 100 },
+      ),
+      ...suiteResults('other', { jest: 1000, registry: 300 }, { jest: 200, registry: 100 }),
+    ],
+    { suites: both, parity },
+  )
+  assert.equal(verdict.outcome, 'GO')
+  const ratios = verdict.suites.map((suite) => [suite.warm?.ratio?.ratio, suite.cold?.ratio?.ratio])
+  assert.deepEqual(ratios, [
+    [0.4, 0.5],
+    [0.3, 0.5],
+  ])
+})
+
 test('a ratio of 1.0 is NO-GO', () => {
   const verdict = verdictOf(suiteResults('app-500', { jest: 100, registry: 100, none: 100 }), {
     dryRun: true,

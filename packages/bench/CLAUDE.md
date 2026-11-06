@@ -28,9 +28,15 @@ A missing result, a failing run or an unreadable parity read fails its check. No
 
 **R6 asks for parity only on the 5 repos.** We read it on every measured suite and hold the same bar, because a faster runner that is wrong doesn't count.
 
-**The verdict** is `NO-GO` if any measured check fails, otherwise `GO`. It is `PROVISIONAL` unless the record is `pinned`, no suite is pending, and it isn't a dry run. Exit 0 only means no measured check failed: on a provisional verdict that isn't a GO decision.
+**The verdict** is `NO-GO` if any measured check fails, otherwise `GO`. It is `PROVISIONAL` unless the record is `pinned`, every suite of `R6_SUITES` was measured, and it isn't a dry run. Completeness is judged against `R6_SUITES`, never against the list the caller passes, so a pinned record of a subset stays provisional, and a run that measured no suite is `NO-GO`. Exit 0 only means no measured check failed: on a provisional verdict that isn't a GO decision. Exit 1 means `NO-GO`, or that no verdict was reached (a refusal or a failure, which prints an error and no `VERDICT` line). Exit 1 from a dry run says nothing about the plumbing either way. `redesign` needs a real speed miss (a ratio whose upper bound is over its limit) on two suites; a missing result, a failing run or a dry run never counts.
 
 **The record is exactly a `BenchRecord`.** It holds no verdict and no parity. The speed and isolation results can be re-derived from it; parity is only printed.
+
+**The record is saved before anything is printed** (`persistRecord`, for `run` and `kill-check`): build, write, print the summary and verdict, then `wrote <path>` last. A throw while formatting or judging can't lose measured runs. If the write fails, the JSON goes to stderr at once, the summary and verdict still print, and the write error is rethrown. `cli.ts` guards stdout and stderr against a closed reader (`| head`), which would otherwise be an uncaught EPIPE.
+
+**Known limit:** a throw inside a later suite's `runBench` (`BENCH_CACHE_CLEAR_FAILED`) still loses the earlier suites' results, because the record is built after the last suite. It can't happen with one suite, so revisit it when B13c adds mock-heavy-500. A SIGINT mid-run also loses everything, which fits the no-partial-records protocol.
+
+**Failure text never rounds across a limit.** A failed value is printed with enough decimals to differ from the printed limit (3599/4000 is `89.98%`, not `90.0%`); passing values keep their usual format.
 
 **Which result is which:** `evaluateKillCheck` finds results by suite, cache state and role. Jest is `subject.runner === 'jest'`; the candidate is `subject.isolation === 'registry'`; the no-isolation subject is `subject.isolation === 'none'`.
 
