@@ -46,6 +46,7 @@
     "@provino/core": "workspace:*",
     "@provino/expect": "workspace:*",
     "@provino/loader": "workspace:*",
+    "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/rpc": "workspace:*",
     "@provino/types": "workspace:*",

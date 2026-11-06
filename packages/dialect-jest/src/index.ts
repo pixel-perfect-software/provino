@@ -3,3 +3,4 @@
 // it injects. The config reader, the CLI flags and the facades come with T11.x (B14, B17).
 export { type JestDialectOptions, jestDialect, jestPolicy } from './dialect.ts'
 export { jestExpectPolicy } from './expect-policy.ts'
+export { jestMockPolicy } from './mock-policy.ts'

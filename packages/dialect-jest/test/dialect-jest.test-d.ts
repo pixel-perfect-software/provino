@@ -4,6 +4,7 @@ import {
   type JestDialectOptions,
   jestDialect,
   jestExpectPolicy,
+  jestMockPolicy,
   jestPolicy,
 } from '@provino/dialect-jest'
 import {
@@ -22,6 +23,7 @@ import type {
   GlobalsFactory,
   GlobalsHost,
   MatcherTableFactory,
+  MockPolicy,
   ModuleRef,
   PolicyOverrides,
   ProjectConfig,
@@ -30,6 +32,9 @@ import type {
 import { expectTypeOf } from 'expect-type'
 
 expectTypeOf(jestExpectPolicy).toEqualTypeOf<ExpectPolicy>()
+expectTypeOf(jestMockPolicy).toEqualTypeOf<MockPolicy>()
+// @ts-expect-error the policy is read-only
+jestMockPolicy.newCall = 'construct'
 expectTypeOf(jestExpectTable).toExtend<MatcherTableFactory>()
 expectTypeOf(jestExpectTable).returns.toEqualTypeOf<ExpectTable>()
 

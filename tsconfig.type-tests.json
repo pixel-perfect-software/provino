@@ -35,6 +35,9 @@
       "path": "packages/expect/test"
     },
     {
+      "path": "packages/mock/test"
+    },
+    {
       "path": "packages/dialect-jest/test"
     },
     {
