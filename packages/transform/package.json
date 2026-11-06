@@ -1,7 +1,7 @@
 {
   "name": "@provino/transform",
   "version": "0.0.0",
-  "description": "Provino's transform pipeline: TypeScript and JSX through Oxc, the mock-hoisting hook point, source-map composition and import records.",
+  "description": "Provino's transform pipeline: TypeScript and JSX through Oxc, mock hoisting, source-map composition and import records.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
     "url": "https://github.com/pixel-perfect-software/provino/issues"
@@ -32,7 +32,12 @@
   "dependencies": {
     "@jridgewell/remapping": "catalog:",
     "@provino/types": "workspace:*",
+    "magic-string": "catalog:",
     "oxc-parser": "catalog:",
-    "oxc-transform": "catalog:"
+    "oxc-transform": "catalog:",
+    "oxc-walker": "catalog:"
+  },
+  "devDependencies": {
+    "@jridgewell/trace-mapping": "catalog:"
   }
 }

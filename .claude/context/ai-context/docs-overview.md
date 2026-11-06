@@ -34,6 +34,7 @@ When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (und
 - `packages/orchestrator/CLAUDE.md`: the coordinator and worker halves (transports, `connectWorker`, `startWorker`, packer, console capture), how a worker boots and exits, the exit-reporting and link rules, the coordinator's run (`runProject`: discovery, results cache, sequencer, pool, event dispatch, exit codes), the end-to-end tests, and what is still stubbed (with owning tasks).
 - `packages/provino/CLAUDE.md`: the umbrella's `provino/node` `run()` (what it wires, how errors become exit codes), the `provino` bin, and the end-to-end tests including the segfault check.
 - `packages/reporters/CLAUDE.md`: the reporter bus (ordering, how a throwing reporter is handled), the default reporter's format and tallies, how the normalized-json reporter builds a `NormalizedRun`, and what is still stubbed (with owning tasks).
+- `packages/transform/CLAUDE.md`: how the hoister is laid out, the import rewrite (P9) and its output shape, how the pipeline runs it, and what is still stubbed (with owning tasks).
 - `tooling/boundaries/CLAUDE.md`: the package manifest, what is generated from it, and how to add a package or rule.
 
 ## Reference (read when named)

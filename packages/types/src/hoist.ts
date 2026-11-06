@@ -33,6 +33,17 @@ export interface FactoryReferenceRule {
 }
 
 /**
+ * The hoisting violations a policy words for itself, each one a `TransformErrorCode`.
+ * @public
+ */
+export type HoistErrorCode =
+  | 'HOIST_FACTORY_OUT_OF_SCOPE'
+  | 'HOIST_NOT_TOP_LEVEL'
+  | 'HOIST_NESTED'
+  | 'HOIST_EXPORTED'
+  | 'HOIST_FACTORY_NOT_FUNCTION'
+
+/**
  * What a dialect's mock hoisting does. Replaces Track 1's `module.hoistNames` (now `objects`) and
  * `module.nonTopLevelMock` (now `placement`). Jest/Vitest values: track-03 L612 (unverified).
  * @public
@@ -54,4 +65,17 @@ export interface HoistPolicy<Calls extends string = string, Values extends strin
   readonly factoryReferences: 'allow' | FactoryReferenceRule
   /** Imports kept first: `['@jest/globals']` / `['vitest']`. */
   readonly runnerModules: readonly string[]
+  /**
+   * What happens to `export … from` (including `export *`) when a call hoists to the top of a
+   * file. `'in-order'` loads each in source order with the imports, after the hoisted block (Babel's
+   * CJS step keeps source order, so Jest's mocks apply to re-exports). `'static'` leaves them as
+   * written, as Vitest's `hoistMocks.ts` rewrites only `ImportDeclaration`; the module-runner
+   * transform then moves them above the mocks, so a re-exported module loads before mocks exist.
+   */
+  readonly reExports: 'in-order' | 'static'
+  /**
+   * The text of each violation, copied exactly from the upstream the dialect mirrors. `{call}` is
+   * the call as written (`jest.mock`) and `{name}` the offending identifier, where one exists.
+   */
+  readonly messages: { readonly [Code in HoistErrorCode]: string }
 }

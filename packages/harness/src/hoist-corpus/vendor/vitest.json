@@ -1,0 +1,390 @@
+{
+  "license": "MIT, Copyright (c) 2021-Present VoidZero Inc. and Vitest contributors",
+  "source": ".refs/vitest/test/unit/test/injector-mock.test.ts",
+  "cases": [
+    {
+      "name": "reports static mocks",
+      "code": "\n  vi.mock('./automocked')\n  vi.mock('./factory', () => ({}))\n  vi.mock('./original', async (importOriginal) => importOriginal())\n  vi.mock('./spy', { spy: true })\n  vi.unmock('./unmocked')\n  vi.doUnmock('./do-unmocked')\n  vi.importActual('./actual')\n  vi.doMock('./do-mocked', () => ({}))\n  "
+    },
+    {
+      "name": "hoists mock, unmock, hoisted",
+      "code": "\n  vi.mock('path', () => {})\n  vi.unmock('path')\n  vi.hoisted(() => {})\n  "
+    },
+    {
+      "name": "always hoists import from vitest",
+      "code": "\nimport { vi } from 'vitest'\nvi.mock('path', () => {})\nvi.unmock('path')\nvi.hoisted(() => {})\nimport { test } from 'vitest'\n  "
+    },
+    {
+      "name": "recognizes the vite-plus/test redistribution as the hoisted module",
+      "code": "\nimport { vi } from 'vite-plus/test'\nvi.mock('path', () => {})\nvi.unmock('path')\nvi.hoisted(() => {})\n  "
+    },
+    {
+      "name": "always hoists all imports but they are under mocks",
+      "code": "\n  import { vi } from 'vitest'\n  import { someValue } from './path.js'\n  import { someValue2 } from './path2.js'\n  vi.mock('path', () => {})\n  vi.unmock('path')\n  vi.hoisted(() => {})\n  import { test } from 'vitest'\n  "
+    },
+    {
+      "name": "correctly mocks namespaced",
+      "code": "\n  import { vi } from 'vitest'\n  import add, * as AddModule from '../src/add'\n  vi.mock('../src/add', () => {})\n  "
+    },
+    {
+      "name": "correctly access import",
+      "code": "\n  import { vi } from 'vitest'\n  import add from '../src/add'\n  add();\n  vi.mock('../src/add', () => {})\n  "
+    },
+    {
+      "name": "transform > default import",
+      "code": "import {vi} from \"vitest\";\nimport foo from 'vue';console.log(foo.bar)\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > can use imported variables inside the mock",
+      "code": "\nimport { vi } from 'vitest'\nimport user from './user'\nimport { admin } from './admin'\nvi.mock('./mock.js', () => ({\n  getSession: vi.fn().mockImplementation(() => ({\n    user,\n    admin: admin,\n  }))\n}))\n"
+    },
+    {
+      "name": "transform > can use hoisted variables inside the mock",
+      "code": "\nimport { vi } from 'vitest'\nconst { user, admin } = await vi.hoisted(async () => {\n  const { default: user } = await import('./user')\n  const { admin } = await import('./admin')\n  return { user, admin }\n})\nvi.mock('./mock.js', () => {\n  getSession: vi.fn().mockImplementation(() => ({\n    user,\n    admin: admin,\n  }))\n})\n"
+    },
+    {
+      "name": "transform > named import",
+      "code": "import {vi} from \"vitest\";\nimport { ref } from 'vue';function foo() { return ref(0) }\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > namespace import",
+      "code": "import {vi} from \"vitest\";\nimport * as vue from 'vue';function foo() { return vue.ref(0) }\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > export function declaration",
+      "code": "import {vi} from \"vitest\";\nexport function foo() {}\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > export class declaration",
+      "code": "import {vi} from \"vitest\";\nexport class foo {}\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > export var declaration",
+      "code": "import {vi} from \"vitest\";\nexport const a = 1, b = 2\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > export named",
+      "code": "import {vi} from \"vitest\";\nconst a = 1, b = 2; export { a, b as c }\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > export named from",
+      "code": "import {vi} from \"vitest\";\nexport { ref, computed as c } from 'vue'\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > named exports of imported binding",
+      "code": "import {vi} from \"vitest\";\nimport {createApp} from 'vue';export {createApp}\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > export * from",
+      "code": "import {vi} from \"vitest\";\nexport * from 'vue'\nexport * from 'react'\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > export * as from",
+      "code": "import {vi} from \"vitest\";\nexport * as foo from 'vue'\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > export default",
+      "code": "import {vi} from \"vitest\";\nexport default {}\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > export then import minified",
+      "code": "import {vi} from \"vitest\";\nexport * from 'vue';import {createApp} from 'vue';\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > hoist import to top",
+      "code": "import {vi} from \"vitest\";\npath.resolve('server.js');import path from 'node:path';\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > import.meta",
+      "code": "import {vi} from \"vitest\";\nconsole.log(import.meta.url)\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > dynamic import",
+      "code": "import {vi} from \"vitest\";\nexport const i = () => import('./foo')\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > do not rewrite method definition",
+      "code": "import {vi} from \"vitest\";\nimport { fn } from 'vue';class A { fn() { fn() } }\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > do not rewrite when variable is in scope",
+      "code": "import {vi} from \"vitest\";\nimport { fn } from 'vue';function A(){ const fn = () => {}; return { fn }; }\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > do not rewrite when variable is in scope with object destructuring",
+      "code": "import {vi} from \"vitest\";\nimport { fn } from 'vue';function A(){ let {fn, test} = {fn: 'foo', test: 'bar'}; return { fn }; }\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > do not rewrite when variable is in scope with array destructuring",
+      "code": "import {vi} from \"vitest\";\nimport { fn } from 'vue';function A(){ let [fn, test] = ['foo', 'bar']; return { fn }; }\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > rewrite variable in string interpolation in function nested arguments",
+      "code": "import {vi} from \"vitest\";\nimport { fn } from 'vue';function A({foo = `test${fn}`} = {}){ return {}; }\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > rewrite variables in default value of destructuring params",
+      "code": "import {vi} from \"vitest\";\nimport { fn } from 'vue';function A({foo = fn}){ return {}; }\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > do not rewrite when function declaration is in scope",
+      "code": "import {vi} from \"vitest\";\nimport { fn } from 'vue';function A(){ function fn() {}; return { fn }; }\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > do not rewrite catch clause",
+      "code": "import {vi} from \"vitest\";\nimport {error} from './dependency';try {} catch(error) {}\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > should declare variable for imported super class",
+      "code": "import {vi} from \"vitest\";\nimport { Foo } from './dependency';class A extends Foo {}\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > should declare variable for imported super class #2",
+      "code": "import {vi} from \"vitest\";\nimport { Foo } from './dependency';export default class A extends Foo {}\nexport class B extends Foo {}\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > should handle default export variants",
+      "code": "import {vi} from \"vitest\";\nexport default function() {}\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > should handle default export variants #2",
+      "code": "import {vi} from \"vitest\";\nexport default class {}\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > should handle default export variants #3",
+      "code": "import {vi} from \"vitest\";\nexport default function foo() {}\nfoo.prototype = Object.prototype;\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > should handle default export variants #4",
+      "code": "import {vi} from \"vitest\";\nexport default class A {}\nexport class B extends A {}\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > sourcemap source",
+      "code": "vi.mock(any);\n      export const a = 1"
+    },
+    {
+      "name": "transform > overwrite bindings",
+      "code": "import {vi} from \"vitest\";\nimport { inject } from 'vue';const a = { inject }\nconst b = { test: inject }\nfunction c() { const { test: inject } = { test: true }; console.log(inject) }\nconst d = inject\nfunction f() {  console.log(inject) }\nfunction e() { const { inject } = { inject: true } }\nfunction g() { const f = () => { const inject = true }; console.log(inject) }\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > Empty array pattern",
+      "code": "import {vi} from \"vitest\";\nconst [, LHS, RHS] = inMatch;\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > function argument destructure",
+      "code": "import {vi} from \"vitest\";\n\nimport { foo, bar } from 'foo'\nconst a = ({ _ = foo() }) => {}\nfunction b({ _ = bar() }) {}\nfunction c({ _ = bar() + foo() }) {}\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > object destructure alias",
+      "code": "import {vi} from \"vitest\";\n\nimport { n } from 'foo'\nconst a = () => {\n  const { type: n = 'bar' } = {}\n  console.log(n)\n}\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > object destructure alias #2",
+      "code": "import {vi} from \"vitest\";\n\nimport { n, m } from 'foo'\nconst foo = {}\n\n{\n  const { [n]: m } = foo\n}\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > nested object destructure alias",
+      "code": "import {vi} from \"vitest\";\n\nimport { remove, add, get, set, rest, objRest } from 'vue'\n\nfunction a() {\n  const {\n    o: { remove },\n    a: { b: { c: [ add ] }},\n    d: [{ get }, set, ...rest],\n    ...objRest\n  } = foo\n\n  remove()\n  add()\n  get()\n  set()\n  rest()\n  objRest()\n}\n\nremove()\nadd()\nget()\nset()\nrest()\nobjRest()\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > object props and methods",
+      "code": "import {vi} from \"vitest\";\n\nimport foo from 'foo'\n\nconst bar = 'bar'\n\nconst obj = {\n  foo() {},\n  [foo]() {},\n  [bar]() {},\n  foo: () => {},\n  [foo]: () => {},\n  [bar]: () => {},\n  bar(foo) {}\n}\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > class props",
+      "code": "import {vi} from \"vitest\";\n\nimport { remove, add, update, del, call } from 'vue'\n\nclass A {\n  remove = 1\n  add = null\n  update = update\n  del = () => del()\n  call = call(4)\n}\n\nremove(2);\nadd(4);\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > class methods",
+      "code": "import {vi} from \"vitest\";\n\nimport foo from 'foo'\n\nconst bar = 'bar'\n\nclass A {\n  foo() {}\n  [foo]() {}\n  [bar]() {}\n  #foo() {}\n  bar(foo) {}\n}\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > declare scope",
+      "code": "import {vi} from \"vitest\";\n\nimport { aaa, bbb, ccc, ddd } from 'vue'\n\nfunction foobar() {\n  ddd()\n\n  const aaa = () => {\n    bbb(ccc)\n    ddd()\n  }\n  const bbb = () => {\n    console.log('hi')\n  }\n  const ccc = 1\n  function ddd() {}\n\n  aaa()\n  bbb()\n  ccc()\n}\n\naaa()\nbbb()\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > continuous exports",
+      "code": "import {vi} from \"vitest\";\n\nexport function fn1() {\n}export function fn2() {\n}\n        \nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > export default expression",
+      "code": "import {vi} from \"vitest\";\nexport default (function getRandom() {\n  return Math.random();\n});\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > export default expression #2",
+      "code": "import {vi} from \"vitest\";\nexport default (class A {});\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > with hashbang",
+      "code": "#!/usr/bin/env node\nvi.mock('foo');\nconsole.log(\"it can parse the hashbang\")"
+    },
+    {
+      "name": "transform > import hoisted after hashbang",
+      "code": "#!/usr/bin/env node\nvi.mock('foo');\nconsole.log(foo);\nimport foo from \"foo\""
+    },
+    {
+      "name": "transform > import hoisted after hashbang #2",
+      "code": "#!/usr/bin/env node\nimport { vi } from './proxy'\nvi.mock('foo');\nconsole.log(foo);\nimport foo from \"foo\""
+    },
+    {
+      "name": "transform > track scope by class, function, condition blocks",
+      "code": "import {vi} from \"vitest\";\nimport { foo, bar } from 'foobar'\nif (false) {\n  const foo = 'foo'\n  console.log(foo)\n} else if (false) {\n  const [bar] = ['bar']\n  console.log(bar)\n} else {\n  console.log(foo)\n  console.log(bar)\n}\nexport class Test {\n  constructor() {\n    if (false) {\n      const foo = 'foo'\n      console.log(foo)\n    } else if (false) {\n      const [bar] = ['bar']\n      console.log(bar)\n    } else {\n      console.log(foo)\n      console.log(bar)\n    }\n  }\n};\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > track var scope by function",
+      "code": "import {vi} from \"vitest\";\n\nimport { foo, bar } from 'foobar'\nfunction test() {\n  if (true) {\n    var foo = () => { var why = 'would' }, bar = 'someone'\n  }\n  return [foo, bar]\n}\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > track scope by blocks",
+      "code": "import {vi} from \"vitest\";\n\nimport { foo, bar, baz } from 'foobar'\nfunction test() {\n  [foo];\n  {\n    let foo = 10;\n    let bar = 10;\n  }\n  try {} catch (baz){ baz };\n  return bar;\n}\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > track scope in for loops",
+      "code": "import {vi} from \"vitest\";\n\nimport { test } from './test.js'\n\nfor (const test of tests) {\n  console.log(test)\n}\n\nfor (let test = 0; test < 10; test++) {\n  console.log(test)\n}\n\nfor (const test in tests) {\n  console.log(test)\n}\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > avoid binding ClassExpression",
+      "code": "import {vi} from \"vitest\";\n\nimport Foo, { Bar } from './foo';\n\nconsole.log(Foo, Bar);\nconst obj = {\n  foo: class Foo {},\n  bar: class Bar {}\n}\nconst Baz = class extends Foo {}\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > classDeclaration shadowing import",
+      "code": "import {vi} from \"vitest\";\nimport { Bar } from \"./repro.js\"\n{\n  class Bar {\n    test() {}\n  }\n  const Zoo = class Zoo extends Bar {}\n}\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > classExpression name shadowing import",
+      "code": "import {vi} from \"vitest\";\nimport { Foo } from \"./foo.js\"\nconst Bar = class Foo {\n  static create() {\n    return new Foo()\n  }\n}\n\nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > import assertion attribute",
+      "code": "import {vi} from \"vitest\";\n\n  import * as foo from './foo.json' with { type: 'json' };\n  import('./bar.json', { with: { type: 'json' } });\n  \nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > import and export ordering",
+      "code": "import {vi} from \"vitest\";\n\nconsole.log(foo + 1)\nexport * from './a'\nimport { foo } from './foo'\nexport * from './b'\nconsole.log(foo + 2)\n  \nvi.mock('faker');\n"
+    },
+    {
+      "name": "transform > handle single \"await vi.hoisted\"",
+      "code": "\nimport { vi } from 'vitest';\n1234;\nawait vi\n  .hoisted(() => {});\n    "
+    },
+    {
+      "name": "transform > handles dynamic import as the first argument",
+      "code": "\n    vi.mock(import('./path'))\n    vi.mock(import(somePath))\n    vi.mock(import(`./path`))\n\n    vi.mock(import('./path'));\n    vi.mock(import(somePath));\n    vi.mock(import(`./path`));\n\n    vi.mock(await import('./path'))\n    vi.mock(await import(somePath))\n    vi.mock(await import(`./path`))\n\n    vi.mock(await import('./path'));\n    vi.mock(await import(somePath));\n    vi.mock(await import(`./path`));\n\n    vi.mock(import('./path'), () => {})\n    vi.mock(import(somePath), () => {})\n    vi.mock(import(`./path`), () => {})\n\n    vi.mock(await import('./path'), () => {})\n    vi.mock(await import(somePath), () => {})\n    vi.mock(await import(`./path`), () => {})\n\n    vi.mock(import('./path'), () => {});\n    vi.mock(import(somePath), () => {});\n    vi.mock(import(`./path`), () => {});\n\n    vi.mock(await import('./path'), () => {});\n    vi.mock(await import(somePath), () => {});\n    vi.mock(await import(`./path`), () => {});\n    "
+    },
+    {
+      "name": "transform > handles import in vi.do* methods",
+      "code": "\nvi.doMock(import('./path'))\nvi.doMock(import(`./path`))\nvi.doMock(import('./path'));\n\nbeforeEach(() => {\n  vi.doUnmock(import('./path'))\n  vi.doMock(import('./path'))\n})\n\ntest('test', async () => {\n  vi.doMock(import(dynamicName))\n  await import(dynamicName)\n})\n      "
+    },
+    {
+      "name": "transform > vi.mock already hoisted at the top",
+      "code": "vi.mock('node:path', () => ({ mocked: true }));\n\nimport { test, vi } from 'vitest';\n\nimport * as path from 'node:path';\n\nconsole.log(path.mocked);\n"
+    },
+    {
+      "name": "transform > correctly hoists when import.meta is used",
+      "code": "\nimport { calc } from './calc'\nfunction sum(a, b) {\n  return calc(\"+\", 1, 2);\n}\n\nif (import.meta.vitest) {\n  const { vi, test, expect } = import.meta.vitest\n  vi.mock('faker')\n  test('sum', () => {\n    expect(sum(1, 2)).toBe(3)\n  })\n}\n      "
+    },
+    {
+      "name": "transform > keeps the import.meta.vitest check for hoisted calls",
+      "code": "\nimport { getName } from './name'\n\nexport const greet = () => getName()\n\nif (import.meta.vitest) {\n  const { test, expect, vi } = import.meta.vitest\n  const mocks = vi.hoisted(() => ({ getName: vi.fn() }))\n  vi.mock('./name', () => mocks)\n  vi.unmock('./unmocked')\n  test('greet', () => {\n    expect(greet()).toBe(undefined)\n  })\n}\n      "
+    },
+    {
+      "name": "transform > keeps the import.meta.vitest check for vi.hoisted declarations",
+      "code": "\nif (import.meta.vitest) {\n  const { vi } = import.meta.vitest\n  const getName = vi.hoisted(() => vi.fn())\n  let getAge = vi.hoisted(() => vi.fn())\n  var getRole = vi.hoisted(() => vi.fn())\n  vi.mock('./user', () => ({ getName, getAge, getRole }))\n}\n      "
+    },
+    {
+      "name": "transform > keeps the import.meta.vitest check for destructured vi.hoisted declarations",
+      "code": "\nif (import.meta.vitest) {\n  const { vi } = import.meta.vitest\n  const { getName, ...user } = vi.hoisted(() => ({ getName: vi.fn(), age: 42 }))\n  const [getAge, getRole = vi.fn()] = vi.hoisted(() => [vi.fn()])\n  const { session: { token } } = vi.hoisted(() => ({ session: { token: 'secret' } }))\n  vi.mock('./user', () => ({ getName, getAge, getRole, user, token }))\n}\n      "
+    },
+    {
+      "name": "transform > keeps the import.meta.vitest check for awaited vi.hoisted declarations",
+      "code": "\nif (import.meta.vitest) {\n  const { vi } = import.meta.vitest\n  const { user } = await vi.hoisted(async () => {\n    const { default: user } = await import('./fixtures/user')\n    return { user }\n  })\n  vi.mock('./user', () => ({ getUser: () => user }))\n}\n      "
+    },
+    {
+      "name": "transform > keeps the import.meta.vitest check for vi.hoisted without a declaration",
+      "code": "\nif (import.meta.vitest) {\n  const { vi } = import.meta.vitest\n  vi.hoisted(() => {\n    process.env.API_URL = 'http://localhost'\n  })\n  await vi.hoisted(() => import('./polyfills'))\n}\n      "
+    },
+    {
+      "name": "transform > injects an error if a utility import is imported from an external module",
+      "code": "\nimport { expect, test, vi } from './proxy-module'\nvi.mock('vite')\ntest('hi', () => {\n  expect(1 + 1).toEqual(2)\n})\n      "
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if vi.hoisted is called inside vi.mock",
+      "code": "import { vi } from 'vitest'\n\nvi.mock('./mocked', () => {\n  const variable = vi.hoisted(() => 1)\n  console.log(variable)\n})\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if awaited vi.hoisted is called inside vi.mock",
+      "code": "import { vi } from 'vitest'\n\nvi.mock('./mocked', async () => {\n  await vi.hoisted(() => 1)\n})\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if awaited assigned vi.hoisted is called inside vi.mock",
+      "code": "import { vi } from 'vitest'\n\nvi.mock('./mocked', async () => {\n  const variable = await vi.hoisted(() => 1)\n})\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if vi.mock inside vi.hoisted",
+      "code": "import { vi } from 'vitest'\n\nvi.hoisted(() => {\n  vi.mock('./mocked')\n})\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if vi.mock is called inside assigned vi.hoisted",
+      "code": "import { vi } from 'vitest'\n\nconst values = vi.hoisted(() => {\n  vi.mock('./mocked')\n})\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if vi.mock is called inside awaited vi.hoisted",
+      "code": "import { vi } from 'vitest'\n\nawait vi.hoisted(async () => {\n  vi.mock('./mocked')\n})\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if vi.mock is called inside assigned awaited vi.hoisted",
+      "code": "import { vi } from 'vitest'\n\nconst values = await vi.hoisted(async () => {\n  vi.mock('./mocked')\n})\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if vi.hoisted is exported as a named export",
+      "code": "import { vi } from 'vitest'\n\nexport const values = vi.hoisted(async () => {\n  return {}\n})\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if vi.hoisted is exported as default",
+      "code": "import { vi } from 'vitest'\n\nexport default vi.hoisted(() => {\n  return {}\n})\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if awaited vi.hoisted is exported as named export",
+      "code": "import { vi } from 'vitest'\n\nexport const values = await vi.hoisted(async () => {\n  return {}\n})\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if awaited vi.hoisted is exported as default export",
+      "code": "import { vi } from 'vitest'\n\nexport default await vi.hoisted(async () => {\n  return {}\n})\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if vi.mock is exported as default export",
+      "code": "import { vi } from 'vitest'\n\nexport default vi.mock('./mocked')\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if vi.unmock is exported as default export",
+      "code": "import { vi } from 'vitest'\n\nexport default vi.unmock('./mocked')\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if vi.mock is exported as a named export",
+      "code": "import { vi } from 'vitest'\n\nexport const mocked = vi.mock('./mocked')\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > correctly throws an error if vi.unmock is exported as a named export",
+      "code": "import { vi } from 'vitest'\n\nexport const mocked = vi.unmock('./mocked')\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > shows an error when hoisted methods are used outside the top level scope",
+      "code": "import { test, vi } from \"vitest\";\n// correct\nvi.mock(\"./hello-world-1\");\nif (condition) {\n\tvi.mock(\"./hello-world-2\");\n}\ntest(\"some test\", () => {\n\tvi.mock(\"./hello-world-3\");\n});\ntest(\"some test\", () => {\n\tif (condition) {\n\t\tvi.mock(\"./hello-world-4\");\n\t\tvi.hoisted(() => {});\n\t\tvi.mock(import(\"./hello-world-5\"));\n\t\tconst variable = vi.hoisted(() => {});\n\t}\n});\ndescribe(\"some suite\", () => {\n\tif (condition) {\n\t\tvi.mock(\"./hello-world-6\");\n\t}\n});\n"
+    },
+    {
+      "name": "throws an error when nodes are incompatible > shows an error when hoisted methods are nested inside an import.meta.vitest block",
+      "code": "\nimport { getName } from './name'\n\nexport const greet = () => getName()\n\nif (import.meta.vitest) {\n  const { test, expect, vi } = import.meta.vitest\n  test('greet', () => {\n    vi.mock('./name', () => ({ getName: () => 'mocked' }))\n    expect(greet()).toBe('mocked')\n  })\n}\n      "
+    },
+    {
+      "name": "throws an error when nodes are incompatible > allows hoisted methods on the top level of an import.meta.vitest block",
+      "code": "\nif (import.meta.vitest) {\n  vi.mock('./hello-world-1')\n}\n      "
+    },
+    {
+      "name": "does not transform when hoistable API only appears in comments",
+      "code": "\nimport { lib } from 'lib'\n// vi.mock('lib')\nconsole.log(lib)\n  "
+    },
+    {
+      "name": "does not transform when hoistable API only appears in strings",
+      "code": "\nimport { lib } from 'lib'\nconsole.log(\"vi.mock('lib')\", lib)\n  "
+    }
+  ]
+}
