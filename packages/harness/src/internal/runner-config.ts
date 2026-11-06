@@ -47,6 +47,8 @@ export interface RunnerConfigOptions {
   readonly observeSetupFile?: string
   /** The fixture's `mockCleanup`: only the keys it sets reach the runner's config. */
   readonly mockCleanup?: MockCleanup
+  /** The fixture's `jestEsm`: Jest's transformer also turns `import` into `require`. */
+  readonly jestEsm?: true
 }
 
 /**
@@ -88,7 +90,9 @@ export function vitestMockCleanupOptions(cleanup: MockCleanup | undefined): {
 /** Anything a runner config can hold; JSON-safe by construction. */
 export interface JestConfigFile {
   readonly rootDir: string
-  readonly transform: Readonly<Record<string, string>>
+  readonly transform: Readonly<
+    Record<string, string | readonly [string, { readonly jestEsm: true }]>
+  >
   readonly setupFiles: readonly string[]
   readonly testMatch: readonly string[]
   readonly testPathIgnorePatterns: readonly string[]
@@ -112,7 +116,10 @@ export function jestConfig(
 ): JestConfigFile {
   return {
     rootDir: workDir,
-    transform: { '\\.[cm]?ts$': transformerPath },
+    transform: {
+      '\\.[cm]?ts$':
+        options.jestEsm === true ? [transformerPath, { jestEsm: true }] : transformerPath,
+    },
     setupFiles: setupFilesOf(setupFile, options),
     testMatch: ['<rootDir>/**/*.test.ts'],
     testPathIgnorePatterns: ['/node_modules/', `/${GOLDENS_DIR}/`, '\\.vitest\\.test\\.ts$'],

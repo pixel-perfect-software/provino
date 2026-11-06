@@ -1,0 +1,5 @@
+{
+  "description": "A partial mock built by spreading the actual module: with Jest's requireActual the spread loses the __esModule marker, so the default import no longer reaches the default export; Vitest's importOriginal keeps it.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

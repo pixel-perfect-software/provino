@@ -1,0 +1,5 @@
+{
+  "description": "unmock: a mock call followed by an unmock of the same path leaves the real module (both hoisted, in source order), and a non-hoisted unmock (Jest's dontMock, Vitest's doUnmock) followed by resetModules loads the real module again.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

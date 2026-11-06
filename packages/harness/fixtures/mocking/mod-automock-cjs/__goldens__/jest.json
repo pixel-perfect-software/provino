@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/mod-automock-cjs",
+  "files": [
+    {
+      "file": "mod-automock-cjs.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-automock-cjs.jest.test.ts",
+            "path": [
+              "a CommonJS package: functions become mocks that return undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-automock-cjs.jest.test.ts",
+            "path": [
+              "a CommonJS package: nested methods are mocks and values are kept"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"a CommonJS package: functions become mocks that return undefined\",\"value\":{\"result\":{\"$\":\"undefined\"},\"isMock\":true,\"calls\":[[\"x\"]]}}",
+    "{\"id\":\"a CommonJS package: nested methods are mocks and values are kept\",\"value\":{\"hello\":{\"$\":\"undefined\"},\"helloIsMock\":true,\"level\":1,\"version\":\"1.2.3\",\"keys\":[\"greet\",\"config\",\"VERSION\"]}}"
+  ]
+}

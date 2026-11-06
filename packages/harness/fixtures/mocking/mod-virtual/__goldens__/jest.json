@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/mod-virtual",
+  "files": [
+    {
+      "file": "mod-virtual.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-virtual.jest.test.ts",
+            "path": [
+              "a virtual module at a relative path that is not on disk, loaded lazily"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-virtual.jest.test.ts",
+            "path": [
+              "a virtual module with a bare name, loaded lazily"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"a virtual module at a relative path that is not on disk, loaded lazily\",\"value\":{\"who\":\"virtual-relative\"}}",
+    "{\"id\":\"a virtual module with a bare name, loaded lazily\",\"value\":{\"who\":\"virtual-bare\"}}"
+  ]
+}

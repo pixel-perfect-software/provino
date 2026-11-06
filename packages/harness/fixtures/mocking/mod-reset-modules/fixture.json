@@ -1,0 +1,5 @@
+{
+  "description": "resetModules with a factory mock: the module is still mocked afterwards, and whether the factory runs again and hands out a new instance.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

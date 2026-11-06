@@ -68,6 +68,19 @@ export interface FixtureManifest {
    * in a fixture that lists `jest`.
    */
   readonly mockCleanup?: MockCleanup
+  /**
+   * Packages to install into the work directory's `node_modules/` before the run:
+   * `{ "<name>": { "<relative file>": "<source>" } }`. A name may be scoped (`@scope/name`). Jest
+   * does not transform `node_modules`, so the sources must be plain CommonJS; they live in the
+   * manifest because `node_modules/` is gitignored and no `.js` is committed (D13).
+   */
+  readonly packages?: Readonly<Record<string, Readonly<Record<string, string>>>>
+  /**
+   * `true`: for this fixture only, Jest's transformer also turns `import`/`export` into CommonJS
+   * (`@babel/plugin-transform-modules-commonjs`), so a `*.jest.test.ts` can use `import`. Absent
+   * means off, and Jest's output is unchanged.
+   */
+  readonly jestEsm?: true
 }
 
 /**
@@ -110,6 +123,8 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
   'env',
   'expectCrash',
   'mockCleanup',
+  'packages',
+  'jestEsm',
 ])
 
 function isFixtureProfile(value: unknown): value is FixtureProfile {
@@ -143,12 +158,12 @@ export function parseFixtureManifest(
     if (!KNOWN_KEYS.has(key)) {
       throw new HarnessError(
         'HARNESS_FIXTURE_UNKNOWN_KEY',
-        `${source}: unknown key "${key}" (expected description, runners, env, expectCrash, mockCleanup)`,
+        `${source}: unknown key "${key}" (expected description, runners, env, expectCrash, mockCleanup, packages, jestEsm)`,
         { path: source },
       )
     }
   }
-  const { description, runners, env, expectCrash, mockCleanup } = value
+  const { description, runners, env, expectCrash, mockCleanup, packages, jestEsm } = value
   if (typeof description !== 'string' || description.trim() === '') {
     throw new HarnessError(
       'HARNESS_FIXTURE_BAD_DESCRIPTION',
@@ -180,7 +195,79 @@ export function parseFixtureManifest(
     ...(mockCleanup === undefined
       ? {}
       : { mockCleanup: parseMockCleanup(mockCleanup, runners, source) }),
+    ...(packages === undefined ? {} : { packages: parsePackages(packages, source) }),
+    ...(jestEsm === undefined ? {} : { jestEsm: parseJestEsm(jestEsm, runners, source) }),
   }
+}
+
+/** `jestEsm` is `true` or absent, and only means something for a fixture that runs Jest. */
+function parseJestEsm(jestEsm: unknown, runners: readonly FixtureProfile[], source: string): true {
+  if (jestEsm !== true) {
+    throw new HarnessError(
+      'HARNESS_FIXTURE_BAD_JEST_ESM',
+      `${source}: "jestEsm" must be true (leave it out for off)`,
+      { path: source },
+    )
+  }
+  if (!runners.includes('jest')) {
+    throw new HarnessError(
+      'HARNESS_FIXTURE_BAD_JEST_ESM',
+      `${source}: "jestEsm" is set but "runners" does not list "jest"`,
+      { path: source },
+    )
+  }
+  return true
+}
+
+/** A package name as npm spells it: `name` or `@scope/name`, lowercase, no path tricks. */
+const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/
+
+/** Whether a relative POSIX path stays inside its directory: no `..`, no root, no backslash. */
+function staysInside(file: string): boolean {
+  if (file === '' || file.includes('\\') || file.includes('\0') || file.startsWith('/'))
+    return false
+  const normalized = path.posix.normalize(file)
+  return (
+    normalized !== '.' &&
+    normalized !== '..' &&
+    !normalized.startsWith('../') &&
+    !file.split('/').includes('..')
+  )
+}
+
+/**
+ * `packages` is a non-empty object from package names to non-empty objects from relative file
+ * paths to source text. A name or a file that would leave its directory is refused.
+ */
+function parsePackages(packages: unknown, source: string): Record<string, Record<string, string>> {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_PACKAGES', `${source}: "packages" ${reason}`, {
+      path: source,
+    })
+  if (!isRecord(packages) || Object.keys(packages).length === 0) {
+    throw bad('must be a non-empty object from a package name to its files')
+  }
+  const out: Record<string, Record<string, string>> = {}
+  for (const [name, files] of Object.entries(packages)) {
+    if (!PACKAGE_NAME.test(name)) {
+      throw bad(`names "${name}", which is not a package name (\`name\` or \`@scope/name\`)`)
+    }
+    if (!isRecord(files) || Object.keys(files).length === 0) {
+      throw bad(`must give "${name}" a non-empty object from a relative file to its source`)
+    }
+    const installed: Record<string, string> = {}
+    for (const [file, text] of Object.entries(files)) {
+      if (!staysInside(file)) {
+        throw bad(`gives "${name}" the file "${file}", which is not a relative path inside it`)
+      }
+      if (typeof text !== 'string') {
+        throw bad(`must give "${name}/${file}" its source as a string`)
+      }
+      installed[file] = text
+    }
+    out[name] = installed
+  }
+  return out
 }
 
 /**

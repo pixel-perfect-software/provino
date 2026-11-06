@@ -1,0 +1,15 @@
+{
+  "description": "A root __mocks__ file for an installed package, plain and scoped, with no mock call: Jest applies it on its own, Vitest imports the real package.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true,
+  "packages": {
+    "plain-pkg": {
+      "package.json": "{ \"name\": \"plain-pkg\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.who = 'real-plain'\n"
+    },
+    "@scope/scoped-pkg": {
+      "package.json": "{ \"name\": \"@scope/scoped-pkg\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.who = 'real-scoped'\n"
+    }
+  }
+}

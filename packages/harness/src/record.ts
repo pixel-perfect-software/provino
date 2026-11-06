@@ -129,6 +129,34 @@ interface Recording {
   readonly trace: readonly string[]
 }
 
+/**
+ * Writes the fixture's `packages` into `<workDir>/node_modules/<name>/`. Each file is checked to
+ * stay inside its package directory again here, so a manifest built by hand cannot escape.
+ */
+export async function installPackages(fixture: Fixture, workDir: string): Promise<void> {
+  const modules = path.join(workDir, 'node_modules')
+  for (const [name, files] of Object.entries(fixture.manifest.packages ?? {})) {
+    const root = path.join(modules, name)
+    for (const [file, source] of Object.entries(files)) {
+      const target = path.join(root, file)
+      const relative = path.relative(root, target)
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        throw new HarnessError(
+          'HARNESS_FIXTURE_BAD_PACKAGES',
+          `${fixture.id}: package file "${name}/${file}" is outside its directory`,
+          { path: fixture.dir },
+        )
+      }
+      await mkdir(path.dirname(target), { recursive: true })
+      await writeFile(target, source)
+    }
+  }
+}
+
+function jestEsmOption(fixture: Fixture): { jestEsm?: true } {
+  return fixture.manifest.jestEsm === true ? { jestEsm: true } : {}
+}
+
 function mockCleanupOption(fixture: Fixture): { mockCleanup?: MockCleanup } {
   const { mockCleanup } = fixture.manifest
   return mockCleanup === undefined ? {} : { mockCleanup }
@@ -150,7 +178,11 @@ async function runUnderRunner(
   await writeFile(setupFile, traceSetupSource())
   const observeSetupFile = path.join(outDir, 'observe-setup.ts')
   await copyFile(OBSERVE_SETUP_PATH, observeSetupFile)
-  const configOptions = { observeSetupFile, ...mockCleanupOption(fixture) }
+  const configOptions = {
+    observeSetupFile,
+    ...mockCleanupOption(fixture),
+    ...jestEsmOption(fixture),
+  }
 
   let args: string[]
   if (runner === 'jest') {
@@ -271,6 +303,7 @@ export async function recordRead(
   let text: string
   try {
     await copyFixture(fixture, workDir)
+    await installPackages(fixture, workDir)
     const paths = await recordPaths(workDir)
     const { run, trace } = await runUnderRunner(fixture, profile, paths)
     text = serializeGolden(toGolden(run, { profile, trace }))

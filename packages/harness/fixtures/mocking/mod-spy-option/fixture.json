@@ -1,0 +1,4 @@
+{
+  "description": "vi.mock(path, { spy: true }) (Vitest only): an automock that calls through to the real implementation while recording calls; getters stay real.",
+  "runners": ["vitest"]
+}

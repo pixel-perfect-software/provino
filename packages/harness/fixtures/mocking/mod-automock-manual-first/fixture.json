@@ -1,0 +1,15 @@
+{
+  "description": "mock(path) with no factory prefers a __mocks__ file over automock, for a plain and a scoped package; the installed packages are never called.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true,
+  "packages": {
+    "manual-pkg": {
+      "package.json": "{ \"name\": \"manual-pkg\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.who = function who() { return 'real-plain' }\n"
+    },
+    "@scope/manual-scoped": {
+      "package.json": "{ \"name\": \"@scope/manual-scoped\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.who = function who() { return 'real-scoped' }\n"
+    }
+  }
+}

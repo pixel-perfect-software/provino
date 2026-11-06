@@ -1,0 +1,4 @@
+{
+  "description": "The mock-heavy shape: jest.mock above require (and below it, which Jest hoists above it), and a support file whose own jest.mock hoists above its require; the helper's mock applies to the test file too.",
+  "runners": ["jest"]
+}

@@ -1,0 +1,4 @@
+{
+  "description": "vi.mock(import('./p')) (Vitest only): a dynamic import expression as the path, with a factory that spreads the original module.",
+  "runners": ["vitest"]
+}

@@ -199,3 +199,11 @@ test('runnerEnv lets a fixture override its own variables, last', () => {
   assert.equal(env.TZ, 'Asia/Tokyo')
   assert.equal(env.EXTRA, '1')
 })
+
+test('jestEsm gives the transformer its config; without it the transform is the bare path', () => {
+  const on = jestConfig('/work/x', '/t.ts', '/s.ts', { jestEsm: true })
+  assert.deepEqual(on.transform, { '\\.[cm]?ts$': ['/t.ts', { jestEsm: true }] })
+  assert.deepEqual(jestConfig('/work/x', '/t.ts', '/s.ts', {}).transform, {
+    '\\.[cm]?ts$': '/t.ts',
+  })
+})
