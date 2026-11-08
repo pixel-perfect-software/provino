@@ -135,7 +135,7 @@ export function jestGlobals(host: JestGlobalsHost): JestGlobals {
       // Jest 30.5.2, packages/jest-runtime/src/internals/ModuleRegistries.ts L125-L134
       // (`enterIsolated`, reached from `Runtime.isolateModules` and `isolateModulesAsync`,
       // src/index.ts L627-L643): copied exactly, a plain `Error` with no `code`, as Jest throws it.
-      // unverified: read from source, not recorded (B14)
+      // Recorded: `policy/jest-object-returns` (the nested call's text).
       throw new Error(`${caller} cannot be nested inside another ${caller} or ${other}.`)
     }
     isolating.add(registry)
@@ -150,14 +150,14 @@ export function jestGlobals(host: JestGlobalsHost): JestGlobals {
       } finally {
         isolating.delete(registry)
       }
-      // unverified: jest-runtime 30.5.2 `JestGlobals.ts` L267-L270 returns `jestObject`; read from source, not recorded
+      // jest-runtime 30.5.2 `JestGlobals.ts` L267-L270 returns `jestObject` (recorded: `policy/jest-object-returns`)
       return jest
     },
     async isolateModulesAsync(fn) {
       const registry = host.registry()
       enterIsolation(registry, 'isolateModulesAsync')
       try {
-        // unverified: jest-runtime 30.5.2 `JestGlobals.ts` L271 hands back the runtime's `Promise<void>`; read from source, not recorded
+        // jest-runtime 30.5.2 `JestGlobals.ts` L271 hands back the runtime's `Promise<void>` (recorded: `policy/jest-object-returns`)
         await registry.isolateModulesAsync(fn)
       } finally {
         isolating.delete(registry)
@@ -165,7 +165,7 @@ export function jestGlobals(host: JestGlobalsHost): JestGlobals {
     },
     resetModules() {
       host.registry().resetModules()
-      // unverified: jest-runtime 30.5.2 `JestGlobals.ts` L263-L266 returns `jestObject`; read from source, not recorded
+      // jest-runtime 30.5.2 `JestGlobals.ts` L263-L266 returns `jestObject` (recorded: `policy/jest-object-returns`)
       return jest
     },
     fn<T extends MockTarget = UnknownFunction>(impl?: T): Mock<T> {

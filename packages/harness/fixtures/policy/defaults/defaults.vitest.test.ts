@@ -18,6 +18,9 @@ test('vitest/config 5.0.5 defaults', async () => {
   await observe('mock.between.unstubGlobals', () => configDefaults.unstubGlobals)
   await observe('module.injectCjsGlobals', () => defaults.injectCjsGlobals)
   await observe('timers.loopLimit', () => configDefaults.fakeTimers.loopLimit)
+  // No `snapshotSerializers` and no `expandSnapshotDiff` in the defaults: none, and off.
+  await observe('snapshot.serializers', () => defaults.snapshotSerializers ?? [])
+  await observe('expect.expand', () => defaults.expandSnapshotDiff ?? false)
   await observe('orchestrator.include', () => configDefaults.include)
   await observe('orchestrator.exclude', () => configDefaults.exclude)
   await observe('orchestrator.coverageProvider', () => coverageConfigDefaults.provider)

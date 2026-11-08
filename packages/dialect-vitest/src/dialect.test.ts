@@ -27,6 +27,19 @@ test('the dialect is Vitest 5.0, with the policy, hoisting and type entries this
   assert.deepEqual(vitestDialect.typeEntries, ['@provino/dialect-vitest/runtime'])
 })
 
+// The values that are Provino's own (T1.7 claims them as `own`): isolation is D6's tier for Jest,
+// taken for Vitest too (it isolates each file's module graph, as `registry` does); the hoisting
+// rules' `id` only names them for the transform cache; `pretty-format` is the one formatter the
+// type allows.
+test('the values that are Provino`s own: the isolation tier, the hoisting id, the formatter', () => {
+  assert.deepEqual(resolved.orchestrator.isolationDefault, {
+    default: 'registry',
+    byEnvironment: { jsdom: 'realm', 'happy-dom': 'realm' },
+  })
+  assert.equal(vitestHoistPolicy.id, 'vitest-5.0')
+  assert.equal(resolved.expect.valueFormatter, 'pretty-format')
+})
+
 test('the mock and module slices are whole, so none of their keys is left at the neutral value', () => {
   assert.deepEqual(Object.keys(vitestMockPolicy).sort(), Object.keys(neutralPolicy.mock).sort())
   assert.deepEqual(Object.keys(vitestModulePolicy).sort(), Object.keys(neutralPolicy.module).sort())

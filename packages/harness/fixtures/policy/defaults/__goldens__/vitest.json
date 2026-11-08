@@ -55,6 +55,8 @@
     "{\"id\":\"mock.between.unstubGlobals\",\"value\":false}",
     "{\"id\":\"module.injectCjsGlobals\",\"value\":true}",
     "{\"id\":\"timers.loopLimit\",\"value\":10000}",
+    "{\"id\":\"snapshot.serializers\",\"value\":[]}",
+    "{\"id\":\"expect.expand\",\"value\":false}",
     "{\"id\":\"orchestrator.include\",\"value\":[\"**/*.{test,spec}.?(c|m)[jt]s?(x)\"]}",
     "{\"id\":\"orchestrator.exclude\",\"value\":[\"**/node_modules/**\",\"**/.git/**\"]}",
     "{\"id\":\"orchestrator.coverageProvider\",\"value\":\"v8\"}",

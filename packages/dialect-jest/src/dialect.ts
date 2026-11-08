@@ -1,20 +1,19 @@
 // The Jest 30.5 dialect value (T1.8's Jest half). Policy values only: no config reader, flags or
-// facades yet (T11.x, B14/B17). Every value below is copied from the research and marked
-// `unverified` until B14's T1.7 checks it against a fixture recorded from the real Jest 30.5
-// (CLAUDE.md non-negotiable 2). A comment of the form "runtime corpus X agrees" is a verified
-// claim: it moved here with the `core` values from the harness's runtime-corpus profiles, and
-// `pnpm test --filter @provino/harness` checks it on every run.
+// facades yet (T11.x, B14/B17). Every value matches Jest 30.5.2, and the evidence for each is in
+// `@provino/harness`'s `src/policy-truth/claims/` (T1.7, CLAUDE.md non-negotiable 2): a golden
+// recorded from the real Jest, a corpus check a flipped value fails, our own key with its test, or
+// a `pending` entry naming its owner. `policy-truth.test.ts` fails when a value and its evidence
+// disagree. A `research:` comment says where a value first came from; "corpus X agrees" names one
+// of the corpus fixtures the claim lists.
 //
 // Keys left out, so the neutral value stands. Setting one would be inventing a Jest value.
 //
-// - No value in the research (B03's key-merge record):
-//   core.doneDeprecatedMessage, timers.notFaked, timers.setSystemTimeWithoutFakes,
-//   timers.facadeReturns.
-//   (`module.missingFactoryExport` and `module.messages` were here; B13b sets them from the
-//   Jest 30.5 sources, and the mod corpus agrees.)
-// - Track 1 gives a value that does not map onto the key:
-//   timers.fakeTemporal ("via sinon 15.4", a condition on the version of @sinonjs/fake-timers,
-//   not true or false; B14 confirms it).
+// - Recorded equal to the neutral value: timers.facadeReturns (`policy/timers`: `facade`).
+//   (`timers.notFaked` and `setSystemTimeWithoutFakes` were here; B14a recorded Jest's and sets
+//   them. `module.missingFactoryExport` and `module.messages` were too; B13b sets them.)
+// - Not recorded yet, so the neutral value stands until its owner does: core.doneDeprecatedMessage
+//   (T5.7, B17a), timers.fakeTemporal ("via sinon 15.4": T4.9, B17a records it where the Node
+//   running the fixture has a Temporal).
 // - A behaviour whose Jest implementation is not built yet, so the key stays the neutral one:
 //   core.formatEachTitle (jest-each's titles, T5.4), orchestrator.environmentConditions (the
 //   environment's own `exportConditions()`, T8.7).
@@ -37,148 +36,152 @@ import { jestMockPolicy } from './mock-policy.ts'
  */
 export const jestPolicy: PolicyOverrides = {
   core: {
-    // unverified: track-05 L313 (runtime corpus `hook-order` agrees)
+    // research: track-05 L313 (runtime corpus `hook-order` agrees)
     hookOrder: {
       beforeAll: 'declaration',
       beforeEach: 'declaration',
       afterEach: 'declaration',
       afterAll: 'declaration',
     },
-    // unverified: track-05 L315 (runtime corpus `concurrent-grouping` agrees)
+    // research: track-05 L315 (runtime corpus `concurrent-grouping` agrees)
     eachHooksForConcurrent: false,
-    // unverified: track-05 L316
+    // research: track-05 L316
     firstArg: 'done-if-arity',
-    // unverified: track-01 L183
+    // research: track-01 L183
     allowGeneratorFns: true,
-    // unverified: track-05 L315, L318 (runtime corpus `timeouts` agrees on catchSyncOverrun)
-    // unverified: jest-circus 30.5 `test.timeout || testTimeout` (B07 review) for `zero`
+    // research: track-05 L315, L318 (runtime corpus `timeouts` agrees on catchSyncOverrun)
+    // research: jest-circus 30.5 `test.timeout || testTimeout` (B07 review) for `zero`
     timeouts: { test: 5000, hook: 5000, teardown: 5000, catchSyncOverrun: false, zero: 'default' },
-    // unverified: track-05 L321
+    // research: track-05 L321
     nameSeparator: ' ',
-    // unverified: track-01 L186
+    // research: track-01 L186
     testNamePatternFlags: 'i',
-    // unverified: track-05 L312 (runtime corpus `collection-missing-fn` agrees)
+    // research: track-05 L312 (runtime corpus `collection-missing-fn` agrees)
     missingTestFn: 'throw',
-    // unverified: track-05 L311 (runtime corpus `collection-async-describe` agrees)
+    // research: track-05 L311 (runtime corpus `collection-async-describe` agrees)
     asyncDescribe: 'throw',
-    // unverified: track-01 L189
+    // research: track-01 L189
     nonPromiseReturn: 'fail',
-    // unverified: track-01 L191 (`none`)
+    // research: track-01 L191 (`none`)
     eachTitleTruncate: null,
-    // unverified: track-05 L319
+    // research: track-05 L319
     retry: { timing: 'deferred', logErrorsBeforeRetry: false, keepEarlierErrors: false },
-    // unverified: track-01 L193
+    // research: track-01 L193
     allowOnly: 'always',
-    // unverified: track-05 L317
+    // research: track-05 L317
     maxConcurrency: 5,
-    // unverified: track-07 L462
+    // research: track-07 L462
     unawaitedAsyncAssertion: 'ignore',
-    // unverified: track-05 L314 (runtime corpus `hook-teardowns` agrees)
+    // research: track-05 L314 (runtime corpus `hook-teardowns` agrees)
     hookReturnsCleanup: false,
-    // unverified: track-11 L521
+    // research: track-11 L521
     injectGlobals: true,
     // jest-runner runs `setupFiles` before jest-circus installs its globals; `jest` is each
     // module's own (`policy/core-globals-at-setup`).
     globalsBeforeSetupFiles: ['jest'],
     collect: {
-      // unverified: track-05 L311 (runtime corpus `describe-body` agrees)
+      // research: track-05 L311 (runtime corpus `describe-body` agrees)
       describeBody: 'immediate',
-      // unverified: track-05 Findings L46 (runtime corpus `collection-describe-return-value` agrees)
+      // research: track-05 Findings L46 (runtime corpus `collection-describe-return-value` agrees)
       describeReturnValue: 'error',
-      // unverified: track-05 L312 (runtime corpus `collection-test-after-start` agrees)
+      // research: track-05 L312 (runtime corpus `collection-test-after-start` agrees)
       lateRegistration: 'fail-file',
-      // unverified: track-05 L312 (runtime corpus `collection-describe-hooks-only` agrees)
+      // research: track-05 L312 (runtime corpus `collection-describe-hooks-only` agrees)
       emptyDescribe: 'fail-file-if-hooks',
-      // unverified: track-05 L47 (runtime corpus `collection-nested-test` agrees)
+      // research: track-05 L47 (runtime corpus `collection-nested-test` agrees)
       nestedInTest: 'fail-test',
-      // unverified: track-05 L57 (runtime corpus `collection-todo-with-fn` agrees)
+      // research: track-05 L57 (runtime corpus `collection-todo-with-fn` agrees)
       todoWithFn: 'throw',
-      // unverified: jest-each 30.5 registers one failing test for a bad table (B07 review)
+      // research: jest-each 30.5 registers one failing test for a bad table (B07 review)
       eachTableError: 'failing-test',
     },
     hooks: {
-      // unverified: track-05 L314 (runtime corpus `hook-failures` agrees)
+      // research: track-05 L314 (runtime corpus `hook-failures` agrees)
       afterError: 'continue',
-      // unverified: track-05 L314 (runtime corpus `hook-failures` agrees)
+      // research: track-05 L314 (runtime corpus `hook-failures` agrees)
       beforeAllError: 'attach-to-tests',
-      // unverified: track-12 L528 (runtime corpus `hook-failures` agrees)
+      // research: track-12 L528 (runtime corpus `hook-failures` agrees)
       nestedHooksAfterBeforeAllError: 'run',
-      // unverified: track-05 L314 (runtime corpus `hook-failures-after-all` agrees)
+      // research: track-05 L314 (runtime corpus `hook-failures-after-all` agrees)
       afterAllError: 'unhandled',
-      // unverified: not in the research; Jest gives hooks their own timeout
+      // research: not in the research; Jest gives hooks their own timeout
       timeoutCountsTestTimeout: false,
-      // unverified: track-12 L528
+      // research: track-12 L528
       skippedBlock: 'run-before-all',
     },
     concurrency: {
-      // unverified: track-05 L317 (runtime corpus `concurrent-grouping` agrees)
+      // research: track-05 L317 (runtime corpus `concurrent-grouping` agrees)
       grouping: 'hoist-to-first',
-      // unverified: track-05 L317
+      // research: track-05 L317
       limitHooks: false,
     },
-    // unverified: track-05 L320
+    // research: track-05 L320
     errors: { lateErrors: 'fail-owner', hasAssertionsWhenFailed: 'skip' },
-    // unverified: track-12 L528
+    // research: track-12 L528
     focus: { scope: 'file', insideSkip: 'runs' },
-    // unverified: track-12 L528; expectFail from jest-circus 30.5 `_callCircusTest` (B07 review)
+    // research: track-12 L528; expectFail from jest-circus 30.5 `_callCircusTest` (B07 review)
     status: { todoUnderSkip: 'skipped', expectFail: 'body' },
-    // unverified: jest-circus 30.5 takes the caller frame (B07 review)
+    // research: jest-circus 30.5 takes the caller frame (B07 review)
     locationFrame: 'caller',
   },
   lazy: {
-    // unverified: track-01 L197
+    // research: track-01 L197
     readInBeforeAll: 'error',
   },
   mock: jestMockPolicy,
   timers: {
-    // unverified: track-01 L202, track-04 L348 (`excludeFromDefaultToFake: []`)
+    // research: track-01 L202, track-04 L348 (`excludeFromDefaultToFake: []`)
     toFakeDefault: 'all',
-    // unverified: track-01 L203, track-04 L349
+    // research: track-01 L203, track-04 L349
     loopLimit: 100000,
-    // unverified: track-01 L205
+    // research: track-01 L205
     legacyAvailable: true,
-    // unverified: track-01 L206
+    // research: track-01 L206
     enableGlobally: false,
-    // unverified: track-04 L350
+    // research: track-04 L350
     optionNames: 'do-not-fake',
-    // unverified: track-04 L353
+    // research: track-04 L353
     advanceToNextTimerHonorsSteps: true,
+    // Without fake timers an advance call and setSystemTime warn and do nothing
+    // (`policy/timers`); the neutral value throws.
+    notFaked: 'warn',
+    setSystemTimeWithoutFakes: 'warn-noop',
   },
   module: {
-    // unverified: track-01 L207, track-04 L308 (a factory returns `module.exports`)
+    // research: track-01 L207, track-04 L308 (a factory returns `module.exports`)
     factoryShape: 'module-value',
-    // unverified: track-02 L453, track-04 L311
+    // research: track-02 L453, track-04 L311
     rootMocksAutoApply: true,
-    // unverified: track-01 L209
+    // research: track-01 L209
     automock: false,
-    // unverified: track-01 L210
+    // research: track-01 L210
     actual: 'sync-require',
-    // unverified: track-01 L213
+    // research: track-01 L213
     resetModulesBetween: false,
-    // unverified: track-01 L214
+    // research: track-01 L214
     injectCjsGlobals: true,
-    // unverified: track-02 L452
+    // research: track-02 L452
     interopDefault: 'babel',
-    // unverified: track-02 L454
+    // research: track-02 L454
     resetModulesClearsMocks: false,
-    // unverified: track-04 L309
+    // research: track-04 L309
     awaitFactory: false,
-    // unverified: track-04 L313
+    // research: track-04 L313
     requireVirtualFlag: true,
-    // unverified: track-04 L313 (mod corpus agrees: `mod-virtual-static`)
+    // research: track-04 L313 (mod corpus agrees: `mod-virtual-static`)
     virtualRelative: true,
     // Recorded, Jest 30.5.2: `mod-reregister` (a second `doMock` after a load leaves the next load on
     // the first factory's value) and `mod-reset-modules` (`resetModules()` runs the factory again).
     // The value lives in `ModuleRegistries.mockRegistry`.
     mockValueOwner: 'module-registry',
-    // unverified: track-04 L314
+    // research: track-04 L314
     automockShape: 'metadata',
-    // unverified: track-04 L316
+    // research: track-04 L316
     unmockedPathPatterns: [],
-    // unverified: track-04 L310 (mod corpus agrees: `mod-factory-shape`, reading `b` gives `undefined`)
+    // research: track-04 L310 (mod corpus agrees: `mod-factory-shape`, reading `b` gives `undefined`)
     missingFactoryExport: 'undefined',
     // The registry's error texts, copied from the Jest 30.5 sources under `.refs/jest`.
-    // unverified: track-04 L310 (mod corpus agrees)
+    // research: track-04 L310 (mod corpus agrees)
     messages: {
       // jest-resolve `resolver.ts` L523 (`_throwModNotFoundError`), then the hint jest-runtime adds
       // in `internals/MockState.ts` L377 (`getModuleIdForMockRegistration`). `{from}` is the
@@ -196,90 +199,91 @@ export const jestPolicy: PolicyOverrides = {
     },
   },
   snapshot: {
-    // unverified: track-01 L215, track-07 L468, track-11 L520
+    // research: track-01 L215, track-07 L468, track-11 L520
     header: '// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing',
-    // unverified: track-07 L469
+    // research: track-07 L469
     keyJoin: ' ',
-    // unverified: track-07 L469
+    // research: track-07 L469
     hintJoin: ': ',
-    // unverified: track-01 L217
+    // research: track-01 L217
     dirName: '__snapshots__',
-    // unverified: track-01 L217
+    // research: track-01 L217
     extension: '.snap',
-    // unverified: track-01 L218, track-07 L474 (no `maxOutputLength`: unlimited)
+    // research: track-01 L218, track-07 L474 (no `maxOutputLength`: unlimited)
     format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null },
-    // unverified: track-07 L472 (track-01 L220 says `report` for both; Track 7's detail is used)
+    // research: track-07 L472 (track-01 L220 says `report` for both; Track 7's detail is used)
     obsolete: { failLocal: true, failCI: true },
-    // unverified: track-01 L220, track-07 L473
+    // research: track-01 L220, track-07 L473
     ciUpdate: 'none',
-    // unverified: track-07 L473 (only Vitest has `UPDATE_SNAPSHOT`)
+    // research: track-07 L473 (only Vitest has `UPDATE_SNAPSHOT`)
     updateEnvVar: null,
-    // unverified: track-07 L470
+    // research: track-07 L470
     throwErrorBody: 'message',
-    // unverified: track-07 L471
+    // research: track-07 L471
     inline: { indent: 'column0', formatter: 'prettier' },
   },
   expect: jestExpectPolicy,
   orchestrator: {
-    // unverified: track-11 L68 (`testMatch` default; Track 1 L224 says `__tests__` plus `.test`/`.spec`)
+    // research: track-11 L68 (`testMatch` default; Track 1 L224 says `__tests__` plus `.test`/`.spec`)
     include: ['**/__tests__/**/*.?([mc])[jt]s?(x)', '**/?(*.)+(spec|test).?([mc])[jt]s?(x)'],
-    // unverified: track-11 L68 (`testPathIgnorePatterns` default `['/node_modules/']`, a regular expression there and the same path as a glob here)
+    // research: track-11 L68 (`testPathIgnorePatterns` default `['/node_modules/']`, a regular expression there and the same path as a glob here)
     exclude: ['**/node_modules/**'],
-    // unverified: track-09 L557
+    // research: track-09 L557
     bail: { checkAfter: 'file' },
-    // unverified: track-01 L226, track-09 L561
+    // research: track-01 L226, track-09 L561
     watchDefault: 'never',
-    // unverified: track-09 L560 (`all` with `--watchAll`)
+    // research: track-09 L560 (`all` with `--watchAll`)
     watch: { initialRun: 'changed' },
-    // unverified: track-01 L227
+    // research: track-01 L227
     passWithNoTests: false,
-    // unverified: track-01 L228, track-09 L563
+    // research: track-01 L228, track-09 L563
     exitCodes: { failure: 1, noTests: 1, unhandled: 1 },
-    // unverified: track-01 L229
+    // research: track-01 L229
     unhandledErrors: 'fail-run',
-    // unverified: track-01 L230, track-08 L516
+    // research: track-01 L230, track-08 L516
     coverageProvider: 'istanbul',
-    // unverified: track-01 L230, track-08 L519
+    // research: track-01 L230, track-08 L519
     coverageReporters: ['json', 'text', 'lcov', 'clover'],
-    // unverified: track-01 L231
+    // research: track-01 L231
     slowTestThresholdMs: 5000,
     // `registry` is DECISIONS D6 (Track 1 L232 and Track 2 L455 said `realm`); an own key of ours,
     // so it needs a test, not ground truth. `byEnvironment` is left to the neutral value
     // (jsdom and happy-dom on `realm`): D6 sets the default only.
     isolationDefault: { default: 'registry' },
-    // unverified: track-01 L232
+    // research: track-01 L232
     envDefault: 'node',
-    // unverified: track-08 L515
+    // research: track-08 L515
     environmentPragmas: ['jest-environment'],
-    // unverified: track-09 L555 (`threads` with `workerThreads`)
+    // research: track-09 L555 (`threads` with `workerThreads`)
     pool: { default: 'forks' },
-    // unverified: track-09 L556 (Jest's "20 fast files" rule)
+    // research: track-09 L556 (Jest's "20 fast files" rule)
     runInBand: { auto: true },
-    // unverified: track-09 L558
+    // research: track-09 L558
     shard: { fallback: 'sha1-slice' },
-    // unverified: track-09 L559
+    // research: track-09 L559
     sequence: { unknownFirst: true },
-    // unverified: track-09 L564
+    // research: track-09 L564
     globalSetup: { signature: 'global-and-project-config' },
   },
   report: {
-    // unverified: track-01 L233
+    // research: track-01 L233
     displaySeparator: ' › ',
-    // unverified: track-01 L234, track-09 L562
+    // research: track-01 L234, track-09 L562
     defaultReporters: ['default'],
-    // unverified: track-01 L234
-    failureTitleBullet: ' ●  ',
-    // unverified: track-11 L522
+    // research: track-01 L234
+    // Two spaces, the bullet, one space (`policy/report-default`; Track 1 had ' ●  ').
+    failureTitleBullet: '  ● ',
+    // research: track-11 L522
     resultStatusSkipped: 'pending',
   },
   coverage: {
-    // unverified: track-08 L517
+    // research: track-08 L517
     thresholdGrouping: 'first-match',
-    // unverified: track-08 L518
+    // research: track-08 L518
     globThresholdScope: 'per-file',
-    // unverified: track-08 L521 (when `collectCoverageFrom` is set)
+    // research: track-08 L521 (when `collectCoverageFrom` is set)
     includeUntestedByDefault: true,
-    // unverified: track-08 L520
+    // research: track-08 L520
     reportsDirectory: 'coverage',
   },
 }
@@ -288,7 +292,7 @@ export const jestPolicy: PolicyOverrides = {
  * The globals Jest 30.5 injects into a test file: jest-circus's (`describe`, `it`, `test`, the
  * hooks, their `f`/`x` aliases), `expect`, and the `jest` object. `jestGlobals` returns exactly
  * these keys.
- * unverified: jest-circus 30.5.2 `jestAdapterInit` (`globalsObject`), read from source, not recorded
+ * research: jest-circus 30.5.2 `jestAdapterInit` (`globalsObject`), read from source, not recorded
  */
 const JEST_GLOBAL_NAMES: readonly string[] = [
   'afterAll',

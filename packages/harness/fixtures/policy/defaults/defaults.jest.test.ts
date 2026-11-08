@@ -36,6 +36,7 @@ test('jest-config 30.5.2 defaults, normalized', async () => {
   // No `maxOutputLength` key: unlimited.
   await observe('snapshot.format.maxOutputLength', () => format.maxOutputLength ?? null)
   await observe('expect.expand', () => globalConfig.expand)
+  await observe('snapshot.serializers', () => projectConfig.snapshotSerializers)
   await observe('orchestrator.include', () => projectConfig.testMatch)
   // `testPathIgnorePatterns` are regular expressions on the path; the policy holds globs, and
   // `/node_modules/` is the glob `**/node_modules/**`.
