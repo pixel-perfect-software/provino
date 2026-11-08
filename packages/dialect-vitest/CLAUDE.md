@@ -1,0 +1,25 @@
+# @provino/dialect-vitest
+
+The Vitest 5.0 dialect (B14a: T1.8's Vitest half, T11.1, T11.2). Policy values, the names of the globals Vitest injects with `globals: true`, the hoisting rules and the type entries. The config reader, the CLI flags and the `vitest` facade are T11.15 and T11.16 (Phase 2); until then `provino` doesn't list this dialect among its built-ins, so no run reaches the stubs. Follow `.claude/rules/dialects.md`.
+
+## Layout
+
+| Path | Entry | Role |
+|---|---|---|
+| `src/dialect.ts` | `.` | `vitestPolicy` (a `PolicyOverrides` with Vitest's `sequence.hooks: 'stack'` default), `vitestDialect` (`name`, `version: '5.0'`, `policy`, `globals` with the 19 names of Vitest's `globalApis` and a factory ref to `/runtime`'s `vitestGlobals`, `loader.hoist`, `typeEntries: ['@provino/dialect-vitest/runtime']`), and the `DialectRegistry` augmentation (`vitest: VitestDialectOptions`, `Record<string, never>` until the config reader). |
+| `src/mock-policy.ts` | `.` | `vitestMockPolicy` and `vitestModulePolicy`, moved here from the harness's mock corpus (B13a, B13b recorded them). |
+| `src/hoist-policy.ts` | `.` | `vitestHoistPolicy`: `@vitest/mocker` 5.0.5's hoisting rules, moved from the harness (B13b). |
+| `src/runtime/index.ts` | `./runtime` | `vitestGlobals`, a stub that throws `VitestDialectError` `VITEST_DIALECT_NOT_BUILT`. |
+| `src/node/index.ts` | `./node` | `vitestNodeDialect`: the dialect value itself, until the config reader and flags exist. |
+
+## Where the values come from
+
+Every value matches Vitest 5.0.5, and its evidence is in `@provino/harness`'s `src/policy-truth/claims/` (T1.7): a golden recorded from the real Vitest, a corpus check a flipped value fails, our own key with its test (`isolationDefault`, the hoisting `id`, `valueFormatter`: `dialect.test.ts` pins them), a value nothing reads, or `pending` with its owner. `policy-truth.test.ts` there fails when a value and its evidence disagree. A recording overruled the research once: `core.errors.hasAssertionsWhenFailed` is `skip` (Vitest checks `expect.hasAssertions` only on a test that passed, `policy/core-outcomes`).
+
+`vitest-list` (`sequence.hooks: 'list'`) is a project config, not a dialect: the harness's corpus profiles layer it over `vitestPolicy`.
+
+## Tests
+
+- `dialect.test.ts`: the value, a few divergences from neutral, every ref absolute (D21), the globals' factory loading and throwing its code, the own keys.
+- `defaults.test.ts` (T11.2): the values `vitest/config` 5.0.5 has a default for, against `configDefaults` and `coverageConfigDefaults` read in-process; the environment-dependent defaults (`allowOnly`, `watch`, `open`, `reporters`) are not compared. And Track 11's module-boundaries table row by row.
+- `node/node.test.ts`: the coordinator entry. `test/dialect-vitest.test-d.ts`: the public types and misuse cases.
