@@ -1,12 +1,14 @@
-// B13b's module-mock check (T4.7): every recorded `mod-*` fixture, run through the fake loader
-// (real resolver, real hoister, real module-mock registry) and `@provino/core`, must observe what
-// the real runner recorded: each case's line equals the golden's trace line, in the golden's order,
-// every test the golden lists ran with the golden's status, the file ended with the golden's status
-// and errors where the golden has them, and a golden that crashed crashed here for the same cause.
-// The bar is every case except the declared divergences below, each pinned to the exact line we may
-// give, which fail the check the day they stop differing or differ otherwise. Two broken engines
-// must disagree with the goldens on an exact number of cases, so the check cannot pass by observing
-// nothing (see the end of this file).
+// The module-mock check (T4.7, B13b; T2.5 + T4.8 on the real loader, B13c): every recorded `mod-*`
+// fixture, run through `@provino/loader` (real resolver, real hoister, real module-mock registry)
+// and `@provino/core`, must observe what the real runner recorded: each case's line equals the
+// golden's trace line, in the golden's order, every test the golden lists ran with the golden's
+// status, the file ended with the golden's status and errors where the golden has them, and a
+// golden that crashed crashed here for the same cause. The bar is every case except the declared
+// divergences below, each pinned to the exact line we may give, which fail the check the day they
+// stop differing or differ otherwise. Two broken engines must disagree with the goldens on an exact
+// number of cases, so the check cannot pass by observing nothing. Each Jest fixture also runs end to
+// end through `provino/node`'s `run()` and a forked worker, against the same golden (the `e2e`
+// block below).
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { describe, test } from 'node:test'
@@ -33,11 +35,12 @@ import {
   unseenDeclared,
 } from './mock-corpus/compare.ts'
 import { mockPolicyFor, vitestHoistPolicy, vitestModulePolicy } from './mock-corpus/profiles.ts'
+import { runModEndToEnd } from './mod-corpus/run-e2e.ts'
 import { type ModProfile, runModFile } from './mod-corpus/run-mod.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
 import { pairLabel } from './test-support.ts'
 
-/** The Jest and Vitest profiles the fake loader runs under. */
+/** The Jest and Vitest profiles the loader runs under. */
 const PROFILES: Readonly<Partial<Record<FixtureProfile, ModProfile>>> = {
   jest: {
     facade: 'jest',
@@ -196,6 +199,112 @@ test('the corpus is counted: the totals are the corpus', () => {
   assert.ok(fixtures.length > 0, 'the corpus is not empty')
   assert.deepEqual(counted, EXPECTED_COUNTED)
 })
+
+// ---- end to end: T4.8 through the worker (S4) ----
+
+/**
+ * The Jest fixtures that run in-process only, because their `jestConfig` names something a
+ * Provino config can't carry yet: neutral `roots` and `unmockedModulePathPatterns` are B14c's.
+ * Exactly the Jest fixtures with a `jestConfig`, so the list can't grow quietly.
+ */
+const IN_PROCESS_ONLY: Readonly<Record<string, string>> = {
+  'mocking/mod-roots-multiple': 'jestConfig.roots (B14c)',
+  'mocking/mod-unmocked-patterns': 'jestConfig.unmockedModulePathPatterns (B14c)',
+}
+
+/** A forked worker boots per fixture, so the deadline is the in-process one, doubled. */
+const E2E_TIMEOUT_MS = TIMEOUT_MS * 2
+
+const jestFixtures = fixtures.filter((fixture) => fixture.manifest.runners.includes('jest'))
+const e2eSeen = new Set<string>()
+let e2eCounted = 0
+
+test('e2e: the fixtures left in-process are exactly the Jest ones with a jestConfig', () => {
+  assert.deepEqual(
+    jestFixtures
+      .filter((fixture) => fixture.manifest.jestConfig !== undefined)
+      .map((fixture) => fixture.id)
+      .sort(),
+    Object.keys(IN_PROCESS_ONLY).sort(),
+  )
+})
+
+describe('e2e: each Jest mod fixture through provino/node run() and a forked worker', () => {
+  for (const fixture of jestFixtures) {
+    if (Object.hasOwn(IN_PROCESS_ONLY, fixture.id)) continue
+    test(fixture.id, { timeout: E2E_TIMEOUT_MS }, async () => {
+      const files = testFilesFor(fixture.files, 'jest')
+      const [testFile] = files
+      assert.ok(testFile !== undefined && files.length === 1, 'one test file')
+      const golden = await readGolden(fixture.dir, 'jest')
+      const [goldenFile] = golden.files
+      assert.ok(goldenFile !== undefined && golden.files.length === 1, 'one golden file')
+      const run = await runModEndToEnd(fixture, testFile)
+      const [ranFile] = run.normalized.files
+      assert.ok(
+        ranFile !== undefined && run.normalized.files.length === 1,
+        `one file ran (exit ${run.exitCode}): ${run.stderr}`,
+      )
+
+      const crash = fixture.manifest.expectCrash?.jest
+      if (crash !== undefined) {
+        assert.equal(goldenFile.status, 'crashed', 'the golden crashed')
+        assert.equal(ranFile.status, 'crashed', 'the file crashed here too')
+        const cause = (line: string): string => line.replace(/^[A-Za-z]*Error: /, '')
+        const raised = cause(
+          causeText((ranFile.fileError?.message ?? '').replaceAll(run.root, '<root>')),
+        )
+        assert.equal(
+          raised,
+          cause(causeText(goldenFile.fileError?.message ?? '')),
+          'the crash cause',
+        )
+      } else {
+        assert.deepEqual(
+          ranFile.tests.map((t) => ({
+            path: t.id.path,
+            dupIndex: t.id.dupIndex,
+            status: t.status,
+          })),
+          goldenFile.tests.map((t) => ({
+            path: t.id.path,
+            dupIndex: t.id.dupIndex,
+            status: t.status,
+          })),
+          'tests: title path, dupIndex and status',
+        )
+        assert.equal(ranFile.status, goldenFile.status, 'file status')
+        assert.equal(run.exitCode, goldenFile.status === 'passed' ? 0 : 1, 'the exit code')
+      }
+
+      const wanted = golden.trace ?? []
+      const results = compareObservations(wanted, run.trace)
+      if (crash === undefined) assert.ok(results.length > 0, 'the fixture observed a case')
+      assert.ok(sameOrder(wanted, run.trace), 'the cases were observed in the golden order')
+      e2eCounted += results.length
+      assert.deepEqual(declaredProblems(pairLabel(fixture, 'jest'), results, DECLARED, e2eSeen), [])
+    })
+  }
+})
+
+test('e2e: every Jest case outside the in-process-only fixtures ran end to end', async () => {
+  // The exact Jest total, less the cases of the fixtures left in-process (counted in-process).
+  let inProcessCases = 0
+  for (const fixture of jestFixtures) {
+    if (!Object.hasOwn(IN_PROCESS_ONLY, fixture.id)) continue
+    inProcessCases += (await readGolden(fixture.dir, 'jest')).trace?.length ?? 0
+  }
+  assert.ok(inProcessCases > 0)
+  assert.equal(e2eCounted + inProcessCases, EXPECTED_COUNTED.jest)
+  assert.deepEqual(unseenDeclared(jestOnly(DECLARED), e2eSeen), [])
+})
+
+/** The declared cases of the Jest profile: the ones the end-to-end runs must meet. */
+function jestOnly(
+  declared: Readonly<Record<string, Declared>>,
+): Readonly<Record<string, Declared>> {
+  return Object.fromEntries(Object.entries(declared).filter(([key]) => key.includes(' (jest) ')))
+}
 
 /** How many counted cases of `profile` a broken engine gets wrong. */
 async function disagreeing(
