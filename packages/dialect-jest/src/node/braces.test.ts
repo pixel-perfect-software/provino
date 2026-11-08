@@ -19,6 +19,9 @@ import {
 } from './internal/test-support.ts'
 import { readJestConfig } from './normalize.ts'
 
+/** A `$` before the braces keeps them (a shell variable), so the pattern is its own result. */
+const DOLLAR_BRACES = `\${a,b}`
+
 /** brace-expansion 5.0.12's `expand(pattern)`, recorded. */
 const RECORDED: Readonly<Record<string, readonly string[]>> = {
   'a{b,c}d': ['abd', 'acd'],
@@ -36,8 +39,7 @@ const RECORDED: Readonly<Record<string, readonly string[]>> = {
   'a{2..}b': ['a{2..}b'],
   '{,a}b': ['b', 'ab'],
   'a{,b}': ['a', 'ab'],
-  // A `$` before the braces keeps them (a shell variable): written escaped, as it's literal.
-  [`\${a,b}`]: [`\${a,b}`],
+  [DOLLAR_BRACES]: [DOLLAR_BRACES],
   'pkg/{x,y}/{1..2}': ['pkg/x/1', 'pkg/x/2', 'pkg/y/1', 'pkg/y/2'],
   '{}x': ['{}x'],
   '{a,b}{}': ['a{}', 'b{}'],
