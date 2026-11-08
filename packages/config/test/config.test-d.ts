@@ -25,7 +25,11 @@ import type {
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
-expectTypeOf(importConfigModule).toEqualTypeOf<(path: string) => Promise<unknown>>()
+expectTypeOf(importConfigModule).toEqualTypeOf<
+  (path: string, options?: { readonly withoutDefault?: 'error' | 'namespace' }) => Promise<unknown>
+>()
+// @ts-expect-error not a way to treat a module with no default export
+void importConfigModule('/x.js', { withoutDefault: 'first-export' })
 expectTypeOf(resolveNeutralProject).toEqualTypeOf<
   (neutral: NeutralProject, options: ResolveNeutralProjectOptions) => Promise<ResolvedProject>
 >()
