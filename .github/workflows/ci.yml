@@ -129,7 +129,8 @@ jobs:
       # source and manifest of every package a Provino run might load: any workspace package's
       # `src/` or `package.json`, so a package that starts to be loaded later needs no edit here.
       # Unit tests beside that source (`*.test.ts`, `*.test-d.ts`) are not loaded by a run, so
-      # editing one alone doesn't count; bench and harness keep counting them.
+      # editing one alone doesn't count; bench and harness keep counting them. The harness
+      # self-test also reads its sample and recording (`packages/harness/sample/`).
       # They run on main, and on a task branch whose changes against main touch any of those.
       # Paths are NUL-separated and never quoted, so a name with non-ASCII, a tab, `"` or `\`
       # still matches.
@@ -147,7 +148,7 @@ jobs:
             echo "No merge base with main; running the suite checks."
             exit 0
           fi
-          inputs="^(packages/bench/|packages/harness/src/|packages/[^/]+/(src/|package\\.json\$)|pnpm-lock\\.yaml\$|pnpm-workspace\\.yaml\$|\\.tool-versions\$|package\\.json\$|\\.github/workflows/ci\\.yml\$)"
+          inputs="^(packages/bench/|packages/harness/src/|packages/harness/sample/|packages/[^/]+/(src/|package\\.json\$)|pnpm-lock\\.yaml\$|pnpm-workspace\\.yaml\$|\\.tool-versions\$|package\\.json\$|\\.github/workflows/ci\\.yml\$)"
           # What the Node 22 mocking check reads: the recorder and its fixtures, the runners' versions,
           # Node and the root scripts. The engine isn't one: this records real Jest and Vitest.
           mocking_inputs="^(packages/harness/(src/|fixtures/mocking/|package\\.json\$)|pnpm-lock\\.yaml\$|pnpm-workspace\\.yaml\$|\\.tool-versions\$|package\\.json\$|\\.github/workflows/ci\\.yml\$)"
@@ -200,6 +201,12 @@ jobs:
       # Re-record every fixture and fail if a golden drifted (.claude/rules/tests.md).
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm provino-harness record --check
+      # The harness self-test (Track 12 T12.6, T12.16): the sample under real Jest and Vitest, its
+      # recording, the sidecars and the calibrated parity, then Provino (the `provino` bin) as a
+      # subject. It prints pass or fail per check and no Provino number, because these logs are
+      # public; the parity report goes to --out only when asked for, which this step doesn't.
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
+        run: pnpm provino-harness self-test --candidate provino
       # T4.1: the mocking goldens regenerate byte-identically on the oldest Node we support. Below
       # 22.18 the recorder takes type stripping from NODE_OPTIONS (DECISIONS S1). Last in this job,
       # because it changes the Node every later step would run on.
