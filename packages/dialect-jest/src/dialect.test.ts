@@ -29,6 +29,13 @@ test('the value formatter is pretty-format, the one the type allows', () => {
   assert.equal(resolved.expect.valueFormatter, 'pretty-format')
 })
 
+// Jest has no teardowns of its own to bound (a hook returns no cleanup), so `timeouts.teardown` is
+// Provino's: the hook timeout, for the teardowns Provino adds (lazy ones). T1.7 claims it as own.
+test('the teardown timeout is Provino`s own: 5000 ms, the hook timeout', () => {
+  assert.equal(resolved.core.timeouts.teardown, 5000)
+  assert.equal(resolved.core.timeouts.teardown, resolved.core.timeouts.hook)
+})
+
 test('the mock slice is whole, so no `mock.*` key is left at the neutral value', () => {
   assert.deepEqual(Object.keys(jestMockPolicy).sort(), Object.keys(neutralPolicy.mock).sort())
   assert.deepEqual(

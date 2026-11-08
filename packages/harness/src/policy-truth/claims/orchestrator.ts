@@ -32,6 +32,9 @@ const pragmasRead = (g: Golden): readonly string[] => {
   return started('both-pragmas.test.ts') ? read : read.toReversed()
 }
 
+/** The isolation tiers both dialects' tests pin: `registry` (D6), and `realm` for a DOM. */
+const ISOLATION = { default: 'registry', byEnvironment: { jsdom: 'realm', 'happy-dom': 'realm' } }
+
 export const orchestratorClaims: Claims = {
   'orchestrator.include': golden('defaults'),
   'orchestrator.exclude': golden('defaults'),
@@ -84,10 +87,16 @@ export const orchestratorClaims: Claims = {
   'orchestrator.coverageReporters': golden('defaults'),
   'orchestrator.slowTestThresholdMs': golden('defaults'),
   'orchestrator.isolationDefault': each(
-    own('packages/dialect-jest/src/dialect.test.ts', 'isolationDefault', 'D6: the tier is ours'),
+    own(
+      'packages/dialect-jest/src/dialect.test.ts',
+      'isolationDefault',
+      ISOLATION,
+      'D6: the tier is ours',
+    ),
     own(
       'packages/dialect-vitest/src/dialect.test.ts',
       'isolationDefault',
+      ISOLATION,
       'the tier is ours (D6 for Jest, the same for Vitest)',
     ),
   ),

@@ -1,7 +1,8 @@
 // What backs a dialect's policy value (T1.7, CLAUDE.md non-negotiable 2). Every leaf of a dialect's
-// resolved policy has exactly one piece of evidence, from the claim for its path or for the
-// nearest group above it (`claims/<slice>.ts`). `policy-truth.test.ts` checks each against the
+// resolved policy has evidence, from the claim for its path or for the nearest group above it
+// (`claims/<slice>.ts`). `policy-truth.test.ts` checks each against the
 // committed goldens and the corpora; no runner starts.
+import { isDeepStrictEqual } from 'node:util'
 import type { FixtureRunner } from '../fixture.ts'
 import type { Golden } from '../golden.ts'
 
@@ -26,13 +27,14 @@ export interface GoldenEvidence {
 }
 
 /** A corpus whose check runs Provino's engine against the goldens, so a wrong value fails there. */
-export type CorpusName = 'runtime' | 'mock' | 'mod' | 'hoist'
+export type CorpusName = 'runtime' | 'mock' | 'mod' | 'expect' | 'hoist'
 
 /**
- * A value a corpus check holds to its goldens. `policy-truth.test.ts` flips it and runs the named
- * fixtures through the engine (runtime, mock, mod), and the flipped run must disagree with a golden
- * where the real value agrees. For `hoist`, the hoist corpus's own flips do it
- * (`hoist-corpus.test.ts` has one per key, or a reason it can't).
+ * A value a corpus check holds to its goldens. `policy-truth.test.ts` runs the named fixtures
+ * through the engine (runtime, mock, mod, expect): under the dialect's own value the corpus check
+ * must pass, and under a flip it rejects it must fail. For `hoist`, the hoist corpus's own flips
+ * do it: `hoist-corpus/flips.ts` must hold a flip that changes the leaf, which
+ * `hoist-corpus.test.ts` runs against the real hoisters (D46).
  */
 export interface CorpusEvidence {
   readonly kind: 'corpus'
@@ -43,28 +45,35 @@ export interface CorpusEvidence {
 
 /**
  * Provino's own key, not a Jest or Vitest value (D7 lets the dialect choose): it needs a test, not
- * ground truth. The test file must exist and name the key.
+ * ground truth. The claim names the value the test pins, which must be the dialect's value at the
+ * claim's path, and the test file must exist and name the key.
  */
 export interface OwnEvidence {
   readonly kind: 'own'
-  /** A test file, relative to the repo root, that pins the value. */
+  /** A test file, relative to the repo root, that asserts the value. */
   readonly test: string
   /** The word the test file must contain (the key's own name). */
   readonly mentions: string
+  /** The value the test asserts, at the claim's path (the whole group for a group claim). */
+  readonly value: unknown
   readonly reason: string
 }
 
 /**
- * A value nothing reads under this dialect, because another key, itself backed, switches its
- * consumer off (`expect.pollFailsOnTimeout` with `expect.poll.enabled: false`). No run can show it.
+ * A value nothing reads under this dialect, because other keys, each backed, switch its reader
+ * off (`expect.pollFailsOnTimeout` with `expect.poll.enabled: false`). No run can show it, so D46
+ * asks for the next best thing: flipping it must leave the `readers` corpus passing, so a reader
+ * that starts to read it fails the test.
  */
 export interface InertEvidence {
   readonly kind: 'inert'
-  /** The leaf that switches it off. */
+  /** The leaves, or groups of leaves, that switch it off. */
   readonly under: string
-  /** That leaf's value under this dialect. */
-  readonly when: unknown
+  /** Whether the values of every leaf at or under `under` switch it off. */
+  readonly holds: (values: readonly unknown[]) => boolean
   readonly reason: string
+  /** A corpus that runs the code that would read it; a flip must leave every fixture passing. */
+  readonly readers: CorpusEvidence
 }
 
 /** A value whose behaviour isn't built yet, with the bundle that brings it and its evidence. */
@@ -129,14 +138,27 @@ export function corpus(name: CorpusName, ...fixtures: readonly string[]): Corpus
   return { kind: 'corpus', corpus: name, fixtures }
 }
 
-/** Our own key, pinned by a test that names it. */
-export function own(test: string, mentions: string, reason: string): OwnEvidence {
-  return { kind: 'own', test, mentions, reason }
+/** Our own key: a test that names it asserts `value`. */
+export function own(test: string, mentions: string, value: unknown, reason: string): OwnEvidence {
+  return { kind: 'own', test, mentions, value, reason }
 }
 
-/** A value nothing reads while `under` has the value `when`. */
-export function inert(under: string, when: unknown, reason: string): InertEvidence {
-  return { kind: 'inert', under, when, reason }
+/**
+ * A value nothing reads while every leaf at or under `under` has the value `when` (or, given a
+ * function, while `when` holds of their values), and flipping it leaves `readers` passing.
+ */
+export function inert(
+  under: string,
+  when: unknown,
+  reason: string,
+  readers: CorpusEvidence,
+): InertEvidence {
+  const holds =
+    typeof when === 'function'
+      ? (when as (values: readonly unknown[]) => boolean)
+      : (values: readonly unknown[]) =>
+          values.length > 0 && values.every((value) => isDeepStrictEqual(value, when))
+  return { kind: 'inert', under, holds, reason, readers }
 }
 
 /** A value whose behaviour another bundle builds. */

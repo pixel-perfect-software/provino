@@ -26,13 +26,13 @@ import {
   assertTestsMatchGolden,
   causeText,
   compareObservations,
-  type Declared,
   declaredProblems,
   isModFixture,
   sameOrder,
   unseenDeclared,
 } from './mock-corpus/compare.ts'
 import { mockPolicyFor, vitestHoistPolicy, vitestModulePolicy } from './mock-corpus/profiles.ts'
+import { MOD_DECLARED as DECLARED } from './mod-corpus/declared.ts'
 import { type ModProfile, runModFile } from './mod-corpus/run-mod.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
 import { pairLabel } from './test-support.ts'
@@ -54,30 +54,6 @@ const PROFILES: Readonly<Partial<Record<FixtureProfile, ModProfile>>> = {
     module: vitestModulePolicy,
     hoist: vitestHoistPolicy,
   },
-}
-
-/**
- * The cases whose observation differs from the golden, by `fixture (profile) case`. The check fails
- * on a difference not listed here, on a listed case that now matches, and on a listed case whose
- * line is not the one pinned here.
- */
-const DECLARED: Readonly<Record<string, Declared>> = {
-  // Vitest 5.0.5 hoists a helper that calls `vi.mock` and then reads an `import { count as x }`
-  // that the helper re-exports with `export { x }` as `undefined`, always. A bug; we keep the
-  // binding live, as Jest and a plain module do (the `export { count } from` form is live in both).
-  'mocking/mod-reexport-live (vitest) before any change all three read 0': {
-    divergence: 'DV11',
-    line: '{"id":"before any change all three read 0","value":{"source":0,"reExported":0,"importedThenExported":0}}',
-  },
-  'mocking/mod-reexport-live (vitest) after the source changes count, both re-exports follow': {
-    divergence: 'DV11',
-    line: '{"id":"after the source changes count, both re-exports follow","value":{"source":2,"reExported":2,"importedThenExported":2}}',
-  },
-  'mocking/mod-reexport-live (vitest) a change made through the re-exported function is seen by all three':
-    {
-      divergence: 'DV11',
-      line: '{"id":"a change made through the re-exported function is seen by all three","value":{"source":3,"reExported":3,"importedThenExported":3}}',
-    },
 }
 
 /** The counted cases the corpus has under each profile, exactly. */

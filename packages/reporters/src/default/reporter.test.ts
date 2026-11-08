@@ -13,11 +13,14 @@ import {
 } from '../internal/test-support.ts'
 import { defaultReporter } from './reporter.ts'
 
-/** Jest's values for the `report` slice (unverified until T9.7 records them). */
+/**
+ * Jest's values for the `report` slice, as `jestPolicy` has them: the bullet is two spaces, `●`
+ * and one space, as the `policy/report-default` golden records it.
+ */
 const JESTLIKE: ReportPolicy = {
   displaySeparator: ' › ',
   defaultReporters: ['default'],
-  failureTitleBullet: ' ●  ',
+  failureTitleBullet: '  ● ',
   resultStatusSkipped: 'pending',
 }
 
@@ -112,7 +115,7 @@ describe('the default reporter', () => {
       text,
       lines(
         'FAIL c.test.ts',
-        ' ●  math › adds',
+        '  ● math › adds',
         '',
         '    expected 2',
         '    received 3',
@@ -200,7 +203,7 @@ describe('the default reporter', () => {
       text,
       lines(
         'FAIL broken.test.ts',
-        ' ●  Test suite failed to run',
+        '  ● Test suite failed to run',
         '',
         "    ImportError: Cannot find module './missing.ts'",
         '',
@@ -223,7 +226,7 @@ describe('the default reporter', () => {
     ])
     assert.match(
       text,
-      /^FAIL crash\.test\.ts\n ● {2}Test suite failed to run\n\n {4}WorkerCrash: the worker was killed by SIGSEGV\n\nPASS fine\.test\.ts/,
+      /^FAIL crash\.test\.ts\n {2}● Test suite failed to run\n\n {4}WorkerCrash: the worker was killed by SIGSEGV\n\nPASS fine\.test\.ts/,
     )
     assert.match(text, /Test Suites: 1 failed, 1 passed, 2 total/)
   })
@@ -238,7 +241,7 @@ describe('the default reporter', () => {
     ])
     assert.match(
       text,
-      / ● {2}t\n\n {4}test failed\n\n ● {2}Errors outside the tests\n\n {4}afterAll failed\n/,
+      / {2}● t\n\n {4}test failed\n\n {2}● Errors outside the tests\n\n {4}afterAll failed\n/,
     )
   })
 
@@ -270,7 +273,7 @@ describe('the default reporter', () => {
     })
     assert.match(
       text,
-      /PASS a\.test\.ts \(5 ms\)\n\n ● {2}Unhandled error\n\n {4}RangeError: unhandled boom\n\nTest Suites:/,
+      /PASS a\.test\.ts \(5 ms\)\n\n {2}● Unhandled error\n\n {4}RangeError: unhandled boom\n\nTest Suites:/,
     )
   })
 
@@ -283,15 +286,15 @@ describe('the default reporter', () => {
     assert.equal(
       out.text(),
       lines(
-        ' ●  Run error',
+        '  ● Run error',
         '',
         '    config broke',
         '',
-        ' ●  Reporter error',
+        '  ● Reporter error',
         '',
         '    reporter broke',
         '',
-        ' ●  Global setup error',
+        '  ● Global setup error',
         '',
         '    setup broke',
         '',

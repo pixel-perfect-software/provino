@@ -49,6 +49,7 @@ export const moduleClaims: Claims = {
       'module.automock',
       false,
       'only automock-all reads the patterns, and Vitest has no automock-all',
+      mod('mod-automock-shape', 'mod-automock-inherited', 'mod-automock-symbol-keys'),
     ),
   ),
   // Jest's texts. The corpus compares a crash's first paragraph; the golden shows the whole text.
@@ -72,15 +73,35 @@ export const moduleClaims: Claims = {
 
 const hoist = corpus('hoist')
 
+/** Fixtures that run each dialect's hoister through the fake loader: an inert rule's readers. */
+const jestHoisting = mod(
+  'mod-hoist-order',
+  'mod-hoist-require',
+  'mod-adjacent',
+  'mod-factory-shape',
+)
+const vitestHoisting = mod(
+  'mod-hoist-order',
+  'mod-import-this',
+  'mod-reexport-order',
+  'mod-factory-function',
+)
+
+/** No method takes the `path-factory-options` rule, the only one that checks a factory. */
+const noFactoryRule = (rules: readonly unknown[]): boolean =>
+  rules.length > 0 && rules.every((rule) => rule !== 'path-factory-options')
+
 export const hoistClaims: Claims = {
   'hoist.id': each(
     own(
       'packages/dialect-jest/src/hoist-policy.test.ts',
       'jest-30.5',
+      'jest-30.5',
       'names the rules for the transform cache; nothing else reads it',
     ),
     own(
       'packages/dialect-vitest/src/dialect.test.ts',
+      'vitest-5.0',
       'vitest-5.0',
       'names the rules for the transform cache; nothing else reads it',
     ),
@@ -91,16 +112,31 @@ export const hoistClaims: Claims = {
   'hoist.rewriteImportArg': hoist,
   'hoist.chainable': each(
     hoist,
-    inert('hoist.placement', 'top-level-only', 'only enclosing-block placement reads it'),
+    inert(
+      'hoist.placement',
+      'top-level-only',
+      'only enclosing-block placement reads it',
+      vitestHoisting,
+    ),
   ),
   'hoist.placement': hoist,
   'hoist.topLevelGuards': each(
-    inert('hoist.placement', 'enclosing-block', 'only top-level-only placement reads it'),
+    inert(
+      'hoist.placement',
+      'enclosing-block',
+      'only top-level-only placement reads it',
+      jestHoisting,
+    ),
     hoist,
   ),
   'hoist.factoryReferences': each(
     hoist,
-    inert('hoist.hoistCalls.mock', 'any', 'only a path-factory-options argument rule reads it'),
+    inert(
+      'hoist.hoistCalls',
+      noFactoryRule,
+      'only a path-factory-options argument rule reads it, and no Vitest method has one',
+      vitestHoisting,
+    ),
   ),
   'hoist.runnerModules': hoist,
   'hoist.reExports': hoist,
@@ -112,33 +148,45 @@ export const hoistClaims: Claims = {
       "the golden drops the Allowed objects line (it follows Node's globals), so only the loader's own run can show the whole text",
     ),
     inert(
-      'hoist.hoistCalls.mock',
-      'any',
-      'Vitest takes any arguments and checks no factory, so it never raises this',
+      'hoist.hoistCalls',
+      noFactoryRule,
+      'no Vitest method has a factory rule, so it never checks what a factory reads',
+      vitestHoisting,
     ),
   ),
   'hoist.messages.HOIST_FACTORY_NOT_FUNCTION': each(
     builtByB13c('no mod-* case passes jest.mock a factory that is not a function'),
-    inert('hoist.hoistCalls.mock', 'any', 'Vitest takes any arguments, so it never raises this'),
+    inert(
+      'hoist.hoistCalls',
+      noFactoryRule,
+      'no Vitest method has a factory rule, so it never checks a factory argument',
+      vitestHoisting,
+    ),
   ),
   'hoist.messages.HOIST_NOT_TOP_LEVEL': each(
     inert(
       'hoist.placement',
       'enclosing-block',
       'Jest hoists within the block, so the engine never raises it',
+      jestHoisting,
     ),
     builtByB13c('no mod-* case calls vi.mock below the top level'),
   ),
   'hoist.messages.HOIST_NESTED': each(
-    inert('hoist.placement', 'enclosing-block', 'Jest allows a hoisted call inside another'),
+    inert(
+      'hoist.placement',
+      'enclosing-block',
+      'Jest allows a hoisted call inside another',
+      jestHoisting,
+    ),
     builtByB13c('no mod-* case nests vi.mock'),
   ),
   'hoist.messages.HOIST_EXPORTED': each(
-    inert('hoist.placement', 'enclosing-block', 'Jest never looks at exports'),
+    inert('hoist.placement', 'enclosing-block', 'Jest never looks at exports', jestHoisting),
     builtByB13c('no mod-* case exports vi.mock'),
   ),
   'hoist.messages.HOIST_EXPORTED_VALUE': each(
-    inert('hoist.placement', 'enclosing-block', 'Jest has no hoisted values'),
+    inert('hoist.placement', 'enclosing-block', 'Jest has no hoisted values', jestHoisting),
     builtByB13c('no mod-* case exports vi.hoisted'),
   ),
 }

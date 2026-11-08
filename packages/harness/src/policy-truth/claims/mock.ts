@@ -26,6 +26,7 @@ export const mockClaims: Claims = {
     own(
       'packages/dialect-jest/src/runtime/globals.test.ts',
       'stubEnv',
+      false,
       'Jest has no stubEnv, so nothing is ever unstubbed: false says only that',
     ),
     [mock('config-unstub-envs'), golden('defaults')],
@@ -34,6 +35,7 @@ export const mockClaims: Claims = {
     own(
       'packages/dialect-jest/src/runtime/globals.test.ts',
       'stubGlobal',
+      false,
       'Jest has no stubGlobal, so nothing is ever unstubbed: false says only that',
     ),
     [mock('config-unstub-globals'), golden('defaults')],
@@ -47,6 +49,7 @@ export const mockClaims: Claims = {
       'mock.newCall',
       'apply',
       'under apply a value shorthand never sees new.target, so the key has nothing to decide',
+      mock('fn-implementations', 'fn-new'),
     ),
     mock('fn-implementations'),
   ),

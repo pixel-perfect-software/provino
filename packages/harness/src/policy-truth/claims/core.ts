@@ -1,7 +1,7 @@
 // The evidence for the `core` and `lazy` slices (T1.7). The runtime corpus (B07) runs Provino's
 // core under each value and compares with goldens recorded from both runners, so a flipped value
 // that changes a run is caught there; `fixtures/policy/core-*` record what it can't tell apart.
-import { type Claims, corpus, each, golden, inert, own, pending } from '../evidence.ts'
+import { type Claims, corpus, each, golden, own, pending } from '../evidence.ts'
 import { errorsOf, hasTest, oneOf, statusOf, testOf, timeoutOf } from '../observe.ts'
 
 const hookOrder = (...fixtures: readonly string[]) => [
@@ -35,8 +35,9 @@ export const coreClaims: Claims = {
   }),
   'core.timeouts.teardown': each(
     own(
-      'packages/core/src/executor/timeouts.test.ts',
+      'packages/dialect-jest/src/dialect.test.ts',
       'timeouts.teardown',
+      5000,
       'Jest has no teardowns of its own to bound (a hook returns no cleanup, hookReturnsCleanup is false); the value bounds the ones Provino adds, such as lazy teardowns',
     ),
     // A cleanup a beforeEach returns runs under the hook timeout: it fails at 10000 ms.
@@ -156,10 +157,11 @@ export const coreClaims: Claims = {
   'core.hooks.skippedBlock': corpus('runtime', 'runtime/collection-describe-hooks-only'),
   'core.concurrency.grouping': corpus('runtime', 'runtime/concurrent-grouping'),
   'core.concurrency.limitHooks': each(
-    inert(
-      'core.eachHooksForConcurrent',
-      false,
-      'Jest runs no each-hooks around a concurrent test, so no hook could take a slot',
+    // Core reads it for every hook and test body (`executor.ts` builds its limiters from it), so
+    // it isn't inert, and no runtime-corpus run tells the values apart.
+    pending(
+      'Tyler',
+      'core reads it for every hook, but Jest runs no each-hooks around a concurrent test, and no fixture found tells the values apart',
     ),
     pending(
       'D47',
@@ -251,6 +253,7 @@ export const coreClaims: Claims = {
   'core.orderHooks': own(
     'packages/core/src/executor/executor.test.ts',
     'orderHooks',
+    null,
     "Provino's escape hatch for an order no HookOrder names; null hands the order to hookOrder",
   ),
 }

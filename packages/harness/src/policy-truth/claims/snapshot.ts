@@ -2,7 +2,7 @@
 // are in the black-box goldens; `policy/expect-shape` observes the runner's own `expect`.
 import { isModuleRef } from '@provino/policy'
 import type { Golden } from '../../golden.ts'
-import { type Claims, each, golden, inert, own, pending } from '../evidence.ts'
+import { type Claims, corpus, each, golden, inert, own, pending } from '../evidence.ts'
 import { capturedFile, observedOf, oneOf, statusOf } from '../observe.ts'
 
 const SNAP = '__snapshots__/written.test.ts.snap'
@@ -107,13 +107,19 @@ export const snapshotClaims: Claims = {
 
 const shape = golden('expect-shape')
 
+/** The expect corpus's message fixtures: they run Jest's `expect`, an inert expect key's readers. */
+const expectMessages = corpus(
+  'expect',
+  ...['equality', 'promises', 'throws', 'truthiness'].map((name) => `expect/messages/${name}`),
+)
+
 export const expectClaims: Claims = {
   'expect.matcherNamespace': pending(
     'D47',
     'no code reads it yet, and the research names no behaviour a run shows ("the namespace in matcher messages and the matcher slot")',
   ),
   'expect.pollFailsOnTimeout': each(
-    inert('expect.poll.enabled', false, 'Jest has no expect.poll'),
+    inert('expect.poll.enabled', false, 'Jest has no expect.poll', expectMessages),
     shape,
   ),
   'expect.diffContextLines': shape,
@@ -121,18 +127,21 @@ export const expectClaims: Claims = {
     own(
       'packages/dialect-jest/src/dialect.test.ts',
       'valueFormatter',
+      'pretty-format',
       'the one formatter the type allows',
     ),
     own(
       'packages/dialect-vitest/src/dialect.test.ts',
       'valueFormatter',
+      'pretty-format',
       'the one formatter the type allows',
     ),
   ),
   'expect.matcherTable': each(
     own(
-      'packages/harness/src/expect-corpus.test.ts',
-      'expect',
+      'packages/dialect-jest/src/runtime/expect-table.test.ts',
+      'matcherTable',
+      { module: import.meta.resolve('@provino/dialect-jest/runtime'), export: 'jestExpectTable' },
       "the dialect's vendored matchers, which the expect corpus holds to every Jest message golden (T7.5)",
     ),
     pending(
@@ -146,11 +155,11 @@ export const expectClaims: Claims = {
   'expect.soft': shape,
   'expect.poll.enabled': shape,
   'expect.poll.intervalMs': each(
-    inert('expect.poll.enabled', false, 'Jest has no expect.poll'),
+    inert('expect.poll.enabled', false, 'Jest has no expect.poll', expectMessages),
     shape,
   ),
   'expect.poll.timeoutMs': each(
-    inert('expect.poll.enabled', false, 'Jest has no expect.poll'),
+    inert('expect.poll.enabled', false, 'Jest has no expect.poll', expectMessages),
     shape,
   ),
   'expect.requireAssertions': golden('expect-shape', {
