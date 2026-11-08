@@ -48,6 +48,7 @@ import type {
   JestArgv,
   JestGlobalConfig,
   JestInitialOptions,
+  JestLoadedConfig,
   JestProjectConfig,
   JestReadConfig,
 } from './types.ts'
@@ -219,10 +220,11 @@ function asString(value: unknown, key: string): string {
 }
 
 /** `verifyDirectoryExists` (L115-L146). */
-function verifyDirectoryExists(path: string, key: string): void {
+function verifyDirectoryExists(path: string, key: string, cwd?: string): void {
   let isDirectory: boolean
   try {
-    isDirectory = statSync(path).isDirectory()
+    // Jest stats a relative path against the process's working directory; ours, against `cwd`.
+    isDirectory = statSync(cwd === undefined ? path : resolve(cwd, path)).isDirectory()
   } catch (error) {
     if (error instanceof Error && Reflect.get(error, 'code') === 'ENOENT') {
       throw configError(`  Directory ${path} in the ${key} option was not found.`)
@@ -399,17 +401,21 @@ function setFromArgv(options: JestInitialOptions, argv: JestArgv): Options {
 }
 
 /** `normalizeRootDir` (L381-L405). */
-function normalizeRootDir(options: Options): Options & { rootDir: string } {
+function normalizeRootDir(options: Options, cwd: string): Options & { rootDir: string } {
   if (!options.rootDir || typeof options.rootDir !== 'string') {
     throw configError('  Configuration option rootDir must be specified.')
   }
   let rootDir = normalizePath(options.rootDir)
+  // `tryRealpath` makes a relative `rootDir` that exists absolute (against the working directory),
+  // and leaves one that doesn't as it is, for the error below.
+  const absolute = resolve(cwd, rootDir)
   try {
-    rootDir = tryRealpath(rootDir)
+    const real = tryRealpath(absolute)
+    if (real !== absolute || existsSync(absolute)) rootDir = real
   } catch {
     // ignored, as upstream
   }
-  verifyDirectoryExists(rootDir, 'rootDir')
+  verifyDirectoryExists(rootDir, 'rootDir', cwd)
   return { ...options, rootDir }
 }
 
@@ -708,8 +714,9 @@ export async function normalizeJestConfig(
   const validation = validateJestConfig(initialOptions, context.isProjectOptions ?? false)
   const argv: Run['argv'] = { ...(options.argv ?? {}), _: [...(options.argv?._ ?? [])] }
 
+  const cwd = options.cwd ?? process.cwd()
   let merged = normalizeMissingOptions(
-    normalizeRootDir(setFromArgv(initialOptions, argv)),
+    normalizeRootDir(setFromArgv(initialOptions, argv), cwd),
     configPath,
     projectIndex,
   )
@@ -718,7 +725,7 @@ export async function normalizeJestConfig(
   )
   const run: Run = {
     argv,
-    cwd: options.cwd ?? process.cwd(),
+    cwd,
     resolution,
     bare: new Set(),
     ci: options.ci ?? ciFromEnvironment(process.env),
@@ -1400,9 +1407,25 @@ export async function normalizeLoadedJestConfig(
  * inline project object with `parentConfigDirname`.
  * @public
  */
-export async function readJestConfig(
+export function readJestConfig(
   packageRootOrConfig: string | JestInitialOptions,
   options: ReadJestConfigOptions = {},
+): Promise<JestReadOutcome> {
+  return readOne(packageRootOrConfig, options, new Map())
+}
+
+/**
+ * The config files a `readJestConfigs` run has loaded, by path. Jest loads a file again each time
+ * it reads it (the root of a run with no `projects`, or one whose `projects` list its own
+ * directory, is read twice); ours loads it once and normalizes it each time, so the configs and
+ * the warnings are Jest's and a config function runs once.
+ */
+type LoadedFiles = Map<string, JestInitialOptions>
+
+async function readOne(
+  packageRootOrConfig: string | JestInitialOptions,
+  options: ReadJestConfigOptions,
+  loadedFiles: LoadedFiles,
 ): Promise<JestReadOutcome> {
   const cwd = options.cwd ?? process.cwd()
   const config = options.argv?.config
@@ -1427,8 +1450,9 @@ export async function readJestConfig(
     const path = resolveJestConfigPath(target, cwd, {
       skipMultipleConfigError: options.skipMultipleConfigError ?? false,
     })
-    const loaded = await loadJestConfig(sourceOf(path))
-    initial = loaded.options
+    const loaded = loadedFiles.get(path) ?? (await loadJestConfig(sourceOf(path))).options
+    loadedFiles.set(path, loaded)
+    initial = loaded
     configPath = path
   }
   return normalizeLoadedJestConfig({ options: initial, configPath }, options)
@@ -1458,16 +1482,19 @@ This usually means that your "projects" config includes a directory that doesn't
  * config, then each entry of its `projects` (globs expanded, paths to directories or config
  * files, inline objects), validated as projects unless one is the root config itself. Running
  * several is B17's (D29); this reads them. `root` is the first path's config when the caller has
- * read it already (the config reader's `resolve` step).
+ * loaded it already (the config reader's `resolve` step), so it isn't loaded again. Each config
+ * file is loaded once, and normalized as often as Jest reads it (see `LoadedFiles`).
  * @public
  */
 export async function readJestConfigs(
   projectPaths: readonly string[],
   options: NormalizeOptions = {},
-  root?: JestReadOutcome,
+  root?: JestLoadedConfig,
 ): Promise<JestReadConfigsOutcome> {
   const cwd = options.cwd ?? process.cwd()
   const argv = options.argv ?? {}
+  const loadedFiles: LoadedFiles = new Map()
+  if (root?.configPath) loadedFiles.set(root.configPath, root.options)
   let globalConfig: JestGlobalConfig | undefined
   let hasDeprecationWarnings = false
   let configs: JestProjectConfig[] = []
@@ -1475,7 +1502,10 @@ export async function readJestConfigs(
   let configPath: string | null | undefined
   const diagnostics: Diagnostic[] = []
   if (projectPaths.length === 1) {
-    const parsed = root ?? (await readJestConfig(projectPaths[0] ?? cwd, options))
+    const parsed =
+      root === undefined
+        ? await readOne(projectPaths[0] ?? cwd, options, loadedFiles)
+        : await normalizeLoadedJestConfig(root, options)
     configPath = parsed.configPath
     hasDeprecationWarnings = parsed.hasDeprecationWarnings
     globalConfig = parsed.globalConfig
@@ -1483,7 +1513,7 @@ export async function readJestConfigs(
     diagnostics.push(...parsed.diagnostics)
     if (globalConfig.projects.length > 0) projects = globalConfig.projects
   } else if (projectPaths.length > 1 && argv.config) {
-    const parsed = await readJestConfig(cwd, options)
+    const parsed = await readOne(cwd, options, loadedFiles)
     configPath = parsed.configPath
     hasDeprecationWarnings = parsed.hasDeprecationWarnings
     globalConfig = parsed.globalConfig
@@ -1496,8 +1526,8 @@ export async function readJestConfigs(
     const kept = projects.filter(
       (root) =>
         typeof root !== 'string' ||
-        !existsSync(root) ||
-        lstatSync(root).isDirectory() ||
+        !existsSync(resolve(cwd, root)) ||
+        lstatSync(resolve(cwd, root)).isDirectory() ||
         JEST_CONFIG_EXT_ORDER.some((ext) => root.endsWith(ext)),
     )
     const parentConfigDirname = configPath ? dirname(configPath) : realCwd
@@ -1511,14 +1541,18 @@ export async function readJestConfigs(
             typeof root === 'string' &&
             resolveJestConfigPath(root, realCwd, { skipMultipleConfigError: projectIsCwd }) ===
               configPath)
-        return readJestConfig(root, {
-          ...options,
-          skipArgvConfigOption,
-          parentConfigDirname,
-          projectIndex,
-          skipMultipleConfigError: projectIsCwd,
-          isProjectOptions: skipArgvConfigOption && !suppliesGlobalConfig,
-        })
+        return readOne(
+          root,
+          {
+            ...options,
+            skipArgvConfigOption,
+            parentConfigDirname,
+            projectIndex,
+            skipMultipleConfigError: projectIsCwd,
+            isProjectOptions: skipArgvConfigOption && !suppliesGlobalConfig,
+          },
+          loadedFiles,
+        )
       }),
     )
     if (projects.length > 1) {

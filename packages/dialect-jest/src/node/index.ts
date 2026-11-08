@@ -15,9 +15,9 @@ import type {
 import { JestConfigError } from './errors.ts'
 import { findJestConfig, JEST_CONFIG_CANDIDATES } from './find.ts'
 import { loadJestConfig } from './load.ts'
-import { type NormalizeOptions, normalizeLoadedJestConfig, readJestConfigs } from './normalize.ts'
+import { type NormalizeOptions, readJestConfigs } from './normalize.ts'
 import { jestProjectToNeutral } from './to-neutral.ts'
-import type { JestGlobalConfig, JestInitialOptions, JestProjectConfig } from './types.ts'
+import type { JestGlobalConfig, JestLoadedConfig, JestProjectConfig } from './types.ts'
 
 export { JestConfigError, type JestConfigErrorCode } from './errors.ts'
 export {
@@ -56,6 +56,7 @@ export type {
   JestDisplayName,
   JestGlobalConfig,
   JestInitialOptions,
+  JestLoadedConfig,
   JestMapperEntry,
   JestProjectConfig,
   JestReadConfig,
@@ -63,16 +64,6 @@ export type {
   JestTransformEntry,
 } from './types.ts'
 export { type ValidationOutcome, validateJestConfig } from './validate.ts'
-
-/**
- * What the reader's `load` step returns: the file's options with `rootDir` set, and its path
- * (`null` for inline JSON).
- * @public
- */
-export interface JestLoadedConfig {
-  readonly options: JestInitialOptions
-  readonly configPath: string | null
-}
 
 /**
  * What the reader's `resolve` step returns: the run's global config and each project's config
@@ -112,12 +103,19 @@ export function createJestConfigReader(
       return loadJestConfig(source)
     },
     async resolve(raw: JestLoadedConfig, source: ConfigSource) {
-      const cwd = options.cwd ?? process.cwd()
-      const root = await normalizeLoadedJestConfig(raw, options)
+      // Inline JSON (`--config '{…}'`) belongs to the directory `find` was given, which is where
+      // its `projects` globs, `rootDir` and the projects' parent directory resolve; Jest reads it
+      // again for each project, as `argv.config`. A file is read where `jest` runs.
+      const inline = source.kind === 'inline'
+      const cwd = inline ? source.path : (options.cwd ?? process.cwd())
       const read = await readJestConfigs(
-        [source.kind === 'inline' ? cwd : source.path],
-        options,
-        root,
+        [source.path],
+        {
+          ...options,
+          cwd,
+          ...(inline ? { argv: { ...options.argv, config: source.text } } : {}),
+        },
+        raw,
       )
       return {
         value: { globalConfig: read.globalConfig, configs: read.configs },

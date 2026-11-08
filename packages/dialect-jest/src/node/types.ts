@@ -185,6 +185,16 @@ export type JestArgv = Readonly<Record<string, unknown>> & {
 }
 
 /**
+ * A config as `loadJestConfig` loads it (the reader's `load` step): the file's options with
+ * `rootDir` set, and its path (`null` for inline JSON).
+ * @public
+ */
+export interface JestLoadedConfig {
+  readonly options: JestInitialOptions
+  readonly configPath: string | null
+}
+
+/**
  * One read config: `readConfig`'s result.
  * @public
  */
