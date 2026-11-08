@@ -27,6 +27,7 @@ test('a rule with every field reads back as written', () => {
     keyGlob: 'a.test.ts::*',
     pair: ['jest', 'vitest'],
     policyKey: 'mock.resetTo',
+    absentIn: 'candidate',
   })
   assert.deepEqual(parseExclusions(file(full), 'e.json', { today: TODAY }), [full])
 })
@@ -78,6 +79,7 @@ test('bad shapes are refused, naming the rule', () => {
     [rule({ pair: ['jest'] }), 'rules[0].pair'],
     [rule({ keyGlob: '' }), 'rules[0].keyGlob'],
     [rule({ policyKey: 1 }), 'rules[0].policyKey'],
+    [rule({ absentIn: 'both' }), 'rules[0].absentIn'],
     [rule({ expires: '2026-02-31' }), 'rules[0].expires'],
     [rule({ expires: '1 Dec 2026' }), 'rules[0].expires'],
     [rule({ until: '2026-12-01' }), 'unknown key "until"'],
@@ -112,19 +114,30 @@ test('bad shapes are refused, naming the rule', () => {
   )
 })
 
-test("the sample's exclusions are the 3 calibration rules, valid only with calibration", () => {
+test("the sample's exclusions are the 4 calibration rules, valid only with calibration", () => {
   const sample = path.join(import.meta.dirname, '..', 'sample', 'exclusions.json')
   const text = readFileSync(sample, 'utf8')
   const rules = parseExclusions(text, sample, { today: TODAY, calibration: true })
   assert.deepEqual(
     rules.map((r) => r.id),
-    ['div/beforeAll-failure-status', 'div/mockReset-restores-impl', 'div/snapshot-file-format'],
+    [
+      'div/beforeAll-failure-status',
+      'div/mockReset-restores-impl',
+      'div/snapshot-file-format',
+      'div/runner-made-error-frame',
+    ],
   )
   for (const r of rules) {
     assert.equal(r.expires, undefined, `${r.id} has no expiry (D30)`)
     assert.deepEqual(r.pair, ['jest', 'vitest'])
-    assert.ok(r.policyKey !== undefined, `${r.id} names its policy key`)
   }
+  // The spike's three name the policy key that explains them; no key names the fourth yet, so it
+  // is held to its own shape instead: a user frame that only Jest has.
+  for (const r of rules.slice(0, 3)) assert.ok(r.policyKey !== undefined, `${r.id} names its key`)
+  const [, , , runnerMade] = rules
+  assert.deepEqual(runnerMade?.kinds, ['user-frame'])
+  assert.equal(runnerMade?.absentIn, 'candidate')
+  assert.equal(runnerMade?.keyGlob, undefined)
   assert.throws(
     () => parseExclusions(text, sample, { today: TODAY }),
     code('HARNESS_EXCLUSIONS_INVALID', 'no "expires"'),

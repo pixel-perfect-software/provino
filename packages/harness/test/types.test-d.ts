@@ -356,6 +356,16 @@ expectTypeOf(parseFlaky).returns.toEqualTypeOf<string[]>()
 expectTypeOf(EXCLUSION_MAX_DAYS).toEqualTypeOf<number>()
 expectTypeOf(DIFF_KINDS).toEqualTypeOf<readonly DiffKind[]>()
 expectTypeOf<ExclusionRule['policyKey']>().toEqualTypeOf<string | undefined>()
+expectTypeOf<ExclusionRule['absentIn']>().toEqualTypeOf<'reference' | 'candidate' | undefined>()
+
+const absentInBoth: ExclusionRule = {
+  id: 'E9',
+  reason: 'r',
+  kinds: ['user-frame'],
+  // @ts-expect-error absentIn names one run
+  absentIn: 'both',
+}
+void absentInBoth
 expectTypeOf<DiffOptions['flaky']>().toEqualTypeOf<readonly string[] | undefined>()
 expectTypeOf<ParityReport['counts']['flaky']>().toEqualTypeOf<number>()
 

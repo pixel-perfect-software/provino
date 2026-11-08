@@ -23,6 +23,13 @@
       "keyGlob": "__snapshots__/snapshots.test.ts.snap",
       "pair": ["jest", "vitest"],
       "policyKey": "snapshot.header"
+    },
+    {
+      "id": "div/runner-made-error-frame",
+      "reason": "An error the runner makes itself, with no frame in one runner: for a thrown string (`thrown: \"a string\"`) and a test.failing that passed, Jest 30.5 gives the error the stack captured where the test was defined, so its user frame is the test's own call, and Vitest 5.0 has none (a string has no stack, and `Expect test to fail` is made inside the runner). Only a user-frame diff where Vitest has no frame. No policy key names this yet. An inherent difference between the two runners, so it has no expiry (DECISIONS D30).",
+      "kinds": ["user-frame"],
+      "pair": ["jest", "vitest"],
+      "absentIn": "candidate"
     }
   ]
 }

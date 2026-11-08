@@ -59,6 +59,11 @@ export interface ExclusionRule {
    * its path in the policy: `core.hooks.beforeAllError`, `mock.resetTo`.
    */
   readonly policyKey?: string
+  /**
+   * Only a diff where this run has nothing (`ref` or `cand` absent): a user frame one runner gives
+   * and the other can't. Default: either way.
+   */
+  readonly absentIn?: 'reference' | 'candidate'
 }
 
 /**
@@ -277,6 +282,8 @@ function matchRule(
     if (!rule.kinds.includes(diff.kind)) continue
     if (rule.pair !== undefined && (rule.pair[0] !== pair[0] || rule.pair[1] !== pair[1])) continue
     if (glob !== undefined && !glob.test(diff.key)) continue
+    if (rule.absentIn === 'reference' && diff.ref !== undefined) continue
+    if (rule.absentIn === 'candidate' && diff.cand !== undefined) continue
     return rule.id
   }
   return undefined

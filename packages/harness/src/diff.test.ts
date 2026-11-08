@@ -537,6 +537,46 @@ test('a provino:* candidate that leaves out the matcher or the assertion count d
   )
 })
 
+test('absentIn matches only a diff where that run has nothing', () => {
+  const failing = (userFrame?: string) =>
+    makeTest(FILE, ['t'], {
+      status: 'failed',
+      errors: [userFrame === undefined ? { message: 'x', raw: 'x' } : error('x', { userFrame })],
+    })
+  const ref = runWith([failing('<root>/a.test.ts:1:1')])
+  const rule: ExclusionRule = {
+    id: 'div/frame',
+    reason: 'r',
+    kinds: ['user-frame'],
+    absentIn: 'candidate',
+  }
+  const none = diffRuns(ref, runWith([failing()]), options({ exclusions: [rule] }), TODAY)
+  assert.deepEqual(none.diffs, [])
+  assert.equal(none.excluded[0]?.ruleId, 'div/frame')
+  // The candidate has a frame, a different one: the rule doesn't reach it.
+  const other = diffRuns(
+    ref,
+    runWith([failing('<root>/a.test.ts:2:2')]),
+    options({ exclusions: [rule] }),
+    TODAY,
+  )
+  assert.deepEqual(
+    other.diffs.map((d) => d.kind),
+    ['user-frame'],
+  )
+  // Nor does a rule for the reference's absence.
+  const reversed = diffRuns(
+    ref,
+    runWith([failing()]),
+    options({ exclusions: [{ ...rule, absentIn: 'reference' }] }),
+    TODAY,
+  )
+  assert.deepEqual(
+    reversed.diffs.map((d) => d.kind),
+    ['user-frame'],
+  )
+})
+
 test('policyKey rides along on a rule and changes nothing about matching', () => {
   const ref = runWith([makeTest(FILE, ['a'])])
   const cand = runWith([makeTest(FILE, ['a'], { status: 'skipped' })])

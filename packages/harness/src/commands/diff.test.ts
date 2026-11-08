@@ -2,7 +2,7 @@
 // checked on the CLI as a child process; what goes to which stream, in process with a collector,
 // because `runProcess` merges the two.
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { after, before, test } from 'node:test'
@@ -66,6 +66,37 @@ test('without exclusions, --min 1 exits 1 and --min 0.5 exits 0 (the CLI)', asyn
   const lenient = await cli('--ref', JEST, '--cand', VITEST, '--mode', 'matcher', '--min', '0.5')
   assert.equal(lenient.code, 0)
   assert.match(lenient.output, /^PASS$/m)
+})
+
+const CALIBRATED = ['--mode', 'matcher', '--calibration', '--min', '1', '--max-diffs', '0']
+const SAMPLE_EXCLUSIONS = path.join(PACKAGE_DIR, 'sample', 'exclusions.json')
+
+test('T12.5/T12.6: the calibrated diff of the sample passes with its 4 rules (the CLI)', async () => {
+  const outcome = await cli(
+    '--ref',
+    JEST,
+    '--cand',
+    VITEST,
+    '--exclusions',
+    SAMPLE_EXCLUSIONS,
+    ...CALIBRATED,
+  )
+  assert.equal(outcome.code, 0, outcome.output)
+  assert.match(outcome.output, /^PASS$/m)
+})
+
+test('T12.6: without any one of the 4 rules, the calibrated diff fails (the CLI)', async () => {
+  const { rules } = JSON.parse(await readFile(SAMPLE_EXCLUSIONS, 'utf8')) as {
+    rules: { id: string }[]
+  }
+  assert.equal(rules.length, 4)
+  for (const removed of rules) {
+    const file = path.join(dir, `without-${removed.id.replaceAll('/', '-')}.json`)
+    await writeFile(file, JSON.stringify({ rules: rules.filter((r) => r !== removed) }))
+    const outcome = await cli('--ref', JEST, '--cand', VITEST, '--exclusions', file, ...CALIBRATED)
+    assert.equal(outcome.code, 1, `without ${removed.id}`)
+    assert.match(outcome.output, /^FAIL$/m, removed.id)
+  }
 })
 
 test('bad usage or an unreadable run exits 2 (the CLI)', async () => {

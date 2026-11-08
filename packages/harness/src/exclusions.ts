@@ -33,6 +33,7 @@ const RULE_KEYS: ReadonlySet<string> = new Set([
   'pair',
   'expires',
   'policyKey',
+  'absentIn',
 ])
 
 function invalid(source: string, message: string): HarnessError {
@@ -107,6 +108,10 @@ function ruleOf(
     value.policyKey === undefined
       ? undefined
       : nonEmptyString(value.policyKey, `${at}.policyKey`, source)
+  const absentIn = value.absentIn
+  if (absentIn !== undefined && absentIn !== 'reference' && absentIn !== 'candidate') {
+    throw invalid(source, `${at}.absentIn must be "reference" or "candidate"`)
+  }
   let expires: string | undefined
   if (value.expires !== undefined) {
     const day = typeof value.expires === 'string' ? dayOf(value.expires) : undefined
@@ -134,6 +139,7 @@ function ruleOf(
     ...(pair === undefined ? {} : { pair }),
     ...(expires === undefined ? {} : { expires }),
     ...(policyKey === undefined ? {} : { policyKey }),
+    ...(absentIn === undefined ? {} : { absentIn }),
   }
 }
 
