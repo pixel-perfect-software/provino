@@ -209,7 +209,7 @@ async function loadTypeScript(path: string): Promise<unknown> {
     )
   }
   try {
-    return await importConfigModule(path)
+    return await requireOrImportModule(path)
   } catch (thrown) {
     const error = importFailure(thrown)
     if (isMts) {
@@ -257,9 +257,31 @@ function typeScriptFailure(path: string, error: unknown): JestConfigError {
   )
 }
 
+/**
+ * `jest-util`'s `requireOrImportModule(path)` (with `interopRequireDefault`): a `.mjs` or `.mts`
+ * file is imported and must have a default export; anything else is `require`d, and a module with
+ * no default export is its namespace (`{ default: namespace }` unwrapped), named exports and all.
+ */
+async function requireOrImportModule(path: string): Promise<unknown> {
+  const importOnly = path.endsWith('.mjs') || path.endsWith('.mts')
+  try {
+    return await importConfigModule(path, { withoutDefault: importOnly ? 'error' : 'namespace' })
+  } catch (error) {
+    if (importOnly && error instanceof ConfigError && error.code === 'CONFIG_INVALID') {
+      // jest-util `requireOrImportModule.ts` L27-L31
+      throw new ConfigError(
+        'CONFIG_LOAD_FAILED',
+        `Jest: Failed to load ESM at ${path} - did you use a default export?`,
+        { cause: new Error(`Jest: Failed to load ESM at ${path} - did you use a default export?`) },
+      )
+    }
+    throw error
+  }
+}
+
 async function importModule(path: string): Promise<unknown> {
   try {
-    return await importConfigModule(path)
+    return await requireOrImportModule(path)
   } catch (thrown) {
     const error = importFailure(thrown)
     if (error instanceof JestConfigError) throw error

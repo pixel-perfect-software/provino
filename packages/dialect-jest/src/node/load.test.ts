@@ -101,6 +101,23 @@ const CASES: readonly Case[] = [
     file: 'jest.config.js',
   },
   {
+    // streamich/react-use's jest.config.base.ts in the sample: required, so its namespace is the config.
+    name: '.ts with only named exports: the namespace is the config',
+    tree: {
+      'jest.config.ts':
+        "export const base: { testTimeout: number } = { testTimeout: 3 }\nexport const other = 'x'\n",
+    },
+    file: 'jest.config.ts',
+  },
+  {
+    name: 'ESM .js with only named exports (type: module)',
+    tree: {
+      'package.json': '{ "type": "module" }\n',
+      'jest.config.js': 'export const verbose = true\n',
+    },
+    file: 'jest.config.js',
+  },
+  {
     name: 'JSON with comments',
     tree: {
       'jest.config.json':
@@ -211,6 +228,20 @@ test('stripJsonComments keeps strings and positions', () => {
   assert.equal(stripped.length, text.length)
   assert.deepEqual(JSON.parse(stripped), { a: '// x', b: 1 })
   assert.deepEqual(JSON.parse(stripJsonComments('{"a": "\\"/* x */"}')), { a: '"/* x */' })
+})
+
+test("an .mjs config with no default export fails on both sides, with Jest's text", async () => {
+  const root = tree({ 'jest.config.mjs': 'export const verbose = true\n' })
+  const path = join(root, 'jest.config.mjs')
+  await assert.rejects(readJestConfigFile(path), (error: unknown) => {
+    assert.ok(error instanceof JestConfigError)
+    assert.equal(
+      error.message,
+      `Jest: Failed to load ESM at ${path} - did you use a default export?`,
+    )
+    return true
+  })
+  await assert.rejects(oracleRead(path), /did you use a default export\?/)
 })
 
 test('a config that is not an object is refused', async () => {

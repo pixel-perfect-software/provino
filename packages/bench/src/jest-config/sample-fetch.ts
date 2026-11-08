@@ -6,7 +6,7 @@
 // an npm user's install is). Every repository sits under that directory, so its configs resolve
 // packages from there. A repository already fetched (its `.provino-fetched` marker) is skipped.
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { SampleManifest } from './sample-manifest.ts'
 import { MANIFEST_PATH, repoDir, SAMPLE_DIR } from './sample-paths.ts'
@@ -58,6 +58,24 @@ export const SHARED_PACKAGES: Readonly<Record<string, string>> = {
   'zone.js': '0.15.1',
 }
 
+/**
+ * Editor, agent and git metadata, and `.env` files, which a tarball may hold. Left out on
+ * extraction: some sandboxes refuse to write the first kind or to read the second (the B14b run's
+ * did: `.vscode`, `.claude`, `.idea`, `.mcp.json`, `.gitmodules`, `.gitconfig`, `.env*`). No
+ * config in the sample is one of them; a config that reads a `.env` reads none on either side.
+ */
+const EXCLUDED_NAMES: readonly string[] = [
+  '.vscode',
+  '.idea',
+  '.claude',
+  '.cursor',
+  '.mcp.json',
+  '.gitmodules',
+  '.gitconfig',
+  '.env',
+  '.env.*',
+]
+
 /** Runs `curl … | tar -xz` with no shell; resolves with the exit codes. */
 function download(
   url: string,
@@ -67,7 +85,8 @@ function download(
     const curl = spawn('curl', ['-fsSL', '--retry', '3', url], {
       stdio: ['ignore', 'pipe', 'pipe'],
     })
-    const tar = spawn('tar', ['-xzf', '-', '-C', dest, '--strip-components=1'], {
+    const excludes = EXCLUDED_NAMES.flatMap((name) => ['--exclude', name, '--exclude', `*/${name}`])
+    const tar = spawn('tar', ['-xzf', '-', '-C', dest, '--strip-components=1', ...excludes], {
       stdio: ['pipe', 'ignore', 'pipe'],
     })
     let stderr = ''
@@ -106,7 +125,8 @@ export async function fetchSample(options: {
       const dest = repoDir(entry.repo)
       const marker = join(dest, '.provino-fetched')
       if (existsSync(marker) && readFileSync(marker, 'utf8').trim() === entry.sha) continue
-      rmSync(dest, { recursive: true, force: true })
+      // A directory is only ever this commit's tree (it's named for the repository, and the
+      // manifest pins one commit), so a part-extracted one is extracted over, not removed first.
       mkdirSync(dest, { recursive: true })
       const result = await download(
         `https://codeload.github.com/${entry.repo}/tar.gz/${entry.sha}`,

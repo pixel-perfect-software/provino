@@ -56,17 +56,27 @@ function interopDefault(value: unknown): unknown {
  * `.mts` and `.ts` load as Node loads them (type stripping needs Node 22.18+, or
  * `--experimental-strip-types`). Every call reads the file again (see `freshUrl`).
  *
+ * A module with no default export is `CONFIG_INVALID`, unless `withoutDefault` is `'namespace'`:
+ * then its namespace is the value, as `require()` of such a module gives it (Jest reads a
+ * `jest.config.ts` with only named exports that way).
+ *
  * Throws `ConfigError`: `CONFIG_LOAD_FAILED` when the import throws (the error is the `cause`),
- * `CONFIG_INVALID` when the module has no default export.
+ * `CONFIG_INVALID` when the module has no default export (see above).
  * @public
  */
-export async function importConfigModule(path: string): Promise<unknown> {
+export async function importConfigModule(
+  path: string,
+  options: { readonly withoutDefault?: 'error' | 'namespace' } = {},
+): Promise<unknown> {
   const file = resolve(path)
   let namespace: unknown
   try {
     namespace = await import(freshUrl(file))
   } catch (cause) {
     throw new ConfigError('CONFIG_LOAD_FAILED', `can't load the config file "${file}"`, { cause })
+  }
+  if (isRecord(namespace) && !('default' in namespace) && options.withoutDefault === 'namespace') {
+    return namespace
   }
   if (!isRecord(namespace) || !('default' in namespace)) {
     throw new ConfigError(
