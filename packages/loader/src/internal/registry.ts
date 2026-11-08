@@ -1,12 +1,18 @@
 // The per-file half of the engine (Track 2 R1 steps 3–4, F3): instances of the worker's records,
-// evaluated synchronously unless their subgraph has top-level await. A registry never compiles or
-// transforms; it calls the records' compiled wrappers with fresh linkers.
+// evaluated synchronously unless something in their reach can make them wait. A registry never
+// compiles or transforms; it calls the records' compiled wrappers with fresh linkers.
 //
 // Every edge (a static import, `require`, `import()`, and a late import, D38) resolves, then asks
 // the running file's module-mock registry (T2.5 + T4.8): a mocked edge gets `materialize`'s value,
 // shaped for the edge (`interop.ts`); any other gets the real module. With no module-mock registry,
 // nothing is mocked and an edge costs what it did before B13c. The runner's own loads (a setup or
 // test file, with no parent) never ask: that module itself is never mocked.
+//
+// An ES module loaded by `import` evaluates with the async wrapper when its graph has top-level
+// await, when it reaches a module with late deps (a late dependency may itself await), or when a
+// mocked edge can be pending (`awaitFactory`). Each wrapper passes its mode to its edges, so a sync
+// edge never binds a Promise: it refuses with `ERR_REQUIRE_ASYNC_MODULE` instead.
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { createRequire } from 'node:module'
 import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -17,6 +23,7 @@ import {
   type Compiled,
   compile,
   externalKey,
+  type Found,
   linkAsync,
   linkSync,
   type ModuleRecord,
@@ -34,8 +41,8 @@ import {
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
 type Style = 'esm' | 'cjs'
 
-/** A target that resolved. */
-type Found = Exclude<Target, { kind: 'missing' }>
+/** How the module making the edge evaluates: a plain wrapper can't wait, an async one can. */
+type Mode = 'sync' | 'async'
 
 interface Instance {
   status: 'evaluating' | 'done' | 'errored'
@@ -87,11 +94,6 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
   )
 }
 
-/** The value an ESM wrapper's `await` takes: a pending mock as its Promise. */
-function settle(value: unknown): unknown {
-  return value instanceof Pending ? value.promise : value
-}
-
 /** `__vite_ssr_exportAll__`: re-export every name except `default` that isn't already set. */
 function exportAll(target: object, source: unknown): void {
   if (source === null || typeof source !== 'object') return
@@ -105,19 +107,34 @@ function exportAll(target: object, source: unknown): void {
   }
 }
 
-function asyncRequire(what: string, why: string): LoaderError {
+/** A `require()` of something that can only be loaded asynchronously. */
+function requireError(what: string, why: string): LoaderError {
   return new LoaderError('ERR_REQUIRE_ASYNC_MODULE', `require() cannot load ${what}: ${why}`)
+}
+
+/** A load inside a module evaluating synchronously, of something that can't be. */
+function syncLoadError(what: string, why: string): LoaderError {
+  return new LoaderError(
+    'ERR_REQUIRE_ASYNC_MODULE',
+    `${what} can't be loaded synchronously: ${why}`,
+  )
 }
 
 /**
  * One stack of instance maps: the top is used; `isolateModules` pushes a fresh one and removes
- * that same map when it finishes, wherever it ended up in the stack.
+ * that same map when it finishes, wherever it ended up in the stack. A scratch load (automock's
+ * real load) has a map of its own, carried in its own async context, so a load running beside it
+ * never shares it.
  */
 export class Registry {
   readonly #state: Records
   readonly #maps: Map<ModuleId, Instance>[]
   /** Namespaces built for CommonJS values and mocks, one per value, as Babel caches its wildcard. */
   readonly #cache = createInteropCache()
+  /** The scratch load's own instance map, in its async context; made on the first scratch load. */
+  #scratch: AsyncLocalStorage<Map<ModuleId, Instance>> | null = null
+  /** How many scratch loads are running: with none, `#instances` asks no async context. */
+  #scratchLoads = 0
   /** The running file's context. Under `none` the registry is shared, and each file sets its own. */
   context: FileContext = NO_FILE
 
@@ -127,6 +144,10 @@ export class Registry {
   }
 
   get #instances(): Map<ModuleId, Instance> {
+    if (this.#scratchLoads > 0) {
+      const scratch = this.#scratch?.getStore()
+      if (scratch !== undefined) return scratch
+    }
     const top = this.#maps.at(-1)
     if (top === undefined) throw new Error('registry has no instance map')
     return top
@@ -134,6 +155,11 @@ export class Registry {
 
   get #interop() {
     return this.#state.options.policy.interopDefault
+  }
+
+  /** Whether a mocked edge may be a Promise to wait for (`awaitFactory`, with mocks in play). */
+  get #mocksMayWait(): boolean {
+    return this.#state.options.policy.awaitFactory && this.context.mocks !== null
   }
 
   loaded(): ModuleId[] {
@@ -194,6 +220,30 @@ export class Registry {
     if (index > 0) this.#maps.splice(index, 1)
   }
 
+  /**
+   * Runs `load` with a fresh instance map of its own, in its async context: everything it loads,
+   * synchronously or after an await, lands there and is dropped with it, and a load started
+   * outside it never sees it.
+   */
+  #inScratch<R>(load: () => R): R {
+    this.#scratch ??= new AsyncLocalStorage()
+    this.#scratchLoads++
+    let result: R
+    try {
+      result = this.#scratch.run(new Map(), load)
+    } catch (error) {
+      this.#scratchLoads--
+      throw error
+    }
+    if (result instanceof Promise) {
+      return result.finally(() => {
+        this.#scratchLoads--
+      }) as R
+    }
+    this.#scratchLoads--
+    return result
+  }
+
   // ---- the runner's own loads: never mocked themselves ----
 
   /** The runner's `import(specifier)` of a setup or test file: link asynchronously, then evaluate. */
@@ -220,9 +270,10 @@ export class Registry {
   async importFrom(specifier: string, importer: string): Promise<object> {
     const target = resolveOrMissing(this.#state, specifier, importer, 'import')
     const mocked = this.#mockOf(target, specifier, importer, 'esm')
-    if (mocked !== REAL) return (await settle(mocked)) as object
-    if (target.kind !== 'user') return this.#externalAsync(target as Found)
-    const record = recordFor(this.#state, target.id, false)
+    if (mocked !== REAL) return (await this.#settleFor(mocked, specifier, 'async')) as object
+    const found = target as Found
+    if (found.kind !== 'user') return this.#externalAsync(found)
+    const record = recordFor(this.#state, found.id, false)
     await linkAsync(this.#state, record)
     return this.#evaluateForImport(record)
   }
@@ -236,51 +287,52 @@ export class Registry {
     const mocked = this.#mockOf(target, specifier, importer, 'cjs')
     if (mocked !== REAL) {
       if (mocked instanceof Pending) {
-        throw asyncRequire(`'${specifier}'`, 'its mock is asynchronous')
+        throw requireError(`'${specifier}'`, 'its mock is asynchronous')
       }
       return mocked
     }
-    if (target.kind !== 'user') return this.#requireExternal(target as Found)
-    const dep = recordFor(this.#state, target.id, false)
+    const found = target as Found
+    if (found.kind !== 'user') return this.#requireExternal(found)
+    const dep = recordFor(this.#state, found.id, false)
     linkSync(this.#state, dep)
     return this.#requireRecord(dep)
   }
 
-  /** A static import inside `record`'s wrapper: its target was linked ahead. */
-  #importEdge(record: ModuleRecord, specifier: string): unknown {
+  /** A static import inside `record`'s wrapper, evaluating in `mode`: its target was linked ahead. */
+  #importEdge(record: ModuleRecord, specifier: string, mode: Mode): unknown {
     const target = this.#targetOf(record, specifier, 'import')
     const mocked = this.#mockOf(target, specifier, record.path, 'esm')
-    if (mocked !== REAL) return settle(mocked)
-    if (target.kind !== 'user') return this.#externalImport(target as Found)
-    const dep = this.#state.records.get(target.id)
-    if (dep === undefined) throw new Error(`${target.id} was never linked`)
-    return this.#importRecord(dep)
+    if (mocked !== REAL) return this.#settleFor(mocked, specifier, mode)
+    const found = target as Found
+    if (found.kind !== 'user') return this.#externalImport(found)
+    const dep = this.#state.records.get(found.id)
+    if (dep === undefined) throw new Error(`${found.id} was never linked`)
+    return this.#importRecord(dep, mode)
   }
 
   /** A late import (D38) on the sync path: what `require()` of a rewritten ES module needs. */
   #lateImportSync(record: ModuleRecord, specifier: string): unknown {
     const target = resolveOrMissing(this.#state, specifier, record.path, 'import')
     const mocked = this.#mockOf(target, specifier, record.path, 'esm')
-    if (mocked !== REAL) {
-      if (mocked instanceof Pending) {
-        throw asyncRequire(`'${specifier}'`, 'its mock is asynchronous')
-      }
-      return mocked
-    }
-    if (target.kind !== 'user') return this.#externalImport(target as Found)
-    const dep = recordFor(this.#state, target.id, false)
+    if (mocked !== REAL) return this.#settleFor(mocked, specifier, 'sync')
+    const found = target as Found
+    if (found.kind !== 'user') return this.#externalImport(found)
+    const dep = recordFor(this.#state, found.id, false)
     linkSync(this.#state, dep)
-    if (dep.format === 'esm' && dep.asyncGraph) {
-      throw asyncRequire(dep.path, 'its graph has top-level await')
-    }
-    this.#evaluateSync(dep)
-    return this.#importValueOf(dep)
+    return this.#importRecord(dep, 'sync')
+  }
+
+  /** A mocked value for a wrapper in `mode`: an async one awaits a pending mock, a sync one can't. */
+  #settleFor(mocked: unknown, specifier: string, mode: Mode): unknown {
+    if (!(mocked instanceof Pending)) return mocked
+    if (mode === 'async') return mocked.promise
+    throw syncLoadError(`'${specifier}'`, 'its mock is asynchronous')
   }
 
   /**
    * The mock decision for an edge: the mocked value shaped for the edge, or `REAL`. A specifier
-   * that didn't resolve is mocked only if `decideUnresolved` says so; otherwise its error is
-   * thrown here, when the edge runs.
+   * that didn't resolve is mocked only if `decideUnresolved` says so, and a module that didn't
+   * transform only if `decide` does; otherwise its error is thrown here, when the edge runs.
    */
   #mockOf(target: Target, specifier: string, importer: string, style: Style): unknown {
     const mocks = this.context.mocks
@@ -289,15 +341,20 @@ export class Registry {
       if (mocks !== null && found?.mocked === true) return this.#mocked(mocks, found.id, style)
       throw new ModuleNotFoundError(target.error.code, target.error.message)
     }
-    if (mocks === null) return REAL
-    const id = target.kind === 'user' ? target.id : externalKey(target)
+    if (mocks === null) {
+      if (target.kind === 'failed') throw target.error
+      return REAL
+    }
+    const id = target.kind === 'user' || target.kind === 'failed' ? target.id : externalKey(target)
     const decision = mocks.decide(
       id,
       importer,
       target.kind === 'builtin' ? 'builtin' : style,
       specifier,
     )
-    return decision.mocked ? this.#mocked(mocks, decision.id, style) : REAL
+    if (decision.mocked) return this.#mocked(mocks, decision.id, style)
+    if (target.kind === 'failed') throw target.error
+    return REAL
   }
 
   /**
@@ -350,15 +407,15 @@ export class Registry {
 
   /**
    * The real module behind `id` (a resolved path, a `node:` builtin), synchronously: `require`'s
-   * view of it. A scratch load runs in a fresh instance map that is dropped afterwards.
+   * view of it. A scratch load runs in an instance map of its own, dropped afterwards.
    */
   actualSync(id: string, scratch = false): unknown {
-    return scratch ? this.isolate(() => this.#actualSync(id)) : this.#actualSync(id)
+    return scratch ? this.#inScratch(() => this.#actualSync(id)) : this.#actualSync(id)
   }
 
   /** The same through `import`: a CommonJS module as its namespace. */
   actualAsync(id: string, scratch = false): Promise<unknown> {
-    return scratch ? this.isolateAsync(() => this.#actualAsync(id)) : this.#actualAsync(id)
+    return scratch ? this.#inScratch(() => this.#actualAsync(id)) : this.#actualAsync(id)
   }
 
   #actualTarget(id: string): Found {
@@ -374,7 +431,7 @@ export class Registry {
     const record = recordFor(this.#state, target.id, false)
     linkSync(this.#state, record)
     if (record.format === 'esm' && record.asyncGraph) {
-      throw asyncRequire(record.path, 'its graph has top-level await')
+      throw syncLoadError(record.path, 'its graph has top-level await')
     }
     const instance = this.#evaluateSync(record)
     if (record.format === 'cjs') return instance.module?.exports
@@ -389,10 +446,13 @@ export class Registry {
     }
     const record = recordFor(this.#state, target.id, false)
     await linkAsync(this.#state, record)
-    await this.#evaluateForImport(record)
+    // The instance this load evaluates, taken before its await: afterwards `#instances` may name
+    // another context's map.
+    const evaluated = this.#evaluateForImport(record)
     const instance = this.#instances.get(record.id)
     if (instance === undefined) throw new Error(`${record.id} was evaluated in no instance map`)
-    if (record.format !== 'esm') return this.#importValueOf(record)
+    await evaluated
+    if (record.format !== 'esm') return this.#importValueOfInstance(instance)
     return this.#viewOf(instance)
   }
 
@@ -403,18 +463,23 @@ export class Registry {
 
   // ---- evaluation ----
 
-  /** What `import` of `record` resolves to: async when its graph awaits or it has late imports (D38). */
+  /**
+   * Whether `record`, loaded through an async path, evaluates with the async wrapper: its graph
+   * awaits, reaches a late import (which may await), or may meet a pending mock.
+   */
+  #waitsWhenImported(record: ModuleRecord): boolean {
+    return record.format === 'esm' && (record.asyncGraph || record.lateGraph || this.#mocksMayWait)
+  }
+
+  /** What `import` of `record` resolves to. */
   #evaluateForImport(record: ModuleRecord): object | Promise<object> {
-    if (record.format === 'esm' && (record.asyncGraph || record.lateDeps.length > 0)) {
-      return this.#evaluateAsync(record)
-    }
-    this.#evaluateSync(record)
-    return this.#importValueOf(record)
+    if (this.#waitsWhenImported(record)) return this.#evaluateAsync(record)
+    return this.#importValueOfInstance(this.#evaluateSync(record))
   }
 
   #requireRecord(record: ModuleRecord): unknown {
     if (record.format === 'esm' && record.asyncGraph) {
-      throw asyncRequire(record.path, 'its graph has top-level await')
+      throw requireError(record.path, 'its graph has top-level await')
     }
     const instance = this.#evaluateSync(record)
     if (instance.module !== null) return instance.module.exports
@@ -423,29 +488,27 @@ export class Registry {
       : instance.exports
   }
 
-  /** What a static import of `dep` sees: a namespace, or a Promise of one inside an async wrapper. */
-  #importRecord(dep: ModuleRecord): unknown {
+  /**
+   * What a static import of `dep` sees from a wrapper in `mode`: a namespace, or inside an async
+   * wrapper a Promise of one. A module already evaluating (a cycle) gives its partial namespace.
+   */
+  #importRecord(dep: ModuleRecord, mode: Mode): unknown {
     const instance = this.#instances.get(dep.id)
-    if (
-      dep.format === 'esm' &&
-      dep.asyncGraph &&
-      instance?.status !== 'evaluating' &&
-      instance?.status !== 'done'
-    ) {
-      // Only reached from inside an async wrapper, which awaits the promise.
+    const settled = instance?.status === 'evaluating' || instance?.status === 'done'
+    if (!settled && mode === 'async' && this.#waitsWhenImported(dep)) {
       return this.#evaluateAsync(dep)
     }
-    this.#evaluateSync(dep)
-    return this.#importValueOf(dep)
+    if (!settled && dep.format === 'esm' && dep.asyncGraph) {
+      throw syncLoadError(dep.path, 'its graph has top-level await')
+    }
+    return this.#importValueOfInstance(this.#evaluateSync(dep))
   }
 
   /**
-   * The namespace an `import` of an evaluated (or evaluating) record sees. A CommonJS module's is
+   * The namespace an `import` of an evaluated (or evaluating) instance sees. A CommonJS module's is
    * built from `module.exports` as it stands, and kept once the module has finished.
    */
-  #importValueOf(record: ModuleRecord): object {
-    const instance = this.#instances.get(record.id)
-    if (instance === undefined) throw new Error(`${record.id} was evaluated in no instance map`)
+  #importValueOfInstance(instance: Instance): object {
     if (instance.module === null) return instance.exports ?? {}
     return cjsNamespace(
       instance.module.exports,
@@ -473,7 +536,8 @@ export class Registry {
   }
 
   #evaluateSync(record: ModuleRecord): Instance {
-    const existing = this.#instances.get(record.id)
+    const instances = this.#instances
+    const existing = instances.get(record.id)
     if (existing !== undefined) {
       if (existing.status === 'errored') throw existing.error
       return existing
@@ -501,7 +565,7 @@ export class Registry {
         this.#wrapper(record, 'sync')(
           exports,
           this.#importMeta(record),
-          (specifier: string) => this.#importEdge(record, specifier),
+          (specifier: string) => this.#importEdge(record, specifier, 'sync'),
           (specifier: string) => this.importFrom(specifier, record.path),
           (source: unknown) => exportAll(exports, source),
           (specifier: string) => this.#lateImportSync(record, specifier),
@@ -512,6 +576,11 @@ export class Registry {
     } catch (error) {
       instance.status = 'errored'
       instance.error = error
+      // Node and Jest forget a CommonJS module whose evaluation threw, so the next `require` runs
+      // it again (after a `doMock`, say). An ES module keeps its error, as Node's does.
+      if (record.format === 'cjs' && instances.get(record.id) === instance) {
+        instances.delete(record.id)
+      }
       throw error
     }
   }
@@ -530,7 +599,7 @@ export class Registry {
         await this.#wrapper(record, 'async')(
           exports,
           this.#importMeta(record),
-          (specifier: string) => this.#importEdge(record, specifier),
+          (specifier: string) => this.#importEdge(record, specifier, 'async'),
           (specifier: string) => this.importFrom(specifier, record.path),
           (source: unknown) => exportAll(exports, source),
           (specifier: string) => this.importFrom(specifier, record.path),
@@ -548,7 +617,7 @@ export class Registry {
   }
 
   /** The record's wrapper for `mode`, with its scope bindings applied. */
-  #wrapper(record: ModuleRecord, mode: 'sync' | 'async'): Compiled {
+  #wrapper(record: ModuleRecord, mode: Mode): Compiled {
     const compiled = compile(this.#state, record, mode)
     const scope = scopeOf(this.#state, record)
     if (scope.length === 0) return compiled

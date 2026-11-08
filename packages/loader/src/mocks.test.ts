@@ -5,160 +5,12 @@
 // what an earlier file bound; nothing is asked when there is no registry. The agreement with real
 // Jest and Vitest is the harness's mod corpus; these pin the mechanism.
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { after, test } from 'node:test'
+import { join } from 'node:path'
+import { test } from 'node:test'
 import { createMockRegistry, createModuleMockRegistry } from '@provino/mock'
 import { neutralPolicy } from '@provino/policy'
-import { createResolver } from '@provino/resolver'
-import { createPipeline } from '@provino/transform'
-import type {
-  FileRegistry,
-  FileRegistryOptions,
-  HoistPolicy,
-  Loader,
-  MockDecision,
-  ModuleId,
-  ModuleMockRegistry,
-  ModulePolicy,
-} from '@provino/types'
-import { createLoader } from './loader.ts'
-
-const roots: string[] = []
-after(() => {
-  for (const root of roots) rmSync(root, { recursive: true, force: true })
-})
-
-/** A module id under `root`: the parent an import or `require` comes from. */
-function at(root: string, file: string): ModuleId {
-  return join(root, file) as ModuleId
-}
-
-function writeTree(files: Readonly<Record<string, string>>): string {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-loader-mocks-')))
-  roots.push(root)
-  for (const [path, content] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, path)), { recursive: true })
-    writeFileSync(join(root, path), content)
-  }
-  return root
-}
-
-/** A Jest-shaped hoist policy for these tests only (not the dialect's value). */
-const HOIST: HoistPolicy = {
-  id: 'loader-test',
-  objects: [{ kind: 'global', name: 'mocker' }],
-  hoistCalls: { mock: 'path-factory-options', unmock: 'one-string' },
-  hoistValues: [],
-  rewriteImportArg: [],
-  chainable: true,
-  placement: 'enclosing-block',
-  topLevelGuards: [],
-  factoryReferences: 'allow',
-  runnerModules: [],
-  reExports: 'in-order',
-  rewrittenCalls: 'detached',
-  messages: {
-    HOIST_FACTORY_OUT_OF_SCOPE: 'out of scope',
-    HOIST_FACTORY_NOT_FUNCTION: 'not a function',
-    HOIST_NOT_TOP_LEVEL: 'not top level',
-    HOIST_NESTED: 'nested',
-    HOIST_EXPORTED: 'exported',
-    HOIST_EXPORTED_VALUE: 'exported value',
-  },
-}
-
-/** Jest's shapes at the ends that matter here: a factory returns `module.exports`, synchronously. */
-const JESTISH: Partial<ModulePolicy> = {
-  factoryShape: 'module-value',
-  interopDefault: 'babel',
-  awaitFactory: false,
-  actual: 'sync-require',
-  requireVirtualFlag: true,
-  missingFactoryExport: 'undefined',
-  mockValueOwner: 'module-registry',
-}
-
-function loaderFor(
-  root: string,
-  options: { readonly policy?: Partial<ModulePolicy>; readonly hoist?: HoistPolicy } = {},
-): Loader {
-  return createLoader({
-    root,
-    engine: 'runner',
-    resolver: createResolver({
-      root,
-      mappers: [],
-      extensions: ['.ts', '.js', '.mjs', '.cjs', '.json'],
-      tsconfig: false,
-    }),
-    transformer: createPipeline({
-      root,
-      typescript: 'oxc',
-      tsconfig: false,
-      hoist: options.hoist ?? HOIST,
-      cache: false,
-    }),
-    policy: { ...neutralPolicy.module, ...JESTISH, ...options.policy },
-    moduleScope: { names: ['mocker'] },
-  })
-}
-
-/** A file registry whose modules get a `mocker` that registers through it, over a real registry. */
-function fileWithMocks(
-  loader: Loader,
-  file: string,
-  tier: FileRegistryOptions['tier'] = 'registry',
-  wrap: (registry: ModuleMockRegistry) => ModuleMockRegistry = (registry) => registry,
-): { readonly files: FileRegistry; readonly mocks: () => ModuleMockRegistry } {
-  let mocks: ModuleMockRegistry | undefined
-  let files: FileRegistry | undefined
-  const current = (): FileRegistry => {
-    if (files === undefined) throw new Error('no file registry')
-    return files
-  }
-  files = loader.createFileRegistry(file, {
-    tier,
-    moduleMocks: (context) => {
-      mocks = wrap(
-        createModuleMockRegistry({
-          policy: { ...neutralPolicy.module, ...JESTISH },
-          mockPolicy: neutralPolicy.mock,
-          mocks: createMockRegistry(),
-          resolver: context.resolver,
-          roots: [dirname(file)],
-          extensions: ['.ts', '.js'],
-          conditions: context.conditions,
-          loadActual: context.loadActual,
-        }),
-      )
-      return mocks
-    },
-    moduleScope: (from) => ({
-      mocker: {
-        mock: (specifier: string, factory?: () => unknown, options?: { virtual?: boolean }) =>
-          current().registerMock(
-            specifier,
-            from,
-            typeof factory === 'function'
-              ? { kind: 'factory', factory }
-              : { kind: 'automock', spy: false },
-            options ?? {},
-          ),
-        unmock: (specifier: string) => current().unregisterMock(specifier, from),
-        requireActual: (specifier: string) => current().requireActual(specifier, from),
-      },
-    }),
-  })
-  return {
-    files,
-    mocks: () => {
-      if (mocks === undefined) throw new Error('no module-mock registry')
-      return mocks
-    },
-  }
-}
+import type { HoistPolicy, MockDecision, ModuleMockRegistry, ModulePolicy } from '@provino/types'
+import { at, fileWithMocks, HOIST, JESTISH, loaderFor, writeTree } from './internal/test-support.ts'
 
 /** A registry that mocks nothing and records every `decide` it is asked. */
 function recording(): { readonly registry: ModuleMockRegistry; readonly asked: string[] } {
@@ -479,7 +331,7 @@ test('none with mocks: each file gets its own module-mock registry; a module an 
     'b.test.ts': '',
   })
   const loader = loaderFor(root)
-  const a = fileWithMocks(loader, join(root, 'a.test.ts'), 'none')
+  const a = fileWithMocks(loader, join(root, 'a.test.ts'), { tier: 'none' })
   a.files.registerMock('./dep.ts', null, {
     kind: 'factory',
     factory: () => ({ value: 'mocked in a' }),
@@ -490,7 +342,7 @@ test('none with mocks: each file gets its own module-mock registry; a module an 
   )
   const firstMocks = a.mocks()
   a.files.dispose()
-  const b = fileWithMocks(loader, join(root, 'b.test.ts'), 'none')
+  const b = fileWithMocks(loader, join(root, 'b.test.ts'), { tier: 'none' })
   assert.notEqual(b.mocks(), firstMocks, 'a new module-mock registry for the second file')
   // The worker's shared instance map keeps what the first file evaluated, as Vitest's
   // `isolate: false` does (B13c Gap 9).

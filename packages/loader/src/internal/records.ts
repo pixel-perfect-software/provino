@@ -17,15 +17,20 @@ import { LoaderError, ModuleNotFoundError } from '../errors.ts'
 import { loaderMessage } from './messages.ts'
 
 /**
- * Where a specifier leads. `missing` is a specifier that doesn't resolve: recorded when the graph
- * is linked and thrown only when the edge runs, after the mock registry had its say (a `virtual`
- * mock, `try { require('optional') } catch {}`; B13c Gap 7).
+ * Where a specifier leads. `missing` is a specifier that doesn't resolve, and `failed` a user module
+ * that doesn't transform (a `.css` file, a syntax error): both are recorded when the graph is linked
+ * and thrown only when the edge runs, after the mock registry had its say (a `virtual` mock, a
+ * factory for `./styles.css`, `try { require('optional') } catch {}`; B13c Gap 7 and the review).
  */
 export type Target =
   | { readonly kind: 'user'; readonly id: ModuleId }
   | { readonly kind: 'external'; readonly path: string }
   | { readonly kind: 'builtin'; readonly id: string }
   | { readonly kind: 'missing'; readonly error: ModuleNotFoundError }
+  | { readonly kind: 'failed'; readonly id: ModuleId; readonly error: unknown }
+
+/** A target that leads somewhere loadable. */
+export type Found = Extract<Target, { readonly kind: 'user' | 'external' | 'builtin' }>
 
 export type UserFormat = 'esm' | 'cjs' | 'json'
 
@@ -47,6 +52,11 @@ export interface ModuleRecord {
   readonly hasTopLevelAwait: boolean
   /** Its static subgraph has top-level await, so it evaluates with the async wrapper. */
   asyncGraph: boolean
+  /**
+   * Its static subgraph has a module with late deps (D38), so an `import` of it evaluates async: a
+   * late dependency with top-level await then works however the module was reached.
+   */
+  lateGraph: boolean
   readonly resolved: Map<string, Target>
   linked: boolean
   /** The plain wrapper (`await` stripped from its import calls) and the async one, each compiled on first use. */
@@ -152,7 +162,7 @@ export function resolveOrMissing(
   specifier: string,
   importer: string,
   kind: ResolveKind,
-): Target {
+): Found | Extract<Target, { readonly kind: 'missing' }> {
   const result = state.options.resolver.resolve(specifier, {
     importer,
     kind,
@@ -174,7 +184,7 @@ export function resolveTarget(
   specifier: string,
   importer: string,
   kind: ResolveKind,
-): Exclude<Target, { kind: 'missing' }> {
+): Found {
   const target = resolveOrMissing(state, specifier, importer, kind)
   if (target.kind === 'missing') throw target.error
   return target
@@ -185,7 +195,7 @@ export function resolveTarget(
  * builtin, a path under `node_modules` that `inline` doesn't match (or an addon) is an external,
  * any other path a user module.
  */
-export function targetOfId(state: Records, id: string): Exclude<Target, { kind: 'missing' }> {
+export function targetOfId(state: Records, id: string): Found {
   if (id.startsWith('node:')) return { kind: 'builtin', id }
   if (id.endsWith('.node') || isThirdParty(id, state.options.inline ?? [])) {
     return { kind: 'external', path: id }
@@ -281,6 +291,7 @@ function makeRecord(
     lateDeps,
     hasTopLevelAwait,
     asyncGraph: hasTopLevelAwait,
+    lateGraph: lateDeps.length > 0,
     resolved: new Map(),
     linked: false,
     compiledSync: null,
@@ -305,9 +316,38 @@ export async function preloadAsync(state: Records, target: Target): Promise<void
 }
 
 /**
+ * One dep of `record` at link time: its target, with a user module transformed (and queued on
+ * `stack`) or, when it doesn't transform, recorded `failed`. A mocked module is never evaluated,
+ * so its transform error only matters if the edge decides on the real module.
+ */
+function linkDep(
+  state: Records,
+  record: ModuleRecord,
+  specifier: string,
+  stack: ModuleRecord[],
+): Target {
+  let target: Target = resolveOrMissing(
+    state,
+    specifier,
+    record.path,
+    record.format === 'cjs' ? 'require' : 'import',
+  )
+  if (target.kind === 'user') {
+    try {
+      stack.push(recordFor(state, target.id, false))
+    } catch (error) {
+      target = { kind: 'failed', id: target.id, error }
+    }
+  }
+  setResolved(state, record, specifier, target)
+  return target
+}
+
+/**
  * Links a module's static subgraph (Track 2 R1 step 2): resolve every dep, transform user modules,
- * and preload externals the ESM code imports. A dep that doesn't resolve is recorded `missing`
- * and fails only when its edge runs. Late deps are not linked: the mocks register first.
+ * and preload externals the ESM code imports. A dep that doesn't resolve is recorded `missing`, one
+ * that doesn't transform `failed`; each fails only when its edge runs. Late deps are not linked:
+ * the mocks register first.
  */
 export async function linkAsync(state: Records, root: ModuleRecord): Promise<void> {
   const stack = [root]
@@ -316,12 +356,9 @@ export async function linkAsync(state: Records, root: ModuleRecord): Promise<voi
     if (record === undefined || record.linked) continue
     record.linked = true
     state.asyncGraphsStale = true
-    const kind: ResolveKind = record.format === 'cjs' ? 'require' : 'import'
     for (const specifier of record.deps) {
-      const target = resolveOrMissing(state, specifier, record.path, kind)
-      setResolved(state, record, specifier, target)
-      if (target.kind === 'user') stack.push(recordFor(state, target.id, false))
-      else if (record.format === 'esm') await preloadAsync(state, target)
+      const target = linkDep(state, record, specifier, stack)
+      if (record.format === 'esm') await preloadAsync(state, target)
     }
   }
   markAsyncGraphs(state)
@@ -334,12 +371,7 @@ export function linkSync(state: Records, root: ModuleRecord): void {
     if (record === undefined || record.linked) continue
     record.linked = true
     state.asyncGraphsStale = true
-    const kind: ResolveKind = record.format === 'cjs' ? 'require' : 'import'
-    for (const specifier of record.deps) {
-      const target = resolveOrMissing(state, specifier, record.path, kind)
-      setResolved(state, record, specifier, target)
-      if (target.kind === 'user') stack.push(recordFor(state, target.id, false))
-    }
+    for (const specifier of record.deps) linkDep(state, record, specifier, stack)
   }
   markAsyncGraphs(state)
 }
@@ -356,9 +388,9 @@ export function setResolved(
 }
 
 /**
- * Marks every module whose static subgraph has top-level await, to a fixed point over cycles.
- * A no-op unless something it reads has changed since the last run, so it is safe to call after
- * every link.
+ * Marks every module whose static subgraph has top-level await (`asyncGraph`) or late deps
+ * (`lateGraph`), to a fixed point over cycles. A no-op unless something it reads has changed since
+ * the last run, so it is safe to call after every link.
  */
 function markAsyncGraphs(state: Records): void {
   if (!state.asyncGraphsStale) return
@@ -367,12 +399,18 @@ function markAsyncGraphs(state: Records): void {
   while (changed) {
     changed = false
     for (const record of state.records.values()) {
-      if (record.asyncGraph || !record.linked) continue
+      if (!record.linked || (record.asyncGraph && record.lateGraph)) continue
       for (const target of record.resolved.values()) {
-        if (target.kind === 'user' && state.records.get(target.id)?.asyncGraph === true) {
+        // A `missing` or `failed` target has no record: it adds nothing to the graph.
+        const dep = target.kind === 'user' ? state.records.get(target.id) : undefined
+        if (dep === undefined) continue
+        if (dep.asyncGraph && !record.asyncGraph) {
           record.asyncGraph = true
           changed = true
-          break
+        }
+        if (dep.lateGraph && !record.lateGraph) {
+          record.lateGraph = true
+          changed = true
         }
       }
     }
