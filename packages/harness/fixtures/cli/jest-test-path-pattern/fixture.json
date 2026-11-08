@@ -1,0 +1,9 @@
+{
+  "description": "Jest 30 refuses the singular --testPathPattern (T11.7): it was renamed --testPathPatterns, and jest-validate's CLI check treats the old name as a fatal deprecation (jest-config Deprecated.ts, validateCLIOptions.ts). vscode-jest's auto-detect reads this text to retry with the new name. Exit code 1, the message on stderr. Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": { "jest": ["--testPathPattern=foo"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(testPathPattern:|  Option |  Please update)"
+  }
+}

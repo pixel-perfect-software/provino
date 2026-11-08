@@ -1,0 +1,9 @@
+{
+  "description": "A flag the runner does not know (T11.7, orchestrator.exitCodes.usage): Jest names it and points at its CLI documentation; Vitest's cac throws 'Unknown option'. Both exit with code 1. A black-box run.",
+  "runners": ["jest", "vitest"],
+  "run": {
+    "argv": { "jest": ["--bogus-flag"], "vitest": ["--bogus-flag"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(CACError: Unknown option|  Unrecognized option)"
+  }
+}

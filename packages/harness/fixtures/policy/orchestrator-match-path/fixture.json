@@ -1,0 +1,14 @@
+{
+  "description": "What a test-file glob is matched against (U2, orchestrator.globMatchesOn): the same relative glob, src/**/*.test.ts, in Jest's testMatch and Vitest's test.include. Jest matches it against the absolute path, so it finds nothing (a relative glob needs a leading **/ or <rootDir>); Vitest matches it against the path relative to the root and runs src/a.test.ts. A black-box run.",
+  "runners": ["jest", "vitest"],
+  "config": {
+    "jest": {
+      "testMatch": ["src/**/*.test.ts"],
+      "testPathIgnorePatterns": ["/node_modules/"]
+    },
+    "vitest": {
+      "test": { "include": ["src/**/*.test.ts"], "exclude": ["**/node_modules/**"] }
+    }
+  },
+  "run": { "capture": ["exitCode"] }
+}

@@ -1,0 +1,32 @@
+{
+  "description": "Which files Jest's --listTests finds with its default testMatch (U2): everything under a __tests__ directory with a JS/TS extension, and *.test.* / *.spec.* files, dot directories included, node_modules left out by the default testPathIgnorePatterns. The tree is data (D13). The list is recorded sorted: its real order depends on file sizes and timings. Jest only.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testMatch": ["**/__tests__/**/*.[jt]s?(x)", "**/?(*.)+(spec|test).[jt]s?(x)"],
+      "testPathIgnorePatterns": ["/node_modules/"]
+    }
+  },
+  "files": {
+    "jest": {
+      "src/a.test.js": "// listed only\n",
+      "src/b.spec.ts": "// listed only\n",
+      "src/c.test.tsx": "// listed only\n",
+      "src/__tests__/d.js": "// listed only\n",
+      "src/__tests__/helper/e.ts": "// listed only\n",
+      "src/not-a-test.js": "// not a test\n",
+      "src/x.test.json": "{}\n",
+      "lib/f.spec.mjs": "// not matched: .mjs\n",
+      ".hidden/g.test.js": "// listed only\n",
+      "node_modules/pkg/h.test.js": "// ignored: node_modules\n",
+      "test.js": "// listed only\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

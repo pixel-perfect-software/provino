@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/bad-config",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "● Validation Error:\n  Option \"verbose\" must be of type:"
+  }
+}

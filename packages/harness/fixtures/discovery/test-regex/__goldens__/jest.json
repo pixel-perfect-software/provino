@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "discovery/test-regex",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      ".harness-out/jest.json": "<root>/specs/deep/two.ts\n<root>/specs/one.ts\n<root>/src/four.check.js"
+    }
+  }
+}

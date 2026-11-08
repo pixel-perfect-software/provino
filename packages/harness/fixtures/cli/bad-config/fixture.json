@@ -1,0 +1,11 @@
+{
+  "description": "A config Jest refuses (T11.7, U3): an option of the wrong type is a validation error, and the run exits with code 1 before it looks for a test. Jest only: Vitest has no check that stops a run before it starts, and a Vitest pool that does not exist is an error inside the run. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": { "verbose": "yes" }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "(Validation Error|must be of type)"
+  }
+}

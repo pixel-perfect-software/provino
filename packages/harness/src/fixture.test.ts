@@ -597,6 +597,42 @@ test('config refuses a bad shape, an unlisted runner and a key someone else sets
   )
 })
 
+test('a black-box run may set the options that decide which files it finds; other fixtures may not', () => {
+  const discovery = {
+    jest: { testMatch: ['**/*.spec.ts'], testPathIgnorePatterns: ['/skip/'] },
+    vitest: { test: { include: ['src/**'], exclude: ['**/skip/**'] } },
+  }
+  const run = { capture: ['exitCode'] }
+  assert.deepEqual(
+    parseFixtureManifest(JSON.stringify({ ...VALID, config: discovery, run })).config,
+    discovery,
+  )
+  const refused = (config: unknown): void =>
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, config })),
+      rejects('HARNESS_FIXTURE_BAD_CONFIG'),
+    )
+  refused({ jest: { testMatch: ['**/*.spec.ts'] } })
+  refused({ jest: { testPathIgnorePatterns: ['/skip/'] } })
+  refused({ vitest: { test: { include: ['src/**'] } } })
+  refused({ vitest: { test: { exclude: ['x'] } } })
+  // The rest of what the recorder owns stays its own, run or not.
+  assert.throws(
+    () =>
+      parseFixtureManifest(JSON.stringify({ ...VALID, config: { jest: { rootDir: '/x' } }, run })),
+    rejects('HARNESS_FIXTURE_BAD_CONFIG'),
+  )
+})
+
+test('run.sortStdout is true or "json"', () => {
+  const run = { capture: ['stdout'], sortStdout: 'json' }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, run })).run, run)
+  assert.throws(
+    () => parseFixtureManifest(JSON.stringify({ ...VALID, run: { ...run, sortStdout: 'lines' } })),
+    rejects('HARNESS_FIXTURE_BAD_RUN'),
+  )
+})
+
 test('files keeps a tree per runner, under its normalized paths', () => {
   const files = { jest: { './__snapshots__/a.test.ts.snap': 'x' }, vitest: { 'b.txt': '' } }
   assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, files })).files, {

@@ -117,8 +117,11 @@ export const vitestPolicy: PolicyOverrides = {
     bail: { checkAfter: 'test' },
     watchDefault: 'tty-not-ci',
     watch: { initialRun: 'all' },
+    // Vitest's `include` is relative to the root (`policy/orchestrator-match-path`).
+    globMatchesOn: 'root-relative-path',
     passWithNoTests: false,
-    exitCodes: { failure: 1, noTests: 1, unhandled: 1 },
+    // `usage` is `cli/unknown-flag`: cac throws on an unknown option and the process exits 1.
+    exitCodes: { failure: 1, noTests: 1, unhandled: 1, usage: 1 },
     unhandledErrors: 'fail-run',
     coverageProvider: 'v8',
     coverageReporters: ['text', 'html', 'clover', 'json'],
