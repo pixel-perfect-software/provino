@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { HarnessError } from '../errors.ts'
-import { parseCommandLine } from './cli-args.ts'
+import { parseCommandLine, parsePolicyDiff } from './cli-args.ts'
+
+test('policy-diff takes exactly two dialect names', () => {
+  assert.deepEqual(parsePolicyDiff(['jest', 'vitest']), { a: 'jest', b: 'vitest' })
+  assert.deepEqual(parsePolicyDiff(['vitest', 'jest']), { a: 'vitest', b: 'jest' })
+  for (const argv of [[], ['jest'], ['jest', 'mocha'], ['jest', 'vitest', 'jest']]) {
+    assert.throws(() => parsePolicyDiff(argv), usageError)
+  }
+})
 
 function usageError(error: unknown): boolean {
   return error instanceof HarnessError && error.code === 'HARNESS_USAGE'

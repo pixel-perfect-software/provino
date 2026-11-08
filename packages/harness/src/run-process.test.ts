@@ -161,3 +161,49 @@ test('the output tail keeps the end of long output', { timeout: 15_000 }, async 
   assert.equal(result.output.length, 4_000)
   assert.ok(result.output.endsWith('END'))
 })
+
+test('keepStreams keeps all of stdout and all of stderr, each on its own', {
+  timeout: 15_000,
+}, async () => {
+  const script = "process.stdout.write('o'.repeat(5000) + 'OUT'); process.stderr.write('ERR')"
+  const kept = await runNode(['-e', script], {
+    ...baseOptions,
+    deadline: new AbortController().signal,
+    keepStreams: true,
+  })
+  assert.equal(kept.streams?.stdout, `${'o'.repeat(5000)}OUT`)
+  assert.equal(kept.streams?.stderr, 'ERR')
+  const plain = await runNode(['-e', script], {
+    ...baseOptions,
+    deadline: new AbortController().signal,
+  })
+  assert.equal('streams' in plain, false)
+})
+
+test('a character split across two chunks is kept whole', { timeout: 15_000 }, async () => {
+  // The child writes its pid and the first byte of `●` (E2 97 8F), and the other two only once
+  // this side has read the first chunk and signalled it, so the character always spans two chunks.
+  const script = [
+    "process.on('SIGUSR2', () => process.stdout.write(Buffer.from([0x97, 0x8f]), () => process.exit(0)))",
+    "process.stdout.write(Buffer.concat([Buffer.from(process.pid + '\\n'), Buffer.from([0xe2])]))",
+    'setInterval(() => {}, 1000)',
+  ].join('\n')
+  let seen = ''
+  let signalled = false
+  const result = await runNode(['-e', script], {
+    ...baseOptions,
+    timeoutMs: 10_000,
+    keepStreams: true,
+    onOutput: (chunk) => {
+      seen += chunk
+      const pid = /^(\d+)\n/.exec(seen)?.[1]
+      if (pid === undefined || signalled) return
+      signalled = true
+      process.kill(Number(pid), 'SIGUSR2')
+    },
+  })
+  assert.equal(result.timedOut, false)
+  const pid = /^(\d+)\n/.exec(seen)?.[1]
+  assert.equal(result.streams?.stdout, `${pid}\n●`)
+  assert.ok(result.output.endsWith('\n●'), result.output)
+})

@@ -34,13 +34,14 @@ async function run(source: string, policy: HoistPolicy, modules: Modules): Promi
     '__vite_ssr_dynamic_import__',
     '__vite_ssr_exports__',
     '__vite_ssr_exportAll__',
+    '__provino_import__',
     '__vite_ssr_import_meta__',
     'jest',
     'vi',
     output.code,
   )
   const object = { mock: noop }
-  await body(load, load, exports, noop, {}, object, object)
+  await body(load, load, exports, noop, load, {}, object, object)
   return exports
 }
 
@@ -129,7 +130,7 @@ test('live: the getter sits straight before the await import, and is enumerable'
   const result = hoist("import { x } from './a'\nexport { x }\njest.mock('./m')\n", blockPolicy)
   assert.ok(
     result.code.includes(
-      'Object.defineProperty(__vite_ssr_exports__, "x", { enumerable: true, configurable: true, get: () => __provino_import_0__.x });const __provino_import_0__ = await import("./a");',
+      'Object.defineProperty(__vite_ssr_exports__, "x", { enumerable: true, configurable: true, get: () => __provino_import_0__.x });const __provino_import_0__ = await __provino_import__("./a");',
     ),
     result.code,
   )

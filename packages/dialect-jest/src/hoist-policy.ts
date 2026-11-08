@@ -1,8 +1,8 @@
 // The Jest dialect's mock-hoisting policy (T3.4, T1.8's Jest half): the rules of
 // `babel-plugin-jest-hoist` 30.5.0 as typed values for the one neutral engine in
 // `@provino/transform`. Every value is checked against the real plugin by the harness's hoist
-// corpus; "hoist corpus agrees" is a claim `hoist-corpus.test.ts` makes true. B14 verifies each
-// `unverified` entry against a recorded fixture (non-negotiable 2).
+// corpus; "hoist corpus agrees" is a claim `hoist-corpus.test.ts` makes true, and T1.7's
+// `policy-truth/claims/module.ts` in the harness lists the evidence per key.
 import { defineHoistPolicy } from '@provino/policy'
 import type { HoistPolicy } from '@provino/types'
 
@@ -82,7 +82,7 @@ export const jestHoistPolicy: HoistPolicy<
   never
 > = defineHoistPolicy({
   id: 'jest-30.5',
-  // unverified: track-03 L612 (hoist corpus agrees). index.ts `isJestObject`: the unshadowed
+  // research: track-03 L612 (hoist corpus agrees). index.ts `isJestObject`: the unshadowed
   // global, `import { jest } from '@jest/globals'` under any alias, and `G.jest` for a namespace
   // import of `@jest/globals`.
   objects: [
@@ -90,7 +90,7 @@ export const jestHoistPolicy: HoistPolicy<
     { kind: 'import', module: '@jest/globals', exportName: 'jest' },
     { kind: 'namespace-member', module: '@jest/globals', exportName: 'jest' },
   ],
-  // unverified: track-03 L612 (hoist corpus agrees). index.ts `FUNCTIONS`; `doMock` and
+  // research: track-03 L612 (hoist corpus agrees). index.ts `FUNCTIONS`; `doMock` and
   // `dontMock` are not listed, so they never hoist.
   hoistCalls: {
     mock: 'path-factory-options',
@@ -99,16 +99,16 @@ export const jestHoistPolicy: HoistPolicy<
     enableAutomock: 'no-args',
     disableAutomock: 'no-args',
   },
-  // unverified: track-03 L612 (hoist corpus agrees). Jest has no hoisted values.
+  // research: track-03 L612 (hoist corpus agrees). Jest has no hoisted values.
   hoistValues: [],
-  // unverified: track-03 L612 (hoist corpus agrees). Jest does not read `import()` arguments.
+  // research: track-03 L612 (hoist corpus agrees). Jest does not read `import()` arguments.
   rewriteImportArg: [],
-  // unverified: track-03 L612 (hoist corpus agrees). `jest.mock(a).mock(b)` hoists as one.
+  // research: track-03 L612 (hoist corpus agrees). `jest.mock(a).mock(b)` hoists as one.
   chainable: true,
-  // unverified: track-03 L612 (hoist corpus agrees). Each call goes to the top of its own block.
+  // research: track-03 L612 (hoist corpus agrees). Each call goes to the top of its own block.
   placement: 'enclosing-block',
   topLevelGuards: [],
-  // unverified: track-03 L612 (hoist corpus agrees). index.ts `FUNCTIONS.mock`: a global on the
+  // research: track-03 L612 (hoist corpus agrees). index.ts `FUNCTIONS.mock`: a global on the
   // allow list, a name matching `/^mock/i`, or Istanbul's `/^(?:__)?cov/` (case sensitive, so the
   // two are spelled out in one pattern rather than given a flag), or a pure `const` hoisted along.
   factoryReferences: {
@@ -116,11 +116,11 @@ export const jestHoistPolicy: HoistPolicy<
     allowPattern: /^(?:[mM][oO][cC][kK]|(?:__)?cov)/,
     hoistPureConsts: true,
   },
-  // unverified: track-03 L612 (hoist corpus agrees). `JEST_GLOBALS_MODULE_NAME`.
+  // research: track-03 L612 (hoist corpus agrees). `JEST_GLOBALS_MODULE_NAME`.
   runnerModules: ['@jest/globals'],
-  // unverified: track-03 L612 (hoist corpus agrees; Babel's CJS step keeps source order)
+  // research: track-03 L612 (hoist corpus agrees; Babel's CJS step keeps source order)
   reExports: 'in-order',
-  // unverified: mod-import-this (the golden agrees: a bare call and a tag through a named import
+  // research: mod-import-this (the golden agrees: a bare call and a tag through a named import
   // see `this` as `undefined`, Babel's `(0, _a.f)()`)
   rewrittenCalls: 'detached',
   // Copied exactly from babel-plugin-jest-hoist 30.5.0, `src/index.ts`. The plugin writes

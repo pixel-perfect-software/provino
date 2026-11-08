@@ -1,0 +1,5 @@
+{
+  "description": "The flags -t's pattern is matched with (T1.7, core.testNamePatternFlags), read from the golden's statuses: with -t Upper, Jest also runs the test named in lower case (flag i), Vitest only the exact one. A black-box run, for the argument.",
+  "runners": ["jest", "vitest"],
+  "run": { "argv": { "jest": ["-t", "Upper"], "vitest": ["-t", "Upper"] }, "capture": ["exitCode"] }
+}

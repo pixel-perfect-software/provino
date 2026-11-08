@@ -1,0 +1,6 @@
+{
+  "description": "Snapshots under CI (T1.7, snapshot slice): a new snapshot is not written and its assertion fails (ciUpdate none, both runners); with UPDATE_SNAPSHOT=new in the environment Vitest writes it all the same and Jest ignores the variable. A black-box run capturing the .snap file.",
+  "runners": ["jest", "vitest"],
+  "env": { "UPDATE_SNAPSHOT": "new" },
+  "run": { "capture": ["exitCode", "file:__snapshots__/ci.test.ts.snap"] }
+}

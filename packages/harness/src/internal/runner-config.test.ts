@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 import {
+  applyOverlay,
   jestConfig,
   jestMockCleanupOptions,
   OBSERVE_SETUP_PATH,
@@ -217,4 +218,47 @@ test('a fixture jestConfig reaches Jest as roots under <rootDir> and the pattern
   const plain = jestConfig('/work/x', '/t.ts', '/s.ts', {})
   assert.equal('roots' in plain, false)
   assert.equal('unmockedModulePathPatterns' in plain, false)
+})
+
+test('applyOverlay merges objects, replaces arrays and appends the setup-file lists', () => {
+  const base = { a: { b: 1, c: [1] }, setupFiles: ['/trace.ts'], test: { setupFiles: ['/t.ts'] } }
+  assert.deepEqual(
+    applyOverlay(base, {
+      a: { c: [2], d: true },
+      setupFiles: ['<rootDir>/s.ts'],
+      setupFilesAfterEnv: ['<rootDir>/e.ts'],
+      test: { setupFiles: ['./v.ts'], globals: false },
+    }),
+    {
+      a: { b: 1, c: [2], d: true },
+      setupFiles: ['/trace.ts', '<rootDir>/s.ts'],
+      setupFilesAfterEnv: ['<rootDir>/e.ts'],
+      test: { setupFiles: ['/t.ts', './v.ts'], globals: false },
+    },
+  )
+  assert.deepEqual(applyOverlay(base, undefined), base)
+})
+
+test('the overlay reaches both runner configs, after the recorder and mockCleanup values', () => {
+  const config = jestConfig('/work/x', '/t.ts', '/s.ts', {
+    observeSetupFile: '/o.ts',
+    overlay: { testTimeout: 50, setupFiles: ['<rootDir>/mine.ts'] },
+  })
+  assert.equal(config.testTimeout, 50)
+  assert.deepEqual(config.setupFiles, ['/s.ts', '/o.ts', '<rootDir>/mine.ts'])
+  const source = vitestConfigSource('/work/x', '/s.ts', 'vitest-list', {
+    overlay: { test: { globals: false, setupFiles: ['./mine.ts'] } },
+  })
+  const written = JSON.parse(source.replace(/^export default /, ''))
+  assert.equal(written.test.globals, false)
+  assert.deepEqual(written.test.setupFiles, ['/s.ts', './mine.ts'])
+  assert.deepEqual(written.test.sequence, { hooks: 'list' })
+})
+
+test('runnerEnv drops what makes std-env see an agent or GitHub Actions', () => {
+  const env = runnerEnv({ PATH: '/bin', CLAUDECODE: '1', AI_AGENT: 'x', GITHUB_ACTIONS: 'true' })
+  assert.equal(env.PATH, '/bin')
+  assert.equal('CLAUDECODE' in env, false)
+  assert.equal('AI_AGENT' in env, false)
+  assert.equal('GITHUB_ACTIONS' in env, false)
 })

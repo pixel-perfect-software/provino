@@ -1,10 +1,12 @@
 // What the hoist corpus compares first (B13b, T3.4): the hoisted order, not the output text. Three
 // hoisters print three shapes: Babel keeps `import`s and writes `_getJestObj().mock('x')`, ours
-// writes `const __provino_import_N__ = await import('x')`, and Vitest's is `__vi_import_N__`.
+// writes `const __provino_import_N__ = await __provino_import__('x')` (D38), and Vitest's is
+// `__vi_import_N__ = await import('x')`.
 // `orderOf` reads any of them into one neutral sequence, so the check can't pass by comparing text
 // and can't pass by normalizing everything away: a hoisted call and a module load keep their
 // relative order within a block. It never runs the code, so it can't see a lost binding;
 // `run-recorded.ts` does that.
+import { LATE_IMPORT } from '@provino/transform'
 import { parseSync } from 'oxc-parser'
 import { isRecord, prop } from '../internal/guards.ts'
 
@@ -207,7 +209,11 @@ function collect(node: Node, state: Collector): void {
     }
     case 'CallExpression': {
       const callee = child(node, 'callee')
-      if (callee?.type === 'Identifier' && callee.name === 'require') {
+      // `require`, and our hoister's late import (D38), which loads its module when it runs.
+      if (
+        callee?.type === 'Identifier' &&
+        (callee.name === 'require' || callee.name === LATE_IMPORT)
+      ) {
         const first = argumentsOf(node)[0]
         const source = specifierOf(first)
         if (source === undefined || !options.runnerModules.has(source)) {

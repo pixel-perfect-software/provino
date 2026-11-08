@@ -96,8 +96,17 @@ export interface TransformRecord {
   readonly imports: readonly ImportRecord[]
   /** Hoisted mock calls with literal specifiers, in source order. */
   readonly staticMocks: readonly StaticMockCall[]
-  /** Whether the module uses top-level await (sync `require` of it must throw). */
+  /**
+   * Whether the module's own source uses top-level await (sync `require` of it must throw). The
+   * hoister's rewritten imports don't count: they are `lateDeps` (D38).
+   */
   readonly hasTopLevelAwait: boolean
+  /**
+   * The specifiers of the static imports the hoister rewrote to `await __provino_import__(…)`, in
+   * source order (D38). The loader never links them early, so mocks register first; it loads each
+   * one when its call runs, synchronously when the module is, through the mock decision.
+   */
+  readonly lateDeps: readonly string[]
   readonly diagnostics: readonly TransformDiagnostic[]
   readonly cacheKey: string
   readonly fromCache: boolean

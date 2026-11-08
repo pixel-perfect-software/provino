@@ -1,0 +1,5 @@
+{
+  "description": "Exit codes (T1.7, orchestrator.exitCodes.failure): a run with one failing test exits with code 1 under both runners (Jest's testFailureExitCode default). A black-box run.",
+  "runners": ["jest", "vitest"],
+  "run": { "capture": ["exitCode"] }
+}

@@ -1,0 +1,5 @@
+{
+  "description": "How .only narrows a file (T1.7, core.focus), read from the golden's tests, with Vitest's allowOnly on (the recorder runs under CI, where Vitest refuses .only). In a describe.only whose nested describe has a test.only, the nested describe's other test runs under Jest (the describe's mode passes down) and is skipped under Vitest (the suite with a .only runs only it). A test.only inside describe.skip runs under Jest and stays skipped under Vitest. Each case is its own file, so one .only doesn't narrow the other.",
+  "runners": ["jest", "vitest"],
+  "config": { "vitest": { "test": { "allowOnly": true } } }
+}

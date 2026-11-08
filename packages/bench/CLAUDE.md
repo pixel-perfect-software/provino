@@ -36,7 +36,7 @@ A missing result, a failing run or an unreadable parity read fails its check. No
 
 **The record is saved before anything is printed** (`persistRecord`, for `run` and `kill-check`): build, write, print the summary and verdict, then `wrote <path>` last. A throw while formatting or judging can't lose measured runs. If the write fails, the JSON goes to stderr at once, the summary and verdict still print, and the write error is rethrown. `cli.ts` guards stdout and stderr against a closed reader (`| head`), which would otherwise be an uncaught EPIPE.
 
-**Known limit:** a throw inside a later suite's `runBench` (`BENCH_CACHE_CLEAR_FAILED`) still loses the earlier suites' results, because the record is built after the last suite. It can't happen with one suite, so revisit it when B13c adds mock-heavy-500. A SIGINT mid-run also loses everything, which fits the no-partial-records protocol.
+**Two suites are measured** (B13c): app-500 (Provino at `registry` and `none`) and mock-heavy-500 (at `registry` only: R6's isolation condition is read on app-500). **A suite that throws** (writing it, `BENCH_CACHE_CLEAR_FAILED` inside its `runBench`) is caught per suite and printed (`<suite> FAILED before its runs were recorded`): it keeps no result, so every check of it fails for lack of data, and the other suites keep theirs in the record. Its runs before the throw are lost with it. A SIGINT mid-run still loses everything, which fits the no-partial-records protocol.
 
 **Failure text never rounds across a limit.** A failed value is printed with enough decimals to differ from the printed limit (3599/4000 is `89.98%`, not `90.0%`); passing values keep their usual format.
 
@@ -48,6 +48,7 @@ A missing result, a failing run or an unreadable parity read fails its check. No
 
 - **Result reuse is off (D19) without `--no-cache`.** Provino's results cache only orders the next run's files and never skips one. Every timed run is a fresh process. `--no-cache` is only on the one-off parity read, which goes through `check`.
 - **Provino runs from source** (`--conditions=provino-source`), so every process pays type stripping. There is no built `dist` to measure yet.
+- **mock-heavy-500 pays the hoister on every cold run** (no transform cache, T3.6): its Jest tree is CommonJS, so each test file moves its three `jest.mock` calls and rewrites no imports, and every source file passes the hoister's prefilter. Every edge asks the file's module-mock registry. Map composition is not deferred (B13b's suggestion): the cold ratio met its bar without it (B13c, `local`).
 - **`provino run` has no transform cache yet** (T3.6, B17). All of warm's gain over cold comes from the V8 compile cache and the results history, the only two things a cold Provino run deletes, and that gain is already large. When the transform cache lands, its directory must be in the plan's `caches`, or cold runs stop being cold.
 - **Peak RSS needs `ps`.** A run inside a sandbox that blocks `ps` records no `peakRssMb` and says so in a note.
 - **Both Provino tiers share a tree and caches.** That is safe, because a cold run clears them right before its own run and the results cache only orders files.

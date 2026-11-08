@@ -10,9 +10,11 @@ import {
 import {
   type JestGlobals,
   type JestGlobalsHost,
+  type JestModuleObject,
   type JestObject,
   jestExpectTable,
   jestGlobals,
+  jestModuleScope,
 } from '@provino/dialect-jest/runtime'
 import { moduleRef } from '@provino/policy'
 import type {
@@ -25,6 +27,7 @@ import type {
   MatcherTableFactory,
   MockPolicy,
   ModuleRef,
+  ModuleScopeFactory,
   PolicyOverrides,
   ProjectConfig,
   ProvinoConfigInput,
@@ -134,3 +137,35 @@ globals.fit = globals.it
 jestGlobals({ registry: host.registry })
 // @ts-expect-error `isolateModules` takes a function
 globals.jest.isolateModules('./module')
+
+// B13c: each module's own `jest`, from the dialect's module-scope factory.
+expectTypeOf(jestModuleScope).toExtend<ModuleScopeFactory>()
+expectTypeOf(jestDialect.moduleScope?.names).toEqualTypeOf<readonly string[] | undefined>()
+expectTypeOf(jestDialect.moduleScope?.factory).toEqualTypeOf<
+  ModuleRef<ModuleScopeFactory> | undefined
+>()
+declare const moduleJest: JestModuleObject
+expectTypeOf(moduleJest).toExtend<JestObject>()
+expectTypeOf(moduleJest.mock('./a')).toEqualTypeOf<JestModuleObject>()
+expectTypeOf(
+  moduleJest.mock('./a', () => ({ a: 1 }), { virtual: true }),
+).toEqualTypeOf<JestModuleObject>()
+expectTypeOf(
+  moduleJest.doMock('./a').unmock('./b').dontMock('./c'),
+).toEqualTypeOf<JestModuleObject>()
+expectTypeOf(moduleJest.requireActual<{ a: number }>('./a')).toEqualTypeOf<{ a: number }>()
+expectTypeOf(moduleJest.requireMock('./a')).toEqualTypeOf<unknown>()
+expectTypeOf(moduleJest.createMockFromModule<{ f: () => void }>('./a')).toEqualTypeOf<{
+  f: () => void
+}>()
+expectTypeOf(moduleJest.enableAutomock().disableAutomock()).toEqualTypeOf<JestModuleObject>()
+expectTypeOf(moduleJest.resetModules().isolateModules(() => {})).toEqualTypeOf<JestModuleObject>()
+// The global `jest` has no module-mock calls: it doesn't know its caller.
+// @ts-expect-error `mock` is only on a module's own `jest`
+globals.jest.mock('./a')
+// @ts-expect-error a module name is a string
+moduleJest.mock(42)
+// @ts-expect-error `virtual` is a boolean
+moduleJest.mock('./a', () => ({}), { virtual: 'yes' })
+// @ts-expect-error a factory is a function, not the module itself
+moduleJest.doMock('./a', { a: 1 })

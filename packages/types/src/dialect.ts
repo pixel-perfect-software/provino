@@ -1,7 +1,7 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { JsonValue } from './clone-safe.ts'
 import type { HoistPolicy } from './hoist.ts'
-import type { FileRegistry } from './loader.ts'
+import type { FileRegistry, ModuleMockRegistry } from './loader.ts'
 import type { MockPolicy, ModuleRef, PolicyOverrides } from './policy/index.ts'
 
 /**
@@ -233,8 +233,34 @@ export interface GlobalsHost {
    * worker under isolation `none`). Read it when the global is called, like `registry()`.
    */
   mocks(): object
+  /**
+   * The module-mock registry of the file running now (one per file, in every tier). Read it when
+   * the global is called, like `registry()`.
+   */
+  moduleMocks(): ModuleMockRegistry
   /** The mock slice of the resolved policy: what a mock function built here follows. */
   readonly mockPolicy: MockPolicy
+}
+
+/**
+ * Builds the values of a dialect's per-module bindings: given the worker's host once, it returns
+ * the function the loader calls for each module that names a binding (`from` is that module).
+ * Bivariant in the host, as `GlobalsFactory` is.
+ * @public
+ */
+export type ModuleScopeFactory = {
+  bivarianceHack(host: GlobalsHost): (from: string) => Readonly<Record<string, unknown>>
+}['bivarianceHack']
+
+/**
+ * A dialect's per-module bindings (Jest gives each module its own `jest`, as jest-runtime's
+ * `_createJestObjectFor(from)` does): the names every module's wrapper declares, and the factory
+ * that builds their values, by `ModuleRef` so it loads in the worker.
+ * @public
+ */
+export interface ModuleScope {
+  readonly names: readonly string[]
+  readonly factory: ModuleRef<ModuleScopeFactory>
 }
 
 /**
@@ -273,6 +299,8 @@ export interface Dialect<Name extends string = string, Options = unknown> {
     readonly names: readonly string[]
   }
   readonly loader?: LoaderPolicies
+  /** Bindings each module gets its own value of, whether or not globals are injected. */
+  readonly moduleScope?: ModuleScope
   readonly reporterAdapters?: readonly ReporterAdapter[]
   /** Type entry points, e.g. `'@provino/dialect-jest/globals'`. */
   readonly typeEntries?: readonly string[]

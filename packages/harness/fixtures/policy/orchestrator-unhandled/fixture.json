@@ -1,0 +1,5 @@
+{
+  "description": "An error outside every test (T1.7, orchestrator.exitCodes.unhandled and unhandledErrors): the test passes and an afterAll throws. A black-box run: the exit code says whether such an error fails the run.",
+  "runners": ["jest", "vitest"],
+  "run": { "capture": ["exitCode"] }
+}

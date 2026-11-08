@@ -18,7 +18,7 @@ import {
   spyOn,
   type UnknownFunction,
 } from '@provino/mock'
-import type { FileRegistry, GlobalsHost } from '@provino/types'
+import type { FileRegistry, GlobalsHost, MockFactory, MockSpec, ModuleId } from '@provino/types'
 
 /**
  * What `jestGlobals` builds the globals from: `GlobalsHost` with the real types of the
@@ -77,6 +77,45 @@ export interface JestObject {
 }
 
 /**
+ * `jest.mock`'s options: `virtual` lets the module not exist on disk.
+ * @public
+ */
+export interface JestMockOptions {
+  readonly virtual?: boolean
+}
+
+/**
+ * The `jest` each module gets as its own binding (B13c, as jest-runtime's
+ * `_createJestObjectFor(from)`): the global's members, plus the module-mock calls, which resolve
+ * from the module that makes them. Every chained call returns this module's object.
+ * @public
+ */
+export interface JestModuleObject extends JestObject {
+  /** Mocks `moduleName` for this file, hoisted above the imports: by `factory`, a manual mock, or an automock. */
+  mock(moduleName: string, factory?: () => unknown, options?: JestMockOptions): JestModuleObject
+  /** `mock`, not hoisted. */
+  doMock(moduleName: string, factory?: () => unknown, options?: JestMockOptions): JestModuleObject
+  /** The real module from now on (hoisted). */
+  unmock(moduleName: string): JestModuleObject
+  /** `unmock`, not hoisted. */
+  dontMock(moduleName: string): JestModuleObject
+  /** The real module, whatever is mocked: its own imports still see the mocks. */
+  requireActual<T = unknown>(moduleName: string): T
+  /** The mocked module, whether or not it is registered: a manual mock, else an automock. */
+  requireMock<T = unknown>(moduleName: string): T
+  /** An automock of the real module, built now and not registered. */
+  createMockFromModule<T = unknown>(moduleName: string): T
+  /** Every module the file loads from now on is automocked, unless it is unmocked. */
+  enableAutomock(): JestModuleObject
+  disableAutomock(): JestModuleObject
+  isolateModules(fn: () => void): JestModuleObject
+  resetModules(): JestModuleObject
+  clearAllMocks(): JestModuleObject
+  resetAllMocks(): JestModuleObject
+  restoreAllMocks(): JestModuleObject
+}
+
+/**
  * The globals Jest 30.5 injects into a test file, exactly: `jestDialect.globals.names` lists
  * these keys. A type alias, not an interface, so it is a `Readonly<Record<string, unknown>>`
  * like a `GlobalsFactory`'s result.
@@ -104,60 +143,63 @@ export type JestGlobals = {
   readonly xtest: TestApi
 }
 
-/**
- * Builds Jest 30.5's injected globals. `describe`, `it`, `test` and the four hooks are core's;
- * the `f` and `x` forms are core's `only` and `skip` modifiers; `expect` is the worker's. Each
- * call returns new objects, and the worker installs them on the environment's global.
- *
- * The `jest` object has `isolateModules`, `isolateModulesAsync` and `resetModules` (each reads
- * `host.registry()` when it is called, because every file has its own registry), and the mock
- * functions `fn`, `spyOn`, `isMockFunction`, `replaceProperty`, `clearAllMocks`, `resetAllMocks`
- * and `restoreAllMocks` (each reads `host.mocks()` and `host.mockPolicy` when it is called).
- * Nothing else.
- * @public
- */
-export function jestGlobals(host: JestGlobalsHost): JestGlobals {
-  const { api, expect } = host
-  // The registries with an isolation running now. Jest keeps this on each file's module registries
-  // (one set per file's runtime); a `FileRegistry` is the same scope here, so a `WeakSet` keyed by
-  // it is the same record without a module-level one: every `jestGlobals` call (one per worker)
-  // has its own, a file's registry can be collected with it, and one that never finishes (a hung
-  // test) blocks only itself.
-  const isolating = new WeakSet<FileRegistry>()
+/** The registries with an isolation running now (see `jestGlobals`). */
+type Isolating = WeakSet<FileRegistry>
 
-  /** Marks `registry` as isolating, or throws Jest's error when it already is. */
-  const enterIsolation = (
-    registry: FileRegistry,
-    caller: 'isolateModules' | 'isolateModulesAsync',
-  ): void => {
-    if (isolating.has(registry)) {
-      const other = caller === 'isolateModules' ? 'isolateModulesAsync' : 'isolateModules'
-      // Jest 30.5.2, packages/jest-runtime/src/internals/ModuleRegistries.ts L125-L134
-      // (`enterIsolated`, reached from `Runtime.isolateModules` and `isolateModulesAsync`,
-      // src/index.ts L627-L643): copied exactly, a plain `Error` with no `code`, as Jest throws it.
-      // unverified: read from source, not recorded (B14)
-      throw new Error(`${caller} cannot be nested inside another ${caller} or ${other}.`)
-    }
-    isolating.add(registry)
+/** Marks `registry` as isolating, or throws Jest's error when it already is. */
+function enterIsolation(
+  isolating: Isolating,
+  registry: FileRegistry,
+  caller: 'isolateModules' | 'isolateModulesAsync',
+): void {
+  if (isolating.has(registry)) {
+    const other = caller === 'isolateModules' ? 'isolateModulesAsync' : 'isolateModules'
+    // Jest 30.5.2, packages/jest-runtime/src/internals/ModuleRegistries.ts L125-L134
+    // (`enterIsolated`, reached from `Runtime.isolateModules` and `isolateModulesAsync`,
+    // src/index.ts L627-L643): copied exactly, a plain `Error` with no `code`, as Jest throws it.
+    // Recorded: `policy/jest-object-returns` (the nested call's text).
+    throw new Error(`${caller} cannot be nested inside another ${caller} or ${other}.`)
   }
+  isolating.add(registry)
+}
 
-  const jest: JestObject = {
+/** The members the global `jest` and every module's own share; a chained call returns `J`. */
+interface SharedMembers<J> {
+  isolateModules(fn: () => void): J
+  isolateModulesAsync(fn: () => Promise<void>): Promise<void>
+  resetModules(): J
+  readonly fn: JestObject['fn']
+  readonly spyOn: JestObject['spyOn']
+  readonly isMockFunction: JestObject['isMockFunction']
+  readonly replaceProperty: JestObject['replaceProperty']
+  clearAllMocks(): J
+  resetAllMocks(): J
+  restoreAllMocks(): J
+}
+
+/** The shared members. `self` is the object a chained call returns: the global, or the module's. */
+function sharedMembers<J>(
+  host: JestGlobalsHost,
+  isolating: Isolating,
+  self: () => J,
+): SharedMembers<J> {
+  return {
     isolateModules(fn) {
       const registry = host.registry()
-      enterIsolation(registry, 'isolateModules')
+      enterIsolation(isolating, registry, 'isolateModules')
       try {
         registry.isolateModules(fn)
       } finally {
         isolating.delete(registry)
       }
-      // unverified: jest-runtime 30.5.2 `JestGlobals.ts` L267-L270 returns `jestObject`; read from source, not recorded
-      return jest
+      // jest-runtime 30.5.2 `JestGlobals.ts` L267-L270 returns `jestObject` (recorded: `policy/jest-object-returns`)
+      return self()
     },
     async isolateModulesAsync(fn) {
       const registry = host.registry()
-      enterIsolation(registry, 'isolateModulesAsync')
+      enterIsolation(isolating, registry, 'isolateModulesAsync')
       try {
-        // unverified: jest-runtime 30.5.2 `JestGlobals.ts` L271 hands back the runtime's `Promise<void>`; read from source, not recorded
+        // jest-runtime 30.5.2 `JestGlobals.ts` L271 hands back the runtime's `Promise<void>` (recorded: `policy/jest-object-returns`)
         await registry.isolateModulesAsync(fn)
       } finally {
         isolating.delete(registry)
@@ -165,8 +207,8 @@ export function jestGlobals(host: JestGlobalsHost): JestGlobals {
     },
     resetModules() {
       host.registry().resetModules()
-      // unverified: jest-runtime 30.5.2 `JestGlobals.ts` L263-L266 returns `jestObject`; read from source, not recorded
-      return jest
+      // jest-runtime 30.5.2 `JestGlobals.ts` L263-L266 returns `jestObject` (recorded: `policy/jest-object-returns`)
+      return self()
     },
     fn<T extends MockTarget = UnknownFunction>(impl?: T): Mock<T> {
       return createMockFn<T>(
@@ -197,17 +239,94 @@ export function jestGlobals(host: JestGlobalsHost): JestGlobals {
     },
     clearAllMocks() {
       host.mocks().clearAll()
-      return jest
+      return self()
     },
     resetAllMocks() {
       host.mocks().resetAll()
-      return jest
+      return self()
     },
     restoreAllMocks() {
       host.mocks().restoreAll()
+      return self()
+    },
+  }
+}
+
+/** What `jest.mock(name, factory)` registers: the factory, or an automock (a manual mock first). */
+function specFor(factory: unknown): MockSpec {
+  return typeof factory === 'function'
+    ? { kind: 'factory', factory: factory as MockFactory }
+    : { kind: 'automock', spy: false }
+}
+
+/**
+ * The `jest` of the module at `from`. Registrations go through the file registry
+ * (`registerMock`), so the loader knows what is mocked; `requireMock`, `createMockFromModule` and
+ * automock-all act on the file's module-mock registry. Each reads `host` when it is called.
+ */
+function moduleJest(host: JestGlobalsHost, isolating: Isolating, from: string): JestModuleObject {
+  const parent = from as ModuleId
+  const register = (
+    name: string,
+    factory: unknown,
+    options: JestMockOptions | undefined,
+    hoisted: boolean,
+  ): JestModuleObject => {
+    host.registry().registerMock(name, parent, specFor(factory), {
+      ...(options?.virtual === true ? { virtual: true } : {}),
+      hoisted,
+    })
+    return jest
+  }
+  const unregister = (name: string): JestModuleObject => {
+    host.registry().unregisterMock(name, parent)
+    return jest
+  }
+  const jest: JestModuleObject = {
+    ...sharedMembers<JestModuleObject>(host, isolating, () => jest),
+    mock: (name, factory, options) => register(name, factory, options, true),
+    doMock: (name, factory, options) => register(name, factory, options, false),
+    unmock: unregister,
+    // Jest's non-hoisted unmock is `dontMock`; there is no `doUnmock` (mod-unmock, B13b).
+    dontMock: unregister,
+    requireActual: <T>(name: string): T => host.registry().requireActual<T>(name, parent),
+    requireMock: <T>(name: string): T => host.moduleMocks().mockFor(name, from) as T,
+    createMockFromModule: <T>(name: string): T =>
+      host.moduleMocks().createMockFromModule(name, from) as T,
+    enableAutomock() {
+      host.moduleMocks().setAutomock(true)
+      return jest
+    },
+    disableAutomock() {
+      host.moduleMocks().setAutomock(false)
       return jest
     },
   }
+  return jest
+}
+
+/**
+ * Builds Jest 30.5's injected globals. `describe`, `it`, `test` and the four hooks are core's;
+ * the `f` and `x` forms are core's `only` and `skip` modifiers; `expect` is the worker's. Each
+ * call returns new objects, and the worker installs them on the environment's global.
+ *
+ * The `jest` object has `isolateModules`, `isolateModulesAsync` and `resetModules` (each reads
+ * `host.registry()` when it is called, because every file has its own registry), and the mock
+ * functions `fn`, `spyOn`, `isMockFunction`, `replaceProperty`, `clearAllMocks`, `resetAllMocks`
+ * and `restoreAllMocks` (each reads `host.mocks()` and `host.mockPolicy` when it is called).
+ * Nothing else: the module-mock calls are on each module's own `jest` (`jestModuleScope`), which
+ * knows its caller.
+ * @public
+ */
+export function jestGlobals(host: JestGlobalsHost): JestGlobals {
+  const { api, expect } = host
+  // The registries with an isolation running now. Jest keeps this on each file's module registries
+  // (one set per file's runtime); a `FileRegistry` is the same scope here, so a `WeakSet` keyed by
+  // it is the same record without a module-level one: every `jestGlobals` call (one per worker)
+  // has its own, a file's registry can be collected with it, and one that never finishes (a hung
+  // test) blocks only itself.
+  const isolating: Isolating = new WeakSet()
+  const jest: JestObject = sharedMembers<JestObject>(host, isolating, () => jest)
   return {
     afterAll: api.afterAll,
     afterEach: api.afterEach,
@@ -224,4 +343,21 @@ export function jestGlobals(host: JestGlobalsHost): JestGlobals {
     xit: api.it.skip,
     xtest: api.test.skip,
   }
+}
+
+/**
+ * The Jest dialect's per-module bindings (`jestDialect.moduleScope`, a `ModuleScopeFactory`): the
+ * loader calls the function this returns for each module whose source names `jest`, and that
+ * module's wrapper gets its own `jest`, as jest-runtime's `_createJestObjectFor(from)` gives each
+ * module one. Called once per worker; the objects read `host` when they are called, so a module
+ * shared under isolation `none` acts on the file running now.
+ * @public
+ */
+export function jestModuleScope(
+  host: JestGlobalsHost,
+): (from: string) => Readonly<Record<string, unknown>> {
+  // One record of isolating registries for every module's `jest`, apart from the global's: the
+  // file's module-mock registry refuses a nested isolation between the two (`nested-isolation`).
+  const isolating: Isolating = new WeakSet()
+  return (from) => ({ jest: moduleJest(host, isolating, from) })
 }

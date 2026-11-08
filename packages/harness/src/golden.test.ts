@@ -1,8 +1,63 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { NormalizedRun } from '@provino/types'
+import { HarnessError } from './errors.ts'
 import { goldenPath, serializeGolden, toGolden } from './golden.ts'
+import { observedOf } from './record.ts'
 import { makeFile, makeRun, makeTest } from './test-support.ts'
+
+test('observed comes last, with its keys in a fixed order whatever the caller gave', () => {
+  const golden = toGolden(makeRun([]), {
+    observed: { files: { 'a.snap': null }, stderr: 'e', exitCode: 1 },
+  })
+  assert.deepEqual(Object.keys(golden).at(-1), 'observed')
+  assert.deepEqual(Object.keys(golden.observed ?? {}), ['exitCode', 'stderr', 'files'])
+  assert.equal('observed' in toGolden(makeRun([])), false)
+})
+
+test('observedOf keeps the captured kinds, filters and sorts the streams, and normalizes', () => {
+  const normalize = (text: string): string => text.replaceAll('/work', '<root>')
+  const observed = observedOf(
+    {
+      capture: ['stderr', 'exitCode', 'file:a.snap', 'file:gone.snap'],
+      keepLines: '^K',
+      sortStdout: true,
+    },
+    { exitCode: 1, stdout: 'not kept', stderr: 'K2 /work\nnoise\nK1' },
+    { 'a.snap': 'at /work/a', 'gone.snap': null },
+    normalize,
+    'fixture.json',
+  )
+  assert.deepEqual(observed, {
+    exitCode: 1,
+    stderr: 'K1\nK2 <root>',
+    files: { 'a.snap': 'at <root>/a', 'gone.snap': null },
+  })
+})
+
+test('a stream keepLines keeps no line of is a broken run, unless emptyStreams lists it', () => {
+  const result = { exitCode: 0, stdout: 'noise', stderr: 'K1' }
+  const observe = (emptyStreams?: readonly ('stdout' | 'stderr')[]) =>
+    observedOf(
+      {
+        capture: ['stdout', 'stderr'],
+        keepLines: '^K',
+        ...(emptyStreams === undefined ? {} : { emptyStreams }),
+      },
+      result,
+      {},
+      (text) => text,
+      'fixture.json',
+    )
+  assert.throws(
+    () => observe(),
+    (error: unknown) =>
+      error instanceof HarnessError &&
+      error.code === 'HARNESS_FIXTURE_BAD_RUN' &&
+      /kept no line of stdout/.test(error.message),
+  )
+  assert.deepEqual(observe(['stdout']), { stdout: '', stderr: 'K1' })
+})
 
 const run: NormalizedRun = makeRun(
   [

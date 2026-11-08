@@ -1,0 +1,6 @@
+{
+  "description": "Whether Jest logs a retried test's earlier error (T1.7, core.retry.logErrorsBeforeRetry): two files, each retrying a test that fails once, one with jest.retryTimes(1) and one with jest.retryTimes(1, { logErrorsBeforeRetry: true }). Jest's own output (stderr) names only the second file's first-attempt error, so the default is off. A black-box run; one worker, so the two files don't interleave.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": { "capture": ["stderr"], "keepLines": "first attempt \\(", "sortStdout": true }
+}

@@ -1,0 +1,6 @@
+{
+  "description": "Whether a run of one file stays in the runner's own process (T1.7, orchestrator.runInBand.auto): Jest, given two workers, runs a single file in band (its rule for one file or a few fast ones), Vitest still forks. The test is named after where it runs.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true,
+  "config": { "jest": { "maxWorkers": 2 } }
+}

@@ -1,0 +1,5 @@
+{
+  "description": "A test file whose only module syntax is import(): Vitest loads it, and the imported module's own imports and exports work; Jest throws (DV18). Provino loads it under both (B13c Gap 6: a file with no static module syntax still runs in module form).",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

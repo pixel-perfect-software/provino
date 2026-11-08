@@ -253,16 +253,24 @@ function median(samples: readonly number[]): number {
   return sorted[Math.floor(sorted.length / 2)] ?? Number.NaN
 }
 
-function elapsedMs(run: () => void): number {
-  const start = performance.now()
+/**
+ * The process's CPU time for `run`, in ms: time spent preempted doesn't count, so a busy machine
+ * doesn't stretch it. Wall time did: with the machine oversubscribed, a 30 ms run is cut into
+ * several slices and a 3 ms one mostly isn't, and the ratio below read 9 to 13 on linear code.
+ */
+function cpuMs(run: () => void): number {
+  const start = process.cpuUsage()
   run()
-  return performance.now() - start
+  const used = process.cpuUsage(start)
+  return (used.user + used.system) / 1000
 }
 
 // This checks how the cost grows, not how long it takes, so a slow or busy runner doesn't fail it:
-// both sizes run on the same machine, interleaved, and the median of each is compared. Four times
-// the comment lines should cost about four times as much (about 4.5 measured); a pass that copies
-// the rest of the text for every comment costs about sixteen times as much. The bar sits between.
+// both sizes run on the same machine, interleaved, in CPU time, and the median of each is compared.
+// Each small sample times four runs in a row (and counts a quarter), so both windows are about as
+// long and see the same GC. Four times the comment lines should cost about four times as much
+// (about 4.5 measured); a pass that copies the rest of the text for every comment costs about
+// sixteen times as much. The bar sits between.
 test('stripJsonComments grows linearly: 4x the comment lines cost well under 16x the time', () => {
   const small = commentLines(10_000)
   const large = commentLines(40_000)
@@ -276,8 +284,12 @@ test('stripJsonComments grows linearly: 4x the comment lines cost well under 16x
   const smallMs: number[] = []
   const largeMs: number[] = []
   for (let run = 0; run < 7; run++) {
-    smallMs.push(elapsedMs(() => stripJsonComments(small)))
-    largeMs.push(elapsedMs(() => stripJsonComments(large)))
+    smallMs.push(
+      cpuMs(() => {
+        for (let repeat = 0; repeat < 4; repeat++) stripJsonComments(small)
+      }) / 4,
+    )
+    largeMs.push(cpuMs(() => stripJsonComments(large)))
   }
   const ratio = median(largeMs) / median(smallMs)
   assert.ok(

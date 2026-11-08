@@ -1,0 +1,4 @@
+{
+  "description": "Fake timers (T1.7, timers slice), through jest or vi: what useFakeTimers() replaces by default (Jest also nextTick and queueMicrotask), the runaway-loop limit runAllTimers stops at, the legacy implementation (Jest only), whether timers start faked, which option names a narrowed install takes (Jest doNotFake, Vitest toFake), what an advance call does without fake timers (Jest warns, Vitest throws), setSystemTime without fake timers, whether advanceTimersToNextTimer honours its step count, and what useFakeTimers returns.",
+  "runners": ["jest", "vitest"]
+}

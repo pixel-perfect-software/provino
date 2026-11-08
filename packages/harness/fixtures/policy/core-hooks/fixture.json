@@ -1,0 +1,4 @@
+{
+  "description": "Hook order and hook failures (T1.7, core slice). Two async hooks of each kind on one level, the first slower: their start and end order says declaration, reverse or parallel. A failing beforeAll above a describe with its own hooks: whether the nested hooks still run (Jest yes, Vitest no).",
+  "runners": ["jest", "vitest"]
+}

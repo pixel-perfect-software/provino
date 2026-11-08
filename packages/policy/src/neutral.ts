@@ -50,6 +50,8 @@ export const neutralPolicy: Policy = deepFreeze({
     hookReturnsCleanup: true,
     // The neutral API is imported, not global.
     injectGlobals: false,
+    // A setup file sees what the test file sees.
+    globalsBeforeSetupFiles: 'all',
     doneDeprecatedMessage: null,
     collect: {
       describeBody: 'immediate',

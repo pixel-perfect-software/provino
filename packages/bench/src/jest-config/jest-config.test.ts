@@ -147,11 +147,22 @@ test('takeConfigs: shallowest first, at most 6, quotas respected', () => {
 
 test("the jest-oracles job's scope covers every file the oracle check loads", () => {
   const ci = readFileSync(new URL('../../../../.github/workflows/ci.yml', import.meta.url), 'utf8')
-  const job = ci.slice(ci.indexOf('\n  jest-oracles:'))
-  const line = /\n\s+inputs="([^"]+)"/.exec(job)?.[1]
-  assert.ok(line !== undefined, 'the jest-oracles scope step has an inputs line')
-  // The shell sees `\\.` and `\$` in double quotes as `\.` and `$`.
-  const inputs = new RegExp(line.replaceAll('\\\\', '\\').replaceAll('\\$', '$'))
+  const start = ci.indexOf('\n  jest-oracles:')
+  assert.ok(start !== -1, 'ci.yml has a jest-oracles job')
+  // The job runs to the next job's key (two spaces of indent), or to the end of the file.
+  const next = /\n {2}[a-z][a-z0-9-]*:\n/.exec(ci.slice(start + 1))
+  const job = next === null ? ci.slice(start) : ci.slice(start, start + 1 + next.index)
+  // The scope is the shared, fail-closed action (B14a), not a step of the job's own.
+  const step =
+    /\n\s+- id: scope\n(?:\s+name: [^\n]+\n)?\s+uses: \.\/\.github\/actions\/scope\n\s+with:\n(?:\s+[a-z]+: [^\n]+\n)*/.exec(
+      job,
+    )?.[0]
+  assert.ok(step !== undefined, 'the jest-oracles scope step uses .github/actions/scope')
+  // A single-quoted YAML scalar: backslashes are literal, and the action greps with it as is.
+  const line = /\n\s+include: '([^']+)'\n/.exec(step)?.[1]
+  assert.ok(line !== undefined, 'the jest-oracles scope step has an include input')
+  assert.ok(!/\n\s+exclude: /.test(step), 'every changed oracle input counts: no exclude')
+  const inputs = new RegExp(line)
   for (const path of [
     'packages/dialect-jest/src/node/normalize.ts',
     'packages/dialect-jest/src/dialect.ts',
@@ -171,6 +182,7 @@ test("the jest-oracles job's scope covers every file the oracle check loads", ()
     '.tool-versions',
     'package.json',
     '.github/workflows/ci.yml',
+    '.github/actions/scope/action.yml',
   ]) {
     assert.ok(inputs.test(path), `${path} should trigger the oracle check`)
   }

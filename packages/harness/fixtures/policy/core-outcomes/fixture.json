@@ -1,0 +1,4 @@
+{
+  "description": "What a few edge cases make of a test's result (T1.7, core slice), read from the golden's tests: an empty .each table (Jest registers one failing test under the raw title, Vitest nothing), expect.hasAssertions on a test that throws first (checked only by Vitest), a .failing/.fails test whose beforeEach throws (Jest still fails it, Vitest reverses the whole attempt), and a todo inside describe.skip (Jest skipped, Vitest todo).",
+  "runners": ["jest", "vitest"]
+}

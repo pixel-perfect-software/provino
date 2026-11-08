@@ -69,6 +69,15 @@ export interface LeakOptions {
 }
 
 /**
+ * The names of a dialect's per-module bindings (Jest's `jest`): every module's wrapper declares
+ * them, so they are fixed for the worker. The values come per file (`FileRegistryOptions.moduleScope`).
+ * @public
+ */
+export interface ModuleScopeNames {
+  readonly names: readonly string[]
+}
+
+/**
  * Options for one worker's loader.
  * @public
  */
@@ -85,7 +94,122 @@ export interface LoaderOptions {
   /** Default 400. */
   readonly inlineBudget?: number
   readonly leaks?: LeakOptions
+  /** The dialect's per-module bindings (B13c Gap 2). None by default. */
+  readonly moduleScope?: ModuleScopeNames
 }
+
+/**
+ * The answer to "is this import mocked?". `id` is what `ModuleMockRegistry.materialize` takes.
+ * @public
+ */
+export type MockDecision =
+  | { readonly mocked: false }
+  | { readonly mocked: true; readonly id: string }
+
+/**
+ * Options for one `ModuleMockRegistry.register` call.
+ * @public
+ */
+export interface ModuleMockRegisterOptions {
+  /** The file that made the call (absolute): the specifier resolves from here. */
+  readonly from: string
+  /** The module need not exist. Under `requireVirtualFlag: false` a missing module is virtual anyway. */
+  readonly virtual?: boolean
+}
+
+/**
+ * Options for a `LoadActual` call.
+ * @public
+ */
+export interface LoadActualOptions {
+  /**
+   * Load in a scratch layer: a fresh instance map for the module and everything it loads, dropped
+   * afterwards, so the real load leaves nothing behind in the file's registry (automock's real
+   * load, as Jest's `_generateMock` swaps its registries).
+   */
+  readonly scratch?: boolean
+}
+
+/**
+ * Loads a module's real exports by its id (a manual mock's file too), bypassing the mock of that
+ * module only: what it imports still goes through `decide`. Synchronous, or a Promise, as
+ * `ModulePolicy.actual` says.
+ * @public
+ */
+export type LoadActual = (id: string, importer: string, options?: LoadActualOptions) => unknown
+
+/**
+ * One test file's module-mock registry (Track 4, `@provino/mock` implements it). The loader asks
+ * `decide` on every import, `require` and `import()` edge and `materialize` for a mocked id; the
+ * registry owns everything between (registrations, `__mocks__`, the factory's result, automock,
+ * the isolation overlay).
+ * @public
+ */
+export interface ModuleMockRegistry {
+  /**
+   * `jest.mock`/`vi.mock`/`unmock` and their `do` forms. Resolves at once (kind `mock`) and
+   * throws the dialect's `module-missing` text for a missing module without `virtual`, under
+   * `requireVirtualFlag`.
+   */
+  register(specifier: string, spec: MockSpec, options: ModuleMockRegisterOptions): void
+  /**
+   * Whether an import edge is mocked: explicit unmock, explicit registration, automock-all, root
+   * `__mocks__` (when `rootMocksAutoApply`). `specifier` is the text as written, for the root-mock
+   * name. With nothing registered, automock off and no root mock, it returns before any lookup.
+   */
+  decide(
+    resolvedId: string,
+    importer: string,
+    kind: 'esm' | 'cjs' | 'builtin',
+    specifier?: string,
+  ): MockDecision
+  /** The same for a specifier that didn't resolve: a virtual module, or a root-mocked package that isn't installed. */
+  decideUnresolved(specifier: string, importer: string): MockDecision
+  /** The mock's value, built once and cached (per isolation overlay). A Promise under `awaitFactory`, or when `loadActual` returns one. */
+  materialize(id: string): unknown
+  /**
+   * The mocked value of `specifier` as `from` names it, whether or not it is registered: the
+   * registration's, else the manual mock, else an automock (`jest.requireMock`, `vi.importMock`).
+   */
+  mockFor(specifier: string, from: string): unknown
+  /** An automock of the real module `specifier` names, loaded in a scratch layer and not cached (`jest.createMockFromModule`). */
+  createMockFromModule(specifier: string, from: string): unknown
+  /** `resetModules()`: drops cached values when the module registry owns them (`mockValueOwner`). */
+  onResetModules(): void
+  /** Turns automock-all on or off (`enableAutomock`/`disableAutomock`); starts at `policy.automock`. */
+  setAutomock(enabled: boolean): void
+  /** Opens `isolateModules`'s overlay; throws the dialect's `nested-isolation` text if one is open. */
+  enterIsolation(caller?: string, other?: string): void
+  exitIsolation(): void
+  /** Forgets everything; further calls throw. Calling it again does nothing. */
+  dispose(): void
+}
+
+/**
+ * What the loader hands a file's module-mock factory: its own real-module loader and the
+ * worker's resolver, so the registry resolves registrations as the loader resolves imports.
+ * @public
+ */
+export interface ModuleMocksContext {
+  readonly loadActual: LoadActual
+  readonly resolver: Resolver
+  /** The loader's resolution conditions. */
+  readonly conditions: readonly string[]
+}
+
+/**
+ * Builds a file's module-mock registry. The worker supplies it, because the registry also needs
+ * the mock slice and the file's mock-function registry, which the loader never reads.
+ * @public
+ */
+export type ModuleMocksFactory = (context: ModuleMocksContext) => ModuleMockRegistry
+
+/**
+ * The values of the dialect's per-module bindings for the module `from`, by name
+ * (`LoaderOptions.moduleScope.names`). Called once per module that names a binding.
+ * @public
+ */
+export type ModuleScopeValues = (from: ModuleId) => Readonly<Record<string, unknown>>
 
 /**
  * Options for one test file's registry. The `process` tier is a pool decision (Track 9), so it
@@ -95,6 +219,27 @@ export interface LoaderOptions {
 export interface FileRegistryOptions {
   readonly tier: Exclude<IsolationTier, 'process'>
   readonly realm?: Realm
+  /**
+   * The file's module-mock registry, built when the file registry is. Without one nothing is
+   * mocked and `registerMock` throws `LOADER_NO_MODULE_MOCKS`. Every tier gets one per file.
+   */
+  readonly moduleMocks?: ModuleMocksFactory
+  /** The per-module bindings' values. Without it, a module that names a binding sees the global of that name. */
+  readonly moduleScope?: ModuleScopeValues
+}
+
+/**
+ * What `FileRegistry.registerMock` takes besides the spec.
+ * @public
+ */
+export interface RegisterMockOptions {
+  /** The module need not exist (Jest's `{ virtual: true }`). */
+  readonly virtual?: boolean
+  /**
+   * Whether the call is a hoisted form (`jest.mock`, `vi.mock`), not a `do` form. The loader
+   * doesn't act on it yet; mock-aware inlining (T2.6) reads the hoisted set.
+   */
+  readonly hoisted?: boolean
 }
 
 /**
@@ -130,14 +275,28 @@ export interface LeakReport {
 export interface FileRegistry extends Disposable {
   readonly file: string
   readonly tier: Exclude<IsolationTier, 'process'>
+  /**
+   * With no `parent`, the runner loading a setup or test file: that module itself is never mocked
+   * (its imports are). With a `parent`, an import from that module, through `decide`.
+   */
   import<T = unknown>(specifier: string, parent?: ModuleId | null): Promise<T>
-  /** Sync; throws `ERR_REQUIRE_ASYNC_MODULE` for a graph with top-level await. */
+  /** Sync; throws `ERR_REQUIRE_ASYNC_MODULE` for a graph with top-level await. No `parent` as for `import`. */
   require<T = unknown>(specifier: string, parent?: ModuleId | null): T
+  /**
+   * The real module, bypassing the mock of that module only; what it loads still goes through
+   * `decide`, as in Jest. An ES module comes as its exports' view (`ModulePolicy.interopDefault`).
+   */
   requireActual<T = unknown>(specifier: string, parent?: ModuleId | null): T
   importActual<T = unknown>(specifier: string, parent?: ModuleId | null): Promise<T>
-  /** Track 4 calls these; the loader works out mock-aware inlining. */
-  registerMock<T>(specifier: string, parent: ModuleId | null, spec: MockSpec<T>): void
+  /** Track 4's dialect facades call these, from the module that made the call (`parent`, else the test file). */
+  registerMock<T>(
+    specifier: string,
+    parent: ModuleId | null,
+    spec: MockSpec<T>,
+    options?: RegisterMockOptions,
+  ): void
   unregisterMock(specifier: string, parent: ModuleId | null): void
+  /** Forgets every module instance, and the module-mock values the module registry owns. */
   resetModules(): void
   /**
    * Forgets the instance of the user module `specifier` resolves to (from `parent`, else the test
@@ -146,6 +305,7 @@ export interface FileRegistry extends Disposable {
    * node_modules package, a builtin or nothing is left alone.
    */
   invalidate(specifier: string, parent?: ModuleId | null): void
+  /** A fresh instance map and module-mock overlay for `fn`'s loads. */
   isolateModules<R>(fn: () => R): R
   isolateModulesAsync<R>(fn: () => Promise<R>): Promise<R>
   /** For affected-test selection (Track 9). */

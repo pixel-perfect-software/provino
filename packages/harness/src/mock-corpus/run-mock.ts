@@ -101,6 +101,9 @@ export function unusedJestHost(
       throw new Error(`${label} does not use the module registry`)
     },
     mocks: () => mocks,
+    moduleMocks: () => {
+      throw new Error(`${label} does not use the module-mock registry`)
+    },
     mockPolicy,
   }
 }

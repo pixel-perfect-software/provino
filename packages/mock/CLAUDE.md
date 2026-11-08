@@ -11,9 +11,9 @@ The neutral mock engine (Track 4): mock functions, spies, replaced properties, s
 | `src/spy.ts` | `spyOn(policy, registry, object, key, access?)`, `replaceProperty(policy, registry, object, key, value)`. |
 | `src/stubs.ts` | `createStubs(registry, env, global?)`. |
 | `src/errors.ts` | `MockError` and `MockTypeError`: upstream's class and name, plus a `code`. |
-| `src/module/registry.ts` | `createModuleMockRegistry(options)`: one per test file (T4.7). `register`, `decide`, `decideUnresolved`, `materialize`, `onResetModules`, `setAutomock`, `enterIsolation`/`exitIsolation`, `dispose`. See "The module registry" below. |
+| `src/module/registry.ts` | `createModuleMockRegistry(options)`: one per test file (T4.7), implementing `ModuleMockRegistry` from `@provino/types` (where the loader takes it by injection, B13c). `register`, `decide`, `decideUnresolved`, `materialize`, `mockFor`, `createMockFromModule`, `onResetModules`, `setAutomock`, `enterIsolation`/`exitIsolation`, `dispose`. See "The module registry" below. |
 | `src/module/automock.ts` | `automock(value, shape, mode, mk)` (T4.6): `metadata` is jest-mock's `getMetadata` + `generateFromMetadata`, `deep` is `@vitest/mocker`'s `mockObject`; `automock` or `autospy`. |
-| `src/module/manual-mocks.ts` | `findManualMock`, `findRootMock`: `__mocks__` discovery with `node:fs`. |
+| `src/module/manual-mocks.ts` | `findManualMock`, `findRootMock`: `__mocks__` discovery with `node:fs`; `createRootMockIndex`: the root trees listed once (the worker makes one per worker, B13c Gap 8). |
 | `src/module/messages.ts` | The module registry's message codes and neutral text (`ModulePolicy.messages` overrides). |
 | `src/module/test-support.ts` | Test only: `jestLike`/`vitestLike` module policies, a fake `Resolver` (`resolverBy`), `tempTree`, `build()`. |
 | `src/internal/messages.ts` | The message codes and the neutral text. |
@@ -55,7 +55,9 @@ It takes `ModulePolicy` and `MockPolicy`, an injected `Resolver` (D34: this pack
 - **Manual mocks.** `mock(p)` with no factory looks for a manual mock first: `<root>/__mocks__/<name>` (plain, scoped, core), then `__mocks__/<file>` beside the resolved file; a spy never does. An adjacent mock is applied by `decide` only after an explicit `mock()`; a root one applies by itself under `rootMocksAutoApply`. Roots are only `roots[i]/__mocks__` (Jest's haste map takes any `__mocks__` directory under a root).
 - **`virtualRelative`.** When `false` (Vitest), a mock of a relative path that isn't on disk registers, but `decideUnresolved` throws the `unresolved-relative-mock` text (`Cannot find module '{id}'`, `{id}` root-relative with a leading `/`) at import time; a bare name works. Recorded by `mod-missing`, `mod-virtual`, `mod-virtual-static`.
 - **A construction is `this instanceof` the mock,** not `new.target`: under `newCall: 'apply'` (jest-mock) the fallback runs through `apply`, so a class's per-instance method mocks came from nowhere until the check changed (`mod-automock-shape`, Jest).
-- **Automock** goes through `loadActual` (a scratch registry is the loader's job, B13c), so the real module's side effects run, as in Jest. It may return a Promise, which `materialize` then returns.
+- **Automock** goes through `loadActual(id, from, { scratch: true })`, so the real module's side effects run, as in Jest; the loader evaluates it in a scratch instance map, and the registry swaps its own mock values for the synchronous part of the call (`#scratch`), as Jest's `_generateMock` swaps both registries, so a mocked dependency of the real module is built again inside and dropped. Under `actual: 'async-import'` only the part before the first await sees the scratch values (Vitest's automock loads dependencies normally; no golden pins it). It may return a Promise, which `materialize` then returns.
+- **`mockFor(specifier, from)`** (`jest.requireMock`, `vi.importMock`) resolves as a registration does (kind `mock`, else `decideUnresolved`) and materializes, registered or not: the registration's value, else the manual mock, else an automock. **`createMockFromModule(specifier, from)`** builds an automock from a scratch load and caches nothing.
+- **`decide`'s fast path** (B13c Gap 8): with nothing registered, automock off and (under `rootMocksAutoApply`) an empty root index, it returns before any lookup. **The root index** (`createRootMockIndex`, `options.rootMocks`) lists each root's `__mocks__` tree once, first root then first extension, as `findRootMock` would answer; without one the registry lists them itself on first use. Nothing invalidates it (no watch mode yet).
 - **`onResetModules`** drops every cached value under `mockValueOwner: 'module-registry'` (Vitest's `registration` keeps them, as `resetModules` skips `/^mock:/`; recorded by `mod-reset-modules`; the registrations stay, so it's still mocked), and the registrations too under `resetModulesClearsMocks`.
 - **The overlay** (`enterIsolation(caller?, other?)`): reads cascade to the outer values, new values stay inside and go on `exitIsolation`. The two names fill the `nested-isolation` text. Registrations are global, as in Jest.
 
@@ -75,13 +77,14 @@ These are the non-module codes. The module registry's (`module-missing`, `unmock
 ## Tests
 
 - `src/mock-fn.test.ts`, `registry.test.ts`, `spy.test.ts`: under `neutralPolicy.mock` and `flipped`.
-- `src/module/registry.test.ts`, `automock.test.ts`, `manual-mocks.test.ts`: under `jestLike` and `vitestLike` (`module/test-support.ts`), with real temp directories for `__mocks__`.
+- `src/module/registry.test.ts`, `automock.test.ts`, `manual-mocks.test.ts`: under `jestLike` and `vitestLike` (`module/test-support.ts`), with real temp directories for `__mocks__`. `registry-loader.test.ts`: what the loader relies on (the fast path, the root index, `mockFor`, `createMockFromModule`, the scratch swap).
 - `test/mock.test-d.ts`: first-cut `fn`, `spyOn` and `replaceProperty` inference, with misuse; the registry, `findManualMock` and `automock`.
 - Against real Jest and Vitest: `@provino/harness`'s `mock-corpus.test.ts`. The bar: `pnpm bench:mock --max-create-us 1 --max-call-ratio 1.5`.
 
 ## Not built yet
 
-- Wiring the registry into the loader and the shipped `jest.mock`/`vi.mock` (T4.8, B13c). `createMockFn` doesn't sanitize `name`; `automock` does, under `metadata`.
+- The shipped `vi.mock` (T11.15, T11.16, Phase 2); Jest's `jest.mock` is the Jest dialect's per-module `jest` since B13c. `createMockFn` doesn't sanitize `name`; `automock` does, under `metadata`.
+- Jest's `_mockMetaDataCache`: Jest builds an automock's metadata once per path per file, so an automock rebuilt after `resetModules` doesn't run the real module again; ours does. No golden pins it.
 - `JestMock`, `Mocked*` and the second type view (T4.5). The types are a first cut.
 - Cleanup between tests in a real run (T4.10): the worker calls `registry.beforeEach`.
 - A Vitest facade must convert `stubEnv`'s `PROD`/`DEV`/`SSR` booleans to `'1'`/`''` before calling `createStubs`, as Vitest 5.0 does, because the engine takes strings.

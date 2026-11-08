@@ -50,7 +50,7 @@ function isRefOrFunction(value: unknown): value is object {
 /**
  * Checks that the finished worker config is something every worker can use, so a bad one is a
  * config error (exit 2) and not a failure in each worker (exit 1): every `{ module, export }` ref
- * in the policy, the globals ref and the environment ref has a plain shape and an absolute
+ * in the policy, the globals and module-scope refs and the environment ref has a plain shape and an absolute
  * `module`, and the whole config survives `structuredClone`. Throws `CONFIG_INVALID` naming the
  * key path.
  * @internal
@@ -71,6 +71,7 @@ export function assertWorkerConfig(config: SerializedProjectConfig): void {
     isRefOrFunction,
   )
   if (config.globals !== null) checkRef(config.globals, 'globals')
+  if (config.moduleScope !== null) checkRef(config.moduleScope, 'moduleScope')
   checkRef(config.environment, 'environment')
   try {
     structuredClone(config)

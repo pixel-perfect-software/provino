@@ -35,7 +35,9 @@
     "@jest/test-result": "catalog:",
     "@provino/core": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
+    "@provino/dialect-vitest": "workspace:*",
     "@provino/expect": "workspace:*",
+    "@provino/loader": "workspace:*",
     "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/resolver": "workspace:*",
@@ -44,7 +46,9 @@
     "babel-jest": "catalog:",
     "babel-plugin-jest-hoist": "catalog:",
     "jest": "catalog:",
+    "jest-config": "catalog:",
     "oxc-parser": "catalog:",
+    "provino": "workspace:*",
     "vitest": "catalog:"
   }
 }

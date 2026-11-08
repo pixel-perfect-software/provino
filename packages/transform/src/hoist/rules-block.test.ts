@@ -167,7 +167,7 @@ test('block: the runner module import stays first, then the hoisted calls', () =
     'const __provino_import_0__',
     'foo(__provino_import_0__.a)',
   )
-  assert.ok(!result.code.includes('await import("@jest/globals")'))
+  assert.ok(!result.code.includes('await __provino_import__("@jest/globals")'))
 })
 
 test('block: the imported jest may be read by a factory', () => {

@@ -320,7 +320,7 @@ test('doMock: a file whose only mock call is doMock still rewrites its imports, 
   assertOrder(
     result.code,
     "import { vi } from 'vitest'",
-    'const __provino_import_0__ = await import("./a")',
+    'const __provino_import_0__ = await __provino_import__("./a")',
     "export { r } from './r'",
     'use(__provino_import_0__.default)',
     "vi.doMock('./d')",

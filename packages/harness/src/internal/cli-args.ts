@@ -47,6 +47,39 @@ function readArguments(argv: readonly string[]) {
 }
 
 /**
+ * What `policy-diff` was asked for: the two dialects, in print order.
+ * @internal
+ */
+export interface PolicyDiffCommand {
+  readonly a: 'jest' | 'vitest'
+  readonly b: 'jest' | 'vitest'
+}
+
+/**
+ * The usage text of `policy-diff` (T1.8).
+ * @internal
+ */
+export const POLICY_DIFF_USAGE = `Usage: provino-harness policy-diff <jest|vitest> <jest|vitest>
+
+  Prints every policy key, hoisting rule and global name where the two dialects differ.
+`
+
+/**
+ * Parses `provino-harness policy-diff <a> <b>` (the arguments after the command). Throws a
+ * `HARNESS_USAGE` error unless they are two dialect names.
+ * @internal
+ */
+export function parsePolicyDiff(argv: readonly string[]): PolicyDiffCommand {
+  const isDialect = (name: string | undefined): name is 'jest' | 'vitest' =>
+    name === 'jest' || name === 'vitest'
+  const [a, b, ...rest] = argv
+  if (!isDialect(a) || !isDialect(b) || rest.length > 0) {
+    throw new HarnessError('HARNESS_USAGE', 'policy-diff takes two dialects: jest or vitest')
+  }
+  return { a, b }
+}
+
+/**
  * Parses `provino-harness` arguments. Throws a `HARNESS_USAGE` error on anything else.
  * @internal
  */

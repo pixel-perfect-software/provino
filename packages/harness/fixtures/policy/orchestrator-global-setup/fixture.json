@@ -1,0 +1,9 @@
+{
+  "description": "What a global setup module is called with (T1.7, orchestrator.globalSetup.signature): it writes how many arguments it got and what the first one offers to global-setup.txt, which the black-box run captures. Jest calls it with the global and the project config; Vitest with the project, whose provide it can use, and runs a function it returns as the teardown.",
+  "runners": ["jest", "vitest"],
+  "config": {
+    "jest": { "globalSetup": "<rootDir>/global-setup-jest.ts" },
+    "vitest": { "test": { "globalSetup": ["./global-setup-vitest.ts"] } }
+  },
+  "run": { "capture": ["file:global-setup.txt"] }
+}
