@@ -4,11 +4,12 @@
 //                  slot, table, `createExpect`) → core → environment `prepare` → the dialect's
 //                  globals factory → registry snapshot (last, so a matcher the factory adds is part
 //                  of the baseline a file's restore returns to)
-//   runFile        back-pressure → file registry → mock registry (new per file; one per worker
-//                  under `none`) → environment `setup` → globals → expect state → core (setup
-//                  files, then the test file, imported inside collection) → teardown, which
-//                  disposes the mock registry first, while the environment is still alive, so a
-//                  spy on a global is restored before the next file sees it
+//   runFile        back-pressure → mock registry (new per file; one per worker under `none`) →
+//                  file registry, with the file's module-mock registry and the per-module
+//                  bindings → environment `setup` → globals → expect state → core (setup files,
+//                  then the test file, imported inside collection) → teardown, which disposes the
+//                  module-mock registry and then the mock registry first, while the environment is
+//                  still alive, so a spy on a global is restored before the next file sees it
 //   stop           the worker's mock registry (isolation `none`) → core's worker teardowns → the
 //                  worker environment → loader → the matcher slot → the worker's lifetime signal
 // An environment's teardown may report globals it could not remove (D22): that is a `console`
