@@ -54,13 +54,13 @@ const CORPUS_PENDING =
   'corpus repo: needs the corpus pilot (B16) and the Jest config reader (T11.6, B14)'
 
 /**
- * R6's seven suites: the two synthetic ones and the five corpus repos. Only `app-500` can run
- * today.
+ * R6's seven suites: the two synthetic ones and the five corpus repos. The two synthetic ones run
+ * today (`mock-heavy-500` from B13c, which gave the loader `jest.mock`).
  * @public
  */
 export const R6_SUITES: readonly KillCheckSuite[] = [
   { name: 'app-500' },
-  { name: 'mock-heavy-500', pending: 'Provino has no jest.mock until B13c' },
+  { name: 'mock-heavy-500' },
   { name: 'jest-extended', pending: CORPUS_PENDING },
   { name: 'react-hook-form', pending: CORPUS_PENDING },
   { name: 'mobx', pending: CORPUS_PENDING },

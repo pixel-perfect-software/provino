@@ -310,23 +310,36 @@ async function killCheckCommand(
   const results: BenchResult[] = []
   const progress = progressReporter(io, label)
   for (const { suite, subjects } of planned) {
-    await generated(suite, io, paths.suitesRoot)
-    if (!dryRun) {
-      const read = await readParityOrFail(readParity, suite)
-      parity.set(suite.name, read)
-      for (const line of parityLines(read)) io.err(`[${label}] ${suite.name} ${line}`)
+    // A suite that throws (its suite can't be written, a cache can't be cleared) keeps no result,
+    // so every check of it fails for lack of data, and the suites before and after it keep theirs
+    // in the record (B13c Gap 10).
+    try {
+      await generated(suite, io, paths.suitesRoot)
+      if (!dryRun) {
+        const read = await readParityOrFail(readParity, suite)
+        parity.set(suite.name, read)
+        for (const line of parityLines(read)) io.err(`[${label}] ${suite.name} ${line}`)
+      }
+      // R6 fixes 10 warm and 5 cold runs, so the defaults are used and no count is passed.
+      results.push(
+        ...(await runBench({
+          benchId: suite.name,
+          subjects,
+          timeoutMs: command.timeoutMs,
+          ...(deps.exec === undefined ? {} : { exec: deps.exec }),
+          onRun: progress.onRun,
+        })),
+      )
+    } catch (error) {
+      if (!(error instanceof Error)) throw error
+      const reason =
+        error instanceof BenchError ? `${error.code}: ${error.message}` : errorMessage(error)
+      io.err(
+        `[${label}] ${suite.name} FAILED before its runs were recorded: ${reason}. Its checks fail with no result; the other suites keep theirs.`,
+      )
+    } finally {
+      progress.flush()
     }
-    // R6 fixes 10 warm and 5 cold runs, so the defaults are used and no count is passed.
-    results.push(
-      ...(await runBench({
-        benchId: suite.name,
-        subjects,
-        timeoutMs: command.timeoutMs,
-        ...(deps.exec === undefined ? {} : { exec: deps.exec }),
-        onRun: progress.onRun,
-      })),
-    )
-    progress.flush()
   }
 
   const record = buildRecord({
