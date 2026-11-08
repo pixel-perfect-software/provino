@@ -1,4 +1,5 @@
 import { performance } from 'node:perf_hooks'
+import { StringDecoder } from 'node:string_decoder'
 import { spawnInGroup } from './spawn-in-group.ts'
 
 /**
@@ -86,23 +87,19 @@ export async function runProcess(
 
   let output = ''
   let collecting = true
-  const collect = (chunk: Buffer): void => {
-    if (!collecting) return
-    const text = chunk.toString('utf8')
+  const streams = { stdout: '', stderr: '' }
+  const take = (name: keyof typeof streams, text: string): void => {
+    if (!collecting || text === '') return
     const joined = output + text
     output = joined.length > tailChars ? joined.slice(joined.length - tailChars) : joined
     options.onOutput?.(text)
+    if (options.keepStreams === true) streams[name] += text
   }
-  child.stdout?.on('data', collect)
-  child.stderr?.on('data', collect)
-  const streams = { stdout: '', stderr: '' }
-  if (options.keepStreams === true) {
-    child.stdout?.on('data', (chunk: Buffer) => {
-      if (collecting) streams.stdout += chunk.toString('utf8')
-    })
-    child.stderr?.on('data', (chunk: Buffer) => {
-      if (collecting) streams.stderr += chunk.toString('utf8')
-    })
+  for (const name of ['stdout', 'stderr'] as const) {
+    // One decoder per stream: a character split across two chunks is decoded whole.
+    const decoder = new StringDecoder('utf8')
+    child[name]?.on('data', (chunk: Buffer) => take(name, decoder.write(chunk)))
+    child[name]?.on('end', () => take(name, decoder.end()))
   }
 
   try {

@@ -187,18 +187,30 @@ async function readCaptured(file: string): Promise<string | null> {
 
 /**
  * What a black-box run shows, in `capture`'s order of kinds: the exit code, the normalized
- * streams (only `keepLines`' lines, sorted under `sortStdout`) and the named files.
+ * streams (only `keepLines`' lines, sorted under `sortStdout`) and the named files. A stream
+ * `keepLines` keeps no line of is `HARNESS_FIXTURE_BAD_RUN` (a pattern that matches nothing would
+ * record an empty stream as the truth), unless `emptyStreams` lists it. `source` names the fixture.
  */
 export function observedOf(
   spec: FixtureRun,
   result: { readonly exitCode: number | null; readonly stdout: string; readonly stderr: string },
   files: Readonly<Record<string, string | null>>,
   normalize: (text: string) => string,
+  source: string,
 ): GoldenObserved {
   const keep = spec.keepLines === undefined ? undefined : new RegExp(spec.keepLines)
-  const stream = (text: string): string => {
-    let lines = normalize(text).split('\n')
-    if (keep !== undefined) lines = lines.filter((line) => keep.test(line))
+  const stream = (name: 'stdout' | 'stderr'): string => {
+    let lines = normalize(result[name]).split('\n')
+    if (keep !== undefined) {
+      lines = lines.filter((line) => keep.test(line))
+      if (lines.length === 0 && spec.emptyStreams?.includes(name) !== true) {
+        throw new HarnessError(
+          'HARNESS_FIXTURE_BAD_RUN',
+          `${source}: "run" "keepLines" kept no line of ${name} (list it in "emptyStreams" if that is what the run shows)`,
+          { path: source },
+        )
+      }
+    }
     if (spec.sortStdout === true) lines = lines.toSorted(compareStrings)
     return lines.join('\n')
   }
@@ -206,8 +218,8 @@ export function observedOf(
   const named = spec.capture.filter((entry) => entry.startsWith('file:'))
   return {
     ...(captured('exitCode') ? { exitCode: result.exitCode } : {}),
-    ...(captured('stdout') ? { stdout: stream(result.stdout) } : {}),
-    ...(captured('stderr') ? { stderr: stream(result.stderr) } : {}),
+    ...(captured('stdout') ? { stdout: stream('stdout') } : {}),
+    ...(captured('stderr') ? { stderr: stream('stderr') } : {}),
     ...(named.length === 0
       ? {}
       : {
@@ -374,6 +386,7 @@ async function runUnderRunner(
             ),
           ),
           (text) => normalizer.text(text),
+          path.join(fixture.dir, 'fixture.json'),
         )
 
   const base = {

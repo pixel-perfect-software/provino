@@ -124,12 +124,14 @@ export type FixtureConfigOverlay = Readonly<
  * path>` (the file's text after the run, `null` when it is not there). `argv` is added to the
  * runner's command line. `keepLines` (a regular-expression source) keeps only the matching lines
  * of `stdout` and `stderr`, and `sortStdout` sorts them, for output whose order or timing a run
- * doesn't fix.
+ * doesn't fix. A captured stream `keepLines` keeps no line of fails the recording, unless
+ * `emptyStreams` lists it.
  * @public
  */
 export interface FixtureRun {
   readonly argv?: Readonly<Partial<Record<FixtureRunner, readonly string[]>>>
   readonly capture: readonly string[]
+  readonly emptyStreams?: readonly ('stdout' | 'stderr')[]
   readonly keepLines?: string
   readonly sortStdout?: true
 }
@@ -298,6 +300,8 @@ const JEST_RESERVED: readonly string[] = [
   'testLocationInResults',
   'cacheDirectory',
   'watchman',
+  // Projects bring configs of their own, which the recorder doesn't write.
+  'projects',
 ]
 /** The Vitest keys (dotted) the recorder writes and a fixture may not override. */
 const VITEST_RESERVED: readonly string[] = [
@@ -306,6 +310,8 @@ const VITEST_RESERVED: readonly string[] = [
   'test.include',
   'test.exclude',
   'test.includeTaskLocation',
+  'projects',
+  'test.projects',
 ]
 /** What `mockCleanup` and `jestConfig` set, as each runner spells it. */
 const JEST_MOCK_CLEANUP_OPTIONS: readonly string[] = ['clearMocks', 'resetMocks', 'restoreMocks']
@@ -355,6 +361,10 @@ function parseConfigOverlay(
     }
     if (!isRecord(overlay) || Object.keys(overlay).length === 0) {
       throw bad(`must give "${runner}" a non-empty object`)
+    }
+    // Vitest's options are under `test`; any other value would hide the keys checked below.
+    if (known === 'vitest' && 'test' in overlay && !isRecord(overlay.test)) {
+      throw bad('must give "vitest.test" an object')
     }
     const paths = keyPaths(overlay)
     const reserved =
@@ -414,22 +424,60 @@ function parseRunnerFiles(
 
 /** What `run.capture` may name besides `file:<path>`. */
 const RUN_STREAMS: readonly string[] = ['exitCode', 'stdout', 'stderr']
+const RUN_KEYS: readonly string[] = ['argv', 'capture', 'emptyStreams', 'keepLines', 'sortStdout']
 
 /**
- * `run` is `{ capture, argv?, keepLines?, sortStdout? }`: `capture` a non-empty list of
- * `exitCode`, `stdout`, `stderr` and `file:<relative path>`, each once; `argv` per listed runner,
- * a list of strings; `keepLines` a regular-expression source; `sortStdout` only `true`.
+ * The command-line options `run.argv` may not give, camel-cased: what the recorder passes (the
+ * config, the JSON results and where they go, the root) and what `mockCleanup` sets. `-c` and `-r`
+ * are the runners' short names for `--config` and Vitest's `--root`.
+ */
+const OWNED_FLAGS: ReadonlySet<string> = new Set([
+  'c',
+  'config',
+  'json',
+  'outputFile',
+  'r',
+  'root',
+  'rootDir',
+  'reporter',
+  'reporters',
+  ...JEST_MOCK_CLEANUP_OPTIONS,
+  ...VITEST_MOCK_CLEANUP_OPTIONS.map((option) => option.slice('test.'.length)),
+])
+
+/**
+ * The option an argument sets, camel-cased, without a `no-` prefix, a `=value` or a `.sub` key
+ * (`--no-output-file`, `--outputFile.json=x` and `--outputFile` are all `outputFile`); `undefined`
+ * for a value.
+ */
+function optionOf(arg: string): string | undefined {
+  const match = /^--?(?:no-)?([^=.]+)/.exec(arg)
+  return match?.[1]?.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())
+}
+
+/**
+ * Whether `arg` adds a text reporter by name: Vitest keeps every `--reporter` the command line
+ * gives, so the recorder's `json` stays (`policy/report-default` adds `default` this way).
+ */
+const addsTextReporter = (arg: string): boolean => /^--reporter=(?!json$)[a-z-]+$/.test(arg)
+
+/**
+ * `run` is `{ capture, argv?, keepLines?, emptyStreams?, sortStdout? }`: `capture` a non-empty list
+ * of `exitCode`, `stdout`, `stderr` and `file:<relative path>`, each once; `argv` per listed
+ * runner, a list of strings that sets no option the recorder owns (`OWNED_FLAGS`); `keepLines` a
+ * regular-expression source; `emptyStreams` the captured streams `keepLines` may keep no line of
+ * (else that is a broken run); `sortStdout` only `true`.
  */
 function parseRun(run: unknown, runners: readonly FixtureProfile[], source: string): FixtureRun {
   const bad = (reason: string): HarnessError =>
     new HarnessError('HARNESS_FIXTURE_BAD_RUN', `${source}: "run" ${reason}`, { path: source })
   if (!isRecord(run)) throw bad('must be an object with "capture"')
   for (const key of Object.keys(run)) {
-    if (!['argv', 'capture', 'keepLines', 'sortStdout'].includes(key)) {
-      throw bad(`has the unknown key "${key}" (expected argv, capture, keepLines, sortStdout)`)
+    if (!RUN_KEYS.includes(key)) {
+      throw bad(`has the unknown key "${key}" (expected ${RUN_KEYS.join(', ')})`)
     }
   }
-  const { argv, capture, keepLines, sortStdout } = run
+  const { argv, capture, emptyStreams, keepLines, sortStdout } = run
   if (
     !Array.isArray(capture) ||
     capture.length === 0 ||
@@ -449,6 +497,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
   const out: {
     argv?: Partial<Record<FixtureRunner, string[]>>
     capture: string[]
+    emptyStreams?: ('stdout' | 'stderr')[]
     keepLines?: string
     sortStdout?: true
   } = { capture }
@@ -464,6 +513,13 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       }
       if (!Array.isArray(args) || !args.every((arg): arg is string => typeof arg === 'string')) {
         throw bad(`"argv" must give "${runner}" an array of strings`)
+      }
+      const owned = args.find((arg) => {
+        const option = optionOf(arg)
+        return option !== undefined && OWNED_FLAGS.has(option) && !addsTextReporter(arg)
+      })
+      if (owned !== undefined) {
+        throw bad(`"argv" gives "${owned}" to ${runner}, which the recorder or "mockCleanup" sets`)
       }
       parsed[known] = args
     }
@@ -483,6 +539,23 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       )
     }
     out.keepLines = keepLines
+  }
+  if (emptyStreams !== undefined) {
+    if (
+      keepLines === undefined ||
+      !Array.isArray(emptyStreams) ||
+      emptyStreams.length === 0 ||
+      new Set(emptyStreams).size !== emptyStreams.length ||
+      !emptyStreams.every(
+        (name): name is 'stdout' | 'stderr' =>
+          (name === 'stdout' || name === 'stderr') && capture.includes(name),
+      )
+    ) {
+      throw bad(
+        '"emptyStreams" must list, once each, captured streams "keepLines" may keep no line of',
+      )
+    }
+    out.emptyStreams = emptyStreams
   }
   if (sortStdout !== undefined) {
     if (sortStdout !== true) throw bad('"sortStdout" must be true (leave it out for off)')

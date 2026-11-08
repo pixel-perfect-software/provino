@@ -1,9 +1,10 @@
 {
-  "description": "The default reporter's failure line (T1.7, report.displaySeparator and failureTitleBullet): a failing test inside a describe. Jest's default reporter (on stderr, beside --json) prints a bulleted title joined with ' › '; Vitest's (asked for beside the recorder's json reporter, on stdout) prints FAIL, the file and the names joined with ' > '. Only the lines naming the test are kept.",
+  "description": "The default reporter's failure line (T1.7, report.displaySeparator and failureTitleBullet): a failing test inside a describe. Jest's default reporter (beside --json) prints a bulleted title joined with ' › '; Vitest's (asked for beside the recorder's json reporter) prints FAIL, the file and the names joined with ' > '. Both print the line on stderr, so stdout keeps none (emptyStreams). Only the lines naming the test are kept.",
   "runners": ["jest", "vitest"],
   "run": {
     "argv": { "vitest": ["--reporter=default"] },
     "capture": ["stdout", "stderr"],
-    "keepLines": "(●|FAIL) .*the failing test"
+    "keepLines": "(●|FAIL) .*the failing test",
+    "emptyStreams": ["stdout"]
   }
 }
