@@ -10,7 +10,7 @@ export const mockClaims: Claims = {
   'mock.resetTo': mock('config-all', 'fn-clear-reset-restore'),
   'mock.defaultName': mock('fn-shape'),
   'mock.between.order': pending(
-    'Tyler',
+    'D47',
     'no case tells one order of clear, reset and restore from another: they commute in both runners, so a reversed order changes no observation',
   ),
   'mock.between.clear': [mock('config-default'), golden('defaults')],

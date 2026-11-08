@@ -109,7 +109,7 @@ const shape = golden('expect-shape')
 
 export const expectClaims: Claims = {
   'expect.matcherNamespace': pending(
-    'Tyler',
+    'D47',
     'no code reads it yet, and the research names no behaviour a run shows ("the namespace in matcher messages and the matcher slot")',
   ),
   'expect.pollFailsOnTimeout': each(

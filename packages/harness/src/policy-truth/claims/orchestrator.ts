@@ -48,7 +48,7 @@ export const orchestratorClaims: Claims = {
   'orchestrator.watchDefault': each(
     golden('defaults'),
     pending(
-      'Tyler',
+      'D47',
       'Vitest watches when stdin is a TTY outside CI and agents (configDefaults.watch); a recorded run has no TTY, so no run shows that half',
     ),
   ),

@@ -162,7 +162,7 @@ export const coreClaims: Claims = {
       'Jest runs no each-hooks around a concurrent test, so no hook could take a slot',
     ),
     pending(
-      'Tyler',
+      'D47',
       'no fixture tells it apart: a concurrent test runs its own hooks inside its slot, so the peak is the same either way',
     ),
   ),

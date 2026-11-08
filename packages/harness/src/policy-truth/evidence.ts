@@ -70,7 +70,7 @@ export interface InertEvidence {
 /** A value whose behaviour isn't built yet, with the bundle that brings it and its evidence. */
 export interface PendingEvidence {
   readonly kind: 'pending'
-  /** The owner bundle (`B17`) or `Tyler` for a question. */
+  /** The owner bundle (`B17a`), or the decision that keeps an unobservable value (`D47`). */
   readonly owner: string
   readonly reason: string
 }

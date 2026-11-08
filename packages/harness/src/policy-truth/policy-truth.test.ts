@@ -74,13 +74,13 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest coverage.thresholdGrouping': 'T8.9',
   'vitest expect.matcherTable': 'T7.6',
   'vitest lazy.readInBeforeAll': 'T6.5',
-  // No fixture found that tells the value apart: questions for Tyler.
-  'jest expect.matcherNamespace': 'Tyler',
-  'jest mock.between.order': 'Tyler',
-  'vitest core.concurrency.limitHooks': 'Tyler',
-  'vitest expect.matcherNamespace': 'Tyler',
-  'vitest mock.between.order': 'Tyler',
-  'vitest orchestrator.watchDefault': 'Tyler',
+  // No fixture tells the value apart: D47 keeps the research value.
+  'jest expect.matcherNamespace': 'D47',
+  'jest mock.between.order': 'D47',
+  'vitest core.concurrency.limitHooks': 'D47',
+  'vitest expect.matcherNamespace': 'D47',
+  'vitest mock.between.order': 'D47',
+  'vitest orchestrator.watchDefault': 'D47',
 }
 
 /** A value as JSON sees it, so a recorded observation and a policy value compare. */
