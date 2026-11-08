@@ -49,19 +49,18 @@ function interopDefault(value: unknown): unknown {
 }
 
 /**
- * Imports a config file and returns what its default export gives: the object itself, or what a
- * function (sync or async) returns when called with `env`. Node's own loader reads the file, so
- * `.mjs`, `.js` (per the nearest `package.json`'s `type`), `.mts` and `.ts` load as Node loads
- * them (type stripping needs Node 22.18+, or `--experimental-strip-types`). Every call reads the
- * file again, so a file edited between two calls in one process gives the new contents (the
- * modules it imports are still cached by Node).
+ * Imports a config module and returns its default export, unwrapped as `interopRequireDefault`
+ * does for a CommonJS file compiled from `export default`. The shared loading step of every config
+ * file Provino reads (build-plan §6: `provino.config.*` here, `jest.config.*` in the Jest dialect).
+ * Node's own loader reads the file, so `.mjs`, `.js` (per the nearest `package.json`'s `type`),
+ * `.mts` and `.ts` load as Node loads them (type stripping needs Node 22.18+, or
+ * `--experimental-strip-types`). Every call reads the file again (see `freshUrl`).
  *
- * Throws `ConfigError`: `CONFIG_LOAD_FAILED` when the import or the function throws (the error is
- * the `cause`), `CONFIG_INVALID` when there is no default export or it doesn't give an object. The
- * object's keys are checked by `resolveProject`.
+ * Throws `ConfigError`: `CONFIG_LOAD_FAILED` when the import throws (the error is the `cause`),
+ * `CONFIG_INVALID` when the module has no default export.
  * @public
  */
-export async function loadConfigFile(path: string, env: ConfigEnv): Promise<ProvinoConfigInput> {
+export async function importConfigModule(path: string): Promise<unknown> {
   const file = resolve(path)
   let namespace: unknown
   try {
@@ -75,7 +74,23 @@ export async function loadConfigFile(path: string, env: ConfigEnv): Promise<Prov
       `the config file "${file}" has no default export; use "export default { … }"`,
     )
   }
-  let value = interopDefault(namespace.default)
+  return interopDefault(namespace.default)
+}
+
+/**
+ * Imports a config file and returns what its default export gives: the object itself, or what a
+ * function (sync or async) returns when called with `env`. The import is `importConfigModule`'s,
+ * so a file edited between two calls in one process gives the new contents (the modules it
+ * imports are still cached by Node).
+ *
+ * Throws `ConfigError`: `CONFIG_LOAD_FAILED` when the import or the function throws (the error is
+ * the `cause`), `CONFIG_INVALID` when there is no default export or it doesn't give an object. The
+ * object's keys are checked by `resolveProject`.
+ * @public
+ */
+export async function loadConfigFile(path: string, env: ConfigEnv): Promise<ProvinoConfigInput> {
+  const file = resolve(path)
+  let value = await importConfigModule(file)
   if (typeof value === 'function') {
     try {
       value = await value(env)
