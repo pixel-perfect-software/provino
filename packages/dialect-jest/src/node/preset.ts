@@ -8,8 +8,9 @@
 // deep-merge (`deepmerge` 4); everything else is the config's over the preset's.
 import { readFileSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
-import { ConfigError, importConfigModule } from '@provino/config'
+import { ConfigError } from '@provino/config'
 import { JestConfigError, messageOf } from './errors.ts'
+import { requireOrImportModule } from './load.ts'
 import { replaceRootDirInPath } from './paths.ts'
 import type { JestResolution } from './resolution.ts'
 import { CONFIG_ERROR_TITLE, DOCUMENTATION_NOTE, validationText } from './text.ts'
@@ -96,7 +97,9 @@ async function loadPreset(path: string): Promise<unknown> {
     return JSON.parse(readFileSync(path, 'utf8'))
   }
   try {
-    return await importConfigModule(path)
+    // Jest `require`s a preset (`requireOrImportModule`): a module with only named exports is its
+    // namespace, and an `.mjs` one with no default export fails as Jest's does.
+    return await requireOrImportModule(path)
   } catch (error) {
     throw error instanceof ConfigError && error.cause !== undefined ? error.cause : error
   }

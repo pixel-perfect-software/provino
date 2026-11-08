@@ -147,6 +147,16 @@ const CASES: readonly Case[] = [
     },
   },
   {
+    // Jest `require`s a preset, so an ES module with only named exports is its namespace.
+    name: 'an ESM .js preset with only named exports: the namespace is the preset',
+    tree: {
+      'node_modules/named-preset/package.json': '{ "name": "named-preset", "type": "module" }\n',
+      'node_modules/named-preset/jest-preset.js':
+        "export const testEnvironment = 'node'\nexport const clearMocks = true\n",
+      'jest.config.js': "module.exports = { preset: 'named-preset' }\n",
+    },
+  },
+  {
     name: 'a preset that is not found',
     tree: { 'jest.config.js': "module.exports = { preset: 'no-such-preset' }\n" },
   },
@@ -201,6 +211,35 @@ for (const fixture of CASES) {
     )
   })
 }
+
+test('an .mjs preset with only named exports fails as in Jest: "did you use a default export?"', async () => {
+  const root = writeTree({
+    'node_modules/esm-named/package.json': '{ "name": "esm-named" }\n',
+    'node_modules/esm-named/jest-preset.mjs': "export const testEnvironment = 'node'\n",
+    'jest.config.js': "module.exports = { preset: 'esm-named' }\n",
+  })
+  trees.push(root)
+  const path = join(root, 'jest.config.js')
+  const ours = await readJestConfig(path, {
+    cwd: root,
+    requireResolve: oracleRequireResolve,
+    seed: 0,
+  }).catch((error: unknown) => error)
+  const theirs = await inDirectory(root, () =>
+    oracle.readConfig({ ...ORACLE_ARGV, _: [] }, path).catch((error: unknown) => error),
+  )
+  assert.ok(ours instanceof JestConfigError)
+  assert.equal(ours.code, 'JEST_CONFIG_PRESET')
+  // The text up to the stack's frames, which name each side's own files.
+  const head = (error: unknown) =>
+    plainMessage(error)
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('at '))
+      .slice(0, 5)
+      .join('\n')
+  assert.match(head(ours), /did you use a default export\?/)
+  assert.equal(head(ours), head(theirs))
+})
 
 test('deepMerge: arrays concatenate, objects merge, sources are cloned', () => {
   const source = { a: { b: [2] } }

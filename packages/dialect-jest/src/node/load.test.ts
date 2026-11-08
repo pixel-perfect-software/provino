@@ -244,6 +244,40 @@ test("an .mjs config with no default export fails on both sides, with Jest's tex
   await assert.rejects(oracleRead(path), /did you use a default export\?/)
 })
 
+test('stripJsonComments is linear: 100,000 comment lines take well under a second', () => {
+  const text = `${'// a comment line\n'.repeat(100_000)}{ "testTimeout": 1 }\n`
+  const start = performance.now()
+  const stripped = stripJsonComments(text)
+  const elapsed = performance.now() - start
+  assert.deepEqual(JSON.parse(stripped), { testTimeout: 1 })
+  // Linear work is a few milliseconds; the old search from each comment to the end of the text
+  // copied the rest of the file once per comment (about 50 GB here).
+  assert.ok(elapsed < 1000, `${elapsed.toFixed(0)} ms`)
+})
+
+test('an unclosed block comment that breaks the JSON says so, where it starts', async () => {
+  const root = tree({
+    'jest.config.json': '{\n  "testTimeout": 1, /* never closed\n  "verbose": true\n}\n',
+  })
+  const path = join(root, 'jest.config.json')
+  await assert.rejects(readJestConfigFile(path), (error: unknown) => {
+    assert.ok(error instanceof JestConfigError)
+    assert.equal(error.code, 'JEST_CONFIG_LOAD_FAILED')
+    // `  "testTimeout": 1, /* never closed`: the `/*` is the 21st character of line 2.
+    assert.match(error.message, /unclosed \/\* comment at line 2, column 21 runs to the end/)
+    return true
+  })
+  // Jest's parser fails on it too.
+  await assert.rejects(oracleRead(path))
+})
+
+test('an unclosed block comment after complete JSON reads, as in Jest', async () => {
+  const root = tree({ 'jest.config.json': '{ "testTimeout": 7 } /* trailing, never closed\n' })
+  const path = join(root, 'jest.config.json')
+  assert.equal((await readJestConfigFile(path)).testTimeout, 7)
+  assert.deepEqual(comparable(await readJestConfigFile(path)), comparable(await oracleRead(path)))
+})
+
 test('a config that is not an object is refused', async () => {
   const root = tree({ 'jest.config.js': 'module.exports = 5\n' })
   await assert.rejects(readJestConfigFile(join(root, 'jest.config.js')), {

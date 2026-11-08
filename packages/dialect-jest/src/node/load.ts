@@ -27,47 +27,59 @@ function nativeTypeScript(): boolean {
  * spaces (newlines kept). Trailing commas stay, so `JSON.parse` still refuses them, as Jest does.
  */
 export function stripJsonComments(text: string): string {
-  let out = ''
+  return stripComments(text).text
+}
+
+/**
+ * `stripJsonComments`, with where an unclosed block comment starts (strip-json-comments blanks it
+ * to the end of the file, so the JSON then fails or not as the rest decides). One pass: each
+ * comment's end is found with `indexOf`, and the text between comments is copied in slices.
+ */
+function stripComments(text: string): { readonly text: string; readonly unclosedAt?: number } {
+  const parts: string[] = []
+  let copied = 0
+  let unclosedAt: number | undefined
+  const blank = (from: number, to: number) => {
+    parts.push(text.slice(copied, from), text.slice(from, to).replaceAll(/\S/g, ' '))
+    copied = to
+  }
   let index = 0
-  let inString = false
   while (index < text.length) {
-    const char = text[index] ?? ''
-    if (inString) {
-      out += char
-      if (char === '\\') {
-        out += text[index + 1] ?? ''
-        index += 2
-        continue
-      }
-      if (char === '"') inString = false
-      index++
-      continue
-    }
+    const char = text[index]
     if (char === '"') {
-      inString = true
-      out += char
+      index++
+      while (index < text.length && text[index] !== '"') index += text[index] === '\\' ? 2 : 1
       index++
       continue
     }
-    const next = text[index + 1]
-    if (char === '/' && next === '/') {
-      const end = text.slice(index).search(/\r?\n/)
-      const stop = end === -1 ? text.length : index + end
-      out += ' '.repeat(stop - index)
+    if (char === '/' && text[index + 1] === '/') {
+      const newline = text.indexOf('\n', index + 2)
+      let stop = newline === -1 ? text.length : newline
+      if (text[stop - 1] === '\r' && stop - 1 > index) stop--
+      blank(index, stop)
       index = stop
       continue
     }
-    if (char === '/' && next === '*') {
+    if (char === '/' && text[index + 1] === '*') {
       const end = text.indexOf('*/', index + 2)
+      if (end === -1) unclosedAt = index
       const stop = end === -1 ? text.length : end + 2
-      out += text.slice(index, stop).replaceAll(/\S/g, ' ')
+      blank(index, stop)
       index = stop
       continue
     }
-    out += char
     index++
   }
-  return out
+  parts.push(text.slice(copied))
+  return { text: parts.join(''), ...(unclosedAt === undefined ? {} : { unclosedAt }) }
+}
+
+/** A 1-based `line L, column C` for an offset. */
+function lineColumn(text: string, offset: number): string {
+  const before = text.slice(0, offset)
+  const line = before.split('\n').length
+  const column = offset - (before.lastIndexOf('\n') + 1) + 1
+  return `line ${line}, column ${column}`
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -83,12 +95,17 @@ function readJsonFile(path: string): unknown {
       cause,
     })
   }
+  const stripped = stripComments(text)
   try {
-    return JSON.parse(stripJsonComments(text))
+    return JSON.parse(stripped.text)
   } catch (cause) {
+    const unclosed =
+      stripped.unclosedAt === undefined
+        ? ''
+        : `; an unclosed /* comment at ${lineColumn(text, stripped.unclosedAt)} runs to the end of the file`
     throw new JestConfigError(
       'JEST_CONFIG_LOAD_FAILED',
-      `${messageOf(cause)} while parsing ${path}`,
+      `${messageOf(cause)} while parsing ${path}${unclosed}`,
       { cause },
     )
   }
@@ -261,8 +278,10 @@ function typeScriptFailure(path: string, error: unknown): JestConfigError {
  * `jest-util`'s `requireOrImportModule(path)` (with `interopRequireDefault`): a `.mjs` or `.mts`
  * file is imported and must have a default export; anything else is `require`d, and a module with
  * no default export is its namespace (`{ default: namespace }` unwrapped), named exports and all.
+ * Configs and presets load this way. Throws `ConfigError` (`CONFIG_LOAD_FAILED`, the error as
+ * `cause`).
  */
-async function requireOrImportModule(path: string): Promise<unknown> {
+export async function requireOrImportModule(path: string): Promise<unknown> {
   const importOnly = path.endsWith('.mjs') || path.endsWith('.mts')
   try {
     return await importConfigModule(path, { withoutDefault: importOnly ? 'error' : 'namespace' })

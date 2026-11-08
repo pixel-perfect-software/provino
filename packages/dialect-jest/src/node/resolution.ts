@@ -8,7 +8,6 @@
 import { realpathSync } from 'node:fs'
 import { createRequire, isBuiltin } from 'node:module'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { ConfigError, importConfigModule } from '@provino/config'
 import { createResolver } from '@provino/resolver'
 import type { Resolver } from '@provino/types'
@@ -217,17 +216,15 @@ export function createJestResolution(requireResolve: JestRequireResolve): JestRe
       if (custom.has(path)) return
       let loaded: unknown
       try {
-        loaded = await importConfigModule(path)
+        // Loaded once. A module with no default export is its namespace, so named `sync`/`async`
+        // exports make a resolver, as `toResolver` (L1084-L1113) accepts them.
+        loaded = await importConfigModule(path, { withoutDefault: 'namespace' })
       } catch (error) {
-        // A namespace with named `sync`/`async` and no default export is a resolver too.
-        if (!(error instanceof ConfigError && error.code === 'CONFIG_INVALID')) {
-          throw new JestConfigError(
-            'JEST_CONFIG_LOAD_FAILED',
-            `can't load the resolver "${path}": ${messageOf(error instanceof ConfigError ? error.cause : error)}`,
-            { cause: error },
-          )
-        }
-        loaded = await import(pathToFileURL(path).href)
+        throw new JestConfigError(
+          'JEST_CONFIG_LOAD_FAILED',
+          `can't load the resolver "${path}": ${messageOf(error instanceof ConfigError ? error.cause : error)}`,
+          { cause: error },
+        )
       }
       const resolver = asResolver(loaded)
       if (resolver === null) {
