@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "policy/expect-shape",
+  "files": [
+    {
+      "file": "expect-shape.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "expect-shape.test.ts",
+            "path": [
+              "expect.errorShape"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "expect-shape.test.ts",
+            "path": [
+              "expect.equality.errors"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 3,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "expect-shape.test.ts",
+            "path": [
+              "expect.equality.invalidDate"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "expect-shape.test.ts",
+            "path": [
+              "expect.soft"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "expect-shape.test.ts",
+            "path": [
+              "expect.poll.enabled"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "expect-shape.test.ts",
+            "path": [
+              "expect.diffContextLines"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "expect-shape.test.ts",
+            "path": [
+              "a test with no assertion"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"expect.errorShape\",\"value\":\"matcher-result\"}",
+    "{\"id\":\"expect.equality.errors\",\"value\":\"message\"}",
+    "{\"id\":\"expect.equality.invalidDate\",\"value\":\"unequal\"}",
+    "{\"id\":\"expect.soft\",\"value\":false}",
+    "{\"id\":\"expect.poll.enabled\",\"value\":false}",
+    "{\"id\":\"expect.diffContextLines\",\"value\":5}"
+  ]
+}

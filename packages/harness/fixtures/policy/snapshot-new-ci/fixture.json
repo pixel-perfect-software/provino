@@ -1,0 +1,5 @@
+{
+  "description": "A new snapshot under CI with nothing in the environment (T1.7, snapshot.ciUpdate): neither runner writes it, and the assertion fails. A black-box run capturing the .snap file and the exit code.",
+  "runners": ["jest", "vitest"],
+  "run": { "capture": ["exitCode", "file:__snapshots__/new-ci.test.ts.snap"] }
+}

@@ -1,0 +1,6 @@
+{
+  "description": "Where test files run (T1.7, orchestrator.pool.default): two files, each naming its test after the place it runs (a child process, a worker thread, or the runner's own process). Jest is given two workers (otherwise a machine with two cores runs it in band); Vitest keeps its defaults. jestEsm, so both load the shared helper with import.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true,
+  "config": { "jest": { "maxWorkers": 2 } }
+}

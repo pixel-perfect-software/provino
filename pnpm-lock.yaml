@@ -254,6 +254,9 @@ catalogs:
     jest:
       specifier: 30.5.2
       version: 30.5.2
+    jest-config:
+      specifier: 30.5.2
+      version: 30.5.2
     jest-matcher-utils:
       specifier: 30.5.2
       version: 30.5.2
@@ -498,9 +501,25 @@ importers:
       expect:
         specifier: 'catalog:'
         version: 30.5.2
+      jest-config:
+        specifier: 'catalog:'
+        version: 30.5.2(@types/node@22.20.5)(supports-color@8.1.1)
       jest-mock:
         specifier: 'catalog:'
         version: 30.5.2
+
+  packages/dialect-vitest:
+    dependencies:
+      '@provino/policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@22.20.5)(jsdom@30.1.3)(vite@8.3.5(@types/node@22.20.5))
 
   packages/env-node:
     dependencies:
@@ -551,6 +570,9 @@ importers:
       '@provino/dialect-jest':
         specifier: workspace:*
         version: link:../dialect-jest
+      '@provino/dialect-vitest':
+        specifier: workspace:*
+        version: link:../dialect-vitest
       '@provino/expect':
         specifier: workspace:*
         version: link:../expect
@@ -579,6 +601,9 @@ importers:
         specifier: 'catalog:'
         version: 30.5.0
       jest:
+        specifier: 'catalog:'
+        version: 30.5.2(@types/node@22.20.5)(supports-color@8.1.1)
+      jest-config:
         specifier: 'catalog:'
         version: 30.5.2(@types/node@22.20.5)(supports-color@8.1.1)
       oxc-parser:

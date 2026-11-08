@@ -1,0 +1,8 @@
+{
+  "description": "A run that finds no test files (T1.7, orchestrator.exitCodes.noTests and passWithNoTests): a path filter matching nothing. Both runners exit with code 1 when passWithNoTests is off, its default. A black-box run.",
+  "runners": ["jest", "vitest"],
+  "run": {
+    "argv": { "jest": ["matches-no-file"], "vitest": ["matches-no-file"] },
+    "capture": ["exitCode"]
+  }
+}

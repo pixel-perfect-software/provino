@@ -10,10 +10,8 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { describe, test } from 'node:test'
-import { runExpectFile } from './expect-corpus/run-expect.ts'
-import { defaultFixturesRoot, findFixtures, readFixture, testFilesFor } from './fixture.ts'
-import { readGolden } from './golden.ts'
-import { createNormalizer, testKey } from './normalize.ts'
+import { expectCorpusProblems } from './expect-corpus/compare.ts'
+import { defaultFixturesRoot, findFixtures, readFixture } from './fixture.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
 
 const root = path.join(defaultFixturesRoot(), 'expect', 'messages')
@@ -24,86 +22,11 @@ test('the message corpus is there', () => {
   assert.ok(dirs.length >= 10, `expected the B08 corpus under ${root}, found ${dirs.length}`)
 })
 
-/**
- * A failure's comparable shape: `name`, `matcher` and `userFrame` are there only when the failure
- * has one.
- */
-interface ComparableError {
-  readonly name?: string
-  readonly message: string
-  readonly matcher?: string
-  readonly userFrame?: string
-}
-
-/** A test's comparable shape: what both the golden and the run can say. */
-interface Comparable {
-  readonly status: string
-  readonly errors: readonly ComparableError[]
-  readonly passingAssertions: number
-}
-
-/** The comparable part of a golden error or a normalized failure, the same on both sides. */
-function comparable({ name, message, matcher, userFrame }: ComparableError): ComparableError {
-  return {
-    ...(name === undefined ? {} : { name }),
-    message,
-    ...(matcher === undefined ? {} : { matcher }),
-    ...(userFrame === undefined ? {} : { userFrame }),
-  }
-}
-
 for (const fixture of fixtures) {
   describe(fixture.id, () => {
     test('jest', async () => {
-      const golden = await readGolden(fixture.dir, 'jest')
-      const expected = new Map<string, Comparable>()
-      for (const file of golden.files) {
-        for (const goldenTest of file.tests) {
-          expected.set(testKey(goldenTest.id), {
-            status: goldenTest.status,
-            errors: goldenTest.errors.map(comparable),
-            passingAssertions: goldenTest.passingAssertions ?? 0,
-          })
-        }
-      }
-
-      const actual = new Map<string, Comparable>()
-      const normalizer = createNormalizer({ rootDir: fixture.dir })
-      const cwd = process.cwd()
-      process.chdir(fixture.dir)
-      try {
-        for (const testFile of testFilesFor(fixture.files, 'jest')) {
-          const tests = await runExpectFile(
-            path.join(fixture.dir, testFile),
-            fixture.dir,
-            corePolicyFor.jest,
-          )
-          for (const run of tests) {
-            const key = testKey({ file: testFile, path: run.path, dupIndex: run.dupIndex })
-            actual.set(key, {
-              status: run.status,
-              errors: run.failures.map(({ text, matcher }) =>
-                comparable(normalizer.error(text, matcher)),
-              ),
-              passingAssertions: run.passingAssertions,
-            })
-          }
-        }
-      } finally {
-        process.chdir(cwd)
-      }
-
-      assert.deepEqual([...actual.keys()].toSorted(), [...expected.keys()].toSorted(), 'the tests')
-      const mismatched: string[] = []
-      for (const [key, want] of expected) {
-        const got = actual.get(key)
-        try {
-          assert.deepEqual(got, want)
-        } catch (error) {
-          mismatched.push(`${key}\n${(error as Error).message}`)
-        }
-      }
-      assert.deepEqual(mismatched, [], `${mismatched.length} of ${expected.size} tests differ`)
+      const problems = await expectCorpusProblems(fixture, corePolicyFor.jest)
+      assert.deepEqual(problems, [], `${problems.length} tests differ`)
     })
   })
 }

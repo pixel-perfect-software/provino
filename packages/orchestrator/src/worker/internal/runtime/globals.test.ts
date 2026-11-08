@@ -1,6 +1,22 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { installGlobals } from './globals.ts'
+import { installGlobals, splitGlobals } from './globals.ts'
+
+describe('splitGlobals', () => {
+  const values = { describe: 1, expect: 2, jest: 3 }
+
+  it('puts every global before the setup files under all', () => {
+    assert.deepEqual(splitGlobals(values, 'all'), { before: values, after: {} })
+  })
+
+  it('puts only the listed names before, and ignores a listed name nothing builds', () => {
+    assert.deepEqual(splitGlobals(values, ['jest', 'vi']), {
+      before: { jest: 3 },
+      after: { describe: 1, expect: 2 },
+    })
+    assert.deepEqual(splitGlobals(values, []), { before: {}, after: values })
+  })
+})
 
 describe('installGlobals', () => {
   it('defines configurable, writable, enumerable data properties', () => {

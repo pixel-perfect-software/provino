@@ -1,0 +1,5 @@
+{
+  "description": "Which docblock pragmas pick a test environment (T1.7, orchestrator.environmentPragmas): one file per pragma, each naming an environment that doesn't exist, so a file that fails to start read its pragma; a file with both says which wins (it starts only if the vitest-environment one, naming node, does). A black-box run, since those files crash.",
+  "runners": ["jest", "vitest"],
+  "run": { "capture": ["exitCode"] }
+}

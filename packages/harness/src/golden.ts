@@ -93,15 +93,34 @@ export interface Golden {
    * traced. Not `files[].trace`, which is the result model's structured hook trace.
    */
   readonly trace?: readonly string[]
+  /**
+   * What a black-box run (`run` in `fixture.json`) showed from outside, normalized like the rest.
+   * Absent for every other fixture.
+   */
+  readonly observed?: GoldenObserved
 }
 
 /**
- * What a recording adds to a run's golden: the profile it ran under and the steps it traced.
+ * What a black-box run showed: the exit code, the streams and the files `run.capture` names (a
+ * file's text, or `null` when the run left none there). Only the captured keys are present.
+ * @public
+ */
+export interface GoldenObserved {
+  readonly exitCode?: number | null
+  readonly stdout?: string
+  readonly stderr?: string
+  readonly files?: Readonly<Record<string, string | null>>
+}
+
+/**
+ * What a recording adds to a run's golden: the profile it ran under, the steps it traced and, for
+ * a black-box run, what it showed.
  * @public
  */
 export interface GoldenExtras {
   readonly profile?: FixtureProfile
   readonly trace?: readonly string[]
+  readonly observed?: GoldenObserved
 }
 
 function goldenError(error: NormalizedError): GoldenError {
@@ -149,7 +168,7 @@ function goldenFile(file: NormalizedFile): GoldenFile {
  */
 export function toGolden(run: NormalizedRun, extras: GoldenExtras = {}): Golden {
   const { snapshots } = run
-  const { profile, trace } = extras
+  const { profile, trace, observed } = extras
   return {
     schemaVersion: run.schemaVersion,
     runner: run.runner,
@@ -163,6 +182,17 @@ export function toGolden(run: NormalizedRun, extras: GoldenExtras = {}): Golden 
     runErrors: run.runErrors.map(goldenError),
     success: run.success,
     ...(trace === undefined || trace.length === 0 ? {} : { trace }),
+    ...(observed === undefined ? {} : { observed: observedInOrder(observed) }),
+  }
+}
+
+/** `observed` with its keys in a fixed order, so the golden's bytes don't depend on the caller. */
+function observedInOrder(observed: GoldenObserved): GoldenObserved {
+  return {
+    ...(observed.exitCode === undefined ? {} : { exitCode: observed.exitCode }),
+    ...(observed.stdout === undefined ? {} : { stdout: observed.stdout }),
+    ...(observed.stderr === undefined ? {} : { stderr: observed.stderr }),
+    ...(observed.files === undefined ? {} : { files: observed.files }),
   }
 }
 

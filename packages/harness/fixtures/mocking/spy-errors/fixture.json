@@ -1,0 +1,4 @@
+{
+  "description": "The spyOn and replaceProperty errors the other mocking fixtures don't reach (B14a, for T1.7's mock.messages): no property name, a non-function method, a non-configurable property and a setter for replaceProperty under Jest; a primitive and an arrow called with new under Vitest. Each case reports what the call threw.",
+  "runners": ["jest", "vitest"]
+}

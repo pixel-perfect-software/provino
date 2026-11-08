@@ -1,0 +1,5 @@
+{
+  "description": "An error thrown after its test ended (T1.7, core.errors.lateErrors): the first test schedules a throw 30 ms out and returns, the second is still running when it fires. A black-box run, so a run-level error is recorded too: the golden's tests and runErrors say who was charged, observed.exitCode whether the run failed.",
+  "runners": ["jest", "vitest"],
+  "run": { "capture": ["exitCode"] }
+}

@@ -1,0 +1,4 @@
+{
+  "description": "What Jest's module-registry calls return (B14a, the jest facade in @provino/dialect-jest's runtime/globals.ts): isolateModules and resetModules return the jest object, isolateModulesAsync a promise of undefined. A nested isolateModules throws Jest's own text.",
+  "runners": ["jest"]
+}

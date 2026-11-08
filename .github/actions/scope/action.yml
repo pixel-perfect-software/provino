@@ -1,0 +1,82 @@
+name: Scope
+description: >-
+  Whether a check's inputs changed against main, so a slow check runs only when its answer can
+  have moved. Fails closed: on main, with no merge base, on a failed diff and on a grep error the
+  answer is `true`. Needs a checkout with the whole history (fetch-depth 0).
+inputs:
+  label:
+    description: What the check is, for the log.
+    required: true
+  include:
+    description: >-
+      An extended regular expression over repo-relative paths: a changed path that matches is an
+      input of the check.
+    required: true
+  exclude:
+    description: >-
+      Paths among the inputs that do not count (unit tests beside source a run never loads),
+      or empty for none.
+    required: false
+    default: ""
+  keep:
+    description: Paths that count even when `exclude` matches them; empty for none.
+    required: false
+    default: ""
+outputs:
+  run:
+    description: "'true' unless a diff against main showed that no input changed."
+    value: ${{ steps.decide.outputs.run }}
+runs:
+  using: composite
+  steps:
+    - id: decide
+      shell: bash
+      env:
+        LABEL: ${{ inputs.label }}
+        INCLUDE: ${{ inputs.include }}
+        EXCLUDE: ${{ inputs.exclude }}
+        KEEP: ${{ inputs.keep }}
+      run: |
+        set -euo pipefail
+        # Fail closed: the answer is `true` unless a diff shows the inputs didn't change, so an early
+        # exit needs no output line of its own.
+        run=true
+        trap 'echo "run=$run" >> "$GITHUB_OUTPUT"' EXIT
+        if [ "$GITHUB_REF" = refs/heads/main ]; then exit 0; fi
+        if ! base=$(git merge-base origin/main HEAD); then
+          echo "No merge base with main; running $LABEL."
+          exit 0
+        fi
+        work=$(mktemp -d)
+        # Paths are NUL-separated and never quoted, so a name with non-ASCII, a tab, `"` or `\` still
+        # matches. --no-renames lists both paths of a move, so moving a file out of an input counts.
+        if ! git -c core.quotePath=false diff -z --no-renames --name-only "$base" HEAD > "$work/diff"; then
+          echo "Couldn't diff against main; running $LABEL."
+          exit 0
+        fi
+        # grep exits 1 when nothing matches, which is an answer, and 2 or more on an error, which is
+        # not: that fails closed like the steps above.
+        match() {
+          local status=0
+          grep -z "$@" || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "Couldn't match the changed files; running $LABEL." >&2
+            exit 0
+          fi
+        }
+        match -E "$INCLUDE" "$work/diff" > "$work/inputs"
+        if [ -n "$EXCLUDE" ]; then
+          {
+            match -vE "$EXCLUDE" "$work/inputs"
+            if [ -n "$KEEP" ]; then match -E "$KEEP" "$work/inputs"; fi
+          } > "$work/changed"
+        else
+          cp "$work/inputs" "$work/changed"
+        fi
+        if [ -s "$work/changed" ]; then
+          printf 'Inputs of %s changed against main:\n' "$LABEL"
+          tr '\0' '\n' < "$work/changed" | sort -u
+        else
+          echo "No input of $LABEL changed against main; skipping it."
+          run=false
+        fi

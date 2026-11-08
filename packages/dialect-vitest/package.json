@@ -1,0 +1,47 @@
+{
+  "name": "@provino/dialect-vitest",
+  "version": "0.0.0",
+  "description": "Provino's Vitest 5.0 dialect: Vitest's policy values and API, so a Vitest project runs on Provino unchanged.",
+  "homepage": "https://github.com/pixel-perfect-software/provino#readme",
+  "bugs": {
+    "url": "https://github.com/pixel-perfect-software/provino/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pixel-perfect-software/provino.git",
+    "directory": "packages/dialect-vitest"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts"
+    },
+    "./node": {
+      "provino-source": "./src/node/index.ts",
+      "types": "./dist/node/index.d.ts"
+    },
+    "./runtime": {
+      "provino-source": "./src/runtime/index.ts",
+      "types": "./dist/runtime/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@provino/policy": "workspace:*",
+    "@provino/types": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "catalog:"
+  }
+}

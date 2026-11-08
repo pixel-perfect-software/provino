@@ -58,7 +58,7 @@ import {
   prepareEnvironment,
   setupEnvironment,
 } from '../internal/runtime/environment.ts'
-import { installGlobals } from '../internal/runtime/globals.ts'
+import { installGlobals, splitGlobals } from '../internal/runtime/globals.ts'
 import { fileLeakEvent, leakedGlobalsOf, workerLeakEvent } from '../internal/runtime/leaks.ts'
 import { assertionCountSink } from '../internal/runtime/sink.ts'
 import type { FileContext, FileOutcome, WorkerContext, WorkerRunner } from '../start.ts'
@@ -76,8 +76,17 @@ interface Booted {
   snapshot: RegistrySnapshot
   /** The environment, loaded and prepared. */
   environment: PreparedEnvironment
-  /** The dialect's globals, built once; `undefined` when none are injected. */
-  globals: Readonly<Record<string, unknown>> | undefined
+  /**
+   * The dialect's globals, built once and split by `core.globalsBeforeSetupFiles`: `before` is
+   * installed before the file's `setupFiles`, `after` once they ran. `undefined` when none are
+   * injected.
+   */
+  globals:
+    | {
+        readonly before: Readonly<Record<string, unknown>>
+        readonly after: Readonly<Record<string, unknown>>
+      }
+    | undefined
   /** The file registry tier: `process` is the pool's business and runs as `registry`. */
   tier: Exclude<IsolationTier, 'process'>
   /**
@@ -144,6 +153,8 @@ interface FileScope {
   readonly mocks: MockRegistry
   /** The file's module-mock registry: one per file in every tier (B13c Gap 9). */
   readonly moduleMocks: ModuleMockRegistry
+  /** Installs the globals that wait for `setupFiles` (`core.globalsBeforeSetupFiles`). */
+  readonly installLateGlobals: () => void
 }
 
 /**
@@ -277,7 +288,13 @@ export function createRuntimeRunner(): WorkerRunner {
       // by an earlier file) are dropped and evaluated again, while their dependencies stay shared.
       // Every other tier gives the file a new registry, where there is nothing to drop.
       const shared = scope === 'worker'
-      for (const setup of [...config.setupFiles, ...config.setupFilesAfterEnv]) {
+      for (const setup of config.setupFiles) {
+        if (shared) files.invalidate(setup)
+        await files.import(setup)
+      }
+      // The globals a dialect installs only after `setupFiles` (Jest's `describe`, `expect`, ...).
+      activeScope().installLateGlobals()
+      for (const setup of config.setupFilesAfterEnv) {
         if (shared) files.invalidate(setup)
         await files.import(setup)
       }
@@ -336,7 +353,10 @@ export function createRuntimeRunner(): WorkerRunner {
           `The globals factory ${config.globals.module}#${config.globals.export} did not return an object`,
         )
       }
-      parts.globals = built as Readonly<Record<string, unknown>>
+      parts.globals = splitGlobals(
+        built as Readonly<Record<string, unknown>>,
+        policy.core.globalsBeforeSetupFiles,
+      )
     }
     // After the factory: it may extend `expect` (or add to it), and what it adds belongs to the
     // baseline that each file's restore returns to, not to something the first file leaked.
@@ -422,13 +442,27 @@ export function createRuntimeRunner(): WorkerRunner {
         throw new WorkerError('ORCH_NOT_STARTED', 'The loader built no module-mock registry')
       }
       if (worker.scope === 'worker') worker.workerMocks = mocks
-      const thisFile: FileScope = { registry, mocks, moduleMocks }
-      fallback = thisFile
       let instance: EnvironmentInstance | undefined
+      const { globals } = worker
+      const thisFile: FileScope = {
+        registry,
+        mocks,
+        moduleMocks,
+        installLateGlobals: () => {
+          if (globals !== undefined && instance !== undefined) {
+            installGlobals(instance.global, globals.after)
+          }
+        },
+      }
+      fallback = thisFile
       const errors: unknown[] = []
       try {
         instance = await setUpEnvironment(worker, context)
-        if (worker.globals !== undefined) installGlobals(instance.global, worker.globals)
+        // The rest go on after `setupFiles` (`importFile`). Under `none` the environment, and so
+        // the late globals of the file before, persist: a later file's `setupFiles` sees them.
+        // Deliberate: Jest has no `none` to match, and the tier keeps everything (runtime.test.ts
+        // pins it).
+        if (globals !== undefined) installGlobals(instance.global, globals.before)
         worker.source.startFile(job.file)
         // The coordinator's id for the file (D23), so every event carries the id it expects.
         await fileScope.run(thisFile, () =>

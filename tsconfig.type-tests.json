@@ -41,6 +41,9 @@
       "path": "packages/dialect-jest/test"
     },
     {
+      "path": "packages/dialect-vitest/test"
+    },
+    {
       "path": "packages/env-node/test"
     },
     {

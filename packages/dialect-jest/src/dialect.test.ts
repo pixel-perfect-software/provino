@@ -24,6 +24,19 @@ test('the dialect is Jest 30.5, with the policy this package exports', () => {
   assert.equal(jestPolicy.mock, jestMockPolicy)
 })
 
+// `pretty-format` is the one formatter `ExpectPolicy.valueFormatter` allows, so T1.7 claims the
+// value as Provino's own, pinned here.
+test('the value formatter is pretty-format, the one the type allows', () => {
+  assert.equal(resolved.expect.valueFormatter, 'pretty-format')
+})
+
+// Jest has no teardowns of its own to bound (a hook returns no cleanup), so `timeouts.teardown` is
+// Provino's: the hook timeout, for the teardowns Provino adds (lazy ones). T1.7 claims it as own.
+test('the teardown timeout is Provino`s own: 5000 ms, the hook timeout', () => {
+  assert.equal(resolved.core.timeouts.teardown, 5000)
+  assert.equal(resolved.core.timeouts.teardown, resolved.core.timeouts.hook)
+})
+
 test('the mock slice is whole, so no `mock.*` key is left at the neutral value', () => {
   assert.deepEqual(Object.keys(jestMockPolicy).sort(), Object.keys(neutralPolicy.mock).sort())
   assert.deepEqual(
@@ -214,8 +227,6 @@ test('the keys the dialect leaves to the neutral policy are the ones listed in d
       'core.formatEachTitle',
       'core.orderHooks',
       'timers.fakeTemporal',
-      'timers.notFaked',
-      'timers.setSystemTimeWithoutFakes',
       'timers.facadeReturns',
       'snapshot.key',
       'snapshot.serializers',

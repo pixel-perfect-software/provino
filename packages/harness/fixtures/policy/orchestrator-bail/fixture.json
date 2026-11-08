@@ -1,0 +1,6 @@
+{
+  "description": "When --bail checks (T1.7, orchestrator.bail.checkAfter): with --bail=1, a file whose first test fails and second passes. Jest checks after the file, so the second test still runs; Vitest checks after each test and cancels the rest. A black-box run, one Jest worker.",
+  "runners": ["jest", "vitest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": { "argv": { "jest": ["--bail=1"], "vitest": ["--bail=1"] }, "capture": ["exitCode"] }
+}

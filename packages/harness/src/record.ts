@@ -11,6 +11,7 @@ import { HarnessError } from './errors.ts'
 import {
   type Fixture,
   type FixtureProfile,
+  type FixtureRun,
   type FixtureRunner,
   type JestFixtureConfig,
   type MockCleanup,
@@ -19,7 +20,14 @@ import {
   staysInside,
   testFilesFor,
 } from './fixture.ts'
-import { goldenPath, type RecordOutcome, serializeGolden, toGolden } from './golden.ts'
+import {
+  type GoldenObserved,
+  goldenPath,
+  type RecordOutcome,
+  serializeGolden,
+  toGolden,
+} from './golden.ts'
+import { compareStrings, isNotFound } from './internal/guards.ts'
 import { assertNoPathLeak, assertRunComplete, commitGolden } from './internal/recording.ts'
 import {
   jestConfig,
@@ -32,9 +40,19 @@ import {
 import { assertTraceFromOneFile, readTrace } from './internal/trace.ts'
 import { isNodeModules, walkFiles } from './internal/walk.ts'
 import { createWorkDirRegistry, REMOVE_TREE_OPTIONS } from './internal/work-dirs.ts'
+import { createNormalizer } from './normalize.ts'
 import { parseJestJson, parseVitestJson } from './parse-results.ts'
 import { runProcess } from './run-process.ts'
 import { resolveRunnerPackage } from './runner-package.ts'
+import { SCHEMA_VERSION } from './schema.ts'
+
+/** The run a black-box fixture's golden holds when the runner wrote no JSON. */
+const EMPTY_RUN: Omit<NormalizedRun, 'runner' | 'runnerVersion' | 'suite' | 'env' | 'success'> = {
+  schemaVersion: SCHEMA_VERSION,
+  startedAt: '',
+  files: [],
+  runErrors: [],
+}
 
 /**
  * Options for `recordFixture`.
@@ -130,6 +148,89 @@ export async function copyFixture(fixture: Fixture, workDir: string): Promise<vo
 interface Recording {
   readonly run: NormalizedRun
   readonly trace: readonly string[]
+  /** What a black-box run (`run` in the manifest) showed from outside. */
+  readonly observed?: GoldenObserved
+}
+
+/**
+ * Writes the fixture's `files` for this runner into the work directory. A path the fixture already
+ * has is refused, so a fixture file never changes under one runner only.
+ */
+export async function writeRunnerFiles(
+  fixture: Fixture,
+  runner: FixtureRunner,
+  workDir: string,
+): Promise<void> {
+  for (const [file, text] of Object.entries(fixture.manifest.files?.[runner] ?? {})) {
+    if (!staysInside(file) || fixture.files.includes(file)) {
+      throw new HarnessError(
+        'HARNESS_FIXTURE_BAD_FILES',
+        `${fixture.id}: "files" gives "${file}", which is outside the work directory or a fixture file`,
+        { path: fixture.dir },
+      )
+    }
+    const target = path.join(workDir, file)
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, text)
+  }
+}
+
+/** Reads a file the run may have written, as text, or `null` when it is not there. */
+async function readCaptured(file: string): Promise<string | null> {
+  try {
+    return await readFile(file, 'utf8')
+  } catch (cause) {
+    if (isNotFound(cause)) return null
+    throw cause
+  }
+}
+
+/**
+ * What a black-box run shows, in `capture`'s order of kinds: the exit code, the normalized
+ * streams (only `keepLines`' lines, sorted under `sortStdout`) and the named files. A stream
+ * `keepLines` keeps no line of is `HARNESS_FIXTURE_BAD_RUN` (a pattern that matches nothing would
+ * record an empty stream as the truth), unless `emptyStreams` lists it. `source` names the fixture.
+ */
+export function observedOf(
+  spec: FixtureRun,
+  result: { readonly exitCode: number | null; readonly stdout: string; readonly stderr: string },
+  files: Readonly<Record<string, string | null>>,
+  normalize: (text: string) => string,
+  source: string,
+): GoldenObserved {
+  const keep = spec.keepLines === undefined ? undefined : new RegExp(spec.keepLines)
+  const stream = (name: 'stdout' | 'stderr'): string => {
+    let lines = normalize(result[name]).split('\n')
+    if (keep !== undefined) {
+      lines = lines.filter((line) => keep.test(line))
+      if (lines.length === 0 && spec.emptyStreams?.includes(name) !== true) {
+        throw new HarnessError(
+          'HARNESS_FIXTURE_BAD_RUN',
+          `${source}: "run" "keepLines" kept no line of ${name} (list it in "emptyStreams" if that is what the run shows)`,
+          { path: source },
+        )
+      }
+    }
+    if (spec.sortStdout === true) lines = lines.toSorted(compareStrings)
+    return lines.join('\n')
+  }
+  const captured = (name: string): boolean => spec.capture.includes(name)
+  const named = spec.capture.filter((entry) => entry.startsWith('file:'))
+  return {
+    ...(captured('exitCode') ? { exitCode: result.exitCode } : {}),
+    ...(captured('stdout') ? { stdout: stream('stdout') } : {}),
+    ...(captured('stderr') ? { stderr: stream('stderr') } : {}),
+    ...(named.length === 0
+      ? {}
+      : {
+          files: Object.fromEntries(
+            named.map((entry) => {
+              const text = files[entry.slice('file:'.length)] ?? null
+              return [entry.slice('file:'.length), text === null ? null : normalize(text)]
+            }),
+          ),
+        }),
+  }
 }
 
 /**
@@ -185,12 +286,17 @@ async function runUnderRunner(
   await writeFile(setupFile, traceSetupSource())
   const observeSetupFile = path.join(outDir, 'observe-setup.ts')
   await copyFile(OBSERVE_SETUP_PATH, observeSetupFile)
+  const overlay = fixture.manifest.config?.[runner]
   const configOptions = {
     observeSetupFile,
     ...mockCleanupOption(fixture),
     ...jestEsmOption(fixture),
     ...jestConfigOption(fixture),
+    ...(overlay === undefined ? {} : { overlay }),
   }
+  await writeRunnerFiles(fixture, runner, workDir)
+  const spec = fixture.manifest.run
+  const extraArgs = spec?.argv?.[runner] ?? []
 
   let args: string[]
   if (runner === 'jest') {
@@ -199,7 +305,15 @@ async function runUnderRunner(
       configFile,
       `${JSON.stringify(jestConfig(workDir, TRANSFORMER_PATH, setupFile, configOptions), null, 2)}\n`,
     )
-    args = [install.bin, '--ci', '--json', `--outputFile=${outputFile}`, '--config', configFile]
+    args = [
+      install.bin,
+      '--ci',
+      '--json',
+      `--outputFile=${outputFile}`,
+      '--config',
+      configFile,
+      ...extraArgs,
+    ]
   } else {
     const configFile = path.join(workDir, 'vitest.config.ts')
     await writeFile(configFile, vitestConfigSource(workDir, setupFile, profile, configOptions))
@@ -210,6 +324,7 @@ async function runUnderRunner(
       configFile,
       '--reporter=json',
       `--outputFile=${outputFile}`,
+      ...extraArgs,
     ]
   }
 
@@ -219,6 +334,7 @@ async function runUnderRunner(
       cwd: workDir,
       env: runnerEnv(process.env, { ...fixture.manifest.env, [TRACE_ENV]: traceFile }),
       timeoutMs: TIMEOUT_MS,
+      ...(spec === undefined ? {} : { keepStreams: true }),
     })
   } catch (cause) {
     throw new HarnessError('HARNESS_RUNNER_FAILED', `could not run ${runner} for ${fixture.id}`, {
@@ -234,17 +350,44 @@ async function runUnderRunner(
     )
   }
 
-  // A failing test makes the runner exit non-zero, which is expected. No JSON is not.
-  let json: string
-  try {
-    json = await readFile(outputFile, 'utf8')
-  } catch (cause) {
+  // A failing test makes the runner exit non-zero, which is expected. No JSON is not, except for a
+  // black-box run, where a runner that stops before any test (no tests found, a bad option) is
+  // what the fixture records.
+  const json =
+    spec === undefined
+      ? await readFile(outputFile, 'utf8').catch(noJson)
+      : await readCaptured(outputFile)
+  function noJson(cause: unknown): never {
     throw new HarnessError(
       'HARNESS_RUNNER_FAILED',
       `${runner} wrote no JSON for ${fixture.id} (exit ${result.exitCode}). Output tail:\n${result.output}`,
       { path: fixture.dir, cause },
     )
   }
+  const normalizer = createNormalizer({ rootDir: paths.realWorkDir, extraRoots: [paths.workDir] })
+  const observed =
+    spec === undefined
+      ? undefined
+      : observedOf(
+          spec,
+          {
+            exitCode: result.exitCode,
+            stdout: result.streams?.stdout ?? '',
+            stderr: result.streams?.stderr ?? '',
+          },
+          Object.fromEntries(
+            await Promise.all(
+              spec.capture
+                .filter((entry) => entry.startsWith('file:'))
+                .map(async (entry) => {
+                  const file = entry.slice('file:'.length)
+                  return [file, await readCaptured(path.join(workDir, file))] as const
+                }),
+            ),
+          ),
+          (text) => normalizer.text(text),
+          path.join(fixture.dir, 'fixture.json'),
+        )
 
   const base = {
     rootDir: paths.realWorkDir,
@@ -254,18 +397,33 @@ async function runUnderRunner(
     env: readRunEnvironment({ [runner]: install.version }),
     snapshotFiles: await collectSnapshotFiles(workDir),
   }
+  const label = `${fixture.id} (${profile})`
+  const testFiles = testFilesFor(fixture.files, profile)
+  const trace = await readTrace(traceFile)
+  if (json === null) {
+    // A black-box run that wrote no JSON: the golden keeps what the run showed and no files.
+    const empty: NormalizedRun = {
+      ...EMPTY_RUN,
+      runner,
+      runnerVersion: install.version,
+      suite: fixture.id,
+      env: base.env,
+      success: result.exitCode === 0,
+    }
+    return { run: empty, trace, ...(observed === undefined ? {} : { observed }) }
+  }
   const run =
     runner === 'jest'
       ? convertJest(parseJestJson(json, outputFile), base)
       : convertVitest(parseVitestJson(json, outputFile), base)
-  const label = `${fixture.id} (${profile})`
-  const testFiles = testFilesFor(fixture.files, profile)
-  assertRunComplete(run, testFiles, label, {
-    expectCrash: fixture.manifest.expectCrash?.[profile],
-  })
-  const trace = await readTrace(traceFile)
+  // A black-box run records what happened, whatever it was; the completeness rule is for the rest.
+  if (spec === undefined) {
+    assertRunComplete(run, testFiles, label, {
+      expectCrash: fixture.manifest.expectCrash?.[profile],
+    })
+  }
   assertTraceFromOneFile(trace, testFiles, label)
-  return { run, trace }
+  return { run, trace, ...(observed === undefined ? {} : { observed }) }
 }
 
 /**
@@ -313,8 +471,10 @@ export async function recordRead(
     await copyFixture(fixture, workDir)
     await installPackages(fixture, workDir)
     const paths = await recordPaths(workDir)
-    const { run, trace } = await runUnderRunner(fixture, profile, paths)
-    text = serializeGolden(toGolden(run, { profile, trace }))
+    const { run, trace, observed } = await runUnderRunner(fixture, profile, paths)
+    text = serializeGolden(
+      toGolden(run, { profile, trace, ...(observed === undefined ? {} : { observed }) }),
+    )
     assertNoPathLeak(text, Object.values(paths), `${fixture.id} (${profile})`)
   } catch (error) {
     // A cleanup that fails must not replace the error that made it necessary.

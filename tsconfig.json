@@ -50,6 +50,9 @@
       "path": "packages/dialect-jest"
     },
     {
+      "path": "packages/dialect-vitest"
+    },
+    {
       "path": "packages/env-node"
     },
     {

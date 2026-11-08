@@ -1,0 +1,14 @@
+{
+  "description": "An obsolete snapshot outside CI (T1.7, snapshot.obsolete.failLocal): as snapshot-obsolete-ci, with CI unset and Jest's --ci off; the exit code says whether the run fails for it.",
+  "runners": ["jest", "vitest"],
+  "env": { "CI": "" },
+  "files": {
+    "jest": {
+      "__snapshots__/obsolete.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`kept 1`] = `\"kept\"`;\n\nexports[`obsolete 1`] = `\"gone\"`;\n"
+    },
+    "vitest": {
+      "__snapshots__/obsolete.test.ts.snap": "// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html\n\nexports[`kept 1`] = `\"kept\"`;\n\nexports[`obsolete 1`] = `\"gone\"`;\n"
+    }
+  },
+  "run": { "argv": { "jest": ["--ci=false"] }, "capture": ["exitCode"] }
+}
