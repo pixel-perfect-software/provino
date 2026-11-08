@@ -6,6 +6,7 @@
 import { iterableEquality, subsetEquality } from '@jest/expect-utils'
 import type { ExpectTable } from '@provino/types'
 import * as matcherUtils from 'jest-matcher-utils'
+import * as policyMessages from './policy-messages.ts'
 import {
   any,
   anything,
@@ -64,7 +65,9 @@ export function jestExpectTable(): ExpectTable {
     },
     // What `makeThrowingMatcher` gives matchers as `this.utils` (index.ts L284–L288).
     utils: { ...matcherUtils, iterableEquality, subsetEquality },
-    messages,
+    // Jest's text, plus ours for the policies Jest lacks. No `unreachable`: Jest has no
+    // `expect.unreachable`, and its absence here keeps it off `expect`.
+    messages: { ...messages, ...policyMessages },
     customAsymmetric: (name, matcher) =>
       createCustomMatcher(name, matcher as unknown as RawMatcherFn),
   }

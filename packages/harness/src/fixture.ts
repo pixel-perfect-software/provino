@@ -54,7 +54,7 @@ export interface FixtureManifest {
   readonly env?: Readonly<Record<string, string>>
   /**
    * Flags for `node` itself, before the runner's bin (`--harmony-temporal`, which `NODE_OPTIONS`
-   * refuses). B17a's `mocking/timers-temporal` needs a Node with a `Temporal`.
+   * refuses). B17a's `policy/timers-temporal` needs a Node with a `Temporal`.
    */
   readonly nodeFlags?: readonly string[]
   /**

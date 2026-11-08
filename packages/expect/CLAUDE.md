@@ -11,7 +11,9 @@ The neutral `expect` engine (Track 7 R1). It owns the front end, the per-test ma
 | `src/slot.ts` | `installMatchersSlot(source, registry)`: `globalThis[Symbol.for('$$jest-matchers-object')]`, configurable. Its `matchers` and `customEqualityTesters` are the registry's own objects, and its `state` getter returns `source.current()`. Its own keys are Jest's three; a non-enumerable `utils` getter serves the asymmetric base. `snapshotRegistry(registry, expect?)` remembers the registry's matchers and equality testers; its `restore()` deletes what was added since, puts back what was replaced, and resets the testers array in place. Given `expect`, it also remembers the own properties of `expect` and of `expect.not` (`src/internal/own-properties.ts`) and puts those back: the asymmetric forms `expect.extend` defines (`expect.toBeEven()`) live there, outside the registry, and would otherwise leak into the next file. |
 | `src/asymmetric.ts` | The `AsymmetricMatcher` base (T7.4), for Provino and user code; Jest's vendored built-ins keep their own base. `getMatcherContext()` reads whichever slot the realm has. |
 | `src/context.ts` | `MatcherContext`, a matcher's `this`. |
-| `src/internal/slot-read.ts`, `counters.ts` | Reading the slot without owning it; a state's fresh counters. |
+| `src/poll.ts` | `expect.poll(fn, { interval, timeout })` (T7.8, `createPoll`, on `expect` under `ExpectPolicy.poll.enabled`). See "The async policies". |
+| `src/end-of-test.ts` | `createEndOfTest({ source, messages, policy, hasAssertionsWhenFailed })`: what an attempt owes when it ends. The worker registers it with core's `onAfterTryTask`. See "The async policies". |
+| `src/internal/slot-read.ts`, `counters.ts`, `awaitable.ts` | Reading the slot without owning it; a state's fresh counters (including `pendingAsync`); the thenable that notices when someone awaits it. |
 
 ## Rules that aren't obvious
 
@@ -34,20 +36,36 @@ The neutral `expect` engine (Track 7 R1). It owns the front end, the per-test ma
 1. `createStateSource(currentTest, { nameSeparator: core.nameSeparator, expand: expect.expand })`
 2. `createMatcherRegistry()`, then `installMatchersSlot(source, registry)`, before any matcher module loads.
 3. Load the table from `policy.expect.matcherTable` through the `BehaviourLoader`.
-4. `createExpect({ policy, table, source, registry })`.
+4. `createExpect({ policy, table, source, registry, unawaited, pollTimers })`: `unawaited` is `CorePolicy.unawaitedAsyncAssertion` and `pollTimers.advance` the file's fake clock (see "The async policies").
 5. `snapshotRegistry(registry, expect)`, after `createExpect` has registered the table's matchers (a snapshot taken earlier would restore them away). Pass `expect`, or a file's `expect.extend` asymmetric forms outlive its restore.
 6. Per file, `source.startFile(testPath)`, then the setup files and the test file; after the file, `snapshot.restore()` when the environment is file-scoped.
+7. Once, after `createRuntime`: `coreRuntime.onAfterTryTask(...)` calls the function `createEndOfTest({ source, messages: table.messages, policy: policy.expect, hasAssertionsWhenFailed })` returned and gives each error it returns to core with `info.fail(error)` (one error each: a thrown value would be one).
 
 Per test, `source.stateOf(testId, { attempt, repeat })` (from the last `test-attempt-end`) gives the counts the result needs (`numPassingAsserts`). Core itself reports 0; the orchestrator's assertion-count sink (`worker/internal/runtime/sink.ts`) fills `assertions` and `passingAssertions` on `test-end`.
+
+## The async policies (T7.8)
+
+Everything here is a policy value or a table message; the engine names no runner.
+
+| What | Switch | Behaviour |
+|---|---|---|
+| `expect.soft(x)` | `ExpectPolicy.soft` | The assertion runs with `dontThrow` semantics: a failure goes to `state.suppressedErrors` and the test goes on. `.not`, `.resolves`/`.rejects` stay soft (a soft promise assertion never rejects). Outside a test it throws `EXPECT_OUTSIDE_TEST` with `messages.outsideTest`. |
+| `expect.poll(fn, { interval, timeout })` | `ExpectPolicy.poll { enabled, intervalMs, timeoutMs }`, `pollFailsOnTimeout` | Returns matchers (and `.not`) that call `fn({ signal })` again every `interval` until the matcher passes. Lazy: it starts on the first `then`/`catch`/`finally`. A try that fails is not an assertion call (the counter is put back); the call that decides counts once. On timeout the `AbortSignal` aborts and the last error is thrown with the stack of the matcher call; under `pollFailsOnTimeout: false` the poll just ends. `resolves`, `rejects`, `toThrow`, `toThrowError` and the snapshot matchers throw `EXPECT_POLL_UNSUPPORTED`. A bad callback, interval or timeout is `EXPECT_INVALID_ARGUMENT`. |
+| unawaited `.resolves`/`.rejects`/poll | `createExpect({ unawaited })`, which the worker takes from `CorePolicy.unawaitedAsyncAssertion` | `'ignore'`: nothing changes, the assertion is the plain promise and its tick count is Jest's. `'fail'`: the call returns a thenable (`internal/awaitable.ts`) and puts a `PendingAssertion` in `state.pendingAsync`; `then`/`catch`/`finally` take it out. What is left at the test's end is reported through `messages.unawaited`, on an error captured at the call, so its first frame is the user's line. The underlying promise gets a no-op `catch`, so a failing unawaited assertion is reported as unawaited, not also as an unhandled rejection (Vitest 5 does the same). A poll is lazy under `'fail'` and starts at once under `'ignore'`. |
+| `expect.assertions(n)`, `hasAssertions()` | none (always on) | Set the state; `end-of-test` compares `assertionCalls` with it. |
+| `requireAssertions` | `ExpectPolicy.requireAssertions` | A test with no assertion call fails with `messages.requiredAssertions`; not added on top of `hasAssertions`. |
+| `expect.unreachable(message)` | the table has `messages.unreachable` | Throws a `MatcherResultError` with the table's text. A table without it leaves `expect.unreachable` undefined. |
+
+- **The end-of-test check** (`createEndOfTest`) returns the errors an attempt gains, in this order: the failures `expect.soft`/`dontThrow()` held back; `assertions(n)` not met; `hasAssertions()` with none made; a required assertion; the unawaited assertions. It reads the attempt's own state with `source.stateOf(test.id, { attempt, repeat })`, so each run of a `test.concurrent` test counts alone (P4-P7), and it resets nothing: the assertion-count sink reads `numPassingAsserts` after it. On an attempt that already failed, `hasAssertionsWhenFailed: 'skip'` (`CorePolicy.errors.hasAssertionsWhenFailed`, handed in as an option, because this package reads only its own slice) drops the count errors when `hasAssertions()` was called, which is jest-circus' "only show errors from `expect.hasAssertions()` when no other failure has happened", and adds no required-assertion error; `assertions(n)` is still checked on a failed test, as Jest does. The worker registers it in `worker/runtime/runner.ts` with `coreRuntime.onAfterTryTask`, which runs in the attempt's async context after the last `afterEach` and the teardowns. **Known limits:** Vitest runs its count checks only on a body that did not fail, so for `assertions(n)` on a failed test Provino adds the count error where Vitest has none (the test fails either way; no policy key says which); core adds one error per thrown value, so the worker throws an `AggregateError` when an attempt gains several (two soft failures are one error holding two, where Vitest reports two).
+- **`pollTimers`** (`createExpect({ pollTimers })`, `PollTimers`): `setTimeout`/`clearTimeout` default to the real ones found on `globalThis` when `createExpect` runs (before a file can install fake timers); the unit tests inject a manual scheduler. `advance(ms)` moves the file's fake clock: the worker supplies `clock.isInstalled() ? clock.advanceByAsync(ms) : undefined` from the current file's `FakeClock`, and the poll calls it after each wait between tries, as Vitest advances fake timers by the interval. This package imports neither `@provino/timers` nor core, which its manifest forbids.
 
 ## Not built yet
 
 - `createExpect` throws `EXPECT_NOT_IMPLEMENTED` for:
   - `errorShape: 'assertion-error'` (T7.6);
-  - `equality.errors: 'assert'` and `invalidDate: 'equal'` (T7.7);
-  - `soft`, `poll` and `requireAssertions` (T7.8).
+  - `equality.errors: 'assert'` and `invalidDate: 'equal'` (T7.7).
 - `matcherTable: null` throws `EXPECT_NO_MATCHER_TABLE`: the neutral table has no owner yet.
-- The end-of-test checks for `extractExpectedAssertionsErrors`/`assertions`/`hasAssertions`, and `suppressedErrors` reaching the result: T7.8. `assertions`/`hasAssertions` only set state today.
+- Vitest's own message text for the async policies (`messages.unawaited`, the count errors, `pollTimeout`): T7.6, with its table. The Jest table answers with Vitest's recorded wording for the policies Jest lacks (`dialect-jest/src/runtime/policy-messages.ts`), so the neutral engine runs them today.
 - Snapshot matchers: T7.10. The augmentable registry and bridges: T7.13. The ban list: T7.12. The per-file slot swap for mixed dialects: T7.17.
 
 ## Testing
@@ -55,3 +73,4 @@ Per test, `source.stateOf(testId, { attempt, repeat })` (from the last `test-att
 - `src/*.test.ts` run against `internal/test-support.ts`'s neutral `testTable()`, never a dialect.
 - `interop-jest.test.ts` and `interop-vitest.test.ts` are spike C, both ways. Each runs in its own process, because `expect@30.5.2` and `@vitest/expect@5.0.5` each define the realm's slot when they load.
 - Jest-dialect behaviour is checked in `@provino/dialect-jest` (spike E, slot order) and `@provino/harness` (`expect-corpus.test.ts`).
+- `soft.test.ts`, `poll.test.ts` (a manual scheduler through `pollTimers`: nothing waits) and `end-of-test.test.ts` cover the async policies on the test table. `@provino/harness`' `expect-policy-corpus.test.ts` holds them to the recorded `fixtures/expect/policies` (Jest goldens; P4-P7 under both policies; the Vitest goldens' counting outcomes), and `packages/orchestrator/test/runtime.test.ts` ("the end of a test") runs them through the real worker.

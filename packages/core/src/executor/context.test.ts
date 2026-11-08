@@ -233,6 +233,18 @@ describe('onBeforeTryTask and onAfterTryTask', () => {
     assert.deepEqual(run.trace, ['onTestFailed'])
   })
 
+  test('info.fail adds an error of the attempt each time, where a throw is one', async () => {
+    const run = await runScript(({ test }, _step, runtime) => {
+      runtime.onAfterTryTask((info) => {
+        info.fail(new Error('first'))
+        info.fail(new Error('second'))
+      })
+      test('t', () => undefined)
+    })
+    assert.equal(run.states.t, 'fail')
+    assert.deepEqual(run.errors.t, ['first', 'second'])
+  })
+
   test('the function a registration returns removes the listener', async () => {
     const run = await runScript(({ test }, step, runtime) => {
       const stop = runtime.onBeforeTryTask(() => step('listener'))

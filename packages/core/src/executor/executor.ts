@@ -78,6 +78,11 @@ export interface TryTaskInfo {
   readonly repeat: number
   /** `false` in `onBeforeTryTask`; in `onAfterTryTask`, whether the attempt has failed so far. */
   readonly failed: boolean
+  /**
+   * Adds an error to the attempt, as one of its own: a listener with several (two soft failures)
+   * reports each, where a thrown value is one error.
+   */
+  fail(error: unknown): void
 }
 
 /** Called around an attempt's hooks and body, in the attempt's own async context. */
@@ -634,6 +639,7 @@ export class Executor {
       attempt: attempt.frame.attempt,
       repeat: attempt.frame.repeat,
       failed: kind === 'after' && attempt.errors.length > 0,
+      fail: (error) => void attempt.errors.push(error),
     }
     for (const listener of [...listeners]) {
       try {

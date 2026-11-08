@@ -183,6 +183,7 @@ expectTypeOf<TryTaskInfo>().toEqualTypeOf<{
   readonly attempt: number
   readonly repeat: number
   readonly failed: boolean
+  fail(error: unknown): void
 }>()
 runtime.onBeforeTryTask((info) => {
   expectTypeOf(info).toEqualTypeOf<TryTaskInfo>()

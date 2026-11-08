@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "runner": "jest",
   "runnerVersion": "30.5.2",
-  "suite": "mocking/timers-temporal",
+  "suite": "policy/timers-temporal",
   "files": [
     {
       "file": "temporal.test.ts",

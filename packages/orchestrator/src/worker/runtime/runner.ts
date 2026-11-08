@@ -23,6 +23,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createRuntime, currentTest, type Runtime } from '@provino/core'
 import {
+  createEndOfTest,
   createExpect,
   createMatcherRegistry,
   createStateSource,
@@ -296,7 +297,21 @@ export function createRuntimeRunner(): WorkerRunner {
       )
     }
     const table = (await behaviours.load(policy.expect.matcherTable))()
-    const expect = createExpect({ policy: policy.expect, table, source, registry })
+    // `expect.poll` moves the file's fake clock by the interval after each wait, as Vitest does
+    // (T7.8). With no file running, or no clock installed, there is none to move.
+    const advanceFakeClock = (ms: number): Promise<void> | undefined => {
+      const clock = (fileScope.getStore() ?? fallback)?.clock
+      return clock?.isInstalled() ? clock.advanceByAsync(ms) : undefined
+    }
+    const expect = createExpect({
+      policy: policy.expect,
+      table,
+      source,
+      registry,
+      // This package reads only its own slice, so the worker hands over the core leaf (T7.8).
+      unawaited: policy.core.unawaitedAsyncAssertion,
+      pollTimers: { advance: advanceFakeClock },
+    })
 
     // Setup files run inside core's collection, so the hooks they register belong to the file.
     const importFile = async (path: string): Promise<unknown> => {
@@ -335,6 +350,20 @@ export function createRuntimeRunner(): WorkerRunner {
     // policy's `mock.between` through the policy, so there is nothing else to pass.
     coreRuntime.onBeforeTryTask(() => {
       activeMocks().beforeEach({}, policy.mock.between)
+    })
+    // What `expect` owes a test when its attempt ends (T7.8): soft failures, `expect.assertions`,
+    // `hasAssertions`, `requireAssertions` and async assertions nobody awaited. It runs after the
+    // last `afterEach` and the teardowns, in the attempt's own async context. Core adds one error
+    // per thrown value, so several are thrown together.
+    const endOfTest = createEndOfTest({
+      source,
+      messages: table.messages,
+      policy: policy.expect,
+      hasAssertionsWhenFailed: policy.core.errors.hasAssertionsWhenFailed,
+    })
+    coreRuntime.onAfterTryTask(({ test, attempt, repeat, failed, fail }) => {
+      // One error each, as the runners report them (two soft failures are two errors).
+      for (const error of endOfTest({ test, attempt, repeat, failed })) fail(error)
     })
     // Uncaught exceptions and rejections with no handler are charged by `errors.lateErrors` (T5.11).
     parts.stopProcessErrors = coreRuntime.captureProcessErrors()

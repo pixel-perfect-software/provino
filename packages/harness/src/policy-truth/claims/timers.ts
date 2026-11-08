@@ -31,9 +31,9 @@ function facadeReturns(g: Parameters<NonNullable<ReturnType<typeof golden>['read
 export const timersClaims: Claims = {
   'timers.toFakeDefault': timers,
   'timers.loopLimit': each(timers, [timers, golden('defaults')]),
-  // Both runners fake Temporal when the Node has one (`mocking/timers-temporal`, recorded with
+  // Both runners fake Temporal when the Node has one (`policy/timers-temporal`, recorded with
   // `--harmony-temporal`, which Node 24 needs).
-  'timers.fakeTemporal': golden('mocking/timers-temporal', {
+  'timers.fakeTemporal': golden('timers-temporal', {
     read: (g) =>
       (
         observation(

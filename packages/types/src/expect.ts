@@ -67,8 +67,14 @@ export interface MatcherState {
   isExpectingAssertions: boolean
   isExpectingAssertionsError?: Error
   numPassingAsserts: number
-  /** Failures held back by `dontThrow()` (snapshot matchers) until the test ends. */
+  /** Failures held back by `dontThrow()` (snapshot matchers, `expect.soft`) until the test ends. */
   suppressedErrors: Error[]
+  /**
+   * Async assertions (`.resolves`/`.rejects`, `expect.poll`) the test has not awaited yet. Filled
+   * only when the worker turns unawaited-assertion tracking on; an assertion leaves the set when
+   * the test calls `.then` on it, and what is left at the test's end is reported.
+   */
+  pendingAsync: Set<PendingAssertion>
   /** Whether diffs show every line (Jest's `--expand`). */
   expand?: boolean
   /** The test's full name, joined by the core policy's `nameSeparator`. */
@@ -123,6 +129,23 @@ export interface MatcherCall {
 }
 
 /**
+ * An async assertion the test has not awaited (yet): what `MatcherState.pendingAsync` holds, and
+ * what the dialect words its "was not awaited" error from.
+ * @public
+ */
+export interface PendingAssertion {
+  /** `settled` for `.resolves`/`.rejects`; `poll` for `expect.poll(...).matcher()`. */
+  readonly kind: 'settled' | 'poll'
+  /** The assertion: matcher, `.not`, and `resolves`/`rejects` (`''` for a poll). */
+  readonly call: MatcherCall
+  /**
+   * Made where the user called the matcher, so its stack points at that line. The end-of-test
+   * check sets its `message` from the table and reports it.
+   */
+  readonly error: Error
+}
+
+/**
  * The text the engine prints for failures that aren't a matcher's: every word comes from the
  * dialect (non-negotiable 1).
  * @public
@@ -146,6 +169,25 @@ export interface ExpectMessages {
   invalidTesters(value: unknown): string
   /** Throws when `expect.hasAssertions` gets an argument. */
   ensureNoExpected(expected: unknown, matcherName: string): void
+  /** `expect.assertions(expected)` and the test made `actual` assertion calls. */
+  assertionCount(expected: number, actual: number): string
+  /** `expect.hasAssertions()` and the test made none. */
+  noAssertions(): string
+  /** `ExpectPolicy.requireAssertions` and the test made none. */
+  requiredAssertions(): string
+  /** An async assertion the test never awaited, when the policy fails those. */
+  unawaited(pending: PendingAssertion): string
+  /** An `expect.poll` stage that did not finish inside its timeout: the callback, or the matcher. */
+  pollTimeout(stage: 'function' | 'assertion'): string
+  /** `expect.poll(...)` read `name`, which polling cannot work with (`resolves`, `toThrow`, ...). */
+  pollUnsupported(name: string): string
+  /** `expect.soft` or `expect.poll` used where no test is running. */
+  outsideTest(name: 'soft' | 'poll'): string
+  /**
+   * `expect.unreachable(message)`. Only a dialect that has `expect.unreachable` supplies this:
+   * its presence is what puts the static on `expect`.
+   */
+  unreachable?(message: string | undefined): string
 }
 
 /**
@@ -234,6 +276,35 @@ export type Assertion<R extends void | Promise<void> = void> = Matchers<R> & {
 }
 
 /**
+ * What `expect.poll` passes to the function it polls.
+ * @public
+ */
+export interface PollContext {
+  /** Aborted when the poll's timeout passes, so a slow callback can stop. */
+  readonly signal: AbortSignal
+}
+
+/**
+ * `expect.poll`'s options. Each falls back to `ExpectPolicy.poll`.
+ * @public
+ */
+export interface PollOptions {
+  /** Milliseconds between two calls of the polled function. */
+  readonly interval?: number
+  /** Milliseconds after which the poll gives up. */
+  readonly timeout?: number
+}
+
+/**
+ * What `expect.poll(fn)` returns: matchers that retry until they pass and return a promise to
+ * await. No `resolves`/`rejects`, and no matcher that throws or snapshots.
+ * @public
+ */
+export type PollAssertion = Matchers<Promise<void>> & {
+  readonly not: Matchers<Promise<void>>
+}
+
+/**
  * The asymmetric factories both runners have, inverted on `expect.not`.
  * @public
  */
@@ -259,6 +330,12 @@ export interface ExpectStatic extends InvertibleAsymmetric {
   addEqualityTesters(testers: readonly EqualityTester[]): void
   assertions(expected: number): void
   hasAssertions(): void
+  /** Present when `ExpectPolicy.soft` is on: a failure is recorded and the test goes on. */
+  soft?: (actual: unknown) => Assertion
+  /** Present when `ExpectPolicy.poll.enabled` is on. */
+  poll?: (fn: (context: PollContext) => unknown, options?: PollOptions) => PollAssertion
+  /** Present when the dialect's table words it (`ExpectMessages.unreachable`). */
+  unreachable?: (message?: string) => never
   getState(): MatcherState
   setState(state: Partial<MatcherState>): void
   readonly [asymmetric: string]: unknown

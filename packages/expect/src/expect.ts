@@ -22,10 +22,13 @@ import type {
   MatcherResult,
   MatcherSet,
   MatcherState,
+  PendingAssertion,
   PromiseVoice,
 } from '@provino/types'
 import type { MatcherContext } from './context.ts'
 import { ExpectError } from './errors.ts'
+import { awaitable } from './internal/awaitable.ts'
+import { createPoll, type PollTimers } from './poll.ts'
 import { createMatcherRegistry, type MatcherRegistry } from './slot.ts'
 import type { StateSource } from './state.ts'
 
@@ -41,6 +44,15 @@ export class MatcherResultError extends Error {
 }
 
 /**
+ * Whether the engine holds an unawaited `.resolves`/`.rejects`/`expect.poll` against the test:
+ * `'fail'` tracks them and `endOfTest` reports each that is left; `'ignore'` (Jest) does neither,
+ * and the assertion is the plain promise it always was. `CorePolicy.unawaitedAsyncAssertion`
+ * decides it; the worker passes it in, because this package reads only its own slice.
+ * @public
+ */
+export type UnawaitedAssertion = 'ignore' | 'fail'
+
+/**
  * What `createExpect` needs.
  * @public
  */
@@ -51,6 +63,10 @@ export interface CreateExpectOptions {
   readonly source: StateSource
   /** The registry the slot was installed with; a fresh one when there is no slot. */
   readonly registry?: MatcherRegistry
+  /** Default `'ignore'`. */
+  readonly unawaited?: UnawaitedAssertion
+  /** What `expect.poll` waits with: the file's fake clock and, in tests, a manual scheduler. */
+  readonly pollTimers?: PollTimers
 }
 
 /**
@@ -82,6 +98,8 @@ interface Target {
   readonly promise: PromiseVoice
   /** Made when `.resolves`/`.rejects` is read: the error a wrong settlement throws. */
   readonly outer: MatcherResultError | undefined
+  /** `expect.soft`: a failure is recorded in the state and the test goes on. */
+  readonly soft: boolean
 }
 
 /**
@@ -92,6 +110,7 @@ interface Target {
 export function createExpect(options: CreateExpectOptions): ExpectStatic {
   const { policy, table, source } = options
   checkPolicy(policy)
+  const track = options.unawaited === 'fail'
   const registry = options.registry ?? createMatcherRegistry()
   registry.utils = table.utils
   const { messages } = table
@@ -110,9 +129,11 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     promise: PromiseVoice,
     actual: unknown,
     settled?: Settled,
+    soft = false,
   ) =>
     function throwingMatcher(...args: unknown[]): unknown {
-      let throws = true
+      // A soft assertion records its failure, as `dontThrow()` does, and the test goes on.
+      let throws = !soft
       const internal = isInternal(matcher)
       const state = settled?.state ?? getState()
       const above: Caller = settled?.above ?? throwingMatcher
@@ -204,7 +225,7 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   const makeSettledMatcher = (
     matcherName: string,
     matcher: Matcher,
-    { actual, isNot, promise, outer }: Target,
+    { actual, isNot, promise, outer, soft }: Target,
   ) =>
     function settledMatcher(...args: unknown[]): PromiseLike<unknown> {
       const call: MatcherCall = { matcherName, isNot, promise }
@@ -221,8 +242,8 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
         throw outerErr
       }
       const settle = (value: unknown, above: Caller): unknown =>
-        makeThrowingMatcher(matcher, isNot, promise, value, { state, above, error })(...args)
-      return actualWrapper.then(
+        makeThrowingMatcher(matcher, isNot, promise, value, { state, above, error }, soft)(...args)
+      const chained = actualWrapper.then(
         function onResolved(result) {
           if (promise === 'rejects') wrong(messages.resolvedInsteadOfRejected(call, result))
           return settle(result, onResolved)
@@ -230,6 +251,30 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
         function onRejected(reason: unknown) {
           if (promise === 'resolves') wrong(messages.rejectedInsteadOfResolved(call, reason))
           return settle(reason, onRejected)
+        },
+      )
+      // A soft assertion never rejects: whatever went wrong is the test's, at its end.
+      const outcome = soft
+        ? Promise.resolve(chained).then(undefined, (failure: unknown) => {
+            state.suppressedErrors.push(
+              failure instanceof Error ? failure : new Error(String(failure)),
+            )
+          })
+        : chained
+      if (!track) return outcome
+      // Unawaited-assertion tracking: it stays in the state until someone takes its result.
+      // Nobody may be listening, and a rejection then is reported as the unawaited assertion it is.
+      const pending: PendingAssertion = {
+        kind: 'settled',
+        call,
+        error: capturedError(settledMatcher),
+      }
+      state.pendingAsync.add(pending)
+      Promise.resolve(outcome).catch(() => undefined)
+      return awaitable(
+        () => Promise.resolve(outcome),
+        () => {
+          state.pendingAsync.delete(pending)
         },
       )
     }
@@ -251,20 +296,28 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     if (typeof key !== 'string') return undefined
     if (key === 'not') {
       if (target.isNot) return undefined
-      const { actual, promise, outer } = target
-      return assertion({ actual, isNot: true, promise, outer })
+      const { actual, promise, outer, soft } = target
+      return assertion({ actual, isNot: true, promise, outer, soft })
     }
     if (key === 'resolves' || key === 'rejects') {
       if (target.isNot || target.promise !== '') return undefined
       // `expect()` made it for a promise or a function; another thenable gets one now, while
       // the user's line is still on the stack.
       const outer = target.outer ?? capturedError(get)
-      return assertion({ actual: target.actual, isNot: false, promise: key, outer })
+      return assertion({
+        actual: target.actual,
+        isNot: false,
+        promise: key,
+        outer,
+        soft: target.soft,
+      })
     }
     const matcher = registry.matchers[key]
     // Anything else reads as on Jest's plain object: `Object.prototype`'s members, or undefined.
     if (matcher === undefined) return Reflect.get(Object.prototype, key, receiver)
-    if (target.promise === '') return makeThrowingMatcher(matcher, target.isNot, '', target.actual)
+    if (target.promise === '') {
+      return makeThrowingMatcher(matcher, target.isNot, '', target.actual, undefined, target.soft)
+    }
     // Own keys only: a custom matcher named like an `Object.prototype` method is still itself.
     const promiseForm = Object.hasOwn(table.promiseMatchers, key)
       ? table.promiseMatchers[key]
@@ -300,7 +353,18 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     // so only they pay for a stack here; the check reads no property of the value.
     const outer =
       typeof actual === 'function' || types.isPromise(actual) ? capturedError(expect) : undefined
-    return assertion({ actual, isNot: false, promise: '', outer })
+    return assertion({ actual, isNot: false, promise: '', outer, soft: false })
+  }
+
+  /** `expect`, but a failed assertion is recorded and the test goes on. */
+  function soft(actual: unknown, ...rest: unknown[]): Assertion {
+    if (rest.length > 0) throw anchor(new Error(messages.tooManyArguments()), soft)
+    if (source.current() === source.file()) {
+      throw anchor(new ExpectError('EXPECT_OUTSIDE_TEST', messages.outsideTest('soft')), soft)
+    }
+    const outer =
+      typeof actual === 'function' || types.isPromise(actual) ? capturedError(soft) : undefined
+    return assertion({ actual, isNot: false, promise: '', outer, soft: true })
   }
 
   const not: Record<string, unknown> = { ...table.asymmetricNot }
@@ -362,8 +426,38 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     Object.assign(getState(), { isExpectingAssertions: true, isExpectingAssertionsError: error })
   }
 
+  /** `expect.unreachable(message)`: only on a dialect whose table words it. */
+  const unreachableText = messages.unreachable?.bind(messages)
+  function unreachable(message?: string): never {
+    throw anchor(new MatcherResultError(unreachableText?.(message)), unreachable)
+  }
+
+  const poll = policy.poll.enabled
+    ? createPoll({
+        policy,
+        messages,
+        timers: options.pollTimers,
+        track,
+        state: getState,
+        inTest: () => source.current() !== source.file(),
+        hasMatcher: (name) => registry.matchers[name] !== undefined,
+        capture: capturedError,
+        run: function pollTry(name, isNot, value, args, state) {
+          const matcher = registry.matchers[name]
+          if (matcher === undefined) throw new TypeError(`${name} is not a matcher`)
+          const error = capturedError(pollTry)
+          return makeThrowingMatcher(matcher, isNot, '', value, { state, above: pollTry, error })(
+            ...args,
+          )
+        },
+      })
+    : undefined
+
   const statics = {
     ...table.asymmetric,
+    ...(policy.soft ? { soft } : {}),
+    ...(poll === undefined ? {} : { poll }),
+    ...(unreachableText === undefined ? {} : { unreachable }),
     not,
     extend,
     addEqualityTesters,
@@ -378,7 +472,7 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   return Object.assign(expect, statics) as unknown as ExpectStatic
 }
 
-/** The policy values B08 builds; the rest throw rather than run half-way. */
+/** The policy values the engine builds; the rest throw rather than run half-way. */
 function checkPolicy(policy: ExpectPolicy): void {
   const missing: string[] = []
   if (policy.matcherTable === null) {
@@ -392,9 +486,6 @@ function checkPolicy(policy: ExpectPolicy): void {
   if (policy.equality.errors !== 'message') missing.push(`equality.errors: 'assert' (T7.7)`)
   if (policy.equality.invalidDate !== 'unequal')
     missing.push(`equality.invalidDate: 'equal' (T7.7)`)
-  if (policy.soft) missing.push('soft (T7.8)')
-  if (policy.poll.enabled) missing.push('poll (T7.8)')
-  if (policy.requireAssertions) missing.push('requireAssertions (T7.8)')
   if (missing.length > 0) {
     throw new ExpectError('EXPECT_NOT_IMPLEMENTED', `not built yet: ${missing.join(', ')}`)
   }

@@ -11,7 +11,7 @@
 // - Recorded equal to the neutral value: none now. (`timers.notFaked` and `setSystemTimeWithoutFakes`
 //   were here; B14a recorded Jest's and sets them. `module.missingFactoryExport` and
 //   `module.messages` were too; B13b sets them. `timers.facadeReturns` and `timers.fakeTemporal`
-//   were; B17a records them as `mocking/timers-facade` and `mocking/timers-temporal`.)
+//   were; B17a records them as `mocking/timers-facade` and `policy/timers-temporal`.)
 // - A behaviour whose Jest implementation is not built yet, so the key stays the neutral one:
 //   orchestrator.environmentConditions (the environment's own `exportConditions()`, T8.7).
 // - The same as the neutral value, so there is nothing to override:

@@ -51,7 +51,6 @@ export function createTestContext(
     throw new SkipSignal(typeof conditionOrNote === 'string' ? conditionOrNote : note)
   }
   const annotate = (message: string, kind: string = 'notice'): Promise<void> => {
-    const state = attempt()
     env.emit({
       type: 'annotation',
       testId: task.id,
@@ -60,7 +59,6 @@ export function createTestContext(
       location: env.callerLocation(annotate),
       t: env.now(),
     })
-    void state
     return Promise.resolve()
   }
   Object.defineProperties(base, {

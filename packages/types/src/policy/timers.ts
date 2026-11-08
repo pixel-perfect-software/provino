@@ -14,7 +14,7 @@ export interface TimersPolicy {
   /**
    * Whether `Temporal` is faked: in the default set, and with `setSystemTime` while timers are real.
    * Jest: `true` (its @sinonjs/fake-timers 15.4 fakes it). Vitest: `true`. Recorded:
-   * `mocking/timers-temporal` (B17a), on a Node run with `--harmony-temporal`. research: track-01 L204
+   * `policy/timers-temporal` (B17a), on a Node run with `--harmony-temporal`. research: track-01 L204
    */
   readonly fakeTemporal: boolean
   /** Whether legacy fake timers exist. Jest: `true`. Vitest: `false`. research: track-01 L205 */

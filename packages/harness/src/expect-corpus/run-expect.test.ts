@@ -66,6 +66,7 @@ const state = (numPassingAsserts: number): MatcherState => ({
   expectedAssertionsNumber: null,
   isExpectingAssertions: false,
   numPassingAsserts,
+  pendingAsync: new Set(),
   suppressedErrors: [],
 })
 

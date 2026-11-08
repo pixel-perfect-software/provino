@@ -29,9 +29,12 @@ import { pairLabel } from './test-support.ts'
 import { TIMER_DECLARED as DECLARED } from './timer-corpus/declared.ts'
 import { runTimerChild } from './timer-corpus/run-child.ts'
 
-/** The fixtures that need a Node with `Temporal`, which the harness's own process lacks. */
+/**
+ * The fixtures that need a Node with `Temporal`. Node 24 has none without `--harmony-temporal`; a
+ * Node that ships it (26) takes no flag, so none is passed there.
+ */
 const NODE_FLAGS: Readonly<Record<string, readonly string[]>> = {
-  'mocking/timers-temporal': ['--harmony-temporal'],
+  'policy/timers-temporal': 'Temporal' in globalThis ? [] : ['--harmony-temporal'],
 }
 
 /**
@@ -43,8 +46,15 @@ const EXPECTED_COUNTED: Readonly<Partial<Record<FixtureProfile, number>>> = {
   vitest: 48,
 }
 
-const root = path.join(defaultFixturesRoot(), 'mocking')
-const dirs = await findFixtures(root)
+// `timers-temporal` lives with the policy fixtures: it needs a Node with `Temporal`, so it is
+// recorded and checked on the main Node only, not on the oldest one `record:mocking` also runs on.
+const fixturesRoot = defaultFixturesRoot()
+const dirs = [
+  ...(await findFixtures(path.join(fixturesRoot, 'mocking'))),
+  ...(await findFixtures(path.join(fixturesRoot, 'policy'))).filter((dir) =>
+    dir.endsWith('timers-temporal'),
+  ),
+]
 const fixtures = (await Promise.all(dirs.map((dir) => readFixture(dir)))).filter((fixture) =>
   isTimerFixture(fixture.id),
 )

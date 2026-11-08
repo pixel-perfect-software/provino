@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "runner": "vitest",
   "runnerVersion": "5.0.5",
-  "suite": "mocking/timers-temporal",
+  "suite": "policy/timers-temporal",
   "files": [
     {
       "file": "temporal.test.ts",

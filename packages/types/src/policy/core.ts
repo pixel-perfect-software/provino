@@ -238,7 +238,13 @@ export interface CorePolicy {
   readonly errors: {
     /** An error after its test ended. Jest: `fail-owner`. Vitest: `report-run`. research: track-05 L320 */
     readonly lateErrors: 'fail-owner' | 'report-run'
-    /** Whether `expect.hasAssertions` is checked on a test that already failed. Jest: `skip`. Vitest: `check`. research: track-05 L320 */
+    /**
+     * Whether `expect.hasAssertions` is checked on a test that already failed. Jest: `skip`. Vitest:
+     * `skip` too (B14a's `policy/core-outcomes` overruled the research's `check`). The two differ
+     * on `expect.assertions(n)`, which Jest checks on a failed test and Vitest doesn't (B17a's
+     * `expect/policies/assertions-count`): one key can't say so, and Vitest's policy adds the
+     * count error Vitest wouldn't (a divergence draft). research: track-05 L320
+     */
     readonly hasAssertionsWhenFailed: 'skip' | 'check'
   }
   /** `.only` scoping (Track 12 `focus.*`). */
