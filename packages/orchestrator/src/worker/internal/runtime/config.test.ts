@@ -12,9 +12,12 @@ const valid: SerializedProjectConfig = {
   policy: serializePolicy(neutralPolicy),
   environment: { module: '/env.ts', export: 'env', options: { a: 1 } },
   globals: moduleRef('/globals.ts', 'factory'),
+  moduleScope: null,
   setupFiles: ['/setup.ts'],
   setupFilesAfterEnv: [],
   loader: {
+    hoist: null,
+    moduleScope: [],
     extensions: ['.ts'],
     conditions: ['node'],
     tsconfig: 'auto',

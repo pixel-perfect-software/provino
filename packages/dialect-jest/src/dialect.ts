@@ -24,7 +24,7 @@
 //   user's `snapshotResolver`), snapshot.serializers (`[]`: Jest's is the user's list),
 //   orchestrator.isolationDefault.byEnvironment (see there).
 import { defineDialect, moduleRef } from '@provino/policy'
-import type { Dialect, GlobalsFactory, PolicyOverrides } from '@provino/types'
+import type { Dialect, GlobalsFactory, ModuleScopeFactory, PolicyOverrides } from '@provino/types'
 import { jestExpectPolicy } from './expect-policy.ts'
 import { jestHoistPolicy } from './hoist-policy.ts'
 import { jestMockPolicy } from './mock-policy.ts'
@@ -190,6 +190,13 @@ export const jestPolicy: PolicyOverrides = {
         'Failed to get mock metadata: {id}\n\nSee: https://jestjs.io/docs/manual-mocks#content',
       // jest-runtime `internals/ModuleRegistries.ts` L132 (`enterIsolated`).
       'nested-isolation': '{caller} cannot be nested inside another {caller} or {other}.',
+      // The loader's text for a transform error (B13c Gap 4): Babel's, which babel-jest throws as
+      // `<file>: <message>` with no position. Recorded: `mod-factory-out-of-scope` (Jest 30.5.2).
+      'transform-failed': '{file}: {message}',
+      // The loader's text for a module that isn't found when its `require` runs: jest-resolve
+      // `resolver.ts` L523 (`_throwModNotFoundError`), `{from}` relative to the root. Recorded:
+      // `mod-root-package-uninstalled` ("load after dontMock").
+      'module-not-found': "Cannot find module '{specifier}' from '{from}'",
     },
   },
   snapshot: {
@@ -338,6 +345,16 @@ export const jestDialect: Dialect<'jest'> = defineDialect({
     ),
     names: JEST_GLOBAL_NAMES,
   },
-  // Nothing reads it until B13c turns hoisting on in `createProjectLoader`.
+  // `createProjectLoader` hoists with it; `config` copies it to the worker by value (B13c).
   loader: { hoist: jestHoistPolicy },
+  // Each module gets its own `jest`, as jest-runtime's `_createJestObjectFor(from)` does: a
+  // `jest.mock` resolves from the module that calls it. Recorded: every Jest `mod-*` fixture whose
+  // helper registers a mock (`mod-require-esm-helper`, `mod-adjacent`).
+  moduleScope: {
+    names: ['jest'],
+    factory: moduleRef<ModuleScopeFactory>(
+      import.meta.resolve('@provino/dialect-jest/runtime'),
+      'jestModuleScope',
+    ),
+  },
 })

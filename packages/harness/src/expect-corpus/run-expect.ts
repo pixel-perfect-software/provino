@@ -100,6 +100,9 @@ export async function runExpectFile(
           throw new Error('the expect corpus does not use the module registry')
         },
         mocks: () => mockRegistry,
+        moduleMocks: () => {
+          throw new Error('the expect corpus does not use the module-mock registry')
+        },
         mockPolicy: jestMockPolicy,
       }).jest,
     })

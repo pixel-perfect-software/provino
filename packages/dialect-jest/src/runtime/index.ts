@@ -5,6 +5,9 @@ export { jestExpectTable } from './expect-table.ts'
 export {
   type JestGlobals,
   type JestGlobalsHost,
+  type JestMockOptions,
+  type JestModuleObject,
   type JestObject,
   jestGlobals,
+  jestModuleScope,
 } from './globals.ts'

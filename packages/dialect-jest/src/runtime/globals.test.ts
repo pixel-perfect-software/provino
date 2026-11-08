@@ -13,7 +13,13 @@ const jestMock = resolvePolicy(jestPolicy).mock
 /** The two host members the mock functions read: a registry that can be swapped, and the policy. */
 function mockHost(mocks?: () => MockRegistry) {
   const own = createMockRegistry()
-  return { mocks: mocks ?? (() => own), mockPolicy: jestMock }
+  return {
+    mocks: mocks ?? (() => own),
+    moduleMocks: (): never => {
+      throw new Error('this test does not use the module-mock registry')
+    },
+    mockPolicy: jestMock,
+  }
 }
 
 /** A registry that records the calls the `jest` object makes, and runs the function it is given. */

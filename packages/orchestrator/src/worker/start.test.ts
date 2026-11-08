@@ -29,9 +29,12 @@ const config: SerializedProjectConfig = {
   policy: serializePolicy(neutralPolicy),
   environment: { module: '@provino/env-node', export: 'nodeEnvironment', options: {} },
   globals: null,
+  moduleScope: null,
   setupFiles: [],
   setupFilesAfterEnv: [],
   loader: {
+    hoist: null,
+    moduleScope: [],
     extensions: ['.ts', '.js'],
     conditions: ['node'],
     tsconfig: false,
