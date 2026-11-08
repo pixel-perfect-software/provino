@@ -10,6 +10,12 @@
       "path": "../policy"
     },
     {
+      "path": "../config"
+    },
+    {
+      "path": "../resolver"
+    },
+    {
       "path": "../expect"
     },
     {

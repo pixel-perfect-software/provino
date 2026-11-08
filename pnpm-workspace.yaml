@@ -70,6 +70,8 @@ catalog:
   expect: 30.5.2
   expect-type: 1.4.0
   jest: 30.5.2
+  # The Jest config reader's oracle (B14b): real `readConfig` / `readInitialOptions`, in-process.
+  jest-config: 30.5.2
   # jest-matcher-utils, jest-message-util and jest-util: the Jest dialect's expect (D18, above).
   jest-matcher-utils: 30.5.2
   jest-message-util: 30.5.1
