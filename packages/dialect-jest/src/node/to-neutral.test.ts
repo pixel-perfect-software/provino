@@ -100,6 +100,30 @@ test('a plain config: discovery, setup files, environment and policy keys', asyn
   assert.deepEqual(neutral.diagnostics, [])
 })
 
+test('testFailureExitCode is what a failed run and an unhandled error exit with', async () => {
+  const root = tree({ 'jest.config.js': 'module.exports = { testFailureExitCode: 7 }\n' })
+  const [project] = (await readNeutral(root)).neutral.value
+  assert.ok(project !== undefined)
+  const policy = resolvePolicy(project.policy)
+  assert.equal(policy.orchestrator.exitCodes.failure, 7)
+  assert.equal(policy.orchestrator.exitCodes.unhandled, 7)
+  // The codes for no tests and for a refused command line are not that config's.
+  assert.equal(policy.orchestrator.exitCodes.noTests, 1)
+})
+
+test('a cache directory inside the root is not crawled, as jest-runtime builds the ignore pattern', async () => {
+  const root = tree({
+    'jest.config.js':
+      "module.exports = { cacheDirectory: '<rootDir>/.cache/jest', modulePathIgnorePatterns: ['<rootDir>/build'] }\n",
+  })
+  const [project] = (await readNeutral(root)).neutral.value
+  assert.deepEqual(project?.discovery.crawlIgnorePatterns, [`${root}/build`, `${root}/.cache/jest`])
+  // The default cache directory is in the temp directory: nothing to ignore.
+  const plain = tree({ 'jest.config.js': 'module.exports = {}\n' })
+  const [other] = (await readNeutral(plain)).neutral.value
+  assert.deepEqual(other?.discovery.crawlIgnorePatterns, [])
+})
+
 test('testRegex becomes regex include patterns', async () => {
   const root = tree({ 'jest.config.js': "module.exports = { testRegex: ['\\\\.t\\\\.js$'] }\n" })
   const [project] = (await readNeutral(root)).neutral.value

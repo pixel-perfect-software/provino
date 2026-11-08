@@ -9,7 +9,9 @@ import {
   type DiscoveredFile,
   defaultCacheDir,
   defaultMaxWorkers,
+  discoverByRules,
   discoverFiles,
+  discoverProject,
   ExitCode,
   type ExitCodeOptions,
   exitCodeFor,
@@ -26,11 +28,14 @@ import {
   relativePosix,
   runProject,
   sameWorkerKey,
+  selectFiles,
   type TransportForOptions,
+  testFilePredicate,
   transportFor,
   workerKeyOf,
 } from '@provino/orchestrator'
 import type {
+  FileFilter,
   FileHistory,
   PoolKind,
   PoolOptions,
@@ -129,6 +134,36 @@ void discoverFiles({ rootDir: '/p', include: ['**/*.test.ts'], exclude: [] })
 void discoverFiles({ rootDir: '/p' })
 // @ts-expect-error a glob list, not one glob
 void discoverFiles({ rootDir: '/p', include: '**/*.test.ts', exclude: [] })
+
+// By a dialect reader's rules (B14c): the rules, what a glob sees, and a project's whole file set.
+expectTypeOf(discoverByRules).returns.toEqualTypeOf<Promise<readonly DiscoveredFile[]>>()
+expectTypeOf(discoverProject).parameters.toEqualTypeOf<[ResolvedProject]>()
+expectTypeOf(discoverProject).returns.toEqualTypeOf<Promise<readonly DiscoveredFile[]>>()
+expectTypeOf(testFilePredicate).returns.toEqualTypeOf<(absolutePath: string) => boolean>()
+// @ts-expect-error the rules are required: without them there is nothing to apply
+void discoverByRules({ rootDir: '/p', globMatchesOn: 'absolute-path' })
+void discoverByRules({
+  rootDir: '/p',
+  // @ts-expect-error a glob sees the absolute path or the path from the root, nothing else
+  globMatchesOn: 'basename',
+  discovery: {
+    roots: ['/p'],
+    extensions: ['ts'],
+    includePatterns: { kind: 'glob', patterns: [] },
+    excludePatterns: [],
+    crawlIgnorePatterns: [],
+  },
+})
+
+// File filters from a command line narrow a run and a listing the same way.
+expectTypeOf(selectFiles).returns.toEqualTypeOf<readonly DiscoveredFile[]>()
+expectTypeOf<RunProjectOptions['fileFilters']>().toEqualTypeOf<readonly FileFilter[] | undefined>()
+expectTypeOf<RunProjectOptions['cwd']>().toEqualTypeOf<string | undefined>()
+void runProject(project, { bus, fileFilters: [{ kind: 'regex', value: 'a' }], cwd: '/p' })
+// @ts-expect-error a filter has a kind
+void runProject(project, { bus, fileFilters: [{ value: 'a' }] })
+// @ts-expect-error filters need the root and the working directory
+void selectFiles([], [], { rootDir: '/p' })
 
 // ---- The results cache.
 expectTypeOf(createResultsCache).parameters.toEqualTypeOf<[dir: string]>()
