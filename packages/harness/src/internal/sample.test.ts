@@ -4,7 +4,14 @@ import { HarnessError } from '../errors.ts'
 import { type Fixture, readFixture } from '../fixture.ts'
 import type { RecordPaths } from '../record.ts'
 import { makeFile, makeRun, makeTest } from '../test-support.ts'
-import { recordedEnv, rewritePaths, SAMPLE_DIR, sampleCopy, sampleRunProblems } from './sample.ts'
+import {
+  coverageProblems,
+  recordedEnv,
+  rewritePaths,
+  SAMPLE_DIR,
+  sampleCopy,
+  sampleRunProblems,
+} from './sample.ts'
 
 function fixture(files: readonly string[]): Fixture {
   return {
@@ -80,11 +87,28 @@ test('a whole sample run has exactly the expected crash and nothing else wrong',
     { runErrors: [{ message: 'boom', raw: 'boom' }] },
   )
   assert.deepEqual(sampleRunProblems(bad, [...files, 'gone.test.ts']), [
+    { kind: 'missing-file', message: 'gone.test.ts is missing from the run' },
+    { kind: 'crashed', message: 'a.test.ts crashed: (no message)' },
+    { kind: 'crash-missing', message: 'crash.test.ts did not crash (failed)' },
+    { kind: 'unexpected-file', message: 'extra.test.ts is not a sample test file' },
+    { kind: 'run-error', message: 'run error: boom' },
+  ])
+})
+
+test("a candidate's coverage problems are only missing and unexpected files, by kind not text", () => {
+  // A crash is parity, not coverage, even when its message reads like a coverage problem.
+  const run = makeRun([
+    {
+      file: 'a.test.ts',
+      status: 'crashed',
+      fileError: { message: 'x.test.ts is missing from the run; not a sample test file', raw: '' },
+      tests: [],
+    },
+    makeFile('extra.test.ts', [makeTest('extra.test.ts', ['t'])]),
+  ])
+  assert.deepEqual(coverageProblems(run, ['a.test.ts', 'gone.test.ts']), [
     'gone.test.ts is missing from the run',
-    'a.test.ts crashed: (no message)',
-    'crash.test.ts did not crash (failed)',
     'extra.test.ts is not a sample test file',
-    'run error: boom',
   ])
 })
 
@@ -100,6 +124,21 @@ test('a recording keeps the runner version and the Node major, and no machine de
     runners: { jest: '30.5.2' },
     ci: false,
   })
+})
+
+test('rewritePaths replaces a directory only where it ends: a separator, a quote or the end', () => {
+  const paths: RecordPaths = {
+    workDir: '/w/work',
+    realWorkDir: '/w/work',
+    repoRoot: '/w/repo',
+    packageDir: '/w/repo/packages/harness',
+    realPackageDir: '/w/repo/packages/harness',
+    home: '/Users/tyler',
+  }
+  assert.equal(
+    rewritePaths('/Users/tylerx/a and /Users/tyler/b and "/Users/tyler" and /Users/tyler', paths),
+    '/Users/tylerx/a and /__home__/b and "/__home__" and /__home__',
+  )
 })
 
 test("rewritePaths replaces this machine's directories, the deepest first", () => {

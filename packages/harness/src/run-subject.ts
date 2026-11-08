@@ -1,4 +1,4 @@
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import type { NormalizedRun } from '@provino/types'
 import { convertJest } from './convert-jest.ts'
@@ -84,8 +84,12 @@ function outPaths(runner: SubjectRunner, outDir: string): { raw: string; sidecar
 /**
  * The arguments after the runner's bin: the caller's, then what the harness needs. Jest writes
  * `--json` to `raw` with locations, keeps its default reporter and adds the sidecar, and never runs
- * silent (Jest buffers no console under `--silent`). Vitest writes its JSON reporter to `raw` and
- * adds the sidecar. Provino writes `normalized-json` to `raw`.
+ * silent or verbose. Under `--silent` Jest buffers no console. Verbose makes its worker write
+ * console straight to the terminal (`CustomConsole`) instead of buffering it for the reporters,
+ * and `@jest/core` turns verbose on by itself when exactly one test file runs unless
+ * `--verbose=false` is given. Jest 30.5.2 still buffered in both cases when probed, but the flag
+ * costs nothing on the versions B16's repos pin. Vitest writes its JSON reporter to `raw` and adds
+ * the sidecar. Provino writes `normalized-json` to `raw`.
  * @internal
  */
 export function subjectArgs(
@@ -101,6 +105,7 @@ export function subjectArgs(
         `--outputFile=${files.raw}`,
         '--testLocationInResults',
         '--silent=false',
+        '--verbose=false',
         '--reporters=default',
         `--reporters=${sidecarReporterPath('jest')}`,
       ]
@@ -165,6 +170,9 @@ export async function runSubject(options: SubjectOptions): Promise<SubjectResult
   const install = resolveRunnerPackage(runner, options.from ?? cwd)
   await mkdir(outDir, { recursive: true })
   const files = outPaths(runner, outDir)
+  // An earlier run's files in a reused `outDir` would pass for this run's if this one wrote none
+  // (it failed to start, crashed or was killed first), so they go before it starts.
+  await Promise.all([rm(files.raw, { force: true }), rm(files.sidecar, { force: true })])
   const nodeArgs = runner === 'provino' ? PROVINO_NODE_ARGS : []
   const timeoutMs = options.timeoutMs ?? TIMEOUT_MS
   let result: ProcessResult

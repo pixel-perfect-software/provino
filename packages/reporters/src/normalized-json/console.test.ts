@@ -13,7 +13,26 @@ import {
   testEndEvent,
   testStartEvent,
 } from '../internal/test-support.ts'
+import { linesOf } from './build.ts'
 import { normalizedJsonReporter } from './reporter.ts'
+
+// The same table pins `consoleLines` in @provino/harness (`src/sidecar.test.ts`), which splits
+// Jest's and Vitest's console the same way; this package can't import it. Change both together.
+const LINE_CASES: readonly [string, readonly string[]][] = [
+  ['a', ['a']],
+  ['a\n', ['a']],
+  ['a\nb\n', ['a', 'b']],
+  ['a\n\n', ['a', '']],
+  ['a\r\nb', ['a\r', 'b']],
+  ['', ['']],
+  ['\n', ['']],
+]
+
+test('a write splits into lines as the harness splits a sidecar entry', () => {
+  for (const [text, lines] of LINE_CASES) {
+    assert.deepEqual(linesOf(text), lines, JSON.stringify(text))
+  }
+})
 
 function write(
   taskId: TaskId | null,

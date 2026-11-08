@@ -146,6 +146,38 @@ test("Jest's toThrow: the received error's stack, indented apart, is neither mes
   assert.equal(userFrameOf(segments), '/work/fail.test.ts:13:8')
 })
 
+test('a frame-like line printed as data above the stack, with no received-error header, is kept', () => {
+  const text = [
+    'Error: the log was not empty',
+    '      at somewhere (/work/log.txt:1:1)',
+    '    at Object.<anonymous> (/work/a.test.ts:3:4)',
+  ].join('\n')
+  const segments = parseStack(text)
+  assert.equal(
+    messageOf(segments),
+    'Error: the log was not empty\n      at somewhere (/work/log.txt:1:1)',
+  )
+  assert.equal(segments[0]?.frames.length, 1)
+  assert.equal(userFrameOf(segments), '/work/a.test.ts:3:4')
+})
+
+test("Jest's bare .not.toThrow() prints its received error under `Error message:`", () => {
+  const text = [
+    'Error: expect(received).not.toThrow()',
+    '',
+    'Error message: "bad input"',
+    '',
+    '      at /work/throws.test.ts:15:9',
+    '    at Object.toThrow (/work/throws.test.ts:48:31)',
+  ].join('\n')
+  const segments = parseStack(text)
+  assert.equal(
+    messageOf(segments),
+    'Error: expect(received).not.toThrow()\n\nError message: "bad input"\n',
+  )
+  assert.equal(userFrameOf(segments), '/work/throws.test.ts:48:31')
+})
+
 test('frames indented alike are one stack, whatever their indent', () => {
   const text = 'Error: x\n      at a (/work/a.test.ts:1:1)\n      at b (/work/b.test.ts:2:2)'
   const segments = parseStack(text)

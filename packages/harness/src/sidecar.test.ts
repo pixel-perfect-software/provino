@@ -50,13 +50,23 @@ test('parseSidecar names the line of the first bad entry', () => {
   }
 })
 
+// The same table pins `linesOf` in @provino/reporters (`normalized-json/console.test.ts`), which
+// splits Provino's console the same way and can't share this function across the package map.
+// Change both together.
+const LINE_CASES: readonly [string, readonly string[]][] = [
+  ['a', ['a']],
+  ['a\n', ['a']],
+  ['a\nb\n', ['a', 'b']],
+  ['a\n\n', ['a', '']],
+  ['a\r\nb', ['a\r', 'b']],
+  ['', ['']],
+  ['\n', ['']],
+]
+
 test('consoleLines splits on newlines; a trailing newline ends the last line', () => {
-  assert.deepEqual(consoleLines('a'), ['a'])
-  assert.deepEqual(consoleLines('a\n'), ['a'])
-  assert.deepEqual(consoleLines('a\nb\n'), ['a', 'b'])
-  assert.deepEqual(consoleLines('a\n\n'), ['a', ''])
-  assert.deepEqual(consoleLines(''), [''])
-  assert.deepEqual(consoleLines('\n'), [''])
+  for (const [text, lines] of LINE_CASES) {
+    assert.deepEqual(consoleLines(text), lines, JSON.stringify(text))
+  }
 })
 
 function attach(entries: readonly SidecarEntry[], fired?: Set<string>) {

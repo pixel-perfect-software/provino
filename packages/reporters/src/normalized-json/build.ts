@@ -69,7 +69,7 @@ export function newFileRecord(): FileRecord {
  * A write as lines (the model has one entry per line): split on `\n`, with a trailing newline
  * ending the last line rather than starting an empty one, so `console.log('')` is one empty line.
  */
-function linesOf(text: string): string[] {
+export function linesOf(text: string): string[] {
   const lines = text.split('\n')
   if (lines.length > 1 && lines.at(-1) === '') lines.pop()
   return lines

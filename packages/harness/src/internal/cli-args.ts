@@ -132,10 +132,13 @@ function required(value: string | undefined, flag: string): string {
   return value
 }
 
+// A plain decimal, so `Number`'s other spellings (`0x1`, `1e0`, `0b1`, `1e-400`) aren't shares.
+const DECIMAL = /^\d+(?:\.\d+)?$/
+
 function share(value: string | undefined, flag: string, fallback: number): number {
   if (value === undefined) return fallback
   const number = Number(value)
-  if (value.trim() === '' || !Number.isFinite(number) || number < 0 || number > 1) {
+  if (!DECIMAL.test(value) || number > 1) {
     throw usage(`${flag} must be a number from 0 to 1, got "${value}"`)
   }
   return number

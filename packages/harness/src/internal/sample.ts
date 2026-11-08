@@ -6,6 +6,7 @@ import type { NormalizedRun, RunEnvironment } from '@provino/types'
 import { HarnessError } from '../errors.ts'
 import { type Fixture, runnersForTestFile } from '../fixture.ts'
 import type { RecordPaths } from '../record.ts'
+import { escapeRegExp } from './guards.ts'
 
 /** The sample's directory. */
 export const SAMPLE_DIR: string = path.resolve(import.meta.dirname, '..', '..', 'sample')
@@ -71,33 +72,71 @@ export async function writeSampleCopy(
 }
 
 /**
+ * What can be wrong with a sample run. `missing-file` and `unexpected-file` say the run doesn't
+ * cover the sample's files at all; the others are about how the files ran.
+ */
+export type SampleProblemKind =
+  | 'missing-file'
+  | 'unexpected-file'
+  | 'crash-missing'
+  | 'crash-cause'
+  | 'crashed'
+  | 'no-tests'
+  | 'run-error'
+
+/** One problem with a sample run: its kind, and the line a person reads. */
+export interface SampleProblem {
+  readonly kind: SampleProblemKind
+  readonly message: string
+}
+
+const COVERAGE_KINDS: ReadonlySet<SampleProblemKind> = new Set(['missing-file', 'unexpected-file'])
+
+/**
+ * Only the problems that say a run doesn't cover the sample's files, whatever its results: a
+ * candidate that crashes a file the reference runs is a parity difference, not a broken run.
+ */
+export function coverageProblems(run: NormalizedRun, testFiles: readonly string[]): string[] {
+  return sampleRunProblems(run, testFiles)
+    .filter((problem) => COVERAGE_KINDS.has(problem.kind))
+    .map((problem) => problem.message)
+}
+
+/**
  * Checks that a sample run is whole: its files are exactly the copy's test files, exactly the
  * expected file crashed at collection and for the expected reason, every other file ran tests,
  * and the run has no run-level errors. `assertRunComplete` can't say this: it refuses one crash
  * among passing files. Returns the problems, empty when there are none.
  */
-export function sampleRunProblems(run: NormalizedRun, testFiles: readonly string[]): string[] {
-  const problems: string[] = []
+export function sampleRunProblems(
+  run: NormalizedRun,
+  testFiles: readonly string[],
+): SampleProblem[] {
+  const problems: SampleProblem[] = []
+  const add = (kind: SampleProblemKind, message: string): void => {
+    problems.push({ kind, message })
+  }
   const listed = new Set(run.files.map((file) => file.file))
   for (const file of testFiles) {
-    if (!listed.has(file)) problems.push(`${file} is missing from the run`)
+    if (!listed.has(file)) add('missing-file', `${file} is missing from the run`)
   }
   const expected = new Set(testFiles)
   for (const file of run.files) {
-    if (!expected.has(file.file)) problems.push(`${file.file} is not a sample test file`)
+    if (!expected.has(file.file)) add('unexpected-file', `${file.file} is not a sample test file`)
     if (file.file === EXPECTED_CRASH.file) {
       const message = file.fileError?.message ?? ''
-      if (file.status !== 'crashed') problems.push(`${file.file} did not crash (${file.status})`)
+      if (file.status !== 'crashed')
+        add('crash-missing', `${file.file} did not crash (${file.status})`)
       else if (!message.includes(EXPECTED_CRASH.cause)) {
-        problems.push(`${file.file} crashed for another reason: ${message}`)
+        add('crash-cause', `${file.file} crashed for another reason: ${message}`)
       }
     } else if (file.status === 'crashed') {
-      problems.push(`${file.file} crashed: ${file.fileError?.message ?? '(no message)'}`)
+      add('crashed', `${file.file} crashed: ${file.fileError?.message ?? '(no message)'}`)
     } else if (file.tests.length === 0) {
-      problems.push(`${file.file} has no tests`)
+      add('no-tests', `${file.file} has no tests`)
     }
   }
-  for (const error of run.runErrors) problems.push(`run error: ${error.message}`)
+  for (const error of run.runErrors) add('run-error', `run error: ${error.message}`)
   return problems
 }
 
@@ -134,11 +173,16 @@ export const PATH_PLACEHOLDERS = {
   home: '/__home__',
 } as const
 
+// A directory ends at a separator, a quote or the end of the text, so `/Users/me` is not
+// rewritten inside `/Users/mex/...`.
+const DIRECTORY_END = String.raw`(?=[/\\"'\x60]|$)`
+
 /**
  * Replaces this machine's directories in a runner's output with placeholders: the work
  * directory (both spellings) with `/__root__`, the repository with `/__repo__`, the home
- * directory with `/__home__`, longest first so a nested directory wins over its parent. The
- * repository is public, so a recording holds no path of the machine it was made on.
+ * directory with `/__home__`, longest first so a nested directory wins over its parent, and each
+ * only where the directory ends. The repository is public, so a recording holds no path of the
+ * machine it was made on; `assertNoPathLeak` checks the result as plain text.
  */
 export function rewritePaths(text: string, paths: RecordPaths): string {
   const pairs: [string, string][] = [
@@ -149,12 +193,14 @@ export function rewritePaths(text: string, paths: RecordPaths): string {
     [paths.realPackageDir, `${PATH_PLACEHOLDERS.repo}/packages/harness`],
     [paths.home, PATH_PLACEHOLDERS.home],
   ]
+  const replace = (out: string, from: string, to: string): string =>
+    out.replace(new RegExp(`${escapeRegExp(from)}${DIRECTORY_END}`, 'g'), () => to)
   let out = text
   for (const [from, to] of pairs.toSorted((a, b) => b[0].length - a[0].length)) {
     if (from.length < 2) continue
-    out = out.replaceAll(from, to)
+    out = replace(out, from, to)
     const escaped = JSON.stringify(from).slice(1, -1)
-    if (escaped !== from) out = out.replaceAll(escaped, JSON.stringify(to).slice(1, -1))
+    if (escaped !== from) out = replace(out, escaped, JSON.stringify(to).slice(1, -1))
   }
   return out
 }

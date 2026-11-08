@@ -22,6 +22,7 @@ import {
   vitestConfigSource,
 } from '../internal/runner-config.ts'
 import {
+  coverageProblems,
   EXCLUSIONS_FILE,
   EXPECTED_CRASH,
   PATH_PLACEHOLDERS,
@@ -49,7 +50,9 @@ const TRANSFORMER_PATH = fileURLToPath(new URL('../jest-transform.ts', import.me
 
 /**
  * The sample's calibration rules: the spike's 3 and `div/runner-made-error-frame`, which Tyler
- * added at B15 (D30 covers all four: no expiry, `--calibration` only).
+ * added at B15 (D30 covers all four: no expiry, `--calibration` only). A deliberate tripwire: a
+ * rule added to or dropped from `exclusions.json` fails the self-test until this number changes
+ * too, so a change to D30's rule set is never made in passing.
  */
 const SAMPLE_RULES = 4
 
@@ -389,32 +392,27 @@ async function provinoCheck(
   command: SelfTestCommand,
   today: string,
   io: CommandIo,
+  run: SampleRunner,
 ): Promise<Check> {
-  const name = 'provino:jest ran the sample and wrote a valid normalized-json'
-  let run: SampleRun
-  try {
-    run = await runSample(fixture, 'provino', command.keepWorkDir, io)
-  } catch (error) {
-    const detail =
-      error instanceof HarnessError ? `${error.code}: ${error.message}` : errorMessage(error)
-    return { name, ok: false, detail }
+  const sample = await tryRun(run, fixture, 'provino', command, io)
+  if (sample instanceof HarnessError) {
+    return { name: PROVINO_CHECK, ok: false, detail: failureText(sample) }
   }
-  const { exitCode, process: proc } = run.result
+  const { exitCode, process: proc } = sample.result
   if (exitCode !== 0 && exitCode !== 1) {
     return {
-      name,
+      name: PROVINO_CHECK,
       ok: false,
       detail: `provino exited ${exitCode ?? proc.signal}. Output tail:\n${proc.output}`,
     }
   }
-  const problems = sampleRunProblems(run.result.run, run.testFiles).filter(
-    // Provino may crash files the reference runs: that is parity, which has no bar yet.
-    (problem) => problem.includes('missing from the run') || problem.includes('not a sample'),
-  )
-  if (problems.length > 0) return check(name, problems)
+  // Provino may crash files the reference runs: that is parity, which has no bar yet. Only a run
+  // that doesn't cover the sample's files fails here.
+  const problems = coverageProblems(sample.result.run, sample.testFiles)
+  if (problems.length > 0) return check(PROVINO_CHECK, problems)
   const report = diffRuns(
     jest,
-    run.result.run,
+    sample.result.run,
     { messageMode: 'exact', compareConsole: true, compareTrace: false, exclusions: [] },
     today,
   )
@@ -422,7 +420,46 @@ async function provinoCheck(
     await mkdir(path.dirname(path.resolve(command.out)), { recursive: true })
     await writeFile(command.out, pretty(report))
   }
-  return { name, ok: true }
+  return { name: PROVINO_CHECK, ok: true }
+}
+
+const PROVINO_CHECK = 'provino:jest ran the sample and wrote a valid normalized-json'
+
+/** A harness error as a FAIL line's detail: its code and message. */
+function failureText(error: HarnessError): string {
+  return `${error.code}: ${error.message}`
+}
+
+/**
+ * Runs the sample under one runner. `selfTestCommand` takes one, so a test can stand in for the
+ * real runners.
+ * @internal
+ */
+export type SampleRunner = (
+  fixture: Fixture,
+  runner: SubjectRunner,
+  keep: boolean,
+  io: CommandIo,
+) => Promise<SampleRun>
+
+/**
+ * A runner's run of the sample: the run, or a harness error (it failed to start, timed out, wrote
+ * no JSON), which becomes that check's FAIL line instead of ending the command. Any other error is
+ * a bug and is thrown.
+ */
+async function tryRun(
+  run: SampleRunner,
+  fixture: Fixture,
+  runner: SubjectRunner,
+  command: SelfTestCommand,
+  io: CommandIo,
+): Promise<SampleRun | HarnessError> {
+  try {
+    return await run(fixture, runner, command.keepWorkDir, io)
+  } catch (error) {
+    if (error instanceof HarnessError) return error
+    throw error
+  }
 }
 
 /**
@@ -430,7 +467,11 @@ async function provinoCheck(
  * Jest-and-Vitest checks, what failed. Exit 0 when every check passes, else 1.
  * @internal
  */
-export async function selfTestCommand(command: SelfTestCommand, io: CommandIo): Promise<number> {
+export async function selfTestCommand(
+  command: SelfTestCommand,
+  io: CommandIo,
+  runSampleWith: SampleRunner = runSample,
+): Promise<number> {
   const today = command.today ?? new Date().toISOString().slice(0, 10)
   const fixture = await readFixture(SAMPLE_DIR)
   const exclusionsPath = path.join(SAMPLE_DIR, EXCLUSIONS_FILE)
@@ -442,10 +483,23 @@ export async function selfTestCommand(command: SelfTestCommand, io: CommandIo): 
   const checks: Check[] = []
   const runs: Partial<Record<'jest' | 'vitest', NormalizedRun>> = {}
   for (const runner of ['jest', 'vitest'] as const) {
-    const sample = await runSample(fixture, runner, command.keepWorkDir, io)
+    const sample = await tryRun(runSampleWith, fixture, runner, command, io)
+    if (sample instanceof HarnessError) {
+      checks.push({
+        name: `${runner} ran the whole sample`,
+        ok: false,
+        detail: failureText(sample),
+      })
+      continue
+    }
     const { run } = sample.result
     runs[runner] = run
-    checks.push(check(`${runner} ran the whole sample`, sampleRunProblems(run, sample.testFiles)))
+    checks.push(
+      check(
+        `${runner} ran the whole sample`,
+        sampleRunProblems(run, sample.testFiles).map((problem) => problem.message),
+      ),
+    )
     if (command.writeRecorded) {
       const recording = recordingOf(runner, sample)
       await writeRecording(runner, recording)
@@ -468,22 +522,21 @@ export async function selfTestCommand(command: SelfTestCommand, io: CommandIo): 
     checks.push(check(`${runner}'s sidecar wrote ${CONSOLE_FILE}`, consoleProblems(runner, run)))
   }
   const { jest, vitest } = runs
-  if (jest === undefined || vitest === undefined) throw new Error('both runs exist by now')
-
-  const report = diffRuns(jest, vitest, { ...CALIBRATED, exclusions }, today)
-  checks.push(
-    check(
-      `calibrated parity is 100% with exactly the ${SAMPLE_RULES} sample rules`,
-      calibrationProblems(
-        report,
-        exclusions.map((rule) => rule.id),
-        { jest, vitest },
-      ),
-    ),
-  )
+  const calibrated = `calibrated parity is 100% with exactly the ${SAMPLE_RULES} sample rules`
+  if (jest === undefined || vitest === undefined) {
+    checks.push({ name: calibrated, ok: false, detail: 'not compared: a runner did not run' })
+  } else {
+    const report = diffRuns(jest, vitest, { ...CALIBRATED, exclusions }, today)
+    const ruleIds = exclusions.map((rule) => rule.id)
+    checks.push(check(calibrated, calibrationProblems(report, ruleIds, { jest, vitest })))
+  }
 
   if (command.candidate === 'provino') {
-    checks.push(await provinoCheck(fixture, jest, command, today, io))
+    checks.push(
+      jest === undefined
+        ? { name: PROVINO_CHECK, ok: false, detail: 'not run: Jest, its reference, did not run' }
+        : await provinoCheck(fixture, jest, command, today, io, runSampleWith),
+    )
   }
 
   for (const result of checks) {
