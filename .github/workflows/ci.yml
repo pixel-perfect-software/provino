@@ -212,6 +212,72 @@ jobs:
           NODE_OPTIONS: --experimental-strip-types
         run: pnpm record:mocking --check
 
+  jest-oracles:
+    name: Jest config reader against real presets (jest-config 30.5)
+    if: ${{ github.event_name == 'push' || !startsWith(github.head_ref, 'task/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history, so the branch can be diffed against main below.
+          fetch-depth: 0
+      # T11.5: ts-jest, React Native, jest-expo, jest-preset-angular and a relative preset, read by
+      # ours and by real jest-config, equal on the 55 keys (B14b). The check installs about 850
+      # packages, and its result depends only on the reader (dialect-jest's `src/node/` and what it
+      # loads: config, resolver, policy, types), the bench command, the pinned presets, the runners'
+      # versions (lockfile, catalog), Node, the root scripts and this workflow. It runs on main, and
+      # on a task branch whose changes against main touch any of those. The same fail-closed scope
+      # as the suites job (B14a moves both into .github/actions/scope/).
+      - id: scope
+        name: Decide whether the oracle check runs
+        run: |
+          set -euo pipefail
+          # Fail closed: it runs unless a diff shows its inputs didn't change.
+          run=true
+          trap 'echo "run=$run" >> "$GITHUB_OUTPUT"' EXIT
+          if [ "$GITHUB_REF" = refs/heads/main ]; then exit 0; fi
+          if ! base=$(git merge-base origin/main HEAD); then
+            echo "No merge base with main; running the oracle check."
+            exit 0
+          fi
+          inputs="^(packages/dialect-jest/(src/node/|oracle/|package\\.json\$)|packages/bench/(src/jest-config/|package\\.json\$)|packages/(config|resolver|policy|types)/(src/|package\\.json\$)|pnpm-lock\\.yaml\$|pnpm-workspace\\.yaml\$|\\.tool-versions\$|package\\.json\$|\\.github/workflows/ci\\.yml\$)"
+          work=$(mktemp -d)
+          # --no-renames lists both paths of a move, so moving a file out of an input counts.
+          if ! git -c core.quotePath=false diff -z --no-renames --name-only "$base" HEAD > "$work/diff"; then
+            echo "Couldn't diff against main; running the oracle check."
+            exit 0
+          fi
+          # grep exits 1 when nothing matches (an answer) and 2 or more on an error (not one).
+          status=0
+          grep -zE "$inputs" "$work/diff" > "$work/changed" || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "Couldn't match the changed files; running the oracle check."
+            exit 0
+          fi
+          if [ -s "$work/changed" ]; then
+            printf 'Oracle inputs changed against main:\n'
+            tr '\0' '\n' < "$work/changed" | sort -u
+          else
+            echo "No oracle inputs changed against main; skipping the oracle check."
+            run=false
+          fi
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          cache: true
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .tool-versions
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        run: pnpm install --frozen-lockfile
+      # The presets are their own pnpm root, pinned by their own lockfile, outside the workspace.
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        run: pnpm --dir packages/dialect-jest/oracle/presets install --frozen-lockfile
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        run: pnpm bench:jest-config presets
+
   corpora:
     name: Resolver and transform corpora (Node ESM agreement, excalidraw)
     if: ${{ github.event_name == 'push' || !startsWith(github.head_ref, 'task/') }}

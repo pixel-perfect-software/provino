@@ -1,6 +1,6 @@
 # @provino/dialect-jest
 
-The Jest 30.5 dialect. B08 built its `expect` part: the `ExpectPolicy` slice and the matcher table. B10 added the `Dialect` value (`jestDialect`, with `jestPolicy`) and the globals (`jestGlobals`). Still to come: the values' ground truth (T1.7/T1.8, B14), the config reader and CLI flags (T11.x), and the full `jest` object and the `@jest/globals` facade (T11.10, B13, B17). Follow `.claude/rules/dialects.md` and `.claude/rules/vendored-upstream.md`.
+The Jest 30.5 dialect. B08 built its `expect` part: the `ExpectPolicy` slice and the matcher table. B10 added the `Dialect` value (`jestDialect`, with `jestPolicy`) and the globals (`jestGlobals`). B14b added the config reader, the `/node` entry (see "The config reader"). Still to come: the values' ground truth (T1.7/T1.8, B14a), the CLI flags (T11.7, B14c), and the full `jest` object and the `@jest/globals` facade (T11.10, B13, B17). Follow `.claude/rules/dialects.md` and `.claude/rules/vendored-upstream.md`.
 
 ## Layout
 
@@ -12,6 +12,27 @@ The Jest 30.5 dialect. B08 built its `expect` part: the `ExpectPolicy` slice and
 | `src/runtime/vendor/jest-expect/` | none | Jest v30.5.2's matcher sources. `UPSTREAM.md` lists every file, its source and every patch. |
 | `src/runtime/globals.ts` | `./runtime` | `jestGlobals(host)`: Jest 30.5's 14 injected globals. `describe`/`it`/`test`/hooks are core's `RuntimeApi`, `fdescribe`/`fit`/`xdescribe`/`xit`/`xtest` its `only`/`skip` modifiers, `expect` the host's. `jest` has `isolateModules`, `isolateModulesAsync` and `resetModules` over `host.registry()` (read at call time: each file has its own registry, and the worker serves a file's async leftovers that file's registry), and, from B13a, `fn`, `spyOn`, `isMockFunction`, `replaceProperty`, `clearAllMocks`, `resetAllMocks` and `restoreAllMocks` over `host.mocks()` and `host.mockPolicy` (also read at call time; `fn(impl)` is `createMockFn(policy, registry, { impl })`, with every falsy `impl` meaning none, as in Jest), and nothing else (`mock`/`doMock`/`unmock`/`requireActual`: B13c; timers: T4.9; `mocked`, `createMockFromModule`, `setTimeout`, `retryTimes`: T11.10). The two isolation calls refuse to nest, in either order, or to overlap on one registry, with Jest 30.5's exact message (`ModuleRegistries.ts` `enterIsolated`, L125-L134): the loader's registry no longer checks, so the facade tracks the registries that are isolating in a `WeakSet` made per `jestGlobals` call (no module-level state; a stuck test blocks only its own file's registry). `JestGlobalsHost` narrows `GlobalsHost` to core's and expect's real types. |
 | `src/runtime/internal/test-support.ts` | none | Spike E's interleaved runner (through core's real runtime) and the worker's boot order |
+
+## The config reader (`./node`, B14b)
+
+`@provino/dialect-jest/node` reads a Jest config as jest-config 30.5.2 does, step for step, quirks included (D7), and `jestNodeDialect` is `jestDialect` plus `configReader`. `.` can't import `/node` (the manifest has `/node` depending on `.`), so the reader lives on that value, not on `jestDialect`.
+
+| File | Rebuilt from (jest-config 30.5.2 unless named) | Role |
+|---|---|---|
+| `find.ts` | `resolveConfigPath.ts` | `findJestConfig(cwd, explicit?)`, `resolveJestConfigPath`: the 7 extensions in Jest's order, then `package.json`'s `jest` key, the upward walk (a `package.json` without `jest` still ends it), Jest's errors |
+| `load.ts`, `docblock.ts` | `readConfigFileAndSetRootDir.ts`, `readInitialOptions`, jest-docblock | `loadJestConfig(source)`, `readJestConfigFile`: JSON with comments, `package.json#jest`, everything else through `@provino/config`'s `importConfigModule` (§6's one loader), function exports awaited, `rootDir` set. TypeScript via Node's stripping; a `@jest-config-loader` docblock (ts-node, esbuild-register, resolved from the config's dir) is honoured, otherwise a file Node can't strip is `JEST_CONFIG_TS_LOADER` with a fix hint (Jest falls back to ts-node: a DIVERGENCES limit) |
+| `preset.ts` | `setupPreset` | relative, `<rootDir>` and package presets (`.json .js .cjs .mjs`), loaded afresh; the merge rules, `deepMerge` = deepmerge 4.3.1 |
+| `normalize.ts` | `normalize.ts`, `index.ts` | `normalizeJestConfig`, `readJestConfig` (`readConfig`), `readJestConfigs` (`readConfigs`), `groupJestOptions`, `jestDefaults`. A key the switch doesn't handle comes out `undefined`, as upstream |
+| `validate.ts`, `valid-config.ts`, `text.ts` | jest-validate, `ValidConfig.ts`, `Deprecated.ts` | warnings as `Diagnostic`s whose text is Jest's `console.warn` (did you mean, global-only in a project, deprecations); type errors throw Jest's text. Tables copied as data in key order |
+| `resolution.ts` | jest-resolve `findNodeModule`, `utils.ts` | `@provino/resolver` with Jest's options (conditions `require node default`, `.js .json .node`, real paths, no `.js`→`.ts` alias), the custom `resolver` module, and `requireResolve`: where Jest's own packages come from (see below) |
+| `glob.ts` | glob 13 + path-scurry | `projects` globs in glob 13's order (a directory newest-first, literal segments unlisted). No glob dependency |
+| `paths.ts` | `utils.ts`, jest-regex-util, jest-util | `<rootDir>` replacement, glob/regex separators, `tryRealpath` |
+| `to-neutral.ts` | ours | `jestProjectToNeutral`: a `NeutralProject` (discovery, setup files, environment, aliases, transforms, policy keys); keys read but not applied warn naming their task (gap 9); non-JSON values are dropped with a warning |
+| `index.ts` | | the entry: `createJestConfigReader(options)`, `jestConfigReader`, `jestNodeDialect`, and every step above |
+
+- **Jest's own packages** (`babel-jest`, `jest-environment-node`, `jest-circus/runner`, `jest-runner`, `@jest/test-sequencer`) resolve with `require.resolve` from jest-config's install, as Jest does. `NormalizeOptions.requireResolve` is that; the default (`projectJestRequireResolve`) finds the project's own Jest from its root (`jest-config`, else `jest` → `jest-cli` → `jest-config`, which works under pnpm). With no Jest, those names stay bare, so a project that dropped Jest still reads; `to-neutral` maps `jest-environment-node` to `node` either way.
+- **Errors** are `JestConfigError` with a `JestConfigErrorCode`; the message is Jest's text where Jest has one (uncoloured).
+- **Tests** (`src/node/*.test.ts`) compare with real jest-config in-process (`internal/test-support.ts`: trees written to `$TMPDIR` as data, `oracleRequireResolve` from jest-config's own location, `comparable` for functions and `RegExp`): `find` 12 trees and the error texts, `load` every format, `normalize` 42 distilled configs plus `readConfigs`, `preset` relative/package/nested presets, `validate` the warning texts, `to-neutral` end to end through `resolveNeutralProject`. Real presets and the sample are `pnpm bench:jest-config presets|sample` (`packages/bench/src/jest-config/`); the pinned presets are in `oracle/presets/` (its own pnpm root), the sample's manifest is `oracle/sample-manifest.json`.
 
 ## The vendor directory
 
