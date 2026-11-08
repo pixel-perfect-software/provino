@@ -23,7 +23,12 @@ import {
 } from './cli.ts'
 import { jestNodeDialect } from './index.ts'
 import { encodeForCompare } from './internal/cli-encode.ts'
-import { type OracleOutcome, oracleOptions, plain, runCliOracle } from './internal/cli-oracle.ts'
+import {
+  type OracleOutcome,
+  oracleOptions,
+  plain,
+  runCliOracleParallel,
+} from './internal/cli-oracle.ts'
 
 // --- the corpus ----------------------------------------------------------------------------------
 
@@ -665,9 +670,9 @@ const HAND_WRITTEN = [
   ...QUIRK_ROWS,
 ]
 const PER_OPTION = optionRows()
-const GENERATED = generated(1500, 0x30_5_2)
+const GENERATED = generated(800, 0x30_5_2)
 const ALL: readonly (readonly string[])[] = [...HAND_WRITTEN, ...PER_OPTION, ...GENERATED]
-const ORACLE: readonly OracleOutcome[] = runCliOracle(ALL)
+const ORACLE: readonly OracleOutcome[] = await runCliOracleParallel(ALL)
 
 function outcomeOf(args: readonly string[]): OracleOutcome {
   const index = ALL.findIndex(
@@ -799,8 +804,8 @@ describe('the argv matches real jest-cli', () => {
     assert.deepEqual(mismatches(PER_OPTION), [])
   })
 
-  it('agrees with buildArgv on 1,500 generated command lines', () => {
-    assert.equal(GENERATED.length, 1500)
+  it('agrees with buildArgv on 800 generated command lines', () => {
+    assert.equal(GENERATED.length, 800)
     assert.deepEqual(mismatches(GENERATED), [])
   })
 

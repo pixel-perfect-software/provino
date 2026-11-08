@@ -13,6 +13,9 @@ const { buildArgv, yargsOptions } = require('jest-cli') as {
   yargsOptions: Record<string, unknown>
 }
 
+/** How long one command line may take; a hung case is reported, not waited for. */
+const CASE_TIMEOUT_MS = 20_000
+
 class ExitSignal extends Error {
   readonly code: number
   constructor(code: number | undefined) {
@@ -58,14 +61,26 @@ async function runOne(args: readonly string[]): Promise<Outcome> {
   process.exit = ((code?: number) => {
     throw new ExitSignal(code)
   }) as typeof process.exit
+  let watchdog: NodeJS.Timeout | undefined
   try {
-    const argv = await buildArgv(args)
+    // A case that never settles must name itself, not stall the whole corpus until the parent's
+    // timeout: the test then fails on that line with this text.
+    const argv = await Promise.race([
+      buildArgv(args),
+      new Promise<never>((_resolve, reject) => {
+        watchdog = setTimeout(
+          () => reject(new Error(`the oracle did not answer within ${CASE_TIMEOUT_MS} ms`)),
+          CASE_TIMEOUT_MS,
+        )
+      }),
+    ])
     const { $0: _program, ...rest } = argv
     outcome.argv = encodeForCompare(rest)
   } catch (error) {
     if (error instanceof ExitSignal) outcome.exit = error.code
     else outcome.threw = error instanceof Error ? error.message : String(error)
   } finally {
+    clearTimeout(watchdog)
     process.exit = realExit
     process.stderr.write = realStderr
     process.stdout.write = realStdout
