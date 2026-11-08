@@ -1,10 +1,23 @@
 // Shared by the hoist engine's tests.
 import assert from 'node:assert/strict'
-import type { HoistPolicy } from '@provino/types'
+import type { HoistPolicy, Pipeline } from '@provino/types'
+import { createPipeline } from '../pipeline.ts'
 import { type HoistOutput, hoistMocks } from './index.ts'
+import { blockPolicy } from './test-policies.ts'
 
 export function hoist(code: string, policy: HoistPolicy): HoistOutput {
   return hoistMocks(code, policy, { filename: 'case.js' })
+}
+
+/** The real pipeline under `blockPolicy`, with no tsconfig to find. */
+export function blockPipeline(): Pipeline {
+  return createPipeline({
+    root: '/virtual',
+    typescript: 'oxc',
+    tsconfig: false,
+    hoist: blockPolicy,
+    cache: false,
+  })
 }
 
 /** Asserts each needle occurs in `code`, in the given order. */

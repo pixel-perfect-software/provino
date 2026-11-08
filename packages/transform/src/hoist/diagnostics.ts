@@ -1,22 +1,7 @@
 // Hoisting violations as diagnostics (not throws): the text comes from the policy, the position
 // and code frame from the code the hoister was given.
 import type { HoistErrorCode, HoistPolicy, TransformDiagnostic } from '@provino/types'
-
-export interface Position {
-  readonly line: number
-  readonly column: number
-}
-
-/** 1-based line and column of a UTF-16 offset, as the pipeline reports positions. */
-export function positionOf(code: string, offset: number): Position {
-  let line = 1
-  let lineStart = 0
-  for (let i = code.indexOf('\n'); i !== -1 && i < offset; i = code.indexOf('\n', i + 1)) {
-    line++
-    lineStart = i + 1
-  }
-  return { line, column: offset - lineStart + 1 }
-}
+import { positionOf } from '../internal/position.ts'
 
 /** A few lines around `offset`, numbered, with a caret under the column. */
 export function codeFrame(code: string, offset: number): string {
@@ -40,17 +25,22 @@ export interface DiagnosticVars {
   readonly name?: string
 }
 
-/** An error diagnostic worded by the policy. */
+/**
+ * An error diagnostic worded by the policy, in the text of `errorCode` unless `text` names another
+ * of the policy's messages. One pass with a replacer: a name like `$$x` is not a replacement
+ * pattern, and a filled-in value is not read again.
+ */
 export function hoistDiagnostic(
   policy: HoistPolicy,
   code: string,
   offset: number,
   errorCode: HoistErrorCode,
   vars: DiagnosticVars,
+  text: keyof HoistPolicy['messages'] = errorCode,
 ): TransformDiagnostic {
-  const message = policy.messages[errorCode]
-    .replaceAll('{call}', vars.call)
-    .replaceAll('{name}', vars.name ?? '')
+  const message = policy.messages[text].replace(/\{(call|name)\}/g, (_, slot: string) =>
+    slot === 'call' ? vars.call : (vars.name ?? ''),
+  )
   return {
     severity: 'error',
     code: errorCode,

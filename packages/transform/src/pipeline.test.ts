@@ -56,11 +56,13 @@ const HOIST: HoistPolicy = {
   },
   runnerModules: ['@jest/globals'],
   reExports: 'in-order',
+  rewrittenCalls: 'detached',
   messages: {
     HOIST_FACTORY_OUT_OF_SCOPE: '{call} factory references {name}',
     HOIST_NOT_TOP_LEVEL: '{call} is not at the top level',
     HOIST_NESTED: '{call} is nested',
     HOIST_EXPORTED: '{call} is exported',
+    HOIST_EXPORTED_VALUE: '{call} is an exported value',
     HOIST_FACTORY_NOT_FUNCTION: '{call} factory is not a function',
   },
 }
@@ -419,6 +421,17 @@ test('cache keys and the fingerprint change with their inputs', () => {
   assert.equal(key('export {}\n'), key('export {}\n'))
   assert.notEqual(key('export {}\n'), key('export const x = 1\n'))
   assert.notEqual(key('export {}\n'), key('export {}\n', 'other.ts'))
+})
+
+test('the cache key follows the role, because hoisting depends on it', () => {
+  const root = writeTree({})
+  const pipeline = createPipeline(options(root, { hoist: HOIST }))
+  const file = join(root, 'role.ts')
+  const source = "jest.mock('./a')\n"
+  const key = (role: TransformRequest['role']) =>
+    pipeline.transform(request(file, source, { role })).cacheKey
+  assert.notEqual(key('test'), key('dependency'))
+  assert.equal(key('test'), key('test'))
 })
 
 test('transformAsync returns what transform does', async () => {

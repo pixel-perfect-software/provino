@@ -20,6 +20,7 @@ import { TransformError } from './errors.ts'
 import { hoistMocks } from './hoist/index.ts'
 import { moduleFacts } from './internal/imports.ts'
 import { composeMaps, toSourceMapV3 } from './internal/maps.ts'
+import { positionOf } from './internal/position.ts'
 import {
   createTsconfigFinder,
   type EmitOptions,
@@ -150,24 +151,13 @@ function jsxOptions(emit: EmitOptions, override: PipelineJsxOptions | undefined)
   }
 }
 
-/** 1-based line and column of a UTF-16 offset. */
-function position(source: string, offset: number): { line: number; column: number } {
-  let line = 1
-  let lineStart = 0
-  for (let i = source.indexOf('\n'); i !== -1 && i < offset; i = source.indexOf('\n', i + 1)) {
-    line++
-    lineStart = i + 1
-  }
-  return { line, column: offset - lineStart + 1 }
-}
-
 function diagnostic(source: string, error: OxcError): TransformDiagnostic {
   const label = error.labels[0]
   return {
     severity: String(error.severity) === 'Error' ? 'error' : 'warning',
     code: 'PARSE_ERROR',
     message: error.message,
-    ...(label === undefined ? {} : { loc: position(source, label.start) }),
+    ...(label === undefined ? {} : { loc: positionOf(source, label.start) }),
     ...(error.codeframe === null ? {} : { codeFrame: error.codeframe }),
   }
 }
@@ -297,6 +287,8 @@ export const createPipeline: CreatePipeline = (options) => {
       .update(filename)
       .update('\0')
       .update(stableJson(oxc))
+      .update('\0')
+      .update(request.role)
       .update(request.instrument ? '\0i\0' : '\0-\0')
       .update(source)
       .digest('hex')

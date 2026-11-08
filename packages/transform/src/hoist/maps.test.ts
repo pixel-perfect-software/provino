@@ -117,10 +117,10 @@ const probes: readonly Probe[] = [
     src: { text: 'y = { x }', delta: 6 },
   },
   {
-    name: 'an export statement with a rewritten specifier',
+    name: 'an export statement whose specifier became a getter',
     policy: blockPolicy,
     source: IMPORTING,
-    gen: { text: 'export { __provino_ref_0__' },
+    gen: { text: 'export {};' },
     src: { text: 'export { x }' },
   },
   {

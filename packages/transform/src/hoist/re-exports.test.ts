@@ -32,7 +32,7 @@ test('re-exports: static leaves every export-from exactly as written', () => {
   assert.ok(result.code.includes("export { q as r } from './q'"))
   assert.ok(result.code.includes("export * from './b'"))
   assert.ok(!result.code.includes('__vite_ssr_exportAll__'))
-  assert.ok(!result.code.includes('__provino_ref_'))
+  assert.ok(!result.code.includes('__vite_ssr_exports__'))
   assertOrder(result.code, "jest.mock('./m')", 'await import("./foo")')
   assert.ok(result.code.includes('use(__provino_import_0__.foo)'))
 })
@@ -48,7 +48,8 @@ test('re-exports: static does not count export-from as an import to rewrite', ()
 
 test('re-exports: static still rewrites export { x } of an imported binding', () => {
   const result = hoist("import { x } from './a'\nexport { x }\nvi.mock('./m')\n", topLevelPolicy)
-  assert.ok(result.code.includes('export { __provino_ref_0__ as x }'))
+  assert.ok(result.code.includes('__vite_ssr_exports__, "x"'))
+  assert.ok(!result.code.includes('export { x }'))
 })
 
 test('re-exports: static output survives the module-runner transform', () => {

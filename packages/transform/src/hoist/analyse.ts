@@ -1,20 +1,23 @@
 // The analysis half of the hoister: find the mock calls the policy hoists, check them against its
 // rules, and note every reference to a static import. It edits nothing; `apply.ts` does.
 //
-// Two walks share one `ScopeTracker`. The first only declares (so a `jest` imported below the call,
+// Two walks share one `HoistScopes`. The first only declares (so a `jest` imported below the call,
 // or a `const` declared after it, still resolves); the second, frozen, answers "what does this
 // name mean here" from inside the walk.
 import type { HoistPolicy, StaticMockCall, TransformDiagnostic } from '@provino/types'
 import {
   getUndeclaredIdentifiersInFunction,
   isReferenceIdentifier,
-  ScopeTracker,
   type ScopeTrackerNode,
+  type ScopeTrackerVariable,
   walk,
 } from 'oxc-walker'
+import { positionCursor } from '../internal/position.ts'
 import {
   bodyOf,
   type CallExpression,
+  type ExportNamedDeclaration,
+  type ExportSpecifier,
   type Expression,
   exportName,
   type FactoryFunction,
@@ -23,15 +26,19 @@ import {
   importArgument,
   isDirective,
   isFactoryFunction,
+  isImportDeclaration,
   isLiteral,
+  isTypeOnly,
   type Node,
   type Program,
+  reassignedNames,
   staticCallee,
   staticSpecifier,
   stringLiteral,
 } from './ast.ts'
-import { type DiagnosticVars, hoistDiagnostic, positionOf } from './diagnostics.ts'
+import { type DiagnosticVars, hoistDiagnostic } from './diagnostics.ts'
 import { isPure } from './purity.ts'
+import { HoistScopes } from './scope.ts'
 
 /** A statement that moves: a call, or a pure `const` a factory reads. */
 export interface Unit {
@@ -45,20 +52,28 @@ export interface Unit {
 
 /** A use of a static import's binding. */
 export interface ImportRef {
-  readonly node: Node
   readonly start: number
   readonly end: number
   readonly shorthand: boolean
   readonly decl: ImportDeclaration
   readonly spec: ImportDeclarationSpecifier
-  /** Set when the use is `export { x }`: the specifier to rewrite. */
-  readonly exportSpecifier: Node | null
+  /** Set when the use is `export { x }`: the specifier and the declaration it sits in. */
+  readonly exported: {
+    readonly specifier: ExportSpecifier
+    readonly declaration: ExportNamedDeclaration
+  } | null
+  /** It is the callee of a call or the tag of a template, so the rewrite decides its `this`. */
+  readonly called: boolean
+  /** It opens a statement in a statement list, so text written before it can join the last line. */
+  readonly opensStatement: boolean
 }
 
+/** A `import(x)` argument to unwrap: everything in `start`-`end` but its `source`. */
 export interface ArgEdit {
   readonly start: number
   readonly end: number
-  readonly text: string
+  readonly sourceStart: number
+  readonly sourceEnd: number
 }
 
 export interface Analysis {
@@ -67,6 +82,10 @@ export interface Analysis {
   readonly diagnostics: readonly TransformDiagnostic[]
   readonly argEdits: readonly ArgEdit[]
   readonly refs: readonly ImportRef[]
+  /** The static imports whose uses move to `__provino_import_N__`: all but the runner's own. */
+  readonly rewritable: ReadonlySet<ImportDeclaration>
+  /** A call named in `rewriteImportArg` is on a mock object, so imports rewrite with no hoist. */
+  readonly rewritesImports: boolean
 }
 
 const IDENTIFIER_CHAR = /[A-Za-z0-9_$]/
@@ -88,6 +107,32 @@ function occursAsIdentifier(text: string, name: string): boolean {
 
 const ORIGINAL_LOADER = /\b(?:import|require)(?:Actual|Original)\b/
 
+/** Statements whose body is one statement, not a list. */
+const SINGLE_STATEMENT_PARENTS: ReadonlySet<string> = new Set([
+  'IfStatement',
+  'LabeledStatement',
+  'ForStatement',
+  'ForInStatement',
+  'ForOfStatement',
+  'WhileStatement',
+  'DoWhileStatement',
+  'WithStatement',
+])
+
+function rewritableImports(program: Program, policy: HoistPolicy): ReadonlySet<ImportDeclaration> {
+  const found = new Set<ImportDeclaration>()
+  for (const node of program.body) {
+    if (
+      isImportDeclaration(node) &&
+      !isTypeOnly(node) &&
+      !policy.runnerModules.includes(node.source.value)
+    ) {
+      found.add(node)
+    }
+  }
+  return found
+}
+
 interface Candidate {
   readonly call: CallExpression
   readonly callText: string
@@ -97,34 +142,50 @@ interface Candidate {
   readonly unit: Unit | null
 }
 
-/**
- * @param rewritable the static imports (not the runner's) whose uses are collected as refs.
- */
 export function analyse(
   code: string,
   program: Program,
   policy: HoistPolicy,
-  rewritable: ReadonlySet<ImportDeclaration>,
   original?: string,
 ): Analysis {
-  const tracker = new ScopeTracker({ preserveExitedScopes: true })
+  const rewritable = rewritableImports(program, policy)
+  const tracker = new HoistScopes()
+  // The names something writes. Most files never ask, and most names aren't here, so which binding
+  // each write reaches is only worked out if a factory reads one of these names.
   const assigned = new Set<string>()
   walk(program, {
     scopeTracker: tracker,
     enter(node) {
-      if (node.type === 'AssignmentExpression' && node.left.type === 'Identifier') {
-        assigned.add(node.left.name)
-      } else if (node.type === 'UpdateExpression' && node.argument.type === 'Identifier') {
-        assigned.add(node.argument.name)
-      } else if (
-        (node.type === 'ForInStatement' || node.type === 'ForOfStatement') &&
-        node.left.type === 'Identifier'
-      ) {
-        assigned.add(node.left.name)
-      }
+      for (const name of reassignedNames(node)) assigned.add(name)
     },
   })
   tracker.freeze()
+
+  let reassignedBindings: ReadonlySet<Node> | null = null
+  /** The declarations something writes to, by the node each was declared with. */
+  function bindingsReassigned(): ReadonlySet<Node> {
+    if (reassignedBindings !== null) return reassignedBindings
+    const scopes = new HoistScopes()
+    walk(program, { scopeTracker: scopes })
+    scopes.freeze()
+    const found = new Set<Node>()
+    walk(program, {
+      scopeTracker: scopes,
+      enter(node) {
+        for (const name of reassignedNames(node)) {
+          const binding = scopes.getDeclaration(name)
+          if (binding !== null) found.add(binding.node)
+        }
+      },
+    })
+    reassignedBindings = found
+    return found
+  }
+
+  const importNames = new Set<string>()
+  for (const declaration of rewritable) {
+    for (const specifier of declaration.specifiers) importNames.add(specifier.local.name)
+  }
 
   const diagnostics: TransformDiagnostic[] = []
   const units: Unit[] = []
@@ -134,6 +195,7 @@ export function analyse(
   const argEdits: ArgEdit[] = []
   const refs: ImportRef[] = []
   const refStarts = new Set<number>()
+  let rewritesImports = false
   const stack: Node[] = []
   const factory = policy.factoryReferences
   const topLevelOnly = policy.placement === 'top-level-only'
@@ -142,8 +204,9 @@ export function analyse(
     errorCode: Parameters<typeof hoistDiagnostic>[3],
     offset: number,
     vars: DiagnosticVars,
+    text?: keyof HoistPolicy['messages'],
   ): void {
-    diagnostics.push(hoistDiagnostic(policy, code, offset, errorCode, vars))
+    diagnostics.push(hoistDiagnostic(policy, code, offset, errorCode, vars, text))
   }
 
   function declarationOf(name: string): ScopeTrackerNode | null {
@@ -162,7 +225,13 @@ export function analyse(
     if (expr.type === 'Identifier') {
       for (const matcher of policy.objects) {
         if (matcher.kind === 'global') {
-          if (matcher.name === expr.name && declarationOf(expr.name) === null) return true
+          if (
+            matcher.name === expr.name &&
+            declarationOf(expr.name) === null &&
+            !tracker.isDeclaredInMergedScope(expr.name)
+          ) {
+            return true
+          }
         } else if (matcher.kind === 'name') {
           if (matcher.name === expr.name) return true
         } else if (matcher.kind === 'import') {
@@ -179,13 +248,13 @@ export function analyse(
       }
       return false
     }
-    if (
-      expr.type === 'MemberExpression' &&
-      !expr.computed &&
-      expr.object.type === 'Identifier' &&
-      expr.property.type === 'Identifier'
-    ) {
-      const property = expr.property.name
+    if (expr.type === 'MemberExpression' && expr.object.type === 'Identifier') {
+      // `G.jest` and `G['jest']` alike, as Babel's `referencesImport` reads them.
+      const property = expr.computed
+        ? stringLiteral(expr.property)
+        : expr.property.type === 'Identifier'
+          ? expr.property.name
+          : null
       for (const matcher of policy.objects) {
         if (matcher.kind !== 'namespace-member' || matcher.exportName !== property) continue
         const found = importOf(expr.object.name)
@@ -204,9 +273,8 @@ export function analyse(
   const purity = {
     isConstantBinding(name: string): boolean {
       const found = declarationOf(name)
-      if (found === null) return false
-      if (found.type === 'Variable' && found.variableNode.kind === 'const') return true
-      return !assigned.has(name)
+      if (found === null || tracker.isRedeclared(found)) return false
+      return !assigned.has(name) || !bindingsReassigned().has(found.node)
     },
     hasBinding(name: string): boolean {
       return declarationOf(name) !== null
@@ -221,8 +289,59 @@ export function analyse(
     return null
   }
 
+  /**
+   * The statement that moves for the expression statement on top of the stack, as Babel's
+   * `getStatementParent` finds it: the nearest one in a list, so `if (c) jest.mock('./a')` moves
+   * whole. It only moves when that list is a block's, so a `switch` case stays.
+   */
+  function statementInBlock(): { stmt: Node; container: Node } | null {
+    for (let i = stack.length - 1; i > 0; i--) {
+      const stmt = stack[i]
+      const parent = stack[i - 1]
+      if (stmt === undefined || parent === undefined) return null
+      if (parent.type === 'Program' || parent.type === 'BlockStatement') {
+        return { stmt, container: parent }
+      }
+      if (!SINGLE_STATEMENT_PARENTS.has(parent.type)) return null
+    }
+    return null
+  }
+
+  /**
+   * Whether a factory may read this variable because it is a pure constant. If it is, its
+   * declaration moves too, unless it declares other names or isn't directly in the current block.
+   */
+  function hoistPureConst(name: string, found: ScopeTrackerVariable): boolean {
+    const declaration = found.variableNode
+    const declarator = declaration.declarations.find(
+      (d) => d.id.start <= found.node.start && found.node.end <= d.id.end,
+    )
+    if (declarator === undefined || declarator.init === null) return false
+    if (!isPure(declarator.init, purity) || !purity.isConstantBinding(name)) return false
+    const container = nearestContainer()
+    // `export const` moves whole, with the export.
+    const stmt =
+      container === null
+        ? undefined
+        : bodyOf(container).find(
+            (node) =>
+              node === declaration ||
+              (node.type === 'ExportNamedDeclaration' && node.declaration === declaration),
+          )
+    if (
+      container !== null &&
+      stmt !== undefined &&
+      declaration.declarations.length === 1 &&
+      !unitStatements.has(stmt)
+    ) {
+      unitStatements.add(stmt)
+      units.push({ stmt, container, kind: 'const', guard: null })
+    }
+    return true
+  }
+
   /** Jest's check that a factory only reads what a hoisted call can safely see. */
-  function checkFactory(call: CallExpression, fn: FactoryFunction, callText: string): boolean {
+  function checkFactory(fn: FactoryFunction, callText: string): boolean {
     if (factory === 'allow') return true
     const scopeKey = tracker.getCurrentScope()
     for (const name of getUndeclaredIdentifiersInFunction(fn)) {
@@ -232,27 +351,15 @@ export function analyse(
       }
       // A name the transform made up is not one the author wrote, so it cannot be out of scope.
       if (original !== undefined && !occursAsIdentifier(original, name)) continue
-      if (found?.type === 'Variable' && found.scope === scopeKey && factory.hoistPureConsts) {
-        const declaration = found.variableNode
-        const declarator = declaration.declarations.find(
-          (d) => d.id.start <= found.node.start && found.node.end <= d.id.end,
-        )
-        if (declarator !== undefined && declarator.init !== null) {
-          if (isPure(declarator.init, purity) && purity.isConstantBinding(name)) {
-            const container = nearestContainer()
-            if (
-              container !== null &&
-              declaration.declarations.length === 1 &&
-              bodyOf(container).includes(declaration) &&
-              !unitStatements.has(declaration)
-            ) {
-              unitStatements.add(declaration)
-              units.push({ stmt: declaration, container, kind: 'const', guard: null })
-            }
-            continue
-          }
-        }
-      } else if (found?.type === 'Import' && found.scope === scopeKey) {
+      if (
+        found?.type === 'Variable' &&
+        found.scope === scopeKey &&
+        factory.hoistPureConsts &&
+        hoistPureConst(name, found)
+      ) {
+        continue
+      }
+      if (found?.type === 'Import' && found.scope === scopeKey) {
         const spec = found.node
         if (
           spec.type === 'ImportSpecifier' &&
@@ -269,7 +376,6 @@ export function analyse(
       report('HOIST_FACTORY_OUT_OF_SCOPE', firstReference(fn, name), { call: callText, name })
       return false
     }
-    void call
     return true
   }
 
@@ -311,7 +417,7 @@ export function analyse(
             report('HOIST_FACTORY_NOT_FUNCTION', args[1]?.start ?? call.start, { call: callText })
             return false
           }
-          return checkFactory(call, fn, callText)
+          return checkFactory(fn, callText)
         }
         return false
       }
@@ -320,8 +426,7 @@ export function analyse(
     }
   }
 
-  function callTextOf(call: CallExpression, method: string, object: Expression): string {
-    void call
+  function callTextOf(method: string, object: Expression): string {
     return `${code.slice(object.start, object.end)}.${method}`
   }
 
@@ -338,7 +443,7 @@ export function analyse(
     }
     // Important, as upstream: the arguments are checked last, and only once we know the call is on
     // the mock object, because checking can report an error.
-    if (!argumentsHoistable(call, callee.method, callTextOf(call, callee.method, callee.object))) {
+    if (!argumentsHoistable(call, callee.method, callTextOf(callee.method, callee.object))) {
       return null
     }
     calls.push(call)
@@ -353,7 +458,7 @@ export function analyse(
   function topLevelCandidate(call: CallExpression, method: string, object: Expression): void {
     const isValue = policy.hoistValues.includes(method)
     if (!isValue && !Object.hasOwn(policy.hoistCalls, method)) return
-    const callText = callTextOf(call, method, object)
+    const callText = callTextOf(method, object)
     if (!isValue && !argumentsHoistable(call, method, callText)) return
 
     // `const x = call`, `const x = await call`: the declaration moves, not the call.
@@ -374,13 +479,18 @@ export function analyse(
         : null
 
     const asDefaultExport =
-      (at(1)?.type === 'ExportDefaultDeclaration' && at(1) !== undefined) ||
+      at(1)?.type === 'ExportDefaultDeclaration' ||
       (at(1)?.type === 'AwaitExpression' && at(2)?.type === 'ExportDefaultDeclaration')
     const exportedDeclaration =
       declared !== null &&
       stack.some((n) => n.type === 'ExportNamedDeclaration' && n.declaration === declared)
     if (asDefaultExport || exportedDeclaration) {
-      report('HOIST_EXPORTED', call.start, { call: callText })
+      report(
+        'HOIST_EXPORTED',
+        call.start,
+        { call: callText },
+        isValue ? 'HOIST_EXPORTED_VALUE' : 'HOIST_EXPORTED',
+      )
       return
     }
 
@@ -411,7 +521,6 @@ export function analyse(
         }
       }
     }
-    if (unit === null) report('HOIST_NOT_TOP_LEVEL', call.start, { call: callText })
     candidates.push({
       call,
       callText,
@@ -422,63 +531,104 @@ export function analyse(
     })
   }
 
-  function rewriteArgument(call: CallExpression, method: string): void {
-    if (!policy.rewriteImportArg.includes(method)) return
+  function rewriteArgument(call: CallExpression): void {
     const first = call.arguments[0]
     const source = importArgument(first)
     if (first === undefined || source === null) return
     argEdits.push({
       start: first.start,
       end: first.end,
-      text: code.slice(source.start, source.end),
+      sourceStart: source.start,
+      sourceEnd: source.end,
     })
   }
 
+  /** Whether the use opens a statement that sits in a list of statements. */
+  function opensStatement(node: Node): boolean {
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const ancestor = stack[i]
+      if (ancestor === undefined || ancestor.start !== node.start) return false
+      if (ancestor.type === 'ExpressionStatement') {
+        const list = stack[i - 1]?.type
+        return (
+          list === 'Program' ||
+          list === 'BlockStatement' ||
+          list === 'StaticBlock' ||
+          list === 'SwitchCase'
+        )
+      }
+    }
+    return false
+  }
+
   function recordReference(node: Node, parent: Node): void {
-    if (node.type !== 'Identifier' || refStarts.has(node.start)) return
-    if (!isReferenceIdentifier(node, parent)) return
-    let exportSpecifier: Node | null = null
+    if (node.type !== 'Identifier' || !importNames.has(node.name)) return
+    if (refStarts.has(node.start) || !isReferenceIdentifier(node, parent)) return
+    let exported: ImportRef['exported'] = null
     if (parent.type === 'ExportSpecifier') {
       const owner = at(2)
       if (owner?.type !== 'ExportNamedDeclaration' || owner.source !== null) return
-      exportSpecifier = parent
+      exported = { specifier: parent, declaration: owner }
     }
-    const found = importOf(node.name)
-    if (found === null || !rewritable.has(found.decl)) return
     refStarts.add(node.start)
+    const found = declarationOf(node.name)
+    if (found?.type !== 'Import' || !rewritable.has(found.importNode)) return
+    const called =
+      (parent.type === 'CallExpression' && parent.callee === node) ||
+      (parent.type === 'TaggedTemplateExpression' && parent.tag === node)
     refs.push({
-      node,
       start: node.start,
       end: node.end,
       shorthand: parent.type === 'Property' && parent.shorthand && parent.value === node,
-      decl: found.decl,
-      spec: found.spec,
-      exportSpecifier,
+      exported,
+      called,
+      opensStatement: called && opensStatement(node),
+      decl: found.importNode,
+      spec: found.node,
     })
+  }
+
+  /** Why `getNodeName` in `hoistMocks.ts` L466-L481 names a call the way it does. */
+  function nameWithArgument(call: CallExpression): string {
+    const callee = staticCallee(call)
+    if (callee === null || callee.object.type !== 'Identifier') return '"hoisted method"'
+    const argument = call.arguments[0]
+    const text =
+      argument?.type === 'Literal' || argument?.type === 'ImportExpression'
+        ? code.slice(argument.start, argument.end)
+        : ''
+    return `${callee.object.name}.${callee.method}(${text})`
   }
 
   walk(program, {
     scopeTracker: tracker,
     enter(node, parent) {
       stack.push(node)
-      if (rewritable.size > 0 && parent !== null && node.type === 'Identifier') {
+      if (parent !== null && node.type === 'Identifier') {
         // The stack top is the node itself, so `at(1)` is its parent and `at(2)` its grandparent.
         recordReference(node, parent)
       }
       if (node.type === 'CallExpression') {
         const callee = staticCallee(node)
         if (callee !== null && isMockObject(callee.object)) {
-          rewriteArgument(node, callee.method)
+          if (policy.rewriteImportArg.includes(callee.method)) {
+            rewritesImports = true
+            rewriteArgument(node)
+          }
           if (topLevelOnly) topLevelCandidate(node, callee.method, callee.object)
         }
       } else if (!topLevelOnly && node.type === 'ExpressionStatement') {
         const expression = node.expression
         if (expression.type !== 'CallExpression' || isDirective(node)) return
         const calls = resolveChain(expression)
-        if (calls !== null && (parent?.type === 'Program' || parent?.type === 'BlockStatement')) {
-          units.push({ stmt: node, container: parent, kind: 'call', guard: null })
-          unitStatements.add(node)
-          mockCalls.push(...calls)
+        const home = calls === null ? null : statementInBlock()
+        if (calls !== null && home !== null) {
+          if (!unitStatements.has(home.stmt)) {
+            units.push({ ...home, kind: 'call', guard: null })
+            unitStatements.add(home.stmt)
+          }
+          // Under an `if` or a label it moves, but whether it runs is only known when that does.
+          if (home.stmt === node) mockCalls.push(...calls)
         }
       }
     },
@@ -487,8 +637,15 @@ export function analyse(
     },
   })
 
-  // Top-level-only placement: nesting, then the units of the calls that passed.
+  // Top-level-only placement: nesting first, as upstream throws it first; then placement; then the
+  // units of the calls that passed.
   if (topLevelOnly) {
+    const reportNested = (inner: Candidate, outer: Candidate): void => {
+      report('HOIST_NESTED', inner.call.start, {
+        call: nameWithArgument(inner.call),
+        name: nameWithArgument(outer.call),
+      })
+    }
     for (let i = 0; i < candidates.length; i++) {
       const a = candidates[i]
       if (a === undefined) continue
@@ -496,10 +653,15 @@ export function analyse(
         const b = candidates[j]
         if (b === undefined) continue
         if (a.moveStart >= b.moveStart && a.moveEnd <= b.moveEnd) {
-          report('HOIST_NESTED', a.call.start, { call: a.callText })
+          reportNested(a, b)
         } else if (b.moveStart >= a.moveStart && b.moveEnd <= a.moveEnd) {
-          report('HOIST_NESTED', b.call.start, { call: b.callText })
+          reportNested(b, a)
         }
+      }
+    }
+    for (const candidate of candidates) {
+      if (candidate.unit === null) {
+        report('HOIST_NOT_TOP_LEVEL', candidate.call.start, { call: candidate.callText })
       }
     }
     for (const candidate of candidates) {
@@ -511,6 +673,7 @@ export function analyse(
   }
 
   const staticMocks: StaticMockCall[] = []
+  const positionAt = positionCursor(code)
   for (const call of mockCalls.toSorted((a, b) => a.start - b.start)) {
     const callee = staticCallee(call)
     const specifier = staticSpecifier(call.arguments[0])
@@ -528,9 +691,9 @@ export function analyse(
         factoryFn !== null &&
         (factoryFn.params.length > 0 ||
           ORIGINAL_LOADER.test(code.slice(factoryFn.start, factoryFn.end))),
-      loc: positionOf(code, call.start),
+      loc: positionAt(call.start),
     })
   }
 
-  return { units, staticMocks, diagnostics, argEdits, refs }
+  return { units, staticMocks, diagnostics, argEdits, refs, rewritable, rewritesImports }
 }

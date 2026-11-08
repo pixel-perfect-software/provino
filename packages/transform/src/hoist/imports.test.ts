@@ -1,4 +1,4 @@
-// The import rewrite (B13b P9), which both policies share: when a call moves to the top of a file
+// The import rewrite (D36), which both policies share: when a call moves to the top of a file
 // with static imports, those imports become `await import()` placed after the hoisted block.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
@@ -44,7 +44,7 @@ test('imports: uses inside functions, classes and typeof are rewritten', () => {
     blockPolicy,
   )
   assert.ok(result.code.includes('class A extends __provino_import_0__.Base {}'))
-  assert.ok(result.code.includes('() => __provino_import_0__.f()'))
+  assert.ok(result.code.includes('() => (0, __provino_import_0__.f)()'))
   assert.ok(result.code.includes('typeof __provino_import_0__.f'))
 })
 
@@ -58,23 +58,26 @@ test('imports: a shadowed name is left alone', () => {
   assert.ok(result.code.includes('use(__provino_import_0__.x)'))
 })
 
-test('imports: export { x } of an imported binding exports a local that holds it', () => {
+test('imports: export { x } of an imported binding is a getter, and leaves the export list', () => {
   const result = hoist(`import { x } from './a'\n${MOCK}export { x }\n`, blockPolicy)
-  assert.ok(result.code.includes('const __provino_ref_0__ = __provino_import_0__.x;'))
-  assert.ok(result.code.includes('export { __provino_ref_0__ as x }'))
+  assert.ok(result.code.includes('__vite_ssr_exports__, "x"'))
+  assert.ok(result.code.includes('get: () => __provino_import_0__.x'))
+  assert.ok(result.code.includes('export {};'))
 })
 
 test('imports: export { x as y } of an imported binding keeps the exported name', () => {
   const result = hoist(`import { x } from './a'\n${MOCK}export { x as y }\n`, blockPolicy)
-  assert.ok(result.code.includes('export { __provino_ref_0__ as y }'))
+  assert.ok(result.code.includes('__vite_ssr_exports__, "y"'))
+  assert.ok(result.code.includes('get: () => __provino_import_0__.x'))
 })
 
-test('imports: a named re-export becomes an import and an export of a local', () => {
+test('imports: a named re-export becomes an import and a getter', () => {
   const result = hoist(`${MOCK}export { q as r } from './q'\n`, blockPolicy)
   assert.equal(result.rewroteImports, true)
   assert.ok(result.code.includes('const __provino_import_0__ = await import("./q");'))
-  assert.ok(result.code.includes('const __provino_ref_0__ = __provino_import_0__.q;'))
-  assert.ok(result.code.includes('export { __provino_ref_0__ as r };'))
+  assert.ok(result.code.includes('__vite_ssr_exports__, "r"'))
+  assert.ok(result.code.includes('get: () => __provino_import_0__.q'))
+  assert.ok(!result.code.includes('from "./q"'))
 })
 
 test('imports: export * as ns becomes an import and an export of the namespace', () => {

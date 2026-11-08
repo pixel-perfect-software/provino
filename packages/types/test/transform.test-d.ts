@@ -47,11 +47,13 @@ const p = defineHoistPolicy({
   factoryReferences: 'allow',
   runnerModules: [],
   reExports: 'static',
+  rewrittenCalls: 'member',
   messages: {
     HOIST_FACTORY_OUT_OF_SCOPE: '',
     HOIST_NOT_TOP_LEVEL: '',
     HOIST_NESTED: '',
     HOIST_EXPORTED: '',
+    HOIST_EXPORTED_VALUE: '',
     HOIST_FACTORY_NOT_FUNCTION: '',
   },
 })

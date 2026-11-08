@@ -1,6 +1,6 @@
 // The editing half of the hoister: move the statements `analyse` chose, and, when something moves
 // to the top of a file that has static imports, turn those imports into `await import()` calls
-// placed after the hoisted block (B13b P9). Moves go through magic-string's `move`, so every moved
+// placed after the hoisted block (D36). Moves go through magic-string's `move`, so every moved
 // statement and rewritten reference keeps its original line and column in the map.
 import type { HoistPolicy, SourceMapV3 } from '@provino/types'
 import MagicString from 'magic-string'
@@ -8,11 +8,13 @@ import { toSourceMapV3 } from '../internal/maps.ts'
 import type { Analysis, ImportRef, Unit } from './analyse.ts'
 import {
   bodyOf,
+  type ExportNamedDeclaration,
   exportName,
   type ImportDeclaration,
   isDirective,
   isImportDeclaration,
   isTypeOnly,
+  type ModuleExportName,
   type Node,
   type Program,
 } from './ast.ts'
@@ -24,26 +26,33 @@ export interface Applied {
 }
 
 const IMPORT_PREFIX = '__provino_import_'
-const REF_PREFIX = '__provino_ref_'
 /** The module-runner form's helper for `export * from` (the loader's wrapper passes it in). */
 const EXPORT_ALL = '__vite_ssr_exportAll__'
+/** The module-runner form's exports object (the loader's wrapper passes it in). */
+const EXPORTS = '__vite_ssr_exports__'
+/** What a line can start with and still continue the line before it, with no `;` between. */
+const CONTINUES = new Set(['[', '(', '`', '+', '-', '/', '<'])
+const LINE_BREAK = /[\n\r\p{Zl}\p{Zp}]/u
 
-/** The static imports whose uses move to `__provino_import_N__`: all but the runner's own. */
-export function rewritableImports(
-  program: Program,
-  policy: HoistPolicy,
-): ReadonlySet<ImportDeclaration> {
-  const found = new Set<ImportDeclaration>()
-  for (const node of program.body) {
-    if (
-      isImportDeclaration(node) &&
-      !isTypeOnly(node) &&
-      !policy.runnerModules.includes(node.source.value)
-    ) {
-      found.add(node)
+/** The offset of the next character that is not whitespace or inside a comment. */
+function skipTrivia(code: string, from: number): number {
+  let at = from
+  while (at < code.length) {
+    const char = code[at] ?? ''
+    if (char === '/' && code[at + 1] === '/') {
+      at += 2
+      while (at < code.length && !LINE_BREAK.test(code[at] ?? '')) at++
+    } else if (char === '/' && code[at + 1] === '*') {
+      const close = code.indexOf('*/', at + 2)
+      if (close === -1) return code.length
+      at = close + 2
+    } else if (/\s/.test(char)) {
+      at++
+    } else {
+      return at
     }
   }
-  return found
+  return at
 }
 
 /** The end of a statement's own line, so a moved statement takes its newline with it. */
@@ -51,10 +60,10 @@ function tailEnd(code: string, end: number): number {
   let at = end
   if (code[at] === '\r') at++
   if (code[at] === '\n') at++
-  return at === end && code[end] === ';' ? end + 1 : at
+  return at
 }
 
-function importExpression(code: string, node: ImportDeclaration | Node): string {
+function importExpression(code: string, node: Node): string {
   const source = 'source' in node && node.source !== null ? node.source : null
   if (source === null || !('value' in source)) throw new Error('an import without a source')
   const attributes = ('attributes' in node ? node.attributes : []).flatMap((attribute) =>
@@ -68,12 +77,25 @@ function importExpression(code: string, node: ImportDeclaration | Node): string 
   return `await import(${JSON.stringify(source.value)}${withClause})`
 }
 
+/** A read of one export of the namespace `id`. */
+function memberOf(id: string, name: ModuleExportName): string {
+  const text = exportName(name)
+  return name.type === 'Literal' ? `${id}[${JSON.stringify(text)}]` : `${id}.${text}`
+}
+
 function bindingFor(ref: ImportRef, id: string): string {
   const spec = ref.spec
   if (spec.type === 'ImportNamespaceSpecifier') return id
   if (spec.type === 'ImportDefaultSpecifier') return `${id}.default`
-  const name = exportName(spec.imported)
-  return spec.imported.type === 'Literal' ? `${id}[${JSON.stringify(name)}]` : `${id}.${name}`
+  return memberOf(id, spec.imported)
+}
+
+/**
+ * The live form of an export of an import. It goes straight before the `await import`, so a read
+ * during a cycle meets the namespace `const` in its dead zone rather than a frozen `undefined`.
+ */
+function liveExport(exported: string, binding: string): string {
+  return `Object.defineProperty(${EXPORTS}, ${JSON.stringify(exported)}, { enumerable: true, configurable: true, get: () => ${binding} });`
 }
 
 export function applyHoist(
@@ -83,10 +105,21 @@ export function applyHoist(
   program: Program,
   analysis: Analysis,
 ): Applied | null {
-  if (analysis.units.length === 0 && analysis.argEdits.length === 0) return null
+  const programUnits = analysis.units.some((unit) => unit.container === program)
+  // `static` leaves every `export … from` as written, as Vitest's `hoistMocks.ts` does.
+  const reexports =
+    policy.reExports === 'static'
+      ? []
+      : program.body.filter(
+          (node) =>
+            (node.type === 'ExportNamedDeclaration' && node.source !== null && !isTypeOnly(node)) ||
+            (node.type === 'ExportAllDeclaration' && !isTypeOnly(node)),
+        )
+  const imports = analysis.rewritable
+  const rewrite =
+    (programUnits || analysis.rewritesImports) && (imports.size > 0 || reexports.length > 0)
+  if (analysis.units.length === 0 && analysis.argEdits.length === 0 && !rewrite) return null
   const s = new MagicString(code)
-
-  for (const edit of analysis.argEdits) s.overwrite(edit.start, edit.end, edit.text)
 
   const groups = new Map<Node, Unit[]>()
   for (const unit of analysis.units) {
@@ -107,79 +140,59 @@ export function applyHoist(
     else list.push(move)
   }
 
-  function moveBefore(move: Move, index: number): void {
-    // Already adjacent to the anchor: nothing to do.
-    if (index >= move.start && index <= move.end) return
-    s.move(move.start, move.end, index)
-  }
-
   /**
-   * Puts the queued statements, in order, ahead of the first statement that stays. An index names
-   * the original position of a chunk that must not itself move, so the anchor is a statement that
-   * stays (or, when everything in the body moves, the last one, with moves on both sides of it).
+   * Puts the queued statements, in order, ahead of the first statement that stays. `move(a, b, i)`
+   * inserts before the chunk that starts at `i`, wherever that chunk is by now, and refuses an `i`
+   * within `[a, b]`. So statements next to each other in both orders become one block, which leaves
+   * no index inside a moved range; and walking from the last block back, each goes before the one
+   * placed after it. A block that already ends at its target is there. With no stayer, the last
+   * block stays and the others go ahead of it.
    */
   function arrange(container: Node, list: readonly Move[]): void {
-    const body = bodyOf(container).filter((node) => !isDirective(node))
+    const blocks: { start: number; end: number }[] = []
+    for (const { start, end } of list) {
+      const previous = blocks.at(-1)
+      if (previous?.end === start) previous.end = end
+      else blocks.push({ start, end })
+    }
     const queued = new Set(list.map((move) => move.node))
-    const at = new Map(body.map((node, i) => [node, i]))
-    // The longest suffix of the queue that is already in place: consecutive in the body, in
-    // order, with nothing but queued statements ahead of it. It stays, and is the anchor.
-    let first = list.length - 1
-    const fits = (i: number): boolean => {
-      const head = list[i]
-      if (head === undefined) return false
-      const index = at.get(head.node) ?? -1
-      if (index < 0 || !body.slice(0, index).every((node) => queued.has(node))) return false
-      for (let j = i + 1; j < list.length; j++) {
-        if (at.get(list[j]?.node as Node) !== index + (j - i)) return false
+    const staying = bodyOf(container).find((node) => !isDirective(node) && !queued.has(node))
+    const last = blocks.at(-1)
+    if (last === undefined) return
+    let target = staying?.start ?? last.start
+    for (const block of blocks.toReversed()) {
+      if (block.end !== target && !(staying === undefined && block === last)) {
+        // The statement before this one now meets whatever came after it.
+        if (CONTINUES.has(code[skipTrivia(code, block.end)] ?? '')) {
+          s.prependRight(block.end, ';')
+        }
+        // And this one now meets whatever it lands after.
+        if (CONTINUES.has(code[block.start] ?? '')) s.prependRight(block.start, ';')
+        s.move(block.start, block.end, target)
       }
-      return true
+      target = block.start
     }
-    while (first >= 0 && fits(first - 1)) first--
-    if (first === list.length - 1 && !fits(first)) first = list.length
-    if (first < list.length) {
-      const anchor = list[first]
-      if (anchor === undefined) return
-      for (const move of list.slice(0, first)) moveBefore(move, anchor.start)
-      return
-    }
-    // Nothing is in place: everything goes ahead of the first statement that stays.
-    const staying = body.find((node) => !queued.has(node))
-    if (staying === undefined) return
-    for (const move of list) moveBefore(move, staying.start)
   }
 
   function placeUnit(unit: Unit): void {
     const { stmt } = unit
-    if (code[stmt.end - 1] !== ';') s.appendLeft(stmt.end, ';')
+    const own = stmt.end
+    if (code[own - 1] !== ';') s.appendLeft(own, ';')
     if (unit.guard !== null) {
       if (stmt.type === 'VariableDeclaration') {
         // `var` keeps the declared names visible outside the `if` block.
         s.update(stmt.start, stmt.start + stmt.kind.length, 'var')
       }
       s.prependRight(stmt.start, `if (${unit.guard}) { `)
-      s.appendLeft(stmt.end, ' }')
+      s.appendLeft(own, ' }')
     }
-    const end = tailEnd(code, stmt.end)
+    const end = tailEnd(code, own)
     if (code[end - 1] !== '\n') s.appendLeft(end, '\n')
     queue(unit.container, stmt, end)
   }
 
-  const programUnits = groups.get(program)
-  // `static` leaves every `export … from` as written, as Vitest's `hoistMocks.ts` does.
-  const reexports =
-    policy.reExports === 'static'
-      ? []
-      : program.body.filter(
-          (node) =>
-            (node.type === 'ExportNamedDeclaration' && node.source !== null && !isTypeOnly(node)) ||
-            (node.type === 'ExportAllDeclaration' && !isTypeOnly(node)),
-        )
-  const imports = rewritableImports(program, policy)
-  const rewrite = programUnits !== undefined && (imports.size > 0 || reexports.length > 0)
-
   // Runner imports stay static and first, ahead of everything that moves.
-  if (programUnits !== undefined) {
+  if (programUnits || rewrite) {
     for (const node of program.body) {
       if (isImportDeclaration(node) && policy.runnerModules.includes(node.source.value)) {
         const end = tailEnd(code, node.end)
@@ -190,16 +203,14 @@ export function applyHoist(
   }
 
   // Constants first, then calls, each in source order: the order Jest gives.
-  for (const [container, units] of groups) {
+  for (const units of groups.values()) {
     const ordered = units.toSorted(
       (a, b) =>
         Number(a.kind === 'call') - Number(b.kind === 'call') || a.stmt.start - b.stmt.start,
     )
-    void container
     for (const unit of ordered) placeUnit(unit)
   }
 
-  let rewroteImports = false
   if (rewrite) {
     const ids = new Map<Node, string>()
     let next = 0
@@ -209,70 +220,75 @@ export function applyHoist(
       }
     }
 
-    // `export { x }` of an imported binding needs a local of its own to export.
-    const exportRefs = new Map<ImportDeclaration, string[]>()
-    let refCount = 0
+    // `export { x }` of an imported binding becomes a getter by that binding's `await import`, and
+    // leaves its export list.
+    const getters = new Map<ImportDeclaration, string[]>()
+    const unexported = new Map<ExportNamedDeclaration, Set<Node>>()
     for (const ref of analysis.refs) {
       const id = ids.get(ref.decl)
       if (id === undefined) continue
       const binding = bindingFor(ref, id)
-      if (ref.exportSpecifier === null) {
-        if (ref.shorthand) s.appendLeft(ref.end, `: ${binding}`)
-        else s.update(ref.start, ref.end, binding)
-        continue
+      if (ref.exported !== null) {
+        const { specifier, declaration } = ref.exported
+        const getter = liveExport(exportName(specifier.exported), binding)
+        const list = getters.get(ref.decl)
+        if (list === undefined) getters.set(ref.decl, [getter])
+        else list.push(getter)
+        const gone = unexported.get(declaration)
+        if (gone === undefined) unexported.set(declaration, new Set([specifier]))
+        else gone.add(specifier)
+      } else if (ref.shorthand) {
+        s.appendLeft(ref.end, `: ${binding}`)
+      } else if (
+        ref.called &&
+        policy.rewrittenCalls === 'detached' &&
+        ref.spec.type !== 'ImportNamespaceSpecifier'
+      ) {
+        s.update(ref.start, ref.end, `${ref.opensStatement ? ';' : ''}(0, ${binding})`)
+      } else {
+        s.update(ref.start, ref.end, binding)
       }
-      const name = `${REF_PREFIX}${refCount++}__`
-      const consts = exportRefs.get(ref.decl)
-      const line = `const ${name} = ${binding};`
-      if (consts === undefined) exportRefs.set(ref.decl, [line])
-      else consts.push(line)
-      const specifier = ref.exportSpecifier
-      const shorthand =
-        specifier.type === 'ExportSpecifier' && specifier.exported.start === specifier.local.start
+    }
+
+    for (const [declaration, gone] of unexported) {
+      const kept = declaration.specifiers
+        .filter((specifier) => !gone.has(specifier))
+        .map((specifier) => code.slice(specifier.start, specifier.end))
       s.update(
-        ref.start,
-        ref.end,
-        shorthand ? `${name} as ${(ref.node as { name: string }).name}` : name,
+        declaration.start,
+        declaration.end,
+        kept.length === 0 ? 'export {};' : `export { ${kept.join(', ')} };`,
       )
     }
 
     for (const node of program.body) {
       const id = ids.get(node)
       if (id === undefined) continue
-      let text = `const ${id} = ${importExpression(code, node)};`
-      if (isImportDeclaration(node)) {
-        text += (exportRefs.get(node) ?? []).join('')
-      } else if (node.type === 'ExportNamedDeclaration') {
-        const names = node.specifiers.map((specifier, i) => {
-          const local = exportName(specifier.local)
-          const binding =
-            specifier.local.type === 'Literal'
-              ? `${id}[${JSON.stringify(local)}]`
-              : `${id}.${local}`
-          const ref = `${REF_PREFIX}${refCount + i}__`
-          return {
-            ref,
-            binding,
-            exported: code.slice(specifier.exported.start, specifier.exported.end),
-          }
-        })
-        refCount += names.length
-        text += names.map((n) => `const ${n.ref} = ${n.binding};`).join('')
-        if (names.length > 0) {
-          text += `export { ${names.map((n) => `${n.ref} as ${n.exported}`).join(', ')} };`
-        }
-      } else if (node.type === 'ExportAllDeclaration' && node.exported !== null) {
-        text += `export { ${id} as ${code.slice(node.exported.start, node.exported.end)} };`
-      } else if (node.type === 'ExportAllDeclaration') {
+      const live: readonly string[] = isImportDeclaration(node)
+        ? (getters.get(node) ?? [])
+        : node.type === 'ExportNamedDeclaration'
+          ? node.specifiers.map((specifier) =>
+              liveExport(exportName(specifier.exported), memberOf(id, specifier.local)),
+            )
+          : []
+      let text = `${live.join('')}const ${id} = ${importExpression(code, node)};`
+      if (node.type === 'ExportAllDeclaration') {
         // `export *` has no dynamic form in ESM. The module-runner form (D10) has one, and its
         // wrapper supplies the helper, so the output is only valid as input to `toModuleRunner`.
-        text += `${EXPORT_ALL}(${id});`
+        text +=
+          node.exported === null
+            ? `${EXPORT_ALL}(${id});`
+            : `export { ${id} as ${code.slice(node.exported.start, node.exported.end)} };`
       }
       const end = tailEnd(code, node.end)
       s.update(node.start, node.end, end === node.end ? `${text}\n` : text)
       queue(program, node, end)
-      rewroteImports = true
     }
+  }
+
+  // After the rewrite, so an unwrapped `import(x)` carries the rewritten `x`.
+  for (const edit of analysis.argEdits) {
+    s.overwrite(edit.start, edit.end, s.slice(edit.sourceStart, edit.sourceEnd))
   }
 
   for (const [container, list] of moves) arrange(container, list)
@@ -282,6 +298,6 @@ export function applyHoist(
     map: toSourceMapV3(
       s.generateMap({ source: filename, hires: 'boundary', includeContent: false }),
     ),
-    rewroteImports,
+    rewroteImports: rewrite,
   }
 }

@@ -8,6 +8,7 @@ const MESSAGES = {
   HOIST_NOT_TOP_LEVEL: '{call} is not at the top level',
   HOIST_NESTED: '{call} is inside another hoisted call',
   HOIST_EXPORTED: 'cannot export the result of {call}',
+  HOIST_EXPORTED_VALUE: 'cannot export hoisted {call}',
   HOIST_FACTORY_NOT_FUNCTION: 'the factory of {call} must be an inline function',
 } as const
 
@@ -49,6 +50,7 @@ export const blockPolicy: HoistPolicy = {
   },
   runnerModules: ['@jest/globals'],
   reExports: 'in-order',
+  rewrittenCalls: 'detached',
   messages: MESSAGES,
 }
 
@@ -68,5 +70,6 @@ export const topLevelPolicy: HoistPolicy = {
   factoryReferences: 'allow',
   runnerModules: ['vitest'],
   reExports: 'static',
+  rewrittenCalls: 'member',
   messages: MESSAGES,
 }

@@ -3,6 +3,8 @@ import type {
   Argument,
   ArrowFunctionExpression,
   CallExpression,
+  ExportNamedDeclaration,
+  ExportSpecifier,
   Expression,
   Function as FunctionExpression,
   ImportDeclaration,
@@ -10,26 +12,22 @@ import type {
   ModuleExportName,
   Node,
   Program,
-  Statement,
 } from 'oxc-parser'
 
 export type {
-  Argument,
-  ArrowFunctionExpression,
   CallExpression,
+  ExportNamedDeclaration,
+  ExportSpecifier,
   Expression,
   ImportDeclaration,
   ImportDeclarationSpecifier,
   ModuleExportName,
   Node,
   Program,
-  Statement,
 }
 
 /** A function expression a factory can be: `() => …` or `function () {…}`. */
 export type FactoryFunction = ArrowFunctionExpression | FunctionExpression
-
-export type { FunctionExpression }
 
 /** The string a string literal holds, or `null` for anything else. */
 export function stringLiteral(node: Node | null | undefined): string | null {
@@ -53,6 +51,8 @@ export function staticCallee(
 ): { readonly object: Expression; readonly method: string } | null {
   const callee = call.callee
   if (callee.type !== 'MemberExpression' || callee.computed) return null
+  // `vi?.mock()` and `vi.mock?.()` may not run at all, so neither real hoister touches them.
+  if (call.optional || callee.optional) return null
   if (callee.property.type !== 'Identifier') return null
   return { object: callee.object, method: callee.property.name }
 }
@@ -94,10 +94,50 @@ export function isDirective(node: Node): boolean {
   return node.type === 'ExpressionStatement' && 'directive' in node && node.directive != null
 }
 
-/** The first statement that is not a directive: where hoisted code goes in a body. */
-export function firstStatementStart(body: readonly (Statement | Node)[]): number {
-  for (const node of body) if (!isDirective(node)) return node.start
-  return body.at(-1)?.end ?? 0
+/** The identifiers a binding pattern or assignment target writes; member targets write none. */
+function targetNames(node: Node | null, into: string[] = []): string[] {
+  switch (node?.type) {
+    case 'Identifier':
+      into.push(node.name)
+      break
+    case 'ArrayPattern':
+      for (const element of node.elements) targetNames(element, into)
+      break
+    case 'ObjectPattern':
+      for (const property of node.properties) {
+        targetNames(property.type === 'Property' ? property.value : property, into)
+      }
+      break
+    case 'AssignmentPattern':
+      targetNames(node.left, into)
+      break
+    case 'RestElement':
+      targetNames(node.argument, into)
+      break
+    default:
+      break
+  }
+  return into
+}
+
+/** The names a statement or expression reassigns, as Babel's `binding.constant` counts them. */
+export function reassignedNames(node: Node): readonly string[] {
+  switch (node.type) {
+    case 'AssignmentExpression':
+      return targetNames(node.left)
+    case 'UpdateExpression':
+      return targetNames(node.argument)
+    case 'ForInStatement':
+    case 'ForOfStatement': {
+      const { left } = node
+      if (left.type !== 'VariableDeclaration') return targetNames(left)
+      // A `var` head writes the function's binding on every turn; `let` and `const` are new ones.
+      if (left.kind !== 'var') return []
+      return left.declarations.flatMap((declarator) => targetNames(declarator.id))
+    }
+    default:
+      return []
+  }
 }
 
 /** The statements directly inside a `Program` or `BlockStatement`. */

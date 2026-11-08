@@ -150,6 +150,7 @@ const messages = {
   HOIST_NOT_TOP_LEVEL: '',
   HOIST_NESTED: '',
   HOIST_EXPORTED: '',
+  HOIST_EXPORTED_VALUE: '',
   HOIST_FACTORY_NOT_FUNCTION: '',
 } as const
 const hoist = defineHoistPolicy({
@@ -164,6 +165,7 @@ const hoist = defineHoistPolicy({
   factoryReferences: 'allow',
   runnerModules: ['vitest'],
   reExports: 'static',
+  rewrittenCalls: 'member',
   messages,
 })
 expectTypeOf(hoist.hoistCalls).toEqualTypeOf<{
@@ -184,6 +186,7 @@ defineHoistPolicy({
   factoryReferences: 'allow',
   runnerModules: [],
   reExports: 'in-order',
+  rewrittenCalls: 'detached',
   messages,
 })
 defineHoistPolicy({
@@ -199,6 +202,7 @@ defineHoistPolicy({
   factoryReferences: 'allow',
   runnerModules: [],
   reExports: 'in-order',
+  rewrittenCalls: 'detached',
   messages,
 })
 defineHoistPolicy({
@@ -214,6 +218,7 @@ defineHoistPolicy({
   factoryReferences: 'allow',
   runnerModules: [],
   reExports: 'in-order',
+  rewrittenCalls: 'detached',
   messages,
 })
 defineHoistPolicy({
@@ -228,6 +233,23 @@ defineHoistPolicy({
   factoryReferences: 'allow',
   runnerModules: [],
   reExports: 'in-order',
+  rewrittenCalls: 'detached',
   // @ts-expect-error every HOIST_* code needs a message
   messages: { HOIST_NESTED: '' },
+})
+defineHoistPolicy({
+  id: 'x',
+  objects: [],
+  hoistCalls: {},
+  hoistValues: [],
+  rewriteImportArg: [],
+  chainable: false,
+  placement: 'enclosing-block',
+  topLevelGuards: [],
+  factoryReferences: 'allow',
+  runnerModules: [],
+  reExports: 'in-order',
+  // @ts-expect-error not a way to call through a rewritten import
+  rewrittenCalls: 'bound',
+  messages,
 })

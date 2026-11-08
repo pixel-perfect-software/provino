@@ -41,7 +41,28 @@ test('the factory rule allows mock-prefixed names in any case and coverage names
   }
 })
 
-test('the allow list is data: sorted as the plugin sorts it, with the plugin own names', () => {
+test('the allow list follows the running Node, as the plugin computes it when it loads', async () => {
+  const name = '__provino_new_global__'
+  Reflect.set(globalThis, name, 1)
+  try {
+    // A second instance of the module, so it loads with the extra global in place.
+    const fresh: typeof import('./hoist-policy.ts') = await import(
+      new URL('./hoist-policy.ts?with-a-new-global', import.meta.url).href
+    )
+    const rule = fresh.jestHoistPolicy.factoryReferences
+    assert.notEqual(rule, 'allow')
+    if (rule === 'allow') return
+    assert.ok(rule.allowGlobals.has(name), 'a global the running Node has')
+    assert.match(fresh.jestHoistPolicy.messages.HOIST_FACTORY_OUT_OF_SCOPE, new RegExp(name))
+    for (const fixed of ['Generator', 'InternalError', 'jest', 'expect', 'require', '__dirname']) {
+      assert.ok(rule.allowGlobals.has(fixed), `the plugin's own ${fixed}`)
+    }
+  } finally {
+    Reflect.deleteProperty(globalThis, name)
+  }
+})
+
+test('the allow list is sorted as the plugin sorts it, with the plugin own names', () => {
   const rule = jestHoistPolicy.factoryReferences
   assert.notEqual(rule, 'allow')
   if (rule === 'allow') return

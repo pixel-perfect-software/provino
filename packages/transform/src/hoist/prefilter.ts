@@ -1,8 +1,12 @@
-// The cheap check before any parse (Track 3 F4, B13b Gap 2): `\b(?:names)\s*\(` over every name the
-// policy hoists, reads or rewrites. A hit in a comment or string just costs a parse.
+// The cheap check before any parse (Track 3 F4, B13b Gap 2): over every name the policy hoists, reads
+// or rewrites, followed by `(` with only whitespace and comments between, or any `\u`, because an
+// identifier can spell a name with an escape. A hit in a comment or string just costs a parse.
 import type { HoistPolicy } from '@provino/types'
 
 const cache = new WeakMap<HoistPolicy, RegExp | null>()
+
+/** Whitespace, a line comment or a block comment, each matched one way so nothing backtracks. */
+const GAP = String.raw`(?:\s|//[^\n\r]*|/\*[^*]*\*+(?:[^/*][^*]*\*+)*/)*`
 
 function escapeRegex(name: string): string {
   return name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -18,7 +22,9 @@ export function prefilterFor(policy: HoistPolicy): RegExp | null {
     ...policy.rewriteImportArg,
   ])
   const regex =
-    names.size === 0 ? null : new RegExp(`\\b(?:${[...names].map(escapeRegex).join('|')})\\s*\\(`)
+    names.size === 0
+      ? null
+      : new RegExp(`\\b(?:${[...names].map(escapeRegex).join('|')})${GAP}\\(|\\\\u`)
   cache.set(policy, regex)
   return regex
 }

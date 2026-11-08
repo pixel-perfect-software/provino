@@ -25,11 +25,13 @@ test('defineHoistPolicy returns the policy it is given', () => {
     factoryReferences: 'allow',
     runnerModules: [],
     reExports: 'in-order',
+    rewrittenCalls: 'detached',
     messages: {
       HOIST_FACTORY_OUT_OF_SCOPE: 'a',
       HOIST_NOT_TOP_LEVEL: 'b',
       HOIST_NESTED: 'c',
       HOIST_EXPORTED: 'd',
+      HOIST_EXPORTED_VALUE: 'f',
       HOIST_FACTORY_NOT_FUNCTION: 'e',
     },
   }

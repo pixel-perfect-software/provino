@@ -2,7 +2,7 @@
 // It never names a runner. `hoistMocks` is pure: it reads nothing but its arguments.
 import type { HoistPolicy, SourceMapV3, StaticMockCall, TransformDiagnostic } from '@provino/types'
 import { analyse } from './analyse.ts'
-import { applyHoist, rewritableImports } from './apply.ts'
+import { applyHoist } from './apply.ts'
 import { parseForHoist } from './parse.ts'
 import { prefilterFor } from './prefilter.ts'
 
@@ -34,14 +34,14 @@ export interface HoistOutput {
   readonly staticMocks: readonly StaticMockCall[]
   /** Hoisting violations (`HOIST_*`), which fail the file as a real runner's transform would. */
   readonly diagnostics: readonly TransformDiagnostic[]
-  /** Whether static imports became `await import()` (P9), so the code has top-level await. */
+  /** Whether static imports became `await import()` (D36), so the code has top-level await. */
   readonly rewroteImports: boolean
 }
 
 /**
  * Hoists mock calls in `code` under `policy`. A pure function: it reads nothing but its arguments.
- * `code` is JavaScript (the pipeline's stripped output). On any error the code comes back
- * unchanged, with the errors as diagnostics.
+ * `code` is JavaScript (the pipeline's stripped output). On any error, including a failure of the
+ * step itself, the code comes back unchanged, with the errors as diagnostics: it never throws.
  * @public
  */
 export function hoistMocks(code: string, policy: HoistPolicy, options: HoistOptions): HoistOutput {
@@ -52,29 +52,37 @@ export function hoistMocks(code: string, policy: HoistPolicy, options: HoistOpti
     diagnostics: [],
     rewroteImports: false,
   }
-  const prefilter = prefilterFor(policy)
-  if (prefilter === null || !prefilter.test(code)) return unchanged
+  try {
+    const prefilter = prefilterFor(policy)
+    if (prefilter === null || !prefilter.test(code)) return unchanged
 
-  const parsed = parseForHoist(options.filename, code)
-  if (!parsed.ok) return { ...unchanged, diagnostics: parsed.diagnostics }
+    const parsed = parseForHoist(options.filename, code)
+    if (!parsed.ok) return { ...unchanged, diagnostics: parsed.diagnostics }
 
-  const { program } = parsed
-  const analysis = analyse(
-    code,
-    program,
-    policy,
-    rewritableImports(program, policy),
-    options.original,
-  )
-  if (analysis.diagnostics.length > 0) return { ...unchanged, diagnostics: analysis.diagnostics }
+    const { program } = parsed
+    const analysis = analyse(code, program, policy, options.original)
+    if (analysis.diagnostics.length > 0) return { ...unchanged, diagnostics: analysis.diagnostics }
 
-  const applied = applyHoist(code, options.filename, policy, program, analysis)
-  if (applied === null) return unchanged
-  return {
-    code: applied.code,
-    map: applied.map,
-    staticMocks: analysis.staticMocks,
-    diagnostics: [],
-    rewroteImports: applied.rewroteImports,
+    const applied = applyHoist(code, options.filename, policy, program, analysis)
+    if (applied === null) return unchanged
+    return {
+      code: applied.code,
+      map: applied.map,
+      staticMocks: analysis.staticMocks,
+      diagnostics: [],
+      rewroteImports: applied.rewroteImports,
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    return {
+      ...unchanged,
+      diagnostics: [
+        {
+          severity: 'error',
+          code: 'TRANSFORMER_FAILED',
+          message: `Hoisting mocks in ${options.filename} failed: ${reason}`,
+        },
+      ],
+    }
   }
 }

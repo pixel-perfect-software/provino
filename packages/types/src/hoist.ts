@@ -55,7 +55,10 @@ export interface HoistPolicy<Calls extends string = string, Values extends strin
   readonly hoistCalls: { readonly [M in Calls]: HoistArgRule }
   /** `['hoisted']` for Vitest, `[]` for Jest. */
   readonly hoistValues: readonly Values[]
-  /** Calls whose `import('./x')` argument is rewritten to `'./x'`. */
+  /**
+   * Calls whose `import('./x')` argument is rewritten to `'./x'`. Any of them on a mock object also
+   * makes the file's imports `await import()`, even if nothing hoists (Vitest's `hasMockApiCall`).
+   */
   readonly rewriteImportArg: readonly string[]
   /** Whether calls chain (`jest.mock(a).mock(b)`). */
   readonly chainable: boolean
@@ -74,8 +77,20 @@ export interface HoistPolicy<Calls extends string = string, Values extends strin
    */
   readonly reExports: 'in-order' | 'static'
   /**
+   * The `this` a call through a rewritten import gets, when the import was a named or default
+   * binding: `f()` and `` f`x` ``. `'detached'` writes `(0, ns.f)()`, so `this` is `undefined`, as
+   * Babel's CJS step does. `'member'` writes `ns.f()`, so `this` is the namespace, as Vitest's
+   * `hoistMocks.ts` does.
+   */
+  readonly rewrittenCalls: 'detached' | 'member'
+  /**
    * The text of each violation, copied exactly from the upstream the dialect mirrors. `{call}` is
    * the call as written (`jest.mock`) and `{name}` the offending identifier, where one exists.
+   * `HOIST_NESTED` is the exception: there `{call}` is the inner call and `{name}` the outer one,
+   * each with its argument (`vi.mock('./a')`). `HOIST_EXPORTED_VALUE` is `HOIST_EXPORTED`'s text
+   * when what was exported is one of `hoistValues` rather than a call that returns nothing.
    */
-  readonly messages: { readonly [Code in HoistErrorCode]: string }
+  readonly messages: { readonly [Code in HoistErrorCode]: string } & {
+    readonly HOIST_EXPORTED_VALUE: string
+  }
 }
