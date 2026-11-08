@@ -14,14 +14,14 @@ inputs:
     required: true
   exclude:
     description: >-
-      Paths among the inputs that don't count (unit tests beside source a run never loads).
-      Empty: none.
+      Paths among the inputs that do not count (unit tests beside source a run never loads),
+      or empty for none.
     required: false
-    default: ''
+    default: ""
   keep:
-    description: Paths that count even when `exclude` matches them. Empty: none.
+    description: Paths that count even when `exclude` matches them; empty for none.
     required: false
-    default: ''
+    default: ""
 outputs:
   run:
     description: "'true' unless a diff against main showed that no input changed."

@@ -139,7 +139,7 @@ jobs:
           label: the suite checks
           include: '^(packages/bench/|packages/harness/src/|packages/[^/]+/(src/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
           exclude: '^packages/[^/]+/src/.*\.test(-d)?\.ts$'
-          keep: '^packages/(bench|harness)/'
+          keep: "^packages/(bench|harness)/"
       # What `record --check` reads (B14a): the recorder and every fixture, the runners' versions,
       # Node and the root scripts. A dialect's values aren't one: `policy-truth.test.ts` holds them
       # to the committed goldens in `pnpm test`.
