@@ -382,6 +382,8 @@ export function createRuntimeRunner(): WorkerRunner {
         instance = await setUpEnvironment(worker, context)
         // The rest go on after `setupFiles` (`importFile`). Under `none` the environment, and so
         // the late globals of the file before, persist: a later file's `setupFiles` sees them.
+        // Deliberate: Jest has no `none` to match, and the tier keeps everything (runtime.test.ts
+        // pins it).
         if (globals !== undefined) installGlobals(instance.global, globals.before)
         worker.source.startFile(job.file)
         // The coordinator's id for the file (D23), so every event carries the id it expects.

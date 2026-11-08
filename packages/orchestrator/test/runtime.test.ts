@@ -122,6 +122,40 @@ describe('setup order', () => {
     )
     assert.deepEqual(states(run.events), { one: 'pass' })
   })
+
+  // Deliberate: `none` keeps the environment, and so the late globals, for the next file. Jest has
+  // no `none` to match, and removing them per file would cost the tier its point.
+  it('under none, a later file`s setupFiles see the late globals an earlier file installed', async () => {
+    const p = await project({
+      'setup.js': "__trace.push('setupFiles: test is ' + typeof test)",
+      'a.test.js': "test('a', () => {})",
+      'b.test.js': "test('b', () => {})",
+    })
+    const base = runtimeConfig(p.dir, { setupFiles: [p.path('setup.js')] })
+    const config = runtimeConfig(p.dir, {
+      setupFiles: [p.path('setup.js')],
+      policy: {
+        ...base.policy,
+        core: { ...base.policy.core, globalsBeforeSetupFiles: ['expect'] },
+      },
+    })
+    const jobs = ['a', 'b'].map((name) => runtimeJob(config, p.path(`${name}.test.js`)))
+    const traceOf = async (isolation: 'none' | 'registry'): Promise<string[]> => {
+      const trace: string[] = []
+      const run = await runJobs({ config, isolation, trace, jobs })
+      assert.deepEqual(states(run.events), { a: 'pass', b: 'pass' })
+      return trace.filter((line) => line.startsWith('setupFiles:'))
+    }
+    assert.deepEqual(await traceOf('none'), [
+      'setupFiles: test is undefined',
+      'setupFiles: test is function',
+    ])
+    // Under registry each file has its own environment, so neither file's setupFiles sees `test`.
+    assert.deepEqual(await traceOf('registry'), [
+      'setupFiles: test is undefined',
+      'setupFiles: test is undefined',
+    ])
+  })
 })
 
 describe('the file id (D23)', () => {
