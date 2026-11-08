@@ -5,7 +5,6 @@
 // status. The bar is every case except the declared divergences below, each pinned to the exact
 // line the engine may give, which fail the check the day they stop differing or differ otherwise.
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, test } from 'node:test'
 import {
@@ -15,8 +14,17 @@ import {
   readFixture,
   testFilesFor,
 } from './fixture.ts'
-import { type Golden, goldenPath } from './golden.ts'
-import { compareObservations, sameOrder } from './mock-corpus/compare.ts'
+import { readGolden } from './golden.ts'
+import {
+  assertFileOutcome,
+  assertTestsMatchGolden,
+  compareObservations,
+  type Declared,
+  declaredProblems,
+  isModFixture,
+  sameOrder,
+  unseenDeclared,
+} from './mock-corpus/compare.ts'
 import { mockPolicyFor } from './mock-corpus/profiles.ts'
 import { runMockFile } from './mock-corpus/run-mock.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
@@ -27,15 +35,6 @@ import { pairLabel } from './test-support.ts'
  * it yet, so it is not counted.
  */
 const UNCOUNTED = new Set(['mocking/api-surface'])
-
-/**
- * A declared divergence: the DIVERGENCES row, and the exact line the run may give for the case. A
- * run line other than this one fails, so a declared case cannot hide a different bug.
- */
-interface Declared {
-  readonly divergence: string
-  readonly line: string
-}
 
 /**
  * The cases whose observation differs from the golden, by `fixture (profile) case`. The check fails
@@ -70,14 +69,6 @@ const EXPECTED_COUNTED: Readonly<Partial<Record<FixtureProfile, number>>> = {
   vitest: 111,
 }
 
-/**
- * The `mod-*` fixtures mock modules, which this check's `jest`/`vi` (no loader) cannot; B13b's
- * `mod-corpus.test.ts` runs them through the fake loader and counts them there.
- */
-function isModFixture(id: string): boolean {
-  return path.posix.basename(id).startsWith('mod-')
-}
-
 const root = path.join(defaultFixturesRoot(), 'mocking')
 const dirs = await findFixtures(root)
 const fixtures = (await Promise.all(dirs.map((dir) => readFixture(dir)))).filter(
@@ -92,9 +83,7 @@ for (const fixture of fixtures) {
     for (const profile of fixture.manifest.runners) {
       test(profile, async () => {
         const label = pairLabel(fixture, profile)
-        const golden = JSON.parse(
-          await readFile(goldenPath(fixture.dir, profile), 'utf8'),
-        ) as Golden
+        const golden = await readGolden(fixture.dir, profile)
         const files = testFilesFor(fixture.files, profile)
         const [testFile] = files
         assert.ok(testFile !== undefined && files.length === 1, 'one test file per profile')
@@ -122,15 +111,8 @@ for (const fixture of fixtures) {
             'tests that did not pass',
           )
         } else {
-          assert.deepEqual(
-            run.tests.map((t) => ({ path: t.path, dupIndex: t.dupIndex, status: t.status })),
-            goldenFile.tests.map((t) => ({
-              path: t.id.path,
-              dupIndex: t.id.dupIndex,
-              status: t.status,
-            })),
-            'tests: title path, dupIndex and status',
-          )
+          assertTestsMatchGolden(run, goldenFile)
+          assertFileOutcome(run, goldenFile)
         }
 
         const wanted = golden.trace ?? []
@@ -138,34 +120,14 @@ for (const fixture of fixtures) {
         assert.ok(results.length > 0, 'the fixture observed at least one case')
         assert.ok(sameOrder(wanted, run.trace), 'the cases were observed in the golden order')
         counted[profile] = (counted[profile] ?? 0) + results.length
-        const problems: string[] = []
-        for (const result of results) {
-          const key = `${label} ${result.id}`
-          seen.add(key)
-          const declared = DECLARED[key]
-          if (declared === undefined) {
-            if (!result.matches) {
-              problems.push(
-                `${key} differs and is not declared\n  want ${result.want}\n  got  ${result.got}`,
-              )
-            }
-          } else if (result.matches) {
-            problems.push(`${key} is declared (${declared.divergence}) and now matches the golden`)
-          } else if (result.got !== declared.line) {
-            problems.push(
-              `${key} is declared (${declared.divergence}) but gave another line\n  pinned ${declared.line}\n  got    ${result.got}`,
-            )
-          }
-        }
-        assert.deepEqual(problems, [])
+        assert.deepEqual(declaredProblems(label, results, DECLARED, seen), [])
       })
     }
   })
 }
 
 test('every declared case is a case of the corpus', () => {
-  const unknown = Object.keys(DECLARED).filter((key) => !seen.has(key))
-  assert.deepEqual(unknown, [])
+  assert.deepEqual(unseenDeclared(DECLARED, seen), [])
 })
 
 test('the corpus is counted: api-surface is not, and the totals are the corpus', () => {

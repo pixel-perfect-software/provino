@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import type {
   ConsoleEntry,
@@ -179,4 +180,13 @@ export function serializeGolden(golden: Golden): string {
  */
 export function goldenPath(fixtureDir: string, profile: FixtureProfile): string {
   return path.join(fixtureDir, GOLDENS_DIR, `${profile}.json`)
+}
+
+/**
+ * The recorded golden of a fixture for a profile. The file is the recorder's own output and the
+ * corpus checks are its readers; a malformed one fails the check that reads it.
+ * @internal
+ */
+export async function readGolden(fixtureDir: string, profile: FixtureProfile): Promise<Golden> {
+  return JSON.parse(await readFile(goldenPath(fixtureDir, profile), 'utf8')) as Golden
 }

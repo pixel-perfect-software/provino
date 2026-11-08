@@ -1,0 +1,5 @@
+{
+  "description": "A root __mocks__/fs.ts for the built-in fs: used for `node:fs` and `fs` after a mock call by either spelling, and never without one.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

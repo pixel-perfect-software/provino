@@ -1,62 +1,109 @@
-// B13b's hoist check (T3.4): our `hoistMocks` against the real, pinned hoisters on every upstream
-// case. Jest's is `babel-plugin-jest-hoist` 30.5.0 through `@babel/core`; Vitest's is
-// `hoistMocks` from `@vitest/mocker` 5.0.5, parsed with oxc. The inputs are in `vendor/*.json`
-// (`pnpm hoist:extract` copies them from the pinned `.refs/` clones, which CI doesn't have).
+// B13b's hoist check (T3.4): our `hoistMocks` against the real, pinned hoisters. Jest's is
+// `babel-plugin-jest-hoist` 30.5.0 through `@babel/core`; Vitest's is `hoistMocks` from
+// `@vitest/mocker` 5.0.5, parsed with oxc. T3.4's acceptance is this check (non-negotiable 6), so it
+// has to fail on a wrong engine, and the tests at the bottom show it does.
+//
+// The inputs:
+// - `vendor/*.json`: every upstream case (`pnpm hoist:extract` copies them from the pinned `.refs/`
+//   clones, which CI doesn't have).
+// - `hoist-corpus/inputs.ts`: Provino's own, so every policy key has inputs a flip of it fails.
+// - `hoist-corpus/generate.ts`: seeded statement layouts, for the orderings nobody thought of.
 //
 // Each real hoister reads what it reads in a real run. Jest's plugin sees the file as written,
-// because Babel hoists before it lowers JSX or TypeScript: types through a parser plugin, and JSX
-// through `@babel/preset-react`, as upstream's own test runs it. Vitest's plugin sees the
-// transform's output, as ours does, and ours also gets the original source, so a name the transform
-// generated (`_jsxDEV`) never counts as out of scope.
+// because Babel hoists before it lowers JSX or TypeScript. Vitest's plugin sees the transform's
+// output, as ours does, and ours also gets the original source, so a name the transform generated
+// (`_jsxDEV`) never counts as out of scope.
 //
-// What is compared is what build-plan §1 T3.4 asks for: error or no error, and the hoisted order
-// (`hoist-corpus/order.ts`). Exact output, messages and Vitest's injected `API_NOT_FOUND` guard
-// are not compared.
+// What is compared on every case, in this order (`hoist-corpus/check.ts`):
+// 1. The error. Each real message maps to a `HOIST_*` code, and the codes must match: two different
+//    errors don't agree. A real message with no mapping fails the case.
+// 2. The hoisted order (`hoist-corpus/order.ts`): the calls, loads and consts a hoisted call reads, by
+//    block. Ours is read outside the `try`, so output that doesn't parse fails rather than "errors".
+// 3. `staticMocks`, against `onStaticMock` under Vitest. Jest has no real list, so its expected list
+//    is read from the hoisted calls in the real output.
+// 4. A run (`hoist-corpus/run-recorded.ts`). `orderOf` can't see a lost binding, so each output goes
+//    through its real next step (Babel's CommonJS plugin for Jest, the module-runner form for ours
+//    and for Vitest) and runs against recording stubs. The logs must match: mock calls and their
+//    arguments, module loads, property reads, `this`, exported values (read twice, so a frozen export
+//    shows), factories (run at the load that needs them, so a TDZ shows) and callbacks.
+//
+// Not compared: the exact output, the messages' text, `loc`, and Vitest's injected `API_NOT_FOUND`
+// guard. An allowance is named per case: `SKIPPED`, `REAL_HOISTER_QUIRKS`, and `VITEST_OUTPUT_BROKEN`
+// in `check.ts`, where real Vitest's output isn't a program, so only the run is left out. Each has
+// a test that fails when the allowance is no longer needed.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { jestHoistPolicy } from '@provino/dialect-jest'
-import { createPipeline, type HoistOutput, hoistMocks } from '@provino/transform'
+import { hoistMocks } from '@provino/transform'
 import type { HoistPolicy } from '@provino/types'
-import { hoistMocks as hoistMockAndResolve } from '@vitest/mocker/node'
-import { parseSync } from 'oxc-parser'
 import {
-  formatOrder,
-  type HoistOrder,
-  type OrderOptions,
-  orderOf,
-  sameOrder,
-} from './hoist-corpus/order.ts'
+  codeOfRealError,
+  type HoistCase,
+  type Hoister,
+  plainCase,
+  problem,
+  referenceOutcome,
+  runOurs,
+  VITEST_OUTPUT_BROKEN,
+} from './hoist-corpus/check.ts'
+import { generateLayouts } from './hoist-corpus/generate.ts'
+import { JEST_INPUTS, VITEST_INPUTS } from './hoist-corpus/inputs.ts'
+import type { RunnerName } from './hoist-corpus/run-recorded.ts'
+import { isRecord, prop } from './internal/guards.ts'
 import { vitestHoistPolicy } from './mock-corpus/profiles.ts'
 
-/** The pinned case counts: a shrinking (or growing) extraction fails until someone says why. */
-const EXPECTED_COUNTS = { jest: 12, vitest: 96 } as const
+/** The pinned case counts: a shrinking (or growing) corpus fails until someone says why. */
+const EXPECTED_COUNTS = {
+  vendored: { jest: 12, vitest: 96 },
+  authored: { jest: 189, vitest: 116 },
+  generated: { jest: 3000, vitest: 3000 },
+} as const
+
+/** Fixed, so a failure names a case that reproduces. */
+const SEEDS = { jest: 20261106, vitest: 20261107 } as const
 
 /**
  * Cases skipped, by `<runner>: <name>`, each with the reason. A case belongs here only if it is
- * truly outside `HoistPolicy`. Empty today, and it should stay that way.
+ * truly outside `HoistPolicy`.
  */
-const SKIPPED: Readonly<Record<string, string>> = {}
-
-interface UpstreamCase {
-  readonly name: string
-  readonly code: string
-  readonly filename: string
-  readonly jsx: 'automatic' | undefined
+const SKIPPED: Readonly<Record<string, string>> = {
+  'vitest: object: a comment before the call parens':
+    "Vitest's `regexpHoistable` needs `(` right after the name, so this file skips its hoister and the mock never applies. That is its prefilter's blind spot, which no policy key describes; ours hoists it (D7).",
 }
 
-function readCases(file: string): readonly UpstreamCase[] {
+/**
+ * Log lines left out of one case's comparison, each for a named defect or quirk in the real hoister.
+ * Every other part of the case (error, order, `staticMocks`, the rest of the log) is still compared.
+ */
+const REAL_HOISTER_QUIRKS: Readonly<
+  Record<string, { readonly reason: string; readonly ignoreLog: RegExp }>
+> = {
+  'jest: const: an exported const moves': {
+    reason:
+      'The plugin moves the declaration out of `export const a = 1` after Babel has noted the export, so `exports.a` stays `undefined`. Ours exports 1 (D7).',
+    ignoreLog: /^export (?:first|live) a = /,
+  },
+  'jest: const: an exported const stays exported': {
+    reason: 'The same `export const` defect as "an exported const moves".',
+    ignoreLog: /^export (?:first|live) a = /,
+  },
+  'vitest: transform > should declare variable for imported super class #2': {
+    reason:
+      "For a class declaration Vitest copies an imported superclass into a `const` once (`info.classDeclaration`); ours reads it at each `extends`. The class definition is the only reader, so it's the same value.",
+    ignoreLog: /^read \.\/dependency\.Foo$/,
+  },
+}
+
+function readCases(file: string): readonly HoistCase[] {
   const parsed: unknown = JSON.parse(
     readFileSync(fileURLToPath(new URL(`hoist-corpus/vendor/${file}`, import.meta.url)), 'utf8'),
   )
-  const cases: unknown =
-    typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'cases') : null
+  const cases: unknown = isRecord(parsed) ? prop(parsed, 'cases') : null
   if (!Array.isArray(cases)) throw new Error(`${file}: no cases array`)
-  return cases.map((entry: unknown, index): UpstreamCase => {
-    const field = (key: string): unknown =>
-      typeof entry === 'object' && entry !== null ? Reflect.get(entry, key) : undefined
+  return cases.map((entry: unknown, index): HoistCase => {
+    const field = (key: string): unknown => (isRecord(entry) ? prop(entry, key) : undefined)
     const name = field('name')
     const code = field('code')
     const filename = field('filename')
@@ -73,268 +120,701 @@ function readCases(file: string): readonly UpstreamCase[] {
   })
 }
 
-const JEST_CASES = readCases('jest.json')
-const VITEST_CASES = readCases('vitest.json')
-
-// ---------------------------------------------------------------------------------------------
-// What each hoister did with one input
-
-type Outcome =
-  | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ok'; readonly order: HoistOrder }
-
-function messageOf(error: unknown): string {
-  // Vitest throws a plain object (`name`, `message`, `frame`) rather than an `Error`.
-  const message: unknown =
-    typeof error === 'object' && error !== null ? Reflect.get(error, 'message') : undefined
-  return typeof message === 'string' ? message : String(error)
+const VENDORED: Readonly<Record<RunnerName, readonly HoistCase[]>> = {
+  jest: readCases('jest.json'),
+  vitest: readCases('vitest.json'),
 }
-
-function orderOptions(
-  policy: HoistPolicy,
-  staticImports: OrderOptions['staticImports'],
-): OrderOptions {
-  return {
-    hoistedNames: new Set([...Object.keys(policy.hoistCalls), ...policy.hoistValues]),
-    runnerModules: new Set(policy.runnerModules),
-    staticImports,
-  }
+const AUTHORED: Readonly<Record<RunnerName, readonly HoistCase[]>> = {
+  jest: JEST_INPUTS,
+  vitest: VITEST_INPUTS,
 }
-
-const nodeRequire = createRequire(import.meta.url)
-
-interface BabelCore {
-  transformSync(
-    code: string,
-    options: Record<string, unknown>,
-  ): { readonly code?: string | null } | null
-}
-
-/** A CommonJS package's main export, whichever way Babel's packages expose it. */
-function defaultExport(loaded: unknown): unknown {
-  return typeof loaded === 'object' && loaded !== null ? Reflect.get(loaded, 'default') : loaded
-}
-
-function babel(): {
-  readonly core: BabelCore
-  readonly plugin: unknown
-  readonly presetReact: unknown
-} {
-  const core: unknown = nodeRequire('@babel/core')
-  if (
-    typeof core !== 'object' ||
-    core === null ||
-    typeof Reflect.get(core, 'transformSync') !== 'function'
-  ) {
-    throw new Error('@babel/core has no transformSync')
-  }
-  return {
-    core: core as BabelCore,
-    plugin: defaultExport(nodeRequire('babel-plugin-jest-hoist')),
-    presetReact: defaultExport(nodeRequire('@babel/preset-react')),
-  }
-}
-
-/**
- * Real Jest: the plugin on the file as written, with JSX lowered as upstream's own test does, so its
- * generated runtime import is in the output as it is in ours. Types stay in the output. The CJS
- * step is modelled in `orderOf`.
- */
-function referenceJest(upstream: UpstreamCase, policy: HoistPolicy): Outcome {
-  const { core, plugin, presetReact } = babel()
-  try {
-    const result = core.transformSync(upstream.code, {
-      babelrc: false,
-      configFile: false,
-      filename: '/virtual/file.js',
-      sourceType: 'module',
-      parserOpts: { plugins: ['jsx', 'typescript'] },
-      plugins: [plugin],
-      ...(upstream.jsx === undefined
-        ? {}
-        : { presets: [[presetReact, { development: true, runtime: upstream.jsx }]] }),
-    })
-    const output = result?.code
-    if (typeof output !== 'string') return { kind: 'error', message: 'babel returned no code' }
-    return {
-      kind: 'ok',
-      order: orderOf(output, { ...orderOptions(policy, 'after-hoisted'), syntax: 'tsx' }),
-    }
-  } catch (error) {
-    return { kind: 'error', message: messageOf(error) }
-  }
-}
-
-/**
- * Real Vitest: `hoistMockAndResolve` over an oxc AST. `undefined` means it left the file alone. What
- * it leaves static (`export * from`) really does load first: the module runner moves it above
- * `vi.mock`, measured on oxc's `moduleRunnerTransformSync`.
- */
-function referenceVitest(code: string, policy: HoistPolicy): Outcome {
-  const parse = (source: string): unknown =>
-    parseSync('/test.js', source, { sourceType: 'module', preserveParens: false }).program
-  try {
-    const result = hoistMockAndResolve(code, '/test.js', parse as never, { root: '/' })
-    return {
-      kind: 'ok',
-      order: orderOf(result?.code ?? code, orderOptions(policy, 'first')),
-    }
-  } catch (error) {
-    return { kind: 'error', message: messageOf(error) }
-  }
-}
-
-type Hoister = (
-  code: string,
-  policy: HoistPolicy,
-  options: { readonly filename: string; readonly original: string },
-) => HoistOutput
-
-/** Ours: error when it throws or reports an error diagnostic; otherwise the order it printed. */
-function ours(hoist: Hoister, code: string, original: string, policy: HoistPolicy): Outcome {
-  try {
-    const output = hoist(code, policy, { filename: '/virtual/file.js', original })
-    const failure = output.diagnostics.find((diagnostic) => diagnostic.severity === 'error')
-    if (failure !== undefined) return { kind: 'error', message: failure.message }
-    return { kind: 'ok', order: orderOf(output.code, orderOptions(policy, 'first')) }
-  } catch (error) {
-    return { kind: 'error', message: messageOf(error) }
-  }
-}
-
-/** What differs between the real hoister and ours, or `undefined` when they agree. */
-function difference(reference: Outcome, got: Outcome): string | undefined {
-  if (reference.kind === 'error' && got.kind === 'error') return undefined
-  if (reference.kind === 'error') {
-    return `the real hoister throws (${firstLine(reference.message)}) and ours does not`
-  }
-  if (got.kind === 'error') {
-    return `ours throws (${firstLine(got.message)}) and the real hoister does not`
-  }
-  if (sameOrder(reference.order, got.order)) return undefined
-  return `hoisted order differs\nreal:\n${formatOrder(reference.order)}\nours:\n${formatOrder(got.order)}`
-}
-
-function firstLine(text: string): string {
-  return text.split('\n')[0] ?? ''
-}
-
-// ---------------------------------------------------------------------------------------------
-// Running a case
-
-const pipelines = new Map<string, ReturnType<typeof createPipeline>>()
-
-/** The pipeline's output for the case: what both hoisters are given. */
-function stripped(upstream: UpstreamCase): string {
-  const key = upstream.jsx ?? 'plain'
-  let pipeline = pipelines.get(key)
-  if (pipeline === undefined) {
-    pipeline = createPipeline({
-      root: '/virtual',
-      typescript: 'oxc',
-      tsconfig: false,
-      hoist: null,
-      cache: false,
-      ...(upstream.jsx === undefined ? {} : { jsx: { runtime: upstream.jsx, development: true } }),
-    })
-    pipelines.set(key, pipeline)
-  }
-  const record = pipeline.transform({
-    filename: `/virtual/${upstream.filename}`,
-    source: upstream.code,
-    role: 'test',
-    consumer: 'import',
-    instrument: false,
-  })
-  const failure = record.diagnostics.find((diagnostic) => diagnostic.severity === 'error')
-  if (failure !== undefined)
-    throw new Error(`the pipeline can't read "${upstream.name}": ${failure.message}`)
-  return record.code
-}
-
-type Runner = 'jest' | 'vitest'
-const POLICIES: Readonly<Record<Runner, HoistPolicy>> = {
+const POLICIES: Readonly<Record<RunnerName, HoistPolicy>> = {
   jest: jestHoistPolicy,
   vitest: vitestHoistPolicy,
 }
+const RUNNERS = ['jest', 'vitest'] as const
 
-function problem(runner: Runner, upstream: UpstreamCase, hoist: Hoister): string | undefined {
-  const policy = POLICIES[runner]
-  const code = stripped(upstream)
-  const reference =
-    runner === 'jest' ? referenceJest(upstream, policy) : referenceVitest(code, policy)
-  return difference(reference, ours(hoist, code, upstream.code, policy))
+function namedCases(runner: RunnerName): readonly HoistCase[] {
+  return [...VENDORED[runner], ...AUTHORED[runner]]
+}
+
+function caseNamed(runner: RunnerName, name: string): HoistCase {
+  const found = namedCases(runner).find((candidate) => candidate.name === name)
+  if (found === undefined) throw new Error(`${runner}: no case named "${name}"`)
+  return found
+}
+
+function isSkipped(runner: RunnerName, name: string): boolean {
+  return `${runner}: ${name}` in SKIPPED
 }
 
 // ---------------------------------------------------------------------------------------------
-// The tests
+// The corpus
 
-test('the extracted case counts are pinned', () => {
-  assert.equal(JEST_CASES.length, EXPECTED_COUNTS.jest)
-  assert.equal(VITEST_CASES.length, EXPECTED_COUNTS.vitest)
-  for (const [runner, cases] of [
-    ['jest', JEST_CASES],
-    ['vitest', VITEST_CASES],
-  ] as const) {
+test('the case counts are pinned and the names are unique', () => {
+  const generated = {
+    jest: generateLayouts('jest', EXPECTED_COUNTS.generated.jest, SEEDS.jest),
+    vitest: generateLayouts('vitest', EXPECTED_COUNTS.generated.vitest, SEEDS.vitest),
+  }
+  for (const runner of RUNNERS) {
+    assert.equal(VENDORED[runner].length, EXPECTED_COUNTS.vendored[runner])
+    assert.equal(AUTHORED[runner].length, EXPECTED_COUNTS.authored[runner])
+    assert.equal(generated[runner].length, EXPECTED_COUNTS.generated[runner])
     assert.equal(
-      new Set(cases.map((c) => c.name)).size,
-      cases.length,
+      new Set(namedCases(runner).map((c) => c.name)).size,
+      namedCases(runner).length,
       `${runner}: case names repeat`,
     )
   }
 })
 
 test('every skip names a case that exists and gives a reason', () => {
-  const all = new Set([
-    ...JEST_CASES.map((c) => `jest: ${c.name}`),
-    ...VITEST_CASES.map((c) => `vitest: ${c.name}`),
-  ])
+  const all = new Set(
+    RUNNERS.flatMap((runner) => namedCases(runner).map((c) => `${runner}: ${c.name}`)),
+  )
   for (const [key, reason] of Object.entries(SKIPPED)) {
     assert.ok(all.has(key), `skip "${key}" matches no case`)
     assert.ok(reason.trim().length > 0, `skip "${key}" needs a reason`)
   }
+  for (const [key, { reason }] of Object.entries(REAL_HOISTER_QUIRKS)) {
+    assert.ok(all.has(key), `quirk "${key}" matches no case`)
+    assert.ok(reason.trim().length > 0, `quirk "${key}" needs a reason`)
+  }
 })
 
-for (const [runner, cases] of [
-  ['jest', JEST_CASES],
-  ['vitest', VITEST_CASES],
-] as const) {
-  for (const upstream of cases) {
+/** A `<runner>: <name>` key of `SKIPPED` or `REAL_HOISTER_QUIRKS`, as the runner and the name. */
+function splitKey(key: string): readonly [RunnerName, string] {
+  return key.startsWith('jest: ')
+    ? ['jest', key.slice('jest: '.length)]
+    : ['vitest', key.slice('vitest: '.length)]
+}
+
+for (const key of Object.keys(SKIPPED)) {
+  test(`the skip on "${key}" is still needed: the case differs without it`, async () => {
+    const [runner, name] = splitKey(key)
+    const found = await problem(runner, caseNamed(runner, name), { policy: POLICIES[runner] })
+    assert.ok(found !== undefined, `${key} agrees now: remove its entry`)
+  })
+}
+
+for (const name of Object.keys(VITEST_OUTPUT_BROKEN)) {
+  test(`real Vitest's output for "${name}" is still not a program`, () => {
+    const outcome = referenceOutcome('vitest', caseNamed('vitest', name))
+    assert.equal(outcome.kind, 'ok', `${name}: real Vitest reports an error now`)
+    assert.equal(
+      outcome.kind === 'ok' ? outcome.runnable : undefined,
+      undefined,
+      `${name} runs now: remove its VITEST_OUTPUT_BROKEN entry`,
+    )
+  })
+}
+
+for (const [key, { ignoreLog }] of Object.entries(REAL_HOISTER_QUIRKS)) {
+  test(`the quirk on "${key}" is still there: the log differs without the allowance`, async () => {
+    const [runner, name] = splitKey(key)
+    const upstream = caseNamed(runner, name)
+    assert.equal(
+      await problem(runner, upstream, { policy: POLICIES[runner], ignoreLog }),
+      undefined,
+    )
+    const without = await problem(runner, upstream, { policy: POLICIES[runner] })
+    assert.ok(without !== undefined, `${key} agrees now: remove its entry`)
+    assert.match(without, /^run log differs/)
+  })
+}
+
+for (const runner of RUNNERS) {
+  for (const upstream of namedCases(runner)) {
     const key = `${runner}: ${upstream.name}`
-    const reason = SKIPPED[key]
-    test(key, { skip: reason ?? false }, () => {
-      const found = problem(runner, upstream, hoistMocks)
+    test(key, { skip: SKIPPED[key] ?? false }, async () => {
+      const ignoreLog = REAL_HOISTER_QUIRKS[key]?.ignoreLog
+      const found = await problem(runner, upstream, {
+        policy: POLICIES[runner],
+        ...(ignoreLog === undefined ? {} : { ignoreLog }),
+      })
       assert.equal(found, undefined, found)
     })
   }
+
+  test(`${runner}: every generated layout agrees`, async () => {
+    const layouts = generateLayouts(runner, EXPECTED_COUNTS.generated[runner], SEEDS[runner])
+    const failures: string[] = []
+    for (const layout of layouts) {
+      const found = await problem(runner, layout, { policy: POLICIES[runner] })
+      if (found !== undefined)
+        failures.push(`${layout.name}\n${JSON.stringify(layout.code)}\n${found}`)
+    }
+    assert.equal(
+      failures.length,
+      0,
+      `${failures.length} of ${layouts.length} disagree. The first three:\n${failures.slice(0, 3).join('\n\n')}`,
+    )
+  })
 }
 
-test('the check is not vacuous: an engine that moves nothing disagrees with the real hoisters', () => {
-  // `identity` hoists nothing and rewrites nothing. If the comparison could be passed by
-  // normalizing everything away, it would agree with the real hoisters here too.
-  const identity: Hoister = (code) => ({
-    code,
-    map: null,
-    staticMocks: [],
-    diagnostics: [],
-    rewroteImports: false,
-  })
-  // Measured with `identity`: Jest has 3 cases that tell it apart (the mock below a `require`, two
-  // calls above a `require`, and a factory the pipeline's JSX output makes out of scope); Vitest has
-  // about 70 (every import to rewrite, every violation to throw).
-  const atLeast = { jest: 3, vitest: 50 } as const
-  for (const [runner, cases] of [
-    ['jest', JEST_CASES],
-    ['vitest', VITEST_CASES],
-  ] as const) {
-    const disagreements = cases.filter(
-      (upstream) =>
-        !(`${runner}: ${upstream.name}` in SKIPPED) &&
-        problem(runner, upstream, identity) !== undefined,
+// ---------------------------------------------------------------------------------------------
+// What the differential can't say
+
+test('import attributes survive: ours keeps them, though neither real next step does', async () => {
+  // Babel's CJS step and Vitest's `import(${sourceString})` both drop them, so comparing with those
+  // would prove nothing. A JSON import without its attribute fails at runtime, so ours keeps them.
+  const expected = './j.json {"with":{"type":"json"}}'
+  for (const runner of RUNNERS) {
+    const log = await runOurs(
+      runner,
+      caseNamed(runner, 'import: an import attribute'),
+      POLICIES[runner],
+    )
+    assert.deepEqual(log.loadOptions, [expected])
+  }
+})
+
+test('`export { x }` of an import under Vitest: real output has no next step, ours stays live', async () => {
+  // Vitest removes the import and leaves `export { x }`, so the module-runner form rejects its
+  // output ("Export 'x' is not defined"). There is nothing to compare, so the export is checked
+  // directly: it must read through to the mocked module, and move when the module's binding does.
+  const inputs = [
+    ['import { a } from "./x"\nvi.mock("./x")\nexport { a }\n', 'a', './x.a'],
+    ['import { a } from "./x"\nvi.mock("./x")\nexport { a as b }\n', 'b', './x.a'],
+    ['import { a } from "./x"\nvi.mock("./x")\nexport { a as default }\n', 'default', './x.a'],
+  ] as const
+  for (const [code, exported, value] of inputs) {
+    const log = await runOurs('vitest', plainCase(code, code), POLICIES.vitest)
+    assert.ok(
+      log.lines.includes(`export first ${exported} = <${value}>`),
+      `${code}\n${log.lines.join('\n')}`,
     )
     assert.ok(
-      disagreements.length >= atLeast[runner],
-      `${runner}: only ${disagreements.length} cases disagree`,
+      log.lines.includes(`export live ${exported} = <${value}@2>`),
+      `${code}\n${log.lines.join('\n')}`,
     )
   }
 })
+
+test('a real error with no HOIST_* code fails rather than counting as any error', () => {
+  assert.equal(
+    codeOfRealError('jest', 'The module factory of `jest.mock()` is not allowed to'),
+    'HOIST_FACTORY_OUT_OF_SCOPE',
+  )
+  assert.throws(() => codeOfRealError('vitest', 'Cannot read properties of undefined'), /no HOIST_/)
+})
+
+// ---------------------------------------------------------------------------------------------
+// Not vacuous: a wrong engine fails
+
+const passThrough = (code: string): ReturnType<Hoister> => ({
+  code,
+  map: null,
+  staticMocks: [],
+  diagnostics: [],
+  rewroteImports: false,
+})
+
+/**
+ * The `identity` counts for `namedCases`, measured on 201 Jest and 212 Vitest cases. They read no
+ * engine, so they change only when the inputs or the comparison do.
+ */
+const IDENTITY_DISAGREEMENTS = { jest: 163, vitest: 194 } as const
+
+async function countDisagreements(runner: RunnerName, hoist: Hoister): Promise<number> {
+  let count = 0
+  for (const upstream of namedCases(runner)) {
+    if (isSkipped(runner, upstream.name)) continue
+    if ((await problem(runner, upstream, { hoist, policy: POLICIES[runner] })) !== undefined) {
+      count++
+    }
+  }
+  return count
+}
+
+test('an engine that moves nothing disagrees with the real hoisters on exactly these many cases', async () => {
+  // Measured with `identity`, which hoists nothing and rewrites nothing. If the comparison could be
+  // passed by normalizing everything away, this would drop.
+  const identity: Hoister = (code) => passThrough(code)
+  assert.equal(await countDisagreements('jest', identity), IDENTITY_DISAGREEMENTS.jest)
+  assert.equal(await countDisagreements('vitest', identity), IDENTITY_DISAGREEMENTS.vitest)
+})
+
+/** Wraps the real engine: same analysis, and one edit to what it printed. */
+function sabotage(edit: (code: string) => string): Hoister {
+  return (code, policy, options) => {
+    const output = hoistMocks(code, policy, options)
+    return { ...output, code: edit(output.code) }
+  }
+}
+
+function replaced(code: string, from: RegExp, to: string): string {
+  const next = code.replace(from, to)
+  assert.notEqual(next, code, `the sabotage found nothing to change in:\n${code}`)
+  return next
+}
+
+const SABOTAGES: readonly {
+  readonly what: string
+  readonly runner: RunnerName
+  readonly caseName: string
+  readonly hoist: Hoister
+  /** Why it must fail: the check that is the only one able to see this. */
+  readonly reason: RegExp
+}[] = [
+  {
+    what: 'dropping a binding rewrite',
+    runner: 'jest',
+    caseName: 'binding: an aliased named import',
+    hoist: sabotage((code) => replaced(code, /__provino_import_\d+__\.n/, 'm')),
+    reason: /^run log differs/,
+  },
+  {
+    what: 'dropping a binding rewrite under Vitest',
+    runner: 'vitest',
+    caseName: 'binding: a namespace',
+    hoist: sabotage((code) => replaced(code, /__provino_import_\d+__\.y/, 'n.y')),
+    reason: /^run log differs/,
+  },
+  {
+    what: 'reordering two hoisted calls',
+    runner: 'jest',
+    caseName: 'layout: mock, unmock, require, mock',
+    hoist: sabotage((code) =>
+      replaced(code, /(jest\.mock\("\.\/a"\);?\n)(jest\.unmock\("\.\/a"\);?\n)/, '$2$1'),
+    ),
+    reason: /^hoisted order differs/,
+  },
+  {
+    what: 'dropping a hoisted const',
+    runner: 'jest',
+    caseName: 'const: a pure const a factory reads moves',
+    hoist: sabotage((code) => replaced(code, /const a = "x";?\n/, '')),
+    reason: /^hoisted order differs/,
+  },
+  {
+    what: 'leaving an import static',
+    runner: 'jest',
+    caseName: 'const: a pure const a factory reads moves',
+    hoist: sabotage((code) =>
+      replaced(
+        code,
+        /const (__provino_import_0__) = await import\("\.\/m"\);?/,
+        'import * as $1 from "./m";',
+      ),
+    ),
+    reason: /^hoisted order differs/,
+  },
+  {
+    what: 'dropping the factory',
+    runner: 'jest',
+    caseName: 'factory: a factory and options',
+    hoist: sabotage((code) => replaced(code, /, \(\) => \(\{\}\)/, '')),
+    reason: /^run log differs/,
+  },
+  {
+    what: 'returning no static mocks',
+    runner: 'vitest',
+    caseName: 'argument: unmock',
+    hoist: (code, policy, options) => ({ ...hoistMocks(code, policy, options), staticMocks: [] }),
+    reason: /^staticMocks differ/,
+  },
+  {
+    what: 'returning no static mocks under Jest',
+    runner: 'jest',
+    caseName: 'argument: unmock: a string',
+    hoist: (code, policy, options) => ({ ...hoistMocks(code, policy, options), staticMocks: [] }),
+    reason: /^staticMocks differ/,
+  },
+  {
+    what: 'reporting the wrong error code',
+    runner: 'vitest',
+    caseName: 'hoisted: exported',
+    hoist: (code, policy, options) => {
+      const output = hoistMocks(code, policy, options)
+      return {
+        ...output,
+        diagnostics: output.diagnostics.map((diagnostic) => ({
+          ...diagnostic,
+          code: 'HOIST_NOT_TOP_LEVEL' as const,
+        })),
+      }
+    },
+    reason: /^error code differs/,
+  },
+]
+
+for (const { what, runner, caseName, hoist, reason } of SABOTAGES) {
+  test(`sabotage: ${what} fails ${runner}: ${caseName}`, async () => {
+    const found = await problem(runner, caseNamed(runner, caseName), {
+      hoist,
+      policy: POLICIES[runner],
+    })
+    assert.ok(found !== undefined, 'the sabotage passed')
+    assert.match(found, reason)
+  })
+}
+
+test('output that does not parse fails the case, even where the real hoister throws', async () => {
+  const garbage: Hoister = () => passThrough('jest.mock(')
+  await assert.rejects(
+    problem('jest', plainCase('garbage', 'jest.mock("a", () => someGlobal)\n'), {
+      hoist: garbage,
+      policy: POLICIES.jest,
+    }),
+    /does not parse/,
+  )
+})
+
+// ---------------------------------------------------------------------------------------------
+// Not vacuous: every policy key is proved
+
+/** A policy key's flip and a case it must fail. */
+interface Flip {
+  readonly key: keyof HoistPolicy
+  readonly what: string
+  readonly change: Partial<HoistPolicy>
+  readonly caseName: string
+}
+
+function withoutObject(policy: HoistPolicy, kind: string, name?: string): Partial<HoistPolicy> {
+  return {
+    objects: policy.objects.filter(
+      (matcher) =>
+        matcher.kind !== kind || (name !== undefined && 'name' in matcher && matcher.name !== name),
+    ),
+  }
+}
+
+function withoutCall(policy: HoistPolicy, method: string): Partial<HoistPolicy> {
+  return {
+    hoistCalls: Object.fromEntries(
+      Object.entries(policy.hoistCalls).filter(([name]) => name !== method),
+    ),
+  }
+}
+
+function withRule(policy: HoistPolicy, method: string, rule: 'any'): Partial<HoistPolicy> {
+  return { hoistCalls: { ...policy.hoistCalls, [method]: rule } }
+}
+
+const REFERENCE_RULE = jestHoistPolicy.factoryReferences
+if (REFERENCE_RULE === 'allow') throw new Error('Jest has a factory rule')
+
+const FLIPS: Readonly<Record<RunnerName, readonly Flip[]>> = {
+  jest: [
+    {
+      key: 'objects',
+      what: 'no global',
+      change: withoutObject(jestHoistPolicy, 'global'),
+      caseName: 'argument: mock: one string',
+    },
+    {
+      key: 'objects',
+      what: 'no named import',
+      change: withoutObject(jestHoistPolicy, 'import'),
+      caseName: 'object: an aliased import',
+    },
+    {
+      key: 'objects',
+      what: 'no namespace member',
+      change: withoutObject(jestHoistPolicy, 'namespace-member'),
+      caseName: 'object: a namespace import',
+    },
+    {
+      key: 'objects',
+      what: 'any binding named jest',
+      change: { objects: [{ kind: 'name', name: 'jest' }] },
+      caseName: 'object: a local const named jest',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'no mock',
+      change: withoutCall(jestHoistPolicy, 'mock'),
+      caseName: 'argument: mock: one string',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'no unmock',
+      change: withoutCall(jestHoistPolicy, 'unmock'),
+      caseName: 'argument: unmock: a string',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'no deepUnmock',
+      change: withoutCall(jestHoistPolicy, 'deepUnmock'),
+      caseName: 'argument: deepUnmock: a string',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'no enableAutomock',
+      change: withoutCall(jestHoistPolicy, 'enableAutomock'),
+      caseName: 'argument: enableAutomock: no arguments',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'no disableAutomock',
+      change: withoutCall(jestHoistPolicy, 'disableAutomock'),
+      caseName: 'argument: disableAutomock: no arguments',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'doMock hoists',
+      change: withRule(jestHoistPolicy, 'doMock', 'any'),
+      caseName: 'argument: doMock never moves',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'dontMock hoists',
+      change: withRule(jestHoistPolicy, 'dontMock', 'any'),
+      caseName: 'argument: dontMock never moves',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'mock takes any argument',
+      change: withRule(jestHoistPolicy, 'mock', 'any'),
+      caseName: 'argument: mock: one identifier stays',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'unmock takes any argument',
+      change: withRule(jestHoistPolicy, 'unmock', 'any'),
+      caseName: 'argument: unmock: an identifier stays',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'enableAutomock takes any argument',
+      change: withRule(jestHoistPolicy, 'enableAutomock', 'any'),
+      caseName: 'argument: enableAutomock: an argument stays',
+    },
+    {
+      key: 'hoistValues',
+      what: 'hoisted is a value',
+      change: { hoistValues: ['hoisted'] },
+      caseName: 'argument: hoisted is not a Jest call',
+    },
+    {
+      key: 'rewriteImportArg',
+      what: 'mock rewrites import()',
+      change: { rewriteImportArg: ['mock'] },
+      caseName: 'argument: mock: a dynamic import stays',
+    },
+    {
+      key: 'chainable',
+      what: 'no chains',
+      change: { chainable: false },
+      caseName: 'chain: two mocks',
+    },
+    {
+      key: 'placement',
+      what: 'top level only',
+      change: { placement: 'top-level-only' },
+      caseName: 'block: a function body',
+    },
+    {
+      key: 'factoryReferences',
+      what: 'anything allowed',
+      change: { factoryReferences: 'allow' },
+      caseName: 'factory: an unknown global is out of scope',
+    },
+    {
+      key: 'factoryReferences',
+      what: 'no globals allowed',
+      change: { factoryReferences: { ...REFERENCE_RULE, allowGlobals: new Set() } },
+      caseName: 'factory: an allow-listed global',
+    },
+    {
+      key: 'factoryReferences',
+      what: 'no pattern allowed',
+      change: { factoryReferences: { ...REFERENCE_RULE, allowPattern: /$^/ } },
+      caseName: 'factory: a mock-prefixed name',
+    },
+    {
+      key: 'factoryReferences',
+      what: 'the pattern is case sensitive',
+      change: { factoryReferences: { ...REFERENCE_RULE, allowPattern: /^(?:mock|(?:__)?cov)/ } },
+      caseName: 'factory: a mock-prefixed name of any case',
+    },
+    {
+      key: 'factoryReferences',
+      what: 'coverage names not allowed',
+      change: { factoryReferences: { ...REFERENCE_RULE, allowPattern: /^mock/i } },
+      caseName: 'factory: a coverage variable',
+    },
+    {
+      key: 'factoryReferences',
+      what: 'the pattern ignores case',
+      change: { factoryReferences: { ...REFERENCE_RULE, allowPattern: /^(?:mock|(?:__)?cov)/i } },
+      caseName: 'factory: a capitalized Cov is not coverage',
+    },
+    {
+      key: 'factoryReferences',
+      what: 'no pure consts',
+      change: { factoryReferences: { ...REFERENCE_RULE, hoistPureConsts: false } },
+      caseName: 'const: a pure const a factory reads moves',
+    },
+    {
+      key: 'runnerModules',
+      what: 'no runner module',
+      change: { runnerModules: [] },
+      caseName: 'object: an aliased import',
+    },
+    {
+      key: 'reExports',
+      what: 'static',
+      change: { reExports: 'static' },
+      caseName: 're-export: imports and re-exports in order',
+    },
+    {
+      key: 'rewrittenCalls',
+      what: 'member',
+      change: { rewrittenCalls: 'member' },
+      caseName: 'this: a bare call through an import',
+    },
+  ],
+  vitest: [
+    {
+      key: 'objects',
+      what: 'no vi',
+      change: withoutObject(vitestHoistPolicy, 'name', 'vi'),
+      caseName: 'object: vi',
+    },
+    {
+      key: 'objects',
+      what: 'no vitest',
+      change: withoutObject(vitestHoistPolicy, 'name', 'vitest'),
+      caseName: 'object: vitest',
+    },
+    {
+      key: 'objects',
+      what: 'an alias from vitest counts',
+      change: {
+        objects: [
+          ...vitestHoistPolicy.objects,
+          { kind: 'import', module: 'vitest', exportName: 'vi' },
+        ],
+      },
+      caseName: 'object: an alias of vi stays',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'no mock',
+      change: withoutCall(vitestHoistPolicy, 'mock'),
+      caseName: 'object: vi',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'no unmock',
+      change: withoutCall(vitestHoistPolicy, 'unmock'),
+      caseName: 'argument: unmock',
+    },
+    {
+      key: 'hoistCalls',
+      what: 'doMock hoists',
+      change: withRule(vitestHoistPolicy, 'doMock', 'any'),
+      caseName: 'argument: doMock stays',
+    },
+    {
+      key: 'hoistValues',
+      what: 'no hoisted',
+      change: { hoistValues: [] },
+      caseName: 'hoisted: a bare hoisted',
+    },
+    {
+      key: 'rewriteImportArg',
+      what: 'mock keeps import()',
+      change: { rewriteImportArg: ['unmock', 'doMock', 'doUnmock'] },
+      caseName: 'argument: an import argument',
+    },
+    {
+      key: 'rewriteImportArg',
+      what: 'unmock keeps import()',
+      change: { rewriteImportArg: ['mock', 'doMock', 'doUnmock'] },
+      caseName: 'argument: unmock with an import argument',
+    },
+    {
+      key: 'rewriteImportArg',
+      what: 'doMock keeps import()',
+      change: { rewriteImportArg: ['mock', 'unmock', 'doUnmock'] },
+      caseName: 'argument: doMock with an import argument stays',
+    },
+    {
+      key: 'rewriteImportArg',
+      what: 'doUnmock keeps import()',
+      change: { rewriteImportArg: ['mock', 'unmock', 'doMock'] },
+      caseName: 'argument: doUnmock with an import argument stays',
+    },
+    {
+      key: 'placement',
+      what: 'enclosing block',
+      change: { placement: 'enclosing-block' },
+      caseName: 'placement: a function',
+    },
+    {
+      key: 'topLevelGuards',
+      what: 'no guard',
+      change: { topLevelGuards: [] },
+      caseName: 'guard: a mock in a guard',
+    },
+    {
+      key: 'runnerModules',
+      what: 'no vitest',
+      change: { runnerModules: ['vite-plus/test'] },
+      caseName: 'object: vi imported from vitest',
+    },
+    {
+      key: 'runnerModules',
+      what: 'no vite-plus',
+      change: { runnerModules: ['vitest'] },
+      caseName: 'object: vi from vite-plus',
+    },
+    {
+      key: 'reExports',
+      what: 'in order',
+      change: { reExports: 'in-order' },
+      caseName: 're-export: a named re-export stays static',
+    },
+    {
+      key: 'rewrittenCalls',
+      what: 'detached',
+      change: { rewrittenCalls: 'detached' },
+      caseName: 'binding: a call through an import keeps the namespace',
+    },
+  ],
+}
+
+/** Keys with no flip, each with the reason no input could fail one. */
+const UNPROVABLE: Readonly<
+  Record<RunnerName, Readonly<Partial<Record<keyof HoistPolicy, string>>>>
+> = {
+  jest: {
+    id: 'names the policy for the cache key; the engine never reads it',
+    messages: "the words, not the rules: codes are compared here, text in the transform's tests",
+    topLevelGuards: 'only `top-level-only` placement reads it',
+  },
+  vitest: {
+    id: 'names the policy for the cache key; the engine never reads it',
+    messages: "the words, not the rules: codes are compared here, text in the transform's tests",
+    chainable: 'only `enclosing-block` placement reads it, so its value changes nothing here',
+    factoryReferences:
+      'only a `path-factory-options` argument rule reads it, and Vitest has only `any`',
+  },
+}
+
+for (const runner of RUNNERS) {
+  test(`${runner}: every policy key has a flip that fails, or a reason it can't`, () => {
+    const covered = new Set<string>([
+      ...FLIPS[runner].map((flip) => flip.key),
+      ...Object.keys(UNPROVABLE[runner]),
+    ])
+    assert.deepEqual(
+      [...covered].toSorted(),
+      Object.keys(POLICIES[runner]).toSorted(),
+      'a new policy key needs a flip here',
+    )
+  })
+
+  for (const { key, what, change, caseName } of FLIPS[runner]) {
+    test(`flip ${runner} ${key} (${what}) fails "${caseName}"`, async () => {
+      const found = await problem(runner, caseNamed(runner, caseName), {
+        policy: { ...POLICIES[runner], ...change },
+      })
+      assert.ok(found !== undefined, 'the flip passed')
+    })
+  }
+}

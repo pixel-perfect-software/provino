@@ -1,0 +1,5 @@
+{
+  "description": "isolateModules (Jest only): reading a module twice inside one isolation gives one instance, two separate isolations give two, and a factory mock read twice inside one isolation runs its factory once.",
+  "runners": ["jest"],
+  "jestEsm": true
+}

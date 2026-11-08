@@ -1,0 +1,5 @@
+{
+  "description": "An async factory that omits an export. Jest does not await a factory, so the module is the Promise itself and every export reads undefined. Vitest awaits it, and reading the export it left out throws.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

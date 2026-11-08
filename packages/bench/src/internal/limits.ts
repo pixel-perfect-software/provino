@@ -2,6 +2,64 @@
 // the run, not compare as `NaN` (every comparison false, so the bar passes), and a missing sample
 // must not read as 0 (B08 review).
 import { BenchError } from '../errors.ts'
+import { median } from '../stats.ts'
+
+/**
+ * The protocol both micro-benchmarks (`bench:hoist`, `bench:mock`) follow: `ROUNDS` rounds per
+ * measurement in one process, the first `WARMUP_ROUNDS` thrown away, and `RUNS` processes.
+ * @internal
+ */
+export const ROUNDS = 8
+/** @internal */
+export const WARMUP_ROUNDS = 2
+/** @internal */
+export const RUNS = 5
+
+/**
+ * The median of a process's rounds after the first `warmup` are discarded.
+ * @internal
+ */
+export function keptMedian(perRound: readonly number[], warmup: number): number {
+  return median(perRound.slice(warmup))
+}
+
+/**
+ * The median of each of `keys` over the runs.
+ * @internal
+ */
+export function medianSample<K extends string>(
+  keys: readonly K[],
+  runs: readonly Readonly<Record<K, number>>[],
+): Record<K, number> {
+  const out = {} as Record<K, number>
+  for (const key of keys) out[key] = median(runs.map((run) => run[key]))
+  return out
+}
+
+/**
+ * The process exit code for the missed bars: 1 if any cell missed, otherwise 0.
+ * @internal
+ */
+export function exitCodeFor(missed: readonly string[]): 0 | 1 {
+  return missed.length === 0 ? 0 : 1
+}
+
+/**
+ * Runs `parse` before any benchmark does. A `BENCH_USAGE` error is printed as `<tool>: <message>`
+ * and ends the process with exit code 2; any other error is rethrown.
+ * @internal
+ */
+export function parseOrExitUsage<T>(tool: string, parse: () => T): T {
+  try {
+    return parse()
+  } catch (error) {
+    if (error instanceof BenchError && error.code === 'BENCH_USAGE') {
+      process.stderr.write(`${tool}: ${error.message}\n`)
+      process.exit(2)
+    }
+    throw error
+  }
+}
 
 /**
  * The prefix of the one output line that carries a child process's sample, so a log or warning

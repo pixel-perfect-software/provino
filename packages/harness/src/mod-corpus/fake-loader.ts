@@ -55,16 +55,24 @@ export interface LoaderOps {
 export interface FakeLoaderOptions {
   /** The work directory (real path), where the fixture was copied. */
   readonly root: string
+  /** Where `__mocks__` directories are looked for (Jest's `roots`); the work directory if absent. */
+  readonly roots?: readonly string[]
   readonly hoist: HoistPolicy
   readonly policy: ModulePolicy
   readonly mockPolicy: MockPolicy
   readonly mocks: MockRegistry
   readonly facades: (from: string, ops: LoaderOps) => Facades
   /**
-   * Whether a source ES module's exports look like Babel's output (Jest's transform): a
-   * non-enumerable `__esModule`, and `default` first when the exports are copied.
+   * The non-vacuity checks' broken engines. `inert`: no import edge asks the registry, so nothing
+   * is mocked (root `__mocks__` files included). `wrong-values`: the registry decides and runs its
+   * factories as usual, but every mocked edge is served an empty module.
    */
-  readonly babelExports: boolean
+  readonly sabotage?: 'inert' | 'wrong-values'
+  /**
+   * Whether an error-severity hoist diagnostic is raised as `<file>: <message>`, as Babel's
+   * transform errors are (Jest). B13c's loader must do the same for that dialect.
+   */
+  readonly prefixTransformErrors?: boolean
 }
 
 interface Compiled {
@@ -72,12 +80,11 @@ interface Compiled {
   readonly format: 'esm' | 'cjs'
   readonly fn: (...args: unknown[]) => unknown
   readonly async: boolean
-  readonly deps: readonly string[]
 }
 
 interface Box {
   exports: unknown
-  /** The data-property copy of an ES module's exports that `loadActual` hands out (a namespace). */
+  /** The view of an ES module's exports that `loadActual` hands out: getters over the live exports. */
   view?: unknown
 }
 
@@ -92,16 +99,16 @@ const babelNamespaces = new WeakMap<object, unknown>()
 const nodeNamespaces = new WeakMap<object, unknown>()
 
 /**
- * A CommonJS value seen through `import`. A value that carries `__esModule` is its own namespace.
- * Otherwise Babel's `_interopRequireWildcard` (`babel`) gives `default` first and then the value's
- * own keys; Node's ES namespace over a CommonJS module (`node`) is a `Module` with every key,
- * `default` included, sorted by name.
+ * A CommonJS value seen through `import`, as `ModulePolicy.interopDefault` says. `babel`: a value
+ * that carries `__esModule` is its own namespace, otherwise Babel's `_interopRequireWildcard` gives
+ * `default` first and then the value's own keys. `node`: Node's ES namespace over a CommonJS
+ * module, a `Module` with every key, `default` included, sorted by name, whatever the value carries.
  */
 function interop(value: unknown, babel: boolean): unknown {
   if (value === null || (typeof value !== 'object' && typeof value !== 'function')) {
     return { default: value }
   }
-  if ((value as { __esModule?: unknown }).__esModule === true) return value
+  if (babel && (value as { __esModule?: unknown }).__esModule === true) return value
   const cache = babel ? babelNamespaces : nodeNamespaces
   const known = cache.get(value)
   if (known !== undefined) return known
@@ -138,6 +145,8 @@ const isExternal = (file: string): boolean => /[\\/]node_modules[\\/]/.test(file
 export class FakeLoader {
   readonly registry: ModuleMockRegistry
   readonly #options: FakeLoaderOptions
+  /** `ModulePolicy.interopDefault`: Babel's module shapes, or Node's. */
+  readonly #babel: boolean
   readonly #resolver: Resolver
   readonly #pipeline: Pipeline
   readonly #compiled = new Map<string, Compiled>()
@@ -145,6 +154,7 @@ export class FakeLoader {
 
   constructor(options: FakeLoaderOptions) {
     this.#options = options
+    this.#babel = options.policy.interopDefault === 'babel'
     this.#resolver = createResolver({
       root: options.root,
       mappers: [],
@@ -163,24 +173,38 @@ export class FakeLoader {
       mockPolicy: options.mockPolicy,
       mocks: options.mocks,
       resolver: this.#resolver,
-      roots: [options.root],
+      roots: options.roots ?? [options.root],
       extensions: ['.ts'],
-      loadActual: (id, importer) => this.#loadActualId(id, importer),
+      loadActual: (id) => this.#loadActualId(id),
     })
   }
 
   /** Evaluates the test file; resolves when its body (and its hoisted imports) has run. */
   async loadTestFile(file: string): Promise<void> {
-    await this.#settle(this.#load(file, 'test', 'esm'))
+    try {
+      await this.#settle(this.#evaluate(this.#compile(file, 'test')))
+    } catch (error) {
+      // Where a relative mock cannot stand in for a path that is not on disk (`virtualRelative:
+      // false`), the module runner names the importer when the file fails to load on it, which
+      // an import from inside a test does not: `Cannot find module '/x.ts' imported from <file>`.
+      if (
+        error instanceof Error &&
+        (error as { code?: unknown }).code === 'unresolved-relative-mock'
+      ) {
+        throw new Error(`${error.message} imported from ${file}`, { cause: error })
+      }
+      throw error
+    }
   }
 
   ops(): LoaderOps {
+    const actual = (specifier: string, from: string): unknown =>
+      this.#loadActualId(this.#fileOf(specifier, from, 'mock'))
     return {
       registry: this.registry,
-      actual: (specifier, from) => this.#loadActualId(this.#fileOf(specifier, from, 'mock'), from),
+      actual,
       mockOf: (specifier, from) => this.registry.materialize(this.#idOf(specifier, from)),
-      actualForAutomock: (specifier, from) =>
-        this.#loadActualId(this.#fileOf(specifier, from, 'mock'), from),
+      actualForAutomock: actual,
       resetModules: () => {
         for (const layer of this.#layers) layer.clear()
         this.registry.onResetModules()
@@ -208,7 +232,11 @@ export class FakeLoader {
     const result = this.#resolve(specifier, from, kind)
     if (result.type === 'file') return result.path
     if (result.type === 'builtin') return result.id
-    throw new Error(
+    throw this.#notFound(specifier, from)
+  }
+
+  #notFound(specifier: string, from: string): Error {
+    return new Error(
       `Cannot find module '${specifier}' from '${path.relative(this.#options.root, from)}'`,
     )
   }
@@ -220,9 +248,7 @@ export class FakeLoader {
     if (result.type === 'builtin') return result.id
     const found = this.registry.decideUnresolved(specifier, from)
     if (found.mocked) return found.id
-    throw new Error(
-      `Cannot find module '${specifier}' from '${path.relative(this.#options.root, from)}'`,
-    )
+    throw this.#notFound(specifier, from)
   }
 
   // ---- edges ----
@@ -231,25 +257,28 @@ export class FakeLoader {
   #edge(specifier: string, importer: string, style: Style): unknown {
     const result = this.#resolve(specifier, importer, style === 'cjs' ? 'require' : 'import')
     if (result.type === 'not-found') {
-      const found = this.registry.decideUnresolved(specifier, importer)
-      if (found.mocked) return this.#mocked(found.id, style)
-      throw new Error(
-        `Cannot find module '${specifier}' from '${path.relative(this.#options.root, importer)}'`,
-      )
+      const found =
+        this.#options.sabotage === 'inert'
+          ? undefined
+          : this.registry.decideUnresolved(specifier, importer)
+      if (found?.mocked === true) return this.#mocked(found.id, style)
+      throw this.#notFound(specifier, importer)
     }
     if (result.type === 'virtual') throw new Error(`unexpected virtual module ${result.id}`)
     const id = result.type === 'file' ? result.path : result.id
     const kind = result.type === 'builtin' ? 'builtin' : style
+    if (this.#options.sabotage === 'inert') return this.#actual(id, style)
     const decision = this.registry.decide(id, importer, kind, specifier)
     if (decision.mocked) return this.#mocked(decision.id, style)
-    return this.#actual(id, importer, style)
+    return this.#actual(id, style)
   }
 
   #mocked(id: string, style: Style): unknown {
-    const value = this.registry.materialize(id)
+    const served = this.registry.materialize(id)
+    const value = this.#options.sabotage === 'wrong-values' ? {} : served
     const shape = (v: unknown): unknown =>
       style === 'esm' && this.#options.policy.factoryShape === 'module-value'
-        ? interop(v, this.#options.babelExports)
+        ? interop(v, this.#babel)
         : v
     // Under `awaitFactory` a Promise is a result to wait for; otherwise it is the module itself.
     return this.#options.policy.awaitFactory && isThenable(value)
@@ -257,21 +286,21 @@ export class FakeLoader {
       : shape(value)
   }
 
-  #actual(id: string, importer: string, style: Style, view = false): unknown {
+  #actual(id: string, style: Style, view = false): unknown {
     if (id.startsWith('node:')) {
       const value = process.getBuiltinModule(id as `node:${string}`)
-      return style === 'esm' ? interop(value, this.#options.babelExports) : value
+      return style === 'esm' ? interop(value, this.#babel) : value
     }
     if (isExternal(id)) {
       const value: unknown = createRequire(id)(id)
-      return style === 'esm' ? interop(value, this.#options.babelExports) : value
+      return style === 'esm' ? interop(value, this.#babel) : value
     }
     const compiled = this.#compile(id, 'source')
-    const loaded = this.#evaluate(compiled, importer)
+    const loaded = this.#evaluate(compiled)
     const shape = (box: Box): unknown => {
       if (view) return this.#view(compiled, box)
       return style === 'esm' && compiled.format === 'cjs'
-        ? interop(box.exports, this.#options.babelExports)
+        ? interop(box.exports, this.#babel)
         : box.exports
     }
     return loaded instanceof Pending
@@ -280,10 +309,10 @@ export class FakeLoader {
   }
 
   /** `loadActual` for the registry and the facades: how the policy says the real module loads. */
-  #loadActualId(id: string, importer: string): unknown {
+  #loadActualId(id: string): unknown {
     const style: Style = this.#options.policy.actual === 'async-import' ? 'esm' : 'cjs'
     if (id.startsWith('virtual:')) throw new Error(`there is no real module behind ${id}`)
-    const value = this.#actual(id, importer, style, true)
+    const value = this.#actual(id, style, true)
     if (style === 'cjs') {
       if (value instanceof Pending)
         throw new Error(`${id} cannot be required: it has top-level await`)
@@ -293,21 +322,22 @@ export class FakeLoader {
   }
 
   /**
-   * What `loadActual` hands out for a source ES module: a namespace of data properties, as a real
-   * module namespace reports them (the runner's exports are getters). Under Babel's shape `default`
-   * comes first and `__esModule` is kept.
+   * What `loadActual` hands out for a source ES module: its exports as getters over the live
+   * module, as the runners serve them (so automock's getter rule and its `Module` rule run). Under
+   * `interopDefault: 'babel'` it is Babel's exports object, a non-enumerable `__esModule` and the
+   * names sorted; under `node` it is a namespace (`Symbol.toStringTag` `Module`) in source order.
    */
   #view(compiled: Compiled, box: Box): unknown {
     if (compiled.format !== 'esm') return box.exports
     if (box.view !== undefined) return box.view
     const source = box.exports as Record<string, unknown>
-    const view: Record<string, unknown> = {}
-    if (this.#options.babelExports) {
-      Object.defineProperty(view, '__esModule', { value: true })
-    }
-    // Babel lists the exports sorted by name (`default` among them), where a namespace keeps source order.
+    const view: Record<string | symbol, unknown> = Object.create(null)
+    if (this.#babel) Object.defineProperty(view, '__esModule', { value: true })
+    else Object.defineProperty(view, Symbol.toStringTag, { value: 'Module' })
     const keys = Object.keys(source)
-    for (const key of this.#options.babelExports ? keys.sort() : keys) view[key] = source[key]
+    for (const key of this.#babel ? keys.sort() : keys) {
+      Object.defineProperty(view, key, { enumerable: true, get: () => source[key] })
+    }
     box.view = view
     return view
   }
@@ -326,7 +356,11 @@ export class FakeLoader {
       instrument: false,
     })
     for (const d of record.diagnostics) {
-      if (d.severity === 'error') throw new Error(d.message)
+      if (d.severity === 'error') {
+        throw new Error(
+          this.#options.prefixTransformErrors === true ? `${file}: ${d.message}` : d.message,
+        )
+      }
     }
     // A file with only `import()` calls has no module syntax (`unknown`) but still needs the runner form.
     const esm =
@@ -347,7 +381,6 @@ export class FakeLoader {
       format: esm ? 'esm' : 'cjs',
       fn: fn as Compiled['fn'],
       async,
-      deps,
     }
     this.#compiled.set(file, compiled)
     return compiled
@@ -364,12 +397,8 @@ export class FakeLoader {
     return false
   }
 
-  #load(file: string, role: 'test' | 'source', _style: Style): unknown {
-    return this.#evaluate(this.#compile(file, role), file)
-  }
-
   /** The instance box for a compiled module, evaluating it once per layer; a Promise when async. */
-  #evaluate(compiled: Compiled, importer: string): Box | Pending {
+  #evaluate(compiled: Compiled): Box | Pending {
     const layer = this.#layers[this.#layers.length - 1]
     if (layer === undefined) throw new Error('no module layer')
     const known = layer.get(compiled.path)
@@ -377,11 +406,12 @@ export class FakeLoader {
     const file = compiled.path
     const facades = this.#options.facades(file, this.ops())
     if (compiled.format === 'esm') {
-      const exports: Record<string, unknown> = {}
+      // Babel's exports object is a plain one with `__esModule`; the module runner's (Node's
+      // shape) is a null-prototype `Module` namespace, as `moduleNamespace()` in the loader makes.
+      const exports: Record<string | symbol, unknown> = this.#babel ? {} : Object.create(null)
       const box: Box = { exports }
-      if (this.#options.babelExports) {
-        Object.defineProperty(exports, '__esModule', { value: true })
-      }
+      if (this.#babel) Object.defineProperty(exports, '__esModule', { value: true })
+      else Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' })
       layer.set(file, box)
       const meta = { url: pathToFileURL(file).href, filename: file, dirname: path.dirname(file) }
       const exportAll = (ns: Record<string, unknown>): void => {
@@ -413,7 +443,6 @@ export class FakeLoader {
       facades.jest,
       facades.vi,
     )
-    void importer
     return module
   }
 

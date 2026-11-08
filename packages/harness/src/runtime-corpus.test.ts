@@ -5,12 +5,11 @@
 // equal the recorded trees" and "every hook-order and failure scenario matches under jest,
 // vitest-stack and vitest-list".
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, test } from 'node:test'
 import type { CoreErrorCode } from '@provino/core'
 import { defaultFixturesRoot, findFixtures, readFixture, testFilesFor } from './fixture.ts'
-import type { Golden } from './golden.ts'
+import { readGolden } from './golden.ts'
 import { assertRunMatchesGolden, testsWithoutLocation } from './runtime-corpus/compare.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
 import { runUnderCore } from './runtime-corpus/run-core.ts'
@@ -73,8 +72,7 @@ for (const fixture of fixtures) {
     for (const profile of fixture.manifest.runners) {
       test(profile, async () => {
         const label = pairLabel(fixture, profile)
-        const goldenPath = path.join(fixture.dir, '__goldens__', `${profile}.json`)
-        const golden = JSON.parse(await readFile(goldenPath, 'utf8')) as Golden
+        const golden = await readGolden(fixture.dir, profile)
         const files = testFilesFor(fixture.files, profile)
         const [testFile] = files
         assert.ok(testFile !== undefined && files.length === 1, 'one test file per profile')

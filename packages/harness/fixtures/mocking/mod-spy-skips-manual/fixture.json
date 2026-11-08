@@ -1,0 +1,4 @@
+{
+  "description": "Vitest only: `vi.mock(path, { spy: true })` automocks with spies and ignores an adjacent __mocks__ file, where a bare `vi.mock(path)` uses it.",
+  "runners": ["vitest"]
+}

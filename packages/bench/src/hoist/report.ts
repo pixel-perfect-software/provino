@@ -4,7 +4,6 @@ import { parseArgs } from 'node:util'
 import { BenchError } from '../errors.ts'
 import { errorMessage } from '../internal/guards.ts'
 import { parseLimit, pastLimit } from '../internal/limits.ts'
-import { median } from '../stats.ts'
 
 /** The two inputs: the same size, with mock calls (and so the import rewrite) and without. */
 export const CELLS = ['mocked', 'unmocked'] as const
@@ -16,13 +15,6 @@ export const CELL_LABELS: Record<Cell, string> = {
 
 /** One process's sample: milliseconds per `hoistMocks` call, for each cell. */
 export type Sample = Record<Cell, number>
-export const SAMPLE_KEYS: readonly Cell[] = CELLS
-
-/** Rounds per cell in one process, and how many of them (the first) are thrown away. */
-export const ROUNDS = 8
-export const WARMUP_ROUNDS = 2
-/** Fresh processes. */
-export const RUNS = 5
 /** Calls per round: the unmocked file takes microseconds, so a round times many of them. */
 export const CALLS_PER_ROUND: Record<Cell, number> = { mocked: 3, unmocked: 500 }
 
@@ -52,23 +44,6 @@ export function parseBars(argv: readonly string[]): Bars {
     maxMockedMs: parseLimit('max-mocked-ms', values['max-mocked-ms']),
     maxUnmockedMs: parseLimit('max-unmocked-ms', values['max-unmocked-ms']),
   }
-}
-
-/** The median of each cell over the runs. */
-export function medianSample(runs: readonly Sample[]): Sample {
-  const out = {} as Sample
-  for (const cell of CELLS) out[cell] = median(runs.map((run) => run[cell]))
-  return out
-}
-
-/** The median of a process's rounds after the warm-up rounds. */
-export function keptMedian(perRound: readonly number[]): number {
-  return median(perRound.slice(WARMUP_ROUNDS))
-}
-
-/** The process exit code for the missed bars: 1 if any cell missed, otherwise 0. */
-export function exitCodeFor(missed: readonly string[]): 0 | 1 {
-  return missed.length === 0 ? 0 : 1
 }
 
 /**

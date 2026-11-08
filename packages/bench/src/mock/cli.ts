@@ -8,40 +8,33 @@
 // missed (or none is on), 1 when a cell misses (each is named), 2 on bad usage.
 import { fileURLToPath } from 'node:url'
 import { exitOnSignals, runProcess } from '@provino/harness'
-import { BenchError } from '../errors.ts'
-import { readSample } from '../internal/limits.ts'
+import {
+  exitCodeFor,
+  medianSample,
+  parseOrExitUsage,
+  ROUNDS,
+  RUNS,
+  readSample,
+  WARMUP_ROUNDS,
+} from '../internal/limits.ts'
 import {
   CELL_LABELS,
   CREATE_CELLS,
   callRatio,
   ENGINES,
   type Engine,
-  exitCodeFor,
   failures,
-  medianSample,
   parseBars,
-  ROUNDS,
-  RUNS,
   SAMPLE_KEYS,
   type Sample,
   USE_LABEL,
-  WARMUP_ROUNDS,
 } from './report.ts'
 
 // Each child runs in its own process group, so Ctrl-C must end them through this hook.
 exitOnSignals()
 
-let bars: ReturnType<typeof parseBars>
-try {
-  // Parsed before any run, so a mistyped bar fails at once.
-  bars = parseBars(process.argv.slice(2))
-} catch (error) {
-  if (error instanceof BenchError && error.code === 'BENCH_USAGE') {
-    process.stderr.write(`bench:mock: ${error.message}\n`)
-    process.exit(2)
-  }
-  throw error
-}
+// Parsed before any run, so a mistyped bar fails at once.
+const bars = parseOrExitUsage('bench:mock', () => parseBars(process.argv.slice(2)))
 
 const entry = fileURLToPath(new URL('entry.ts', import.meta.url))
 const samples: Record<Engine, Sample[]> = {
@@ -68,7 +61,7 @@ for (let run = 0; run < RUNS; run++) {
 }
 
 const medians = Object.fromEntries(
-  ENGINES.map((engine) => [engine, medianSample(samples[engine])]),
+  ENGINES.map((engine) => [engine, medianSample(SAMPLE_KEYS, samples[engine])]),
 ) as Record<Engine, Sample>
 
 const ns = (value: number): string => `${value.toFixed(0)} ns`

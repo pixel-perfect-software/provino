@@ -2,6 +2,8 @@
 // text it is given, so `extract.test.ts` can run it on small inline sources. `extract-upstream.ts`
 // (`pnpm hoist:extract`) reads `.refs/` and writes `vendor/*.json`.
 import { parseSync } from 'oxc-parser'
+import { isRecord, prop } from '../internal/guards.ts'
+import { child, childrenOf, isNode, type Node } from './order.ts'
 
 /** One Jest case: `babel-plugin-tester`'s `code`, plus what the Babel presets stood for. */
 export interface JestCase {
@@ -17,22 +19,6 @@ export interface JestCase {
 export interface VitestCase {
   readonly name: string
   readonly code: string
-}
-
-interface Node {
-  readonly type: string
-  readonly [key: string]: unknown
-}
-
-function isNode(value: unknown): value is Node {
-  return (
-    typeof value === 'object' && value !== null && typeof Reflect.get(value, 'type') === 'string'
-  )
-}
-
-function child(node: Node, key: string): Node | undefined {
-  const value = node[key]
-  return isNode(value) ? value : undefined
 }
 
 function children(node: Node, key: string): readonly Node[] {
@@ -53,14 +39,7 @@ function parseProgram(filename: string, source: string): Node {
 /** Every node under `root`, root first, in source order. */
 function* walk(root: Node): Generator<Node> {
   yield root
-  for (const key of Object.keys(root)) {
-    const value = root[key]
-    if (Array.isArray(value)) {
-      for (const item of value) if (isNode(item)) yield* walk(item)
-    } else if (isNode(value)) {
-      yield* walk(value)
-    }
-  }
+  for (const item of childrenOf(root)) yield* walk(item)
 }
 
 type Scope = ReadonlyMap<string, string>
@@ -80,8 +59,7 @@ function resolveString(node: Node | undefined, scope: Scope): string {
       return children(node, 'quasis')
         .map((quasi) => {
           const value: unknown = quasi.value
-          const cooked: unknown =
-            typeof value === 'object' && value !== null ? Reflect.get(value, 'cooked') : undefined
+          const cooked: unknown = isRecord(value) ? prop(value, 'cooked') : undefined
           if (typeof cooked !== 'string') throw new Error('a template with an invalid escape')
           return cooked
         })

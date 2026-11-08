@@ -7,17 +7,9 @@
 // WARMUP_ROUNDS are discarded, the rest are medians.
 import { jestHoistPolicy } from '@provino/dialect-jest'
 import { hoistMocks } from '@provino/transform'
-import { SAMPLE_PREFIX } from '../internal/limits.ts'
-import { generateTestFile } from './generate.ts'
-import {
-  CALLS_PER_ROUND,
-  CELLS,
-  type Cell,
-  keptMedian,
-  ROUNDS,
-  SEED,
-  TARGET_BYTES,
-} from './report.ts'
+import { keptMedian, ROUNDS, SAMPLE_PREFIX, WARMUP_ROUNDS } from '../internal/limits.ts'
+import { generateTestFile, HOIST_CALL_PATTERN } from './generate.ts'
+import { CALLS_PER_ROUND, CELLS, type Cell, SEED, TARGET_BYTES } from './report.ts'
 
 const FILENAME = '/virtual/bench.test.ts'
 const inputs: Record<Cell, string> = {
@@ -27,6 +19,15 @@ const inputs: Record<Cell, string> = {
 
 /** What the timed calls must have done, or the number says nothing about the work. */
 function assertDidTheWork(cell: Cell): void {
+  // The prefilter in `hoistMocks` skips a file with no hoistable call, so the unmocked cell times
+  // the prefilter alone. Prove the inputs are what the cells say: a hoistable call, or none.
+  const hasCall = HOIST_CALL_PATTERN.test(inputs[cell])
+  if (cell === 'mocked' && !hasCall) {
+    throw new Error('bench:hoist mocked: the generated file has no hoistable call')
+  }
+  if (cell === 'unmocked' && hasCall) {
+    throw new Error('bench:hoist unmocked: the generated file has a hoistable call')
+  }
   const output = hoistMocks(inputs[cell], jestHoistPolicy, { filename: FILENAME })
   const failed = output.diagnostics.find((diagnostic) => diagnostic.severity === 'error')
   if (failed !== undefined)
@@ -55,7 +56,7 @@ function time(cell: Cell): number {
     }
     perRound.push(Number(process.hrtime.bigint() - start) / 1e6 / calls)
   }
-  return keptMedian(perRound)
+  return keptMedian(perRound, WARMUP_ROUNDS)
 }
 
 for (const cell of CELLS) assertDidTheWork(cell)

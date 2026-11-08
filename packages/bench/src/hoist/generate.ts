@@ -2,18 +2,7 @@
 // mock calls and once without. Seeded, so every run and every machine times the same text. The
 // mocked file is the worst case for the hoister: many static imports, mocks below them, and test
 // bodies that read the imported bindings (each read is a rewrite).
-
-/** A small seeded generator (mulberry32): the same seed gives the same numbers. */
-export function seededRandom(seed: number): () => number {
-  let state = seed >>> 0
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0
-    let t = state
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
+import { randomBelow, seededRandom } from '../internal/prng.ts'
 
 export interface GenerateOptions {
   readonly seed: number
@@ -36,7 +25,7 @@ function names(index: number): { readonly fn: string; readonly value: string } {
 /** A test file for the hoist bench. */
 export function generateTestFile(options: GenerateOptions): string {
   const random = seededRandom(options.seed)
-  const pick = (n: number): number => Math.floor(random() * n)
+  const pick = (n: number): number => randomBelow(random, n)
   const lines: string[] = []
 
   for (let i = 0; i < MODULES; i++) {

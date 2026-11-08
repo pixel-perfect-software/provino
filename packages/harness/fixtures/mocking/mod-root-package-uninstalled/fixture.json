@@ -1,0 +1,5 @@
+{
+  "description": "A root __mocks__ file for a package that is not installed: loaded with no mock call, with a bare mock call, and with a mock call and a factory.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

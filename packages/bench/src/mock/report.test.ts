@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { exitCodeFor, medianSample } from '../internal/limits.ts'
 import {
   callRatio,
   ENGINES,
   type Engine,
-  exitCodeFor,
   failures,
-  medianSample,
   parseBars,
+  SAMPLE_KEYS,
   type Sample,
 } from './report.ts'
 
@@ -40,7 +40,11 @@ test('bad usage is a BENCH_USAGE error: a non-number bar or an unknown flag', ()
 })
 
 test('the median of each key is taken over the runs, and the ratio is call over call', () => {
-  const med = medianSample([sample({ call: 30 }), sample({ call: 10 }), sample({ call: 20 })])
+  const med = medianSample(SAMPLE_KEYS, [
+    sample({ call: 30 }),
+    sample({ call: 10 }),
+    sample({ call: 20 }),
+  ])
   assert.equal(med.call, 20)
   assert.equal(callRatio(sample({ call: 15 }), sample({ call: 10 })), 1.5)
 })

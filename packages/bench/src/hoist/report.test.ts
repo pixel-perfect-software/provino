@@ -1,19 +1,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { generateTestFile, HOIST_CALL_PATTERN, seededRandom } from './generate.ts'
-import {
-  CALLS_PER_ROUND,
-  CELLS,
-  exitCodeFor,
-  failures,
-  keptMedian,
-  medianSample,
-  parseBars,
-  ROUNDS,
-  SEED,
-  TARGET_BYTES,
-  WARMUP_ROUNDS,
-} from './report.ts'
+import { exitCodeFor, keptMedian, medianSample, ROUNDS, WARMUP_ROUNDS } from '../internal/limits.ts'
+import { seededRandom } from '../internal/prng.ts'
+import { generateTestFile, HOIST_CALL_PATTERN } from './generate.ts'
+import { CALLS_PER_ROUND, CELLS, failures, parseBars, SEED, TARGET_BYTES } from './report.ts'
 
 const bars = { maxMockedMs: 10, maxUnmockedMs: 0.05 }
 
@@ -29,7 +19,7 @@ test('bad usage is a BENCH_USAGE error: a non-number bar or an unknown flag', ()
 })
 
 test('the median of each cell is taken over the runs', () => {
-  const med = medianSample([
+  const med = medianSample(CELLS, [
     { mocked: 9, unmocked: 0.03 },
     { mocked: 3, unmocked: 0.01 },
     { mocked: 5, unmocked: 0.02 },
@@ -40,7 +30,7 @@ test('the median of each cell is taken over the runs', () => {
 test('warm-up rounds are discarded before the median', () => {
   const perRound = [100, 100, 1, 2, 3, 4, 5, 6]
   assert.equal(perRound.length, ROUNDS)
-  assert.equal(keptMedian(perRound), 3.5)
+  assert.equal(keptMedian(perRound, WARMUP_ROUNDS), 3.5)
   assert.equal(WARMUP_ROUNDS, 2)
 })
 

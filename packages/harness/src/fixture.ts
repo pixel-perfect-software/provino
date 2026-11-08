@@ -81,6 +81,22 @@ export interface FixtureManifest {
    * means off, and Jest's output is unchanged.
    */
   readonly jestEsm?: true
+  /**
+   * Jest options a module-mock case needs, for a fixture that lists `jest`: `roots` (directories
+   * relative to the fixture, where Jest looks for `__mocks__` and tests; the tests then have to
+   * live under one) and `unmockedModulePathPatterns` (regular expression sources that automock
+   * leaves real). Vitest has neither, so the Vitest run ignores them.
+   */
+  readonly jestConfig?: JestFixtureConfig
+}
+
+/**
+ * The Jest options a fixture may set.
+ * @public
+ */
+export interface JestFixtureConfig {
+  readonly roots?: readonly string[]
+  readonly unmockedModulePathPatterns?: readonly string[]
 }
 
 /**
@@ -125,6 +141,7 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
   'mockCleanup',
   'packages',
   'jestEsm',
+  'jestConfig',
 ])
 
 function isFixtureProfile(value: unknown): value is FixtureProfile {
@@ -158,12 +175,13 @@ export function parseFixtureManifest(
     if (!KNOWN_KEYS.has(key)) {
       throw new HarnessError(
         'HARNESS_FIXTURE_UNKNOWN_KEY',
-        `${source}: unknown key "${key}" (expected description, runners, env, expectCrash, mockCleanup, packages, jestEsm)`,
+        `${source}: unknown key "${key}" (expected description, runners, env, expectCrash, mockCleanup, packages, jestEsm, jestConfig)`,
         { path: source },
       )
     }
   }
-  const { description, runners, env, expectCrash, mockCleanup, packages, jestEsm } = value
+  const { description, runners, env, expectCrash, mockCleanup, packages, jestEsm, jestConfig } =
+    value
   if (typeof description !== 'string' || description.trim() === '') {
     throw new HarnessError(
       'HARNESS_FIXTURE_BAD_DESCRIPTION',
@@ -197,6 +215,74 @@ export function parseFixtureManifest(
       : { mockCleanup: parseMockCleanup(mockCleanup, runners, source) }),
     ...(packages === undefined ? {} : { packages: parsePackages(packages, source) }),
     ...(jestEsm === undefined ? {} : { jestEsm: parseJestEsm(jestEsm, runners, source) }),
+    ...(jestConfig === undefined
+      ? {}
+      : { jestConfig: parseJestConfig(jestConfig, runners, source) }),
+  }
+}
+
+/**
+ * `jestConfig` is a non-empty object of `roots` (relative directories inside the fixture, each
+ * once) and `unmockedModulePathPatterns` (non-empty strings that are regular expressions), and
+ * only means something for a fixture that runs Jest.
+ */
+function parseJestConfig(
+  jestConfig: unknown,
+  runners: readonly FixtureProfile[],
+  source: string,
+): JestFixtureConfig {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_JEST_CONFIG', `${source}: "jestConfig" ${reason}`, {
+      path: source,
+    })
+  if (!runners.includes('jest')) throw bad('is set but "runners" does not list "jest"')
+  if (!isRecord(jestConfig) || Object.keys(jestConfig).length === 0) {
+    throw bad('must be a non-empty object')
+  }
+  for (const key of Object.keys(jestConfig)) {
+    if (key !== 'roots' && key !== 'unmockedModulePathPatterns') {
+      throw bad(`has the unknown key "${key}" (expected roots, unmockedModulePathPatterns)`)
+    }
+  }
+  const { roots, unmockedModulePathPatterns } = jestConfig
+  const strings = (name: string, list: unknown): string[] => {
+    if (
+      !Array.isArray(list) ||
+      list.length === 0 ||
+      !list.every((s) => typeof s === 'string' && s !== '')
+    ) {
+      throw bad(`"${name}" must be a non-empty array of non-empty strings`)
+    }
+    return list as string[]
+  }
+  let parsedRoots: string[] | undefined
+  if (roots !== undefined) {
+    parsedRoots = strings('roots', roots).map((dir) => {
+      if (!staysInside(dir))
+        throw bad(`"roots" lists "${dir}", which is not a directory inside the fixture`)
+      return path.posix.normalize(dir)
+    })
+    if (new Set(parsedRoots).size !== parsedRoots.length)
+      throw bad('"roots" lists a directory twice')
+  }
+  let patterns: string[] | undefined
+  if (unmockedModulePathPatterns !== undefined) {
+    patterns = strings('unmockedModulePathPatterns', unmockedModulePathPatterns)
+    for (const pattern of patterns) {
+      try {
+        new RegExp(pattern)
+      } catch (cause) {
+        throw new HarnessError(
+          'HARNESS_FIXTURE_BAD_JEST_CONFIG',
+          `${source}: "jestConfig" gives "${pattern}", which is not a regular expression`,
+          { path: source, cause },
+        )
+      }
+    }
+  }
+  return {
+    ...(parsedRoots === undefined ? {} : { roots: parsedRoots }),
+    ...(patterns === undefined ? {} : { unmockedModulePathPatterns: patterns }),
   }
 }
 
@@ -222,9 +308,18 @@ function parseJestEsm(jestEsm: unknown, runners: readonly FixtureProfile[], sour
 /** A package name as npm spells it: `name` or `@scope/name`, lowercase, no path tricks. */
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/
 
-/** Whether a relative POSIX path stays inside its directory: no `..`, no root, no backslash. */
-function staysInside(file: string): boolean {
-  if (file === '' || file.includes('\\') || file.includes('\0') || file.startsWith('/'))
+/**
+ * Whether a relative POSIX path names a file inside its directory: no `..` segment, no root, no
+ * backslash, and not a directory (no trailing `/`). `..foo` is a file name, not a way out.
+ */
+export function staysInside(file: string): boolean {
+  if (
+    file === '' ||
+    file.includes('\\') ||
+    file.includes('\0') ||
+    file.startsWith('/') ||
+    file.endsWith('/')
+  )
     return false
   const normalized = path.posix.normalize(file)
   return (
@@ -237,7 +332,11 @@ function staysInside(file: string): boolean {
 
 /**
  * `packages` is a non-empty object from package names to non-empty objects from relative file
- * paths to source text. A name or a file that would leave its directory is refused.
+ * paths to source text. A name or a file that would leave its directory is refused, so is a
+ * directory path (a trailing `/`), two spellings of one file (`./x.js` and `x.js`), and a package
+ * with no `package.json`: without one a package inherits `"type": "module"` from this package, so
+ * Node and Vitest read its `index.js` as ES modules where Jest reads CommonJS. The files are kept
+ * under their normalized path.
  */
 function parsePackages(packages: unknown, source: string): Record<string, Record<string, string>> {
   const bad = (reason: string): HarnessError =>
@@ -263,7 +362,18 @@ function parsePackages(packages: unknown, source: string): Record<string, Record
       if (typeof text !== 'string') {
         throw bad(`must give "${name}/${file}" its source as a string`)
       }
-      installed[file] = text
+      const normalized = path.posix.normalize(file)
+      if (Object.hasOwn(installed, normalized)) {
+        throw bad(
+          `gives "${name}" the file "${normalized}" twice (as "${file}" and another spelling)`,
+        )
+      }
+      installed[normalized] = text
+    }
+    if (!Object.hasOwn(installed, 'package.json')) {
+      throw bad(
+        `must give "${name}" a "package.json": without one it inherits this package's "type"`,
+      )
     }
     out[name] = installed
   }

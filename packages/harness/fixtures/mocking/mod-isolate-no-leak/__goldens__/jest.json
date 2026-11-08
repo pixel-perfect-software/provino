@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/mod-isolate-no-leak",
+  "files": [
+    {
+      "file": "mod-isolate-no-leak.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-isolate-no-leak.jest.test.ts",
+            "path": [
+              "a real module loaded inside is loaded again outside"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-isolate-no-leak.jest.test.ts",
+            "path": [
+              "a factory mock first read inside runs its factory again outside"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-isolate-no-leak.jest.test.ts",
+            "path": [
+              "a doMock made inside an isolation applies outside after it"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"a real module loaded inside is loaded again outside\",\"value\":{\"innerLoads\":1,\"outerLoads\":2,\"same\":false,\"outerCached\":true}}",
+    "{\"id\":\"a factory mock first read inside runs its factory again outside\",\"value\":{\"same\":false,\"innerRun\":1,\"outerRun\":2,\"runs\":2}}",
+    "{\"id\":\"a doMock made inside an isolation applies outside after it\",\"value\":{\"kind\":\"mock-later\"}}"
+  ]
+}

@@ -1,8 +1,8 @@
 # Vendored upstream: the hoist test inputs
 
 Two JSON files hold the inputs of the upstream tests for mock hoisting. `hoist-corpus.test.ts` reads
-only these files and runs each input through the real, pinned hoister and through Provino's
-`hoistMocks`. They are written by `pnpm hoist:extract`, which parses the upstream test files with
+these files, with Provino's own inputs (`../inputs.ts`, not vendored), and runs each input through
+the real, pinned hoister and through Provino's `hoistMocks`. They are written by `pnpm hoist:extract`, which parses the upstream test files with
 `oxc-parser` (local only: `.refs/` is not on CI). The files hold no upstream code beyond those
 inputs, and JSON can't carry a license header, so each file has a `license` field.
 

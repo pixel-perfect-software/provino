@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/mod-unmocked-patterns",
+  "files": [
+    {
+      "file": "mod-unmocked-patterns.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-unmocked-patterns.jest.test.ts",
+            "path": [
+              "a module matching the pattern stays real"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-unmocked-patterns.jest.test.ts",
+            "path": [
+              "a module that does not match is automocked"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"a module matching the pattern stays real\",\"value\":{\"isMock\":false,\"result\":\"real-kept\"}}",
+    "{\"id\":\"a module that does not match is automocked\",\"value\":{\"isMock\":true,\"result\":{\"$\":\"undefined\"}}}"
+  ]
+}

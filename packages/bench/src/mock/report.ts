@@ -4,17 +4,10 @@ import { parseArgs } from 'node:util'
 import { BenchError } from '../errors.ts'
 import { errorMessage } from '../internal/guards.ts'
 import { parseLimit, pastLimit } from '../internal/limits.ts'
-import { median } from '../stats.ts'
 
 /** The engines, in the order they print. The first two are Provino under each dialect's policy. */
 export const ENGINES = ['provino-jest', 'provino-vitest', 'vitest-spy', 'jest-mock'] as const
 export type Engine = (typeof ENGINES)[number]
-
-/** Rounds per measurement in one process, and how many of them (the first) are thrown away. */
-export const ROUNDS = 8
-export const WARMUP_ROUNDS = 2
-/** Processes per engine, interleaved. */
-export const RUNS = 5
 
 /** The engines T4.3's bars apply to. */
 export const BARRED_ENGINES = ['provino-jest', 'provino-vitest'] as const
@@ -64,21 +57,9 @@ export function parseBars(argv: readonly string[]): Bars {
   }
 }
 
-/** The median of each key over an engine's runs. */
-export function medianSample(runs: readonly Sample[]): Sample {
-  const out = {} as Sample
-  for (const key of SAMPLE_KEYS) out[key] = median(runs.map((run) => run[key]))
-  return out
-}
-
 /** `engine`'s median call over `baseline`'s. */
 export function callRatio(engine: Sample, baseline: Sample): number {
   return engine.call / baseline.call
-}
-
-/** The process exit code for the missed bars: 1 if any cell missed, otherwise 0. */
-export function exitCodeFor(missed: readonly string[]): 0 | 1 {
-  return missed.length === 0 ? 0 : 1
 }
 
 /**

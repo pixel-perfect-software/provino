@@ -1,0 +1,6 @@
+{
+  "description": "Jest only: with automock on, a module whose path matches `unmockedModulePathPatterns` stays real and every other module is automocked.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "jestConfig": { "unmockedModulePathPatterns": ["keep-real"] }
+}

@@ -12,9 +12,11 @@ import {
   type Fixture,
   type FixtureProfile,
   type FixtureRunner,
+  type JestFixtureConfig,
   type MockCleanup,
   readFixture,
   runnerOfProfile,
+  staysInside,
   testFilesFor,
 } from './fixture.ts'
 import { goldenPath, type RecordOutcome, serializeGolden, toGolden } from './golden.ts'
@@ -115,7 +117,8 @@ async function collectSnapshotFiles(root: string): Promise<SnapshotFileState[]> 
   return out
 }
 
-async function copyFixture(fixture: Fixture, workDir: string): Promise<void> {
+/** Copies every file of the fixture into `workDir`, keeping its relative path. */
+export async function copyFixture(fixture: Fixture, workDir: string): Promise<void> {
   for (const file of fixture.files) {
     const target = path.join(workDir, file)
     await mkdir(path.dirname(target), { recursive: true })
@@ -139,8 +142,7 @@ export async function installPackages(fixture: Fixture, workDir: string): Promis
     const root = path.join(modules, name)
     for (const [file, source] of Object.entries(files)) {
       const target = path.join(root, file)
-      const relative = path.relative(root, target)
-      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      if (!staysInside(file)) {
         throw new HarnessError(
           'HARNESS_FIXTURE_BAD_PACKAGES',
           `${fixture.id}: package file "${name}/${file}" is outside its directory`,
@@ -155,6 +157,11 @@ export async function installPackages(fixture: Fixture, workDir: string): Promis
 
 function jestEsmOption(fixture: Fixture): { jestEsm?: true } {
   return fixture.manifest.jestEsm === true ? { jestEsm: true } : {}
+}
+
+function jestConfigOption(fixture: Fixture): { jestConfig?: JestFixtureConfig } {
+  const { jestConfig } = fixture.manifest
+  return jestConfig === undefined ? {} : { jestConfig }
 }
 
 function mockCleanupOption(fixture: Fixture): { mockCleanup?: MockCleanup } {
@@ -182,6 +189,7 @@ async function runUnderRunner(
     observeSetupFile,
     ...mockCleanupOption(fixture),
     ...jestEsmOption(fixture),
+    ...jestConfigOption(fixture),
   }
 
   let args: string[]

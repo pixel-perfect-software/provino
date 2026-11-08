@@ -1,0 +1,5 @@
+{
+  "description": "Unmocking a module that does not exist: a relative path that is not on disk and a bare name that is not installed, with the non-hoisted call (Jest dontMock, Vitest doUnmock), and what loading it afterwards does.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

@@ -9,9 +9,8 @@
 import { jestMockPolicy } from '@provino/dialect-jest'
 import { vitestMockPolicy } from '@provino/harness'
 import { createMockFn, createMockRegistry } from '@provino/mock'
-import { SAMPLE_PREFIX } from '../internal/limits.ts'
-import { median } from '../stats.ts'
-import { ENGINES, type Engine, ROUNDS, type Sample, WARMUP_ROUNDS } from './report.ts'
+import { keptMedian, ROUNDS, SAMPLE_PREFIX, WARMUP_ROUNDS } from '../internal/limits.ts'
+import { ENGINES, type Engine, type Sample } from './report.ts'
 
 /** Mocks per creation round, and calls per call round. */
 const MOCKS_PER_ROUND = 20_000
@@ -58,10 +57,6 @@ async function subjectFor(engine: Engine): Promise<Subject> {
 /** Every mock built, kept until exit so creation can't be optimized away. */
 const retained: unknown[] = []
 
-function keptMedian(perRound: readonly number[]): number {
-  return median(perRound.slice(WARMUP_ROUNDS))
-}
-
 /** ns per mock for `build(i)`, retaining every mock of a round until the next one starts. */
 function timeCreate(build: (i: number) => unknown): number {
   const perRound: number[] = []
@@ -71,7 +66,7 @@ function timeCreate(build: (i: number) => unknown): number {
     for (let i = 0; i < MOCKS_PER_ROUND; i++) retained.push(build(i))
     perRound.push(Number(process.hrtime.bigint() - start) / MOCKS_PER_ROUND)
   }
-  return keptMedian(perRound)
+  return keptMedian(perRound, WARMUP_ROUNDS)
 }
 
 let sink = 0
@@ -88,7 +83,7 @@ function timeCall(callable: Callable): number {
     perRound.push(Number(process.hrtime.bigint() - start) / CALLS_PER_ROUND)
     sink += sum
   }
-  return keptMedian(perRound)
+  return keptMedian(perRound, WARMUP_ROUNDS)
 }
 
 const engine = ENGINES.find((name) => name === process.argv[2])

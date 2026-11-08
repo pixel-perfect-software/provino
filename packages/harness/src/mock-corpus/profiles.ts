@@ -84,7 +84,7 @@ export const vitestMockPolicy: MockPolicy = {
  * @public
  */
 export const vitestHoistPolicy: HoistPolicy = {
-  // unverified: track-03 L612 (hoist corpus agrees)
+  // unverified: track-03 L612. No check can prove it: it only goes into the cache fingerprint.
   id: 'vitest-5.0',
   // unverified: track-03 L612 (hoist corpus agrees). hoistMocks.ts L139: utilsObjectNames
   objects: [
@@ -97,17 +97,22 @@ export const vitestHoistPolicy: HoistPolicy = {
   hoistValues: ['hoisted'],
   // unverified: track-03 L612 (hoist corpus agrees). hoistMocks.ts L137: dynamicImportMockMethodNames
   rewriteImportArg: ['mock', 'unmock', 'doMock', 'doUnmock'],
-  // unverified: track-03 L612 (hoist corpus agrees). `vi.mock(a).mock(b)` is not a hoisted chain
+  // unverified: track-03 L612. `vi.mock(a).mock(b)` is not a hoisted chain. No check can prove it:
+  // the engine never reads `chainable` under `top-level-only` (`UNPROVABLE` in the hoist corpus).
   chainable: false,
   // unverified: track-03 L612 (hoist corpus agrees). hoistMocks.ts L531-L567
   placement: 'top-level-only',
   // unverified: track-03 L612 (hoist corpus agrees). hoistMocks.ts L266 (`isImportMetaVitestCheck`)
   topLevelGuards: ['import.meta.vitest'],
-  // unverified: track-03 L612 (hoist corpus agrees). Factories may use imports (they are rewritten)
+  // unverified: track-03 L612. Factories may use imports (they are rewritten). No check can prove
+  // it: no flip fails (`UNPROVABLE` in the hoist corpus).
   factoryReferences: 'allow',
   // unverified: track-03 L612 (hoist corpus agrees). hoistMocks.ts L140 and L110
   runnerModules: ['vitest', 'vite-plus/test'],
   reExports: 'static', // unverified: track-03 L612 (hoist corpus agrees; hoistMocks.ts rewrites only ImportDeclaration)
+  // unverified: mod-import-this (the golden agrees: a bare call and a tag through a named import
+  // see the namespace as `this`; hoistMocks.ts L313 is a plain `s.update`)
+  rewrittenCalls: 'member',
   messages: {
     // Vitest never raises these two: it allows factory references and takes any arguments.
     HOIST_FACTORY_OUT_OF_SCOPE: '',
@@ -115,13 +120,16 @@ export const vitestHoistPolicy: HoistPolicy = {
     // unverified: hoistMocks.ts L551-L563, the one-call wording without the file and location
     HOIST_NOT_TOP_LEVEL:
       "{call} was defined outside of the module's top level scope. Although it appears nested, it will be hoisted and executed before anything in this file. Move it to the top level to reflect its actual execution order.\nSee: https://vitest.dev/guide/mocking/modules#how-it-works",
-    // unverified: hoistMocks.ts L506-L510; `{name}` is the outer call
+    // unverified: hoistMocks.ts L506-L510; `{call}` and `{name}` are the inner and outer calls, each
+    // with its argument (`getNodeName`, L466-L481)
     HOIST_NESTED:
       'Cannot call {call} inside {name}: both methods are hoisted to the top of the file and not actually called inside each other.',
-    // unverified: hoistMocks.ts L349 (`vi.mock`/`vi.unmock`); `vi.hoisted` says "Cannot export hoisted
-    // variable. You can control hoisting behavior by placing the import from this file first." (L438)
+    // unverified: hoistMocks.ts L349 and L355 (`vi.mock`/`vi.unmock`)
     HOIST_EXPORTED:
       'Cannot export the result of "{call}". Remove export declaration because "{call}" doesn\'t return anything.',
+    // unverified: hoistMocks.ts L438 and L445 (`vi.hoisted`)
+    HOIST_EXPORTED_VALUE:
+      'Cannot export hoisted variable. You can control hoisting behavior by placing the import from this file first.',
   },
 }
 
@@ -144,20 +152,23 @@ export const vitestModulePolicy: ModulePolicy = {
   resetModulesBetween: false,
   // unverified: track-01 L214
   injectCjsGlobals: true,
-  // unverified: track-02 L452
-  interopDefault: 'babel',
+  // unverified: track-02 L452 (mod corpus agrees: Node's namespaces, not Babel's; the track says
+  // `babel`, the goldens `node`)
+  interopDefault: 'node',
   // unverified: track-02 L454
   resetModulesClearsMocks: false,
   // unverified: track-04 L309 (mod corpus agrees)
   awaitFactory: true,
   // unverified: track-04 L310 (mod corpus agrees)
   missingFactoryExport: 'throw',
-  // unverified: track-04 L312 (mod corpus agrees)
-  resetModulesReRunsFactory: false,
   // unverified: track-04 L313 (mod corpus agrees)
   requireVirtualFlag: false,
   // unverified: mod corpus `mod-missing`, `mod-virtual` and `mod-virtual-static` (agree)
   virtualRelative: false,
+  // Recorded: `mod-reregister` (a second `doMock` after a load gives the next load the second
+  // factory's value) and `mod-reset-modules` (`resetModules()` keeps a mock's value), Vitest 5.0.5:
+  // the value is on the registered mock.
+  mockValueOwner: 'registration',
   // unverified: track-04 L314 (mod corpus agrees)
   automockShape: 'deep',
   // unverified: track-04 L316

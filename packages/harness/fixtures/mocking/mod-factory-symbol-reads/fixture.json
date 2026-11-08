@@ -1,0 +1,5 @@
+{
+  "description": "Reading well-known symbols and coercing a factory mock: Vitest guards a missing string export with a throw but answers symbol reads and the module-protocol keys with undefined; Jest hands out the factory's plain object.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

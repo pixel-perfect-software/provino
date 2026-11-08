@@ -2,11 +2,10 @@
 // the way `mock-corpus/run-mock.ts` runs a mocking fixture. The fixture is copied to a temp
 // directory with its `packages` installed, loaded by the fake loader (real resolver, real hoister,
 // real module-mock registry) and removed afterwards, also on failure.
-import { copyFile, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises'
+import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createRuntime } from '@provino/core'
-import type { JestGlobalsHost } from '@provino/dialect-jest/runtime'
 import { createMockRegistry, createStubs } from '@provino/mock'
 import { createBehaviourLoader } from '@provino/policy'
 import type {
@@ -19,7 +18,8 @@ import type {
 import type { Fixture } from '../fixture.ts'
 import { installGlobals } from '../internal/globals.ts'
 import '../internal/observe-setup.ts'
-import { installPackages } from '../record.ts'
+import { unusedJestHost } from '../mock-corpus/run-mock.ts'
+import { copyFixture, installPackages } from '../record.ts'
 import { type CoreRun, summarizeRun } from '../runtime-corpus/run-core.ts'
 import { createFacades } from './facades.ts'
 import { FakeLoader } from './fake-loader.ts'
@@ -31,13 +31,18 @@ export interface ModProfile {
   readonly mock: MockPolicy
   readonly module: ModulePolicy
   readonly hoist: HoistPolicy
-  /** Whether the runner compiled source ES modules the way Babel does (Jest). */
-  readonly babelExports: boolean
+  /** Whether a transform error reads `<file>: <message>` (Babel's, so Jest's). */
+  readonly prefixTransformErrors?: boolean
 }
 
-/** Replaces the registry for the non-vacuity check: it decides nothing is mocked. */
+/** A broken engine for the non-vacuity checks; see `FakeLoaderOptions.sabotage`. */
 export interface RunModOptions {
-  readonly neverMock?: boolean
+  readonly sabotage?: 'inert' | 'wrong-values'
+}
+
+/** What a run reports, plus the work directory its messages name (gone by the time it returns). */
+export interface ModRun extends CoreRun {
+  readonly root: string
 }
 
 /**
@@ -49,16 +54,12 @@ export async function runModFile(
   testFile: string,
   profile: ModProfile,
   options: RunModOptions = {},
-): Promise<CoreRun> {
+): Promise<ModRun> {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'provino-mod-')))
   try {
-    for (const file of fixture.files) {
-      const target = path.join(root, file)
-      await mkdir(path.dirname(target), { recursive: true })
-      await copyFile(path.join(fixture.dir, file), target)
-    }
+    await copyFixture(fixture, root)
     await installPackages(fixture, root)
-    return await runIn(fixture, root, testFile, profile, options)
+    return { ...(await runIn(fixture, root, testFile, profile, options)), root }
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -76,6 +77,16 @@ async function runIn(
   const mocks = createMockRegistry()
   const stubs = createStubs(mocks, process.env, globalThis)
   const cleanup = fixture.manifest.mockCleanup ?? {}
+  // The fixture's `jestConfig` is Jest's, so it reaches the Jest profile only: Jest's `roots` are
+  // where `__mocks__` is looked for, and `unmockedModulePathPatterns` the policy's patterns.
+  const jest = profile.facade === 'jest' ? fixture.manifest.jestConfig : undefined
+  const modulePolicy: ModulePolicy =
+    jest?.unmockedModulePathPatterns === undefined
+      ? profile.module
+      : {
+          ...profile.module,
+          unmockedPathPatterns: jest.unmockedModulePathPatterns.map((source) => new RegExp(source)),
+        }
   const runtime = await createRuntime({
     policy: profile.core,
     behaviours: createBehaviourLoader(),
@@ -90,34 +101,26 @@ async function runIn(
     rootDir: root,
     ci: true,
   })
-  const jestHost: JestGlobalsHost = {
-    api: runtime.api,
-    expect: (() => {
-      throw new Error('the mod corpus does not use expect')
-    }) as unknown as JestGlobalsHost['expect'],
-    registry: () => {
-      throw new Error('the mod corpus does not use the loader registry')
-    },
-    mocks: () => mocks,
-    mockPolicy: profile.mock,
-  }
+  const jestHost = unusedJestHost(runtime.api, mocks, profile.mock, 'the mod corpus')
   const loader: FakeLoader = new FakeLoader({
     root,
+    ...(jest?.roots === undefined ? {} : { roots: jest.roots.map((dir) => path.join(root, dir)) }),
     hoist: profile.hoist,
-    babelExports: profile.babelExports,
-    policy: profile.module,
+    policy: modulePolicy,
     mockPolicy: profile.mock,
     mocks,
+    ...(options.sabotage === undefined ? {} : { sabotage: options.sabotage }),
+    ...(profile.prefixTransformErrors === true ? { prefixTransformErrors: true } : {}),
     facades: (from, ops) =>
       createFacades(
         {
           facade: profile.facade,
-          policy: profile.module,
+          policy: modulePolicy,
           mockPolicy: profile.mock,
           mocks,
           jestHost,
           stubs,
-          inert: options.neverMock === true,
+          inert: options.sabotage === 'inert',
         },
         from,
         ops,

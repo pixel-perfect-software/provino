@@ -1,6 +1,104 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { caseId, compareObservations, sameOrder } from './compare.ts'
+import type { SerializedError } from '@provino/types'
+import type { GoldenFile } from '../golden.ts'
+import type { CoreRun } from '../runtime-corpus/run-core.ts'
+import { assertFileOutcome, caseId, causeText, compareObservations, sameOrder } from './compare.ts'
+
+const error: SerializedError = { name: 'Error', message: 'x' }
+
+function coreRun(overrides: Partial<CoreRun> = {}): CoreRun {
+  return {
+    trace: [],
+    tests: [{ path: ['t'], dupIndex: 0, status: 'passed', location: null, errors: [] }],
+    fileStatus: 'passed',
+    fileErrors: [],
+    collectionErrors: [],
+    ...overrides,
+  }
+}
+
+function goldenFile(overrides: Partial<GoldenFile> = {}): GoldenFile {
+  return {
+    file: 'a.test.ts',
+    status: 'passed',
+    tests: [
+      {
+        id: { file: 'a.test.ts', path: ['t'], dupIndex: 0 },
+        status: 'passed',
+        errors: [],
+        passingAssertions: 0,
+      },
+    ],
+    ...overrides,
+  }
+}
+
+test('assertFileOutcome accepts a run that ended as the golden did', () => {
+  assertFileOutcome(coreRun(), goldenFile())
+})
+
+test('assertFileOutcome refuses another file status', () => {
+  assert.throws(
+    () => assertFileOutcome(coreRun({ fileStatus: 'failed' }), goldenFile()),
+    /file status/,
+  )
+})
+
+test('assertFileOutcome refuses a file error the golden lacks and one it has that the run lacks', () => {
+  assert.throws(
+    () => assertFileOutcome(coreRun({ fileErrors: [error] }), goldenFile()),
+    /whether the file carries an error/,
+  )
+  assert.throws(
+    () => assertFileOutcome(coreRun(), goldenFile({ fileError: { message: 'boom' } })),
+    /whether the file carries an error/,
+  )
+})
+
+test('assertFileOutcome refuses errors on the wrong tests', () => {
+  const failing = coreRun({
+    tests: [{ path: ['t'], dupIndex: 0, status: 'passed', location: null, errors: [error] }],
+  })
+  assert.throws(() => assertFileOutcome(failing, goldenFile()), /which carry errors/)
+})
+
+test('assertFileOutcome leaves the file error alone when a golden test failed', () => {
+  const failed = goldenFile({
+    tests: [
+      {
+        id: { file: 'a.test.ts', path: ['t'], dupIndex: 0 },
+        status: 'failed',
+        errors: [{ message: 'no' }],
+        passingAssertions: 0,
+      },
+    ],
+  })
+  assertFileOutcome(
+    coreRun({
+      tests: [{ path: ['t'], dupIndex: 0, status: 'failed', location: null, errors: [error] }],
+      fileErrors: [error],
+    }),
+    failed,
+  )
+})
+
+test('causeText reads the paragraph after the Jest header, or else the first paragraph', () => {
+  const jest = "● Test suite failed to run\n\n    ReferenceError: Cannot access 'a' before init"
+  assert.equal(causeText(jest), "ReferenceError: Cannot access 'a' before init")
+  assert.equal(causeText('Cannot find module /x.ts\n\nmore'), 'Cannot find module /x.ts')
+  assert.equal(causeText(''), '')
+  assert.equal(causeText('● Test suite failed to run\n\n'), '')
+})
+
+test('causeText keeps a multi-line cause and drops what follows it and the Allowed objects line', () => {
+  const message =
+    '● Test suite failed to run\n\n    f.ts: The factory is out of scope.\n    Invalid variable access: x\n    Allowed objects: a, b.\n    Note: use mock.\n\n      1 | code frame'
+  assert.equal(
+    causeText(message),
+    'f.ts: The factory is out of scope.\nInvalid variable access: x\nNote: use mock.',
+  )
+})
 
 const a = '{"id":"a","value":1}'
 const b = '{"id":"b","value":2}'

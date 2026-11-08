@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "mocking/mod-import-this",
+  "files": [
+    {
+      "file": "mod-import-this.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-import-this.vitest.test.ts",
+            "path": [
+              "the mock is registered, so the file hoists"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-import-this.vitest.test.ts",
+            "path": [
+              "a bare call through a named import"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-import-this.vitest.test.ts",
+            "path": [
+              "a call through the namespace"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-import-this.vitest.test.ts",
+            "path": [
+              "a call through a default-import member"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-import-this.vitest.test.ts",
+            "path": [
+              "a tagged template through a named import"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-import-this.vitest.test.ts",
+            "path": [
+              "a tagged template through the namespace"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-import-this.vitest.test.ts",
+            "path": [
+              "a parenthesized member call keeps its object"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"the mock is registered, so the file hoists\",\"value\":{\"other\":\"mock\"}}",
+    "{\"id\":\"a bare call through a named import\",\"value\":\"module-namespace\"}",
+    "{\"id\":\"a call through the namespace\",\"value\":\"module-namespace\"}",
+    "{\"id\":\"a call through a default-import member\",\"value\":\"default-object\"}",
+    "{\"id\":\"a tagged template through a named import\",\"value\":\"module-namespace\"}",
+    "{\"id\":\"a tagged template through the namespace\",\"value\":\"module-namespace\"}",
+    "{\"id\":\"a parenthesized member call keeps its object\",\"value\":\"module-namespace\"}"
+  ]
+}

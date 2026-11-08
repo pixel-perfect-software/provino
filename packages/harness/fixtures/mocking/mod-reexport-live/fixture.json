@@ -1,0 +1,5 @@
+{
+  "description": "Live bindings through a helper that hoists a mock: `export { count } from` and `export { count }` of an import both follow the source module's later changes, read through a namespace.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

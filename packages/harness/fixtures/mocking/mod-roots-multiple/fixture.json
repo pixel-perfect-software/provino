@@ -1,0 +1,20 @@
+{
+  "description": "Jest only: with two `roots`, a root `__mocks__` file in either one applies to its installed package with no mock call, and one outside every root does not.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "jestConfig": { "roots": ["one", "two"] },
+  "packages": {
+    "first-pkg": {
+      "package.json": "{ \"name\": \"first-pkg\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.who = 'real-first'\n"
+    },
+    "second-pkg": {
+      "package.json": "{ \"name\": \"second-pkg\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.who = 'real-second'\n"
+    },
+    "outside-pkg": {
+      "package.json": "{ \"name\": \"outside-pkg\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.who = 'real-outside'\n"
+    }
+  }
+}

@@ -14,7 +14,7 @@ export interface FacadeEnv {
   readonly mockPolicy: MockPolicy
   readonly mocks: MockRegistry
   readonly jestHost: JestGlobalsHost
-  /** Registrations go nowhere: the non-vacuity check's "registry that never mocks". */
+  /** Registrations go nowhere: the non-vacuity check's registry that decides nothing is mocked. */
   readonly inert?: boolean
   readonly stubs: Parameters<typeof createViFacade>[2]
 }
@@ -40,16 +40,16 @@ export function createFacades(env: FacadeEnv, from: string, ops: LoaderOps): Fac
     typeof factory === 'function'
       ? { kind: 'factory', factory: factory as MockFactory }
       : { kind: 'automock', spy: options?.spy === true }
-  const self = base
   const chain =
     <A extends unknown[]>(run: (...args: A) => void) =>
     (...args: A): unknown => {
       run(...args)
-      return self
+      return base
     }
+  const unmock = chain((specifier: string) => register(specifier, { kind: 'unmock' }))
 
   const shared: Record<string, unknown> = {
-    unmock: chain((specifier: string) => register(specifier, { kind: 'unmock' })),
+    unmock,
     resetModules: chain(() => ops.resetModules()),
   }
   if (env.facade === 'jest') {
@@ -58,8 +58,8 @@ export function createFacades(env: FacadeEnv, from: string, ops: LoaderOps): Fac
     Object.assign(base, shared, {
       mock: chain(mock),
       doMock: chain(mock),
-      dontMock: chain((specifier: string) => register(specifier, { kind: 'unmock' })),
-      deepUnmock: chain((specifier: string) => register(specifier, { kind: 'unmock' })),
+      dontMock: unmock,
+      deepUnmock: unmock,
       requireActual: (specifier: string): unknown => ops.actual(specifier, from),
       requireMock: (specifier: string): unknown => ops.mockOf(specifier, from),
       isolateModules: chain((fn: () => unknown) => ops.isolate(fn)),
@@ -83,7 +83,7 @@ export function createFacades(env: FacadeEnv, from: string, ops: LoaderOps): Fac
   Object.assign(base, shared, {
     mock: chain(mock),
     doMock: chain(mock),
-    doUnmock: chain((specifier: string) => register(specifier, { kind: 'unmock' })),
+    doUnmock: unmock,
     importActual: (specifier: string): unknown => ops.actual(specifier, from),
     importMock: (specifier: string): Promise<unknown> =>
       new Promise((done) => done(ops.mockOf(specifier, from))),

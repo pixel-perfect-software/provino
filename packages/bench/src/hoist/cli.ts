@@ -8,36 +8,23 @@
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { exitOnSignals, runProcess } from '@provino/harness'
-import { BenchError } from '../errors.ts'
-import { readSample } from '../internal/limits.ts'
+import { errorMessage } from '../internal/guards.ts'
 import {
-  CELL_LABELS,
-  CELLS,
   exitCodeFor,
-  failures,
   medianSample,
-  parseBars,
+  parseOrExitUsage,
   ROUNDS,
   RUNS,
-  SAMPLE_KEYS,
-  type Sample,
+  readSample,
   WARMUP_ROUNDS,
-} from './report.ts'
+} from '../internal/limits.ts'
+import { CELL_LABELS, CELLS, failures, parseBars, type Sample } from './report.ts'
 
 // Each child runs in its own process group, so Ctrl-C must end them through this hook.
 exitOnSignals()
 
-let bars: ReturnType<typeof parseBars>
-try {
-  // Parsed before any run, so a mistyped bar fails at once.
-  bars = parseBars(process.argv.slice(2))
-} catch (error) {
-  if (error instanceof BenchError && error.code === 'BENCH_USAGE') {
-    process.stderr.write(`bench:hoist: ${error.message}\n`)
-    process.exit(2)
-  }
-  throw error
-}
+// Parsed before any run, so a mistyped bar fails at once.
+const bars = parseOrExitUsage('bench:hoist', () => parseBars(process.argv.slice(2)))
 
 /**
  * Whether raw transfer is available here, asked of the `oxc-parser` that `@provino/transform`
@@ -55,7 +42,7 @@ function rawTransfer(): string {
     if (typeof supported !== 'function') return 'unknown (oxc-parser has no rawTransferSupported)'
     return supported() === true ? 'yes (experimentalRawTransfer)' : 'no (JSON AST)'
   } catch (error) {
-    return `unknown (${error instanceof Error ? error.message : String(error)})`
+    return `unknown (${errorMessage(error)})`
   }
 }
 
@@ -67,14 +54,14 @@ for (let run = 0; run < RUNS; run++) {
     env: process.env,
     timeoutMs: 180_000,
   })
-  const sample = readSample(result.output, SAMPLE_KEYS)
+  const sample = readSample(result.output, CELLS)
   if (result.exitCode !== 0 || sample === undefined) {
     throw new Error(`bench:hoist run ${run + 1} exited ${result.exitCode}:\n${result.output}`)
   }
   samples.push(sample)
 }
 
-const medians = medianSample(samples)
+const medians = medianSample(CELLS, samples)
 const missed = failures(medians, bars)
 const lines = [
   `hoist bench (local, Node ${process.version}, ${process.platform} ${process.arch}, ${RUNS} fresh processes, ${ROUNDS} rounds each, first ${WARMUP_ROUNDS} discarded, median of the rest; 15 KB generated ESM test file, seed fixed)`,

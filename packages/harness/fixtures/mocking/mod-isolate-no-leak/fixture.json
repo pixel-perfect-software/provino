@@ -1,0 +1,5 @@
+{
+  "description": "isolateModules (Jest only): what an isolation loads, mocks or registers does not leak out. The outer registry loads its own instance afterwards, a factory mock created inside runs again outside, and a doMock made inside still applies outside.",
+  "runners": ["jest"],
+  "jestEsm": true
+}
