@@ -53,6 +53,11 @@ export interface FixtureManifest {
   /** Environment variables for the runner process, on top of the recorder's own. */
   readonly env?: Readonly<Record<string, string>>
   /**
+   * Flags for `node` itself, before the runner's bin (`--harmony-temporal`, which `NODE_OPTIONS`
+   * refuses). B17a's `mocking/timers-temporal` needs a Node with a `Temporal`.
+   */
+  readonly nodeFlags?: readonly string[]
+  /**
    * The profiles (a subset of `runners`) whose test files must crash at collection, e.g. Jest on
    * `test(name)` with no function, each with the text the crash's `fileError` message must
    * contain: `{ "jest": "Missing second argument" }`. The crash's `fileError` is recorded;
@@ -183,6 +188,7 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
   'description',
   'runners',
   'env',
+  'nodeFlags',
   'expectCrash',
   'mockCleanup',
   'packages',
@@ -224,7 +230,7 @@ export function parseFixtureManifest(
     if (!KNOWN_KEYS.has(key)) {
       throw new HarnessError(
         'HARNESS_FIXTURE_UNKNOWN_KEY',
-        `${source}: unknown key "${key}" (expected description, runners, env, expectCrash, mockCleanup, packages, jestEsm, jestConfig, config, files, run)`,
+        `${source}: unknown key "${key}" (expected description, runners, env, nodeFlags, expectCrash, mockCleanup, packages, jestEsm, jestConfig, config, files, run)`,
         { path: source },
       )
     }
@@ -233,6 +239,7 @@ export function parseFixtureManifest(
     description,
     runners,
     env,
+    nodeFlags,
     expectCrash,
     mockCleanup,
     packages,
@@ -267,6 +274,7 @@ export function parseFixtureManifest(
     description,
     runners,
     ...(env === undefined ? {} : { env: parseEnv(env, source) }),
+    ...(nodeFlags === undefined ? {} : { nodeFlags: parseNodeFlags(nodeFlags, source) }),
     ...(expectCrash === undefined
       ? {}
       : { expectCrash: parseExpectCrash(expectCrash, runners, source) }),
@@ -767,6 +775,27 @@ function parseEnv(env: unknown, source: string): Record<string, string> {
     if (typeof entry === 'string') stringEnv[name] = entry
   }
   return stringEnv
+}
+
+/** `nodeFlags` is a non-empty array of `--flag` strings (no script, no `-e`, no `--require`). */
+function parseNodeFlags(nodeFlags: unknown, source: string): readonly string[] {
+  if (
+    !Array.isArray(nodeFlags) ||
+    nodeFlags.length === 0 ||
+    !nodeFlags.every(
+      (flag) =>
+        typeof flag === 'string' &&
+        /^--[a-z][a-z0-9-]*(=\S+)?$/.test(flag) &&
+        !/^--(require|import|eval|print|input-type|experimental-loader|loader)\b/.test(flag),
+    )
+  ) {
+    throw new HarnessError(
+      'HARNESS_FIXTURE_BAD_NODE_FLAGS',
+      `${source}: "nodeFlags" must be a non-empty array of node flags such as "--harmony-temporal" (not --require, --import, --eval or a loader)`,
+      { path: source },
+    )
+  }
+  return nodeFlags
 }
 
 /**

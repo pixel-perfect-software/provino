@@ -3,13 +3,18 @@ import { describe, test } from 'node:test'
 import type { ReportPolicy, SerializedError } from '@provino/types'
 import { createReporterBus } from '../bus.ts'
 import {
+  buildFile,
+  collectedEvent,
   error,
   type FileSpec,
   fileInfo,
   type Output,
   output,
   playRun,
+  resultOf,
   taskId,
+  testEndEvent,
+  unhandledEvent,
 } from '../internal/test-support.ts'
 import { defaultReporter } from './reporter.ts'
 
@@ -383,5 +388,38 @@ describe('the default reporter: a suite’s own failure', () => {
     assert.match(text, /outer > inner\n/)
     assert.match(text, /AFTERALL EXPLODED/)
     assert.doesNotMatch(text, /Test suite failed to run/)
+  })
+})
+
+describe('the default reporter: an error charged to a test after it ended', () => {
+  test('prints it under that test, and counts the test as failed', async () => {
+    const file = buildFile({
+      path: 'late.test.ts',
+      state: 'fail',
+      tests: [{ path: ['owner'] }, { path: ['bystander'] }],
+    })
+    const out = output()
+    const bus = createReporterBus([defaultReporter({ stream: out, report: NEUTRAL })])
+    await bus.emit('run:start', { root: '/project', projects: [''], startTime: 0, watch: false }, [
+      file.info,
+    ])
+    await bus.emit('file:collected', file.info, collectedEvent(file))
+    for (const { task, spec } of file.tests) {
+      await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+    }
+    const [owner] = file.tests
+    assert.ok(owner !== undefined)
+    await bus.emit('unhandled', file.info, unhandledEvent(error('LATE BOOM'), owner.task.id))
+    await bus.emit('file:end', file.result)
+    await bus.emit('run:end', {
+      reason: 'failed',
+      files: [file.result],
+      unhandled: [],
+      durationMs: 1,
+    })
+    const text = out.text()
+    assert.match(text, /^FAIL late\.test\.ts$/m)
+    assert.match(text, /owner\n[\s\S]*LATE BOOM/)
+    assert.match(text, /Tests:\s+1 failed, 1 passed, 2 total/)
   })
 })

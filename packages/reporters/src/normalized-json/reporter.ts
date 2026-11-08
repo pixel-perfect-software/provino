@@ -135,8 +135,17 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
     },
 
     unhandled(file, event) {
-      if (file === null) runErrors.push({ error: event.error, unhandled: true })
-      else record(file.fileId).unhandled.push(event.error)
+      if (file === null) {
+        runErrors.push({ error: event.error, unhandled: true })
+        return
+      }
+      const entry = record(file.fileId)
+      // An error charged to one of the file's tests is that test's failure.
+      if (event.ownerId !== null && entry.tests.has(event.ownerId)) {
+        entry.late.set(event.ownerId, [...(entry.late.get(event.ownerId) ?? []), event.error])
+      } else {
+        entry.unhandled.push(event.error)
+      }
     },
 
     'file:end'(result) {

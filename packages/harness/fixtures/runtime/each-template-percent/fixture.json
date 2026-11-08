@@ -1,0 +1,4 @@
+{
+  "description": "A % in the title of a tagged-template .each table. Jest reads a template's title for $variables only, so %s, %#, %$ and %p stay as written and %% stays doubled (an array of objects with the same title gets them formatted and %% turned into %). Vitest formats a template's rows like any others.",
+  "runners": ["jest", "vitest"]
+}

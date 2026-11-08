@@ -1,0 +1,5 @@
+{
+  "description": "done() called after its test ended: without a reason it does nothing; with a reason Jest throws \"Caught error after test environment was torn down\" from a promise callback, which is an error with no handler. Vitest has no done. A black-box run, so the exit code is recorded.",
+  "runners": ["jest", "vitest"],
+  "run": { "capture": ["exitCode"] }
+}

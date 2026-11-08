@@ -21,6 +21,7 @@ import {
   compareObservations,
   declaredProblems,
   isModFixture,
+  isTimerFixture,
   sameOrder,
   unseenDeclared,
 } from './mock-corpus/compare.ts'
@@ -49,7 +50,8 @@ const EXPECTED_COUNTED: Readonly<Partial<Record<FixtureProfile, number>>> = {
 const root = path.join(defaultFixturesRoot(), 'mocking')
 const dirs = await findFixtures(root)
 const fixtures = (await Promise.all(dirs.map((dir) => readFixture(dir)))).filter(
-  (fixture) => !UNCOUNTED.has(fixture.id) && !isModFixture(fixture.id),
+  (fixture) =>
+    !UNCOUNTED.has(fixture.id) && !isModFixture(fixture.id) && !isTimerFixture(fixture.id),
 )
 
 const counted: Partial<Record<FixtureProfile, number>> = {}

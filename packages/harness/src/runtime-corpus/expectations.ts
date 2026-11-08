@@ -23,4 +23,24 @@ export const COLLECTION_ERROR_CODES: Readonly<Record<string, CoreErrorCode>> = {
  */
 export const UNLOCATED_TESTS: Readonly<Record<string, readonly string[]>> = {
   'runtime/timeouts (jest)': ['timeouts.jest.test.ts::test over its timeout#0'],
+  // Jest's JSON drops the location of a test whose failure message is a rejected string or an
+  // error made by the runner (a timeout, `done` plus a returned value).
+  'runtime/done-callback (jest)': [
+    'done.test.ts::done and a returned promise#0',
+    'done.test.ts::done and a returned value#0',
+    'done.test.ts::done never called#0',
+    'done.test.ts::an async function that declares done#0',
+    'done.test.ts::a generator that declares a parameter#0',
+  ],
 }
+
+/**
+ * The fixtures whose error text is compared with the golden's, because the words are the dialects'
+ * own (T5.7: Jest's `done` errors, Vitest's callable context). The others compare where errors are.
+ */
+export const MESSAGE_FIXTURES: ReadonlySet<string> = new Set([
+  'runtime/done-callback',
+  'runtime/done-each',
+  'runtime/done-hooks',
+  'runtime/context-shape',
+])

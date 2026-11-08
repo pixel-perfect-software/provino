@@ -1,0 +1,5 @@
+{
+  "description": "Promises that reject with no handler. One is made in a test and left (Jest charges it to that test; Vitest reports an error of the run), one is made in a test that then waits for it to settle, one in a timer that fires while a later test runs. A black-box run, so the exit code is recorded.",
+  "runners": ["jest", "vitest"],
+  "run": { "capture": ["exitCode"] }
+}

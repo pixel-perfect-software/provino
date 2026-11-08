@@ -214,6 +214,30 @@ test('env must be an object of strings', () => {
   }
 })
 
+test('nodeFlags is a non-empty array of node flags, and is kept', () => {
+  const kept = parseFixtureManifest(
+    JSON.stringify({ ...VALID, nodeFlags: ['--harmony-temporal', '--stack-trace-limit=50'] }),
+  )
+  assert.deepEqual(kept.nodeFlags, ['--harmony-temporal', '--stack-trace-limit=50'])
+  assert.equal(parseFixtureManifest(JSON.stringify(VALID)).nodeFlags, undefined)
+  for (const nodeFlags of [
+    '--harmony-temporal',
+    [],
+    ['harmony-temporal'],
+    ['--require=./x.js'],
+    ['--import', 'x'],
+    ['--eval=1'],
+    ['-e'],
+    [1],
+  ]) {
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, nodeFlags })),
+      rejects('HARNESS_FIXTURE_BAD_NODE_FLAGS'),
+      JSON.stringify(nodeFlags),
+    )
+  }
+})
+
 test('test files: *.test.ts runs everywhere, *.jest.test.ts and *.vitest.test.ts under one runner', () => {
   assert.deepEqual(runnersForTestFile('a.test.ts'), ['jest', 'vitest'])
   assert.deepEqual(runnersForTestFile('sub/a.jest.test.ts'), ['jest'])

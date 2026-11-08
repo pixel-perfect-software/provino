@@ -3,7 +3,10 @@
 // type (`DOMAINS`, copied from `@provino/types`; a test checks each dialect value is in its
 // domain). Anything else flips to one value of the same type that differs: a boolean to its
 // negation, a number to the next one, a string gains a prefix and a suffix, an array is reversed or emptied
-// (or, empty, gains an entry), and `null` becomes a value of the type next to it.
+// (or, empty, gains an entry), and `null` becomes a value of the type next to it. A behaviour ref
+// has no such flip; one that a corpus can hold to its goldens flips to the neutral behaviour (`REF_FLIPS`).
+import { isDeepStrictEqual } from 'node:util'
+import { neutralPolicy } from '@provino/policy'
 
 /** Every value of each enumerated policy key, by its path relative to its slice's root. */
 export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
@@ -50,7 +53,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'timers.optionNames': ['do-not-fake', 'to-fake'],
   'timers.notFaked': ['warn', 'throw'],
   'timers.setSystemTimeWithoutFakes': ['warn-noop', 'fake-date-only'],
-  'timers.facadeReturns': ['void', 'facade'],
+  'timers.facadeReturns': ['lifecycle', 'all'],
   'module.factoryShape': ['module-value', 'namespace'],
   'module.actual': ['sync-require', 'async-import'],
   'module.interopDefault': ['babel', 'node'],
@@ -91,6 +94,16 @@ const NULL_FLIPS: Readonly<Record<string, unknown>> = {
   'snapshot.format.maxOutputLength': 1,
 }
 
+/**
+ * Behaviour refs whose leaf flips to the neutral behaviour: a corpus that titles `.each` tests
+ * must fail when the dialect's formatter is replaced by the neutral one, which is how the run
+ * shows the ref is the runner's and not a stand-in (T5.4). Other refs have no flip: `own` pins them.
+ */
+const REF_FLIPS: Readonly<Record<string, readonly unknown[]>> = {
+  'core.formatEachTitle': [neutralPolicy.core.formatEachTitle],
+  'core.formatValue': [neutralPolicy.core.formatValue],
+}
+
 /** The suffix a flipped free-text value gains. */
 export const FLIP_SUFFIX = ' (flipped)'
 
@@ -101,6 +114,8 @@ export const FLIP_SUFFIX = ' (flipped)'
 export function flipsOf(path: string, value: unknown): readonly unknown[] {
   const domain = DOMAINS[path]
   if (domain !== undefined) return domain.filter((other) => other !== value)
+  const refFlips = REF_FLIPS[path]
+  if (refFlips !== undefined) return refFlips.filter((flip) => !isDeepStrictEqual(flip, value))
   if (typeof value === 'boolean') return [!value]
   if (typeof value === 'number') return [value + 1]
   // Both ends, so a check that reads only the first line or only the start of a text can't pass.

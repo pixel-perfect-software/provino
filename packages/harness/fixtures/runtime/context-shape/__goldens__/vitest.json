@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/context-shape",
+  "files": [
+    {
+      "file": "shape.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "shape.vitest.test.ts",
+            "path": [
+              "the context of a test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 7,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "shape.vitest.test.ts",
+            "path": [
+              "a second test gets its own context"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 30,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "shape.vitest.test.ts",
+            "path": [
+              "a suite",
+              "task of a nested test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 39,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "same object as beforeEach: true",
+    "typeof: function",
+    "keys: [\"annotate\",\"onTestFailed\",\"onTestFinished\",\"signal\",\"skip\",\"task\"]",
+    "task: the context of a test test run",
+    "signal: true aborted=false",
+    "functions: function function function function",
+    "calling the context threw: done() callback is deprecated, use promise instead",
+    "afterEach context: true",
+    "beforeEach context is this test's: true a second test gets its own context",
+    "afterEach context: true",
+    "nested task: task of a nested test",
+    "afterEach context: true"
+  ]
+}

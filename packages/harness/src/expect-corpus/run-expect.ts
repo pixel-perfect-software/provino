@@ -15,7 +15,7 @@ import {
   type TestRun,
 } from '@provino/expect'
 import { createMockRegistry, type MockRegistry } from '@provino/mock'
-import { createBehaviourLoader } from '@provino/policy'
+import { createBehaviourLoader, neutralPolicy } from '@provino/policy'
 import type {
   CorePolicy,
   ExpectPolicy,
@@ -110,6 +110,10 @@ export async function runExpectFile(
           throw new Error('the expect corpus does not use the module-mock registry')
         },
         mockPolicy: jestMockPolicy,
+        timers: () => {
+          throw new Error('the expect corpus does not use the fake clock')
+        },
+        timersPolicy: neutralPolicy.timers,
       }).jest,
     })
     try {

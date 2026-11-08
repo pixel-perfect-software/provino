@@ -3,6 +3,10 @@
 // `provino` doesn't list the dialect among its built-ins, so no run reaches it.
 import type { GlobalsHost } from '@provino/types'
 
+// `formatEachTitle` (T5.4) is the dialect's `core.formatEachTitle` behaviour, built; the globals
+// below are still the stub.
+export { formatEachTitle } from '../each/format-each-title.ts'
+
 /**
  * The code a `VitestDialectError` carries.
  * @public

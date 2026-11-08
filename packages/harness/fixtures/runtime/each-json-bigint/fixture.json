@@ -1,0 +1,4 @@
+{
+  "description": "%j on a bigint. Jest 30.5 serializes it itself and prints the bigint as a quoted literal (\"5n\"). Vitest's format calls JSON.stringify, which throws a TypeError, so a Vitest file fails at collection; that crash has no Core error code for the corpus to pin, so it is a unit test in @provino/dialect-vitest (src/each/format-each-title.test.ts), not a profile here.",
+  "runners": ["jest"]
+}

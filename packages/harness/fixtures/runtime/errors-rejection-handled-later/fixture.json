@@ -1,0 +1,5 @@
+{
+  "description": "A rejection that gets a handler a little later (Node emits unhandledRejection, then rejectionHandled). Jest drops the error when the handler arrives before it settles the test; Vitest has already recorded it. A black-box run, so the exit code is recorded.",
+  "runners": ["jest", "vitest"],
+  "run": { "capture": ["exitCode"] }
+}

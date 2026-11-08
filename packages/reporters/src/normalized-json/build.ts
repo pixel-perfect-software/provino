@@ -27,6 +27,8 @@ export interface FileRecord {
   readonly results: Map<TaskId, TaskResult>
   /** Unhandled errors the runtime tied to this file. */
   readonly unhandled: SerializedError[]
+  /** Errors the runtime charged to a test after it ended (`errors.lateErrors: 'fail-owner'`). */
+  readonly late: Map<TaskId, SerializedError[]>
   /** Errors of suites that ended `fail` (an `afterAll` that threw), which are in no file result. */
   readonly suiteErrors: SerializedError[]
   /** Real retries per test, counted from `test:attempt-end` events with `willRetry`. */
@@ -51,6 +53,7 @@ export function newFileRecord(): FileRecord {
     tests: new Map(),
     results: new Map(),
     unhandled: [],
+    late: new Map(),
     suiteErrors: [],
     retries: new Map(),
     console: [],
@@ -198,13 +201,17 @@ function normalizeTest(
   result: TaskResult | undefined,
   counted: number | undefined,
   console: readonly ConsoleEntry[] | undefined,
+  late: readonly SerializedError[] = [],
 ): NormalizedTest {
   const retries = result === undefined ? undefined : retriesOf(test, result, counted)
   return {
     id: { file: info.path, path: [...test.fullName], dupIndex: test.dupIndex },
-    status: testStatus(result),
-    ...(result?.skipReason === undefined ? {} : { skipReason: result.skipReason }),
-    errors: (result?.errors ?? []).map(normalizeError),
+    // An error charged to the test after it ended fails it, whatever it ended as.
+    status: late.length > 0 ? 'failed' : testStatus(result),
+    ...(result?.skipReason === undefined || late.length > 0
+      ? {}
+      : { skipReason: result.skipReason }),
+    errors: [...(result?.errors ?? []), ...late].map(normalizeError),
     ...(result === undefined ? {} : { passingAssertions: result.passingAssertions }),
     ...(retries === undefined || retries < 1 ? {} : { retries }),
     ...(result === undefined ? {} : { durationMs: result.durationMs }),
@@ -238,6 +245,7 @@ function normalizeFile(
       record.results.get(test.id),
       record.retries.get(test.id),
       console.tests.get(test.id),
+      record.late.get(test.id),
     ),
   )
   const own = [...result.errors, ...record.suiteErrors]

@@ -1,0 +1,4 @@
+{
+  "description": "describe.each titles are formatted as test.each titles are, and become the ancestors of the tests inside: an array table, bare primitives, object rows with $variables, a tagged template, and a test.each nested in a describe.each (Jest's describe.each runs its callback with the row; Vitest's too).",
+  "runners": ["jest", "vitest"]
+}

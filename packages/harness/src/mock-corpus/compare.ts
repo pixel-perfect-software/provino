@@ -54,6 +54,14 @@ export function isModFixture(id: string): boolean {
 }
 
 /**
+ * The `timers-*` fixtures fake the global timers, so the timer corpus runs them in a child process
+ * and counts them there; the mock corpus leaves them out.
+ */
+export function isTimerFixture(id: string): boolean {
+  return path.posix.basename(id).startsWith('timers-')
+}
+
+/**
  * A declared divergence: the DIVERGENCES row, and the exact line the run may give for the case. A
  * run line other than this one fails, so a declared case cannot hide a different bug.
  */

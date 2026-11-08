@@ -41,7 +41,7 @@ The test runtime (Track 5): collector, executor, hooks, the test context and the
 
 - `ctx.skip`, `ctx.annotate`, `onBeforeTryTask`/`onAfterTryTask`, and `ctx.task.result`: T5.8. `ctx.task` is the clone-safe `TestTask`.
 - Jest's exact `done` errors and the callable context: T5.7. B07's `done` is basic: a call passes, an argument fails.
-- Exact `.each` titles: T5.4 (core calls the policy's `formatEachTitle`; truncation belongs there).
+- `.each` titles are the dialects' (T5.4), one row at a time: the formatter isn't told the table, so a tagged template with a `%` in its title, a table that mixes arrays and objects (Jest) and a `null` row of `.for` (Vitest) title differently from the runner. Recorded as `each-template-percent`, `each-mixed-rows` and `each-for-nullish`, which fail until `collector.ts` `#rows` passes what the formatter needs (see `packages/dialect-jest/CLAUDE.md` → Not built).
 - `retry.timing: 'deferred'`, retry `delay`/`condition`, `jest.retryTimes`: T5.10. Immediate `retry`/`repeats` work.
 - Process-level error attribution (`errors.lateErrors`): T5.11. Bail and cancel: T5.12. `describe.shuffle`: T5.13. The overhead gate: T5.14. The definition table: T5.9. Tag filters.
 - Messages are neutral, not the dialects' text (timeouts, `.only` on CI, empty describes); the dialects own exact text (B14).

@@ -49,6 +49,7 @@
     "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/resolver": "workspace:*",
+    "@provino/timers": "workspace:*",
     "@provino/transform": "workspace:*",
     "@vitest/mocker": "catalog:",
     "babel-jest": "catalog:",

@@ -10,9 +10,14 @@ import { describe, test } from 'node:test'
 import { defaultFixturesRoot, findFixtures, readFixture, testFilesFor } from './fixture.ts'
 import { readGolden } from './golden.ts'
 import { assertRunMatchesGolden, testsWithoutLocation } from './runtime-corpus/compare.ts'
-import { COLLECTION_ERROR_CODES, UNLOCATED_TESTS } from './runtime-corpus/expectations.ts'
+import {
+  COLLECTION_ERROR_CODES,
+  MESSAGE_FIXTURES,
+  UNLOCATED_TESTS,
+} from './runtime-corpus/expectations.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
 import { runUnderCore } from './runtime-corpus/run-core.ts'
+import { needsChild, runUnderCoreInChild } from './runtime-corpus/run-core-child.ts'
 import { pairLabel } from './test-support.ts'
 
 const root = path.join(defaultFixturesRoot(), 'runtime')
@@ -58,15 +63,18 @@ for (const fixture of fixtures) {
           UNLOCATED_TESTS[label] ?? [],
           'the tests the golden has no location for',
         )
-        const run = await runUnderCore(
-          path.join(fixture.dir, testFile),
-          fixture.dir,
-          corePolicyFor[profile],
-        )
+        const run = needsChild(fixture.id)
+          ? await runUnderCoreInChild(path.join(fixture.dir, testFile), fixture.dir, profile)
+          : await runUnderCore(
+              path.join(fixture.dir, testFile),
+              fixture.dir,
+              corePolicyFor[profile],
+            )
         const collectionErrorCode = COLLECTION_ERROR_CODES[label]
         assertRunMatchesGolden(run, golden, {
           testFile,
           ...(collectionErrorCode === undefined ? {} : { collectionErrorCode }),
+          ...(MESSAGE_FIXTURES.has(fixture.id) ? { compareMessages: true } : {}),
         })
       })
     }

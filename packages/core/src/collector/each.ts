@@ -1,6 +1,7 @@
 // `.each`/`.for` rows: arrays, objects and Jest/Vitest's tagged-template tables. Titles go through
 // the policy's `formatEachTitle`; argument shapes follow Track 5 Findings (array rows spread,
 // other rows are one argument).
+import type { EachTableKind } from '@provino/types'
 
 /** One row and the arguments it passes to the test function. */
 export interface EachRow {
@@ -8,6 +9,8 @@ export interface EachRow {
   readonly args: readonly unknown[]
   /** The row as `.for` passes it: unspread. */
   readonly item: unknown
+  /** The kind of table the row is from: the formatter reads the whole table, not one row. */
+  readonly kind: EachTableKind
 }
 
 /**
@@ -31,15 +34,21 @@ function listRows(cases: unknown): EachRow[] {
   // Both runners spread array rows only when every row is an array (Vitest's `arrayOnlyCases`,
   // jest-each's `isTable`); in a mixed table each row is one argument.
   const spread = cases.every((item: unknown) => Array.isArray(item))
-  return cases.map((item: unknown) => toRow(item, spread))
+  // A table of arrays, or of objects, is read row by row; any other is a table of single values
+  // (jest-each's `normaliseTable` wraps every cell), and so is each of its titles.
+  const kind: EachTableKind = spread || cases.every(isPlainObject) ? 'rows' : 'mixed'
+  return cases.map((item: unknown) => toRow(item, spread, kind))
 }
 
-function toRow(item: unknown, spread: boolean): EachRow {
-  if (Array.isArray(item)) return { row: item, args: spread ? item : [item], item }
-  if (typeof item === 'object' && item !== null) {
-    return { row: item as Record<string, unknown>, args: [item], item }
-  }
-  return { row: [item], args: [item], item }
+function isPlainObject(item: unknown): boolean {
+  return typeof item === 'object' && item !== null && !Array.isArray(item)
+}
+
+function toRow(item: unknown, spread: boolean, kind: EachTableKind): EachRow {
+  // Vitest's `.for` titles a `null` or `undefined` row as an empty one (`toArray`); `.each` has `[null]`.
+  if (kind === 'mixed') return { row: [item], args: [item], item, kind }
+  if (Array.isArray(item)) return { row: item, args: spread ? item : [item], item, kind }
+  return { row: item as Record<string, unknown>, args: [item], item, kind }
 }
 
 function isTemplate(value: unknown): value is TemplateStringsArray {
@@ -68,7 +77,7 @@ function templateRows(
     headings.forEach((heading, index) => {
       row[heading] = values[start + index]
     })
-    rows.push({ row, args: [row], item: row })
+    rows.push({ row, args: [row], item: row, kind: 'template' })
   }
   return rows
 }

@@ -494,6 +494,9 @@ importers:
       '@provino/resolver':
         specifier: workspace:*
         version: link:../resolver
+      '@provino/timers':
+        specifier: workspace:*
+        version: link:../timers
       '@provino/types':
         specifier: workspace:*
         version: link:../types
@@ -504,6 +507,9 @@ importers:
         specifier: 'catalog:'
         version: 30.5.1
       jest-util:
+        specifier: 'catalog:'
+        version: 30.5.1
+      pretty-format:
         specifier: 'catalog:'
         version: 30.5.1
     devDependencies:
@@ -597,6 +603,9 @@ importers:
       '@provino/resolver':
         specifier: workspace:*
         version: link:../resolver
+      '@provino/timers':
+        specifier: workspace:*
+        version: link:../timers
       '@provino/transform':
         specifier: workspace:*
         version: link:../transform
@@ -677,6 +686,9 @@ importers:
       '@provino/rpc':
         specifier: workspace:*
         version: link:../rpc
+      '@provino/timers':
+        specifier: workspace:*
+        version: link:../timers
       '@provino/types':
         specifier: workspace:*
         version: link:../types
@@ -735,6 +747,22 @@ importers:
       '@provino/types':
         specifier: workspace:*
         version: link:../types
+
+  packages/timers:
+    dependencies:
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
+      '@sinonjs/fake-timers':
+        specifier: 'catalog:'
+        version: 15.4.0
+    devDependencies:
+      '@provino/policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@types/sinonjs__fake-timers':
+        specifier: 'catalog:'
+        version: 15.0.1
 
   packages/transform:
     dependencies:

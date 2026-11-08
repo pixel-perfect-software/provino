@@ -38,6 +38,9 @@
       "path": "packages/mock/test"
     },
     {
+      "path": "packages/timers/test"
+    },
+    {
       "path": "packages/dialect-jest/test"
     },
     {

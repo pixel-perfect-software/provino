@@ -6,6 +6,8 @@ Provino includes code copied from the projects below. Each copy keeps its origin
 
 `packages/dialect-jest/src/runtime/vendor/jest-expect/` is copied from Jest v30.5.2 (https://github.com/jestjs/jest).
 
+`packages/dialect-jest/src/each/vendor/jest-each/` is copied from Jest v30.5.2 (`jest-each`'s `table/array.ts` and `table/interpolation.ts`, and one function of `jest-regex-util`).
+
 `packages/harness/src/hoist-corpus/vendor/jest.json` holds test inputs copied from Jest v30.5.2, `packages/babel-plugin-jest-hoist/src/__tests__/hoistPlugin.nodejs18.test.ts`. Same MIT license as below.
 
 ```
@@ -36,6 +38,8 @@ SOFTWARE.
 ## Vitest
 
 `packages/harness/src/hoist-corpus/vendor/vitest.json` holds test inputs copied from Vitest v5.0.5 (https://github.com/vitest-dev/vitest), `test/unit/test/injector-mock.test.ts`.
+
+`packages/dialect-vitest/src/each/vendor/` is copied from Vitest v5.0.5: `formatTitle` from the runner's `suite.ts`, `display.ts` and parts of `helpers.ts` from `@vitest/utils`, and `@vitest/pretty-format` (a fork of Jest's pretty-format, so its files keep Meta's MIT header).
 
 ```
 MIT License

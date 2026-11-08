@@ -1,0 +1,4 @@
+{
+  "description": "Advance calls made while the timers are real: Jest warns with its text and carries on, Vitest throws its own. The text is cut before Jest's stack. setSystemTime with real timers: Jest warns and does nothing, Vitest fakes Date alone until useRealTimers(). Each case is one observation.",
+  "runners": ["jest", "vitest"]
+}

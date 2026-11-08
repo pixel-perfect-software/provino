@@ -44,9 +44,6 @@ const CLAIM_KEYS: ReadonlySet<string> = new Set(Object.keys(CLAIMS))
  */
 const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   // Behaviour another bundle builds; its first fixture records the value.
-  'jest core.doneDeprecatedMessage': 'B17a',
-  'jest core.formatEachTitle': 'B17a',
-  'jest timers.fakeTemporal': 'B17a',
   'jest snapshot.inline.formatter': 'B17b',
   'jest snapshot.inline.indent': 'B17b',
   'jest orchestrator.environmentConditions': 'B17c',
@@ -60,9 +57,6 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'jest coverage.includeUntestedByDefault': 'T8.9',
   'jest coverage.thresholdGrouping': 'T8.9',
   'jest lazy.readInBeforeAll': 'T6.5',
-  'vitest core.doneDeprecatedMessage': 'B17a',
-  'vitest core.formatEachTitle': 'B17a',
-  'vitest timers.fakeTemporal': 'B17a',
   'vitest snapshot.format.maxOutputLength': 'B17b',
   'vitest snapshot.inline.formatter': 'B17b',
   'vitest snapshot.inline.indent': 'B17b',
@@ -461,6 +455,19 @@ describe('the checks catch a wrong value', () => {
     const leaf = 'hoist.factoryReferences.allowGlobals'
     assert.equal(backedWithoutFlips(leaf, [corpus('mod', 'mocking/mod-hoist-order')]), false)
     assert.equal(backedWithoutFlips(leaf, [corpus('hoist')]), true)
+  })
+
+  test('a formatter claim needs a fixture that titles tests, or the neutral formatter passes', async () => {
+    // `.each` titles: the neutral formatter is the only flip, and only a corpus that titles `.each`
+    // tests tells it from the runner's (hook order never reaches the formatter).
+    const leaf = 'core.formatEachTitle'
+    const value = jestLeaves.get(leaf)
+    const flips = flipsOf(leaf, value)
+    assert.equal(flips.length, 1)
+    const rejects = async (fixture: string): Promise<number> =>
+      (await check(corpus('runtime', fixture), leaf, leaf, value, flips, jest, jestLeaves)).size
+    assert.equal(await rejects('runtime/hook-order'), 0)
+    assert.equal(await rejects('runtime/each-tokens'), 1)
   })
 
   test('an own claim fails when it names another value than the dialect`s', async () => {

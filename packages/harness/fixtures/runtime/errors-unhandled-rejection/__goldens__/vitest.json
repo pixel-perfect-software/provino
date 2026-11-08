@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/errors-unhandled-rejection",
+  "files": [
+    {
+      "file": "rejection.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "rejection.test.ts",
+            "path": [
+              "leaves a rejected promise behind"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 3,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "rejection.test.ts",
+            "path": [
+              "rejects and then waits for it to settle"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 8,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "rejection.test.ts",
+            "path": [
+              "makes a rejection in a timer"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 15,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "rejection.test.ts",
+            "path": [
+              "is running when the timer rejects"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 23,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "rejection.test.ts",
+            "path": [
+              "runs after the errors"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 29,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "first test body",
+    "second test body",
+    "second test ends",
+    "third test body",
+    "fourth test starts",
+    "the timer rejects",
+    "fourth test ends",
+    "fifth test"
+  ],
+  "observed": {
+    "exitCode": 1
+  }
+}

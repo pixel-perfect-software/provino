@@ -99,6 +99,22 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
       await print(fileText(result.file, result, failed, failedSuites))
     },
 
+    // An error charged to a test after it ended fails that test (and so its file): shown with it.
+    unhandled(file, event) {
+      if (file === null || event.ownerId === null) return
+      const test = state.collected
+        .get(file.fileId)
+        ?.find((task) => task.id === event.ownerId && task.type === 'test')
+      if (test === undefined || test.type !== 'test') return
+      push(state.failures, file.fileId, {
+        title: testTitle(report, test.fullName),
+        errors: [event.error],
+      })
+      // The test was counted as passed when it ended: move it to the failures.
+      const { passed, failed } = state.tests
+      state.tests = { ...state.tests, failed: failed + 1, passed: Math.max(0, passed - 1) }
+    },
+
     async error(error, origin) {
       await print(failureBlock(report, ERROR_LABELS[origin], [error]))
     },

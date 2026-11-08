@@ -1,0 +1,3647 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/each-objects",
+  "files": [
+    {
+      "file": "objects.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "plain title"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "plain title"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "plain title"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "plain title"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "plain title"
+            ],
+            "dupIndex": 4
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "plain title"
+            ],
+            "dupIndex": 5
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a=1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 11,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a=x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 11,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a=undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 11,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a={\"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 11,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a=NaN"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 11,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a=50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 11,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "b=two c.d=3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 12,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "b=null c.d=[1, 2]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 12,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "b=true c.d=plain"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 12,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "b=[1, [Array]] c.d={\"e\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 12,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "b=0 c.d=10"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 12,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "b=%s c.d=$a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 12,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "1|two|{\"d\": 3}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 13,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "x|null|{\"d\": [Array]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 13,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "undefined|true|plain"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 13,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"nested\": [Object]}|[1, [Array]]|{\"d\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 13,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "NaN|0|10"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 13,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "50% off|%s|$a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 13,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "c.d.e.f=3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 14,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "c.d.e.f=[1, 2]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 14,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "c.d.e.f=plain"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 14,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "c.d.e.f=1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 14,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "c.d.e.f=10"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 14,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "c.d.e.f=$a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 14,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "missing=$zz and 1 and {\"d\": 3}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 15,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "missing=$zz and x and {\"d\": [Array]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 15,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "missing=$zz and undefined and plain"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 15,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "missing=$zz and {\"nested\": [Object]} and {\"d\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 15,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "missing=$zz and NaN and 10"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 15,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "missing=$zz and 50% off and $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 15,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "index=0 a=1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 16,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "index=1 a=x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 16,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "index=2 a=undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 16,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "index=3 a={\"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 16,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "index=4 a=NaN"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 16,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "index=5 a=50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 16,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "two index 0 and $#"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 17,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "two index 1 and $#"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 17,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "two index 2 and $#"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 17,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "two index 3 and $#"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 17,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "two index 4 and $#"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 17,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "two index 5 and $#"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 17,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$0 $1 $2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 18,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$0 $1 $2"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 18,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$0 $1 $2"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 18,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$0 $1 $2"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 18,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$0 $1 $2"
+            ],
+            "dupIndex": 4
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 18,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$0 $1 $2"
+            ],
+            "dupIndex": 5
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 18,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "1two{\"d\": 3}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 19,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "xnull{\"d\": [Array]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 19,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "undefinedtrueplain"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 19,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"nested\": [Object]}[1, [Array]]{\"d\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 19,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "NaN010"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 19,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "50% off%s$a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 19,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "1, two; ({\"d\": 3})"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "x, null; ({\"d\": [Array]})"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "undefined, true; (plain)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"nested\": [Object]}, [1, [Array]]; ({\"d\": [Object]})"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "NaN, 0; (10)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "50% off, %s; ($a)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "NaN"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "1 two"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "x null"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "undefined true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"nested\": [Object]} [1, [Array]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "NaN 0"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "50% off %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "1"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "x"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "undefined"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"nested\": [Object]}"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "NaN"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "50% off"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$"
+            ],
+            "dupIndex": 4
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$"
+            ],
+            "dupIndex": 5
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$ a $ b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$ a $ b"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$ a $ b"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$ a $ b"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$ a $ b"
+            ],
+            "dupIndex": 4
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$ a $ b"
+            ],
+            "dupIndex": 5
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$1 $$two"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 26,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$x $$null"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 26,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$undefined $$true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 26,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "${\"nested\": [Object]} $$[1, [Array]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 26,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$NaN $$0"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 26,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$50% off $$%s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 26,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "${a} $(b)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 28,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "${a} $(b)"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 28,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "${a} $(b)"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 28,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "${a} $(b)"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 28,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "${a} $(b)"
+            ],
+            "dupIndex": 4
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 28,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "${a} $(b)"
+            ],
+            "dupIndex": 5
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 28,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "1-two {\"a\": 1, \"b\": \"two\", \"c\": [Object]}two"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 29,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "x-null {\"a\": \"x\", \"b\": null, \"c\": [Object]}null"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 29,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "undefined-true {\"a\": undefined, \"b\": true, \"c\": \"plain\"}true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 29,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"nested\": [Object]}-[1, [Array]] {\"a\": [Object], \"b\": [Array], \"c\": [Object]}[1, [Array]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 29,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "NaN-0 {\"a\": NaN, \"b\": -0, \"c\": 10}0"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 29,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "50% off-%s {\"a\": \"50% off\", \"b\": \"%s\", \"c\": \"$a\"}%s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 29,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$A $B"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$A $B"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$A $B"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$A $B"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$A $B"
+            ],
+            "dupIndex": 4
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$A $B"
+            ],
+            "dupIndex": 5
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{ a: 1, b: 'two', c: [Object] } $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 33,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{ a: 'x', b: null, c: [Object] } $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 33,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{ a: undefined, b: true, c: 'plain' } $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 33,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{ a: [Object], b: [Array], c: [Object] } $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 33,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{ a: NaN, b: -0, c: 10 } $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 33,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{ a: '50% off', b: '%s', c: '$a' } $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 33,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "0 $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "1 $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "2 $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "3 $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "4 $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "5 $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "%$ 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 35,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "%$ x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 35,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "%$ undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 35,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "%$ {\"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 35,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "%$ NaN"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 35,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "%$ 50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 35,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"a\": 1, \"b\": \"two\", \"c\": [Object]}|%j|$a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 36,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"a\": \"x\", \"b\": null, \"c\": [Object]}|%j|$a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 36,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"a\": undefined, \"b\": true, \"c\": \"plain\"}|%j|$a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 36,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"a\": [Object], \"b\": [Array], \"c\": [Object]}|%j|$a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 36,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"a\": NaN, \"b\": -0, \"c\": 10}|%j|$a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 36,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"a\": \"50% off\", \"b\": \"%s\", \"c\": \"$a\"}|%j|$a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 36,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "% 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 37,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "% x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 37,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "% undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 37,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "% {\"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 37,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "% NaN"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 37,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "% 50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 37,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "1 %"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 38,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "x %"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 38,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "undefined %"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 38,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"nested\": [Object]} %"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 38,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "NaN %"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 38,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "50% off %"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 38,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "1 % %"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 39,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "x % %"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 39,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "undefined % %"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 39,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"nested\": [Object]} % %"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 39,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "NaN % %"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 39,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "50% off % %"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 39,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "%s 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "%s x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "%s undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "%s {\"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "%s NaN"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "%s 50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "100% two"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 41,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "100% null"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 41,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "100% true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 41,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "100% [1, [Array]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 41,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "100% 0"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 41,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "100% %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 41,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "1 %"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 42,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "x %"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 42,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "undefined %"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 42,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"nested\": [Object]} %"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 42,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "NaN %"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 42,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "50% off %"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 42,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "1 %x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 43,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "x %x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 43,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "undefined %x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 43,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "{\"nested\": [Object]} %x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 43,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "NaN %x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 43,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "50% off %x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 43,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a=1 ab=2 abc=3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 54,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a={\"b\": 5} ab={\"a\": [Object], \"a.b\": 4} abc={\"a\": [Object], \"a.b\": 4}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 54,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a=7 ab={\"a\": 7, \"a b\": 6} abc={\"a\": 7, \"a b\": 6}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 54,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a=$a ab=$ab abc=$abc"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 54,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a=$a ab=$ab abc=$abc"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 54,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a=$a ab=$ab abc=$abc"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 54,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a.b=1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 55,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a.b=5"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 55,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a.b=7"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 55,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a.b=$a.b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 55,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a.b=$a.b"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 55,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a.b=$a.b"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 55,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a b=1 b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 56,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a b={\"b\": 5} b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 56,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a b=6"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 56,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a b=$a b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 56,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a b=$a b"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 56,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "a b=$a b"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 56,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "plus=1+b star=1* pipe=$x|y paren=$p(q) bracket=$[z] q=$k?"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 57,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "plus={\"b\": 5}+b star={\"b\": 5}* pipe=$x|y paren=$p(q) bracket=$[z] q=$k?"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 57,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "plus=7+b star=7* pipe=$x|y paren=$p(q) bracket=$[z] q=$k?"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 57,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "plus=8 star=9 pipe=10 paren=11 bracket=12 q=13"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 57,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "plus=$a+b star=$a* pipe=$x|y paren=$p(q) bracket=$[z] q=$k?"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 57,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "plus=$a+b star=$a* pipe=$x|y paren=$p(q) bracket=$[z] q=$k?"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 57,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "dollar=$$x hash=0 zero=$0 one=$1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 58,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "dollar=$$x hash=1 zero=$0 one=$1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 58,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "dollar=$$x hash=2 zero=$0 one=$1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 58,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "dollar=$$x hash=3 zero=$0 one=$1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 58,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "dollar=14 hash=16 zero=17 one=18"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 58,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "dollar={\"$\": 19, \"_u\": 21, \"a$\": 20, \"ü\": 22} hash=5 zero=$0 one=$1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 58,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "d=$$ ad=1$ u=$_u uml=$ü"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "d=$$ ad={\"b\": 5}$ u=$_u uml=$ü"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "d=$$ ad=7$ u=$_u uml=$ü"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "d=$$ ad=$a$ u=$_u uml=$ü"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "d=$$ ad=$a$ u=$_u uml=$ü"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "d=19 ad=20 u=21 uml=22"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 16
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$0|$1|$a|$#|1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 66,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$0|$1|$a|$#|{ a: 'x' }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 66,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$0|$1|$a|$#|[ 1, 2 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 66,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "objects.test.ts",
+            "path": [
+              "$a $b.c $0 $1 {\"a\": \"x\", \"b\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 67,
+            "column": 51
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

@@ -455,6 +455,49 @@ describe('the normalized-json reporter', () => {
       assert.equal(run.success, false)
     })
 
+    test('an error charged to a test after it ended fails that test, not only the file', async () => {
+      const file = buildFile({
+        path: 'late.test.ts',
+        state: 'fail',
+        tests: [{ path: ['owner'] }, { path: ['bystander'] }],
+      })
+      const out = output()
+      const bus = createReporterBus([reporter(out)])
+      await bus.emit(
+        'run:start',
+        { root: '/project', projects: [''], startTime: 0, watch: false },
+        [file.info],
+      )
+      await bus.emit('file:collected', file.info, collectedEvent(file))
+      for (const { task, spec } of file.tests) {
+        await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+      }
+      const [owner] = file.tests
+      assert.ok(owner !== undefined)
+      await bus.emit(
+        'unhandled',
+        file.info,
+        unhandledEvent(error('thrown after its test ended'), owner.task.id),
+      )
+      await bus.emit('file:end', file.result)
+      await bus.emit('run:end', {
+        reason: 'failed',
+        files: [file.result],
+        unhandled: [],
+        durationMs: 1,
+      })
+      const run = parseText(out.text())
+      const [first, second] = run.files[0]?.tests ?? []
+      assert.equal(first?.status, 'failed')
+      assert.deepEqual(
+        first?.errors.map((e) => e.message),
+        ['thrown after its test ended'],
+      )
+      assert.equal(second?.status, 'passed')
+      assert.equal(run.files[0]?.fileError, undefined, 'the error is the test`s, not the file`s')
+      assert.deepEqual(run.runErrors, [])
+    })
+
     test('does not repeat an unhandled error the file’s own errors already hold', () => {
       const file = buildFile({
         path: 'twice.test.ts',

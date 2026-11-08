@@ -14,6 +14,7 @@ import type {
 } from '@provino/types'
 import { jestPolicy } from '../dialect.ts'
 import { type JestGlobalsHost, type JestModuleObject, jestModuleScope } from './globals.ts'
+import { timerHost } from './internal/test-support.ts'
 
 const jestMock = resolvePolicy(jestPolicy).mock
 
@@ -110,6 +111,7 @@ function setUp(): {
     mocks: () => mocks,
     moduleMocks: () => moduleMocks,
     mockPolicy: jestMock,
+    ...timerHost(),
   }
   const scope = jestModuleScope(host)
   return {

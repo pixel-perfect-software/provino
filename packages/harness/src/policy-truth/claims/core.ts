@@ -1,6 +1,7 @@
 // The evidence for the `core` and `lazy` slices (T1.7). The runtime corpus (B07) runs Provino's
 // core under each value and compares with goldens recorded from both runners, so a flipped value
 // that changes a run is caught there; `fixtures/policy/core-*` record what it can't tell apart.
+import { neutralPolicy } from '@provino/policy'
 import { type Claims, corpus, each, golden, own, pending } from '../evidence.ts'
 import { errorsOf, hasTest, oneOf, statusOf, testOf, timeoutOf } from '../observe.ts'
 
@@ -82,7 +83,38 @@ export const coreClaims: Claims = {
       ])
     },
   }),
-  'core.formatEachTitle': pending('B17a', "jest-each's and Vitest's .each titles are T5.4's"),
+  // The ref flips to the neutral formatter (`flip.ts` `REF_FLIPS`): the runtime corpus titles every
+  // .each test through the dialect's formatter and compares it with the runner's own title, so the
+  // neutral one fails it. Not listed: the fixtures whose cases a title formatted one row at a time
+  // cannot reach yet (a mixed table, a tagged template with a % in its title: Jest; a null row in
+  // `.for`: Vitest), which wait for core to hand the formatter the table.
+  'core.formatEachTitle': each(
+    corpus(
+      'runtime',
+      'runtime/each-tokens',
+      'runtime/each-placeholder-counts',
+      'runtime/each-objects',
+      'runtime/each-templates',
+      'runtime/each-template-syntax',
+      'runtime/each-describe',
+      'runtime/each-truncate',
+      'runtime/each-values',
+      'runtime/each-json-bigint',
+    ),
+    corpus(
+      'runtime',
+      'runtime/each-tokens',
+      'runtime/each-placeholder-counts',
+      'runtime/each-objects',
+      'runtime/each-mixed-rows',
+      'runtime/each-templates',
+      'runtime/each-template-percent',
+      'runtime/each-describe',
+      'runtime/each-truncate',
+      'runtime/each-values',
+      'runtime/each-for',
+    ),
+  ),
   'core.eachTitleTruncate': each(golden('core-test-fn'), [
     golden('core-test-fn'),
     golden('defaults', { case: 'core.eachTitleTruncate' }),
@@ -121,9 +153,27 @@ export const coreClaims: Claims = {
   }),
   'core.hookReturnsCleanup': corpus('runtime', 'runtime/hook-teardowns'),
   'core.injectGlobals': golden('defaults'),
-  'core.doneDeprecatedMessage': pending(
-    'B17a',
-    "T5.7 builds Jest's done errors and Vitest's callable context; neither runner prints a warning for a done callback, which T5.7's fixture records",
+  // The text a call to the context throws: Vitest's context is a function that throws it, Jest has
+  // no context and so no text (`runtime/done-callback`, B17a).
+  'core.doneDeprecatedMessage': golden('runtime/done-callback', {
+    read: (g) => {
+      const hit = errorsOf(g, 'done called synchronously').find((message) =>
+        message.includes('callback is deprecated'),
+      )
+      return hit === undefined ? null : hit.replace(/^Error: /, '')
+    },
+  }),
+  // How the runtime prints a value in the messages it builds. Jest's is pretty-format at depth 3
+  // (the corpus compares the `done` errors' text, so the neutral printer fails it); Vitest builds
+  // none of those messages, so its value is Provino's neutral one (the dialect's test pins it).
+  'core.formatValue': each(
+    corpus('runtime', 'runtime/done-callback'),
+    own(
+      'packages/dialect-vitest/src/dialect.test.ts',
+      'formatValue',
+      neutralPolicy.core.formatValue,
+      'Vitest has no `done` and ignores a returned value, so nothing prints a value',
+    ),
   ),
   'core.collect.describeBody': corpus('runtime', 'runtime/describe-body'),
   'core.collect.describeReturnValue': corpus('runtime', 'runtime/collection-describe-return-value'),

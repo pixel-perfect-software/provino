@@ -1,0 +1,40 @@
+{
+  "name": "@provino/timers",
+  "version": "0.0.0",
+  "description": "Provino's fake timers: one clock over @sinonjs/fake-timers, driven by a dialect's timers policy.",
+  "homepage": "https://github.com/pixel-perfect-software/provino#readme",
+  "bugs": {
+    "url": "https://github.com/pixel-perfect-software/provino/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pixel-perfect-software/provino.git",
+    "directory": "packages/timers"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@provino/types": "workspace:*",
+    "@sinonjs/fake-timers": "catalog:"
+  },
+  "devDependencies": {
+    "@provino/policy": "workspace:*",
+    "@types/sinonjs__fake-timers": "catalog:"
+  }
+}

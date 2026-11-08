@@ -1,0 +1,4 @@
+{
+  "description": "How the two runners print structured values in a .each title: class instances, subclasses, getters, symbol keys, cycles, nesting deeper than the print depth, typed arrays, boxed primitives, sparse arrays, errors, Proxies, objects with their own toString, toJSON or inspect hook, and a null-prototype object. Through %s %o %O %p %j and a $variable.",
+  "runners": ["jest", "vitest"]
+}

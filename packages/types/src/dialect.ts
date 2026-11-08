@@ -2,7 +2,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { JsonValue } from './clone-safe.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { FileRegistry, ModuleMockRegistry } from './loader.ts'
-import type { MockPolicy, ModuleRef, PolicyOverrides } from './policy/index.ts'
+import type { MockPolicy, ModuleRef, PolicyOverrides, TimersPolicy } from './policy/index.ts'
 
 /**
  * Dialect option types by dialect name. Each dialect package augments it:
@@ -240,6 +240,14 @@ export interface GlobalsHost {
   moduleMocks(): ModuleMockRegistry
   /** The mock slice of the resolved policy: what a mock function built here follows. */
   readonly mockPolicy: MockPolicy
+  /**
+   * The fake clock of the file running now (`FakeClock` from `@provino/timers`; one per file, on
+   * the environment's global, whatever the tier). Read it when the global is called, like
+   * `registry()`.
+   */
+  timers(): object
+  /** The timers slice of the resolved policy: what a timer member built here follows. */
+  readonly timersPolicy: TimersPolicy
 }
 
 /**

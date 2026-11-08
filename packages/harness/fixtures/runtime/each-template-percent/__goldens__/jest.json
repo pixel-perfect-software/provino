@@ -1,0 +1,895 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/each-template-percent",
+  "files": [
+    {
+      "file": "percent.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%s 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%s x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%s {\"k\": \"v\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%s 50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%# 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%# x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%# {\"k\": \"v\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%# 50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%$ 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%$ x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%$ {\"k\": \"v\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%$ 50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%% 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%% x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%% {\"k\": \"v\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%% 50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "1 %% 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "x %% null"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "{\"k\": \"v\"} %% [1, 2]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "50% off %% %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%%s 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%%s x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%%s {\"k\": \"v\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%%s 50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "100% 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "100% x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "100% {\"k\": \"v\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "100% 50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%p|%j 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%p|%j x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%p|%j {\"k\": \"v\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "%p|%j 50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "1 %d %i %f %o %O %c 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "x %d %i %f %o %O %c null"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "{\"k\": \"v\"} %d %i %f %o %O %c [1, 2]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "50% off %d %i %f %o %O %c %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 40
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: { a: 1, b: 2 } $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: { a: 'x', b: null } $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: 0 $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: 1 $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: %$ 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: %$ x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: % 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: % x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: 1 % 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: x % null"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: %s 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: %s x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: 100% 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: 100% x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: {\"a\": 1, \"b\": 2}|%j $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: {\"a\": \"x\", \"b\": null}|%j $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: $a NaN %i %f %o %O %c $b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "percent.test.ts",
+            "path": [
+              "rows: $a NaN %i %f %o %O %c $b"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 5
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

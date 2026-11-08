@@ -1,0 +1,431 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/each-mixed-rows",
+  "files": [
+    {
+      "file": "mixed.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "objects, array, number: $a { a: 1 } %s 0"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 33
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "objects, array, number: $a [ 2, 3 ] %s 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 33
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "objects, array, number: $a 4 %s 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 33
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "no tokens: $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 33
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "no tokens: $a"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 33
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "no tokens: $a"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 33
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "array then number: [ 1, 2 ] %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 23
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "array then number: 3 %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 23
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "number then array: 3 %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 23
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "number then array: [ 1, 2 ] %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 23
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "object then string: $a { a: 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 27
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "object then string: $a x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 27
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "object then string, no tokens: $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 27
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "object then string, no tokens: $a"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 27
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "objects then array: $a|{ a: 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 37
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "objects then array: $a|{ a: 2 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 37
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "objects then array: $a|[ 3 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 37
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "objects then null: $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 38
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "objects then null: $a"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 38
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "objects then null: $a"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 38
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "objects then undefined: $a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 9,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "objects then undefined: $a"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 9,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "objects then undefined: $a"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 9,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "all objects: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 32
+          }
+        },
+        {
+          "id": {
+            "file": "mixed.test.ts",
+            "path": [
+              "all objects: 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 32
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

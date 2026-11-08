@@ -1,0 +1,4 @@
+{
+  "description": "Long values in a .each title. Vitest cuts a $variable and every value its format prints with inspect (%o, %O, and %s on an object) to 40 characters (taskTitleValueFormatTruncate): a string ends in an ellipsis, an object or array is shrunk to fit, any other value falls back to its type. %s on a string and %j are not cut. Jest never cuts. The boundaries sit at 39, 40 and 41 characters, and a cut that would split a surrogate pair.",
+  "runners": ["jest", "vitest"]
+}

@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/timers-advance",
+  "files": [
+    {
+      "file": "advance.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "advanceTimersToNextTimer(2) with three timers pending"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "advanceTimersToNextTimer fires the timers due at the same instant together"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "advanceTimersToNextFrame moves to the next 16 ms frame"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "the async advance flushes promise jobs between timers"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "the sync advance does not flush promise jobs between timers"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "runAllTimersAsync and runOnlyPendingTimersAsync flush promise jobs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "runAllTicks runs a nextTick callback at once only where nextTick is faked"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "runAllTimers runs timers a callback adds; runOnlyPendingTimers does not"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "clearAllTimers and getTimerCount"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "setSystemTime under fake timers does not fire pending timers"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "a second useFakeTimers() drops the pending timers"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "useRealTimers puts the real globals back"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "advance.test.ts",
+            "path": [
+              "a callback that throws surfaces from the advance call"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"advanceTimersToNextTimer(2) with three timers pending\",\"value\":{\"afterTwo\":[10,20],\"afterOneMore\":[10,20,30]}}",
+    "{\"id\":\"advanceTimersToNextTimer fires the timers due at the same instant together\",\"value\":{\"fired\":[\"a\",\"b\"],\"count\":1}}",
+    "{\"id\":\"advanceTimersToNextFrame moves to the next 16 ms frame\",\"value\":{\"first\":16,\"second\":32}}",
+    "{\"id\":\"the async advance flushes promise jobs between timers\",\"value\":[\"timer 1\",\"job after 1\",\"timer 2\"]}",
+    "{\"id\":\"the sync advance does not flush promise jobs between timers\",\"value\":{\"atReturn\":[\"timer 1\",\"timer 2\"],\"afterMicrotask\":[\"timer 1\",\"timer 2\",\"job after 1\"]}}",
+    "{\"id\":\"runAllTimersAsync and runOnlyPendingTimersAsync flush promise jobs\",\"value\":{\"afterPending\":[\"timer 1\",\"timer 3\",\"timer 2\"],\"afterAll\":[\"timer 1\",\"timer 3\",\"timer 2\"]}}",
+    "{\"id\":\"runAllTicks runs a nextTick callback at once only where nextTick is faked\",\"value\":{\"ranAtOnce\":true}}",
+    "{\"id\":\"runAllTimers runs timers a callback adds; runOnlyPendingTimers does not\",\"value\":{\"runAllTimers\":{\"ran\":[\"first\",\"second\",\"added\"],\"left\":0},\"runOnlyPendingTimers\":{\"ran\":[\"first\",\"second\"],\"left\":1}}}",
+    "{\"id\":\"clearAllTimers and getTimerCount\",\"value\":{\"beforeClear\":3,\"afterOneCleared\":2,\"afterClearAll\":0}}",
+    "{\"id\":\"setSystemTime under fake timers does not fire pending timers\",\"value\":{\"now\":5000,\"firedAtSet\":false,\"firedAfterAdvance\":true}}",
+    "{\"id\":\"a second useFakeTimers() drops the pending timers\",\"value\":{\"countAfter\":0,\"fired\":false}}",
+    "{\"id\":\"useRealTimers puts the real globals back\",\"value\":{\"setTimeout\":true,\"Date\":true,\"nextTick\":true}}",
+    "{\"id\":\"a callback that throws surfaces from the advance call\",\"value\":{\"message\":\"boom from a timer\"}}"
+  ]
+}
