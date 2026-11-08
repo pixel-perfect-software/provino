@@ -29,7 +29,6 @@ export interface JestCommandIo {
   readonly stdout: TextSink
   readonly stderr: NodeJS.WritableStream
   readonly cwd: string
-  readonly signal?: AbortSignal | undefined
 }
 
 /** The version of Jest the dialect mirrors, for `--showConfig`. */
@@ -52,7 +51,7 @@ function usageExitCode(): number {
  */
 function environmentsFor(request: RunRequest, project: NeutralProject): typeof ENVIRONMENTS {
   const { name } = project.environment
-  if (request.mode === 'run' || name in ENVIRONMENTS) return ENVIRONMENTS
+  if (request.mode === 'run' || Object.hasOwn(ENVIRONMENTS, name)) return ENVIRONMENTS
   return { ...ENVIRONMENTS, [name]: ENVIRONMENTS.node as (typeof ENVIRONMENTS)[string] }
 }
 
@@ -109,15 +108,15 @@ async function listFiles(
   request: RunRequest,
   cwd: string,
 ): Promise<readonly string[]> {
-  const found = new Set<string>()
-  for (const project of projects) {
-    const files = selectFiles(await discoverProject(project), request.fileFilters, {
-      rootDir: project.rootDir,
-      cwd,
-    })
-    for (const file of files) found.add(file.path)
-  }
-  return [...found].sort()
+  const perProject = await Promise.all(
+    projects.map(async (project) =>
+      selectFiles(await discoverProject(project), request.fileFilters, {
+        rootDir: project.rootDir,
+        cwd,
+      }),
+    ),
+  )
+  return [...new Set(perProject.flatMap((files) => files.map((file) => file.path)))].sort()
 }
 
 /**
@@ -200,7 +199,6 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       ...(request.cache === false || !read.cache ? { cache: false } : {}),
       testNamePattern: read.globalConfig.testNamePattern,
       fileFilters: request.fileFilters,
-      signal: io.signal,
     })
     return result.exitCode
   } catch (error) {

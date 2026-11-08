@@ -25,9 +25,9 @@ Commands:
   vitest   Run a Vitest project (not available yet)
   run      Run a project from a provino config file: provino run --config <file> [options]
 
-With no command, provino [--dialect jest|vitest] [options] runs provino.config.* if this directory
-has one, else the Jest config found from it. provino jest takes Jest's own flags; one Provino can't
-run yet is refused by name, with the task that builds it.
+With no command, provino [options] runs provino.config.* if this directory has one, else the Jest
+config found from it; --dialect jest|vitest names the runner and skips that search. provino jest
+takes Jest's own flags; one Provino can't run yet is refused by name, with the task that builds it.
 
 Options of provino run:
   -c, --config <file>               The config file (required)
@@ -95,7 +95,9 @@ function parseReporters(
  * `--config` is a `UsageError`.
  * @internal
  */
-export function parseRunArgs(args: readonly string[]): RunCommand {
+export function parseRunArgs(
+  args: readonly string[],
+): Extract<RunCommand, { readonly type: 'help' | 'run' }> {
   let parsed: ReturnType<typeof parse>
   try {
     parsed = parse(args.map(longFormOfShortWithEquals))
@@ -214,18 +216,17 @@ async function runBare(args: readonly string[], io: CliIo): Promise<number> {
       'this is a Vitest project, and provino vitest is not available yet (T11.15, T11.16, Phase 2)',
     )
   }
-  if (found.kind === 'jest') return runBareJest(rest, io, cwd)
+  if (found.kind === 'jest') return runBareJest(rest, io)
   const parsed = parseRunArgs(['--config', found.config, ...rest])
   if (parsed.type === 'help') return helpExit(io)
-  if (parsed.type !== 'run') throw new UsageError('unexpected command line')
   return (await run({ ...parsed.options, ...ioOptions(io) })).exitCode
 }
 
-function runBareJest(args: readonly string[], io: CliIo, cwd: string): Promise<number> {
+function runBareJest(args: readonly string[], io: CliIo): Promise<number> {
   return runJestCommand(args, {
     stdout: io.stdout ?? process.stdout,
     stderr: io.stderr ?? process.stderr,
-    cwd,
+    cwd: io.cwd ?? process.cwd(),
   })
 }
 
@@ -250,24 +251,14 @@ function ioOptions(io: CliIo): Pick<RunOptions, 'stdout' | 'stderr' | 'cwd'> {
  * @internal
  */
 export async function main(argv: readonly string[], io: CliIo = {}): Promise<number> {
-  const stdout = io.stdout ?? process.stdout
   const stderr = io.stderr ?? process.stderr
   try {
     const [command, ...args] = argv
     const parsed = parseCommand(command, args)
-    if (parsed.type === 'help') {
-      await stdout.write(USAGE)
-      return ExitCode.Pass
-    }
+    if (parsed.type === 'help') return await helpExit(io)
     if (parsed.type === 'bare') return await runBare(parsed.args, io)
-    if (parsed.type === 'jest') return await runBareJest(parsed.args, io, io.cwd ?? process.cwd())
-    const result = await run({
-      ...parsed.options,
-      stdout,
-      stderr,
-      ...(io.cwd === undefined ? {} : { cwd: io.cwd }),
-    })
-    return result.exitCode
+    if (parsed.type === 'jest') return await runBareJest(parsed.args, io)
+    return (await run({ ...parsed.options, ...ioOptions(io) })).exitCode
   } catch (error) {
     if (error instanceof UsageError) {
       stderr.write(`Provino: ${error.message}\n\n${USAGE}`)

@@ -1,6 +1,7 @@
-// The CLI oracle for T11.7's tests: real `jest-cli` 30.5.2's `buildArgv`, run in one child process
-// for a whole corpus of command lines (`cli-oracle-child.ts`). A case comes back as the argv Jest
-// built, or as how it failed (yargs prints its message and exits 1; jest-validate throws).
+// The CLI oracle for T11.7's tests: real `jest-cli` 30.5.2's `buildArgv`, run in a few child
+// processes at once for a whole corpus of command lines (`cli-oracle-child.ts`). A case comes
+// back as the argv Jest built, or as how it failed (yargs prints its message and exits 1;
+// jest-validate throws).
 import { spawn, spawnSync } from 'node:child_process'
 import { stripVTControlCharacters } from 'node:util'
 
@@ -30,11 +31,6 @@ function runChild(input: unknown): string {
     throw new Error(`the CLI oracle child failed (${result.status}): ${result.stderr}`)
   }
   return result.stdout
-}
-
-/** Runs real `buildArgv` on every command line, in one child process. */
-export function runCliOracle(cases: readonly (readonly string[])[]): readonly OracleOutcome[] {
-  return JSON.parse(runChild(cases)) as OracleOutcome[]
 }
 
 /** One child, asynchronously: it ends with its output or fails, and is killed after `timeoutMs`. */

@@ -11,7 +11,7 @@ import picomatch from 'picomatch'
 import type { DiscoveredFile } from './discover.ts'
 import { OrchestratorError } from './errors.ts'
 import { relativePosix } from './file-id.ts'
-import { byText } from './util.ts'
+import { BATCH, byText, mapInBatches } from './util.ts'
 
 /** Which form of a file's path a test glob is matched against (`orchestrator.globMatchesOn`). */
 export type GlobMatchesOn = OrchestratorPolicy['globMatchesOn']
@@ -79,21 +79,20 @@ function globsToMatcher(globs: readonly string[]): (path: string) => boolean {
       isMatch.state
     return { isMatch, negated: state.negated === true || state.negatedExtglob === true }
   })
+  const onlyNegated = matchers.every(({ negated }) => negated)
   return (path) => {
     const replaced = replacePathSepForGlob(path)
     let kept: boolean | undefined
-    let negatives = 0
     for (const { isMatch, negated } of matchers) {
-      if (negated) negatives++
       const matched = isMatch(replaced)
       if (!matched && negated) kept = false
       else if (matched && !negated) kept = true
     }
-    return negatives === matchers.length ? kept !== false : kept === true
+    return onlyNegated ? kept !== false : kept === true
   }
 }
 
-/** Whether a regex with state (`g`, `y`) matches again: a fresh test every time. */
+/** The sources as regular expressions: a path matches when any of them does. */
 function regexMatcher(sources: readonly string[]): (path: string) => boolean {
   const regexes = sources.map((source) => {
     try {
@@ -111,8 +110,8 @@ function regexMatcher(sources: readonly string[]): (path: string) => boolean {
 
 /**
  * The test-file predicate of a project's rules, on an absolute path: roots are the crawl's, so
- * this is `testMatch` or `testRegex`, and not matching `excludePatterns`. Used by the crawl, and
- * by `--runTestsByPath`, which takes paths that were never crawled.
+ * this is `testMatch` or `testRegex`, and not matching `excludePatterns`. The crawl applies it to
+ * every file it keeps.
  * @public
  */
 export function testFilePredicate(options: RuleDiscoverOptions): (absolutePath: string) => boolean {
@@ -208,24 +207,17 @@ export async function discoverByRules(
 }
 
 /** Each path as a `DiscoveredFile`; one that is gone, or not a file, is left out. */
-export async function sized(paths: readonly string[], rootDir: string): Promise<DiscoveredFile[]> {
-  const files: DiscoveredFile[] = []
-  for (let from = 0; from < paths.length; from += 256) {
-    const batch = paths.slice(from, from + 256)
-    const stats = await Promise.all(
-      batch.map((path) =>
-        stat(path).then(
-          (info) => (info.isFile() ? info.size : undefined),
-          () => undefined,
-        ),
-      ),
-    )
-    batch.forEach((path, index) => {
-      const sizeBytes = stats[index]
-      if (sizeBytes !== undefined) {
-        files.push({ path, relativePath: relativePosix(rootDir, path), sizeBytes })
-      }
-    })
-  }
-  return files
+async function sized(paths: readonly string[], rootDir: string): Promise<DiscoveredFile[]> {
+  const sizes = await mapInBatches(paths, BATCH, (path) =>
+    stat(path).then(
+      (info) => (info.isFile() ? info.size : undefined),
+      () => undefined,
+    ),
+  )
+  return paths.flatMap((path, index) => {
+    const sizeBytes = sizes[index]
+    return sizeBytes === undefined
+      ? []
+      : [{ path, relativePath: relativePosix(rootDir, path), sizeBytes }]
+  })
 }
