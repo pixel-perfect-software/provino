@@ -45,7 +45,7 @@
             {
               "name": "Error",
               "message": "Error: expect(received).toThrow(expected)\n\nExpected substring: \"timeout\"\nReceived message:   \"bad input\"",
-              "userFrame": "<root>/throws.test.ts:15:9"
+              "userFrame": "<root>/throws.test.ts:24:28"
             }
           ],
           "passingAssertions": 0,
@@ -68,7 +68,7 @@
             {
               "name": "Error",
               "message": "Error: expect(received).toThrow(expected)\n\nExpected pattern: /^timeout/\nReceived message: \"bad input\"",
-              "userFrame": "<root>/throws.test.ts:15:9"
+              "userFrame": "<root>/throws.test.ts:28:28"
             }
           ],
           "passingAssertions": 0,
@@ -91,7 +91,7 @@
             {
               "name": "Error",
               "message": "Error: expect(received).toThrow(expected)\n\nExpected constructor: ValidationError\nReceived constructor: TypeError\n\nReceived message: \"wrong type\"",
-              "userFrame": "<root>/throws.test.ts:33:13"
+              "userFrame": "<root>/throws.test.ts:34:8"
             }
           ],
           "passingAssertions": 0,
@@ -114,7 +114,7 @@
             {
               "name": "Error",
               "message": "Error: expect(received).toThrow(expected)\n\nExpected message: \"other message\"\nReceived message: \"bad input\"",
-              "userFrame": "<root>/throws.test.ts:15:9"
+              "userFrame": "<root>/throws.test.ts:38:28"
             }
           ],
           "passingAssertions": 0,
@@ -137,7 +137,7 @@
             {
               "name": "Error",
               "message": "Error: expect(received).toThrow(expected)\n\nExpected asymmetric matcher: ObjectContaining {\"code\": \"E1\"}\n\nReceived name:    \"Error\"\nReceived message: \"coded\"",
-              "userFrame": "<root>/throws.test.ts:43:13"
+              "userFrame": "<root>/throws.test.ts:44:8"
             }
           ],
           "passingAssertions": 0,
@@ -206,7 +206,7 @@
             {
               "name": "Error",
               "message": "Error: expect(received).not.toThrow()\n\nError name:    \"Error\"\nError message: \"bad input\"",
-              "userFrame": "<root>/throws.test.ts:15:9"
+              "userFrame": "<root>/throws.test.ts:58:32"
             }
           ],
           "passingAssertions": 0,
@@ -229,7 +229,7 @@
             {
               "name": "Error",
               "message": "Error: expect(received).not.toThrow(expected)\n\nExpected substring: not \"bad\"\nReceived message:       \"bad input\"",
-              "userFrame": "<root>/throws.test.ts:15:9"
+              "userFrame": "<root>/throws.test.ts:62:32"
             }
           ],
           "passingAssertions": 0,
@@ -252,7 +252,7 @@
             {
               "name": "Error",
               "message": "Error: expect(received).not.toThrow(expected)\n\nExpected constructor: not ValidationError\n\nReceived message: \"invalid\"",
-              "userFrame": "<root>/throws.test.ts:67:13"
+              "userFrame": "<root>/throws.test.ts:68:12"
             }
           ],
           "passingAssertions": 0,

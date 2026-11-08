@@ -30,6 +30,12 @@ export type HarnessErrorCode =
   | 'HARNESS_UNKNOWN_STATUS'
   | 'HARNESS_BAD_DATE'
   | 'HARNESS_USAGE'
+  | 'HARNESS_SIDECAR_INVALID'
+  | 'HARNESS_SIDECAR_MISSING'
+  | 'HARNESS_EXCLUSIONS_INVALID'
+  | 'HARNESS_FLAKY_INVALID'
+  | 'HARNESS_EMPTY_COMPARISON'
+  | 'HARNESS_SELF_TEST_FAILED'
 
 /**
  * An error from `@provino/harness`. `path` is the file or field it concerns, when there is one.

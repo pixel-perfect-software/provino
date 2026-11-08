@@ -476,4 +476,117 @@ test('counts.excluded is the number of reference tests an exclusion removed from
   assert.equal(report.counts.referenceTests, 3)
   assert.equal(report.counts.comparedTests, 1)
   assert.equal(report.counts.excluded, 2)
+  assert.equal(report.counts.flaky, 0)
+})
+
+test('flaky tests leave T and report no diff; counts.flaky says how many', () => {
+  const ref = runWith([
+    makeTest(FILE, ['steady']),
+    // Skipped, not failed, so the files' statuses still agree: a file's diff is never dropped.
+    makeTest(FILE, ['flaky'], { status: 'skipped' }),
+    makeTest(FILE, ['flaky gone']),
+  ])
+  const cand = runWith([makeTest(FILE, ['steady']), makeTest(FILE, ['flaky'])])
+  const report = diffRuns(
+    ref,
+    cand,
+    options({ flaky: [`${FILE}::flaky#0`, `${FILE}::flaky gone#0`, `${FILE}::in neither#0`] }),
+    TODAY,
+  )
+  assert.deepEqual(report.diffs, [])
+  assert.deepEqual(report.excluded, [])
+  assert.equal(report.statusParity, 1)
+  assert.equal(report.counts.referenceTests, 3)
+  assert.equal(report.counts.comparedTests, 1)
+  assert.equal(report.counts.excluded, 2)
+  assert.equal(report.counts.flaky, 2)
+})
+
+test('a provino:* candidate that leaves out the matcher or the assertion count differs', () => {
+  const ref = runWith([
+    makeTest(FILE, ['fails'], {
+      status: 'failed',
+      errors: [error('x', { matcher: 'toBe' })],
+      passingAssertions: 2,
+    }),
+  ])
+  const bare = runWith([makeTest(FILE, ['fails'], { status: 'failed', errors: [error('x')] })], {
+    runner: 'provino:jest',
+  })
+  const report = diffRuns(ref, bare, options({ messageMode: 'matcher' }), TODAY)
+  assert.deepEqual(
+    report.diffs.map((d) => [d.kind, d.ref, d.cand]),
+    [
+      ['matcher', 'toBe', undefined],
+      ['passing-assertions', '2', undefined],
+    ],
+  )
+  // Vitest's JSON has neither field, so for any other candidate a missing one can't disagree.
+  const vitest = diffRuns(
+    ref,
+    { ...bare, runner: 'vitest' },
+    options({ messageMode: 'matcher' }),
+    TODAY,
+  )
+  assert.deepEqual(vitest.diffs, [])
+  // In exact mode the matcher isn't compared, but the count still is.
+  const exact = diffRuns(ref, bare, options(), TODAY)
+  assert.deepEqual(
+    exact.diffs.map((d) => d.kind),
+    ['passing-assertions'],
+  )
+})
+
+test('absentIn matches only a diff where that run has nothing', () => {
+  const failing = (userFrame?: string) =>
+    makeTest(FILE, ['t'], {
+      status: 'failed',
+      errors: [userFrame === undefined ? { message: 'x', raw: 'x' } : error('x', { userFrame })],
+    })
+  const ref = runWith([failing('<root>/a.test.ts:1:1')])
+  const rule: ExclusionRule = {
+    id: 'div/frame',
+    reason: 'r',
+    kinds: ['user-frame'],
+    absentIn: 'candidate',
+  }
+  const none = diffRuns(ref, runWith([failing()]), options({ exclusions: [rule] }), TODAY)
+  assert.deepEqual(none.diffs, [])
+  assert.equal(none.excluded[0]?.ruleId, 'div/frame')
+  // The candidate has a frame, a different one: the rule doesn't reach it.
+  const other = diffRuns(
+    ref,
+    runWith([failing('<root>/a.test.ts:2:2')]),
+    options({ exclusions: [rule] }),
+    TODAY,
+  )
+  assert.deepEqual(
+    other.diffs.map((d) => d.kind),
+    ['user-frame'],
+  )
+  // Nor does a rule for the reference's absence.
+  const reversed = diffRuns(
+    ref,
+    runWith([failing()]),
+    options({ exclusions: [{ ...rule, absentIn: 'reference' }] }),
+    TODAY,
+  )
+  assert.deepEqual(
+    reversed.diffs.map((d) => d.kind),
+    ['user-frame'],
+  )
+})
+
+test('policyKey rides along on a rule and changes nothing about matching', () => {
+  const ref = runWith([makeTest(FILE, ['a'])])
+  const cand = runWith([makeTest(FILE, ['a'], { status: 'skipped' })])
+  const rule: ExclusionRule = {
+    id: 'div/x',
+    reason: 'r',
+    kinds: ['status'],
+    policyKey: 'core.hooks.beforeAllError',
+  }
+  const report = diffRuns(ref, cand, options({ exclusions: [rule] }), TODAY)
+  assert.deepEqual(report.diffs, [])
+  assert.equal(report.excluded[0]?.ruleId, 'div/x')
 })

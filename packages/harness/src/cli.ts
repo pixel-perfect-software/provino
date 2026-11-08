@@ -1,42 +1,31 @@
 #!/usr/bin/env node
 import path from 'node:path'
+import { convertCommand } from './commands/convert.ts'
+import { diffCommand } from './commands/diff.ts'
+import { processIo } from './commands/io.ts'
+import { selfTestCommand } from './commands/self-test.ts'
 import { HarnessError } from './errors.ts'
 import { defaultFixturesRoot, findFixtures, readFixture, resolveFixtureDirs } from './fixture.ts'
-import { POLICY_DIFF_USAGE, parseCommandLine, parsePolicyDiff, USAGE } from './internal/cli-args.ts'
+import {
+  type HarnessCommand,
+  type PolicyDiffCommand,
+  parseCommandLine,
+  type RecordCommand,
+  USAGE,
+} from './internal/cli-args.ts'
 import { findStaleGoldens } from './internal/stale-goldens.ts'
 import { formatDialectDiff } from './policy-truth/diff.ts'
 import { recordRead } from './record.ts'
 import { exitOnSignals } from './spawn-in-group.ts'
 
 // provino-harness policy-diff <jest|vitest> <jest|vitest>: the dialects' differing keys (T1.8).
-function policyDiff(argv: readonly string[]): number {
-  try {
-    const { a, b } = parsePolicyDiff(argv)
-    console.log(formatDialectDiff(a, b))
-    return 0
-  } catch (error) {
-    if (error instanceof HarnessError && error.code === 'HARNESS_USAGE') {
-      console.error(`${error.message}\n\n${POLICY_DIFF_USAGE}`)
-      return 2
-    }
-    throw error
-  }
+function policyDiff(command: PolicyDiffCommand): number {
+  console.log(formatDialectDiff(command.a, command.b))
+  return 0
 }
 
 // provino-harness record [--check] [--keep] [<fixture dir>...]
-async function main(argv: readonly string[]): Promise<number> {
-  if (argv[0] === 'policy-diff') return policyDiff(argv.slice(1))
-  let command: ReturnType<typeof parseCommandLine>
-  try {
-    command = parseCommandLine(argv)
-  } catch (error) {
-    if (error instanceof HarnessError && error.code === 'HARNESS_USAGE') {
-      console.error(`${error.message}\n\n${USAGE}`)
-      return 2
-    }
-    throw error
-  }
-
+async function record(command: RecordCommand): Promise<number> {
   const dirs =
     command.fixtures.length > 0 ? await resolveFixtureDirs(command.fixtures) : await findFixtures()
   if (dirs.length === 0) {
@@ -80,6 +69,35 @@ async function main(argv: readonly string[]): Promise<number> {
     }
   }
   return failed ? 1 : 0
+}
+
+async function main(argv: readonly string[]): Promise<number> {
+  let command: HarnessCommand
+  try {
+    command = parseCommandLine(argv)
+  } catch (error) {
+    if (error instanceof HarnessError && error.code === 'HARNESS_USAGE') {
+      console.error(`${error.message}\n\n${USAGE}`)
+      return 2
+    }
+    throw error
+  }
+  switch (command.command) {
+    case 'record':
+      return record(command)
+    case 'diff':
+      return diffCommand(command, processIo)
+    case 'convert':
+      return convertCommand(command, processIo)
+    case 'self-test':
+      return selfTestCommand(command, processIo)
+    case 'policy-diff':
+      return policyDiff(command)
+    default: {
+      const unexpected: never = command
+      throw new Error(`unhandled command ${JSON.stringify(unexpected)}`)
+    }
+  }
 }
 
 // Each runner is spawned in its own process group, which Ctrl-C no longer reaches; a signal must

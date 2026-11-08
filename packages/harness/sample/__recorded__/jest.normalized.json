@@ -1,0 +1,2014 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "harness/sample",
+  "startedAt": "2026-11-08T13:59:40.959Z",
+  "env": {
+    "os": "unrecorded",
+    "osRelease": "unrecorded",
+    "arch": "unrecorded",
+    "cpuModel": "unrecorded",
+    "cpuCount": 0,
+    "memoryMb": 0,
+    "node": "v24",
+    "runners": {
+      "jest": "30.5.2"
+    },
+    "ci": false
+  },
+  "files": [
+    {
+      "file": "assertions.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "assertions.test.ts",
+            "path": [
+              "assertion counts",
+              "expect.assertions with the right count"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "durationMs": 1,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assertions.test.ts",
+            "path": [
+              "assertion counts",
+              "expect.hasAssertions"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 9,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assertions.test.ts",
+            "path": [
+              "assertion counts",
+              "counts passing assertions"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "durationMs": 0,
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        }
+      ],
+      "durationMs": 21
+    },
+    {
+      "file": "concurrent.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "concurrent.test.ts",
+            "path": [
+              "concurrent tests",
+              "the slowest"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 36,
+          "location": {
+            "line": 4,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "concurrent.test.ts",
+            "path": [
+              "concurrent tests",
+              "a quicker one"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 13,
+          "location": {
+            "line": 9,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "concurrent.test.ts",
+            "path": [
+              "concurrent tests",
+              "one that does not wait"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 14,
+            "column": 6
+          }
+        }
+      ],
+      "durationMs": 54
+    },
+    {
+      "file": "console.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "console.test.ts",
+            "path": [
+              "console",
+              "logs at every level"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 3,
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "console.test.ts",
+            "path": [
+              "console",
+              "splits a multi-line write into lines"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 1,
+          "location": {
+            "line": 23,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "console.test.ts",
+            "path": [
+              "console",
+              "logs nothing itself"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 1,
+          "location": {
+            "line": 28,
+            "column": 3
+          }
+        }
+      ],
+      "durationMs": 254,
+      "console": [
+        {
+          "stream": "stdout",
+          "text": "beforeAll: output outside any test",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "log line 1",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "info line",
+          "level": "info"
+        },
+        {
+          "stream": "stderr",
+          "text": "warn line",
+          "level": "warn"
+        },
+        {
+          "stream": "stderr",
+          "text": "error line",
+          "level": "error"
+        },
+        {
+          "stream": "stdout",
+          "text": "debug line",
+          "level": "debug"
+        },
+        {
+          "stream": "stdout",
+          "text": "afterEach one",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "afterEach two",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "first",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "second",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "third",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "afterEach one",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "afterEach two",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "afterEach one",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "afterEach two",
+          "level": "log"
+        }
+      ]
+    },
+    {
+      "file": "crash.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    Cannot find module './does-not-exist.ts' from 'crash.test.ts'",
+        "userFrame": "<root>/crash.test.ts:2:1",
+        "raw": "  ● Test suite failed to run\n\n    Cannot find module './does-not-exist.ts' from 'crash.test.ts'\n\n      1 | // The import fails, so the file crashes before any test is collected, under both runners.\n    > 2 | import { missing } from './does-not-exist.ts'\n        | ^\n      3 |\n      4 | it('is never collected', () => {\n      5 |   expect(missing).toBeDefined()\n\n      at Resolver._throwModNotFoundError (../../../../node_modules/.pnpm/jest-resolve@30.5.1/node_modules/jest-resolve/build/index.js:1031:11)\n      at Object.require (crash.test.ts:2:1)\n"
+      },
+      "tests": [],
+      "durationMs": 0
+    },
+    {
+      "file": "describe-each.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "describe-each.test.ts",
+            "path": [
+              "group first",
+              "has a number"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe-each.test.ts",
+            "path": [
+              "group first",
+              "is positive"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 9,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe-each.test.ts",
+            "path": [
+              "group second",
+              "has a number"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe-each.test.ts",
+            "path": [
+              "group second",
+              "is positive"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 9,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe-each.test.ts",
+            "path": [
+              "table small",
+              "counts"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 19,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe-each.test.ts",
+            "path": [
+              "table large",
+              "counts"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 19,
+            "column": 3
+          }
+        }
+      ],
+      "durationMs": 25
+    },
+    {
+      "file": "each.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "it.each over an array",
+              "1 + 1 = 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 2,
+          "location": {
+            "line": 5,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "it.each over an array",
+              "2 + 3 = 6"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 6\nReceived: 5",
+              "matcher": "toBe",
+              "userFrame": "<root>/each.test.ts:6:19",
+              "raw": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 6\nReceived: 5\n    at toBe (/__root__/each.test.ts:6:19)\n    at Object.<anonymous> (/__repo__/node_modules/.pnpm/jest-each@30.5.2/node_modules/jest-each/build/index.js:80:140)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 1,
+          "location": {
+            "line": 5,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "it.each over an array",
+              "name alpha"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 9,
+            "column": 29
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "it.each over an array",
+              "name beta"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 9,
+            "column": 29
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "it.each over a template",
+              "1 + 1 = 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 1,
+          "location": {
+            "line": 19,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "it.each over a template",
+              "2 + 2 = 4"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 19,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "duplicate names",
+              "same name"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 25,
+            "column": 21
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "duplicate names",
+              "same name"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 25,
+            "column": 21
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "duplicate names",
+              "same name"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 25,
+            "column": 21
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "it.each over objects",
+              "object one"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 34,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "it.each over objects",
+              "object two"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 34,
+            "column": 5
+          }
+        }
+      ],
+      "durationMs": 252
+    },
+    {
+      "file": "fail.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "fail.test.ts",
+            "path": [
+              "failing assertions",
+              "toBe"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 4\nReceived: 3",
+              "matcher": "toBe",
+              "userFrame": "<root>/fail.test.ts:3:19",
+              "raw": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 4\nReceived: 3\n    at Object.toBe (/__root__/fail.test.ts:3:19)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 4,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fail.test.ts",
+            "path": [
+              "failing assertions",
+              "toEqual"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 1\n\n  Object {\n    \"name\": \"a\",\n    \"tags\": Array [\n-     \"y\",\n+     \"x\",\n    ],\n  }",
+              "matcher": "toEqual",
+              "userFrame": "<root>/fail.test.ts:7:40",
+              "raw": "Error: expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 1\n\n  Object {\n    \"name\": \"a\",\n    \"tags\": Array [\n-     \"y\",\n+     \"x\",\n    ],\n  }\n    at Object.toEqual (/__root__/fail.test.ts:7:40)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 1,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fail.test.ts",
+            "path": [
+              "failing assertions",
+              "toThrow with the wrong message"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toThrow(expected)\n\nExpected substring: \"fizzle\"\nReceived message:   \"kaboom\"",
+              "userFrame": "<root>/fail.test.ts:13:8",
+              "raw": "Error: expect(received).toThrow(expected)\n\nExpected substring: \"fizzle\"\nReceived message:   \"kaboom\"\n\n      10 |   it('toThrow with the wrong message', () => {\n      11 |     expect(() => {\n    > 12 |       throw new Error('kaboom')\n         |             ^\n      13 |     }).toThrow('fizzle')\n      14 |   })\n      15 |\n\n      at fail.test.ts:12:13\n      at Object.<anonymous> (../../../../node_modules/.pnpm/expect@30.5.2/node_modules/expect/build/index.js:1824:9)\n      at Object.throwingMatcher [as toThrow] (../../../../node_modules/.pnpm/expect@30.5.2/node_modules/expect/build/index.js:2235:93)\n      at Object.toThrow (fail.test.ts:13:8)\n    at Object.toThrow (/__root__/fail.test.ts:13:8)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 8,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fail.test.ts",
+            "path": [
+              "failing assertions",
+              "toThrow when nothing is thrown"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toThrow()\n\nReceived function did not throw",
+              "userFrame": "<root>/fail.test.ts:17:21",
+              "raw": "Error: expect(received).toThrow()\n\nReceived function did not throw\n    at Object.toThrow (/__root__/fail.test.ts:17:21)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 0,
+          "location": {
+            "line": 16,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fail.test.ts",
+            "path": [
+              "failing assertions",
+              "passes between failures"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 20,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fail.test.ts",
+            "path": [
+              "failing throws",
+              "an error with a cause"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: outer\n\n[cause]: Error: inner",
+              "userFrame": "<root>/fail.test.ts:27:11",
+              "raw": "Error: outer\n    at Object.<anonymous> (/__root__/fail.test.ts:27:11)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)\n\n[cause]: Error: inner\n    at Object.<anonymous> (/__root__/fail.test.ts:27:39)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 0,
+          "location": {
+            "line": 26,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fail.test.ts",
+            "path": [
+              "failing throws",
+              "a thrown string"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: thrown: \"a string\"\n\n[cause]: Error: thrown: \"a string\"",
+              "userFrame": "<root>/fail.test.ts:30:3",
+              "raw": "Error: thrown: \"a string\"\n    at _getError (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1985:12)\n    at Array.map (<anonymous>)\n    at makeSingleTestResult (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1915:38)\n    at makeTestResults (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1945:26)\n    at makeRunResult (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1876:18)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:797:35)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)\n\n[cause]: Error: thrown: \"a string\"\n    at it (/__root__/fail.test.ts:30:3)\n    at _dispatchDescribe (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:626:26)\n    at describe (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:594:44)\n    at Object.describe (/__root__/fail.test.ts:25:1)\n    at ModuleExecutor.exec (/__repo__/node_modules/.pnpm/jest-runtime@30.5.2_supports-color@8.1.1/node_modules/jest-runtime/build/index.js:3055:26)\n    at CjsLoader.loadModule (/__repo__/node_modules/.pnpm/jest-runtime@30.5.2_supports-color@8.1.1/node_modules/jest-runtime/build/index.js:440:36)\n    at CjsLoader.requireModule (/__repo__/node_modules/.pnpm/jest-runtime@30.5.2_supports-color@8.1.1/node_modules/jest-runtime/build/index.js:335:12)\n    at Runtime.requireModule (/__repo__/node_modules/.pnpm/jest-runtime@30.5.2_supports-color@8.1.1/node_modules/jest-runtime/build/index.js:4981:27)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:96:13)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 0,
+          "location": {
+            "line": 30,
+            "column": 3
+          }
+        }
+      ],
+      "durationMs": 263
+    },
+    {
+      "file": "failing.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "failing.test.ts",
+            "path": [
+              "fails, as it is meant to"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "expectedToFail": true,
+          "durationMs": 0,
+          "location": {
+            "line": 4,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "failing.test.ts",
+            "path": [
+              "passes, so it fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.",
+              "userFrame": "<root>/failing.test.ts:8:1",
+              "raw": "Error: Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.\n    at Object.failing (/__root__/failing.test.ts:8:1)\n    at ModuleExecutor.exec (/__repo__/node_modules/.pnpm/jest-runtime@30.5.2_supports-color@8.1.1/node_modules/jest-runtime/build/index.js:3055:26)\n    at CjsLoader.loadModule (/__repo__/node_modules/.pnpm/jest-runtime@30.5.2_supports-color@8.1.1/node_modules/jest-runtime/build/index.js:440:36)\n    at CjsLoader.requireModule (/__repo__/node_modules/.pnpm/jest-runtime@30.5.2_supports-color@8.1.1/node_modules/jest-runtime/build/index.js:335:12)\n    at Runtime.requireModule (/__repo__/node_modules/.pnpm/jest-runtime@30.5.2_supports-color@8.1.1/node_modules/jest-runtime/build/index.js:4981:27)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:96:13)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 1,
+          "expectedToFail": true,
+          "durationMs": 1,
+          "location": {
+            "line": 8,
+            "column": 1
+          }
+        }
+      ],
+      "durationMs": 32
+    },
+    {
+      "file": "hooks.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "hooks.test.ts",
+            "path": [
+              "a failing beforeAll",
+              "first test under it"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: beforeAll failed",
+              "userFrame": "<root>/hooks.test.ts:3:11",
+              "raw": "Error: beforeAll failed\n    at Object.<anonymous> (/__root__/hooks.test.ts:3:11)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusHook (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1136:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:941:7)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 1,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "hooks.test.ts",
+            "path": [
+              "a failing beforeAll",
+              "second test under it"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: beforeAll failed",
+              "userFrame": "<root>/hooks.test.ts:3:11",
+              "raw": "Error: beforeAll failed\n    at Object.<anonymous> (/__root__/hooks.test.ts:3:11)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusHook (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1136:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:941:7)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "hooks.test.ts",
+            "path": [
+              "a failing beforeEach",
+              "fails before its body runs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: beforeEach failed",
+              "userFrame": "<root>/hooks.test.ts:17:11",
+              "raw": "Error: beforeEach failed\n    at Object.<anonymous> (/__root__/hooks.test.ts:17:11)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusHook (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1136:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1097:5)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 0,
+          "location": {
+            "line": 20,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "hooks.test.ts",
+            "path": [
+              "a failing afterEach",
+              "fails after its body passed"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: afterEach failed",
+              "userFrame": "<root>/hooks.test.ts:27:11",
+              "raw": "Error: afterEach failed\n    at Object.<anonymous> (/__root__/hooks.test.ts:27:11)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusHook (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1136:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1105:5)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 1,
+          "durationMs": 1,
+          "location": {
+            "line": 30,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "hooks.test.ts",
+            "path": [
+              "passing hooks",
+              "runs beforeEach first"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 1,
+          "location": {
+            "line": 46,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "hooks.test.ts",
+            "path": [
+              "passing hooks",
+              "ran afterEach after the first test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 50,
+            "column": 3
+          }
+        }
+      ],
+      "durationMs": 282
+    },
+    {
+      "file": "mock-fn.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "mock-fn.test.ts",
+            "path": [
+              "mock functions",
+              "records calls"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "durationMs": 3,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mock-fn.test.ts",
+            "path": [
+              "mock functions",
+              "returns a value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 13,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mock-fn.test.ts",
+            "path": [
+              "mock functions",
+              "uses an implementation"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "durationMs": 1,
+          "location": {
+            "line": 18,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mock-fn.test.ts",
+            "path": [
+              "mock functions",
+              "fails a call assertion"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)\n\nExpected: 2\nReceived: 1\n\nNumber of calls: 1",
+              "userFrame": "<root>/mock-fn.test.ts:27:15",
+              "raw": "Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)\n\nExpected: 2\nReceived: 1\n\nNumber of calls: 1\n    at Object.toHaveBeenCalledWith (/__root__/mock-fn.test.ts:27:15)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 1,
+          "location": {
+            "line": 24,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mock-fn.test.ts",
+            "path": [
+              "mock functions",
+              "fails a call count"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\nExpected number of calls: 1\nReceived number of calls: 0",
+              "userFrame": "<root>/mock-fn.test.ts:32:15",
+              "raw": "Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\nExpected number of calls: 1\nReceived number of calls: 0\n    at Object.toHaveBeenCalledTimes (/__root__/mock-fn.test.ts:32:15)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 0,
+          "location": {
+            "line": 30,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mock-fn.test.ts",
+            "path": [
+              "spyOn",
+              "replaces a method and restores it"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "durationMs": 1,
+          "location": {
+            "line": 37,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mock-fn.test.ts",
+            "path": [
+              "spyOn",
+              "watches a method without replacing it"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "durationMs": 0,
+          "location": {
+            "line": 46,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mock-fn.test.ts",
+            "path": [
+              "mockReset",
+              "leaves a function that returns undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 55,
+            "column": 3
+          }
+        }
+      ],
+      "durationMs": 304
+    },
+    {
+      "file": "modules.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "modules.test.ts",
+            "path": [
+              "module mocks",
+              "uses the factory"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 5,
+          "location": {
+            "line": 13,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "modules.test.ts",
+            "path": [
+              "module mocks",
+              "keeps an actual export"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 1,
+          "location": {
+            "line": 17,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "modules.test.ts",
+            "path": [
+              "module mocks",
+              "uses the adjacent __mocks__ file"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "modules.test.ts",
+            "path": [
+              "module mocks",
+              "records calls to the factory mock"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 1,
+          "location": {
+            "line": 25,
+            "column": 3
+          }
+        }
+      ],
+      "durationMs": 295
+    },
+    {
+      "file": "normalization-inputs.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "normalization-inputs.test.ts",
+            "path": [
+              "text the normalization rules exist for",
+              "colour codes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: red and bold",
+              "userFrame": "<root>/normalization-inputs.test.ts:10:11",
+              "raw": "Error: \u001b[31mred\u001b[39m and \u001b[1mbold\u001b[22m\n    at Object.<anonymous> (/__root__/normalization-inputs.test.ts:10:11)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 6,
+          "location": {
+            "line": 9,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "normalization-inputs.test.ts",
+            "path": [
+              "text the normalization rules exist for",
+              "CRLF line ends"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: first line\nsecond line",
+              "userFrame": "<root>/normalization-inputs.test.ts:14:11",
+              "raw": "Error: first line\r\nsecond line\n    at Object.<anonymous> (/__root__/normalization-inputs.test.ts:14:11)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 0,
+          "location": {
+            "line": 13,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "normalization-inputs.test.ts",
+            "path": [
+              "text the normalization rules exist for",
+              "a file URL"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: see <root>/normalization-inputs.test.ts",
+              "userFrame": "<root>/normalization-inputs.test.ts:18:11",
+              "raw": "Error: see file:///__root__/normalization-inputs.test.ts\n    at Object.<anonymous> (/__root__/normalization-inputs.test.ts:18:11)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 0,
+          "location": {
+            "line": 17,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "normalization-inputs.test.ts",
+            "path": [
+              "text the normalization rules exist for",
+              "a UUID"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: request <uuid> failed",
+              "userFrame": "<root>/normalization-inputs.test.ts:22:11",
+              "raw": "Error: request 123e4567-e89b-12d3-a456-426614174000 failed\n    at Object.<anonymous> (/__root__/normalization-inputs.test.ts:22:11)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 0,
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "normalization-inputs.test.ts",
+            "path": [
+              "text the normalization rules exist for",
+              "a hex address"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: segfault at <addr>",
+              "userFrame": "<root>/normalization-inputs.test.ts:26:11",
+              "raw": "Error: segfault at 0x00007ffd5e8c1a40\n    at Object.<anonymous> (/__root__/normalization-inputs.test.ts:26:11)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 0,
+          "location": {
+            "line": 25,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "normalization-inputs.test.ts",
+            "path": [
+              "text the normalization rules exist for",
+              "a temp path"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: cannot write <tmp>/report.json",
+              "userFrame": "<root>/normalization-inputs.test.ts:30:11",
+              "raw": "Error: cannot write /tmp/x/report.json\n    at Object.<anonymous> (/__root__/normalization-inputs.test.ts:30:11)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 0,
+          "location": {
+            "line": 29,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "normalization-inputs.test.ts",
+            "path": [
+              "text the normalization rules exist for",
+              "a duration"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: the step took (<dur>)",
+              "userFrame": "<root>/normalization-inputs.test.ts:34:11",
+              "raw": "Error: the step took (12 ms)\n    at Object.<anonymous> (/__root__/normalization-inputs.test.ts:34:11)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 0,
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "normalization-inputs.test.ts",
+            "path": [
+              "text the normalization rules exist for",
+              "prints the same kinds of text"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 2,
+          "location": {
+            "line": 37,
+            "column": 3
+          }
+        }
+      ],
+      "durationMs": 316,
+      "console": [
+        {
+          "stream": "stdout",
+          "text": "green",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "url <root>/normalization-inputs.test.ts",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "id <uuid> at <addr>",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "wrote <tmp>/out.txt",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "done (<dur>)",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "windows line\r",
+          "level": "log"
+        },
+        {
+          "stream": "stdout",
+          "text": "end",
+          "level": "log"
+        }
+      ]
+    },
+    {
+      "file": "only.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "only.test.ts",
+            "path": [
+              "the focused test runs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 1,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "only.test.ts",
+            "path": [
+              "an unfocused test is skipped"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "only.test.ts",
+            "path": [
+              "so is this one"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 9,
+            "column": 1
+          }
+        }
+      ],
+      "durationMs": 21
+    },
+    {
+      "file": "pass.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "pass.test.ts",
+            "path": [
+              "passing assertions",
+              "toBe"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 2,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "pass.test.ts",
+            "path": [
+              "passing assertions",
+              "toEqual"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "pass.test.ts",
+            "path": [
+              "passing assertions",
+              "toContain and toMatch"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "durationMs": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "pass.test.ts",
+            "path": [
+              "passing assertions",
+              "toThrow"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 1,
+          "location": {
+            "line": 15,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "pass.test.ts",
+            "path": [
+              "passing assertions",
+              "resolves"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "pass.test.ts",
+            "path": [
+              "passing assertions",
+              "rejects"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 25,
+            "column": 3
+          }
+        }
+      ],
+      "durationMs": 247
+    },
+    {
+      "file": "skip-todo.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "skip-todo.test.ts",
+            "path": [
+              "skipped with it.skip"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "skip-todo.test.ts",
+            "path": [
+              "skipped with test.skip"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "skip-todo.test.ts",
+            "path": [
+              "a skipped describe",
+              "is skipped too"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "skip-todo.test.ts",
+            "path": [
+              "a skipped describe",
+              "and so is this one"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "skip-todo.test.ts",
+            "path": [
+              "a todo"
+            ],
+            "dupIndex": 0
+          },
+          "status": "todo",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 19,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "skip-todo.test.ts",
+            "path": [
+              "another todo"
+            ],
+            "dupIndex": 0
+          },
+          "status": "todo",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "skip-todo.test.ts",
+            "path": [
+              "runs beside them"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 23,
+            "column": 1
+          }
+        }
+      ],
+      "durationMs": 260
+    },
+    {
+      "file": "snapshots.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "snapshots.test.ts",
+            "path": [
+              "file snapshots",
+              "an object"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 3,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "snapshots.test.ts",
+            "path": [
+              "file snapshots",
+              "with a hint"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "snapshots.test.ts",
+            "path": [
+              "file snapshots",
+              "nested",
+              "a string"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 11,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "snapshots.test.ts",
+            "path": [
+              "file snapshots",
+              "a thrown error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 16,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "snapshots.test.ts",
+            "path": [
+              "inline snapshots",
+              "a string"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 24,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "snapshots.test.ts",
+            "path": [
+              "inline snapshots",
+              "a number"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 0,
+          "location": {
+            "line": 28,
+            "column": 3
+          }
+        }
+      ],
+      "durationMs": 304
+    },
+    {
+      "file": "timeout.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "timeout.test.ts",
+            "path": [
+              "finishes within its timeout"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 6,
+          "location": {
+            "line": 3,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "timeout.test.ts",
+            "path": [
+              "runs past its timeout"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: thrown: \"Exceeded timeout of 50 ms for a test.\nAdd a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout.\"\n\n[cause]: Error: thrown: \"Exceeded timeout of 50 ms for a test.\nAdd a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout.\"",
+              "userFrame": "<root>/timeout.test.ts:8:1",
+              "raw": "Error: thrown: \"Exceeded timeout of 50 ms for a test.\nAdd a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout.\"\n    at _getError (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1985:12)\n    at Array.map (<anonymous>)\n    at makeSingleTestResult (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1915:38)\n    at makeTestResults (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1945:26)\n    at makeRunResult (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1876:18)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:797:35)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)\n\n[cause]: Error: thrown: \"Exceeded timeout of 50 ms for a test.\nAdd a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout.\"\n    at Object.it (/__root__/timeout.test.ts:8:1)\n    at ModuleExecutor.exec (/__repo__/node_modules/.pnpm/jest-runtime@30.5.2_supports-color@8.1.1/node_modules/jest-runtime/build/index.js:3055:26)\n    at CjsLoader.loadModule (/__repo__/node_modules/.pnpm/jest-runtime@30.5.2_supports-color@8.1.1/node_modules/jest-runtime/build/index.js:440:36)\n    at CjsLoader.requireModule (/__repo__/node_modules/.pnpm/jest-runtime@30.5.2_supports-color@8.1.1/node_modules/jest-runtime/build/index.js:335:12)\n    at Runtime.requireModule (/__repo__/node_modules/.pnpm/jest-runtime@30.5.2_supports-color@8.1.1/node_modules/jest-runtime/build/index.js:4981:27)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:96:13)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
+            }
+          ],
+          "passingAssertions": 0,
+          "durationMs": 53
+        }
+      ],
+      "durationMs": 77
+    },
+    {
+      "file": "timers.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "timers.test.ts",
+            "path": [
+              "fake timers",
+              "runs a timeout when time advances"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "durationMs": 3,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "timers.test.ts",
+            "path": [
+              "fake timers",
+              "sets the system time"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "durationMs": 1,
+          "location": {
+            "line": 20,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "timers.test.ts",
+            "path": [
+              "fake timers",
+              "runs every pending timer in order"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "durationMs": 1,
+          "location": {
+            "line": 27,
+            "column": 3
+          }
+        }
+      ],
+      "durationMs": 270
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 4,
+      "matched": 2,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 6,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/snapshots.test.ts.snap",
+        "sha256": "66d9630a3c712d522fa49bd81e0979a13422048292754bf0c7e2cd52498a74c0"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": false
+}

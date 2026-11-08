@@ -124,6 +124,89 @@ test('a segment that is only a stack leaves no blank line behind in the message'
   assert.equal(messageOf(segments), '[cause]: Error: inner')
 })
 
+test("Jest's toThrow: the received error's stack, indented apart, is neither message nor stack", () => {
+  // The shape of Jest 30.5's failure text (recorded in sample/__recorded__/jest.raw.json).
+  const text = [
+    'Error: expect(received).toThrow(expected)',
+    '',
+    'Received message:   "kaboom"',
+    '',
+    '      at fail.test.ts:12:13',
+    '      at Object.<anonymous> (../../node_modules/expect/build/index.js:1824:9)',
+    '      at Object.toThrow (fail.test.ts:13:8)',
+    '    at Object.toThrow (/work/fail.test.ts:13:8)',
+    '    at callAsyncCircusFn (/repo/node_modules/jest-circus/build/x.js:1:1)',
+  ].join('\n')
+  const segments = parseStack(text)
+  assert.equal(
+    messageOf(segments),
+    'Error: expect(received).toThrow(expected)\n\nReceived message:   "kaboom"\n',
+  )
+  assert.equal(segments[0]?.frames.length, 2)
+  assert.equal(userFrameOf(segments), '/work/fail.test.ts:13:8')
+})
+
+test('a frame-like line printed as data above the stack, in a failure that is not toThrow, is kept', () => {
+  const text = [
+    'Error: the log was not empty',
+    '      at somewhere (/work/log.txt:1:1)',
+    '    at Object.<anonymous> (/work/a.test.ts:3:4)',
+  ].join('\n')
+  const segments = parseStack(text)
+  assert.equal(
+    messageOf(segments),
+    'Error: the log was not empty\n      at somewhere (/work/log.txt:1:1)',
+  )
+  assert.equal(segments[0]?.frames.length, 1)
+  assert.equal(userFrameOf(segments), '/work/a.test.ts:3:4')
+})
+
+test("Jest's bare .not.toThrow() prints its received error under `Error message:`", () => {
+  const text = [
+    'Error: expect(received).not.toThrow()',
+    '',
+    'Error message: "bad input"',
+    '',
+    '      at /work/throws.test.ts:15:9',
+    '    at Object.toThrow (/work/throws.test.ts:48:31)',
+  ].join('\n')
+  const segments = parseStack(text)
+  assert.equal(
+    messageOf(segments),
+    'Error: expect(received).not.toThrow()\n\nError message: "bad input"\n',
+  )
+  assert.equal(userFrameOf(segments), '/work/throws.test.ts:48:31')
+})
+
+test("every toThrow layout ends with the received error's stack: `Expected message: not`, a multi-line message", () => {
+  for (const middle of [
+    ['Expected message: not "x"'],
+    ['Received message:   "first line', 'second line"'],
+  ]) {
+    const text = [
+      'Error: expect(received).not.toThrow(expected)',
+      '',
+      ...middle,
+      '',
+      '      at /work/throws.test.ts:15:9',
+      '    at Object.toThrow (/work/throws.test.ts:52:31)',
+    ].join('\n')
+    const segments = parseStack(text)
+    assert.equal(
+      messageOf(segments),
+      ['Error: expect(received).not.toThrow(expected)', '', ...middle, ''].join('\n'),
+    )
+    assert.equal(userFrameOf(segments), '/work/throws.test.ts:52:31')
+  }
+})
+
+test('frames indented alike are one stack, whatever their indent', () => {
+  const text = 'Error: x\n      at a (/work/a.test.ts:1:1)\n      at b (/work/b.test.ts:2:2)'
+  const segments = parseStack(text)
+  assert.equal(segments[0]?.frames.length, 2)
+  assert.equal(userFrameOf(segments), '/work/a.test.ts:1:1')
+})
+
 test('text with no frames is its own message, line for line', () => {
   for (const text of ['', 'one', 'one\n', '\n\ntwo\n\n', 'a\r\nb']) {
     assert.equal(messageOf(parseStack(text)), text)

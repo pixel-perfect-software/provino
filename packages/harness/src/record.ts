@@ -39,7 +39,11 @@ import {
 } from './internal/runner-config.ts'
 import { assertTraceFromOneFile, readTrace } from './internal/trace.ts'
 import { isNodeModules, walkFiles } from './internal/walk.ts'
-import { createWorkDirRegistry, REMOVE_TREE_OPTIONS } from './internal/work-dirs.ts'
+import {
+  createWorkDirRegistry,
+  REMOVE_TREE_OPTIONS,
+  type WorkDirRegistry,
+} from './internal/work-dirs.ts'
 import { createNormalizer } from './normalize.ts'
 import { parseJestJson, parseVitestJson } from './parse-results.ts'
 import { runProcess } from './run-process.ts'
@@ -85,23 +89,25 @@ export interface RecordResult {
 }
 
 /** The harness's own deadline for one runner: two minutes. */
-const TIMEOUT_MS = 120_000
+export const TIMEOUT_MS: number = 120_000
 
-const PACKAGE_DIR = path.resolve(import.meta.dirname, '..')
+export const PACKAGE_DIR: string = path.resolve(import.meta.dirname, '..')
 const REPO_ROOT = path.resolve(PACKAGE_DIR, '..', '..')
-const WORK_ROOT = path.join(PACKAGE_DIR, '.record')
-const TRANSFORMER_PATH = fileURLToPath(new URL('./jest-transform.ts', import.meta.url))
+export const WORK_ROOT: string = path.join(PACKAGE_DIR, '.record')
+export const TRANSFORMER_PATH: string = fileURLToPath(
+  new URL('./jest-transform.ts', import.meta.url),
+)
 
 // A signal ends the CLI through `process.exit` (`exitOnSignals`), which skips `recordRead`'s
 // cleanup, so the work directories on disk are also removed on exit. One per process, because
 // `exit` is.
-const workDirs = createWorkDirRegistry()
+export const workDirs: WorkDirRegistry = createWorkDirRegistry()
 
 /**
  * Every directory that names this machine. The runner's text is normalized against the work
  * directory, and the finished golden must not contain any of them.
  */
-interface RecordPaths {
+export interface RecordPaths {
   readonly workDir: string
   readonly realWorkDir: string
   readonly repoRoot: string
@@ -110,7 +116,7 @@ interface RecordPaths {
   readonly home: string
 }
 
-async function recordPaths(workDir: string): Promise<RecordPaths> {
+export async function recordPaths(workDir: string): Promise<RecordPaths> {
   return {
     workDir,
     realWorkDir: await realpath(workDir),
@@ -122,7 +128,7 @@ async function recordPaths(workDir: string): Promise<RecordPaths> {
 }
 
 /** Hex sha256 of every `.snap` file the run left, outside dot-directories and `node_modules`. */
-async function collectSnapshotFiles(root: string): Promise<SnapshotFileState[]> {
+export async function collectSnapshotFiles(root: string): Promise<SnapshotFileState[]> {
   const files = await walkFiles(root, {
     skipDir: (dir) => path.posix.basename(dir).startsWith('.') || isNodeModules(dir),
     keep: (file) => file.endsWith('.snap'),
@@ -496,7 +502,7 @@ export async function recordRead(
 }
 
 /** Removes the work directory. If that fails, the exit hook tries again. */
-async function removeWorkDir(workDir: string): Promise<void> {
+export async function removeWorkDir(workDir: string): Promise<void> {
   await rm(workDir, REMOVE_TREE_OPTIONS)
   workDirs.forget(workDir)
 }

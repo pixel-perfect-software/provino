@@ -13,6 +13,14 @@
     "./site": {
       "provino-source": "./src/site.ts",
       "types": "./dist/site.d.ts"
+    },
+    "./reporters/jest": {
+      "provino-source": "./src/reporters/jest.ts",
+      "types": "./dist/reporters/jest.d.ts"
+    },
+    "./reporters/vitest": {
+      "provino-source": "./src/reporters/vitest.ts",
+      "types": "./dist/reporters/vitest.d.ts"
     }
   },
   "bin": {

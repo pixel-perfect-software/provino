@@ -1,0 +1,1697 @@
+{
+  "numTotalTestSuites": 46,
+  "numPassedTestSuites": 29,
+  "numFailedTestSuites": 17,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 88,
+  "numPassedTests": 57,
+  "numFailedTests": 21,
+  "numPendingTests": 8,
+  "numTodoTests": 2,
+  "snapshot": {
+    "added": 4,
+    "failure": false,
+    "filesAdded": 1,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 2,
+    "total": 6,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": true
+  },
+  "startTime": 1794146382341,
+  "success": false,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "assertion counts"
+          ],
+          "fullName": "assertion counts expect.assertions with the right count",
+          "status": "passed",
+          "title": "expect.assertions with the right count",
+          "duration": 0.8384580000000028,
+          "failureMessages": [],
+          "location": {
+            "line": 2,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "assertion counts"
+          ],
+          "fullName": "assertion counts expect.hasAssertions",
+          "status": "passed",
+          "title": "expect.hasAssertions",
+          "duration": 0.1197079999999886,
+          "failureMessages": [],
+          "location": {
+            "line": 9,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "assertion counts"
+          ],
+          "fullName": "assertion counts counts passing assertions",
+          "status": "passed",
+          "title": "counts passing assertions",
+          "duration": 0.09329199999999105,
+          "failureMessages": [],
+          "location": {
+            "line": 14,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382616,
+      "endTime": 1794146382617.1196,
+      "status": "passed",
+      "message": "",
+      "name": "/__root__/assertions.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "concurrent tests"
+          ],
+          "fullName": "concurrent tests the slowest",
+          "status": "passed",
+          "title": "the slowest",
+          "duration": 32.132666,
+          "failureMessages": [],
+          "location": {
+            "line": 4,
+            "column": 6
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "concurrent tests"
+          ],
+          "fullName": "concurrent tests a quicker one",
+          "status": "passed",
+          "title": "a quicker one",
+          "duration": 10.757750000000001,
+          "failureMessages": [],
+          "location": {
+            "line": 9,
+            "column": 6
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "concurrent tests"
+          ],
+          "fullName": "concurrent tests one that does not wait",
+          "status": "passed",
+          "title": "one that does not wait",
+          "duration": 0.6345829999999921,
+          "failureMessages": [],
+          "location": {
+            "line": 14,
+            "column": 6
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382613,
+      "endTime": 1794146382645.1326,
+      "status": "passed",
+      "message": "",
+      "name": "/__root__/concurrent.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "console"
+          ],
+          "fullName": "console logs at every level",
+          "status": "passed",
+          "title": "logs at every level",
+          "duration": 0.9075840000000142,
+          "failureMessages": [],
+          "location": {
+            "line": 14,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "console"
+          ],
+          "fullName": "console splits a multi-line write into lines",
+          "status": "passed",
+          "title": "splits a multi-line write into lines",
+          "duration": 0.21408299999998803,
+          "failureMessages": [],
+          "location": {
+            "line": 23,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "console"
+          ],
+          "fullName": "console logs nothing itself",
+          "status": "passed",
+          "title": "logs nothing itself",
+          "duration": 0.1669159999999863,
+          "failureMessages": [],
+          "location": {
+            "line": 28,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382525,
+      "endTime": 1794146382526.214,
+      "status": "passed",
+      "message": "",
+      "name": "/__root__/console.test.ts"
+    },
+    {
+      "assertionResults": [],
+      "startTime": 1794146382341,
+      "endTime": 1794146382341,
+      "status": "failed",
+      "message": "Cannot find module './does-not-exist.ts' imported from /__root__/crash.test.ts",
+      "name": "/__root__/crash.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "group first"
+          ],
+          "fullName": "group first has a number",
+          "status": "passed",
+          "title": "has a number",
+          "duration": 0.7646660000000054,
+          "failureMessages": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "group first"
+          ],
+          "fullName": "group first is positive",
+          "status": "passed",
+          "title": "is positive",
+          "duration": 0.10712499999999636,
+          "failureMessages": [],
+          "location": {
+            "line": 9,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "group second"
+          ],
+          "fullName": "group second has a number",
+          "status": "passed",
+          "title": "has a number",
+          "duration": 0.06404099999998891,
+          "failureMessages": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "group second"
+          ],
+          "fullName": "group second is positive",
+          "status": "passed",
+          "title": "is positive",
+          "duration": 0.06154200000000287,
+          "failureMessages": [],
+          "location": {
+            "line": 9,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "table small"
+          ],
+          "fullName": "table small counts",
+          "status": "passed",
+          "title": "counts",
+          "duration": 0.06341700000000117,
+          "failureMessages": [],
+          "location": {
+            "line": 19,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "table large"
+          ],
+          "fullName": "table large counts",
+          "status": "passed",
+          "title": "counts",
+          "duration": 0.04912500000000364,
+          "failureMessages": [],
+          "location": {
+            "line": 19,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382622,
+      "endTime": 1794146382623.1072,
+      "status": "passed",
+      "message": "",
+      "name": "/__root__/describe-each.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "it.each over an array"
+          ],
+          "fullName": "it.each over an array 1 + 1 = 2",
+          "status": "passed",
+          "title": "1 + 1 = 2",
+          "duration": 0.806666999999976,
+          "failureMessages": [],
+          "location": {
+            "line": 5,
+            "column": 5
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "it.each over an array"
+          ],
+          "fullName": "it.each over an array 2 + 3 = 6",
+          "status": "failed",
+          "title": "2 + 3 = 6",
+          "duration": 1.7676249999999811,
+          "failureMessages": [
+            "AssertionError: expected 5 to be 6 // Object.is equality\n    at /__root__/each.test.ts:6:19\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2885:79\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)"
+          ],
+          "location": {
+            "line": 5,
+            "column": 5
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "it.each over an array"
+          ],
+          "fullName": "it.each over an array name alpha",
+          "status": "passed",
+          "title": "name alpha",
+          "duration": 0.09729100000001267,
+          "failureMessages": [],
+          "location": {
+            "line": 9,
+            "column": 29
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "it.each over an array"
+          ],
+          "fullName": "it.each over an array name beta",
+          "status": "passed",
+          "title": "name beta",
+          "duration": 0.07050000000000978,
+          "failureMessages": [],
+          "location": {
+            "line": 9,
+            "column": 29
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "it.each over a template"
+          ],
+          "fullName": "it.each over a template 1 + 1 = 2",
+          "status": "passed",
+          "title": "1 + 1 = 2",
+          "duration": 0.07687500000000114,
+          "failureMessages": [],
+          "location": {
+            "line": 22,
+            "column": 4
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "it.each over a template"
+          ],
+          "fullName": "it.each over a template 2 + 2 = 4",
+          "status": "passed",
+          "title": "2 + 2 = 4",
+          "duration": 0.04983300000000668,
+          "failureMessages": [],
+          "location": {
+            "line": 22,
+            "column": 4
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "duplicate names"
+          ],
+          "fullName": "duplicate names same name",
+          "status": "passed",
+          "title": "same name",
+          "duration": 0.08016600000001972,
+          "failureMessages": [],
+          "location": {
+            "line": 25,
+            "column": 21
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "duplicate names"
+          ],
+          "fullName": "duplicate names same name",
+          "status": "passed",
+          "title": "same name",
+          "duration": 0.048082999999991216,
+          "failureMessages": [],
+          "location": {
+            "line": 25,
+            "column": 21
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "duplicate names"
+          ],
+          "fullName": "duplicate names same name",
+          "status": "passed",
+          "title": "same name",
+          "duration": 0.061082999999996446,
+          "failureMessages": [],
+          "location": {
+            "line": 25,
+            "column": 21
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "it.each over objects"
+          ],
+          "fullName": "it.each over objects object one",
+          "status": "passed",
+          "title": "object one",
+          "duration": 0.09129100000001245,
+          "failureMessages": [],
+          "location": {
+            "line": 34,
+            "column": 5
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "it.each over objects"
+          ],
+          "fullName": "it.each over objects object two",
+          "status": "passed",
+          "title": "object two",
+          "duration": 0.04800000000000182,
+          "failureMessages": [],
+          "location": {
+            "line": 34,
+            "column": 5
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382543,
+      "endTime": 1794146382546.0974,
+      "status": "failed",
+      "message": "",
+      "name": "/__root__/each.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "failing assertions"
+          ],
+          "fullName": "failing assertions toBe",
+          "status": "failed",
+          "title": "toBe",
+          "duration": 2.7980420000000095,
+          "failureMessages": [
+            "AssertionError: expected 3 to be 4 // Object.is equality\n    at /__root__/fail.test.ts:3:19\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
+          ],
+          "location": {
+            "line": 2,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "failing assertions"
+          ],
+          "fullName": "failing assertions toEqual",
+          "status": "failed",
+          "title": "toEqual",
+          "duration": 1.1125419999999906,
+          "failureMessages": [
+            "AssertionError: expected { name: 'a', tags: [ 'x' ] } to deeply equal { name: 'a', tags: [ 'y' ] }\n    at /__root__/fail.test.ts:7:40\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
+          ],
+          "location": {
+            "line": 6,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "failing assertions"
+          ],
+          "fullName": "failing assertions toThrow with the wrong message",
+          "status": "failed",
+          "title": "toThrow with the wrong message",
+          "duration": 0.9741659999999968,
+          "failureMessages": [
+            "AssertionError: expected [Function] to throw error including 'fizzle' but got 'kaboom'\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:2303:114)\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:1958:14)\n    at Proxy.methodWrapper (file:///__repo__/node_modules/.pnpm/chai@6.3.0/node_modules/chai/index.js:1737:25)\n    at /__root__/fail.test.ts:13:8\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20"
+          ],
+          "location": {
+            "line": 10,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "failing assertions"
+          ],
+          "fullName": "failing assertions toThrow when nothing is thrown",
+          "status": "failed",
+          "title": "toThrow when nothing is thrown",
+          "duration": 0.17712499999998954,
+          "failureMessages": [
+            "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:2303:114)\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:1958:14)\n    at Proxy.methodWrapper (file:///__repo__/node_modules/.pnpm/chai@6.3.0/node_modules/chai/index.js:1737:25)\n    at /__root__/fail.test.ts:17:21\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20"
+          ],
+          "location": {
+            "line": 16,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "failing assertions"
+          ],
+          "fullName": "failing assertions passes between failures",
+          "status": "passed",
+          "title": "passes between failures",
+          "duration": 0.10854199999999992,
+          "failureMessages": [],
+          "location": {
+            "line": 20,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "failing throws"
+          ],
+          "fullName": "failing throws an error with a cause",
+          "status": "failed",
+          "title": "an error with a cause",
+          "duration": 0.17637499999997885,
+          "failureMessages": [
+            "Error: outer\n    at /__root__/fail.test.ts:27:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
+          ],
+          "location": {
+            "line": 26,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "failing throws"
+          ],
+          "fullName": "failing throws a thrown string",
+          "status": "failed",
+          "title": "a thrown string",
+          "duration": 0.05612499999998022,
+          "failureMessages": [
+            "a string"
+          ],
+          "location": {
+            "line": 30,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382531,
+      "endTime": 1794146382537.0562,
+      "status": "failed",
+      "message": "",
+      "name": "/__root__/fail.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "fails, as it is meant to",
+          "status": "passed",
+          "title": "fails, as it is meant to",
+          "duration": 2.4574170000000066,
+          "failureMessages": [],
+          "location": {
+            "line": 4,
+            "column": 1
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "passes, so it fails",
+          "status": "failed",
+          "title": "passes, so it fails",
+          "duration": 0.1924579999999878,
+          "failureMessages": [
+            "Error: Expect test to fail\n    at runTest (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3963:49)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:4088:35\n    at async callAroundHooks (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3636:3)\n    at async callAroundAllHooks (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3755:2)\n    at async runSuite (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:4064:4)\n    at async runFiles (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:4154:3)\n    at async startTests (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:4193:3)\n    at async file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/base.CzXt2BO_.js:96:6\n    at async run (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/base.CzXt2BO_.js:86:3)"
+          ],
+          "location": {
+            "line": 8,
+            "column": 1
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382631,
+      "endTime": 1794146382634.1924,
+      "status": "failed",
+      "message": "",
+      "name": "/__root__/failing.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "a failing beforeAll"
+          ],
+          "fullName": "a failing beforeAll first test under it",
+          "status": "skipped",
+          "title": "first test under it",
+          "failureMessages": [],
+          "location": {
+            "line": 6,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "a failing beforeAll"
+          ],
+          "fullName": "a failing beforeAll second test under it",
+          "status": "skipped",
+          "title": "second test under it",
+          "failureMessages": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "a failing beforeEach"
+          ],
+          "fullName": "a failing beforeEach fails before its body runs",
+          "status": "failed",
+          "title": "fails before its body runs",
+          "duration": 0.40466699999998923,
+          "failureMessages": [
+            "Error: beforeEach failed\n    at /__root__/hooks.test.ts:17:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at wrapper (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1992:37)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3602:52\n    at run (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1352:20)\n    at limiterFn (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1362:59)\n    at runHook (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3601:10)"
+          ],
+          "location": {
+            "line": 20,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "a failing afterEach"
+          ],
+          "fullName": "a failing afterEach fails after its body passed",
+          "status": "failed",
+          "title": "fails after its body passed",
+          "duration": 0.4541670000000124,
+          "failureMessages": [
+            "Error: afterEach failed\n    at /__root__/hooks.test.ts:27:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at wrapper (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2019:37)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3602:52\n    at run (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1352:20)\n    at limiterFn (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1362:59)\n    at runHook (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3601:10)"
+          ],
+          "location": {
+            "line": 30,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "passing hooks"
+          ],
+          "fullName": "passing hooks runs beforeEach first",
+          "status": "passed",
+          "title": "runs beforeEach first",
+          "duration": 0.41483299999998735,
+          "failureMessages": [],
+          "location": {
+            "line": 46,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "passing hooks"
+          ],
+          "fullName": "passing hooks ran afterEach after the first test",
+          "status": "passed",
+          "title": "ran afterEach after the first test",
+          "duration": 0.1300420000000031,
+          "failureMessages": [],
+          "location": {
+            "line": 50,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382532,
+      "endTime": 1794146382533.1301,
+      "status": "failed",
+      "message": "",
+      "name": "/__root__/hooks.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "mock functions"
+          ],
+          "fullName": "mock functions records calls",
+          "status": "passed",
+          "title": "records calls",
+          "duration": 1.2736250000000098,
+          "failureMessages": [],
+          "location": {
+            "line": 6,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "mock functions"
+          ],
+          "fullName": "mock functions returns a value",
+          "status": "passed",
+          "title": "returns a value",
+          "duration": 0.1705000000000041,
+          "failureMessages": [],
+          "location": {
+            "line": 13,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "mock functions"
+          ],
+          "fullName": "mock functions uses an implementation",
+          "status": "passed",
+          "title": "uses an implementation",
+          "duration": 0.2108750000000157,
+          "failureMessages": [],
+          "location": {
+            "line": 18,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "mock functions"
+          ],
+          "fullName": "mock functions fails a call assertion",
+          "status": "failed",
+          "title": "fails a call assertion",
+          "duration": 1.9894579999999848,
+          "failureMessages": [
+            "AssertionError: expected \"vi.fn()\" to be called with arguments: [ 2 ]\n\nReceived:\n\n  1st vi.fn() call:\n\n  [\n-   2,\n+   1,\n  ]\n\n\nNumber of calls: 1\n\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:2249:10)\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:1958:14)\n    at Proxy.methodWrapper (file:///__repo__/node_modules/.pnpm/chai@6.3.0/node_modules/chai/index.js:1737:25)\n    at /__root__/mock-fn.test.ts:27:15\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20"
+          ],
+          "location": {
+            "line": 24,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "mock functions"
+          ],
+          "fullName": "mock functions fails a call count",
+          "status": "failed",
+          "title": "fails a call count",
+          "duration": 0.23108300000001236,
+          "failureMessages": [
+            "AssertionError: expected \"vi.fn()\" to be called 1 times, but got 0 times\n    at /__root__/mock-fn.test.ts:32:15\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
+          ],
+          "location": {
+            "line": 30,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "spyOn"
+          ],
+          "fullName": "spyOn replaces a method and restores it",
+          "status": "passed",
+          "title": "replaces a method and restores it",
+          "duration": 0.2541249999999877,
+          "failureMessages": [],
+          "location": {
+            "line": 37,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "spyOn"
+          ],
+          "fullName": "spyOn watches a method without replacing it",
+          "status": "passed",
+          "title": "watches a method without replacing it",
+          "duration": 0.14545800000001918,
+          "failureMessages": [],
+          "location": {
+            "line": 46,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "mockReset"
+          ],
+          "fullName": "mockReset leaves a function that returns undefined",
+          "status": "failed",
+          "title": "leaves a function that returns undefined",
+          "duration": 0.44412499999998545,
+          "failureMessages": [
+            "AssertionError: expected 'implementation' to be undefined\n    at /__root__/mock-fn.test.ts:58:17\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
+          ],
+          "location": {
+            "line": 55,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382524,
+      "endTime": 1794146382529.444,
+      "status": "failed",
+      "message": "",
+      "name": "/__root__/mock-fn.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "module mocks"
+          ],
+          "fullName": "module mocks uses the factory",
+          "status": "passed",
+          "title": "uses the factory",
+          "duration": 0.8619580000000155,
+          "failureMessages": [],
+          "location": {
+            "line": 13,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "module mocks"
+          ],
+          "fullName": "module mocks keeps an actual export",
+          "status": "passed",
+          "title": "keeps an actual export",
+          "duration": 0.10487499999999272,
+          "failureMessages": [],
+          "location": {
+            "line": 17,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "module mocks"
+          ],
+          "fullName": "module mocks uses the adjacent __mocks__ file",
+          "status": "passed",
+          "title": "uses the adjacent __mocks__ file",
+          "duration": 0.07637499999998454,
+          "failureMessages": [],
+          "location": {
+            "line": 21,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "module mocks"
+          ],
+          "fullName": "module mocks records calls to the factory mock",
+          "status": "passed",
+          "title": "records calls to the factory mock",
+          "duration": 0.3181249999999807,
+          "failureMessages": [],
+          "location": {
+            "line": 25,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382601,
+      "endTime": 1794146382602.318,
+      "status": "passed",
+      "message": "",
+      "name": "/__root__/modules.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "text the normalization rules exist for"
+          ],
+          "fullName": "text the normalization rules exist for colour codes",
+          "status": "failed",
+          "title": "colour codes",
+          "duration": 0.8711660000000023,
+          "failureMessages": [
+            "Error: \u001b[31mred\u001b[39m and \u001b[1mbold\u001b[22m\n    at /__root__/normalization-inputs.test.ts:10:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
+          ],
+          "location": {
+            "line": 9,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "text the normalization rules exist for"
+          ],
+          "fullName": "text the normalization rules exist for CRLF line ends",
+          "status": "failed",
+          "title": "CRLF line ends",
+          "duration": 0.11845800000000395,
+          "failureMessages": [
+            "Error: first line\r\nsecond line\n    at /__root__/normalization-inputs.test.ts:14:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
+          ],
+          "location": {
+            "line": 13,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "text the normalization rules exist for"
+          ],
+          "fullName": "text the normalization rules exist for a file URL",
+          "status": "failed",
+          "title": "a file URL",
+          "duration": 0.14270899999999642,
+          "failureMessages": [
+            "Error: see file:///__root__/normalization-inputs.test.ts\n    at /__root__/normalization-inputs.test.ts:18:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
+          ],
+          "location": {
+            "line": 17,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "text the normalization rules exist for"
+          ],
+          "fullName": "text the normalization rules exist for a UUID",
+          "status": "failed",
+          "title": "a UUID",
+          "duration": 0.09262499999999818,
+          "failureMessages": [
+            "Error: request 123e4567-e89b-12d3-a456-426614174000 failed\n    at /__root__/normalization-inputs.test.ts:22:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
+          ],
+          "location": {
+            "line": 21,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "text the normalization rules exist for"
+          ],
+          "fullName": "text the normalization rules exist for a hex address",
+          "status": "failed",
+          "title": "a hex address",
+          "duration": 0.09337500000000887,
+          "failureMessages": [
+            "Error: segfault at 0x00007ffd5e8c1a40\n    at /__root__/normalization-inputs.test.ts:26:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
+          ],
+          "location": {
+            "line": 25,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "text the normalization rules exist for"
+          ],
+          "fullName": "text the normalization rules exist for a temp path",
+          "status": "failed",
+          "title": "a temp path",
+          "duration": 0.07737499999998931,
+          "failureMessages": [
+            "Error: cannot write /tmp/x/report.json\n    at /__root__/normalization-inputs.test.ts:30:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
+          ],
+          "location": {
+            "line": 29,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "text the normalization rules exist for"
+          ],
+          "fullName": "text the normalization rules exist for a duration",
+          "status": "failed",
+          "title": "a duration",
+          "duration": 0.08066599999999369,
+          "failureMessages": [
+            "Error: the step took (12 ms)\n    at /__root__/normalization-inputs.test.ts:34:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
+          ],
+          "location": {
+            "line": 33,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "text the normalization rules exist for"
+          ],
+          "fullName": "text the normalization rules exist for prints the same kinds of text",
+          "status": "passed",
+          "title": "prints the same kinds of text",
+          "duration": 0.6346669999999932,
+          "failureMessages": [],
+          "location": {
+            "line": 37,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382482,
+      "endTime": 1794146382484.6348,
+      "status": "failed",
+      "message": "",
+      "name": "/__root__/normalization-inputs.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "the focused test runs",
+          "status": "passed",
+          "title": "the focused test runs",
+          "duration": 0.7329999999999899,
+          "failureMessages": [],
+          "location": {
+            "line": 1,
+            "column": 4
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "an unfocused test is skipped",
+          "status": "skipped",
+          "title": "an unfocused test is skipped",
+          "failureMessages": [],
+          "location": {
+            "line": 5,
+            "column": 1
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "so is this one",
+          "status": "skipped",
+          "title": "so is this one",
+          "failureMessages": [],
+          "location": {
+            "line": 9,
+            "column": 1
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382640,
+      "endTime": 1794146382640.733,
+      "status": "passed",
+      "message": "",
+      "name": "/__root__/only.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "passing assertions"
+          ],
+          "fullName": "passing assertions toBe",
+          "status": "passed",
+          "title": "toBe",
+          "duration": 0.7734169999999949,
+          "failureMessages": [],
+          "location": {
+            "line": 2,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "passing assertions"
+          ],
+          "fullName": "passing assertions toEqual",
+          "status": "passed",
+          "title": "toEqual",
+          "duration": 0.33525000000000205,
+          "failureMessages": [],
+          "location": {
+            "line": 6,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "passing assertions"
+          ],
+          "fullName": "passing assertions toContain and toMatch",
+          "status": "passed",
+          "title": "toContain and toMatch",
+          "duration": 0.39016699999999105,
+          "failureMessages": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "passing assertions"
+          ],
+          "fullName": "passing assertions toThrow",
+          "status": "passed",
+          "title": "toThrow",
+          "duration": 0.13612499999999272,
+          "failureMessages": [],
+          "location": {
+            "line": 15,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "passing assertions"
+          ],
+          "fullName": "passing assertions resolves",
+          "status": "passed",
+          "title": "resolves",
+          "duration": 0.31441699999999173,
+          "failureMessages": [],
+          "location": {
+            "line": 21,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "passing assertions"
+          ],
+          "fullName": "passing assertions rejects",
+          "status": "passed",
+          "title": "rejects",
+          "duration": 0.3824999999999932,
+          "failureMessages": [],
+          "location": {
+            "line": 25,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382527,
+      "endTime": 1794146382529.3826,
+      "status": "passed",
+      "message": "",
+      "name": "/__root__/pass.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "skipped with it.skip",
+          "status": "skipped",
+          "title": "skipped with it.skip",
+          "failureMessages": [],
+          "location": {
+            "line": 1,
+            "column": 4
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "skipped with test.skip",
+          "status": "skipped",
+          "title": "skipped with test.skip",
+          "failureMessages": [],
+          "location": {
+            "line": 5,
+            "column": 6
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "a skipped describe"
+          ],
+          "fullName": "a skipped describe is skipped too",
+          "status": "skipped",
+          "title": "is skipped too",
+          "failureMessages": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "a skipped describe"
+          ],
+          "fullName": "a skipped describe and so is this one",
+          "status": "skipped",
+          "title": "and so is this one",
+          "failureMessages": [],
+          "location": {
+            "line": 14,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "a todo",
+          "status": "todo",
+          "title": "a todo",
+          "failureMessages": [],
+          "location": {
+            "line": 19,
+            "column": 4
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "another todo",
+          "status": "todo",
+          "title": "another todo",
+          "failureMessages": [],
+          "location": {
+            "line": 21,
+            "column": 6
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "runs beside them",
+          "status": "passed",
+          "title": "runs beside them",
+          "duration": 0.7697080000000085,
+          "failureMessages": [],
+          "location": {
+            "line": 23,
+            "column": 1
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382524,
+      "endTime": 1794146382524.7698,
+      "status": "passed",
+      "message": "",
+      "name": "/__root__/skip-todo.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "file snapshots"
+          ],
+          "fullName": "file snapshots an object",
+          "status": "passed",
+          "title": "an object",
+          "duration": 1.5545829999999938,
+          "failureMessages": [],
+          "location": {
+            "line": 2,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "file snapshots"
+          ],
+          "fullName": "file snapshots with a hint",
+          "status": "passed",
+          "title": "with a hint",
+          "duration": 0.1376249999999999,
+          "failureMessages": [],
+          "location": {
+            "line": 6,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "file snapshots",
+            "nested"
+          ],
+          "fullName": "file snapshots nested a string",
+          "status": "passed",
+          "title": "a string",
+          "duration": 0.1214999999999975,
+          "failureMessages": [],
+          "location": {
+            "line": 11,
+            "column": 5
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "file snapshots"
+          ],
+          "fullName": "file snapshots a thrown error",
+          "status": "passed",
+          "title": "a thrown error",
+          "duration": 0.18145799999999213,
+          "failureMessages": [],
+          "location": {
+            "line": 16,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "inline snapshots"
+          ],
+          "fullName": "inline snapshots a string",
+          "status": "passed",
+          "title": "a string",
+          "duration": 0.6299589999999995,
+          "failureMessages": [],
+          "location": {
+            "line": 24,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "inline snapshots"
+          ],
+          "fullName": "inline snapshots a number",
+          "status": "passed",
+          "title": "a number",
+          "duration": 0.24116700000000435,
+          "failureMessages": [],
+          "location": {
+            "line": 28,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382482,
+      "endTime": 1794146382485.2412,
+      "status": "passed",
+      "message": "",
+      "name": "/__root__/snapshots.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "finishes within its timeout",
+          "status": "passed",
+          "title": "finishes within its timeout",
+          "duration": 7.164792000000006,
+          "failureMessages": [],
+          "location": {
+            "line": 3,
+            "column": 1
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "runs past its timeout",
+          "status": "failed",
+          "title": "runs past its timeout",
+          "duration": 52.70770800000001,
+          "failureMessages": [
+            "Error: Test timed out in 50ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n    at task (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2700:43)\n    at Object.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2717:16)\n    at Object.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2486:28)\n    at chain (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1870:14)\n    at /__root__/timeout.test.ts:8:1\n    at VitestModuleEvaluator._runInlinedModule (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/module-evaluator.js:261:189)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/module-evaluator.js:130:62\n    at Traces.$ (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/traces.js:143:27)\n    at VitestModuleEvaluator.runInlinedModule (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/module-evaluator.js:130:21)\n    at VitestModuleRunner.directRequest (file:///__repo__/node_modules/.pnpm/vite@8.3.5_@types+node@22.20.5/node_modules/vite/dist/node/module-runner.js:1281:80)"
+          ],
+          "location": {
+            "line": 8,
+            "column": 1
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382625,
+      "endTime": 1794146382685.7078,
+      "status": "failed",
+      "message": "",
+      "name": "/__root__/timeout.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [
+            "fake timers"
+          ],
+          "fullName": "fake timers runs a timeout when time advances",
+          "status": "passed",
+          "title": "runs a timeout when time advances",
+          "duration": 2.1823749999999933,
+          "failureMessages": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "fake timers"
+          ],
+          "fullName": "fake timers sets the system time",
+          "status": "passed",
+          "title": "sets the system time",
+          "duration": 1.0024580000000185,
+          "failureMessages": [],
+          "location": {
+            "line": 20,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [
+            "fake timers"
+          ],
+          "fullName": "fake timers runs every pending timer in order",
+          "status": "passed",
+          "title": "runs every pending timer in order",
+          "duration": 0.5132090000000176,
+          "failureMessages": [],
+          "location": {
+            "line": 27,
+            "column": 3
+          },
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1794146382490,
+      "endTime": 1794146382493.5132,
+      "status": "passed",
+      "message": "",
+      "name": "/__root__/timers.test.ts"
+    }
+  ]
+}

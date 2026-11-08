@@ -1,0 +1,5 @@
+{
+  "description": "The harness self-test sample (Track 12 Spikes A, T12.6), rebuilt in TypeScript: one suite with the features the parity harness must compare across Jest 30.5 and Vitest 5.0. Run by `provino-harness self-test`, never by `record`.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}
