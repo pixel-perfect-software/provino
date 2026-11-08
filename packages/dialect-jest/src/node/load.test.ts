@@ -244,15 +244,46 @@ test("an .mjs config with no default export fails on both sides, with Jest's tex
   await assert.rejects(oracleRead(path), /did you use a default export\?/)
 })
 
-test('stripJsonComments is linear: 100,000 comment lines take well under a second', () => {
-  const text = `${'// a comment line\n'.repeat(100_000)}{ "testTimeout": 1 }\n`
+function commentLines(count: number): string {
+  return `${'// a comment line\n'.repeat(count)}{ "testTimeout": 1 }\n`
+}
+
+function median(samples: readonly number[]): number {
+  const sorted = samples.toSorted((a, b) => a - b)
+  return sorted[Math.floor(sorted.length / 2)] ?? Number.NaN
+}
+
+function elapsedMs(run: () => void): number {
   const start = performance.now()
-  const stripped = stripJsonComments(text)
-  const elapsed = performance.now() - start
-  assert.deepEqual(JSON.parse(stripped), { testTimeout: 1 })
-  // Linear work is a few milliseconds; the old search from each comment to the end of the text
-  // copied the rest of the file once per comment (about 50 GB here).
-  assert.ok(elapsed < 1000, `${elapsed.toFixed(0)} ms`)
+  run()
+  return performance.now() - start
+}
+
+// This checks how the cost grows, not how long it takes, so a slow or busy runner doesn't fail it:
+// both sizes run on the same machine, interleaved, and the median of each is compared. Four times
+// the comment lines should cost about four times as much (about 4.5 measured); a pass that copies
+// the rest of the text for every comment costs about sixteen times as much. The bar sits between.
+test('stripJsonComments grows linearly: 4x the comment lines cost well under 16x the time', () => {
+  const small = commentLines(10_000)
+  const large = commentLines(40_000)
+  for (const text of [small, large]) {
+    assert.deepEqual(JSON.parse(stripJsonComments(text)), { testTimeout: 1 })
+  }
+  for (let warmup = 0; warmup < 3; warmup++) {
+    stripJsonComments(small)
+    stripJsonComments(large)
+  }
+  const smallMs: number[] = []
+  const largeMs: number[] = []
+  for (let run = 0; run < 7; run++) {
+    smallMs.push(elapsedMs(() => stripJsonComments(small)))
+    largeMs.push(elapsedMs(() => stripJsonComments(large)))
+  }
+  const ratio = median(largeMs) / median(smallMs)
+  assert.ok(
+    ratio < 8,
+    `4x the input took ${ratio.toFixed(1)}x the time (${median(smallMs).toFixed(1)} ms, then ${median(largeMs).toFixed(1)} ms); linear is about 4, quadratic about 16`,
+  )
 })
 
 test('an unclosed block comment that breaks the JSON says so, where it starts', async () => {
