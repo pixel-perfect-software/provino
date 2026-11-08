@@ -5,83 +5,17 @@
 // emits a level's matches before it walks deeper. This is that walk for the patterns configs use:
 // literal, `*`, `?`, `[…]`, extglobs, `**` and braces, with glob's defaults (no dotfiles unless the
 // segment starts with `.`, case-insensitive on macOS and Windows, a symlinked directory followed
-// once by `**`). Not ported: path-scurry's reordering of entries it saw before listing, and
-// minimatch's later optimizations. No glob dependency (gap 12 of `bundles/B14.md`).
+// once by `**`). Braces expand as brace-expansion 5 does (`braces.ts`). Not ported: path-scurry's
+// reordering of entries it saw before listing, and minimatch's later optimizations. No glob
+// dependency (gap 12 of `bundles/B14.md`).
 import { lstatSync, readdirSync, statSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
+import { expandBraces } from './braces.ts'
 
 const GLOBSTAR = Symbol('globstar')
 type Segment = string | RegExp | typeof GLOBSTAR
 
 const NOCASE = process.platform === 'darwin' || process.platform === 'win32'
-
-/** brace-expansion's `{a,b}` and `{1..3}`, outermost first, as minimatch's `braceExpand` does. */
-export function expandBraces(pattern: string): string[] {
-  let depth = 0
-  let open = -1
-  for (let index = 0; index < pattern.length; index++) {
-    const char = pattern[index]
-    if (char === '\\') {
-      index++
-      continue
-    }
-    if (char === '{') {
-      if (depth === 0) open = index
-      depth++
-    } else if (char === '}' && depth > 0) {
-      depth--
-      if (depth === 0) {
-        const body = pattern.slice(open + 1, index)
-        const options = splitTopLevel(body)
-        const pre = pattern.slice(0, open)
-        const post = pattern.slice(index + 1)
-        const sequence = /^(-?\d+|[a-zA-Z])\.\.(-?\d+|[a-zA-Z])$/.exec(body)
-        let parts: string[] | undefined
-        if (options.length > 1) parts = options
-        else if (sequence) parts = expandSequence(sequence[1] ?? '', sequence[2] ?? '')
-        if (parts === undefined) {
-          // `{a}` isn't a set: keep its braces, expand the rest.
-          return expandBraces(post).map((rest) => `${pre}{${body}}${rest}`)
-        }
-        const tails = expandBraces(post)
-        return parts.flatMap((part) =>
-          expandBraces(`${pre}${part}`).flatMap((head) => tails.map((tail) => head + tail)),
-        )
-      }
-    }
-  }
-  return [pattern]
-}
-
-function splitTopLevel(body: string): string[] {
-  const out: string[] = []
-  let depth = 0
-  let start = 0
-  for (let index = 0; index < body.length; index++) {
-    const char = body[index]
-    if (char === '\\') index++
-    else if (char === '{') depth++
-    else if (char === '}') depth--
-    else if (char === ',' && depth === 0) {
-      out.push(body.slice(start, index))
-      start = index + 1
-    }
-  }
-  out.push(body.slice(start))
-  return out
-}
-
-function expandSequence(from: string, to: string): string[] {
-  const numeric = /^-?\d+$/.test(from) && /^-?\d+$/.test(to)
-  const start = numeric ? Number(from) : from.charCodeAt(0)
-  const end = numeric ? Number(to) : to.charCodeAt(0)
-  const step = start <= end ? 1 : -1
-  const out: string[] = []
-  for (let value = start; step > 0 ? value <= end : value >= end; value += step) {
-    out.push(numeric ? String(value) : String.fromCharCode(value))
-  }
-  return out
-}
 
 function escapeRegExp(text: string): string {
   return text.replaceAll(/[$()*+.?[\\\]^{|}]/g, '\\$&')
