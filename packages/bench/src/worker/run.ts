@@ -46,6 +46,7 @@ function benchProjectConfig(
   rootDir: string,
   setupFilesAfterEnv: readonly string[],
   environment: EnvironmentRef = NODE_ENVIRONMENT,
+  setupFiles: readonly string[] = [],
 ): SerializedProjectConfig {
   const globals = jestDialect.globals
   if (globals === undefined) throw new BenchError('BENCH_USAGE', 'the Jest dialect has no globals')
@@ -56,7 +57,7 @@ function benchProjectConfig(
     policy: serializePolicy(resolvePolicy(jestPolicy)),
     environment,
     globals: globals.factory,
-    setupFiles: [],
+    setupFiles,
     setupFilesAfterEnv,
     loader: {
       extensions: ['.js', '.ts', '.mjs', '.cjs', '.json'],
@@ -77,6 +78,8 @@ export interface WorkerRunOptions {
   /** Absolute paths of the test files, run in this order. */
   readonly files: readonly string[]
   readonly setupFilesAfterEnv?: readonly string[]
+  /** Absolute paths of Jest's `setupFiles`, run before the dialect's late globals. Default none. */
+  readonly setupFiles?: readonly string[]
   /** The environment, by an absolute ref. Default: the node environment. */
   readonly environment?: EnvironmentRef
   /** The worker's transport. Default `inline`. */
@@ -160,6 +163,7 @@ export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerR
     options.rootDir,
     options.setupFilesAfterEnv ?? [],
     options.environment,
+    options.setupFiles,
   )
   const init: WorkerInit = {
     key: {

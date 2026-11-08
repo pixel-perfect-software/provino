@@ -3,11 +3,12 @@
 // environment and the Jest dialect, over each transport; and each test's events arrive in order,
 // for a file with concurrent tests, hooks, repeats, skips and console output.
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
 import { after, describe, it } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { fileIdOf, relativePosix } from '@provino/orchestrator'
 import type { IsolationTier, TaskId, WorkerEvent } from '@provino/types'
 import { checkSuite, meetsBar, TIERS, writeJestSuite } from './check.ts'
@@ -372,6 +373,44 @@ describe('how the worker exits', () => {
       assert.equal(meetsBar(result, 1), true)
     })
   }
+})
+
+// B10's note, B14a: real Jest 30.5's setupFiles see only `jest`, its setupFilesAfterEnv and test
+// file all 14 globals. `policy/core-globals-at-setup` recorded it; the same three files run here
+// through the worker with the Jest dialect and the node environment, and trace the same lists.
+describe('the Jest globals at each setup point, against policy/core-globals-at-setup', () => {
+  const fixture = fileURLToPath(
+    new URL('../../../harness/fixtures/policy/core-globals-at-setup/', import.meta.url),
+  )
+
+  it('traces what the Jest golden traced', async () => {
+    const golden = JSON.parse(
+      await readFile(join(fixture, '__goldens__', 'jest.json'), 'utf8'),
+    ) as {
+      trace: readonly string[]
+    }
+    const files: Record<string, string> = {}
+    for (const name of ['setup-files.ts', 'setup-files-after-env.ts', 'globals.test.ts']) {
+      files[name] = await readFile(join(fixture, name), 'utf8')
+    }
+    const dir = await project(files)
+    const traceFile = join(dir, 'trace.txt')
+    // The recorder's `trace`, as the first setup file.
+    await writeFile(
+      join(dir, 'trace-setup.js'),
+      `globalThis.trace = (step) => process.getBuiltinModule('node:fs').appendFileSync(${JSON.stringify(traceFile)}, String(step) + '\\n')\n`,
+    )
+    const result = await runWorkerFiles({
+      rootDir: dir,
+      files: [join(dir, 'globals.test.ts')],
+      setupFiles: [join(dir, 'trace-setup.js'), join(dir, 'setup-files.ts')],
+      setupFilesAfterEnv: [join(dir, 'setup-files-after-env.ts')],
+      keepEvents: true,
+    })
+    assert.deepEqual(result.failures, [])
+    const trace = (await readFile(traceFile, 'utf8')).split('\n').filter((line) => line !== '')
+    assert.deepEqual(trace, golden.trace)
+  })
 })
 
 describe('the Jest nesting ban, through the real loader', () => {

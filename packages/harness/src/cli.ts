@@ -2,13 +2,30 @@
 import path from 'node:path'
 import { HarnessError } from './errors.ts'
 import { defaultFixturesRoot, findFixtures, readFixture, resolveFixtureDirs } from './fixture.ts'
-import { parseCommandLine, USAGE } from './internal/cli-args.ts'
+import { POLICY_DIFF_USAGE, parseCommandLine, parsePolicyDiff, USAGE } from './internal/cli-args.ts'
 import { findStaleGoldens } from './internal/stale-goldens.ts'
+import { formatDialectDiff } from './policy-truth/diff.ts'
 import { recordRead } from './record.ts'
 import { exitOnSignals } from './spawn-in-group.ts'
 
+// provino-harness policy-diff <jest|vitest> <jest|vitest>: the dialects' differing keys (T1.8).
+function policyDiff(argv: readonly string[]): number {
+  try {
+    const { a, b } = parsePolicyDiff(argv)
+    console.log(formatDialectDiff(a, b))
+    return 0
+  } catch (error) {
+    if (error instanceof HarnessError && error.code === 'HARNESS_USAGE') {
+      console.error(`${error.message}\n\n${POLICY_DIFF_USAGE}`)
+      return 2
+    }
+    throw error
+  }
+}
+
 // provino-harness record [--check] [--keep] [<fixture dir>...]
 async function main(argv: readonly string[]): Promise<number> {
+  if (argv[0] === 'policy-diff') return policyDiff(argv.slice(1))
   let command: ReturnType<typeof parseCommandLine>
   try {
     command = parseCommandLine(argv)
