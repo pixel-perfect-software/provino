@@ -56,9 +56,25 @@ function dotted(extension: string): string {
   return extension.startsWith('.') ? extension : `.${extension}`
 }
 
-/** A specifier that names a package or core module, not a path. */
-function isBare(specifier: string): boolean {
-  return !specifier.startsWith('.') && !isAbsolute(specifier)
+/** A specifier that names a package or core module, not a relative or absolute path. */
+export function isBareSpecifier(specifier: string): boolean {
+  return (
+    !specifier.startsWith('.') &&
+    !specifier.startsWith('/') &&
+    !isAbsolute(specifier) &&
+    !/^[a-zA-Z]:[\\/]/.test(specifier)
+  )
+}
+
+/** The roots that have a `__mocks__` directory: a search skips the rest. */
+export function rootsWithMocks(roots: readonly string[]): readonly string[] {
+  return roots.filter((root) => {
+    try {
+      return statSync(join(root, '__mocks__'), { throwIfNoEntry: false })?.isDirectory() === true
+    } catch {
+      return false
+    }
+  })
 }
 
 /**
@@ -70,7 +86,8 @@ export function findRootMock(
   specifier: string,
   options: Pick<FindManualMockOptions, 'roots' | 'extensions'>,
 ): ManualMock | null {
-  if (!isBare(specifier)) return null
+  // A `..` segment would climb out of `__mocks__`.
+  if (!isBareSpecifier(specifier) || specifier.split(/[\\/]/).includes('..')) return null
   const name = isCoreSpecifier(specifier) ? coreName(specifier) : specifier
   for (const root of options.roots) {
     for (const extension of options.extensions) {

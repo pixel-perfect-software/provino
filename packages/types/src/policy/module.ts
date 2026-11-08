@@ -38,7 +38,20 @@ export interface ModulePolicy {
   readonly resetModulesBetween: boolean
   /** Whether CJS globals (`require`, `module`, `__dirname`) are injected. Jest: `true`. Vitest: `true`. unverified: track-01 L214 */
   readonly injectCjsGlobals: boolean
-  /** `import x from 'cjs'`: `exports.default` when `__esModule` (`babel`) or `module.exports` (`node`). Jest: `babel`. Vitest: `babel`. unverified: track-02 L452 */
+  /**
+   * The module shapes the runner hands out, `babel` (modules compiled by Babel's CommonJS interop)
+   * or `node` (Node's ES namespaces). It decides:
+   * - `import x from 'cjs'`: `exports.default` when the value has `__esModule` (`babel`), else
+   *   `module.exports` (always, for `node`);
+   * - a CommonJS value seen as a namespace: `default` first and then the value's own keys (`babel`;
+   *   a value with `__esModule` is its own namespace), or every key sorted by name with `default`
+   *   among them and `Symbol.toStringTag` `Module` (`node`);
+   * - a source ES module's exports (`requireActual`, `importActual`, what an automock walks): a
+   *   non-enumerable `__esModule` and the names sorted (`babel`), or a `Module` namespace in source
+   *   order (`node`).
+   *
+   * Jest: `babel`. Vitest: `node`. unverified: track-02 L452 (mod corpus agrees for both)
+   */
   readonly interopDefault: 'babel' | 'node'
   /** Whether `resetModules()` also clears registered mocks. Jest: `false`. Vitest: `false`. unverified: track-02 L454 */
   readonly resetModulesClearsMocks: boolean
@@ -46,8 +59,6 @@ export interface ModulePolicy {
   readonly awaitFactory: boolean
   /** Reading an export the factory didn't return. Values: B14 records them. unverified: track-04 L310 */
   readonly missingFactoryExport: 'undefined' | 'throw'
-  /** Whether `resetModules()` re-runs mock factories. Jest: `true`. Vitest: `false`. unverified: track-04 L312 */
-  readonly resetModulesReRunsFactory: boolean
   /** Whether mocking a module that doesn't exist needs a `virtual` flag. Jest: `true`. Vitest: `false`. unverified: track-04 L313 */
   readonly requireVirtualFlag: boolean
   /**
@@ -57,6 +68,20 @@ export interface ModulePolicy {
    * `mod-virtual`, `mod-virtual-static`
    */
   readonly virtualRelative: boolean
+  /**
+   * Who owns the value a mock factory built, which decides two things at once:
+   * - `module-registry` (Jest): the value lives in the module registry
+   *   (`ModuleRegistries.mockRegistry`), so `resetModules()` clears it and the factory runs again
+   *   on the next load, while registering an id again leaves it: the next load still sees the first
+   *   factory's value until a reset.
+   * - `registration` (Vitest): the value lives on the registered mock
+   *   (`ManualMockedModule.cache`), so registering an id again replaces it with the new
+   *   registration's, while `resetModules()` skips mocks (`/^mock:/`) and keeps it.
+   *
+   * Jest: `module-registry`. Vitest: `registration`. Recorded by `mod-reregister` and
+   * `mod-reset-modules` (Jest 30.5.2, Vitest 5.0.5).
+   */
+  readonly mockValueOwner: 'module-registry' | 'registration'
   /**
    * How an automock is built: from module metadata (`metadata`), or by walking the exports deeply
    * (`deep`). Track 4 names the values `'jest-metadata' | 'vitest'`; renamed so neutral code never

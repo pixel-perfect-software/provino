@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, test } from 'node:test'
+import { describe, test } from 'node:test'
 import type { ModuleId } from '@provino/types'
 import { MockError, MockTypeError } from '../errors.ts'
 import { neutral } from '../internal/test-support.ts'
 import { isMockFunction } from '../mock-fn.ts'
-import { build, jestLike, vitestLike } from './test-support.ts'
+import { build, jestLike, tempTree, vitestLike } from './test-support.ts'
 
 const FROM = '/proj/test/a.test.ts'
 const FILES = { './dep': '/proj/src/dep.ts', pkg: '/proj/node_modules/pkg/index.js' }
@@ -132,18 +130,63 @@ describe('register', () => {
     assert.deepEqual(registry.decideUnresolved('bare', FROM), { mocked: true, id: 'virtual:bare' })
   })
 
-  test('an unmock of a missing module is harmless', () => {
+  test('an unmock of a missing module needs the virtual flag too under requireVirtualFlag (mod-unmock-missing)', () => {
     const { registry } = build({ policy: jestLike })
+    for (const specifier of ['./gone', 'not-installed-pkg']) {
+      assert.throws(
+        () => registry.register(specifier, { kind: 'unmock' }, { from: FROM }),
+        (error: unknown) =>
+          error instanceof MockError &&
+          error.code === 'module-missing' &&
+          error.message === `Cannot find module '${specifier}' from 'test/a.test.ts'`,
+        specifier,
+      )
+    }
+  })
+
+  test('an unmock of a missing module is harmless without requireVirtualFlag', () => {
+    const { registry } = build({ policy: vitestLike })
     registry.register('./gone', { kind: 'unmock' }, { from: FROM })
+    registry.register('not-installed-pkg', { kind: 'unmock' }, { from: FROM })
     assert.deepEqual(registry.decideUnresolved('./gone', FROM), { mocked: false })
   })
 
-  test('registering again replaces the entry and drops the cached value (doMock)', () => {
+  test('registering again replaces the entry and drops the cached value under mockValueOwner registration', async () => {
+    const { registry } = build({ policy: vitestLike, files: FILES })
+    registry.register('./dep', { kind: 'factory', factory: () => ({ n: 1 }) }, { from: FROM })
+    assert.deepEqual(await registry.materialize('/proj/src/dep.ts'), { n: 1 })
+    registry.register('./dep', { kind: 'factory', factory: () => ({ n: 2 }) }, { from: FROM })
+    assert.deepEqual(await registry.materialize('/proj/src/dep.ts'), { n: 2 })
+  })
+
+  test('mockValueOwner module-registry: the cached value stays until a reset, the new factory runs after it', () => {
     const { registry } = build({ policy: jestLike, files: FILES })
     registry.register('./dep', { kind: 'factory', factory: () => ({ n: 1 }) }, { from: FROM })
     assert.deepEqual(registry.materialize('/proj/src/dep.ts'), { n: 1 })
     registry.register('./dep', { kind: 'factory', factory: () => ({ n: 2 }) }, { from: FROM })
+    assert.deepEqual(registry.materialize('/proj/src/dep.ts'), { n: 1 })
+    registry.onResetModules()
     assert.deepEqual(registry.materialize('/proj/src/dep.ts'), { n: 2 })
+  })
+
+  test('two registrations before any load run only the last factory', () => {
+    const ran: number[] = []
+    const { registry } = build({ policy: jestLike, files: FILES })
+    for (const n of [1, 2]) {
+      registry.register(
+        './dep',
+        {
+          kind: 'factory',
+          factory: () => {
+            ran.push(n)
+            return { n }
+          },
+        },
+        { from: FROM },
+      )
+    }
+    assert.deepEqual(registry.materialize('/proj/src/dep.ts'), { n: 2 })
+    assert.deepEqual(ran, [2])
   })
 
   test('a late registration applies on the next materialize without a reset', () => {
@@ -260,8 +303,8 @@ describe('materialize: factories', () => {
       },
       { from: FROM },
     )
-    assert.throws(
-      () => registry.materialize('/proj/src/dep.ts'),
+    await assert.rejects(
+      async () => registry.materialize('/proj/src/dep.ts'),
       (error: unknown) =>
         error instanceof Error &&
         error.message === 'while mocking' &&
@@ -309,7 +352,7 @@ describe('materialize: factories', () => {
 })
 
 describe('resetModules', () => {
-  test('a factory re-runs after onResetModules under resetModulesReRunsFactory', () => {
+  test('a factory re-runs after onResetModules under mockValueOwner module-registry', () => {
     let runs = 0
     const { registry } = build({ policy: jestLike, files: FILES })
     registry.register('./dep', { kind: 'factory', factory: () => ({ n: ++runs }) }, { from: FROM })
@@ -321,10 +364,9 @@ describe('resetModules', () => {
     assert.equal(registry.decide('/proj/src/dep.ts', FROM, 'cjs').mocked, true, 'still mocked')
   })
 
-  test('the cached instance survives otherwise', () => {
+  test('the cached instance survives a reset under mockValueOwner registration', () => {
     let runs = 0
-    const policy = { ...vitestLike, resetModulesReRunsFactory: false }
-    const { registry } = build({ policy, files: FILES })
+    const { registry } = build({ policy: vitestLike, files: FILES })
     registry.register('./dep', { kind: 'factory', factory: () => ({ n: ++runs }) }, { from: FROM })
     const first = registry.materialize('/proj/src/dep.ts')
     registry.onResetModules()
@@ -392,7 +434,10 @@ describe('dispose', () => {
     const { registry } = build({ policy: jestLike, files: FILES })
     registry.register('./dep', { kind: 'factory', factory: () => ({}) }, { from: FROM })
     registry.dispose()
-    assert.equal(registry.decide('/proj/src/dep.ts', FROM, 'cjs').mocked, false)
+    assert.throws(() => registry.decide('/proj/src/dep.ts', FROM, 'cjs'), {
+      code: 'registry-disposed',
+    })
+    assert.throws(() => registry.decideUnresolved('./gone', FROM), { code: 'registry-disposed' })
     assert.throws(() => registry.materialize('/proj/src/dep.ts'), { code: 'registry-disposed' })
     assert.throws(
       () => registry.register('./dep', { kind: 'unmock' }, { from: FROM }),
@@ -402,15 +447,7 @@ describe('dispose', () => {
 })
 
 describe('__mocks__', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'provino-mock-'))
-  after(() => rmSync(dir, { recursive: true, force: true }))
-
-  const write = (path: string): string => {
-    const file = join(dir, path)
-    mkdirSync(join(file, '..'), { recursive: true })
-    writeFileSync(file, '')
-    return file
-  }
+  const { dir, write } = tempTree('provino-mock-')
   const rootPkg = write('__mocks__/pkg.ts')
   const rootScoped = write('__mocks__/@scope/lib.ts')
   const rootOs = write('__mocks__/os.ts')

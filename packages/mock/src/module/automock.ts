@@ -191,7 +191,7 @@ function metadataName(raw: unknown): string | undefined {
  */
 function instanceMethods(
   mk: AutomockMaker,
-  members: () => readonly (string | symbol)[],
+  members: readonly (string | symbol)[],
   nameOf: (key: string | symbol) => string | undefined,
   owner: { mock: UnknownFunction | null },
 ): UnknownFunction {
@@ -201,7 +201,7 @@ function instanceMethods(
     if (this === null || typeof this !== 'object') return undefined
     if (owner.mock === null || !(this instanceof owner.mock)) return undefined
     const instance = this as Bag
-    for (const key of members()) {
+    for (const key of members) {
       const protoMethod = instance[key]
       if (typeof protoMethod !== 'function') continue
       const name = nameOf(key)
@@ -268,10 +268,9 @@ function isMockLike(value: unknown): boolean {
 
 function fromMetadata(root: unknown, mode: AutomockMode, mk: AutomockMaker): unknown {
   const made = new Map<unknown, unknown>()
+  const backReferences: Array<() => void> = []
 
   const build = (value: unknown): { readonly mock: unknown } | null => {
-    const known = made.get(value)
-    if (known !== undefined) return { mock: known }
     const type = metadataType(value)
     if (type === null) return null
     if (type === 'constant' || type === 'collection' || type === 'null' || type === 'undefined') {
@@ -279,7 +278,8 @@ function fromMetadata(root: unknown, mode: AutomockMode, mk: AutomockMaker): unk
     }
 
     let mock: unknown
-    let protoSlots: () => readonly (string | symbol)[] = () => []
+    // Filled once the prototype is built, before any instance is made.
+    const protoSlots: Array<string | symbol> = []
     const owner: { mock: UnknownFunction | null } = { mock: null }
     if (type === 'object') mock = {}
     else if (type === 'array') mock = []
@@ -287,8 +287,7 @@ function fromMetadata(root: unknown, mode: AutomockMode, mk: AutomockMaker): unk
     else {
       const original = value as UnknownFunction
       const name = metadataName(original.name)
-      const options: CreateMockOptions = {}
-      const base = name === undefined ? options : { ...options, name }
+      const base: CreateMockOptions = name === undefined ? {} : { name }
       mock =
         mode === 'autospy'
           ? mk({ ...base, original })
@@ -296,7 +295,7 @@ function fromMetadata(root: unknown, mode: AutomockMode, mk: AutomockMaker): unk
               ...base,
               fallback: instanceMethods(
                 mk,
-                () => protoSlots(),
+                protoSlots,
                 (key) => (typeof key === 'string' ? metadataName(key) : undefined),
                 owner,
               ),
@@ -311,6 +310,16 @@ function fromMetadata(root: unknown, mode: AutomockMode, mk: AutomockMaker): unk
         if (type === 'function' && isMockLike(source) && slot.startsWith('mock')) continue
         const got = read(source, slot)
         if (got === null) continue
+        // A value seen before is a back-reference in jest-mock: set after the whole walk, in the
+        // order met, so it lands after the direct members in the key order (`generateFromMetadata`'s
+        // `callbacks`).
+        const seen = made.get(got.value)
+        if (seen !== undefined) {
+          backReferences.push(() => {
+            assign(mock as object, slot, seen)
+          })
+          continue
+        }
         const child = build(got.value)
         if (child !== null) assign(mock as object, slot, child.mock)
       }
@@ -320,8 +329,7 @@ function fromMetadata(root: unknown, mode: AutomockMode, mk: AutomockMaker): unk
       const proto = (mock as Bag).prototype
       if (proto !== null && typeof proto === 'object') {
         // The slots are fixed once the prototype is built; `constructor` is the mock itself below.
-        const keys = functionKeys(proto, false)
-        protoSlots = () => keys
+        protoSlots.push(...functionKeys(proto, false))
         assign(proto, 'constructor', mock)
       }
     }
@@ -329,6 +337,7 @@ function fromMetadata(root: unknown, mode: AutomockMode, mk: AutomockMaker): unk
   }
 
   const result = build(root)
+  for (const link of backReferences) link()
   if (result === null) throw new MockError('automock-no-metadata', 'Failed to get mock metadata')
   const mock = result.mock
   // An ES module namespace has no `__esModule`; a transpiled one does, and is mocked with it.
@@ -361,7 +370,7 @@ function fromDeep(root: unknown, mode: AutomockMode, mk: AutomockMaker): unknown
       ...options,
       fallback: instanceMethods(
         mk,
-        () => members,
+        members,
         (key) => (typeof key === 'string' ? key : undefined),
         owner,
       ),
@@ -409,19 +418,22 @@ function fromDeep(root: unknown, mode: AutomockMode, mk: AutomockMaker): unknown
       if (Array.isArray(value)) {
         if (mode === 'automock') assign(target, key, [])
         else {
-          assign(
-            target,
-            key,
-            value.map((item: unknown) => {
-              if (item !== null && typeof item === 'object') {
-                const copy = {}
-                mockPropertiesOf(item, copy)
-                return copy
-              }
-              if (typeof item === 'function') return createMock(item as UnknownFunction)
-              return item
-            }),
-          )
+          // The array and each object item are registered before recursing, so a cycle back
+          // through them resolves to the copy (upstream overflows the stack; DIVERGENCES).
+          const copies: unknown[] = []
+          refs.set(value, copies)
+          for (const item of value as unknown[]) {
+            const known = refs.get(item)
+            if (known !== undefined) copies.push(known)
+            else if (item !== null && typeof item === 'object') {
+              const copy = {}
+              refs.set(item, copy)
+              copies.push(copy)
+              mockPropertiesOf(item, copy)
+            } else if (typeof item === 'function') copies.push(createMock(item as UnknownFunction))
+            else copies.push(item)
+          }
+          assign(target, key, copies)
         }
         continue
       }
@@ -457,10 +469,8 @@ function fromDeep(root: unknown, mode: AutomockMode, mk: AutomockMaker): unknown
 
   if (root === null || (typeof root !== 'object' && typeof root !== 'function')) return root
   if (Array.isArray(root)) return mode === 'automock' ? [] : root
-  let mocked: object
-  if (typeof root === 'function' && !isMockLike(root)) mocked = createMock(root as UnknownFunction)
-  else if (isMockLike(root)) return root
-  else mocked = {}
+  if (isMockLike(root)) return root
+  const mocked: object = typeof root === 'function' ? createMock(root as UnknownFunction) : {}
   refs.set(root, mocked)
   mockPropertiesOf(root, mocked)
   for (const finalize of finalizers) finalize()

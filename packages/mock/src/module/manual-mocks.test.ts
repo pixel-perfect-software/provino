@@ -1,19 +1,12 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, test } from 'node:test'
+import { describe, test } from 'node:test'
 import { findManualMock, findRootMock, isCoreSpecifier } from './manual-mocks.ts'
+import { tempTree } from './test-support.ts'
 
-const dir = mkdtempSync(join(tmpdir(), 'provino-manual-'))
-after(() => rmSync(dir, { recursive: true, force: true }))
-
-function write(path: string): string {
-  const file = join(dir, path)
-  mkdirSync(join(file, '..'), { recursive: true })
-  writeFileSync(file, '')
-  return file
-}
+const { dir, write } = tempTree('provino-manual-')
 
 const pkg = write('__mocks__/pkg.js')
 const scoped = write('__mocks__/@scope/lib.ts')
@@ -59,6 +52,15 @@ describe('findManualMock', () => {
   test('nothing found is null, and a core module has no adjacent mock', () => {
     assert.equal(findManualMock('nothing', options), null)
     assert.equal(findManualMock('fs', { ...options, resolved: x }), null)
+  })
+
+  test('a specifier with a .. segment never leaves __mocks__', () => {
+    write('x.ts')
+    write('__mocks__/a/keep.ts')
+    assert.equal(findRootMock('a/../../x', options), null)
+    assert.equal(findRootMock('a/../../__mocks__/pkg', options), null)
+    assert.equal(findManualMock('a/../../x', options), null)
+    assert.deepEqual(findRootMock('pkg', options), { path: pkg, kind: 'root' })
   })
 
   test('isCoreSpecifier', () => {

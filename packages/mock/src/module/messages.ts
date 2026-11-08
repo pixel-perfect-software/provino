@@ -8,6 +8,8 @@ const NEUTRAL_MODULE_MESSAGES = {
   // `{specifier}`, `{from}` (the importer, relative to the first root).
   'module-missing':
     "Cannot find module '{specifier}' from '{from}'. To mock a module that does not exist on disk, pass the `virtual` option",
+  // The same for an unmock: jest-resolve's own text, with no `virtual` hint (an unmock has no such option).
+  'unmock-module-missing': "Cannot find module '{specifier}' from '{from}'",
   // A namespace-shaped factory returned a non-object. `{raw}` is the specifier as written.
   'factory-not-object': 'The mock factory for "{raw}" must return an object',
   // Reading `{name}` from the mock of `{raw}` under `missingFactoryExport: 'throw'`.
@@ -16,6 +18,8 @@ const NEUTRAL_MODULE_MESSAGES = {
   'nested-isolation': '{caller} cannot be nested inside another {caller} or {other}',
   // Automock found nothing it could describe. `{id}` is the module.
   'automock-no-metadata': 'Failed to get mock metadata: {id}',
+  // A factory asked for the module it is building. `{raw}` is the specifier as written.
+  'circular-mock': 'The mock factory for "{raw}" imports the module it mocks',
   'registry-disposed': 'The module mock registry was disposed',
   // Importing a mocked relative path that is not on disk under `virtualRelative: false`. `{id}` is
   // the path from the root, with a leading `/`.

@@ -11,6 +11,7 @@
 // every later `restoreAllMocks()` throw (Track 4 L227, DECISIONS D7, DIVERGENCES DV7).
 import type { MockPolicy } from '@provino/types'
 import { MockError, MockTypeError } from './errors.ts'
+import { isObjectLike } from './internal/guards.ts'
 import { fill, type MockMessageCode, messageFor } from './internal/messages.ts'
 import { createMockFn, isMockFunction, MOCK_BRAND } from './mock-fn.ts'
 import type { MockRegistry, Restorer } from './registry.ts'
@@ -47,10 +48,6 @@ function failType(policy: MockPolicy, code: MockMessageCode, key: unknown, type:
 
 function typeOf(value: unknown): string {
   return value === null || value === undefined ? `${value}` : typeof value
-}
-
-function isObjectLike(value: unknown): value is object {
-  return value !== null && (typeof value === 'object' || typeof value === 'function')
 }
 
 /**

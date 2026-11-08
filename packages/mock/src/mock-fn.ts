@@ -14,6 +14,7 @@
 import type { MockPolicy } from '@provino/types'
 import { MockTypeError } from './errors.ts'
 import { argsEqual } from './internal/args-equal.ts'
+import { isThenable } from './internal/guards.ts'
 import { fill, messageFor } from './internal/messages.ts'
 import type { DirtyMock, MockRegistry } from './registry.ts'
 import type {
@@ -682,14 +683,6 @@ function prototypeDescriptors(): PropertyDescriptorMap {
 
 const PROTOTYPE_DESCRIPTORS: PropertyDescriptorMap = prototypeDescriptors()
 
-function isThenable(value: unknown): value is PromiseLike<unknown> {
-  return (
-    value !== null &&
-    (typeof value === 'object' || typeof value === 'function') &&
-    typeof (value as Partial<PromiseLike<unknown>>).then === 'function'
-  )
-}
-
 /**
  * Copies `arguments` with no global or prototype lookup on the call path. The common short lists are
  * exact literals: storing into `[]` by index would keep a 17-slot store for even one argument, and
@@ -963,7 +956,12 @@ export function createMockFn<T extends MockTarget = UnknownFunction>(
   if (opts !== undefined) {
     slot.options = opts
     if (opts.impl !== undefined) slot.impl = opts.impl as Impl
-    if (opts.spy === true || opts.fallback !== undefined || opts.name !== undefined) {
+    if (
+      opts.spy === true ||
+      opts.fallback !== undefined ||
+      opts.name !== undefined ||
+      opts.original !== undefined
+    ) {
       applyRareOptions(slot, fn, opts)
     }
     if (layout.chain) slot.syncPrototype(slot.nextImpl())

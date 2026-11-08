@@ -160,12 +160,14 @@ export const jestPolicy: PolicyOverrides = {
     resetModulesClearsMocks: false,
     // unverified: track-04 L309
     awaitFactory: false,
-    // unverified: track-04 L312
-    resetModulesReRunsFactory: true,
     // unverified: track-04 L313
     requireVirtualFlag: true,
     // unverified: track-04 L313 (mod corpus agrees: `mod-virtual-static`)
     virtualRelative: true,
+    // Recorded, Jest 30.5.2: `mod-reregister` (a second `doMock` after a load leaves the next load on
+    // the first factory's value) and `mod-reset-modules` (`resetModules()` runs the factory again).
+    // The value lives in `ModuleRegistries.mockRegistry`.
+    mockValueOwner: 'module-registry',
     // unverified: track-04 L314
     automockShape: 'metadata',
     // unverified: track-04 L316
@@ -180,6 +182,9 @@ export const jestPolicy: PolicyOverrides = {
       // importer's path relative to the root, as jest-resolve prints it.
       'module-missing':
         "Cannot find module '{specifier}' from '{from}'\n\nTo mock a module that does not exist on disk, pass `{virtual: true}` in the mock options. See https://jestjs.io/docs/jest-object#jestmockmodulename-factory-options",
+      // The same without the hint, for `unmock`/`dontMock` of a missing module (`mod-unmock-missing`):
+      // jest-resolve `resolver.ts` L523 (`_throwModNotFoundError`).
+      'unmock-module-missing': "Cannot find module '{specifier}' from '{from}'",
       // jest-runtime `internals/MockState.ts` L552-L554 (`generateMock`); `{id}` is the module path.
       'automock-no-metadata':
         'Failed to get mock metadata: {id}\n\nSee: https://jestjs.io/docs/manual-mocks#content',

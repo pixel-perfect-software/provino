@@ -5,9 +5,18 @@
 // Brief B13b Gaps 4-6 shape it: the resolver is injected (D34), so `register` resolves at once and
 // there is no queue and no `flush`; a virtual module's id stays inside the registry as
 // `virtual:<specifier>`; the factory's result shape and missing-export behaviour are policy keys.
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
-import type { MockPolicy, MockSpec, ModulePolicy, ResolveResult, Resolver } from '@provino/types'
+import type {
+  MockPolicy,
+  MockSpec,
+  ModulePolicy,
+  ResolveKind,
+  ResolveResult,
+  Resolver,
+} from '@provino/types'
 import { MockError, MockTypeError } from '../errors.ts'
+import { isObjectLike, isThenable } from '../internal/guards.ts'
 import { createMockFn } from '../mock-fn.ts'
 import type { MockRegistry } from '../registry.ts'
 import { automock } from './automock.ts'
@@ -15,8 +24,10 @@ import {
   coreName,
   findManualMock,
   findRootMock,
+  isBareSpecifier,
   isCoreSpecifier,
   type ManualMock,
+  rootsWithMocks,
 } from './manual-mocks.ts'
 import { type ModuleMessageCode, moduleMessage } from './messages.ts'
 
@@ -29,8 +40,6 @@ export interface RegisterOptions {
   readonly from: string
   /** The module need not exist. Under `requireVirtualFlag: false` a missing module is virtual anyway. */
   readonly virtual?: boolean
-  /** Where the hoister moved the call from, for error frames. */
-  readonly hoisted?: { readonly line: number; readonly column: number }
 }
 
 /**
@@ -75,7 +84,8 @@ export interface ModuleMockRegistry {
   register(specifier: string, spec: MockSpec, options: RegisterOptions): void
   /**
    * Whether an import edge is mocked, by Track 4 L342's precedence: explicit unmock, explicit
-   * registration, automock-all, root `__mocks__` (when `rootMocksAutoApply`). A pure lookup.
+   * registration, automock-all, root `__mocks__` (when `rootMocksAutoApply`). It changes nothing
+   * the answer depends on; it only remembers the specifier for `materialize`'s manual-mock name.
    * `specifier` is the text as written, for the root-mock name; without it a `node_modules` path
    * stands in.
    */
@@ -92,7 +102,7 @@ export interface ModuleMockRegistry {
    * `awaitFactory`, or when `loadActual` returns one.
    */
   materialize(id: string): unknown
-  /** `resetModules()`: drops cached values when `resetModulesReRunsFactory`. */
+  /** `resetModules()`: drops cached values when the module registry owns them (`mockValueOwner`). */
   onResetModules(): void
   /** Turns automock-all on or off (`enableAutomock`/`disableAutomock`); starts at `policy.automock`. */
   setAutomock(enabled: boolean): void
@@ -110,8 +120,6 @@ interface Entry {
   readonly spec: MockSpec
   readonly specifier: string
   readonly from: string
-  /** The resolved file, for the adjacent `__mocks__` search; `null` for a builtin or a virtual id. */
-  readonly resolved: string | null
 }
 
 const NOT_MOCKED: MockDecision = Object.freeze({ mocked: false })
@@ -134,18 +142,6 @@ const PUBLIC_SYMBOLS: ReadonlySet<symbol> = new Set([
   Symbol.unscopables,
 ])
 
-function isThenable(value: unknown): value is PromiseLike<unknown> {
-  return (
-    value !== null &&
-    (typeof value === 'object' || typeof value === 'function') &&
-    typeof (value as { then?: unknown }).then === 'function'
-  )
-}
-
-function isObjectLike(value: unknown): value is object {
-  return value !== null && (typeof value === 'object' || typeof value === 'function')
-}
-
 /** `pkg` or `@scope/pkg` from the last `node_modules` in a path, or `null`. */
 function packageNameOf(path: string): string | null {
   const parts = path.split(sep === '\\' ? /[\\/]/ : '/')
@@ -157,22 +153,26 @@ function packageNameOf(path: string): string | null {
   return second === undefined || second === '' ? null : `${first}/${second}`
 }
 
-function isBareSpecifier(specifier: string): boolean {
-  return (
-    !specifier.startsWith('.') && !specifier.startsWith('/') && !/^[a-zA-Z]:[\\/]/.test(specifier)
-  )
-}
-
 class Registry implements ModuleMockRegistry {
   readonly #options: ModuleMockRegistryOptions
   readonly #policy: ModulePolicy
   readonly #entries = new Map<string, Entry>()
-  /** Root mocks for packages that aren't installed, found by `decideUnresolved`. */
-  readonly #implicit = new Map<string, ManualMock>()
+  /** The id a dual package's other ids stand for: one entry, one cached value. */
+  readonly #canonical = new Map<string, string>()
+  /** The bare specifier `decide` saw for an id that has no entry, for its manual-mock name. */
+  readonly #specifiers = new Map<string, string>()
+  /** Ids whose value is being built (a factory still running or pending). */
+  readonly #building = new Set<string>()
+  /** The ids whose factory the current call stack, or async continuation, is inside; made on the first factory. */
+  #inside: AsyncLocalStorage<ReadonlySet<string>> | null = null
   readonly #values = new Map<string, unknown>()
   #overlay: Map<string, unknown> | null = null
+  /** Manual mocks by id; a root mock for an uninstalled package is seeded here by `decideUnresolved`. */
   readonly #manual = new Map<string, ManualMock | null>()
-  readonly #rootNames = new Map<string, boolean>()
+  /** `findRootMock` by name, misses included. */
+  readonly #rootMocks = new Map<string, ManualMock | null>()
+  /** The roots that have a `__mocks__` directory, found on first use. */
+  #mockRoots: readonly string[] | null = null
   #automock: boolean
   #disposed = false
 
@@ -184,39 +184,62 @@ class Registry implements ModuleMockRegistry {
 
   register(specifier: string, spec: MockSpec, options: RegisterOptions): void {
     this.#live()
-    const { id, resolved } = this.#identify(specifier, options.from, options.virtual === true, spec)
-    this.#entries.set(id, { spec, specifier, from: options.from, resolved })
-    this.#manual.delete(id)
-    this.#values.delete(id)
-    this.#overlay?.delete(id)
+    const targets = this.#identify(specifier, options.from, options.virtual === true, spec)
+    const [primary] = targets
+    if (primary === undefined) return
+    // One entry for every id the specifier resolves to (a dual package's `import` and `require`
+    // files), and one cached value: the first id stands for the group.
+    const entry: Entry = { spec, specifier, from: options.from }
+    for (const id of targets) {
+      this.#entries.set(id, entry)
+      this.#canonical.set(id, primary)
+      this.#manual.delete(id)
+      // A second registration drops the value already built only if the registration owns it.
+      if (this.#policy.mockValueOwner === 'registration') {
+        this.#values.delete(id)
+        this.#overlay?.delete(id)
+      }
+    }
   }
 
   decide(
     resolvedId: string,
-    _importer: string,
+    _importer: string, // Jest's transitive `node_modules` rule would need it (not built).
     kind: 'esm' | 'cjs' | 'builtin',
     specifier?: string,
   ): MockDecision {
+    this.#live()
     const entry = this.#entries.get(resolvedId)
     if (entry !== undefined) {
-      return entry.spec.kind === 'unmock' ? NOT_MOCKED : { mocked: true, id: resolvedId }
+      return entry.spec.kind === 'unmock'
+        ? NOT_MOCKED
+        : { mocked: true, id: this.#canonical.get(resolvedId) ?? resolvedId }
     }
     // Core modules are mocked only by an explicit call: never by automock-all or a root mock.
     if (kind === 'builtin') return NOT_MOCKED
     if (this.#automock && !this.#unmockedByPattern(resolvedId)) {
+      this.#noteSpecifier(resolvedId, specifier)
       return { mocked: true, id: resolvedId }
     }
     if (this.#policy.rootMocksAutoApply) {
+      // A specifier as written names the root mock (`pkg/sub` is `__mocks__/pkg/sub`, a relative
+      // import has none); without one the package in the path stands in.
       const name =
-        specifier !== undefined && isBareSpecifier(specifier)
-          ? specifier
-          : packageNameOf(resolvedId)
-      if (name !== null && this.#hasRootMock(name)) return { mocked: true, id: resolvedId }
+        specifier === undefined
+          ? packageNameOf(resolvedId)
+          : isBareSpecifier(specifier)
+            ? specifier
+            : null
+      if (name !== null && this.#hasRootMock(name)) {
+        this.#noteSpecifier(resolvedId, specifier)
+        return { mocked: true, id: resolvedId }
+      }
     }
     return NOT_MOCKED
   }
 
   decideUnresolved(specifier: string, importer: string): MockDecision {
+    this.#live()
     if (isCoreSpecifier(specifier))
       return this.decide(`node:${coreName(specifier)}`, importer, 'builtin')
     const id = this.#virtualId(specifier, importer)
@@ -225,36 +248,61 @@ class Registry implements ModuleMockRegistry {
       if (entry.spec.kind === 'unmock') return NOT_MOCKED
       if (!this.#policy.virtualRelative && !isBareSpecifier(specifier)) {
         const shown = relative(this.#options.roots[0] ?? '', id.slice('virtual:'.length))
-        throw new Error(
+        throw new MockError(
+          'unresolved-relative-mock',
           this.#text('unresolved-relative-mock', { id: `/${shown.split(sep).join('/')}` }),
         )
       }
       return { mocked: true, id }
     }
-    if (this.#implicit.has(id)) return { mocked: true, id }
+    if (this.#manual.get(id) != null) return { mocked: true, id }
     if (this.#policy.rootMocksAutoApply && isBareSpecifier(specifier)) {
-      const found = findRootMock(specifier, this.#options)
+      const found = this.#rootMock(specifier)
       if (found !== null) {
-        this.#implicit.set(id, found)
+        this.#manual.set(id, found)
         return { mocked: true, id }
       }
     }
     return NOT_MOCKED
   }
 
-  materialize(id: string): unknown {
+  materialize(requested: string): unknown {
     this.#live()
+    const id = this.#canonical.get(requested) ?? requested
+    // Asked for from inside its own factory, which is still building it: the answer would be the
+    // factory's own result. Real Jest overflows the stack here; the error is the clear form of that.
+    if (this.#building.has(id) && this.#inside?.getStore()?.has(id) === true) {
+      const error = new MockError(
+        'circular-mock',
+        this.#text('circular-mock', { raw: this.#entries.get(id)?.specifier ?? id }),
+      )
+      if (this.#policy.awaitFactory) return Promise.reject(error)
+      throw error
+    }
     const overlay = this.#overlay
     if (overlay?.has(id)) return overlay.get(id)
     if (this.#values.has(id)) return this.#values.get(id)
-    const value = this.#create(id)
-    ;(overlay ?? this.#values).set(id, value)
+    this.#building.add(id)
+    let value: unknown
+    try {
+      value = this.#create(id)
+    } catch (error) {
+      this.#building.delete(id)
+      throw error
+    }
+    const store = overlay ?? this.#values
+    store.set(id, value)
     if (isThenable(value)) {
       // A failed build is not cached, as @vitest/mocker's `ManualMockedModule.resolve` doesn't.
-      const store = overlay ?? this.#values
-      Promise.resolve(value).catch(() => {
+      const settled = (): void => {
+        this.#building.delete(id)
+      }
+      Promise.resolve(value).then(settled, () => {
+        settled()
         if (store.get(id) === value) store.delete(id)
       })
+    } else {
+      this.#building.delete(id)
     }
     return value
   }
@@ -263,10 +311,10 @@ class Registry implements ModuleMockRegistry {
     this.#live()
     if (this.#policy.resetModulesClearsMocks) {
       this.#entries.clear()
-      this.#implicit.clear()
+      this.#canonical.clear()
       this.#manual.clear()
     }
-    if (this.#policy.resetModulesReRunsFactory || this.#policy.resetModulesClearsMocks) {
+    if (this.#policy.mockValueOwner === 'module-registry' || this.#policy.resetModulesClearsMocks) {
       this.#values.clear()
       this.#overlay?.clear()
     }
@@ -280,7 +328,7 @@ class Registry implements ModuleMockRegistry {
   enterIsolation(caller = 'isolateModules', other = 'isolateModulesAsync'): void {
     this.#live()
     if (this.#overlay !== null) {
-      throw new Error(this.#text('nested-isolation', { caller, other }))
+      throw new MockError('nested-isolation', this.#text('nested-isolation', { caller, other }))
     }
     this.#overlay = new Map()
   }
@@ -293,11 +341,16 @@ class Registry implements ModuleMockRegistry {
   dispose(): void {
     this.#disposed = true
     this.#entries.clear()
-    this.#implicit.clear()
+    this.#canonical.clear()
+    this.#specifiers.clear()
+    this.#building.clear()
     this.#values.clear()
     this.#manual.clear()
-    this.#rootNames.clear()
+    this.#rootMocks.clear()
+    this.#mockRoots = null
     this.#overlay = null
+    this.#inside?.disable()
+    this.#inside = null
   }
 
   // ---- internals ----
@@ -316,42 +369,51 @@ class Registry implements ModuleMockRegistry {
   }
 
   /** Resolves a registration's target to the id the loader will ask about. */
-  #identify(
-    specifier: string,
-    from: string,
-    virtual: boolean,
-    spec: MockSpec,
-  ): { readonly id: string; readonly resolved: string | null } {
-    if (isCoreSpecifier(specifier)) return { id: `node:${coreName(specifier)}`, resolved: null }
-    const result: ResolveResult = this.#options.resolver.resolve(specifier, {
-      importer: from,
-      kind: 'mock',
-      conditions: this.#options.conditions ?? [],
-    })
+  #identify(specifier: string, from: string, virtual: boolean, spec: MockSpec): readonly string[] {
+    if (isCoreSpecifier(specifier)) return [`node:${coreName(specifier)}`]
+    const resolve = (kind: ResolveKind): ResolveResult =>
+      this.#options.resolver.resolve(specifier, {
+        importer: from,
+        kind,
+        conditions: this.#options.conditions ?? [],
+      })
+    const result = resolve('mock')
     switch (result.type) {
-      case 'file':
-        return { id: result.path, resolved: result.path }
+      case 'file': {
+        // A dual package resolves to one file for `import` and another for `require`: the mock
+        // covers both, as `FileRegistry.invalidate` does. A kind that doesn't resolve is skipped.
+        // Conditions can't change where a relative or absolute path points, so only a bare one asks.
+        const targets = [result.path]
+        if (!isBareSpecifier(specifier)) return targets
+        for (const kind of ['import', 'require'] as const) {
+          const other = resolve(kind)
+          if (other.type === 'file' && !targets.includes(other.path)) targets.push(other.path)
+        }
+        return targets
+      }
       case 'builtin':
-        return { id: result.id, resolved: null }
+        return [result.id]
       case 'virtual':
-        return { id: `virtual:${specifier}`, resolved: null }
+        return [`virtual:${specifier}`]
       case 'not-found': {
-        // An unmock of a missing module is harmless, and a root mock stands in for a package that
-        // isn't installed; anything else needs the flag when the dialect asks for it.
+        // A root mock stands in for a package that isn't installed; anything else, an unmock
+        // included (`mod-unmock-missing`), needs the flag when the dialect asks for it.
         const allowed =
           virtual ||
           !this.#policy.requireVirtualFlag ||
-          spec.kind === 'unmock' ||
           (this.#policy.rootMocksAutoApply &&
             isBareSpecifier(specifier) &&
-            findRootMock(specifier, this.#options) !== null)
+            this.#rootMock(specifier) !== null)
         if (!allowed) {
           throw new MockError(
             'module-missing',
-            this.#text('module-missing', { specifier, from: this.#displayPath(from) }),
+            this.#text(spec.kind === 'unmock' ? 'unmock-module-missing' : 'module-missing', {
+              specifier,
+              from: this.#displayPath(from),
+            }),
           )
         }
-        return { id: this.#virtualId(specifier, from), resolved: null }
+        return [this.#virtualId(specifier, from)]
       }
     }
   }
@@ -371,24 +433,53 @@ class Registry implements ModuleMockRegistry {
     return false
   }
 
+  #rootsWithMocks(): readonly string[] {
+    this.#mockRoots ??= rootsWithMocks(this.#options.roots)
+    return this.#mockRoots
+  }
+
+  #chains(): AsyncLocalStorage<ReadonlySet<string>> {
+    this.#inside ??= new AsyncLocalStorage()
+    return this.#inside
+  }
+
   #hasRootMock(name: string): boolean {
-    let found = this.#rootNames.get(name)
+    return this.#rootMock(name) !== null
+  }
+
+  /** The root mock of a package name, found once per name (a miss is remembered too). */
+  #rootMock(name: string): ManualMock | null {
+    let found = this.#rootMocks.get(name)
     if (found === undefined) {
-      found = findRootMock(name, this.#options) !== null
-      this.#rootNames.set(name, found)
+      found = findRootMock(name, {
+        roots: this.#rootsWithMocks(),
+        extensions: this.#options.extensions,
+      })
+      this.#rootMocks.set(name, found)
     }
     return found
+  }
+
+  /** Remembers the specifier `decide` was given for `id`: a bare one wins over a relative one. */
+  #noteSpecifier(id: string, specifier: string | undefined): void {
+    if (specifier === undefined) return
+    const known = this.#specifiers.get(id)
+    if (known === undefined || (!isBareSpecifier(known) && isBareSpecifier(specifier))) {
+      this.#specifiers.set(id, specifier)
+    }
   }
 
   /** A manual mock for `id`, by the entry's specifier or, with no entry, the package its path is in. */
   #manualFor(id: string, entry: Entry | undefined): ManualMock | null {
     const cached = this.#manual.get(id)
     if (cached !== undefined) return cached
-    const specifier = entry?.specifier ?? packageNameOf(id)
+    // Never re-derived from the path when a specifier was given: `pkg/sub` is not `pkg`.
+    const specifier = entry?.specifier ?? this.#specifiers.get(id) ?? packageNameOf(id)
     const found = findManualMock(specifier ?? id, {
-      roots: this.#options.roots,
+      roots: this.#rootsWithMocks(),
       extensions: this.#options.extensions,
-      resolved: entry !== undefined ? entry.resolved : isAbsolute(id) ? id : null,
+      // A resolved file is its own id; a builtin or virtual id has no file to search beside.
+      resolved: isAbsolute(id) ? id : null,
     })
     this.#manual.set(id, found)
     return found
@@ -397,8 +488,6 @@ class Registry implements ModuleMockRegistry {
   #create(id: string): unknown {
     const entry = this.#entries.get(id)
     if (entry === undefined) {
-      const implicit = this.#implicit.get(id)
-      if (implicit !== undefined) return this.#options.loadActual(implicit.path, '')
       const manual = this.#manualFor(id, undefined)
       if (manual !== null) return this.#options.loadActual(manual.path, '')
       return this.#automockOf(id, '', false)
@@ -447,15 +536,20 @@ class Registry implements ModuleMockRegistry {
   ): unknown {
     const importOriginal = (): Promise<unknown> =>
       new Promise((done) => {
-        done(this.#options.loadActual(entry.resolved ?? id, entry.from))
+        done(this.#options.loadActual(id, entry.from))
       })
     const wrap = this.#policy.messages['factory-error']
     const helpful = (cause: unknown): unknown =>
       wrap === undefined ? cause : new Error(wrap, { cause })
     let result: unknown
     try {
-      result = factory(importOriginal)
+      const inside = this.#chains()
+      const chain = new Set(inside.getStore())
+      chain.add(id)
+      result = inside.run(chain, () => factory(importOriginal))
     } catch (error) {
+      // Under `awaitFactory` every failure is a rejection, a synchronous throw included.
+      if (this.#policy.awaitFactory) return Promise.reject(helpful(error))
       throw helpful(error)
     }
     if (this.#policy.awaitFactory) {
@@ -492,7 +586,10 @@ class Registry implements ModuleMockRegistry {
           return Reflect.get(target, prop, receiver)
         }
         if (typeof prop === 'symbol' && PUBLIC_SYMBOLS.has(prop)) return undefined
-        throw new Error(this.#text('missing-factory-export', { name: String(prop), raw }))
+        throw new MockError(
+          'missing-factory-export',
+          this.#text('missing-factory-export', { name: String(prop), raw }),
+        )
       },
     })
   }

@@ -130,6 +130,46 @@ for (const shape of ['metadata', 'deep'] as const) {
       assert.ok(mocked(out.fn))
     })
 
+    test('a class that extends another mocks the inherited methods too', () => {
+      class A {
+        base(): number {
+          return 1
+        }
+      }
+      class B extends A {
+        own(): number {
+          return 2
+        }
+      }
+      const out = run({ B }, shape)
+      assert.ok(mocked(out.B.prototype.base), 'inherited, on the prototype')
+      assert.ok(mocked(out.B.prototype.own))
+      const instance = new out.B()
+      assert.ok(mocked(instance.base))
+      assert.equal(instance.base(), undefined)
+      assert.equal(
+        out.B.prototype.base.mock.calls.length,
+        1,
+        'the call records on the prototype mock',
+      )
+    })
+
+    test('a cycle through an array of objects terminates and keeps identity', () => {
+      const node: Bag = {}
+      const list = [node]
+      node.list = list
+      const loop: unknown[] = []
+      loop[0] = loop
+      for (const mode of ['automock', 'autospy'] as const) {
+        const out = run({ list, loop }, shape, mode)
+        // `metadata` empties an array, so it has no items to point back; it only must not overflow.
+        if (mode === 'autospy' && shape === 'deep') {
+          assert.equal(out.list[0].list, out.list, `${shape} ${mode}`)
+          assert.equal(out.loop[0], out.loop, `${shape} ${mode}`)
+        }
+      }
+    })
+
     test('a function module is a callable mock with mocked statics', () => {
       const fn = Object.assign(() => 1, { helper: () => 2 })
       const out = run(fn, shape) as unknown as Bag & (() => unknown)
@@ -204,6 +244,40 @@ describe('automock, metadata shape only', () => {
     assert.equal(esm.x, 1, 'the getter is read, and the value mocked as a constant')
   })
 
+  test("a class prototype's names follow jest-mock: direct members, then the back-references in the order seen", () => {
+    class A {
+      aMethod(): void {}
+      shared(): void {}
+    }
+    class B extends A {
+      bMethod(): void {}
+      override shared(): void {}
+    }
+    const out = run({ A, B }, 'metadata')
+    assert.deepEqual(Object.getOwnPropertyNames(out.B.prototype), [
+      'bMethod',
+      'shared',
+      'constructor',
+      'aMethod',
+    ])
+    assert.deepEqual(Object.getOwnPropertyNames(out.A.prototype), [
+      'aMethod',
+      'shared',
+      'constructor',
+    ])
+    assert.equal(out.B.prototype.constructor, out.B)
+    assert.equal(out.B.prototype.aMethod, out.A.prototype.aMethod, 'the shared member is one mock')
+  })
+
+  test('the mock-function slots of a mock export are not copied, other slots are', () => {
+    const source = createMockFn(neutral, createMockRegistry())
+    Object.assign(source, { __esModule: true, mockHelper: 1, keep: 2 })
+    const out = run({ source }, 'metadata')
+    assert.equal(Object.hasOwn(out.source, 'mockHelper'), false)
+    assert.equal(Object.hasOwn(out.source, 'mockClear'), false)
+    assert.equal(out.source.keep, 2)
+  })
+
   test('a root with no metadata throws', () => {
     assert.throws(() => run(new Date(0), 'metadata'), { code: 'automock-no-metadata' })
   })
@@ -264,6 +338,28 @@ describe('automock, deep shape only', () => {
     assert.equal(out.live, 7)
     assert.equal(out.fn(), 'real')
     assert.ok(mocked(out.fn))
+  })
+
+  test('autospy walks a nested module namespace into a clean object, and spies array items', () => {
+    const real = Object.create(null) as Bag
+    Object.defineProperty(real, Symbol.toStringTag, { value: 'Module' })
+    real.f = () => 'real'
+    const item = { g: () => 'g' }
+    const out = run({ ns: real, list: [item, () => 'h', 3] }, 'deep', 'autospy')
+    assert.notEqual(out.ns, real, 'a clean object, not the namespace')
+    assert.ok(mocked(out.ns.f))
+    assert.equal(out.ns.f(), 'real')
+    assert.notEqual(out.list[0], item)
+    assert.ok(mocked(out.list[0].g))
+    assert.equal(out.list[0].g(), 'g')
+    assert.ok(mocked(out.list[1]))
+    assert.equal(out.list[1](), 'h')
+    assert.equal(out.list[2], 3)
+  })
+
+  test('automock turns arrays into [] and autospy keeps their items', () => {
+    assert.deepEqual(run({ list: [1, 2] }, 'deep').list, [])
+    assert.deepEqual(run({ list: [1, 2] }, 'deep', 'autospy').list, [1, 2])
   })
 
   test('symbol keys are mocked too', () => {
