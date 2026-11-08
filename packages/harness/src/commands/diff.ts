@@ -1,61 +1,41 @@
 // `provino-harness diff` (Track 12 T12.5): two NormalizedRun files, compared and judged.
-import { readFile } from 'node:fs/promises'
 import type { NormalizedRun } from '@provino/types'
 import { DIFF_KINDS, diffRuns, type ExclusionRule, type ParityReport } from '../diff.ts'
 import { HarnessError } from '../errors.ts'
 import { parseExclusions, parseFlaky } from '../exclusions.ts'
 import type { DiffCommand } from '../internal/cli-args.ts'
-import { errorMessage } from '../internal/guards.ts'
 import { parseNormalizedRun } from '../parse-normalized-run.ts'
-import type { CommandIo } from './io.ts'
+import { type CommandIo, failureText, readText } from './io.ts'
 
-/** What `diff` read, or why it couldn't. */
-type Inputs =
-  | {
-      readonly ok: true
-      readonly ref: NormalizedRun
-      readonly cand: NormalizedRun
-      readonly exclusions: readonly ExclusionRule[]
-      readonly flaky: readonly string[]
-    }
-  | { readonly ok: false; readonly message: string }
-
-async function readText(file: string, what: string): Promise<string> {
-  try {
-    return await readFile(file, 'utf8')
-  } catch (cause) {
-    throw new HarnessError(
-      'HARNESS_USAGE',
-      `can't read the ${what} ${file}: ${errorMessage(cause)}`,
-      {
-        path: file,
-        cause,
-      },
-    )
-  }
+/** Both runs, the exclusions with R2's limits and the flaky list. A bad input is a `HarnessError`. */
+async function readInputs(
+  command: DiffCommand,
+  today: string,
+): Promise<{
+  readonly ref: NormalizedRun
+  readonly cand: NormalizedRun
+  readonly exclusions: readonly ExclusionRule[]
+  readonly flaky: readonly string[]
+}> {
+  const ref = parseNormalizedRun(await readText(command.ref, 'reference run'), command.ref)
+  const cand = parseNormalizedRun(await readText(command.cand, 'candidate run'), command.cand)
+  const exclusions =
+    command.exclusions === undefined
+      ? []
+      : parseExclusions(await readText(command.exclusions, 'exclusions'), command.exclusions, {
+          today,
+          calibration: command.calibration,
+        })
+  const flaky =
+    command.flaky === undefined
+      ? []
+      : parseFlaky(await readText(command.flaky, 'flaky list'), command.flaky)
+  return { ref, cand, exclusions, flaky }
 }
 
-async function readInputs(command: DiffCommand, today: string): Promise<Inputs> {
-  try {
-    const ref = parseNormalizedRun(await readText(command.ref, 'reference run'), command.ref)
-    const cand = parseNormalizedRun(await readText(command.cand, 'candidate run'), command.cand)
-    const exclusions =
-      command.exclusions === undefined
-        ? []
-        : parseExclusions(await readText(command.exclusions, 'exclusions'), command.exclusions, {
-            today,
-            calibration: command.calibration,
-          })
-    const flaky =
-      command.flaky === undefined
-        ? []
-        : parseFlaky(await readText(command.flaky, 'flaky list'), command.flaky)
-    return { ok: true, ref, cand, exclusions, flaky }
-  } catch (error) {
-    if (error instanceof HarnessError)
-      return { ok: false, message: `${error.code}: ${error.message}` }
-    throw error
-  }
+/** The reference tests exclusion rules removed from T (R2's cap counts these, not flaky ones). */
+function ruleExcluded(counts: ParityReport['counts']): number {
+  return counts.excluded - counts.flaky
 }
 
 /** The reasons a report fails the command's bars; empty when it passes. */
@@ -77,14 +57,14 @@ function failures(report: ParityReport, command: DiffCommand): string[] {
       `${report.diffs.length} diffs no rule explains, more than --max-diffs ${command.maxDiffs}`,
     )
   }
-  const ruleExcluded = counts.excluded - counts.flaky
+  const removed = ruleExcluded(counts)
   if (
     !command.calibration &&
     counts.referenceTests > 0 &&
-    ruleExcluded / counts.referenceTests > command.maxExcluded
+    removed / counts.referenceTests > command.maxExcluded
   ) {
     reasons.push(
-      `exclusion rules remove ${ruleExcluded} of ${counts.referenceTests} reference tests, more than --max-excluded ${command.maxExcluded} (Track 12 R2)`,
+      `exclusion rules remove ${removed} of ${counts.referenceTests} reference tests, more than --max-excluded ${command.maxExcluded} (Track 12 R2)`,
     )
   }
   return reasons
@@ -106,7 +86,6 @@ function summaryTable(report: ParityReport, reasons: readonly string[]): string 
   const { counts } = report
   const who = (side: ParityReport['reference']): string =>
     `${side.runner} ${side.runnerVersion} (${side.suite})`
-  const ruleExcluded = counts.excluded - counts.flaky
   const kinds = report.diffs
     .map((diff) => diff.kind)
     .toSorted((a, b) => DIFF_KINDS.indexOf(a) - DIFF_KINDS.indexOf(b))
@@ -133,7 +112,7 @@ function summaryTable(report: ParityReport, reasons: readonly string[]): string 
     ],
     [
       'excluded',
-      `${ruleExcluded} by rules, ${counts.flaky} flaky, of ${counts.referenceTests} tests`,
+      `${ruleExcluded(counts)} by rules, ${counts.flaky} flaky, of ${counts.referenceTests} tests`,
     ],
     ['candidate only', `${counts.candidateOnlyTests} tests`],
     ['', ''],
@@ -164,9 +143,12 @@ function summaryTable(report: ParityReport, reasons: readonly string[]): string 
  */
 export async function diffCommand(command: DiffCommand, io: CommandIo): Promise<number> {
   const today = command.today ?? new Date().toISOString().slice(0, 10)
-  const inputs = await readInputs(command, today)
-  if (!inputs.ok) {
-    io.err(`${inputs.message}\n`)
+  let inputs: Awaited<ReturnType<typeof readInputs>>
+  try {
+    inputs = await readInputs(command, today)
+  } catch (error) {
+    if (!(error instanceof HarnessError)) throw error
+    io.err(`${failureText(error)}\n`)
     return 2
   }
   const report = diffRuns(

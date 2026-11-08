@@ -13,7 +13,7 @@ import type {
   TestStatus,
 } from '@provino/types'
 import type { ConvertOptions } from '../convert-options.ts'
-import { createNormalizer, type Normalizer } from '../normalize.ts'
+import { createNormalizer, type Normalizer, testKey } from '../normalize.ts'
 import { SCHEMA_VERSION } from '../schema.ts'
 import { byFile, finiteNumber } from './guards.ts'
 import { pathText } from './keys.ts'
@@ -199,72 +199,67 @@ export function consoleLines(text: string): string[] {
   return lines
 }
 
+/** Memoizes a one-argument function of a string, for text a run repeats many times. */
+export function memo(of: (text: string) => string): (text: string) => string {
+  const seen = new Map<string, string>()
+  return (text) => {
+    let out = seen.get(text)
+    if (out === undefined) {
+      out = of(text)
+      seen.set(text, out)
+    }
+    return out
+  }
+}
+
 // Keys in the order `parseNormalizedRun` builds them, so a converted run and the same run read
 // back from its file serialize alike (a golden passes console entries through as they are).
-function entriesOf(entry: SidecarEntry, conversion: Conversion): ConsoleEntry[] {
-  const { fired } = conversion.options
+function entriesOf(entry: SidecarEntry, normalize: (line: string) => string): ConsoleEntry[] {
   return consoleLines(entry.text).map((line) => ({
     stream: entry.stream,
-    text: conversion.normalizer.text(line, fired),
+    text: normalize(line),
     ...(entry.level === undefined ? {} : { level: entry.level }),
   }))
 }
 
 /**
  * Puts the sidecar's console output (`ConvertOptions.console`) into the files: an entry that names
- * a test goes to that test, matched by title path and `dupIndex`; any other entry, and one whose
- * test the runner's JSON doesn't list, goes to its file. An entry for a file the run doesn't list,
- * or for no file at all, has nowhere to go in the model and is dropped. Lines keep the sidecar's
- * order. Files and tests that printed nothing get no `console`.
+ * a test goes to that test, matched by its test key; any other entry, and one whose test the
+ * runner's JSON doesn't list, goes to its file. An entry for a file the run doesn't list, or for no
+ * file at all, has nowhere to go in the model and is dropped. Lines keep the sidecar's order. Files
+ * and tests that printed nothing get no `console`. A suite repeats its lines and its file paths
+ * many times, so each distinct line is normalized once, and each path made relative once: `fired`
+ * only grows during a conversion, so a repeated line has added its rules already.
  */
 export function attachConsole(
   files: readonly NormalizedFile[],
   conversion: Conversion,
 ): NormalizedFile[] {
   const entries = conversion.options.console
-  if (entries === undefined) return [...files]
+  if (entries === undefined || entries.length === 0) return [...files]
+  const normalize = memo((line) => conversion.normalizer.text(line, conversion.options.fired))
+  const relative = memo((file) => toRelativePath(conversion.options.rootDir, file))
+  const listed = new Set(files.map((file) => file.file))
+  const known = new Set(files.flatMap((file) => file.tests.map((test) => testKey(test.id))))
   const fileLines = new Map<string, ConsoleEntry[]>()
-  const testLines = new Map<string, Map<string, ConsoleEntry[]>>()
-  const push = <K>(map: Map<K, ConsoleEntry[]>, key: K, lines: readonly ConsoleEntry[]): void => {
-    const existing = map.get(key)
-    if (existing === undefined) map.set(key, [...lines])
-    else existing.push(...lines)
-  }
-  const testKeys = new Map(
-    files.map((file) => [
-      file.file,
-      new Set(file.tests.map((test) => `${pathText(test.id.path)}#${test.id.dupIndex}`)),
-    ]),
-  )
+  const testLines = new Map<string, ConsoleEntry[]>()
   for (const entry of entries) {
     if (entry.file === undefined) continue
-    const file = toRelativePath(conversion.options.rootDir, entry.file)
-    const known = testKeys.get(file)
-    if (known === undefined) continue
-    const lines = entriesOf(entry, conversion)
-    const key =
-      entry.test === undefined ? undefined : `${pathText(entry.test.path)}#${entry.test.dupIndex}`
-    if (key !== undefined && known.has(key)) {
-      let byTest = testLines.get(file)
-      if (byTest === undefined) {
-        byTest = new Map()
-        testLines.set(file, byTest)
-      }
-      push(byTest, key, lines)
-    } else {
-      push(fileLines, file, lines)
-    }
+    const file = relative(entry.file)
+    if (!listed.has(file)) continue
+    const key = entry.test === undefined ? undefined : testKey({ file, ...entry.test })
+    const [target, at] = key !== undefined && known.has(key) ? [testLines, key] : [fileLines, file]
+    const lines = entriesOf(entry, normalize)
+    const existing = target.get(at)
+    if (existing === undefined) target.set(at, lines)
+    else existing.push(...lines)
   }
   return files.map((file) => {
     const own = fileLines.get(file.file)
-    const byTest = testLines.get(file.file)
-    const tests =
-      byTest === undefined
-        ? file.tests
-        : file.tests.map((test) => {
-            const lines = byTest.get(`${pathText(test.id.path)}#${test.id.dupIndex}`)
-            return lines === undefined ? test : { ...test, console: lines }
-          })
+    const tests = file.tests.map((test) => {
+      const lines = testLines.get(testKey(test.id))
+      return lines === undefined ? test : { ...test, console: lines }
+    })
     return { ...file, tests, ...(own === undefined ? {} : { console: own }) }
   })
 }

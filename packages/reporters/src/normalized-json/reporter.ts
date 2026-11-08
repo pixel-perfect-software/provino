@@ -131,12 +131,7 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
     },
 
     console(file, event) {
-      record(file.fileId).console.push({
-        taskId: event.taskId,
-        stream: event.stream,
-        level: event.level,
-        text: event.text,
-      })
+      record(file.fileId).console.push(event)
     },
 
     unhandled(file, event) {

@@ -1,6 +1,6 @@
 import { DIFF_KINDS, type DiffKind, type ExclusionRule } from './diff.ts'
 import { HarnessError } from './errors.ts'
-import { isRecord } from './internal/guards.ts'
+import { ISO_DATE, isRecord } from './internal/guards.ts'
 
 /**
  * R2's limits as `parseExclusions` applies them.
@@ -23,7 +23,6 @@ export interface ExclusionLimits {
  */
 export const EXCLUSION_MAX_DAYS = 90
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const DAY_MS = 86_400_000
 const RULE_KEYS: ReadonlySet<string> = new Set([
   'id',

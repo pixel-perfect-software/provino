@@ -1,17 +1,15 @@
 // `provino-harness self-test` (Track 12 T12.6, T12.16): the sample under real Jest and Vitest, the
 // recording checked against them, the calibrated parity, and optionally Provino as a subject.
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import type { ConsoleEntry, NormalizedRun } from '@provino/types'
-import { convertJest } from '../convert-jest.ts'
-import { convertVitest } from '../convert-vitest.ts'
 import { type DiffOptions, diffRuns, type ParityReport } from '../diff.ts'
 import { HarnessError } from '../errors.ts'
 import { parseExclusions } from '../exclusions.ts'
-import { type Fixture, readFixture } from '../fixture.ts'
+import { type Fixture, type FixtureRunner, readFixture } from '../fixture.ts'
 import { serializeGolden, toGolden } from '../golden.ts'
 import type { SelfTestCommand } from '../internal/cli-args.ts'
+import { convertRunnerJson } from '../internal/convert-runner.ts'
 import { errorMessage } from '../internal/guards.ts'
 import { assertNoPathLeak } from '../internal/recording.ts'
 import {
@@ -36,17 +34,19 @@ import {
   writeSampleCopy,
 } from '../internal/sample.ts'
 import { lineDiff } from '../internal/text-diff.ts'
-import { REMOVE_TREE_OPTIONS } from '../internal/work-dirs.ts'
 import { parseNormalizedRun } from '../parse-normalized-run.ts'
-import { parseJestJson, parseVitestJson } from '../parse-results.ts'
-import { type RecordPaths, recordPaths, workDirs } from '../record.ts'
+import {
+  PACKAGE_DIR,
+  type RecordPaths,
+  recordPaths,
+  removeWorkDir,
+  TRANSFORMER_PATH,
+  WORK_ROOT,
+  workDirs,
+} from '../record.ts'
 import { runSubject, type SubjectResult, type SubjectRunner } from '../run-subject.ts'
 import { parseSidecar } from '../sidecar.ts'
-import type { CommandIo } from './io.ts'
-
-const PACKAGE_DIR = path.resolve(import.meta.dirname, '..', '..')
-const WORK_ROOT = path.join(PACKAGE_DIR, '.record')
-const TRANSFORMER_PATH = fileURLToPath(new URL('../jest-transform.ts', import.meta.url))
+import { type CommandIo, failureText, writeJson } from './io.ts'
 
 /**
  * The sample's calibration rules: the spike's 3 and `div/runner-made-error-frame`, which Tyler
@@ -185,10 +185,7 @@ async function runSample(
     if (!keep) {
       // A cleanup that fails must not replace the error that made it necessary; the exit hook
       // tries again.
-      await rm(workDir, REMOVE_TREE_OPTIONS).then(
-        () => workDirs.forget(workDir),
-        () => undefined,
-      )
+      await removeWorkDir(workDir).catch(() => undefined)
     }
   }
 }
@@ -214,7 +211,7 @@ interface Recording {
  * (`rewritePaths`), and so is the sidecar; the normalized run is the conversion of those rewritten
  * files with `/__root__` as the root. Nothing may still name this machine.
  */
-function recordingOf(runner: 'jest' | 'vitest', run: SampleRun): Recording {
+function recordingOf(runner: FixtureRunner, run: SampleRun): Recording {
   const { result, paths } = run
   const raw = rewritePaths(pretty(JSON.parse(result.raw)), paths)
   const sidecar = rewritePaths(result.sidecar ?? '', paths)
@@ -226,10 +223,7 @@ function recordingOf(runner: 'jest' | 'vitest', run: SampleRun): Recording {
     snapshotFiles: result.run.snapshots?.files ?? [],
     console: parseSidecar(sidecar, `${runner}.console.jsonl`),
   }
-  const normalized =
-    runner === 'jest'
-      ? convertJest(parseJestJson(raw, `${runner}.raw.json`), options)
-      : convertVitest(parseVitestJson(raw, `${runner}.raw.json`), options)
+  const normalized = convertRunnerJson(runner, raw, `${runner}.raw.json`, options)
   const forbidden = Object.values(paths)
   for (const [name, text] of [
     ['raw', raw],
@@ -241,7 +235,7 @@ function recordingOf(runner: 'jest' | 'vitest', run: SampleRun): Recording {
   return { raw, console: sidecar, normalized }
 }
 
-async function writeRecording(runner: 'jest' | 'vitest', recording: Recording): Promise<void> {
+async function writeRecording(runner: FixtureRunner, recording: Recording): Promise<void> {
   await mkdir(path.join(SAMPLE_DIR, RECORDED_DIR), { recursive: true })
   await writeFile(recordedPath(`${runner}.raw.json`), recording.raw)
   await writeFile(recordedPath(`${runner}.console.jsonl`), recording.console)
@@ -252,7 +246,7 @@ async function writeRecording(runner: 'jest' | 'vitest', recording: Recording): 
  * T12.3's link to the runners: the golden of the fresh run equals the golden of the committed
  * normalized file. A golden drops what changes between runs and machines.
  */
-async function recordingProblems(runner: 'jest' | 'vitest', run: NormalizedRun): Promise<string[]> {
+async function recordingProblems(runner: FixtureRunner, run: NormalizedRun): Promise<string[]> {
   let committed: string
   try {
     committed = await readFile(recordedPath(`${runner}.normalized.json`), 'utf8')
@@ -277,7 +271,7 @@ function expectedLine(line: string, withLevel: boolean): string {
 }
 
 /** T12.4: the sample's console file came through each sidecar, per file (Jest), per test (Vitest). */
-function consoleProblems(runner: 'jest' | 'vitest', run: NormalizedRun): string[] {
+function consoleProblems(runner: FixtureRunner, run: NormalizedRun): string[] {
   const file = run.files.find((f) => f.file === CONSOLE_FILE)
   if (file === undefined) return [`${CONSOLE_FILE} is not in the run`]
   const shown = (entries: readonly ConsoleEntry[] | undefined): string[] =>
@@ -396,15 +390,13 @@ async function provinoCheck(
 ): Promise<Check> {
   const sample = await tryRun(run, fixture, 'provino', command, io)
   if (sample instanceof HarnessError) {
-    return { name: PROVINO_CHECK, ok: false, detail: failureText(sample) }
+    return check(PROVINO_CHECK, [failureText(sample)])
   }
   const { exitCode, process: proc } = sample.result
   if (exitCode !== 0 && exitCode !== 1) {
-    return {
-      name: PROVINO_CHECK,
-      ok: false,
-      detail: `provino exited ${exitCode ?? proc.signal}. Output tail:\n${proc.output}`,
-    }
+    return check(PROVINO_CHECK, [
+      `provino exited ${exitCode ?? proc.signal}. Output tail:\n${proc.output}`,
+    ])
   }
   // Provino may crash files the reference runs: that is parity, which has no bar yet. Only a run
   // that doesn't cover the sample's files fails here.
@@ -416,19 +408,11 @@ async function provinoCheck(
     { messageMode: 'exact', compareConsole: true, compareTrace: false, exclusions: [] },
     today,
   )
-  if (command.out !== undefined) {
-    await mkdir(path.dirname(path.resolve(command.out)), { recursive: true })
-    await writeFile(command.out, pretty(report))
-  }
+  if (command.out !== undefined) await writeJson(command.out, report)
   return { name: PROVINO_CHECK, ok: true }
 }
 
 const PROVINO_CHECK = 'provino:jest ran the sample and wrote a valid normalized-json'
-
-/** A harness error as a FAIL line's detail: its code and message. */
-function failureText(error: HarnessError): string {
-  return `${error.code}: ${error.message}`
-}
 
 /**
  * Runs the sample under one runner. `selfTestCommand` takes one, so a test can stand in for the
@@ -481,15 +465,11 @@ export async function selfTestCommand(
   })
 
   const checks: Check[] = []
-  const runs: Partial<Record<'jest' | 'vitest', NormalizedRun>> = {}
+  const runs: Partial<Record<FixtureRunner, NormalizedRun>> = {}
   for (const runner of ['jest', 'vitest'] as const) {
     const sample = await tryRun(runSampleWith, fixture, runner, command, io)
     if (sample instanceof HarnessError) {
-      checks.push({
-        name: `${runner} ran the whole sample`,
-        ok: false,
-        detail: failureText(sample),
-      })
+      checks.push(check(`${runner} ran the whole sample`, [failureText(sample)]))
       continue
     }
     const { run } = sample.result
@@ -524,7 +504,7 @@ export async function selfTestCommand(
   const { jest, vitest } = runs
   const calibrated = `calibrated parity is 100% with exactly the ${SAMPLE_RULES} sample rules`
   if (jest === undefined || vitest === undefined) {
-    checks.push({ name: calibrated, ok: false, detail: 'not compared: a runner did not run' })
+    checks.push(check(calibrated, ['not compared: a runner did not run']))
   } else {
     const report = diffRuns(jest, vitest, { ...CALIBRATED, exclusions }, today)
     const ruleIds = exclusions.map((rule) => rule.id)
@@ -534,7 +514,7 @@ export async function selfTestCommand(
   if (command.candidate === 'provino') {
     checks.push(
       jest === undefined
-        ? { name: PROVINO_CHECK, ok: false, detail: 'not run: Jest, its reference, did not run' }
+        ? check(PROVINO_CHECK, ['not run: Jest, its reference, did not run'])
         : await provinoCheck(fixture, jest, command, today, io, runSampleWith),
     )
   }

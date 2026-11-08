@@ -3,7 +3,7 @@
 // can't resolve any `@provino/*` package (the exports have no default condition and the repository
 // has no link to this one), so this file and the two reporters import Node builtins and each other
 // only. `src/sidecar.ts` re-exports the public parts and reads the file back.
-import { appendFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, openSync, writeFileSync } from 'node:fs'
 
 /**
  * The environment variable that names the file the sidecar reporters write.
@@ -41,16 +41,17 @@ export interface SidecarOptions {
 }
 
 /**
- * Starts the sidecar file empty and returns the function that appends one entry to it. The file is
+ * Starts the sidecar file empty and returns the function that appends entries to it. The file is
  * the reporter's own, so an empty file means the run printed nothing and a missing one means the
  * reporter never loaded. Throws when no file is named, because a reporter that writes nowhere would
- * pass for a run with no console output.
+ * pass for a run with no console output. The file stays open for the run (the process closes it on
+ * exit), so a suite that prints a lot doesn't open and close it once per write.
  * @internal
  */
 export function openSidecar(
   options: SidecarOptions | undefined,
   env: Readonly<Record<string, string | undefined>> = process.env,
-): (entry: SidecarEntry) => void {
+): (entries: readonly SidecarEntry[]) => void {
   const file = options?.outputFile ?? env[SIDECAR_ENV]
   if (file === undefined || file === '') {
     throw new Error(
@@ -58,9 +59,11 @@ export function openSidecar(
     )
   }
   writeFileSync(file, '')
-  return (entry) => {
+  const fd = openSync(file, 'a')
+  return (entries) => {
     // Synchronous, so lines land in the order the runner reported them and none is lost on exit.
-    appendFileSync(file, `${JSON.stringify(entry)}\n`)
+    if (entries.length > 0)
+      appendFileSync(fd, entries.map((entry) => `${JSON.stringify(entry)}\n`).join(''))
   }
 }
 

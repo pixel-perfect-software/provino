@@ -18,7 +18,7 @@ import {
  * @public
  */
 export default class JestSidecarReporter {
-  readonly #write: (entry: SidecarEntry) => void
+  readonly #write: (entries: readonly SidecarEntry[]) => void
 
   /** Jest passes its global config, then the reporter's options. */
   constructor(_globalConfig?: unknown, options?: SidecarOptions) {
@@ -26,14 +26,15 @@ export default class JestSidecarReporter {
   }
 
   onTestResult(_test: Test, result: TestResult): void {
-    for (const entry of result.console ?? []) {
-      this.#write({
+    // One write per test file, whatever it printed.
+    this.#write(
+      (result.console ?? []).map((entry) => ({
         file: result.testFilePath,
         stream: streamOfLevel(entry.type),
         level: entry.type,
         text: String(entry.message),
-      })
-    }
+      })),
+    )
   }
 
   /** Jest asks every reporter for a failure that should fail the run; writing never fails one. */

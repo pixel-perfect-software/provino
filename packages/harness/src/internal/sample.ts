@@ -4,7 +4,7 @@ import { copyFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import type { NormalizedRun, RunEnvironment } from '@provino/types'
 import { HarnessError } from '../errors.ts'
-import { type Fixture, runnersForTestFile } from '../fixture.ts'
+import { type Fixture, type FixtureRunner, runnersForTestFile } from '../fixture.ts'
 import type { RecordPaths } from '../record.ts'
 import { escapeRegExp } from './guards.ts'
 
@@ -23,9 +23,6 @@ export const SAMPLE_SUITE = 'harness/sample'
 /** The sample's file that must crash at collection under both runners, and why. */
 export const EXPECTED_CRASH = { file: 'crash.test.ts', cause: 'does-not-exist' } as const
 
-/** The test files Jest's and Vitest's runs list, and a run's dialect. */
-export type SampleDialect = 'jest' | 'vitest'
-
 /**
  * What one runner's copy holds: every sample file but the exclusions and the recordings, with a
  * per-dialect pair (`x.jest.test.ts`, `x.vitest.test.ts`) reduced to the dialect's own file, named
@@ -34,7 +31,7 @@ export type SampleDialect = 'jest' | 'vitest'
  */
 export function sampleCopy(
   fixture: Fixture,
-  dialect: SampleDialect,
+  dialect: FixtureRunner,
 ): { files: Map<string, string>; testFiles: string[] } {
   const files = new Map<string, string>()
   for (const file of fixture.files) {
@@ -141,7 +138,7 @@ export function sampleRunProblems(
 }
 
 /** What the committed recording says for every machine field it doesn't keep. */
-export const UNRECORDED = 'unrecorded'
+const UNRECORDED = 'unrecorded'
 
 /**
  * The `env` a committed recording carries: the runner's version and the Node major only. The

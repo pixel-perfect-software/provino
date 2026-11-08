@@ -1,33 +1,14 @@
 // `provino-harness convert`: one runner's raw output, written as a NormalizedRun file for `diff`.
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { NormalizedRun } from '@provino/types'
-import { convertJest } from '../convert-jest.ts'
 import { convertProvino } from '../convert-provino.ts'
-import { convertVitest } from '../convert-vitest.ts'
 import { readRunEnvironment } from '../environment.ts'
 import { HarnessError } from '../errors.ts'
 import type { ConvertCommand } from '../internal/cli-args.ts'
-import { errorMessage } from '../internal/guards.ts'
-import { parseJestJson, parseVitestJson } from '../parse-results.ts'
+import { convertRunnerJson } from '../internal/convert-runner.ts'
 import { resolveRunnerPackage } from '../runner-package.ts'
 import { parseSidecar } from '../sidecar.ts'
-import type { CommandIo } from './io.ts'
-
-async function readText(file: string, what: string): Promise<string> {
-  try {
-    return await readFile(file, 'utf8')
-  } catch (cause) {
-    throw new HarnessError(
-      'HARNESS_USAGE',
-      `can't read the ${what} ${file}: ${errorMessage(cause)}`,
-      {
-        path: file,
-        cause,
-      },
-    )
-  }
-}
+import { type CommandIo, failureText, readText, writeJson } from './io.ts'
 
 /** `--runner-version`, else the version of the runner installed for the root. */
 function versionOf(command: ConvertCommand, root: string): string {
@@ -50,7 +31,7 @@ async function convert(command: ConvertCommand): Promise<NormalizedRun> {
     return convertProvino(text, { rootDir: root, suite: command.suite }, command.input)
   }
   const runnerVersion = versionOf(command, root)
-  const options = {
+  return convertRunnerJson(command.runner, text, command.input, {
     rootDir: root,
     suite: command.suite,
     runnerVersion,
@@ -58,10 +39,7 @@ async function convert(command: ConvertCommand): Promise<NormalizedRun> {
     ...(command.sidecar === undefined
       ? {}
       : { console: parseSidecar(await readText(command.sidecar, 'sidecar'), command.sidecar) }),
-  }
-  return command.runner === 'jest'
-    ? convertJest(parseJestJson(text, command.input), options)
-    : convertVitest(parseVitestJson(text, command.input), options)
+  })
 }
 
 /**
@@ -77,11 +55,10 @@ export async function convertCommand(command: ConvertCommand, io: CommandIo): Pr
     run = await convert(command)
   } catch (error) {
     if (!(error instanceof HarnessError)) throw error
-    io.err(`${error.code}: ${error.message}\n`)
+    io.err(`${failureText(error)}\n`)
     return 2
   }
-  await mkdir(path.dirname(path.resolve(command.out)), { recursive: true })
-  await writeFile(command.out, `${JSON.stringify(run, null, 2)}\n`)
+  await writeJson(command.out, run)
   io.err(`wrote ${command.out}\n`)
   return 0
 }

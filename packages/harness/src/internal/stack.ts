@@ -105,22 +105,16 @@ function indentOf(line: string): string {
   return INDENT.exec(line)?.[0] ?? ''
 }
 
-// What Jest's `toThrow` prints just before the received error's code frame and stack: `Received
-// message:` (`Error message:` for a bare `.not.toThrow()`), as the expect goldens record.
-const RECEIVED_ERROR_HEADER = /^[ \t]*(?:Received|Error) message:/
-const CODE_FRAME_LINE = /^[ \t]*(?:>?[ \t]*\d+ \||\|)/
+// The matcher hint Jest prints first in a `toThrow` failure: `expect(received).toThrow(expected)`,
+// with `.not`, `.rejects` or `.resolves` between, and after `Error: ` in a test's failure message.
+// Every layout of that failure (a received message, a diff of messages, `Expected message: not`)
+// ends with the received error's stack, so the hint marks it whatever the lines between say.
+const TO_THROW_HINT =
+  /^[ \t]*(?:\w*Error: )?expect\(.*?\)(?:\.(?:not|rejects|resolves))*\.toThrow(?:Error)?\(/
 
-/**
- * Whether the frame lines from `from` to just before `to` are Jest's printout of the received
- * error: right after its header, with only blank and code-frame lines between them.
- */
-function isReceivedErrorStack(lines: readonly string[], from: number, to: number): boolean {
-  if (from === to) return false
-  let at = from - 1
-  while (at >= 0 && ((lines[at] ?? '').trim() === '' || CODE_FRAME_LINE.test(lines[at] ?? ''))) {
-    at--
-  }
-  return RECEIVED_ERROR_HEADER.test(lines[at] ?? '')
+/** Whether a segment's message is a Jest `toThrow` failure, by its matcher hint. */
+function isToThrowFailure(lines: readonly string[], end: number): boolean {
+  return lines.slice(0, end).some((line) => TO_THROW_HINT.test(line))
 }
 
 /**
@@ -128,12 +122,12 @@ function isReceivedErrorStack(lines: readonly string[], from: number, to: number
  * is the run of frame lines that ends a segment (blank lines after it don't count), all indented
  * alike. A frame-shaped line anywhere else, such as one printed in a diff, stays in the message.
  *
- * One exception: Jest's `toThrow` prints the received error's code frame and stack (6 spaces) right
- * above its own stack (4 spaces), after a `Received message:` header. Those frames are another
+ * One exception: a Jest `toThrow` failure (its matcher hint says so) prints the received error's
+ * code frame and stack (6 spaces) right above its own stack (4 spaces). Those frames are another
  * error's stack, so they are dropped from both this error's stack and its message, as the
  * `code-frames` rule drops the code frame above them, and the user frame comes from Jest's own
- * stack: the matcher call, as Vitest reports it. Differently indented frame lines anywhere else
- * stay in the message.
+ * stack: the matcher call, as Vitest reports it. Differently indented frame lines in any other
+ * failure stay in the message.
  */
 export function parseStack(text: string): Segment[] {
   const groups: string[][] = [[]]
@@ -157,7 +151,7 @@ export function parseStack(text: string): Segment[] {
     frames.reverse()
     let embedded = start
     while (embedded > 0 && parseFrame(lines[embedded - 1] ?? '') !== undefined) embedded--
-    const kept = isReceivedErrorStack(lines, embedded, start) ? embedded : start
+    const kept = embedded < start && isToThrowFailure(lines, embedded) ? embedded : start
     return { lines: [...lines.slice(0, kept), ...lines.slice(end)], frames }
   })
 }

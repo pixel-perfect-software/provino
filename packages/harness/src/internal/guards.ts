@@ -46,6 +46,9 @@ export function byFile(a: { readonly file: string }, b: { readonly file: string 
   return compareStrings(a.file, b.file)
 }
 
+/** A `YYYY-MM-DD` date's shape. Whether the date exists is the caller's check. */
+export const ISO_DATE: RegExp = /^\d{4}-\d{2}-\d{2}$/
+
 /** The text with every regular-expression metacharacter escaped, for building a pattern. */
 export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

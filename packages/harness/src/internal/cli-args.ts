@@ -2,6 +2,7 @@ import { type ParseArgsConfig, parseArgs } from 'node:util'
 import type { DiffOptions } from '../diff.ts'
 import { HarnessError } from '../errors.ts'
 import type { SubjectRunner } from '../run-subject.ts'
+import { ISO_DATE } from './guards.ts'
 
 /**
  * `record`: what the command line asked for.
@@ -108,8 +109,6 @@ export const USAGE = `Usage: provino-harness <command> [options]
            sample and writes its ParityReport to --out; it prints pass or fail only.
            --write-recorded rewrites sample/__recorded__ from this run.
 `
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 function usage(message: string, cause?: unknown): HarnessError {
   return new HarnessError('HARNESS_USAGE', message, cause === undefined ? undefined : { cause })

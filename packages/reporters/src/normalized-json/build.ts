@@ -10,6 +10,7 @@ import type {
   NormalizedTest,
   RunEndReason,
   RunEnvironment,
+  RuntimeEventOf,
   SerializedError,
   TaskId,
   TaskNode,
@@ -31,17 +32,9 @@ export interface FileRecord {
   /** Real retries per test, counted from `test:attempt-end` events with `willRetry`. */
   readonly retries: Map<TaskId, number>
   /** The file's `console` events, in the order they came. */
-  readonly console: ConsoleWrite[]
+  readonly console: RuntimeEventOf<'console'>[]
   /** Set by `file:end`. */
   ended: FileResult | undefined
-}
-
-/** One `console` event: the task it ran in, and what it wrote. */
-export interface ConsoleWrite {
-  readonly taskId: TaskId | null
-  readonly stream: ConsoleEntry['stream']
-  readonly level: string | null
-  readonly text: string
 }
 
 /** A run-level error. `unhandled` ones are ignored for `success` when the policy says so. */

@@ -7,7 +7,7 @@ import type {
   SnapshotCounters,
   SnapshotFileState,
 } from '@provino/types'
-import { toRelativePath } from './internal/convert.ts'
+import { memo, toRelativePath } from './internal/convert.ts'
 import { byFile } from './internal/guards.ts'
 import { createNormalizer, type Normalizer } from './normalize.ts'
 import { parseNormalizedRun } from './parse-normalized-run.ts'
@@ -60,13 +60,10 @@ function renormalize(error: NormalizedError, normalizer: Normalizer, fired?: Set
 
 function renormalizeConsole(
   entries: readonly ConsoleEntry[] | undefined,
-  normalizer: Normalizer,
-  fired?: Set<string>,
+  normalize: (line: string) => string,
 ): { console?: ConsoleEntry[] } {
   if (entries === undefined) return {}
-  return {
-    console: entries.map((entry) => ({ ...entry, text: normalizer.text(entry.text, fired) })),
-  }
+  return { console: entries.map((entry) => ({ ...entry, text: normalize(entry.text) })) }
 }
 
 /**
@@ -86,13 +83,11 @@ export function convertProvino(
   source: string = 'normalized-json',
 ): NormalizedRun {
   const run = parseNormalizedRun(text, source)
-  const normalizer = createNormalizer(
-    opts.extraRoots === undefined
-      ? { rootDir: opts.rootDir }
-      : { rootDir: opts.rootDir, extraRoots: opts.extraRoots },
-  )
+  const normalizer = createNormalizer(opts)
   const { fired } = opts
-  const relative = (file: string): string => toRelativePath(opts.rootDir, file)
+  // A run repeats its console lines and file paths; each is worked out once (`fired` only grows).
+  const normalizeLine = memo((line) => normalizer.text(line, fired))
+  const relative = memo((file) => toRelativePath(opts.rootDir, file))
   const files = run.files.map(
     (file): NormalizedFile => ({
       ...file,
@@ -105,10 +100,10 @@ export function convertProvino(
           ...test,
           id: { ...test.id, file: relative(test.id.file) },
           errors: test.errors.map((error) => renormalize(error, normalizer, fired)),
-          ...renormalizeConsole(test.console, normalizer, fired),
+          ...renormalizeConsole(test.console, normalizeLine),
         }),
       ),
-      ...renormalizeConsole(file.console, normalizer, fired),
+      ...renormalizeConsole(file.console, normalizeLine),
     }),
   )
   const snapshots =

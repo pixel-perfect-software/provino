@@ -8,7 +8,7 @@ import type {
   TraceEntry,
 } from '@provino/types'
 import { HarnessError } from './errors.ts'
-import { compareStrings, escapeRegExp } from './internal/guards.ts'
+import { compareStrings, escapeRegExp, ISO_DATE } from './internal/guards.ts'
 import { testKey } from './normalize.ts'
 
 /**
@@ -203,7 +203,11 @@ const MESSAGE_FAMILY: ReadonlySet<DiffKind> = new Set<DiffKind>([
 const SNAPSHOT_FAMILY: ReadonlySet<DiffKind> = new Set<DiffKind>(['snapshot'])
 const FILE_STATUS_FAMILY: ReadonlySet<DiffKind> = new Set<DiffKind>(['file-status'])
 
-const KIND_ORDER: readonly DiffKind[] = [
+/**
+ * Every diff kind, in the order a report lists them.
+ * @public
+ */
+export const DIFF_KINDS: readonly DiffKind[] = [
   'file-status',
   'missing-in-candidate',
   'missing-in-reference',
@@ -217,14 +221,6 @@ const KIND_ORDER: readonly DiffKind[] = [
   'trace',
   'snapshot',
 ]
-
-/**
- * Every diff kind, in the order a report lists them.
- * @public
- */
-export const DIFF_KINDS: readonly DiffKind[] = KIND_ORDER
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 function checkDate(value: string, label: string): string {
   if (!ISO_DATE.test(value) || Number.isNaN(Date.parse(value))) {
@@ -480,7 +476,7 @@ function sortDiffs<T extends ParityDiff>(diffs: readonly T[]): T[] {
   return diffs.toSorted(
     (a, b) =>
       compareStrings(a.key, b.key) ||
-      KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) ||
+      DIFF_KINDS.indexOf(a.kind) - DIFF_KINDS.indexOf(b.kind) ||
       (a.index ?? 0) - (b.index ?? 0),
   )
 }

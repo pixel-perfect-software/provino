@@ -8,11 +8,9 @@ import { readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
-import { convertJest } from './convert-jest.ts'
-import { convertVitest } from './convert-vitest.ts'
+import { convertRunnerJson } from './internal/convert-runner.ts'
 import { assertNoPathLeak } from './internal/recording.ts'
 import { parseNormalizedRun } from './parse-normalized-run.ts'
-import { parseJestJson, parseVitestJson } from './parse-results.ts'
 import { parseSidecar } from './sidecar.ts'
 
 const PACKAGE_DIR = path.resolve(import.meta.dirname, '..')
@@ -40,10 +38,7 @@ for (const runner of ['jest', 'vitest'] as const) {
       console: parseSidecar(read(`${runner}.console.jsonl`), `${runner}.console.jsonl`),
     }
     const raw = read(`${runner}.raw.json`)
-    const converted =
-      runner === 'jest'
-        ? convertJest(parseJestJson(raw, 'jest.raw.json'), options)
-        : convertVitest(parseVitestJson(raw, 'vitest.raw.json'), options)
+    const converted = convertRunnerJson(runner, raw, `${runner}.raw.json`, options)
     assert.deepEqual(converted, committed)
   })
 

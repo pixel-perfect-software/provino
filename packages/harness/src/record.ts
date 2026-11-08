@@ -71,12 +71,14 @@ export interface RecordResult {
 }
 
 /** The harness's own deadline for one runner: two minutes. */
-const TIMEOUT_MS = 120_000
+export const TIMEOUT_MS: number = 120_000
 
-const PACKAGE_DIR = path.resolve(import.meta.dirname, '..')
+export const PACKAGE_DIR: string = path.resolve(import.meta.dirname, '..')
 const REPO_ROOT = path.resolve(PACKAGE_DIR, '..', '..')
-const WORK_ROOT = path.join(PACKAGE_DIR, '.record')
-const TRANSFORMER_PATH = fileURLToPath(new URL('./jest-transform.ts', import.meta.url))
+export const WORK_ROOT: string = path.join(PACKAGE_DIR, '.record')
+export const TRANSFORMER_PATH: string = fileURLToPath(
+  new URL('./jest-transform.ts', import.meta.url),
+)
 
 // A signal ends the CLI through `process.exit` (`exitOnSignals`), which skips `recordRead`'s
 // cleanup, so the work directories on disk are also removed on exit. One per process, because
@@ -340,7 +342,7 @@ export async function recordRead(
 }
 
 /** Removes the work directory. If that fails, the exit hook tries again. */
-async function removeWorkDir(workDir: string): Promise<void> {
+export async function removeWorkDir(workDir: string): Promise<void> {
   await rm(workDir, REMOVE_TREE_OPTIONS)
   workDirs.forget(workDir)
 }

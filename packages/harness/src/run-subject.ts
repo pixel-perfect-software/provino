@@ -1,14 +1,12 @@
 import { mkdir, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import type { NormalizedRun } from '@provino/types'
-import { convertJest } from './convert-jest.ts'
 import { convertProvino } from './convert-provino.ts'
-import { convertVitest } from './convert-vitest.ts'
 import { readRunEnvironment } from './environment.ts'
 import { HarnessError } from './errors.ts'
+import { convertRunnerJson } from './internal/convert-runner.ts'
 import { SIDECAR_ENV } from './internal/sidecar-format.ts'
-import { parseJestJson, parseVitestJson } from './parse-results.ts'
-import { collectSnapshotFiles } from './record.ts'
+import { collectSnapshotFiles, TIMEOUT_MS } from './record.ts'
 import { type ProcessResult, runProcess } from './run-process.ts'
 import { resolveRunnerPackage } from './runner-package.ts'
 import { parseSidecar, sidecarReporterPath } from './sidecar.ts'
@@ -125,9 +123,6 @@ export function subjectArgs(
   }
 }
 
-/** The harness's own deadline for one run, as the recorder's: two minutes. */
-const TIMEOUT_MS = 120_000
-
 // Provino's bin is its TypeScript source, and its packages point their exports at `src/` under
 // this condition only (DECISIONS S1); the bench runs it the same way.
 const PROVINO_NODE_ARGS: readonly string[] = ['--conditions=provino-source']
@@ -227,10 +222,7 @@ export async function runSubject(options: SubjectOptions): Promise<SubjectResult
     console: parseSidecar(sidecar, files.sidecar),
     ...fired,
   }
-  const run =
-    runner === 'jest'
-      ? convertJest(parseJestJson(raw, files.raw), convertOptions)
-      : convertVitest(parseVitestJson(raw, files.raw), convertOptions)
+  const run = convertRunnerJson(runner, raw, files.raw, convertOptions)
   return {
     ...base,
     run,
