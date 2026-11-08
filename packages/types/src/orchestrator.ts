@@ -7,6 +7,7 @@ import type { SerializedProjectConfig } from './config.ts'
 import type { CoverageSummary } from './coverage.ts'
 import type { IsolationTier } from './isolation.ts'
 import type { PoolKind } from './policy/orchestrator.ts'
+import type { SnapshotCounters } from './result.ts'
 import type { RuntimeEvent, RuntimeEventOf } from './runtime/events.ts'
 import type { FileTask, SerializedError, SuiteTask, TaskId, TestTask } from './runtime/tree.ts'
 
@@ -123,12 +124,12 @@ export type WorkerEvent =
     }
 
 /**
- * Methods the worker calls on the coordinator.
+ * Methods the worker calls on the coordinator. Snapshot files are the worker's: it resolves the
+ * path and writes the `.snap`, and the coordinator only applies inline edits (build-plan §6), an
+ * RPC T7.11 adds.
  * @public
  */
 export interface CoordinatorMethods {
-  resolveSnapshotPath(testFile: string): Promise<string>
-  writeSnapshot(file: string, content: BulkPayload): Promise<void>
   readTimings(file: string): Promise<number | undefined>
 }
 
@@ -236,6 +237,11 @@ export type WorkerToCoordinator =
        * worker-scoped environment (isolation `none`) reports at `stop`, with the warning alone.
        */
       readonly leakedGlobals: readonly string[]
+      /**
+       * What the file's snapshot state ended with, or `null` when the runner kept none. The
+       * coordinator adds these up for the summary and the exit code.
+       */
+      readonly snapshot: SnapshotFileReport | null
     }
   | { readonly t: 'stopped' }
   | RpcCall<CoordinatorMethods>
@@ -420,6 +426,41 @@ export interface FileResult {
 export type RunEndReason = 'passed' | 'failed' | 'interrupted'
 
 /**
+ * What a worker reports about one test file's snapshots when the file ends.
+ * @public
+ */
+export interface SnapshotFileReport {
+  /** The file's `.snap`, absolute, or `null` when it has none on disk after the run. */
+  readonly file: string | null
+  readonly added: number
+  readonly matched: number
+  readonly unmatched: number
+  readonly updated: number
+  /** Obsolete snapshots the file didn't check; `0` when its `.snap` was deleted. */
+  readonly unchecked: number
+  readonly uncheckedKeys: readonly string[]
+  /** The `.snap` file was deleted: it held no snapshot after the run. */
+  readonly fileDeleted: boolean
+}
+
+/**
+ * A run's snapshots: Jest's aggregate (`SnapshotCounters`), the keys that were obsolete in each
+ * file, and the update mode the run used.
+ * @public
+ */
+export interface SnapshotRunSummary {
+  readonly counters: SnapshotCounters
+  readonly uncheckedKeysByFile: readonly {
+    readonly file: string
+    readonly keys: readonly string[]
+  }[]
+  /** `all` rewrites snapshots (`-u`), `new` writes only new ones, `none` writes nothing (CI). */
+  readonly update: 'all' | 'new' | 'none'
+  /** Every `.snap` file a file of the run left on disk, absolute. */
+  readonly files: readonly string[]
+}
+
+/**
  * A finished run.
  * @public
  */
@@ -428,6 +469,8 @@ export interface RunSummary {
   readonly files: readonly FileResult[]
   readonly unhandled: readonly SerializedError[]
   readonly durationMs: number
+  /** The run's snapshots, when any file reported some. */
+  readonly snapshots?: SnapshotRunSummary
 }
 
 /**

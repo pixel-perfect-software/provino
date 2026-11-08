@@ -23,10 +23,12 @@ import type {
   MatcherSet,
   MatcherState,
   PromiseVoice,
+  SnapshotPlugin,
 } from '@provino/types'
 import type { MatcherContext } from './context.ts'
 import { ExpectError } from './errors.ts'
 import { createMatcherRegistry, type MatcherRegistry } from './slot.ts'
+import { addSnapshotSerializer } from './snapshot-matchers.ts'
 import type { StateSource } from './state.ts'
 
 /**
@@ -372,6 +374,9 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     getState,
     setState(state: Partial<MatcherState>): void {
       Object.assign(getState(), state)
+    },
+    addSnapshotSerializer(plugin: SnapshotPlugin): void {
+      addSnapshotSerializer(getState(), plugin)
     },
   }
   register(table.matchers, true, createExpect)

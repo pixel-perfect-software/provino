@@ -79,12 +79,16 @@ catalog:
   jest-message-util: 30.5.1
   # The mock bench's second baseline (T4.3), and the Jest dialect's upstream expect tests.
   jest-mock: 30.5.2
+  # A real `print`-style snapshot serializer: the snapshot corpus runs it under both runners (T7.10).
+  jest-serializer-vue: 3.1.0
   jest-util: 30.5.1
   # jsdom (Track 8's version): the propagation test's DOM rows, later the jsdom environment.
   jsdom: 30.1.3
   lodash: 4.18.1
   # The hoister's edits and maps (Track 3 R2), and the Spike A loader fixture.
   magic-string: 1.4.5
+  # The oracle for the vendored key order in @provino/snapshot (T7.9): same pairs, same order.
+  natural-compare: 1.4.0
   # Oxc (Track 3): the resolver, and the transform pipeline with its parser.
   oxc-parser: 0.156.0
   oxc-resolver: 11.24.2

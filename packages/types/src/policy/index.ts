@@ -74,5 +74,16 @@ export type {
   PoolKind,
 } from './orchestrator.ts'
 export type { ReportPolicy } from './report.ts'
-export type { ResolveSnapshotPath, SnapshotKey, SnapshotPolicy } from './snapshot.ts'
+export type {
+  LegacySnapshotSerializer,
+  ResolveSnapshotPath,
+  SnapshotKey,
+  SnapshotMessageInfo,
+  SnapshotMessages,
+  SnapshotPlugin,
+  SnapshotPolicy,
+  SnapshotPrinter,
+  SnapshotPrinterFactory,
+  SnapshotSerializeOptions,
+} from './snapshot.ts'
 export type { TimersPolicy } from './timers.ts'

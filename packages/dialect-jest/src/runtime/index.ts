@@ -11,3 +11,4 @@ export {
   jestGlobals,
   jestModuleScope,
 } from './globals.ts'
+export { jestSnapshotPrinter } from './snapshot-printer.ts'

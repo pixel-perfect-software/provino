@@ -32,6 +32,9 @@
       "path": "packages/core/test"
     },
     {
+      "path": "packages/snapshot/test"
+    },
+    {
       "path": "packages/expect/test"
     },
     {

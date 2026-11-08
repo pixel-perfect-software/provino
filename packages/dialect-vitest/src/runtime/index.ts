@@ -3,6 +3,8 @@
 // `provino` doesn't list the dialect among its built-ins, so no run reaches it.
 import type { GlobalsHost } from '@provino/types'
 
+export { vitestSnapshotPrinter } from './snapshot-printer.ts'
+
 /**
  * The code a `VitestDialectError` carries.
  * @public

@@ -14,6 +14,7 @@ export {
   type SlotHandle,
   snapshotRegistry,
 } from './slot.ts'
+export { type SnapshotMatchersOptions, snapshotMatchers } from './snapshot-matchers.ts'
 export {
   createStateSource,
   type StateSource,

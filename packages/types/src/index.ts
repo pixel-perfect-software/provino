@@ -169,6 +169,8 @@ export type {
   RunSummary,
   ScheduleInput,
   Sequencer,
+  SnapshotFileReport,
+  SnapshotRunSummary,
   TimingsFile,
   Transport,
   TransportFactory,

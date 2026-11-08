@@ -9,7 +9,12 @@
 // the bundle that builds it. `policy-truth.test.ts` fails when a value and its evidence disagree.
 // A comment here says why a value is what it is where that isn't obvious.
 import { defineDialect, moduleRef } from '@provino/policy'
-import type { Dialect, GlobalsFactory, PolicyOverrides } from '@provino/types'
+import type {
+  Dialect,
+  GlobalsFactory,
+  PolicyOverrides,
+  SnapshotPrinterFactory,
+} from '@provino/types'
 import { vitestHoistPolicy } from './hoist-policy.ts'
 import { vitestMockPolicy, vitestModulePolicy } from './mock-policy.ts'
 
@@ -92,12 +97,22 @@ export const vitestPolicy: PolicyOverrides = {
     hintJoin: ' > ',
     dirName: '__snapshots__',
     extension: '.snap',
-    format: { escapeString: false, printBasicPrototype: false, maxOutputLength: 2 ** 27 },
+    format: {
+      escapeString: false,
+      printBasicPrototype: false,
+      maxOutputLength: 2 ** 27,
+      extra: {},
+    },
     obsolete: { failLocal: false, failCI: true },
     ciUpdate: 'none',
     updateEnvVar: 'UPDATE_SNAPSHOT',
     throwErrorBody: 'error',
     inline: { indent: 'call', formatter: 'none' },
+    // Provino's own key (T7.10): `@vitest/pretty-format` 5.0, vendored, and its words.
+    printer: moduleRef<SnapshotPrinterFactory>(
+      import.meta.resolve('@provino/dialect-vitest/runtime'),
+      'vitestSnapshotPrinter',
+    ),
   },
   expect: {
     matcherNamespace: 'vitest',
