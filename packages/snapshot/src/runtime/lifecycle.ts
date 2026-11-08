@@ -13,9 +13,11 @@ export interface SnapshotLifecycle {
   observe(event: RuntimeEvent): void
   /**
    * Ends the file: marks the snapshots of the tests that didn't pass as checked, then settles
-   * what is obsolete, saves and reports (`SnapshotState.finish`).
+   * what is obsolete, saves and reports (`SnapshotState.finish`). A file that never collected its
+   * tests (it failed to load) has no tests to hold its snapshots against: nothing is settled or
+   * saved, and the report is `null`, as in Jest, whose adapter never reaches `_addSnapshotData`.
    */
-  finish(): SnapshotFileReport
+  finish(): SnapshotFileReport | null
 }
 
 /**
@@ -30,11 +32,13 @@ export function trackSnapshots(
   const tests = new Map<TaskId, TestTask>()
   /** Tests that ended well and may be the reason a snapshot is obsolete. */
   const passed = new Set<TaskId>()
+  let collected = false
 
   return {
     observe(event: RuntimeEvent): void {
       switch (event.type) {
         case 'file-collect-end':
+          if (event.errors.length === 0) collected = true
           for (const task of event.tasks) {
             if (task.type === 'test') tests.set(task.id, task)
           }
@@ -54,7 +58,8 @@ export function trackSnapshots(
           break
       }
     },
-    finish(): SnapshotFileReport {
+    finish(): SnapshotFileReport | null {
+      if (!collected) return null
       for (const [id, task] of tests) {
         if (!passed.has(id)) state.markCheckedForTest(task.fullName.join(options.keyJoin))
       }

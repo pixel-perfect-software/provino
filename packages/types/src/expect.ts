@@ -230,6 +230,12 @@ export interface Matchers<R extends void | Promise<void> = void> {
   toHaveReturnedWith(expected: unknown): R
   toHaveLastReturnedWith(expected: unknown): R
   toHaveNthReturnedWith(nth: number, expected: unknown): R
+  /** Compares with the snapshot stored in the file's `.snap` (Track 7, T7.10). */
+  toMatchSnapshot(propertiesOrHint?: object | string, hint?: string): R
+  /** Compares with the snapshot written in the test's source (T7.10; the writer is T7.11). */
+  toMatchInlineSnapshot(propertiesOrSnapshot?: object | string, snapshot?: string): R
+  toThrowErrorMatchingSnapshot(hint?: string): R
+  toThrowErrorMatchingInlineSnapshot(snapshot?: string): R
 }
 
 /**

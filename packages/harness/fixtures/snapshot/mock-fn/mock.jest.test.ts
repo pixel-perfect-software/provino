@@ -1,0 +1,13 @@
+test('mock functions', () => {
+  const fn = jest.fn()
+  expect(fn).toMatchSnapshot()
+  fn(1, 'a')
+  fn({ x: 1 })
+  expect(fn).toMatchSnapshot()
+  const named = jest.fn().mockName('myMock')
+  named('called')
+  expect(named).toMatchSnapshot()
+  const returning = jest.fn(() => 'returned')
+  returning()
+  expect(returning).toMatchSnapshot()
+})

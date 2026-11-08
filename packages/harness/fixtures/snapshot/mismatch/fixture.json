@@ -1,0 +1,21 @@
+{
+  "description": "A stored snapshot that differs from the received value, in write mode: the test fails, the run fails, and the .snap is left as it was.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/mismatch.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`changed value 1`] = `\"old value\"`;\n\nexports[`unchanged value 1`] = `\"same\"`;\n"
+    },
+    "vitest": {
+      "__snapshots__/mismatch.test.ts.snap": "// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html\n\nexports[`changed value 1`] = `\"old value\"`;\n\nexports[`unchanged value 1`] = `\"same\"`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/mismatch.test.ts.snap"]
+  }
+}

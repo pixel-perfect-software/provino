@@ -238,10 +238,11 @@ export type WorkerToCoordinator =
        */
       readonly leakedGlobals: readonly string[]
       /**
-       * What the file's snapshot state ended with, or `null` when the runner kept none. The
-       * coordinator adds these up for the summary and the exit code.
+       * What the file's snapshot state ended with; absent when the runner kept none or the file
+       * never collected its tests. The coordinator adds these up for the summary and the exit
+       * code.
        */
-      readonly snapshot: SnapshotFileReport | null
+      readonly snapshot?: SnapshotFileReport
     }
   | { readonly t: 'stopped' }
   | RpcCall<CoordinatorMethods>

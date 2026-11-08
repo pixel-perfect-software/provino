@@ -55,6 +55,7 @@ async function execute(
     // Omitted, `runProject` keeps the cache in the project's `node_modules/.cache/provino`.
     ...(options.cache === false ? { cache: false } : {}),
     ...(options.testNamePattern === undefined ? {} : { testNamePattern: options.testNamePattern }),
+    ...(options.updateSnapshot === true ? { update: true } : {}),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
   })
 

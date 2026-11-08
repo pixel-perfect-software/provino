@@ -119,8 +119,11 @@ function setup(options: Options = {}): Setup {
 }
 
 /** A matcher the types don't list, or called with arguments they don't allow, as user code does. */
-const loose = (value: unknown): Record<string, (...args: unknown[]) => unknown> =>
-  value as Record<string, (...args: unknown[]) => unknown>
+type Loose = Record<
+  'toMatchSnapshot' | 'toThrowErrorMatchingInlineSnapshot' | 'toMatchFileSnapshot',
+  (...args: unknown[]) => unknown
+>
+const loose = (value: unknown): Loose => value as Loose
 
 describe('toMatchSnapshot', () => {
   test('writes a new snapshot named for the test, then finds it again', () => {

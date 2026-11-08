@@ -12,6 +12,7 @@ import {
   type UnhandledErrors,
 } from './build.ts'
 import { readRunEnvironment } from './environment.ts'
+import { normalizeSnapshots } from './snapshots.ts'
 
 /**
  * Options for `normalizedJsonReporter`.
@@ -87,6 +88,7 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
   let files = new Map<TaskId, FileRecord>()
   let runErrors: RunError[] = []
   let startedAt: string | undefined
+  let root = process.cwd()
 
   function record(fileId: TaskId): FileRecord {
     let existing = files.get(fileId)
@@ -100,7 +102,8 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
   return {
     name: 'normalized-json',
 
-    'run:start'() {
+    'run:start'(info) {
+      root = info.root
       files = new Map()
       runErrors = []
       startedAt = new Date(now()).toISOString()
@@ -158,6 +161,9 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
         runErrors,
         reason: summary.reason,
         unhandledErrors: options.unhandledErrors ?? 'fail-run',
+        ...(summary.snapshots === undefined
+          ? {}
+          : { snapshots: await normalizeSnapshots(summary.snapshots, root) }),
       })
       const text = `${JSON.stringify(run, null, 2)}\n`
       if (options.outputFile !== undefined) {

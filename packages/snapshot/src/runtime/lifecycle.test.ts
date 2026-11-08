@@ -62,8 +62,8 @@ describe('trackSnapshots', () => {
     life.observe(ended('3', 'fail'))
     life.observe(ended('4', 'todo'))
     const report = life.finish()
-    assert.deepEqual(report.uncheckedKeys, ['a gone 1'])
-    assert.equal(report.unchecked, 1)
+    assert.deepEqual(report?.uncheckedKeys, ['a gone 1'])
+    assert.equal(report?.unchecked, 1)
   })
 
   test('a test.failing that passed keeps what it stored; a plain pass does not excuse an unchecked key', () => {
@@ -74,7 +74,7 @@ describe('trackSnapshots', () => {
     life.observe(collected(testTask('1', ['a'], true), testTask('2', ['b'])))
     life.observe(ended('1', 'pass'))
     life.observe(ended('2', 'pass'))
-    assert.deepEqual(life.finish().uncheckedKeys, ['b 1'])
+    assert.deepEqual(life.finish()?.uncheckedKeys, ['b 1'])
   })
 
   test('a test that never ended counts as not run', () => {
@@ -83,7 +83,7 @@ describe('trackSnapshots', () => {
     const state = stateIn(dir)
     const life = trackSnapshots(state, { keyJoin: ' ' })
     life.observe(collected(testTask('1', ['a'])))
-    assert.deepEqual(life.finish().uncheckedKeys, [])
+    assert.deepEqual(life.finish()?.uncheckedKeys, [])
   })
 
   test('a later attempt or repeat starts from what the first left; the first attempt takes nothing back', () => {
@@ -104,7 +104,7 @@ describe('trackSnapshots', () => {
     state.match({ testName: 't', testId: '1', received: 1, isInline: false })
     life.observe(ended('1', 'pass'))
     const report = life.finish()
-    assert.equal(report.added, 1)
+    assert.equal(report?.added, 1)
     assert.match(readFileSync(join(dir, '__snapshots__', 'a.test.ts.snap'), 'utf8'), /t 1/)
   })
 
@@ -115,6 +115,6 @@ describe('trackSnapshots', () => {
     const life = trackSnapshots(state, { keyJoin: ' > ' })
     life.observe(collected(testTask('1', ['a', 'b'])))
     life.observe(ended('1', 'skip'))
-    assert.deepEqual(life.finish().uncheckedKeys, [])
+    assert.deepEqual(life.finish()?.uncheckedKeys, [])
   })
 })

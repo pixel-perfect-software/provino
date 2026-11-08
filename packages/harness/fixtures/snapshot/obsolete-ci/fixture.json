@@ -1,0 +1,15 @@
+{
+  "description": "An obsolete snapshot in a CI run: both runners fail the run. The .snap is left as it was.",
+  "runners": ["jest", "vitest"],
+  "files": {
+    "jest": {
+      "__snapshots__/obsolete.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`kept 1`] = `\"kept\"`;\n\nexports[`obsolete 1`] = `\"gone\"`;\n"
+    },
+    "vitest": {
+      "__snapshots__/obsolete.test.ts.snap": "// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html\n\nexports[`kept 1`] = `\"kept\"`;\n\nexports[`obsolete 1`] = `\"gone\"`;\n"
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "file:__snapshots__/obsolete.test.ts.snap"]
+  }
+}

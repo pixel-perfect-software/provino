@@ -1,6 +1,6 @@
 // The default reporter's text, all in one place. It is Jest-like, not a golden: T9.7 records the
 // real format and decides what to match.
-import type { ReportPolicy, SerializedError } from '@provino/types'
+import type { ReportPolicy, SerializedError, SnapshotRunSummary } from '@provino/types'
 
 /** How deep a `cause` or an aggregate's `errors` are shown. */
 const MAX_NESTING = 3
@@ -99,8 +99,54 @@ function part(count: number, label: string): string {
   return `${count} ${label}`
 }
 
+/**
+ * The obsolete snapshots by test file, as Jest lists them above its summary; `''` when none are.
+ */
+export function obsoleteBlock(snapshots: SnapshotRunSummary | undefined): string {
+  if (snapshots === undefined || snapshots.counters.unchecked === 0) return ''
+  const { counters, uncheckedKeysByFile, update } = snapshots
+  const noun = counters.unchecked === 1 ? 'snapshot' : 'snapshots'
+  const suites = uncheckedKeysByFile.length === 1 ? 'test suite' : 'test suites'
+  const remove =
+    update === 'none' ? 'Run without --ci and with -u to remove' : 'Run with -u to remove'
+  const lines = [
+    `${counters.unchecked} ${noun} obsolete from ${uncheckedKeysByFile.length} ${suites}. ${remove} ${counters.unchecked === 1 ? 'it' : 'them'}.`,
+  ]
+  for (const { file, keys } of uncheckedKeysByFile) {
+    lines.push(`  ↳ ${file}`, ...keys.map((key) => `      • ${key}`))
+  }
+  return `${lines.join('\n')}\n`
+}
+
+/**
+ * Jest's `Snapshots:` line; zero parts are left out except `total`. `undefined` when no snapshot
+ * was checked, written or is obsolete.
+ */
+export function snapshotLine(snapshots: SnapshotRunSummary | undefined): string | undefined {
+  if (snapshots === undefined) return undefined
+  const { counters } = snapshots
+  if (counters.total === 0 && counters.unchecked === 0 && counters.filesRemoved === 0) {
+    return undefined
+  }
+  const parts = [
+    ...(counters.unmatched > 0 ? [part(counters.unmatched, 'failed')] : []),
+    ...(counters.unchecked > 0 ? [part(counters.unchecked, 'obsolete')] : []),
+    ...(counters.filesRemoved > 0 ? [part(counters.filesRemoved, 'file removed')] : []),
+    ...(counters.updated > 0 ? [part(counters.updated, 'updated')] : []),
+    ...(counters.added > 0 ? [part(counters.added, 'written')] : []),
+    ...(counters.matched > 0 ? [part(counters.matched, 'passed')] : []),
+    part(counters.total, 'total'),
+  ]
+  return `Snapshots:   ${parts.join(', ')}`
+}
+
 /** Jest's summary: zero parts are left out except `passed` and `total`. */
-export function summaryLines(files: FileCounts, tests: TestCounts, durationMs: number): string {
+export function summaryLines(
+  files: FileCounts,
+  tests: TestCounts,
+  durationMs: number,
+  snapshots?: string,
+): string {
   const suites = [
     ...(files.failed > 0 ? [part(files.failed, 'failed')] : []),
     ...(files.skipped > 0 ? [part(files.skipped, 'skipped')] : []),
@@ -117,6 +163,7 @@ export function summaryLines(files: FileCounts, tests: TestCounts, durationMs: n
   return [
     `Test Suites: ${suites.join(', ')}`,
     `Tests:       ${counted.join(', ')}`,
+    ...(snapshots === undefined ? [] : [snapshots]),
     `Time:        ${(durationMs / 1000).toFixed(3)} s`,
   ].join('\n')
 }

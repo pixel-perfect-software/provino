@@ -3,6 +3,11 @@
 import { resolve } from 'node:path'
 import type { ResolvedProject } from '@provino/config'
 import { serializeError } from '@provino/rpc'
+import {
+  createSnapshotAggregate,
+  resolveUpdateMode,
+  snapshotRunFails,
+} from '@provino/snapshot/node'
 import type {
   FileInfo,
   FileJob,
@@ -71,6 +76,10 @@ export interface RunProjectOptions {
   readonly cache?: ResultsCache | false
   /** Run only tests whose full name matches (`-t`). Validated once, here, before anything starts. */
   readonly testNamePattern?: string
+  /** Rewrite the snapshots that differ (`-u`). Default `false`: new ones are written, unless this is a CI run. */
+  readonly update?: boolean
+  /** Where the policy's snapshot update variable is read (Vitest's `UPDATE_SNAPSHOT`). Default: `process.env`. */
+  readonly env?: Readonly<Record<string, string | undefined>>
   /**
    * Where the workers' own stdout goes (a fork's or thread's direct write to fd 1; not the
    * tests' `console`, which is an event). Default: this process's. A caller that prints
@@ -177,6 +186,14 @@ export async function runProject(
   const { orchestrator, core } = project.policy
   const cacheProject = projectCacheKey(project)
   checkPattern(options.testNamePattern, core.testNamePatternFlags)
+  // What every file does with its snapshots (build-plan §6: the worker writes the `.snap` files).
+  const updateSnapshots = resolveUpdateMode({
+    update: options.update ?? false,
+    ci: project.config.ci,
+    env: options.env ?? process.env,
+    policy: project.policy.snapshot,
+  })
+  const snapshots = createSnapshotAggregate()
 
   const startedAt = performance.now()
   const stderr = options.stderr ?? process.stderr
@@ -224,8 +241,6 @@ export async function runProject(
       config: project.config,
     }),
     methods: {
-      resolveSnapshotPath: (file) => file,
-      writeSnapshot: () => {},
       readTimings: (file) =>
         cache?.get(cacheProject, relativePosix(project.rootDir, resolve(project.rootDir, file)))
           ?.durationMs,
@@ -267,12 +282,16 @@ export async function runProject(
   const finishedFiles = (): FileResult[] =>
     queue.flatMap((entry) => results.get(entry.info.path) ?? [])
 
-  const summarize = (reason: RunSummary['reason']): RunSummary => ({
-    reason,
-    files: finishedFiles(),
-    unhandled,
-    durationMs: performance.now() - startedAt,
-  })
+  const summarize = (reason: RunSummary['reason']): RunSummary => {
+    const run = snapshots.summary(updateSnapshots)
+    return {
+      reason,
+      files: finishedFiles(),
+      unhandled,
+      durationMs: performance.now() - startedAt,
+      ...(run === undefined ? {} : { snapshots: run }),
+    }
+  }
 
   /** One file, from its turn in the queue to its `file:end`. */
   async function runFile(entry: QueuedFile): Promise<void> {
@@ -284,7 +303,7 @@ export async function runProject(
     const job: FileJob = {
       file: entry.file.path,
       fileId: entry.info.fileId,
-      updateSnapshots: 'none',
+      updateSnapshots,
       ...(options.testNamePattern === undefined
         ? {}
         : { testNamePattern: options.testNamePattern }),
@@ -311,6 +330,9 @@ export async function runProject(
         // No worker took the file, but a `file:end` always has a `file:start` before it: this one
         // names the worker whose failed start the file's error is.
         await bus.emit('file:start', entry.info, outcome.workerId)
+      }
+      if (outcome.type === 'done' && outcome.done.snapshot !== undefined) {
+        snapshots.add(outcome.done.snapshot, entry.file.path)
       }
       const elapsedMs = takenAt === undefined ? 0 : performance.now() - takenAt
       const result = resultOf(entry.info, outcome, dispatch.result, elapsedMs)
@@ -386,6 +408,7 @@ export async function runProject(
 
     const failed =
       finishedFiles().some((file) => file.state === 'fail') ||
+      snapshotRunFails(snapshots.summary(updateSnapshots), project.policy.snapshot) ||
       (orchestrator.unhandledErrors === 'fail-run' && unhandled.length > 0)
     const summary = summarize(interrupted ? 'interrupted' : failed ? 'failed' : 'passed')
     await bus.emit('run:end', summary)

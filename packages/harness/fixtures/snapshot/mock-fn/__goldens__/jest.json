@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/mock-fn",
+  "files": [
+    {
+      "file": "mock.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mock.jest.test.ts",
+            "path": [
+              "mock functions"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 4,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 4,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 4,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/mock.jest.test.ts.snap",
+        "sha256": "248f9ab7706236c32860839bb7007f61f86d42edc37f83a978048bc6858fdc45"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      "__snapshots__/mock.jest.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`mock functions 1`] = `[MockFunction]`;\n\nexports[`mock functions 2`] = `\n[MockFunction] {\n  \"calls\": [\n    [\n      1,\n      \"a\",\n    ],\n    [\n      {\n        \"x\": 1,\n      },\n    ],\n  ],\n  \"results\": [\n    {\n      \"type\": \"return\",\n      \"value\": undefined,\n    },\n    {\n      \"type\": \"return\",\n      \"value\": undefined,\n    },\n  ],\n}\n`;\n\nexports[`mock functions 3`] = `\n[MockFunction myMock] {\n  \"calls\": [\n    [\n      \"called\",\n    ],\n  ],\n  \"results\": [\n    {\n      \"type\": \"return\",\n      \"value\": undefined,\n    },\n  ],\n}\n`;\n\nexports[`mock functions 4`] = `\n[MockFunction] {\n  \"calls\": [\n    [],\n  ],\n  \"results\": [\n    {\n      \"type\": \"return\",\n      \"value\": \"returned\",\n    },\n  ],\n}\n`;\n",
+      "__snapshots__/mock.vitest.test.ts.snap": null
+    }
+  }
+}

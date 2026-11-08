@@ -1,0 +1,13 @@
+{
+  "description": "What a snapshot of each kind of primitive and simple value looks like: strings with quotes, a backslash, a backtick, a dollar-brace, line breaks and Unicode; numbers including -0, NaN and a bigint; literals; a symbol; functions and a class; dates, a regular expression and errors as values. A black-box run in write mode capturing the .snap.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/values.test.ts.snap"]
+  }
+}

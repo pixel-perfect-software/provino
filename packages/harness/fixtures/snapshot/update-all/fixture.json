@@ -1,0 +1,22 @@
+{
+  "description": "The update flag (-u): a snapshot that differs is rewritten, a missing one is added, an obsolete one is removed, one that matches stays. The run passes and the .snap is the result.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/update.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`changed 1`] = `\"old value\"`;\n\nexports[`obsolete 1`] = `\"nothing checks me\"`;\n\nexports[`unchanged 1`] = `\"same\"`;\n"
+    },
+    "vitest": {
+      "__snapshots__/update.test.ts.snap": "// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html\n\nexports[`changed 1`] = `\"old value\"`;\n\nexports[`obsolete 1`] = `\"nothing checks me\"`;\n\nexports[`unchanged 1`] = `\"same\"`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false", "-u"],
+      "vitest": ["-u"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/update.test.ts.snap"]
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "description": "An inline snapshot with nothing written in it, in a CI run: neither runner writes it, the test fails and so does the run. The source is as it was.",
+  "runners": ["jest", "vitest"],
+  "run": {
+    "capture": ["exitCode", "file:inline-missing.test.ts"]
+  }
+}
