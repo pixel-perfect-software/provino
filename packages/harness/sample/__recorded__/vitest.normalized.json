@@ -3,15 +3,15 @@
   "runner": "vitest",
   "runnerVersion": "5.0.5",
   "suite": "harness/sample",
-  "startedAt": "2026-11-08T02:16:06.471Z",
+  "startedAt": "2026-11-08T13:59:42.341Z",
   "env": {
-    "os": "darwin",
-    "osRelease": "27.3.0",
-    "arch": "arm64",
-    "cpuModel": "Apple M2 Pro",
-    "cpuCount": 12,
-    "memoryMb": 32768,
-    "node": "v24.22.1",
+    "os": "unrecorded",
+    "osRelease": "unrecorded",
+    "arch": "unrecorded",
+    "cpuModel": "unrecorded",
+    "cpuCount": 0,
+    "memoryMb": 0,
+    "node": "v24",
     "runners": {
       "vitest": "5.0.5"
     },
@@ -33,7 +33,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.8291250000000048,
+          "durationMs": 0.8384580000000028,
           "location": {
             "line": 2,
             "column": 3
@@ -50,7 +50,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.1144999999999925,
+          "durationMs": 0.1197079999999886,
           "location": {
             "line": 9,
             "column": 3
@@ -67,14 +67,14 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.09062500000000284,
+          "durationMs": 0.09329199999999105,
           "location": {
             "line": 14,
             "column": 3
           }
         }
       ],
-      "durationMs": 1.114501953125
+      "durationMs": 1.11962890625
     },
     {
       "file": "concurrent.test.ts",
@@ -91,7 +91,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 30.947125,
+          "durationMs": 32.132666,
           "location": {
             "line": 4,
             "column": 6
@@ -108,7 +108,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 10.933707999999996,
+          "durationMs": 10.757750000000001,
           "location": {
             "line": 9,
             "column": 6
@@ -125,14 +125,14 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.6407920000000047,
+          "durationMs": 0.6345829999999921,
           "location": {
             "line": 14,
             "column": 6
           }
         }
       ],
-      "durationMs": 30.947021484375
+      "durationMs": 32.132568359375
     },
     {
       "file": "console.test.ts",
@@ -149,7 +149,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.903207999999978,
+          "durationMs": 0.9075840000000142,
           "location": {
             "line": 14,
             "column": 3
@@ -196,7 +196,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.3063329999999951,
+          "durationMs": 0.21408299999998803,
           "location": {
             "line": 23,
             "column": 3
@@ -235,7 +235,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.17074999999999818,
+          "durationMs": 0.1669159999999863,
           "location": {
             "line": 28,
             "column": 3
@@ -252,7 +252,7 @@
           ]
         }
       ],
-      "durationMs": 1.306396484375,
+      "durationMs": 1.214111328125,
       "console": [
         {
           "stream": "stdout",
@@ -285,7 +285,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.7866670000000084,
+          "durationMs": 0.7646660000000054,
           "location": {
             "line": 5,
             "column": 3
@@ -302,7 +302,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.11420900000000245,
+          "durationMs": 0.10712499999999636,
           "location": {
             "line": 9,
             "column": 3
@@ -319,7 +319,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.06699999999999307,
+          "durationMs": 0.06404099999998891,
           "location": {
             "line": 5,
             "column": 3
@@ -336,7 +336,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.0642079999999936,
+          "durationMs": 0.06154200000000287,
           "location": {
             "line": 9,
             "column": 3
@@ -353,7 +353,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.06449999999999534,
+          "durationMs": 0.06341700000000117,
           "location": {
             "line": 19,
             "column": 3
@@ -370,14 +370,14 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.05125000000001023,
+          "durationMs": 0.04912500000000364,
           "location": {
             "line": 19,
             "column": 3
           }
         }
       ],
-      "durationMs": 2.05126953125
+      "durationMs": 1.107177734375
     },
     {
       "file": "each.test.ts",
@@ -394,7 +394,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.801084000000003,
+          "durationMs": 0.806666999999976,
           "location": {
             "line": 5,
             "column": 5
@@ -418,7 +418,7 @@
               "raw": "AssertionError: expected 5 to be 6 // Object.is equality\n    at /__root__/each.test.ts:6:19\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2885:79\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)"
             }
           ],
-          "durationMs": 1.6873329999999953,
+          "durationMs": 1.7676249999999811,
           "location": {
             "line": 5,
             "column": 5
@@ -435,7 +435,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.09466599999998948,
+          "durationMs": 0.09729100000001267,
           "location": {
             "line": 9,
             "column": 29
@@ -452,7 +452,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.07325000000000159,
+          "durationMs": 0.07050000000000978,
           "location": {
             "line": 9,
             "column": 29
@@ -469,7 +469,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.17733400000000188,
+          "durationMs": 0.07687500000000114,
           "location": {
             "line": 22,
             "column": 4
@@ -486,7 +486,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.07308399999999438,
+          "durationMs": 0.04983300000000668,
           "location": {
             "line": 22,
             "column": 4
@@ -503,7 +503,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.10750000000001592,
+          "durationMs": 0.08016600000001972,
           "location": {
             "line": 25,
             "column": 21
@@ -520,7 +520,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.05391700000001265,
+          "durationMs": 0.048082999999991216,
           "location": {
             "line": 25,
             "column": 21
@@ -537,7 +537,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.06791699999999423,
+          "durationMs": 0.061082999999996446,
           "location": {
             "line": 25,
             "column": 21
@@ -554,7 +554,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.0966669999999965,
+          "durationMs": 0.09129100000001245,
           "location": {
             "line": 34,
             "column": 5
@@ -571,14 +571,14 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.05262499999997772,
+          "durationMs": 0.04800000000000182,
           "location": {
             "line": 34,
             "column": 5
           }
         }
       ],
-      "durationMs": 3.17724609375
+      "durationMs": 3.097412109375
     },
     {
       "file": "fail.test.ts",
@@ -602,7 +602,7 @@
               "raw": "AssertionError: expected 3 to be 4 // Object.is equality\n    at /__root__/fail.test.ts:3:19\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
             }
           ],
-          "durationMs": 2.56004200000001,
+          "durationMs": 2.7980420000000095,
           "location": {
             "line": 2,
             "column": 3
@@ -626,7 +626,7 @@
               "raw": "AssertionError: expected { name: 'a', tags: [ 'x' ] } to deeply equal { name: 'a', tags: [ 'y' ] }\n    at /__root__/fail.test.ts:7:40\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
             }
           ],
-          "durationMs": 1.0609169999999892,
+          "durationMs": 1.1125419999999906,
           "location": {
             "line": 6,
             "column": 3
@@ -650,7 +650,7 @@
               "raw": "AssertionError: expected [Function] to throw error including 'fizzle' but got 'kaboom'\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:2303:114)\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:1958:14)\n    at Proxy.methodWrapper (file:///__repo__/node_modules/.pnpm/chai@6.3.0/node_modules/chai/index.js:1737:25)\n    at /__root__/fail.test.ts:13:8\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20"
             }
           ],
-          "durationMs": 0.9625829999999951,
+          "durationMs": 0.9741659999999968,
           "location": {
             "line": 10,
             "column": 3
@@ -674,7 +674,7 @@
               "raw": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:2303:114)\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:1958:14)\n    at Proxy.methodWrapper (file:///__repo__/node_modules/.pnpm/chai@6.3.0/node_modules/chai/index.js:1737:25)\n    at /__root__/fail.test.ts:17:21\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20"
             }
           ],
-          "durationMs": 0.17824999999999136,
+          "durationMs": 0.17712499999998954,
           "location": {
             "line": 16,
             "column": 3
@@ -691,7 +691,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.10420799999999986,
+          "durationMs": 0.10854199999999992,
           "location": {
             "line": 20,
             "column": 3
@@ -715,7 +715,7 @@
               "raw": "Error: outer\n    at /__root__/fail.test.ts:27:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
             }
           ],
-          "durationMs": 0.17429199999999412,
+          "durationMs": 0.17637499999997885,
           "location": {
             "line": 26,
             "column": 3
@@ -737,14 +737,14 @@
               "raw": "a string"
             }
           ],
-          "durationMs": 0.05387499999999079,
+          "durationMs": 0.05612499999998022,
           "location": {
             "line": 30,
             "column": 3
           }
         }
       ],
-      "durationMs": 5.17822265625
+      "durationMs": 6.05615234375
     },
     {
       "file": "failing.test.ts",
@@ -760,7 +760,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 2.4693340000000035,
+          "durationMs": 2.4574170000000066,
           "location": {
             "line": 4,
             "column": 1
@@ -782,14 +782,14 @@
               "raw": "Error: Expect test to fail\n    at runTest (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3963:49)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:4088:35\n    at async callAroundHooks (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3636:3)\n    at async callAroundAllHooks (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3755:2)\n    at async runSuite (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:4064:4)\n    at async runFiles (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:4154:3)\n    at async startTests (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:4193:3)\n    at async file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/base.CzXt2BO_.js:96:6\n    at async run (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/base.CzXt2BO_.js:86:3)"
             }
           ],
-          "durationMs": 0.2036250000000024,
+          "durationMs": 0.1924579999999878,
           "location": {
             "line": 8,
             "column": 1
           }
         }
       ],
-      "durationMs": 2.46923828125
+      "durationMs": 3.1923828125
     },
     {
       "file": "hooks.test.ts",
@@ -847,7 +847,7 @@
               "raw": "Error: beforeEach failed\n    at /__root__/hooks.test.ts:17:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at wrapper (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1992:37)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3602:52\n    at run (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1352:20)\n    at limiterFn (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1362:59)\n    at runHook (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3601:10)"
             }
           ],
-          "durationMs": 0.4446670000000097,
+          "durationMs": 0.40466699999998923,
           "location": {
             "line": 20,
             "column": 3
@@ -871,7 +871,7 @@
               "raw": "Error: afterEach failed\n    at /__root__/hooks.test.ts:27:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at wrapper (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2019:37)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3602:52\n    at run (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1352:20)\n    at limiterFn (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1362:59)\n    at runHook (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3601:10)"
             }
           ],
-          "durationMs": 0.4636249999999791,
+          "durationMs": 0.4541670000000124,
           "location": {
             "line": 30,
             "column": 3
@@ -888,7 +888,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.40208300000000463,
+          "durationMs": 0.41483299999998735,
           "location": {
             "line": 46,
             "column": 3
@@ -905,14 +905,14 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.13295800000000213,
+          "durationMs": 0.1300420000000031,
           "location": {
             "line": 50,
             "column": 3
           }
         }
       ],
-      "durationMs": 1.402099609375
+      "durationMs": 1.130126953125
     },
     {
       "file": "mock-fn.test.ts",
@@ -929,7 +929,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 1.2869170000000167,
+          "durationMs": 1.2736250000000098,
           "location": {
             "line": 6,
             "column": 3
@@ -946,7 +946,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.1747090000000071,
+          "durationMs": 0.1705000000000041,
           "location": {
             "line": 13,
             "column": 3
@@ -963,7 +963,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.21250000000000568,
+          "durationMs": 0.2108750000000157,
           "location": {
             "line": 18,
             "column": 3
@@ -987,7 +987,7 @@
               "raw": "AssertionError: expected \"vi.fn()\" to be called with arguments: [ 2 ]\n\nReceived:\n\n  1st vi.fn() call:\n\n  [\n-   2,\n+   1,\n  ]\n\n\nNumber of calls: 1\n\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:2249:10)\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:1958:14)\n    at Proxy.methodWrapper (file:///__repo__/node_modules/.pnpm/chai@6.3.0/node_modules/chai/index.js:1737:25)\n    at /__root__/mock-fn.test.ts:27:15\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20"
             }
           ],
-          "durationMs": 2.00720800000002,
+          "durationMs": 1.9894579999999848,
           "location": {
             "line": 24,
             "column": 3
@@ -1011,7 +1011,7 @@
               "raw": "AssertionError: expected \"vi.fn()\" to be called 1 times, but got 0 times\n    at /__root__/mock-fn.test.ts:32:15\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
             }
           ],
-          "durationMs": 0.23570799999998826,
+          "durationMs": 0.23108300000001236,
           "location": {
             "line": 30,
             "column": 3
@@ -1028,7 +1028,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.26183299999999576,
+          "durationMs": 0.2541249999999877,
           "location": {
             "line": 37,
             "column": 3
@@ -1045,7 +1045,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.1544580000000053,
+          "durationMs": 0.14545800000001918,
           "location": {
             "line": 46,
             "column": 3
@@ -1069,14 +1069,14 @@
               "raw": "AssertionError: expected 'implementation' to be undefined\n    at /__root__/mock-fn.test.ts:58:17\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
             }
           ],
-          "durationMs": 0.44316599999999085,
+          "durationMs": 0.44412499999998545,
           "location": {
             "line": 55,
             "column": 3
           }
         }
       ],
-      "durationMs": 4.443115234375
+      "durationMs": 5.444091796875
     },
     {
       "file": "modules.test.ts",
@@ -1093,7 +1093,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.9044590000000028,
+          "durationMs": 0.8619580000000155,
           "location": {
             "line": 13,
             "column": 3
@@ -1110,7 +1110,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.11070800000001668,
+          "durationMs": 0.10487499999999272,
           "location": {
             "line": 17,
             "column": 3
@@ -1127,7 +1127,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.08412500000000023,
+          "durationMs": 0.07637499999998454,
           "location": {
             "line": 21,
             "column": 3
@@ -1144,14 +1144,14 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.3356249999999932,
+          "durationMs": 0.3181249999999807,
           "location": {
             "line": 25,
             "column": 3
           }
         }
       ],
-      "durationMs": 1.335693359375
+      "durationMs": 1.318115234375
     },
     {
       "file": "normalization-inputs.test.ts",
@@ -1175,7 +1175,7 @@
               "raw": "Error: \u001b[31mred\u001b[39m and \u001b[1mbold\u001b[22m\n    at /__root__/normalization-inputs.test.ts:10:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
             }
           ],
-          "durationMs": 0.9289589999999919,
+          "durationMs": 0.8711660000000023,
           "location": {
             "line": 9,
             "column": 3
@@ -1199,7 +1199,7 @@
               "raw": "Error: first line\r\nsecond line\n    at /__root__/normalization-inputs.test.ts:14:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
             }
           ],
-          "durationMs": 0.12441700000002243,
+          "durationMs": 0.11845800000000395,
           "location": {
             "line": 13,
             "column": 3
@@ -1223,7 +1223,7 @@
               "raw": "Error: see file:///__root__/normalization-inputs.test.ts\n    at /__root__/normalization-inputs.test.ts:18:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
             }
           ],
-          "durationMs": 0.14820799999998258,
+          "durationMs": 0.14270899999999642,
           "location": {
             "line": 17,
             "column": 3
@@ -1247,7 +1247,7 @@
               "raw": "Error: request 123e4567-e89b-12d3-a456-426614174000 failed\n    at /__root__/normalization-inputs.test.ts:22:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
             }
           ],
-          "durationMs": 0.09624999999999773,
+          "durationMs": 0.09262499999999818,
           "location": {
             "line": 21,
             "column": 3
@@ -1271,7 +1271,7 @@
               "raw": "Error: segfault at 0x00007ffd5e8c1a40\n    at /__root__/normalization-inputs.test.ts:26:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
             }
           ],
-          "durationMs": 0.09212500000001,
+          "durationMs": 0.09337500000000887,
           "location": {
             "line": 25,
             "column": 3
@@ -1295,7 +1295,7 @@
               "raw": "Error: cannot write /tmp/x/report.json\n    at /__root__/normalization-inputs.test.ts:30:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
             }
           ],
-          "durationMs": 0.08395899999999301,
+          "durationMs": 0.07737499999998931,
           "location": {
             "line": 29,
             "column": 3
@@ -1319,7 +1319,7 @@
               "raw": "Error: the step took (12 ms)\n    at /__root__/normalization-inputs.test.ts:34:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
             }
           ],
-          "durationMs": 0.08908399999998551,
+          "durationMs": 0.08066599999999369,
           "location": {
             "line": 33,
             "column": 3
@@ -1336,7 +1336,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.6749159999999961,
+          "durationMs": 0.6346669999999932,
           "location": {
             "line": 37,
             "column": 3
@@ -1373,7 +1373,7 @@
           ]
         }
       ],
-      "durationMs": 1.6748046875
+      "durationMs": 2.634765625
     },
     {
       "file": "only.test.ts",
@@ -1389,7 +1389,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.7369169999999912,
+          "durationMs": 0.7329999999999899,
           "location": {
             "line": 1,
             "column": 4
@@ -1428,7 +1428,7 @@
           }
         }
       ],
-      "durationMs": 0.73681640625
+      "durationMs": 0.73291015625
     },
     {
       "file": "pass.test.ts",
@@ -1445,7 +1445,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.8180830000000014,
+          "durationMs": 0.7734169999999949,
           "location": {
             "line": 2,
             "column": 3
@@ -1462,7 +1462,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.3490419999999972,
+          "durationMs": 0.33525000000000205,
           "location": {
             "line": 6,
             "column": 3
@@ -1479,7 +1479,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.4129170000000215,
+          "durationMs": 0.39016699999999105,
           "location": {
             "line": 10,
             "column": 3
@@ -1496,7 +1496,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.1577090000000112,
+          "durationMs": 0.13612499999999272,
           "location": {
             "line": 15,
             "column": 3
@@ -1513,7 +1513,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.3181250000000091,
+          "durationMs": 0.31441699999999173,
           "location": {
             "line": 21,
             "column": 3
@@ -1530,14 +1530,14 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.3831250000000068,
+          "durationMs": 0.3824999999999932,
           "location": {
             "line": 25,
             "column": 3
           }
         }
       ],
-      "durationMs": 2.383056640625
+      "durationMs": 2.382568359375
     },
     {
       "file": "skip-todo.test.ts",
@@ -1649,14 +1649,14 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.7734999999999985,
+          "durationMs": 0.7697080000000085,
           "location": {
             "line": 23,
             "column": 1
           }
         }
       ],
-      "durationMs": 0.7734375
+      "durationMs": 0.769775390625
     },
     {
       "file": "snapshots.test.ts",
@@ -1673,7 +1673,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 1.5964999999999918,
+          "durationMs": 1.5545829999999938,
           "location": {
             "line": 2,
             "column": 3
@@ -1690,7 +1690,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.14258399999999938,
+          "durationMs": 0.1376249999999999,
           "location": {
             "line": 6,
             "column": 3
@@ -1708,7 +1708,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.11654199999998127,
+          "durationMs": 0.1214999999999975,
           "location": {
             "line": 11,
             "column": 5
@@ -1725,7 +1725,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.1681250000000034,
+          "durationMs": 0.18145799999999213,
           "location": {
             "line": 16,
             "column": 3
@@ -1742,7 +1742,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.6572500000000048,
+          "durationMs": 0.6299589999999995,
           "location": {
             "line": 24,
             "column": 3
@@ -1759,14 +1759,14 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.25295799999997826,
+          "durationMs": 0.24116700000000435,
           "location": {
             "line": 28,
             "column": 3
           }
         }
       ],
-      "durationMs": 3.6572265625
+      "durationMs": 3.2412109375
     },
     {
       "file": "timeout.test.ts",
@@ -1782,7 +1782,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 6.476124999999996,
+          "durationMs": 7.164792000000006,
           "location": {
             "line": 3,
             "column": 1
@@ -1805,14 +1805,14 @@
               "raw": "Error: Test timed out in 50ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n    at task (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2700:43)\n    at Object.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2717:16)\n    at Object.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2486:28)\n    at chain (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1870:14)\n    at /__root__/timeout.test.ts:8:1\n    at VitestModuleEvaluator._runInlinedModule (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/module-evaluator.js:261:189)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/module-evaluator.js:130:62\n    at Traces.$ (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/traces.js:143:27)\n    at VitestModuleEvaluator.runInlinedModule (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/module-evaluator.js:130:21)\n    at VitestModuleRunner.directRequest (file:///__repo__/node_modules/.pnpm/vite@8.3.5_@types+node@22.20.5/node_modules/vite/dist/node/module-runner.js:1281:80)"
             }
           ],
-          "durationMs": 51.73862500000001,
+          "durationMs": 52.70770800000001,
           "location": {
             "line": 8,
             "column": 1
           }
         }
       ],
-      "durationMs": 58.738525390625
+      "durationMs": 60.707763671875
     },
     {
       "file": "timers.test.ts",
@@ -1829,7 +1829,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 2.2975420000000213,
+          "durationMs": 2.1823749999999933,
           "location": {
             "line": 10,
             "column": 3
@@ -1846,7 +1846,7 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 2.595458000000008,
+          "durationMs": 1.0024580000000185,
           "location": {
             "line": 20,
             "column": 3
@@ -1863,14 +1863,14 @@
           },
           "status": "passed",
           "errors": [],
-          "durationMs": 0.6224170000000129,
+          "durationMs": 0.5132090000000176,
           "location": {
             "line": 27,
             "column": 3
           }
         }
       ],
-      "durationMs": 5.622314453125
+      "durationMs": 3.51318359375
     }
   ],
   "snapshots": {

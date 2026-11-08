@@ -170,6 +170,8 @@ const CASES: readonly Case[] = [
       '● it.each over an array › 2 + 3 = 6\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 6\n    Received: 5\nat <root>/each.test.ts:6:19',
   },
   {
+    // The received error's code frame goes, and so does its stack (indented apart from Jest's
+    // own), so the user frame is the matcher call, as Vitest reports it.
     rule: 'code-frames',
     from: {
       runner: 'jest',
@@ -177,7 +179,7 @@ const CASES: readonly Case[] = [
       test: ['failing assertions', 'toThrow with the wrong message'],
     },
     output:
-      'Error: expect(received).toThrow(expected)\n\nExpected substring: "fizzle"\nReceived message:   "kaboom"\nat <root>/fail.test.ts:12:13',
+      'Error: expect(received).toThrow(expected)\n\nExpected substring: "fizzle"\nReceived message:   "kaboom"\nat <root>/fail.test.ts:13:8',
   },
   // durations
   {

@@ -1,3 +1,9 @@
+{"file":"/__root__/normalization-inputs.test.ts","stream":"stdout","level":"log","text":"\u001b[32mgreen\u001b[39m"}
+{"file":"/__root__/normalization-inputs.test.ts","stream":"stdout","level":"log","text":"url file:///__root__/normalization-inputs.test.ts"}
+{"file":"/__root__/normalization-inputs.test.ts","stream":"stdout","level":"log","text":"id 123e4567-e89b-12d3-a456-426614174000 at 0x00007ffd5e8c1a40"}
+{"file":"/__root__/normalization-inputs.test.ts","stream":"stdout","level":"log","text":"wrote /tmp/x/out.txt"}
+{"file":"/__root__/normalization-inputs.test.ts","stream":"stdout","level":"log","text":"done (3 ms)"}
+{"file":"/__root__/normalization-inputs.test.ts","stream":"stdout","level":"log","text":"windows line\r\nend"}
 {"file":"/__root__/console.test.ts","stream":"stdout","level":"log","text":"beforeAll: output outside any test"}
 {"file":"/__root__/console.test.ts","stream":"stdout","level":"log","text":"log line 1"}
 {"file":"/__root__/console.test.ts","stream":"stdout","level":"info","text":"info line"}
@@ -11,9 +17,3 @@
 {"file":"/__root__/console.test.ts","stream":"stdout","level":"log","text":"afterEach two"}
 {"file":"/__root__/console.test.ts","stream":"stdout","level":"log","text":"afterEach one"}
 {"file":"/__root__/console.test.ts","stream":"stdout","level":"log","text":"afterEach two"}
-{"file":"/__root__/normalization-inputs.test.ts","stream":"stdout","level":"log","text":"\u001b[32mgreen\u001b[39m"}
-{"file":"/__root__/normalization-inputs.test.ts","stream":"stdout","level":"log","text":"url file:///__root__/normalization-inputs.test.ts"}
-{"file":"/__root__/normalization-inputs.test.ts","stream":"stdout","level":"log","text":"id 123e4567-e89b-12d3-a456-426614174000 at 0x00007ffd5e8c1a40"}
-{"file":"/__root__/normalization-inputs.test.ts","stream":"stdout","level":"log","text":"wrote /tmp/x/out.txt"}
-{"file":"/__root__/normalization-inputs.test.ts","stream":"stdout","level":"log","text":"done (3 ms)"}
-{"file":"/__root__/normalization-inputs.test.ts","stream":"stdout","level":"log","text":"windows line\r\nend"}

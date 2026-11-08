@@ -2,7 +2,7 @@
 // copy gets, and how a recording made from it is kept free of this machine's paths.
 import { copyFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
-import type { NormalizedRun } from '@provino/types'
+import type { NormalizedRun, RunEnvironment } from '@provino/types'
 import { HarnessError } from '../errors.ts'
 import { type Fixture, runnersForTestFile } from '../fixture.ts'
 import type { RecordPaths } from '../record.ts'
@@ -99,6 +99,32 @@ export function sampleRunProblems(run: NormalizedRun, testFiles: readonly string
   }
   for (const error of run.runErrors) problems.push(`run error: ${error.message}`)
   return problems
+}
+
+/** What the committed recording says for every machine field it doesn't keep. */
+export const UNRECORDED = 'unrecorded'
+
+/**
+ * The `env` a committed recording carries: the runner's version and the Node major only. The
+ * repository is public, so the machine's OS, CPU and RAM are not kept, and the model's other fields
+ * say so (`unrecorded`, 0). A golden drops `env`, so no check reads it.
+ */
+export function recordedEnv(
+  runner: string,
+  version: string,
+  node: string = process.version,
+): RunEnvironment {
+  return {
+    os: UNRECORDED,
+    osRelease: UNRECORDED,
+    arch: UNRECORDED,
+    cpuModel: UNRECORDED,
+    cpuCount: 0,
+    memoryMb: 0,
+    node: node.split('.')[0] ?? node,
+    runners: { [runner]: version },
+    ci: false,
+  }
 }
 
 /** What each of this machine's directories becomes in a committed recording. */

@@ -4,7 +4,7 @@ import { HarnessError } from '../errors.ts'
 import { type Fixture, readFixture } from '../fixture.ts'
 import type { RecordPaths } from '../record.ts'
 import { makeFile, makeRun, makeTest } from '../test-support.ts'
-import { rewritePaths, SAMPLE_DIR, sampleCopy, sampleRunProblems } from './sample.ts'
+import { recordedEnv, rewritePaths, SAMPLE_DIR, sampleCopy, sampleRunProblems } from './sample.ts'
 
 function fixture(files: readonly string[]): Fixture {
   return {
@@ -86,6 +86,20 @@ test('a whole sample run has exactly the expected crash and nothing else wrong',
     'extra.test.ts is not a sample test file',
     'run error: boom',
   ])
+})
+
+test('a recording keeps the runner version and the Node major, and no machine detail', () => {
+  assert.deepEqual(recordedEnv('jest', '30.5.2', 'v24.22.1'), {
+    os: 'unrecorded',
+    osRelease: 'unrecorded',
+    arch: 'unrecorded',
+    cpuModel: 'unrecorded',
+    cpuCount: 0,
+    memoryMb: 0,
+    node: 'v24',
+    runners: { jest: '30.5.2' },
+    ci: false,
+  })
 })
 
 test("rewritePaths replaces this machine's directories, the deepest first", () => {

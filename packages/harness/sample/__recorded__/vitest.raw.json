@@ -24,7 +24,7 @@
     "updated": 0,
     "didUpdate": true
   },
-  "startTime": 1794104166471,
+  "startTime": 1794146382341,
   "success": false,
   "testResults": [
     {
@@ -36,7 +36,7 @@
           "fullName": "assertion counts expect.assertions with the right count",
           "status": "passed",
           "title": "expect.assertions with the right count",
-          "duration": 0.8291250000000048,
+          "duration": 0.8384580000000028,
           "failureMessages": [],
           "location": {
             "line": 2,
@@ -53,7 +53,7 @@
           "fullName": "assertion counts expect.hasAssertions",
           "status": "passed",
           "title": "expect.hasAssertions",
-          "duration": 0.1144999999999925,
+          "duration": 0.1197079999999886,
           "failureMessages": [],
           "location": {
             "line": 9,
@@ -70,7 +70,7 @@
           "fullName": "assertion counts counts passing assertions",
           "status": "passed",
           "title": "counts passing assertions",
-          "duration": 0.09062500000000284,
+          "duration": 0.09329199999999105,
           "failureMessages": [],
           "location": {
             "line": 14,
@@ -81,8 +81,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166743,
-      "endTime": 1794104166744.1145,
+      "startTime": 1794146382616,
+      "endTime": 1794146382617.1196,
       "status": "passed",
       "message": "",
       "name": "/__root__/assertions.test.ts"
@@ -96,7 +96,7 @@
           "fullName": "concurrent tests the slowest",
           "status": "passed",
           "title": "the slowest",
-          "duration": 30.947125,
+          "duration": 32.132666,
           "failureMessages": [],
           "location": {
             "line": 4,
@@ -113,7 +113,7 @@
           "fullName": "concurrent tests a quicker one",
           "status": "passed",
           "title": "a quicker one",
-          "duration": 10.933707999999996,
+          "duration": 10.757750000000001,
           "failureMessages": [],
           "location": {
             "line": 9,
@@ -130,7 +130,7 @@
           "fullName": "concurrent tests one that does not wait",
           "status": "passed",
           "title": "one that does not wait",
-          "duration": 0.6407920000000047,
+          "duration": 0.6345829999999921,
           "failureMessages": [],
           "location": {
             "line": 14,
@@ -141,8 +141,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166740,
-      "endTime": 1794104166770.947,
+      "startTime": 1794146382613,
+      "endTime": 1794146382645.1326,
       "status": "passed",
       "message": "",
       "name": "/__root__/concurrent.test.ts"
@@ -156,7 +156,7 @@
           "fullName": "console logs at every level",
           "status": "passed",
           "title": "logs at every level",
-          "duration": 0.903207999999978,
+          "duration": 0.9075840000000142,
           "failureMessages": [],
           "location": {
             "line": 14,
@@ -173,7 +173,7 @@
           "fullName": "console splits a multi-line write into lines",
           "status": "passed",
           "title": "splits a multi-line write into lines",
-          "duration": 0.3063329999999951,
+          "duration": 0.21408299999998803,
           "failureMessages": [],
           "location": {
             "line": 23,
@@ -190,7 +190,7 @@
           "fullName": "console logs nothing itself",
           "status": "passed",
           "title": "logs nothing itself",
-          "duration": 0.17074999999999818,
+          "duration": 0.1669159999999863,
           "failureMessages": [],
           "location": {
             "line": 28,
@@ -201,16 +201,16 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166641,
-      "endTime": 1794104166642.3064,
+      "startTime": 1794146382525,
+      "endTime": 1794146382526.214,
       "status": "passed",
       "message": "",
       "name": "/__root__/console.test.ts"
     },
     {
       "assertionResults": [],
-      "startTime": 1794104166471,
-      "endTime": 1794104166471,
+      "startTime": 1794146382341,
+      "endTime": 1794146382341,
       "status": "failed",
       "message": "Cannot find module './does-not-exist.ts' imported from /__root__/crash.test.ts",
       "name": "/__root__/crash.test.ts"
@@ -224,7 +224,7 @@
           "fullName": "group first has a number",
           "status": "passed",
           "title": "has a number",
-          "duration": 0.7866670000000084,
+          "duration": 0.7646660000000054,
           "failureMessages": [],
           "location": {
             "line": 5,
@@ -241,7 +241,7 @@
           "fullName": "group first is positive",
           "status": "passed",
           "title": "is positive",
-          "duration": 0.11420900000000245,
+          "duration": 0.10712499999999636,
           "failureMessages": [],
           "location": {
             "line": 9,
@@ -258,7 +258,7 @@
           "fullName": "group second has a number",
           "status": "passed",
           "title": "has a number",
-          "duration": 0.06699999999999307,
+          "duration": 0.06404099999998891,
           "failureMessages": [],
           "location": {
             "line": 5,
@@ -275,7 +275,7 @@
           "fullName": "group second is positive",
           "status": "passed",
           "title": "is positive",
-          "duration": 0.0642079999999936,
+          "duration": 0.06154200000000287,
           "failureMessages": [],
           "location": {
             "line": 9,
@@ -292,7 +292,7 @@
           "fullName": "table small counts",
           "status": "passed",
           "title": "counts",
-          "duration": 0.06449999999999534,
+          "duration": 0.06341700000000117,
           "failureMessages": [],
           "location": {
             "line": 19,
@@ -309,7 +309,7 @@
           "fullName": "table large counts",
           "status": "passed",
           "title": "counts",
-          "duration": 0.05125000000001023,
+          "duration": 0.04912500000000364,
           "failureMessages": [],
           "location": {
             "line": 19,
@@ -320,8 +320,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166752,
-      "endTime": 1794104166754.0513,
+      "startTime": 1794146382622,
+      "endTime": 1794146382623.1072,
       "status": "passed",
       "message": "",
       "name": "/__root__/describe-each.test.ts"
@@ -335,7 +335,7 @@
           "fullName": "it.each over an array 1 + 1 = 2",
           "status": "passed",
           "title": "1 + 1 = 2",
-          "duration": 0.801084000000003,
+          "duration": 0.806666999999976,
           "failureMessages": [],
           "location": {
             "line": 5,
@@ -352,7 +352,7 @@
           "fullName": "it.each over an array 2 + 3 = 6",
           "status": "failed",
           "title": "2 + 3 = 6",
-          "duration": 1.6873329999999953,
+          "duration": 1.7676249999999811,
           "failureMessages": [
             "AssertionError: expected 5 to be 6 // Object.is equality\n    at /__root__/each.test.ts:6:19\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2885:79\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)"
           ],
@@ -371,7 +371,7 @@
           "fullName": "it.each over an array name alpha",
           "status": "passed",
           "title": "name alpha",
-          "duration": 0.09466599999998948,
+          "duration": 0.09729100000001267,
           "failureMessages": [],
           "location": {
             "line": 9,
@@ -388,7 +388,7 @@
           "fullName": "it.each over an array name beta",
           "status": "passed",
           "title": "name beta",
-          "duration": 0.07325000000000159,
+          "duration": 0.07050000000000978,
           "failureMessages": [],
           "location": {
             "line": 9,
@@ -405,7 +405,7 @@
           "fullName": "it.each over a template 1 + 1 = 2",
           "status": "passed",
           "title": "1 + 1 = 2",
-          "duration": 0.17733400000000188,
+          "duration": 0.07687500000000114,
           "failureMessages": [],
           "location": {
             "line": 22,
@@ -422,7 +422,7 @@
           "fullName": "it.each over a template 2 + 2 = 4",
           "status": "passed",
           "title": "2 + 2 = 4",
-          "duration": 0.07308399999999438,
+          "duration": 0.04983300000000668,
           "failureMessages": [],
           "location": {
             "line": 22,
@@ -439,7 +439,7 @@
           "fullName": "duplicate names same name",
           "status": "passed",
           "title": "same name",
-          "duration": 0.10750000000001592,
+          "duration": 0.08016600000001972,
           "failureMessages": [],
           "location": {
             "line": 25,
@@ -456,7 +456,7 @@
           "fullName": "duplicate names same name",
           "status": "passed",
           "title": "same name",
-          "duration": 0.05391700000001265,
+          "duration": 0.048082999999991216,
           "failureMessages": [],
           "location": {
             "line": 25,
@@ -473,7 +473,7 @@
           "fullName": "duplicate names same name",
           "status": "passed",
           "title": "same name",
-          "duration": 0.06791699999999423,
+          "duration": 0.061082999999996446,
           "failureMessages": [],
           "location": {
             "line": 25,
@@ -490,7 +490,7 @@
           "fullName": "it.each over objects object one",
           "status": "passed",
           "title": "object one",
-          "duration": 0.0966669999999965,
+          "duration": 0.09129100000001245,
           "failureMessages": [],
           "location": {
             "line": 34,
@@ -507,7 +507,7 @@
           "fullName": "it.each over objects object two",
           "status": "passed",
           "title": "object two",
-          "duration": 0.05262499999997772,
+          "duration": 0.04800000000000182,
           "failureMessages": [],
           "location": {
             "line": 34,
@@ -518,8 +518,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166653,
-      "endTime": 1794104166656.1772,
+      "startTime": 1794146382543,
+      "endTime": 1794146382546.0974,
       "status": "failed",
       "message": "",
       "name": "/__root__/each.test.ts"
@@ -533,7 +533,7 @@
           "fullName": "failing assertions toBe",
           "status": "failed",
           "title": "toBe",
-          "duration": 2.56004200000001,
+          "duration": 2.7980420000000095,
           "failureMessages": [
             "AssertionError: expected 3 to be 4 // Object.is equality\n    at /__root__/fail.test.ts:3:19\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
           ],
@@ -552,7 +552,7 @@
           "fullName": "failing assertions toEqual",
           "status": "failed",
           "title": "toEqual",
-          "duration": 1.0609169999999892,
+          "duration": 1.1125419999999906,
           "failureMessages": [
             "AssertionError: expected { name: 'a', tags: [ 'x' ] } to deeply equal { name: 'a', tags: [ 'y' ] }\n    at /__root__/fail.test.ts:7:40\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
           ],
@@ -571,7 +571,7 @@
           "fullName": "failing assertions toThrow with the wrong message",
           "status": "failed",
           "title": "toThrow with the wrong message",
-          "duration": 0.9625829999999951,
+          "duration": 0.9741659999999968,
           "failureMessages": [
             "AssertionError: expected [Function] to throw error including 'fizzle' but got 'kaboom'\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:2303:114)\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:1958:14)\n    at Proxy.methodWrapper (file:///__repo__/node_modules/.pnpm/chai@6.3.0/node_modules/chai/index.js:1737:25)\n    at /__root__/fail.test.ts:13:8\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20"
           ],
@@ -590,7 +590,7 @@
           "fullName": "failing assertions toThrow when nothing is thrown",
           "status": "failed",
           "title": "toThrow when nothing is thrown",
-          "duration": 0.17824999999999136,
+          "duration": 0.17712499999998954,
           "failureMessages": [
             "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:2303:114)\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:1958:14)\n    at Proxy.methodWrapper (file:///__repo__/node_modules/.pnpm/chai@6.3.0/node_modules/chai/index.js:1737:25)\n    at /__root__/fail.test.ts:17:21\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20"
           ],
@@ -609,7 +609,7 @@
           "fullName": "failing assertions passes between failures",
           "status": "passed",
           "title": "passes between failures",
-          "duration": 0.10420799999999986,
+          "duration": 0.10854199999999992,
           "failureMessages": [],
           "location": {
             "line": 20,
@@ -626,7 +626,7 @@
           "fullName": "failing throws an error with a cause",
           "status": "failed",
           "title": "an error with a cause",
-          "duration": 0.17429199999999412,
+          "duration": 0.17637499999997885,
           "failureMessages": [
             "Error: outer\n    at /__root__/fail.test.ts:27:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
           ],
@@ -645,7 +645,7 @@
           "fullName": "failing throws a thrown string",
           "status": "failed",
           "title": "a thrown string",
-          "duration": 0.05387499999999079,
+          "duration": 0.05612499999998022,
           "failureMessages": [
             "a string"
           ],
@@ -658,8 +658,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166609,
-      "endTime": 1794104166614.1782,
+      "startTime": 1794146382531,
+      "endTime": 1794146382537.0562,
       "status": "failed",
       "message": "",
       "name": "/__root__/fail.test.ts"
@@ -671,7 +671,7 @@
           "fullName": "fails, as it is meant to",
           "status": "passed",
           "title": "fails, as it is meant to",
-          "duration": 2.4693340000000035,
+          "duration": 2.4574170000000066,
           "failureMessages": [],
           "location": {
             "line": 4,
@@ -686,7 +686,7 @@
           "fullName": "passes, so it fails",
           "status": "failed",
           "title": "passes, so it fails",
-          "duration": 0.2036250000000024,
+          "duration": 0.1924579999999878,
           "failureMessages": [
             "Error: Expect test to fail\n    at runTest (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3963:49)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:4088:35\n    at async callAroundHooks (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3636:3)\n    at async callAroundAllHooks (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3755:2)\n    at async runSuite (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:4064:4)\n    at async runFiles (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:4154:3)\n    at async startTests (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:4193:3)\n    at async file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/base.CzXt2BO_.js:96:6\n    at async run (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/base.CzXt2BO_.js:86:3)"
           ],
@@ -699,8 +699,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166759,
-      "endTime": 1794104166761.4692,
+      "startTime": 1794146382631,
+      "endTime": 1794146382634.1924,
       "status": "failed",
       "message": "",
       "name": "/__root__/failing.test.ts"
@@ -746,7 +746,7 @@
           "fullName": "a failing beforeEach fails before its body runs",
           "status": "failed",
           "title": "fails before its body runs",
-          "duration": 0.4446670000000097,
+          "duration": 0.40466699999998923,
           "failureMessages": [
             "Error: beforeEach failed\n    at /__root__/hooks.test.ts:17:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at wrapper (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1992:37)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3602:52\n    at run (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1352:20)\n    at limiterFn (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1362:59)\n    at runHook (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3601:10)"
           ],
@@ -765,7 +765,7 @@
           "fullName": "a failing afterEach fails after its body passed",
           "status": "failed",
           "title": "fails after its body passed",
-          "duration": 0.4636249999999791,
+          "duration": 0.4541670000000124,
           "failureMessages": [
             "Error: afterEach failed\n    at /__root__/hooks.test.ts:27:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at wrapper (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2019:37)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3602:52\n    at run (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1352:20)\n    at limiterFn (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1362:59)\n    at runHook (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3601:10)"
           ],
@@ -784,7 +784,7 @@
           "fullName": "passing hooks runs beforeEach first",
           "status": "passed",
           "title": "runs beforeEach first",
-          "duration": 0.40208300000000463,
+          "duration": 0.41483299999998735,
           "failureMessages": [],
           "location": {
             "line": 46,
@@ -801,7 +801,7 @@
           "fullName": "passing hooks ran afterEach after the first test",
           "status": "passed",
           "title": "ran afterEach after the first test",
-          "duration": 0.13295800000000213,
+          "duration": 0.1300420000000031,
           "failureMessages": [],
           "location": {
             "line": 50,
@@ -812,8 +812,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166653,
-      "endTime": 1794104166654.402,
+      "startTime": 1794146382532,
+      "endTime": 1794146382533.1301,
       "status": "failed",
       "message": "",
       "name": "/__root__/hooks.test.ts"
@@ -827,7 +827,7 @@
           "fullName": "mock functions records calls",
           "status": "passed",
           "title": "records calls",
-          "duration": 1.2869170000000167,
+          "duration": 1.2736250000000098,
           "failureMessages": [],
           "location": {
             "line": 6,
@@ -844,7 +844,7 @@
           "fullName": "mock functions returns a value",
           "status": "passed",
           "title": "returns a value",
-          "duration": 0.1747090000000071,
+          "duration": 0.1705000000000041,
           "failureMessages": [],
           "location": {
             "line": 13,
@@ -861,7 +861,7 @@
           "fullName": "mock functions uses an implementation",
           "status": "passed",
           "title": "uses an implementation",
-          "duration": 0.21250000000000568,
+          "duration": 0.2108750000000157,
           "failureMessages": [],
           "location": {
             "line": 18,
@@ -878,7 +878,7 @@
           "fullName": "mock functions fails a call assertion",
           "status": "failed",
           "title": "fails a call assertion",
-          "duration": 2.00720800000002,
+          "duration": 1.9894579999999848,
           "failureMessages": [
             "AssertionError: expected \"vi.fn()\" to be called with arguments: [ 2 ]\n\nReceived:\n\n  1st vi.fn() call:\n\n  [\n-   2,\n+   1,\n  ]\n\n\nNumber of calls: 1\n\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:2249:10)\n    at Proxy.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/index.aTZaPVhf.js:1958:14)\n    at Proxy.methodWrapper (file:///__repo__/node_modules/.pnpm/chai@6.3.0/node_modules/chai/index.js:1737:25)\n    at /__root__/mock-fn.test.ts:27:15\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20"
           ],
@@ -897,7 +897,7 @@
           "fullName": "mock functions fails a call count",
           "status": "failed",
           "title": "fails a call count",
-          "duration": 0.23570799999998826,
+          "duration": 0.23108300000001236,
           "failureMessages": [
             "AssertionError: expected \"vi.fn()\" to be called 1 times, but got 0 times\n    at /__root__/mock-fn.test.ts:32:15\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
           ],
@@ -916,7 +916,7 @@
           "fullName": "spyOn replaces a method and restores it",
           "status": "passed",
           "title": "replaces a method and restores it",
-          "duration": 0.26183299999999576,
+          "duration": 0.2541249999999877,
           "failureMessages": [],
           "location": {
             "line": 37,
@@ -933,7 +933,7 @@
           "fullName": "spyOn watches a method without replacing it",
           "status": "passed",
           "title": "watches a method without replacing it",
-          "duration": 0.1544580000000053,
+          "duration": 0.14545800000001918,
           "failureMessages": [],
           "location": {
             "line": 46,
@@ -950,7 +950,7 @@
           "fullName": "mockReset leaves a function that returns undefined",
           "status": "failed",
           "title": "leaves a function that returns undefined",
-          "duration": 0.44316599999999085,
+          "duration": 0.44412499999998545,
           "failureMessages": [
             "AssertionError: expected 'implementation' to be undefined\n    at /__root__/mock-fn.test.ts:58:17\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
           ],
@@ -963,8 +963,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166646,
-      "endTime": 1794104166650.443,
+      "startTime": 1794146382524,
+      "endTime": 1794146382529.444,
       "status": "failed",
       "message": "",
       "name": "/__root__/mock-fn.test.ts"
@@ -978,7 +978,7 @@
           "fullName": "module mocks uses the factory",
           "status": "passed",
           "title": "uses the factory",
-          "duration": 0.9044590000000028,
+          "duration": 0.8619580000000155,
           "failureMessages": [],
           "location": {
             "line": 13,
@@ -995,7 +995,7 @@
           "fullName": "module mocks keeps an actual export",
           "status": "passed",
           "title": "keeps an actual export",
-          "duration": 0.11070800000001668,
+          "duration": 0.10487499999999272,
           "failureMessages": [],
           "location": {
             "line": 17,
@@ -1012,7 +1012,7 @@
           "fullName": "module mocks uses the adjacent __mocks__ file",
           "status": "passed",
           "title": "uses the adjacent __mocks__ file",
-          "duration": 0.08412500000000023,
+          "duration": 0.07637499999998454,
           "failureMessages": [],
           "location": {
             "line": 21,
@@ -1029,7 +1029,7 @@
           "fullName": "module mocks records calls to the factory mock",
           "status": "passed",
           "title": "records calls to the factory mock",
-          "duration": 0.3356249999999932,
+          "duration": 0.3181249999999807,
           "failureMessages": [],
           "location": {
             "line": 25,
@@ -1040,8 +1040,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166735,
-      "endTime": 1794104166736.3357,
+      "startTime": 1794146382601,
+      "endTime": 1794146382602.318,
       "status": "passed",
       "message": "",
       "name": "/__root__/modules.test.ts"
@@ -1055,7 +1055,7 @@
           "fullName": "text the normalization rules exist for colour codes",
           "status": "failed",
           "title": "colour codes",
-          "duration": 0.9289589999999919,
+          "duration": 0.8711660000000023,
           "failureMessages": [
             "Error: \u001b[31mred\u001b[39m and \u001b[1mbold\u001b[22m\n    at /__root__/normalization-inputs.test.ts:10:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
           ],
@@ -1074,7 +1074,7 @@
           "fullName": "text the normalization rules exist for CRLF line ends",
           "status": "failed",
           "title": "CRLF line ends",
-          "duration": 0.12441700000002243,
+          "duration": 0.11845800000000395,
           "failureMessages": [
             "Error: first line\r\nsecond line\n    at /__root__/normalization-inputs.test.ts:14:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
           ],
@@ -1093,7 +1093,7 @@
           "fullName": "text the normalization rules exist for a file URL",
           "status": "failed",
           "title": "a file URL",
-          "duration": 0.14820799999998258,
+          "duration": 0.14270899999999642,
           "failureMessages": [
             "Error: see file:///__root__/normalization-inputs.test.ts\n    at /__root__/normalization-inputs.test.ts:18:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
           ],
@@ -1112,7 +1112,7 @@
           "fullName": "text the normalization rules exist for a UUID",
           "status": "failed",
           "title": "a UUID",
-          "duration": 0.09624999999999773,
+          "duration": 0.09262499999999818,
           "failureMessages": [
             "Error: request 123e4567-e89b-12d3-a456-426614174000 failed\n    at /__root__/normalization-inputs.test.ts:22:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
           ],
@@ -1131,7 +1131,7 @@
           "fullName": "text the normalization rules exist for a hex address",
           "status": "failed",
           "title": "a hex address",
-          "duration": 0.09212500000001,
+          "duration": 0.09337500000000887,
           "failureMessages": [
             "Error: segfault at 0x00007ffd5e8c1a40\n    at /__root__/normalization-inputs.test.ts:26:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
           ],
@@ -1150,7 +1150,7 @@
           "fullName": "text the normalization rules exist for a temp path",
           "status": "failed",
           "title": "a temp path",
-          "duration": 0.08395899999999301,
+          "duration": 0.07737499999998931,
           "failureMessages": [
             "Error: cannot write /tmp/x/report.json\n    at /__root__/normalization-inputs.test.ts:30:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
           ],
@@ -1169,7 +1169,7 @@
           "fullName": "text the normalization rules exist for a duration",
           "status": "failed",
           "title": "a duration",
-          "duration": 0.08908399999998551,
+          "duration": 0.08066599999999369,
           "failureMessages": [
             "Error: the step took (12 ms)\n    at /__root__/normalization-inputs.test.ts:34:11\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1632:35\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2801:26\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3338:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3333:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3318:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3276:10)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:3904:64"
           ],
@@ -1188,7 +1188,7 @@
           "fullName": "text the normalization rules exist for prints the same kinds of text",
           "status": "passed",
           "title": "prints the same kinds of text",
-          "duration": 0.6749159999999961,
+          "duration": 0.6346669999999932,
           "failureMessages": [],
           "location": {
             "line": 37,
@@ -1199,8 +1199,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166653,
-      "endTime": 1794104166654.6748,
+      "startTime": 1794146382482,
+      "endTime": 1794146382484.6348,
       "status": "failed",
       "message": "",
       "name": "/__root__/normalization-inputs.test.ts"
@@ -1212,7 +1212,7 @@
           "fullName": "the focused test runs",
           "status": "passed",
           "title": "the focused test runs",
-          "duration": 0.7369169999999912,
+          "duration": 0.7329999999999899,
           "failureMessages": [],
           "location": {
             "line": 1,
@@ -1251,8 +1251,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166782,
-      "endTime": 1794104166782.7368,
+      "startTime": 1794146382640,
+      "endTime": 1794146382640.733,
       "status": "passed",
       "message": "",
       "name": "/__root__/only.test.ts"
@@ -1266,7 +1266,7 @@
           "fullName": "passing assertions toBe",
           "status": "passed",
           "title": "toBe",
-          "duration": 0.8180830000000014,
+          "duration": 0.7734169999999949,
           "failureMessages": [],
           "location": {
             "line": 2,
@@ -1283,7 +1283,7 @@
           "fullName": "passing assertions toEqual",
           "status": "passed",
           "title": "toEqual",
-          "duration": 0.3490419999999972,
+          "duration": 0.33525000000000205,
           "failureMessages": [],
           "location": {
             "line": 6,
@@ -1300,7 +1300,7 @@
           "fullName": "passing assertions toContain and toMatch",
           "status": "passed",
           "title": "toContain and toMatch",
-          "duration": 0.4129170000000215,
+          "duration": 0.39016699999999105,
           "failureMessages": [],
           "location": {
             "line": 10,
@@ -1317,7 +1317,7 @@
           "fullName": "passing assertions toThrow",
           "status": "passed",
           "title": "toThrow",
-          "duration": 0.1577090000000112,
+          "duration": 0.13612499999999272,
           "failureMessages": [],
           "location": {
             "line": 15,
@@ -1334,7 +1334,7 @@
           "fullName": "passing assertions resolves",
           "status": "passed",
           "title": "resolves",
-          "duration": 0.3181250000000091,
+          "duration": 0.31441699999999173,
           "failureMessages": [],
           "location": {
             "line": 21,
@@ -1351,7 +1351,7 @@
           "fullName": "passing assertions rejects",
           "status": "passed",
           "title": "rejects",
-          "duration": 0.3831250000000068,
+          "duration": 0.3824999999999932,
           "failureMessages": [],
           "location": {
             "line": 25,
@@ -1362,8 +1362,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166713,
-      "endTime": 1794104166715.383,
+      "startTime": 1794146382527,
+      "endTime": 1794146382529.3826,
       "status": "passed",
       "message": "",
       "name": "/__root__/pass.test.ts"
@@ -1463,7 +1463,7 @@
           "fullName": "runs beside them",
           "status": "passed",
           "title": "runs beside them",
-          "duration": 0.7734999999999985,
+          "duration": 0.7697080000000085,
           "failureMessages": [],
           "location": {
             "line": 23,
@@ -1474,8 +1474,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166618,
-      "endTime": 1794104166618.7734,
+      "startTime": 1794146382524,
+      "endTime": 1794146382524.7698,
       "status": "passed",
       "message": "",
       "name": "/__root__/skip-todo.test.ts"
@@ -1489,7 +1489,7 @@
           "fullName": "file snapshots an object",
           "status": "passed",
           "title": "an object",
-          "duration": 1.5964999999999918,
+          "duration": 1.5545829999999938,
           "failureMessages": [],
           "location": {
             "line": 2,
@@ -1506,7 +1506,7 @@
           "fullName": "file snapshots with a hint",
           "status": "passed",
           "title": "with a hint",
-          "duration": 0.14258399999999938,
+          "duration": 0.1376249999999999,
           "failureMessages": [],
           "location": {
             "line": 6,
@@ -1524,7 +1524,7 @@
           "fullName": "file snapshots nested a string",
           "status": "passed",
           "title": "a string",
-          "duration": 0.11654199999998127,
+          "duration": 0.1214999999999975,
           "failureMessages": [],
           "location": {
             "line": 11,
@@ -1541,7 +1541,7 @@
           "fullName": "file snapshots a thrown error",
           "status": "passed",
           "title": "a thrown error",
-          "duration": 0.1681250000000034,
+          "duration": 0.18145799999999213,
           "failureMessages": [],
           "location": {
             "line": 16,
@@ -1558,7 +1558,7 @@
           "fullName": "inline snapshots a string",
           "status": "passed",
           "title": "a string",
-          "duration": 0.6572500000000048,
+          "duration": 0.6299589999999995,
           "failureMessages": [],
           "location": {
             "line": 24,
@@ -1575,7 +1575,7 @@
           "fullName": "inline snapshots a number",
           "status": "passed",
           "title": "a number",
-          "duration": 0.25295799999997826,
+          "duration": 0.24116700000000435,
           "failureMessages": [],
           "location": {
             "line": 28,
@@ -1586,8 +1586,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166645,
-      "endTime": 1794104166648.6572,
+      "startTime": 1794146382482,
+      "endTime": 1794146382485.2412,
       "status": "passed",
       "message": "",
       "name": "/__root__/snapshots.test.ts"
@@ -1599,7 +1599,7 @@
           "fullName": "finishes within its timeout",
           "status": "passed",
           "title": "finishes within its timeout",
-          "duration": 6.476124999999996,
+          "duration": 7.164792000000006,
           "failureMessages": [],
           "location": {
             "line": 3,
@@ -1614,7 +1614,7 @@
           "fullName": "runs past its timeout",
           "status": "failed",
           "title": "runs past its timeout",
-          "duration": 51.73862500000001,
+          "duration": 52.70770800000001,
           "failureMessages": [
             "Error: Test timed out in 50ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n    at task (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2700:43)\n    at Object.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2717:16)\n    at Object.<anonymous> (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:2486:28)\n    at chain (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/chunks/run.BPv-BBRv.js:1870:14)\n    at /__root__/timeout.test.ts:8:1\n    at VitestModuleEvaluator._runInlinedModule (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/module-evaluator.js:261:189)\n    at file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/module-evaluator.js:130:62\n    at Traces.$ (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/traces.js:143:27)\n    at VitestModuleEvaluator.runInlinedModule (file:///__repo__/node_modules/.pnpm/vitest@5.0.5_@types+node@22.20.5_jsdom@30.1.3_vite@8.3.5_@types+node@22.20.5_/node_modules/vitest/dist/module-evaluator.js:130:21)\n    at VitestModuleRunner.directRequest (file:///__repo__/node_modules/.pnpm/vite@8.3.5_@types+node@22.20.5/node_modules/vite/dist/node/module-runner.js:1281:80)"
           ],
@@ -1627,8 +1627,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166785,
-      "endTime": 1794104166843.7385,
+      "startTime": 1794146382625,
+      "endTime": 1794146382685.7078,
       "status": "failed",
       "message": "",
       "name": "/__root__/timeout.test.ts"
@@ -1642,7 +1642,7 @@
           "fullName": "fake timers runs a timeout when time advances",
           "status": "passed",
           "title": "runs a timeout when time advances",
-          "duration": 2.2975420000000213,
+          "duration": 2.1823749999999933,
           "failureMessages": [],
           "location": {
             "line": 10,
@@ -1659,7 +1659,7 @@
           "fullName": "fake timers sets the system time",
           "status": "passed",
           "title": "sets the system time",
-          "duration": 2.595458000000008,
+          "duration": 1.0024580000000185,
           "failureMessages": [],
           "location": {
             "line": 20,
@@ -1676,7 +1676,7 @@
           "fullName": "fake timers runs every pending timer in order",
           "status": "passed",
           "title": "runs every pending timer in order",
-          "duration": 0.6224170000000129,
+          "duration": 0.5132090000000176,
           "failureMessages": [],
           "location": {
             "line": 27,
@@ -1687,8 +1687,8 @@
           "benchmarks": []
         }
       ],
-      "startTime": 1794104166647,
-      "endTime": 1794104166652.6223,
+      "startTime": 1794146382490,
+      "endTime": 1794146382493.5132,
       "status": "passed",
       "message": "",
       "name": "/__root__/timers.test.ts"

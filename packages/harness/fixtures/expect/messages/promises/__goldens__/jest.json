@@ -140,7 +140,7 @@
             {
               "name": "Error",
               "message": "Error: expect(received).rejects.toThrow(expected)\n\nExpected substring: \"yes\"\nReceived message:   \"nope\"",
-              "userFrame": "<root>/promises.test.ts:25:33"
+              "userFrame": "<root>/promises.test.ts:25:61"
             }
           ],
           "passingAssertions": 0,
@@ -233,7 +233,7 @@
             {
               "name": "Error",
               "message": "Error: expect(received).rejects.not.toThrow(expected)\n\nExpected substring: not \"gone\"\nReceived message:       \"gone\"",
-              "userFrame": "<root>/promises.test.ts:41:33"
+              "userFrame": "<root>/promises.test.ts:41:65"
             }
           ],
           "passingAssertions": 0,

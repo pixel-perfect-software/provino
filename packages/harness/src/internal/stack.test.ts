@@ -124,6 +124,35 @@ test('a segment that is only a stack leaves no blank line behind in the message'
   assert.equal(messageOf(segments), '[cause]: Error: inner')
 })
 
+test("Jest's toThrow: the received error's stack, indented apart, is neither message nor stack", () => {
+  // The shape of Jest 30.5's failure text (recorded in sample/__recorded__/jest.raw.json).
+  const text = [
+    'Error: expect(received).toThrow(expected)',
+    '',
+    'Received message:   "kaboom"',
+    '',
+    '      at fail.test.ts:12:13',
+    '      at Object.<anonymous> (../../node_modules/expect/build/index.js:1824:9)',
+    '      at Object.toThrow (fail.test.ts:13:8)',
+    '    at Object.toThrow (/work/fail.test.ts:13:8)',
+    '    at callAsyncCircusFn (/repo/node_modules/jest-circus/build/x.js:1:1)',
+  ].join('\n')
+  const segments = parseStack(text)
+  assert.equal(
+    messageOf(segments),
+    'Error: expect(received).toThrow(expected)\n\nReceived message:   "kaboom"\n',
+  )
+  assert.equal(segments[0]?.frames.length, 2)
+  assert.equal(userFrameOf(segments), '/work/fail.test.ts:13:8')
+})
+
+test('frames indented alike are one stack, whatever their indent', () => {
+  const text = 'Error: x\n      at a (/work/a.test.ts:1:1)\n      at b (/work/b.test.ts:2:2)'
+  const segments = parseStack(text)
+  assert.equal(segments[0]?.frames.length, 2)
+  assert.equal(userFrameOf(segments), '/work/a.test.ts:1:1')
+})
+
 test('text with no frames is its own message, line for line', () => {
   for (const text of ['', 'one', 'one\n', '\n\ntwo\n\n', 'a\r\nb']) {
     assert.equal(messageOf(parseStack(text)), text)

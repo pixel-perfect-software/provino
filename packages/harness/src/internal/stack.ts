@@ -33,6 +33,7 @@ const FRAME_START = /^[ \t]+at[ \t]+(\S.*)$/
 const FRAME_WITH_FUNCTION = /^(.+?) \((.*)\)$/
 const ASYNC_PREFIX = /^async\s+/
 const CAUSE_SEPARATOR = /^(?:\[cause\]|Caused by):/
+const INDENT = /^[ \t]*/
 
 const NON_FILE_LOCATION = /^(?:(<anonymous>)|(native)|index (\d+))$/
 const POSITIONED_LOCATION = /^(.+):(\d+):(\d+)$/
@@ -100,10 +101,20 @@ function parseFrame(line: string): Frame | undefined {
   }
 }
 
+function indentOf(line: string): string {
+  return INDENT.exec(line)?.[0] ?? ''
+}
+
 /**
  * Splits a failure into segments at its `[cause]:` and `Caused by:` lines. In V8's layout a stack
- * is the run of frame lines that ends a segment (blank lines after it don't count). A frame-shaped
- * line anywhere else, such as one printed in a diff, stays in the message.
+ * is the run of frame lines that ends a segment (blank lines after it don't count), all indented
+ * alike. A frame-shaped line anywhere else, such as one printed in a diff, stays in the message.
+ *
+ * Frame lines right before the stack but indented differently are another error's stack that the
+ * runner printed inside its message: Jest's `toThrow` prints the received error's code frame and
+ * stack (6 spaces) just above its own stack (4 spaces). They belong to neither this error's stack
+ * nor its message, so they are dropped, as the `code-frames` rule drops the code frame above them,
+ * and the user frame comes from Jest's own stack: the matcher call, as Vitest reports it.
  */
 export function parseStack(text: string): Segment[] {
   const groups: string[][] = [[]]
@@ -116,14 +127,18 @@ export function parseStack(text: string): Segment[] {
     while (end > 0 && (lines[end - 1] ?? '').trim() === '') end--
     let start = end
     const frames: Frame[] = []
+    const indent = indentOf(lines[end - 1] ?? '')
     for (;;) {
-      const frame = start > 0 ? parseFrame(lines[start - 1] ?? '') : undefined
-      if (frame === undefined) break
+      const line = lines[start - 1]
+      const frame = start > 0 && line !== undefined ? parseFrame(line) : undefined
+      if (frame === undefined || line === undefined || indentOf(line) !== indent) break
       frames.push(frame)
       start--
     }
     frames.reverse()
-    return { lines: [...lines.slice(0, start), ...lines.slice(end)], frames }
+    let embedded = start
+    while (embedded > 0 && parseFrame(lines[embedded - 1] ?? '') !== undefined) embedded--
+    return { lines: [...lines.slice(0, embedded), ...lines.slice(end)], frames }
   })
 }
 

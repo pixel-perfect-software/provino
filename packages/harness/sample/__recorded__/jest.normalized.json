@@ -3,15 +3,15 @@
   "runner": "jest",
   "runnerVersion": "30.5.2",
   "suite": "harness/sample",
-  "startedAt": "2026-11-08T02:16:05.058Z",
+  "startedAt": "2026-11-08T13:59:40.959Z",
   "env": {
-    "os": "darwin",
-    "osRelease": "27.3.0",
-    "arch": "arm64",
-    "cpuModel": "Apple M2 Pro",
-    "cpuCount": 12,
-    "memoryMb": 32768,
-    "node": "v24.22.1",
+    "os": "unrecorded",
+    "osRelease": "unrecorded",
+    "arch": "unrecorded",
+    "cpuModel": "unrecorded",
+    "cpuCount": 0,
+    "memoryMb": 0,
+    "node": "v24",
     "runners": {
       "jest": "30.5.2"
     },
@@ -70,14 +70,14 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 3,
-          "durationMs": 1,
+          "durationMs": 0,
           "location": {
             "line": 14,
             "column": 3
           }
         }
       ],
-      "durationMs": 23
+      "durationMs": 21
     },
     {
       "file": "concurrent.test.ts",
@@ -95,7 +95,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 32,
+          "durationMs": 36,
           "location": {
             "line": 4,
             "column": 6
@@ -113,7 +113,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 11,
+          "durationMs": 13,
           "location": {
             "line": 9,
             "column": 6
@@ -131,14 +131,14 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 1,
+          "durationMs": 0,
           "location": {
             "line": 14,
             "column": 6
           }
         }
       ],
-      "durationMs": 48
+      "durationMs": 54
     },
     {
       "file": "console.test.ts",
@@ -192,14 +192,14 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 0,
+          "durationMs": 1,
           "location": {
             "line": 28,
             "column": 3
           }
         }
       ],
-      "durationMs": 258,
+      "durationMs": 254,
       "console": [
         {
           "stream": "stdout",
@@ -482,7 +482,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 1,
+          "durationMs": 0,
           "location": {
             "line": 9,
             "column": 29
@@ -500,7 +500,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 0,
+          "durationMs": 1,
           "location": {
             "line": 19,
             "column": 4
@@ -615,7 +615,7 @@
           }
         }
       ],
-      "durationMs": 300
+      "durationMs": 252
     },
     {
       "file": "fail.test.ts",
@@ -641,7 +641,7 @@
             }
           ],
           "passingAssertions": 0,
-          "durationMs": 3,
+          "durationMs": 4,
           "location": {
             "line": 2,
             "column": 3
@@ -687,7 +687,7 @@
             {
               "name": "Error",
               "message": "Error: expect(received).toThrow(expected)\n\nExpected substring: \"fizzle\"\nReceived message:   \"kaboom\"",
-              "userFrame": "<root>/fail.test.ts:12:13",
+              "userFrame": "<root>/fail.test.ts:13:8",
               "raw": "Error: expect(received).toThrow(expected)\n\nExpected substring: \"fizzle\"\nReceived message:   \"kaboom\"\n\n      10 |   it('toThrow with the wrong message', () => {\n      11 |     expect(() => {\n    > 12 |       throw new Error('kaboom')\n         |             ^\n      13 |     }).toThrow('fizzle')\n      14 |   })\n      15 |\n\n      at fail.test.ts:12:13\n      at Object.<anonymous> (../../../../node_modules/.pnpm/expect@30.5.2/node_modules/expect/build/index.js:1824:9)\n      at Object.throwingMatcher [as toThrow] (../../../../node_modules/.pnpm/expect@30.5.2/node_modules/expect/build/index.js:2235:93)\n      at Object.toThrow (fail.test.ts:13:8)\n    at Object.toThrow (/__root__/fail.test.ts:13:8)\n    at Promise.finally.completed (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)\n    at new Promise (<anonymous>)\n    at callAsyncCircusFn (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)\n    at _callCircusTest (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at _runTestInContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)\n    at runTestWithContext (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at _runTestsForDescribeBlockOnce (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1003:11)\n    at _runTestsForDescribeBlock (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)\n    at run (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)\n    at runAndTransformResultsToJestFormat (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)\n    at jestAdapter (/__repo__/node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/runner.js:111:19)\n    at runTestInternal (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:247:16)\n    at runTest (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:315:7)\n    at Object.worker (/__repo__/node_modules/.pnpm/jest-runner@30.5.2_supports-color@8.1.1/node_modules/jest-runner/build/testWorker.js:479:12)"
             }
           ],
@@ -792,7 +792,7 @@
           }
         }
       ],
-      "durationMs": 283
+      "durationMs": 263
     },
     {
       "file": "failing.test.ts",
@@ -835,14 +835,14 @@
           ],
           "passingAssertions": 1,
           "expectedToFail": true,
-          "durationMs": 0,
+          "durationMs": 1,
           "location": {
             "line": 8,
             "column": 1
           }
         }
       ],
-      "durationMs": 22
+      "durationMs": 32
     },
     {
       "file": "hooks.test.ts",
@@ -960,7 +960,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 0,
+          "durationMs": 1,
           "location": {
             "line": 46,
             "column": 3
@@ -985,7 +985,7 @@
           }
         }
       ],
-      "durationMs": 310
+      "durationMs": 282
     },
     {
       "file": "mock-fn.test.ts",
@@ -1021,7 +1021,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 1,
+          "durationMs": 0,
           "location": {
             "line": 13,
             "column": 3
@@ -1039,7 +1039,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 2,
-          "durationMs": 0,
+          "durationMs": 1,
           "location": {
             "line": 18,
             "column": 3
@@ -1089,7 +1089,7 @@
             }
           ],
           "passingAssertions": 0,
-          "durationMs": 1,
+          "durationMs": 0,
           "location": {
             "line": 30,
             "column": 3
@@ -1107,7 +1107,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 3,
-          "durationMs": 0,
+          "durationMs": 1,
           "location": {
             "line": 37,
             "column": 3
@@ -1125,7 +1125,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 2,
-          "durationMs": 1,
+          "durationMs": 0,
           "location": {
             "line": 46,
             "column": 3
@@ -1150,7 +1150,7 @@
           }
         }
       ],
-      "durationMs": 272
+      "durationMs": 304
     },
     {
       "file": "modules.test.ts",
@@ -1168,7 +1168,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 2,
+          "durationMs": 5,
           "location": {
             "line": 13,
             "column": 3
@@ -1186,7 +1186,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 0,
+          "durationMs": 1,
           "location": {
             "line": 17,
             "column": 3
@@ -1229,7 +1229,7 @@
           }
         }
       ],
-      "durationMs": 344
+      "durationMs": 295
     },
     {
       "file": "normalization-inputs.test.ts",
@@ -1254,7 +1254,7 @@
             }
           ],
           "passingAssertions": 0,
-          "durationMs": 2,
+          "durationMs": 6,
           "location": {
             "line": 9,
             "column": 3
@@ -1279,7 +1279,7 @@
             }
           ],
           "passingAssertions": 0,
-          "durationMs": 1,
+          "durationMs": 0,
           "location": {
             "line": 13,
             "column": 3
@@ -1429,7 +1429,7 @@
           }
         }
       ],
-      "durationMs": 280,
+      "durationMs": 316,
       "console": [
         {
           "stream": "stdout",
@@ -1524,7 +1524,7 @@
           }
         }
       ],
-      "durationMs": 20
+      "durationMs": 21
     },
     {
       "file": "pass.test.ts",
@@ -1560,7 +1560,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 1,
+          "durationMs": 0,
           "location": {
             "line": 6,
             "column": 3
@@ -1639,7 +1639,7 @@
           }
         }
       ],
-      "durationMs": 268
+      "durationMs": 247
     },
     {
       "file": "skip-todo.test.ts",
@@ -1758,14 +1758,14 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 1,
+          "durationMs": 0,
           "location": {
             "line": 23,
             "column": 1
           }
         }
       ],
-      "durationMs": 277
+      "durationMs": 260
     },
     {
       "file": "snapshots.test.ts",
@@ -1856,7 +1856,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 1,
+          "durationMs": 0,
           "location": {
             "line": 24,
             "column": 3
@@ -1881,7 +1881,7 @@
           }
         }
       ],
-      "durationMs": 285
+      "durationMs": 304
     },
     {
       "file": "timeout.test.ts",
@@ -1922,10 +1922,10 @@
             }
           ],
           "passingAssertions": 0,
-          "durationMs": 52
+          "durationMs": 53
         }
       ],
-      "durationMs": 86
+      "durationMs": 77
     },
     {
       "file": "timers.test.ts",
@@ -1943,7 +1943,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 2,
-          "durationMs": 4,
+          "durationMs": 3,
           "location": {
             "line": 10,
             "column": 3
@@ -1961,7 +1961,7 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 2,
-          "durationMs": 6,
+          "durationMs": 1,
           "location": {
             "line": 20,
             "column": 3
@@ -1979,14 +1979,14 @@
           "status": "passed",
           "errors": [],
           "passingAssertions": 1,
-          "durationMs": 0,
+          "durationMs": 1,
           "location": {
             "line": 27,
             "column": 3
           }
         }
       ],
-      "durationMs": 282
+      "durationMs": 270
     }
   ],
   "snapshots": {

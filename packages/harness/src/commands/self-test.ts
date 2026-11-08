@@ -26,6 +26,7 @@ import {
   EXPECTED_CRASH,
   PATH_PLACEHOLDERS,
   RECORDED_DIR,
+  recordedEnv,
   rewritePaths,
   SAMPLE_DIR,
   SAMPLE_SUITE,
@@ -46,11 +47,17 @@ const PACKAGE_DIR = path.resolve(import.meta.dirname, '..', '..')
 const WORK_ROOT = path.join(PACKAGE_DIR, '.record')
 const TRANSFORMER_PATH = fileURLToPath(new URL('../jest-transform.ts', import.meta.url))
 
+/**
+ * The sample's calibration rules: the spike's 3 and `div/runner-made-error-frame`, which Tyler
+ * added at B15 (D30 covers all four: no expiry, `--calibration` only).
+ */
+const SAMPLE_RULES = 4
+
 /** The rebuilt corpus's bar (Ground rules): at least the spike's 63 tests and 16 file keys. */
 const MIN_TESTS = 63
 const MIN_FILES = 16
 
-/** The calibrated comparison (Track 12 F3): matcher mode, console on, the sample's 3 rules. */
+/** The calibrated comparison (Track 12 F3): matcher mode, console on, the sample's rules. */
 const CALIBRATED: Omit<DiffOptions, 'exclusions'> = {
   messageMode: 'matcher',
   compareConsole: true,
@@ -212,7 +219,7 @@ function recordingOf(runner: 'jest' | 'vitest', run: SampleRun): Recording {
     rootDir: PATH_PLACEHOLDERS.root,
     suite: SAMPLE_SUITE,
     runnerVersion: result.runnerVersion,
-    env: result.run.env,
+    env: recordedEnv(runner, result.runnerVersion),
     snapshotFiles: result.run.snapshots?.files ?? [],
     console: parseSidecar(sidecar, `${runner}.console.jsonl`),
   }
@@ -351,7 +358,9 @@ function calibrationProblems(
   for (const id of ruleIds) {
     if (!used.has(id)) problems.push(`the rule ${id} matched no diff, so it is dead`)
   }
-  if (ruleIds.length !== 3) problems.push(`the sample has ${ruleIds.length} rules, not 3`)
+  if (ruleIds.length !== SAMPLE_RULES) {
+    problems.push(`the sample has ${ruleIds.length} rules, not ${SAMPLE_RULES}`)
+  }
   for (const [runner, run] of Object.entries(runs)) {
     const tests = run.files.reduce((sum, f) => sum + f.tests.length, 0)
     if (tests < MIN_TESTS) problems.push(`${runner} ran ${tests} tests, fewer than ${MIN_TESTS}`)
@@ -464,7 +473,7 @@ export async function selfTestCommand(command: SelfTestCommand, io: CommandIo): 
   const report = diffRuns(jest, vitest, { ...CALIBRATED, exclusions }, today)
   checks.push(
     check(
-      'calibrated parity is 100% with exactly the 3 sample rules',
+      `calibrated parity is 100% with exactly the ${SAMPLE_RULES} sample rules`,
       calibrationProblems(
         report,
         exclusions.map((rule) => rule.id),
