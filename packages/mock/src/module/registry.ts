@@ -120,6 +120,8 @@ class Registry implements ModuleMockRegistry {
   readonly #specifiers = new Map<string, string>()
   /** Ids whose value is being built (a factory still running or pending). */
   readonly #building = new Set<string>()
+  /** Ids whose automock's real load is running, at any scratch depth (`#automockOf`). */
+  readonly #automocking = new Set<string>()
   /** The ids whose factory the current call stack, or async continuation, is inside; made on the first factory. */
   #inside: AsyncLocalStorage<ReadonlySet<string>> | null = null
   #values = new Map<string, unknown>()
@@ -321,6 +323,7 @@ class Registry implements ModuleMockRegistry {
     this.#canonical.clear()
     this.#specifiers.clear()
     this.#building.clear()
+    this.#automocking.clear()
     this.#values.clear()
     this.#manual.clear()
     this.#overlay = null
@@ -477,8 +480,27 @@ class Registry implements ModuleMockRegistry {
         throw error
       }
     }
-    const actual = this.#scratch(() => options.loadActual(id, from, { scratch: true }))
-    return isThenable(actual) ? Promise.resolve(actual).then(build) : build(actual)
+    // Asked for again while its real load runs (two automocked modules that import each other):
+    // an empty automock stands in, as Jest's `_generateMock` seeds its metadata cache with
+    // `getMetadata({})` before it loads. `#scratch` doesn't swap this set, so it sees every level.
+    if (this.#automocking.has(id)) return build({})
+    this.#automocking.add(id)
+    let actual: unknown
+    try {
+      actual = this.#scratch(() => options.loadActual(id, from, { scratch: true }))
+    } catch (error) {
+      this.#automocking.delete(id)
+      throw error
+    }
+    if (!isThenable(actual)) {
+      this.#automocking.delete(id)
+      return build(actual)
+    }
+    return Promise.resolve(actual)
+      .finally(() => {
+        this.#automocking.delete(id)
+      })
+      .then(build)
   }
 
   /**

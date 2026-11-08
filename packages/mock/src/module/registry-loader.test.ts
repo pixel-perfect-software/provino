@@ -184,6 +184,41 @@ test('automock’s real load sees fresh mock values: a mocked dependency is buil
   assert.equal(registry.materialize(dep), outside, 'the file’s own value is untouched')
 })
 
+test('an automock asked for again while its real load runs gets an empty automock, not a loop (review High 5)', () => {
+  const tree = tempTree('provino-cycle-')
+  const a = tree.write('a.ts')
+  const b = tree.write('b.ts')
+  const loads: string[] = []
+  const policy = { ...jestLike, automock: true }
+  let seenFromB: unknown
+  const registry = createModuleMockRegistry({
+    policy,
+    mockPolicy: neutral,
+    mocks: createMockRegistry(),
+    resolver: fakeResolver({ './a': a, './b': b }),
+    roots: [tree.dir],
+    extensions: ['.ts'],
+    // a's real load imports b, and b's imports a: each goes through decide and materialize.
+    loadActual: (id) => {
+      loads.push(id)
+      if (id === a) {
+        const decision = registry.decide(b, a, 'cjs', './b')
+        if (decision.mocked) registry.materialize(decision.id)
+        return { fa: () => 'a' }
+      }
+      const decision = registry.decide(a, b, 'cjs', './a')
+      if (decision.mocked) seenFromB = registry.materialize(decision.id)
+      return { fb: () => 'b' }
+    },
+  })
+  const mocked = registry.materialize(a) as { fa: () => unknown }
+  assert.equal(mocked.fa(), undefined)
+  assert.deepEqual(loads, [a, b], 'each real module loaded once')
+  assert.deepEqual(seenFromB, {}, 'b saw an empty automock of a, mid-build')
+  // After the build, a is a real automock again for every caller.
+  assert.equal(typeof (registry.materialize(a) as { fa?: unknown }).fa, 'function')
+})
+
 test('under an async actual, only the synchronous part of the load sees the scratch values', async () => {
   const tree = tempTree('provino-scratch-async-')
   const auto = tree.write('auto.ts')
