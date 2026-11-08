@@ -15,6 +15,7 @@
       "!.dependency-cruiser.json",
       "!tooling/boundaries/generated",
       "!**/__goldens__",
+      "!**/__recorded__",
       "!**/vendor"
     ]
   },

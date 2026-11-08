@@ -1,0 +1,28 @@
+{
+  "rules": [
+    {
+      "id": "div/beforeAll-failure-status",
+      "reason": "Tests under a failing beforeAll: Jest 30.5 fails each one with the hook's error, Vitest 5.0 skips them (Track 12 F3). An inherent difference between the two runners, so it has no expiry (DECISIONS D30).",
+      "kinds": ["status"],
+      "keyGlob": "hooks.test.ts::a failing beforeAll › *",
+      "pair": ["jest", "vitest"],
+      "policyKey": "core.hooks.beforeAllError"
+    },
+    {
+      "id": "div/mockReset-restores-impl",
+      "reason": "mockReset() on fn(impl): Jest 30.5 leaves an empty function, Vitest 5.0 restores the implementation (Track 12 F3). An inherent difference between the two runners, so it has no expiry (DECISIONS D30).",
+      "kinds": ["status"],
+      "keyGlob": "mock-fn.test.ts::mockReset › *",
+      "pair": ["jest", "vitest"],
+      "policyKey": "mock.resetTo"
+    },
+    {
+      "id": "div/snapshot-file-format",
+      "reason": "The .snap file each runner writes: header, key and hint joins, and the thrown-error format differ (`// Jest Snapshot v1`, `a b 1`, `\"kaboom\"` against `// Vitest Snapshot v1`, `a > b 1`, `[Error: kaboom]`; Track 12 F3). An inherent difference between the two runners, so it has no expiry (DECISIONS D30).",
+      "kinds": ["snapshot"],
+      "keyGlob": "__snapshots__/snapshots.test.ts.snap",
+      "pair": ["jest", "vitest"],
+      "policyKey": "snapshot.header"
+    }
+  ]
+}

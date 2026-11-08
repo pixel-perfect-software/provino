@@ -1,0 +1,11 @@
+{"file":"/__root__/console.test.ts","stream":"stdout","text":"beforeAll: output outside any test\n"}
+{"file":"/__root__/console.test.ts","test":{"path":["console","logs at every level"],"dupIndex":0},"stream":"stdout","text":"log line 1\ninfo line\ndebug line\n"}
+{"file":"/__root__/console.test.ts","test":{"path":["console","logs at every level"],"dupIndex":0},"stream":"stderr","text":"warn line\nerror line\n"}
+{"file":"/__root__/console.test.ts","test":{"path":["console","logs at every level"],"dupIndex":0},"stream":"stdout","text":"afterEach two\n"}
+{"file":"/__root__/console.test.ts","test":{"path":["console","logs at every level"],"dupIndex":0},"stream":"stdout","text":"afterEach one\n"}
+{"file":"/__root__/console.test.ts","test":{"path":["console","splits a multi-line write into lines"],"dupIndex":0},"stream":"stdout","text":"first\nsecond\nthird\n"}
+{"file":"/__root__/console.test.ts","test":{"path":["console","splits a multi-line write into lines"],"dupIndex":0},"stream":"stdout","text":"afterEach two\n"}
+{"file":"/__root__/console.test.ts","test":{"path":["console","splits a multi-line write into lines"],"dupIndex":0},"stream":"stdout","text":"afterEach one\n"}
+{"file":"/__root__/console.test.ts","test":{"path":["console","logs nothing itself"],"dupIndex":0},"stream":"stdout","text":"afterEach two\n"}
+{"file":"/__root__/console.test.ts","test":{"path":["console","logs nothing itself"],"dupIndex":0},"stream":"stdout","text":"afterEach one\n"}
+{"file":"/__root__/normalization-inputs.test.ts","test":{"path":["text the normalization rules exist for","prints the same kinds of text"],"dupIndex":0},"stream":"stdout","text":"\u001b[32mgreen\u001b[39m\nurl file:///__root__/normalization-inputs.test.ts\nid 123e4567-e89b-12d3-a456-426614174000 at 0x00007ffd5e8c1a40\nwrote /tmp/x/out.txt\ndone (3 ms)\nwindows line\r\nend\n"}
