@@ -54,6 +54,11 @@ export interface ExclusionRule {
   /** Only for this `[reference runner, candidate runner]` pair. Default: every pair. */
   readonly pair?: readonly [RunnerId, RunnerId]
   readonly expires?: string
+  /**
+   * The policy key whose dialect values explain the difference, where one does (Track 12 R2), as
+   * its path in the policy: `core.hooks.beforeAllError`, `mock.resetTo`.
+   */
+  readonly policyKey?: string
 }
 
 /**
@@ -69,6 +74,11 @@ export interface DiffOptions {
   readonly compareConsole: boolean
   readonly compareTrace: boolean
   readonly exclusions: readonly ExclusionRule[]
+  /**
+   * Test keys whose reference status is flaky (Track 12 R1: it differs across reference runs).
+   * They are left out of T, and nothing about them is reported as a diff. Default: none.
+   */
+  readonly flaky?: readonly string[]
 }
 
 /**
@@ -125,11 +135,13 @@ export interface ParityCounts {
   /** |T|: the reference tests left after exclusions. */
   readonly comparedTests: number
   /**
-   * |E|: the reference tests an exclusion removed from T, by an excluded `status` or
-   * `missing-in-candidate` diff (`referenceTests - comparedTests`). An excluded error diff keeps
-   * its test in T, so it does not count here.
+   * |E|: the reference tests removed from T (`referenceTests - comparedTests`): the flaky ones,
+   * and those with an excluded `status` or `missing-in-candidate` diff. An excluded error diff
+   * keeps its test in T, so it does not count here.
    */
   readonly excluded: number
+  /** The reference tests in E because `DiffOptions.flaky` names them. */
+  readonly flaky: number
   /** Tests that only the candidate has. Reported, never counted. */
   readonly candidateOnlyTests: number
   /** Tests in T whose status matches. */
@@ -200,6 +212,12 @@ const KIND_ORDER: readonly DiffKind[] = [
   'trace',
   'snapshot',
 ]
+
+/**
+ * Every diff kind, in the order a report lists them.
+ * @public
+ */
+export const DIFF_KINDS: readonly DiffKind[] = KIND_ORDER
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -282,12 +300,22 @@ function add(
   })
 }
 
+/**
+ * A Provino candidate reports what Jest's JSON reports (matcher names, passing-assertion counts),
+ * so one that leaves a field out is a difference; Vitest's JSON has neither field, so for any other
+ * candidate a missing field can't disagree. Read by name only here, in a dev package (S4).
+ */
+function holdsToEveryField(cand: NormalizedRun): boolean {
+  return cand.runner.startsWith('provino:')
+}
+
 function diffErrors(
   out: ParityDiff[],
   key: string,
   ref: readonly NormalizedError[],
   cand: readonly NormalizedError[],
   mode: DiffOptions['messageMode'],
+  strict: boolean,
 ): void {
   if (ref.length !== cand.length) {
     add(out, key, 'error-count', String(ref.length), String(cand.length))
@@ -300,12 +328,12 @@ function diffErrors(
     if (mode === 'exact' && r.message !== c.message) {
       add(out, key, 'message', r.message, c.message, index)
     }
-    // A runner that reports no matcher name (Vitest's JSON) can't disagree about it.
+    // A runner that reports no matcher name (Vitest's JSON) can't disagree about it; a Provino
+    // candidate that names none where the reference names one does.
     if (
       mode === 'matcher' &&
       r.matcher !== undefined &&
-      c.matcher !== undefined &&
-      r.matcher !== c.matcher
+      (c.matcher === undefined ? strict : r.matcher !== c.matcher)
     ) {
       add(out, key, 'matcher', r.matcher, c.matcher, index)
     }
@@ -344,18 +372,25 @@ function diffTest(
   r: NormalizedTest,
   c: NormalizedTest,
   options: DiffOptions,
+  strict: boolean,
 ): void {
   if (r.status !== c.status) add(out, key, 'status', r.status, c.status)
   if (r.status === 'failed' && c.status === 'failed') {
-    diffErrors(out, key, r.errors, c.errors, options.messageMode)
+    diffErrors(out, key, r.errors, c.errors, options.messageMode, strict)
   }
-  // Only a runner that counts assertions (Jest, and Provino's Jest dialect) can disagree.
+  // Only a runner that counts assertions (Jest, and Provino's Jest dialect) can disagree; a
+  // Provino candidate that has no count where the reference has one disagrees too.
   if (
     r.passingAssertions !== undefined &&
-    c.passingAssertions !== undefined &&
-    r.passingAssertions !== c.passingAssertions
+    (c.passingAssertions === undefined ? strict : r.passingAssertions !== c.passingAssertions)
   ) {
-    add(out, key, 'passing-assertions', String(r.passingAssertions), String(c.passingAssertions))
+    add(
+      out,
+      key,
+      'passing-assertions',
+      String(r.passingAssertions),
+      c.passingAssertions === undefined ? undefined : String(c.passingAssertions),
+    )
   }
 }
 
@@ -464,50 +499,54 @@ export function diffRuns(
   today: string = new Date().toISOString().slice(0, 10),
 ): ParityReport {
   const { active, expired } = compileRules(options.exclusions, checkDate(today, 'today'))
-  const raw: ParityDiff[] = []
+  const found: ParityDiff[] = []
   const refTests = indexTests(ref, 'reference')
   const candTests = indexTests(cand, 'candidate')
   const candFiles = new Map(cand.files.map((f) => [f.file, f]))
   const refFileNames = new Set(ref.files.map((f) => f.file))
+  const strict = holdsToEveryField(cand)
+  const flaky = new Set(options.flaky ?? [])
 
   for (const [key, r] of refTests) {
     const c = candTests.get(key)
-    if (c === undefined) add(raw, key, 'missing-in-candidate', r.status, undefined)
-    else diffTest(raw, key, r, c, options)
+    if (c === undefined) add(found, key, 'missing-in-candidate', r.status, undefined)
+    else diffTest(found, key, r, c, options, strict)
   }
   for (const [key, c] of candTests) {
-    if (!refTests.has(key)) add(raw, key, 'missing-in-reference', undefined, c.status)
+    if (!refTests.has(key)) add(found, key, 'missing-in-reference', undefined, c.status)
   }
 
   for (const rf of ref.files) {
     const cf = candFiles.get(rf.file)
     if (cf === undefined) {
-      add(raw, rf.file, 'file-status', rf.status, 'missing')
+      add(found, rf.file, 'file-status', rf.status, 'missing')
       continue
     }
     if (rf.status !== cf.status) {
-      add(raw, rf.file, 'file-status', rf.status, cf.status)
+      add(found, rf.file, 'file-status', rf.status, cf.status)
     }
-    if (options.compareConsole) diffConsole(raw, rf, cf, candTests)
+    if (options.compareConsole) diffConsole(found, rf, cf, candTests)
     if (options.compareTrace) {
       const refTrace = traceLines(rf.trace)
       const candTrace = traceLines(cf.trace)
       if (!sameSequence(refTrace, candTrace)) {
-        add(raw, rf.file, 'trace', joined(refTrace), joined(candTrace))
+        add(found, rf.file, 'trace', joined(refTrace), joined(candTrace))
       }
     }
   }
   for (const cf of cand.files) {
     if (!refFileNames.has(cf.file)) {
-      add(raw, cf.file, 'file-status', 'missing', cf.status)
+      add(found, cf.file, 'file-status', 'missing', cf.status)
     }
   }
-  diffSnapshots(raw, ref, cand)
+  diffSnapshots(found, ref, cand)
 
   const pair = [ref.runner, cand.runner] as const
   const failing: ParityDiff[] = []
   const excluded: ExcludedDiff[] = []
-  for (const diff of raw) {
+  // A flaky test is out of parity altogether (R1): its diffs are neither failing nor excluded.
+  // Test keys hold `::` and file keys don't, so this never drops a file's diff.
+  for (const diff of found.filter((d) => !flaky.has(d.key))) {
     const ruleId = matchRule(diff, active, pair)
     if (ruleId === undefined) failing.push(diff)
     else excluded.push({ ...diff, ruleId })
@@ -520,7 +559,8 @@ export function diffRuns(
   const statusFailing = keysOf(failing, STATUS_FAMILY)
   const messageFailing = keysOf(failing, MESSAGE_FAMILY)
 
-  const compared = [...refTests].filter(([key]) => !statusExcluded.has(key))
+  const compared = [...refTests].filter(([key]) => !statusExcluded.has(key) && !flaky.has(key))
+  const flakyInReference = [...refTests.keys()].filter((key) => flaky.has(key)).length
   const statusMatched = compared.filter(([key]) => !statusFailing.has(key)).length
   // A test leaves F only when every one of its message-family diffs is excluded. An excluded
   // `message` diff must not hide a failing `user-frame`, `matcher` or `error-count` diff.
@@ -551,6 +591,7 @@ export function diffRuns(
       referenceTests: refTests.size,
       comparedTests: compared.length,
       excluded: refTests.size - compared.length,
+      flaky: flakyInReference,
       candidateOnlyTests: [...candTests.keys()].filter((key) => !refTests.has(key)).length,
       statusMatched,
       failedInBoth: failedInBoth.length,
