@@ -81,7 +81,7 @@ const DECLARED: Readonly<Record<string, Declared>> = {
       line: '{"id":"a change made through the re-exported function is seen by all three","value":{"source":3,"reExported":3,"importedThenExported":3}}',
     },
   // Jest 30.5.2 runs a test file in a vm script, and an `import()` that its transformer leaves
-  // as written (babel-jest, with or without the CommonJS plugin) throws without
+  // as written (babel-jest with the CommonJS plugin, as this fixture records it) throws without
   // `--experimental-vm-modules`. We load it, as Vitest does (B13c Gap 6); a Jest-green suite never
   // has this, so nothing green turns red (D7).
   'mocking/mod-dynamic-only (jest) import() from a file with no other module syntax loads the module and its imports':
@@ -161,6 +161,7 @@ for (const fixture of fixtures) {
         if (crash !== undefined) {
           assert.equal(goldenFile.status, 'crashed', 'the golden crashed')
           assert.equal(run.fileStatus, 'crashed', 'the file crashed here too')
+          assert.equal(run.tests.length, 0, 'a crashed file ran no test')
           const wanted = goldenFile.fileError?.message ?? ''
           assert.ok(wanted.includes(crash), `the golden's fileError holds "${crash}"`)
           // The cause line, not a substring: the first line after Jest's header, `<root>` applied.
@@ -214,6 +215,8 @@ const IN_PROCESS_ONLY: Readonly<Record<string, string>> = {
 
 /** A forked worker boots per fixture, so the deadline is the in-process one, doubled. */
 const E2E_TIMEOUT_MS = TIMEOUT_MS * 2
+/** How long before the test's deadline its run is aborted, so the abort and cleanup can finish. */
+const E2E_ABORT_MARGIN_MS = 5_000
 
 const jestFixtures = fixtures.filter((fixture) => fixture.manifest.runners.includes('jest'))
 const e2eSeen = new Set<string>()
@@ -233,13 +236,15 @@ describe('e2e: each Jest mod fixture through provino/node run() and a forked wor
   for (const fixture of jestFixtures) {
     if (Object.hasOwn(IN_PROCESS_ONLY, fixture.id)) continue
     test(fixture.id, { timeout: E2E_TIMEOUT_MS }, async () => {
+      // The run stops (its worker killed, the trace variable put back) before the test's deadline.
+      const signal = AbortSignal.timeout(E2E_TIMEOUT_MS - E2E_ABORT_MARGIN_MS)
       const files = testFilesFor(fixture.files, 'jest')
       const [testFile] = files
       assert.ok(testFile !== undefined && files.length === 1, 'one test file')
       const golden = await readGolden(fixture.dir, 'jest')
       const [goldenFile] = golden.files
       assert.ok(goldenFile !== undefined && golden.files.length === 1, 'one golden file')
-      const run = await runModEndToEnd(fixture, testFile)
+      const run = await runModEndToEnd(fixture, testFile, signal)
       const [ranFile] = run.normalized.files
       assert.ok(
         ranFile !== undefined && run.normalized.files.length === 1,
@@ -250,6 +255,8 @@ describe('e2e: each Jest mod fixture through provino/node run() and a forked wor
       if (crash !== undefined) {
         assert.equal(goldenFile.status, 'crashed', 'the golden crashed')
         assert.equal(ranFile.status, 'crashed', 'the file crashed here too')
+        assert.equal(ranFile.tests.length, 0, 'a crashed file ran no test')
+        assert.equal(run.exitCode, 1, 'the exit code')
         const cause = (line: string): string => line.replace(/^[A-Za-z]*Error: /, '')
         const raised = cause(
           causeText((ranFile.fileError?.message ?? '').replaceAll(run.root, '<root>')),
@@ -316,13 +323,10 @@ async function disagreeing(
   for (const fixture of fixtures) {
     if (!fixture.manifest.runners.includes(profile)) continue
     if (fixture.manifest.expectCrash?.[profile] !== undefined) continue
-    let trace: readonly string[] = []
     const wanted = (await readGolden(fixture.dir, profile)).trace ?? []
-    try {
-      trace = (await runFixture(fixture, profile, sabotage)).run.trace
-    } catch {
-      // A fixture that cannot even load under the broken engine disagrees on every case.
-    }
+    // Nothing is caught: a file that fails to load under the broken engine is a collection error
+    // in the run, which disagrees on its cases by itself, so a throw here is the harness's own.
+    const { trace } = (await runFixture(fixture, profile, sabotage)).run
     for (const result of compareObservations(wanted, trace)) {
       total++
       if (!result.matches) differing++
@@ -341,7 +345,9 @@ for (const sabotage of ['inert', 'wrong-values'] as const) {
       timeout: TIMEOUT_MS * 4,
     }, async () => {
       const { differing, total } = await disagreeing(profile, sabotage)
-      assert.ok(total > 0)
+      // Every counted case was compared, and the broken engine observed no case of its own (a
+      // crashed golden observes none, so leaving those files out leaves the total whole).
+      assert.equal(total, EXPECTED_COUNTED[profile], 'every counted case was compared')
       assert.equal(
         differing,
         EXPECTED_DISAGREEING[sabotage][profile],

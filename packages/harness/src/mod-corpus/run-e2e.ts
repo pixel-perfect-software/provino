@@ -43,10 +43,18 @@ function collector(): { readonly stream: Writable; text(): string } {
 /**
  * Runs `testFile` (relative to the fixture) through `run()` with the Jest dialect: one forked
  * worker, the normalized-json reporter, no results cache, and the recorder's `trace-setup.ts` and
- * `observe-setup.ts` as the config's `setupFiles`.
+ * `observe-setup.ts` as the config's `setupFiles`. `signal` stops the run (its worker is killed)
+ * before the caller's own deadline, so a run that hangs never outlives its test.
  */
-export async function runModEndToEnd(fixture: Fixture, testFile: string): Promise<ModEndToEnd> {
+export async function runModEndToEnd(
+  fixture: Fixture,
+  testFile: string,
+  signal: AbortSignal,
+): Promise<ModEndToEnd> {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'provino-mod-e2e-')))
+  // A forked worker inherits the environment it is spawned with: the trace setup reads its file
+  // from here, as the recorder sets it for the real runners. Put back with the work directory.
+  const previous = process.env[TRACE_ENV]
   try {
     await copyFixture(fixture, root)
     await installPackages(fixture, root)
@@ -69,30 +77,25 @@ export async function runModEndToEnd(fixture: Fixture, testFile: string): Promis
     const outputFile = path.join(root, 'normalized.json')
     const stdout = collector()
     const stderr = collector()
-    // A forked worker inherits the environment it is spawned with: the trace setup reads its file
-    // from here, as the recorder sets it for the real runners.
-    const previous = process.env[TRACE_ENV]
     process.env[TRACE_ENV] = traceFile
-    let exitCode: number
-    try {
-      ;({ exitCode } = await run({
-        config,
-        cwd: root,
-        pool: 'forks',
-        maxWorkers: 1,
-        cache: false,
-        ci: true,
-        reporters: [['normalized-json', { outputFile }]],
-        stdout: stdout.stream,
-        stderr: stderr.stream,
-      }))
-    } finally {
-      if (previous === undefined) Reflect.deleteProperty(process.env, TRACE_ENV)
-      else process.env[TRACE_ENV] = previous
-    }
+    const { exitCode } = await run({
+      config,
+      cwd: root,
+      pool: 'forks',
+      maxWorkers: 1,
+      cache: false,
+      ci: true,
+      reporters: [['normalized-json', { outputFile }]],
+      stdout: stdout.stream,
+      stderr: stderr.stream,
+      signal,
+    })
+    signal.throwIfAborted()
     const normalized = parseNormalizedRun(await readFile(outputFile, 'utf8'), outputFile)
     return { exitCode, normalized, trace: await readTrace(traceFile), root, stderr: stderr.text() }
   } finally {
+    if (previous === undefined) Reflect.deleteProperty(process.env, TRACE_ENV)
+    else process.env[TRACE_ENV] = previous
     await rm(root, { recursive: true, force: true })
   }
 }
