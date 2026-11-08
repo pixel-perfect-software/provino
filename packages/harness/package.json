@@ -49,7 +49,6 @@
     "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/resolver": "workspace:*",
-    "@provino/snapshot": "workspace:*",
     "@provino/transform": "workspace:*",
     "@vitest/mocker": "catalog:",
     "babel-jest": "catalog:",

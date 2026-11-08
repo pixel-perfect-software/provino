@@ -330,8 +330,6 @@ describe('the policy values B08 builds', () => {
 
   for (const [key, override] of [
     ['errorShape', { errorShape: 'assertion-error' }],
-    ['equality.errors', { equality: { errors: 'assert', invalidDate: 'unequal' } }],
-    ['equality.invalidDate', { equality: { errors: 'message', invalidDate: 'equal' } }],
     ['soft', { soft: true }],
     ['poll', { poll: { enabled: true, intervalMs: 50, timeoutMs: 1000 } }],
     ['requireAssertions', { requireAssertions: true }],

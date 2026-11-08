@@ -2,6 +2,7 @@
 // the asymmetric matchers, `this.utils` and every message through an `ExpectTable`.
 export { AsymmetricMatcher } from './asymmetric.ts'
 export type { MatcherContext } from './context.ts'
+export { equalityTesters } from './equality.ts'
 export { ExpectError, type ExpectErrorCode } from './errors.ts'
 export { type CreateExpectOptions, createExpect, MatcherResultError } from './expect.ts'
 export {

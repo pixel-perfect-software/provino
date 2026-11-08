@@ -138,8 +138,9 @@ export interface SnapshotPolicy {
   /** Snapshot serializer modules, each with a default-exported pretty-format plugin. Jest: user list. Vitest: user list. research: track-01 L219 */
   readonly serializers: readonly string[]
   /**
-   * Whether obsolete snapshots fail the run, locally and in CI. Track 1 lists `report` for both;
-   * Track 7's detail is used. Jest: `true` / `true`. Vitest: `false` / `true`.
+   * Whether obsolete snapshots fail the run, locally (update mode `new`) and when nothing may be
+   * written (`none`, CI); a run that rewrites (`all`, `-u`) never fails on them. Track 1 lists
+   * `report` for both; Track 7's detail is used. Jest: `true` / `true`. Vitest: `false` / `true`.
    * research: track-01 L220, track-07 L472
    */
   readonly obsolete: { readonly failLocal: boolean; readonly failCI: boolean }

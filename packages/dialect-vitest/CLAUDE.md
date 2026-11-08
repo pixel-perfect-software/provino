@@ -9,7 +9,9 @@ The Vitest 5.0 dialect (B14a: T1.8's Vitest half, T11.1, T11.2). Policy values, 
 | `src/dialect.ts` | `.` | `vitestPolicy` (a `PolicyOverrides` with Vitest's `sequence.hooks: 'stack'` default), `vitestDialect` (`name`, `version: '5.0'`, `policy`, `globals` with the 19 names of Vitest's `globalApis` and a factory ref to `/runtime`'s `vitestGlobals`, `loader.hoist`, `typeEntries: ['@provino/dialect-vitest/runtime']`), and the `DialectRegistry` augmentation (`vitest: VitestDialectOptions`, `Record<string, never>` until the config reader). |
 | `src/mock-policy.ts` | `.` | `vitestMockPolicy` and `vitestModulePolicy`, moved here from the harness's mock corpus (B13a, B13b recorded them). |
 | `src/hoist-policy.ts` | `.` | `vitestHoistPolicy`: `@vitest/mocker` 5.0.5's hoisting rules, moved from the harness (B13b). |
-| `src/runtime/index.ts` | `./runtime` | `vitestGlobals`, a stub that throws `VitestDialectError` `VITEST_DIALECT_NOT_BUILT`. |
+| `src/runtime/index.ts` | `./runtime` | `vitestGlobals`, a stub that throws `VitestDialectError` `VITEST_DIALECT_NOT_BUILT`; and `vitestSnapshotPrinter` (B17b, T7.10; `snapshot.printer`). |
+| `src/runtime/snapshot-printer.ts` | `./runtime` | The vendored `@vitest/pretty-format` with Vitest's `serialize` defaults and plugin order (the mock serializer last), and Vitest's words: a mismatch only names the key (its reporter draws the diff). |
+| `src/vendor/pretty-format/` | none | `@vitest/pretty-format` 5.0.5 and the snapshot mock serializer, vendored (its own `tsc -b` project, D17; see its `UPSTREAM.md` for the four patches: `.ts` imports, `tinyrainbow` inlined, the `ReactElement` plugin left out, the DOM names as loose types). B17a's `format`/`inspect` go beside it in `src/vendor/`. |
 | `src/node/index.ts` | `./node` | `vitestNodeDialect`: the dialect value itself, until the config reader and flags exist. |
 
 ## Where the values come from

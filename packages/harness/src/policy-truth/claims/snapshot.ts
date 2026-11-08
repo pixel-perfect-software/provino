@@ -61,13 +61,8 @@ export const snapshotClaims: Claims = {
       ])
     },
   }),
-  'snapshot.format.maxOutputLength': each(
-    golden('defaults'),
-    pending(
-      'B17b',
-      'a 128 MB cap no recorded run reaches; T7.9 checks it against @vitest/snapshot',
-    ),
-  ),
+  // Jest has no cap (`null`); Vitest's snapshot state holds 2**27, read from the state itself.
+  'snapshot.format.maxOutputLength': golden('snapshot-format'),
   'snapshot.serializers': golden('defaults'),
   'snapshot.obsolete.failCI': golden('snapshot-obsolete-ci', { read: (g) => exitCode(g) !== 0 }),
   'snapshot.obsolete.failLocal': golden('snapshot-obsolete-local', {
@@ -99,9 +94,48 @@ export const snapshotClaims: Claims = {
       ])
     },
   }),
-  'snapshot.inline': pending(
-    'B17b',
-    'inline snapshots are T7.10s; its fixture records the indent and the formatter',
+  // Where an inline snapshot goes when a runner writes it into the test file: indented to the call
+  // (Vitest), or at column 0 (Jest, when Prettier isn't there to indent it).
+  'snapshot.inline.indent': golden('snapshot/inline-written', {
+    read: (g) => {
+      const lines = capturedFile(g, 'inline-written.test.ts').split('\n')
+      const at = lines.findIndex((line) => line.includes('toMatchInlineSnapshot(`'))
+      const next = lines[at + 1]
+      if (at === -1 || next === undefined)
+        throw new Error(`${g.suite} (${g.runner}) wrote no inline snapshot`)
+      const callIndent = /^ */.exec(lines[at] ?? '')?.[0].length ?? 0
+      const bodyIndent = /^ */.exec(next)?.[0].length ?? 0
+      return oneOf(next, [
+        ['column0', bodyIndent === 0],
+        ['call', bodyIndent > callIndent],
+      ])
+    },
+  }),
+  'snapshot.inline.formatter': pending(
+    'T7.11',
+    'the formatter is Prettier, which Jest finds from the project and Vitest never runs; no fixture here has it, so the inline writer (T7.11) records one with Prettier installed',
+  ),
+  // Provino's own key: the dialect's pretty-format and words. `own` pins the ref and the test that
+  // loads it.
+  'snapshot.printer': each(
+    own(
+      'packages/dialect-jest/src/runtime/snapshot-printer.test.ts',
+      'printer',
+      {
+        module: import.meta.resolve('@provino/dialect-jest/runtime'),
+        export: 'jestSnapshotPrinter',
+      },
+      'Jest 30.5 pretty-format, its plugin order and its words: the snapshot corpus holds the bytes, this test the ref',
+    ),
+    own(
+      'packages/dialect-vitest/src/runtime/snapshot-printer.test.ts',
+      'printer',
+      {
+        module: import.meta.resolve('@provino/dialect-vitest/runtime'),
+        export: 'vitestSnapshotPrinter',
+      },
+      'the vendored @vitest/pretty-format 5.0.5, its plugin order and its words: the snapshot corpus holds the bytes, this test the ref',
+    ),
   ),
 }
 

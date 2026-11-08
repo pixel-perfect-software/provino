@@ -1,0 +1,4 @@
+{
+  "description": "Spike C's 18 cross-realm cases, rebuilt (Track 7 F4, T7.7): values made in a vm context and compared with equal values made here, one assertion per test. Jest judges them by the value's class; Vitest reads the constructor or instanceof for toStrictEqual, Map, Set, expect.any(Array) and a strict Error.",
+  "runners": ["jest", "vitest"]
+}

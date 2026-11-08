@@ -609,9 +609,6 @@ importers:
       '@provino/resolver':
         specifier: workspace:*
         version: link:../resolver
-      '@provino/snapshot':
-        specifier: workspace:*
-        version: link:../snapshot
       '@provino/transform':
         specifier: workspace:*
         version: link:../transform

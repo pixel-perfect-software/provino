@@ -3,7 +3,13 @@
 // `jest-snapshot` (`plugins.ts`, `utils.ts` `serialize`, `index.ts`'s messages); Provino does
 // not import `jest-snapshot` at runtime (T7.12's ban), so what it needs is here and in `vendor/`.
 import type { SnapshotMessageInfo, SnapshotMessages, SnapshotPrinter } from '@provino/types'
-import { BOLD_WEIGHT, matcherHint, printDiffOrStringify, RECEIVED_COLOR } from 'jest-matcher-utils'
+import {
+  BOLD_WEIGHT,
+  diff,
+  matcherHint,
+  printDiffOrStringify,
+  RECEIVED_COLOR,
+} from 'jest-matcher-utils'
 import { format, type OptionsReceived, type Plugin, plugins } from 'pretty-format'
 import jestMockSerializer from './vendor/jest-snapshot/mockSerializer.ts'
 
@@ -65,33 +71,32 @@ function hintOf(info: SnapshotMessageInfo, updatable: boolean): string {
 }
 
 // provino: Jest's `printSnapshotAndReceived` and `printPropertiesAndReceived` (printSnapshot.ts)
-// are not vendored. The diff is `jest-matcher-utils`' `printDiffOrStringify`, which labels it
-// `Snapshot` and `Received` as theirs does but lays a single-line difference out as two labelled
-// lines. DIVERGENCES lists it; the corpus compares `.snap` bytes and exit codes, not this text.
+// are not vendored. A snapshot's diff is `jest-diff`'s, labelled `Snapshot` and `Received` as
+// theirs is, without their colouring of the changed parts; properties use `printDiffOrStringify`.
+// DIVERGENCES lists it; the corpus compares `.snap` bytes and exit codes, not this text.
 const messages: SnapshotMessages = {
   mismatch(info): string {
-    const diff = printDiffOrStringify(
-      info.expected ?? '',
-      info.actual,
-      'Snapshot',
-      'Received',
-      info.expand,
-    )
-    return `${hintOf(info, true)}\n\n${snapshotName(info)}\n\n${diff}`
+    const difference =
+      diff(info.expected ?? '', info.actual, {
+        aAnnotation: 'Snapshot',
+        bAnnotation: 'Received',
+        expand: info.expand,
+      }) ?? ''
+    return `${hintOf(info, true)}\n\n${snapshotName(info)}\n\n${difference}`
   },
   notWritten(info): string {
     const received = `Received:${info.actual.includes('\n') ? '\n' : ' '}${RECEIVED_COLOR.bold(info.actual)}`
     return `${hintOf(info, true)}\n\n${snapshotName(info)}\n\n${NOT_WRITTEN}\n\n${received}`
   },
   propertiesMismatch(info): string {
-    const diff = printDiffOrStringify(
+    const difference = printDiffOrStringify(
       info.properties,
       info.received,
       'Expected properties',
       'Received value',
       info.expand,
     )
-    return `${hintOf(info, false)}\n\n${snapshotName(info)}\n\n${diff}`
+    return `${hintOf(info, false)}\n\n${snapshotName(info)}\n\n${difference}`
   },
 }
 

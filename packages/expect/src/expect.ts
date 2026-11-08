@@ -26,6 +26,7 @@ import type {
   SnapshotPlugin,
 } from '@provino/types'
 import type { MatcherContext } from './context.ts'
+import { equalityTesters } from './equality.ts'
 import { ExpectError } from './errors.ts'
 import { createMatcherRegistry, type MatcherRegistry } from './slot.ts'
 import { addSnapshotSerializer } from './snapshot-matchers.ts'
@@ -96,6 +97,8 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   checkPolicy(policy)
   const registry = options.registry ?? createMatcherRegistry()
   registry.utils = table.utils
+  // T7.7: the policy's equality rules go ahead of Jest's `equals` and of the user's testers.
+  registry.customEqualityTesters.push(...equalityTesters(policy.equality))
   const { messages } = table
   /** The table's promise forms: dialect code, so their errors are re-anchored like built-ins'. */
   const promiseForms = new WeakSet<Matcher>(Object.values(table.promiseMatchers))
@@ -394,9 +397,6 @@ function checkPolicy(policy: ExpectPolicy): void {
   }
   if (policy.errorShape !== 'matcher-result')
     missing.push(`errorShape: '${policy.errorShape}' (T7.6)`)
-  if (policy.equality.errors !== 'message') missing.push(`equality.errors: 'assert' (T7.7)`)
-  if (policy.equality.invalidDate !== 'unequal')
-    missing.push(`equality.invalidDate: 'equal' (T7.7)`)
   if (policy.soft) missing.push('soft (T7.8)')
   if (policy.poll.enabled) missing.push('poll (T7.8)')
   if (policy.requireAssertions) missing.push('requireAssertions (T7.8)')
