@@ -50,9 +50,11 @@
     "@provino/policy": "workspace:*",
     "@provino/rpc": "workspace:*",
     "@provino/types": "workspace:*",
+    "picomatch": "catalog:",
     "tinyglobby": "catalog:"
   },
   "devDependencies": {
-    "@provino/reporters": "workspace:*"
+    "@provino/reporters": "workspace:*",
+    "@types/picomatch": "catalog:"
   }
 }

@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "expect": "catalog:",
+    "jest-cli": "catalog:",
     "jest-config": "catalog:",
     "jest-mock": "catalog:"
   }
