@@ -49,12 +49,49 @@ function interopDefault(value: unknown): unknown {
 }
 
 /**
+ * Imports a config module and returns its default export, unwrapped as `interopRequireDefault`
+ * does for a CommonJS file compiled from `export default`. The shared loading step of every config
+ * file Provino reads (build-plan §6: `provino.config.*` here, `jest.config.*` in the Jest dialect).
+ * Node's own loader reads the file, so `.mjs`, `.js` (per the nearest `package.json`'s `type`),
+ * `.mts` and `.ts` load as Node loads them (type stripping needs Node 22.18+, or
+ * `--experimental-strip-types`). Every call reads the file again (see `freshUrl`).
+ *
+ * A module with no default export is `CONFIG_INVALID`, unless `withoutDefault` is `'namespace'`:
+ * then its namespace is the value, as `require()` of such a module gives it (Jest reads a
+ * `jest.config.ts` with only named exports that way).
+ *
+ * Throws `ConfigError`: `CONFIG_LOAD_FAILED` when the import throws (the error is the `cause`),
+ * `CONFIG_INVALID` when the module has no default export (see above).
+ * @public
+ */
+export async function importConfigModule(
+  path: string,
+  options: { readonly withoutDefault?: 'error' | 'namespace' } = {},
+): Promise<unknown> {
+  const file = resolve(path)
+  let namespace: unknown
+  try {
+    namespace = await import(freshUrl(file))
+  } catch (cause) {
+    throw new ConfigError('CONFIG_LOAD_FAILED', `can't load the config file "${file}"`, { cause })
+  }
+  if (isRecord(namespace) && !('default' in namespace) && options.withoutDefault === 'namespace') {
+    return namespace
+  }
+  if (!isRecord(namespace) || !('default' in namespace)) {
+    throw new ConfigError(
+      'CONFIG_INVALID',
+      `the config file "${file}" has no default export; use "export default { … }"`,
+    )
+  }
+  return interopDefault(namespace.default)
+}
+
+/**
  * Imports a config file and returns what its default export gives: the object itself, or what a
- * function (sync or async) returns when called with `env`. Node's own loader reads the file, so
- * `.mjs`, `.js` (per the nearest `package.json`'s `type`), `.mts` and `.ts` load as Node loads
- * them (type stripping needs Node 22.18+, or `--experimental-strip-types`). Every call reads the
- * file again, so a file edited between two calls in one process gives the new contents (the
- * modules it imports are still cached by Node).
+ * function (sync or async) returns when called with `env`. The import is `importConfigModule`'s,
+ * so a file edited between two calls in one process gives the new contents (the modules it
+ * imports are still cached by Node).
  *
  * Throws `ConfigError`: `CONFIG_LOAD_FAILED` when the import or the function throws (the error is
  * the `cause`), `CONFIG_INVALID` when there is no default export or it doesn't give an object. The
@@ -63,19 +100,7 @@ function interopDefault(value: unknown): unknown {
  */
 export async function loadConfigFile(path: string, env: ConfigEnv): Promise<ProvinoConfigInput> {
   const file = resolve(path)
-  let namespace: unknown
-  try {
-    namespace = await import(freshUrl(file))
-  } catch (cause) {
-    throw new ConfigError('CONFIG_LOAD_FAILED', `can't load the config file "${file}"`, { cause })
-  }
-  if (!isRecord(namespace) || !('default' in namespace)) {
-    throw new ConfigError(
-      'CONFIG_INVALID',
-      `the config file "${file}" has no default export; use "export default { … }"`,
-    )
-  }
-  let value = interopDefault(namespace.default)
+  let value = await importConfigModule(file)
   if (typeof value === 'function') {
     try {
       value = await value(env)

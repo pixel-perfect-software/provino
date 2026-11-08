@@ -70,8 +70,9 @@ catalog:
   expect: 30.5.2
   expect-type: 1.4.0
   jest: 30.5.2
-  # Jest's own config code, called inside recorded fixtures for the defaults no run shows (D27) and
-  # by the Jest dialect's defaults check (T11.2); the version `jest@30.5.2` installs.
+  # Jest's own config code, called inside recorded fixtures for the defaults no run shows (D27), by
+  # the Jest dialect's defaults check (T11.2), and as the Jest config reader's oracle (B14b): real
+  # `readConfig` / `readInitialOptions`, in-process. The version `jest@30.5.2` installs.
   jest-config: 30.5.2
   # jest-matcher-utils, jest-message-util and jest-util: the Jest dialect's expect (D18, above).
   jest-matcher-utils: 30.5.2

@@ -189,6 +189,47 @@ jobs:
           NODE_OPTIONS: --experimental-strip-types
         run: pnpm record:mocking --check
 
+  jest-oracles:
+    name: Jest config reader against real presets (jest-config 30.5)
+    if: ${{ github.event_name == 'push' || !startsWith(github.head_ref, 'task/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history, so the branch can be diffed against main below.
+          fetch-depth: 0
+      # T11.5: ts-jest, React Native, jest-expo, jest-preset-angular and a relative preset, read by
+      # ours and by real jest-config, equal on the 55 keys (B14b). The check installs about 850
+      # packages, and its result depends only on the Jest dialect (all of it: `/node` imports `.`,
+      # and the oracle presets and type tests live there), what the reader loads (config, resolver,
+      # policy, types), the bench command and the harness modules it runs children with, the
+      # runners' versions (lockfile, catalog), Node, the root scripts, this workflow and the scope
+      # action. It runs on main, and on a task branch whose changes against main touch any of
+      # those (`.github/actions/scope`, which fails closed, as the suites job's checks do);
+      # `packages/bench/src/jest-config/jest-config.test.ts` checks the paths it covers.
+      - id: scope
+        name: Decide whether the oracle check runs
+        uses: ./.github/actions/scope
+        with:
+          label: the oracle check
+          include: '^(packages/dialect-jest/|packages/harness/(src/|package\.json$)|packages/bench/(src/jest-config/|package\.json$)|packages/(config|resolver|policy|types)/(src/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          cache: true
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .tool-versions
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        run: pnpm install --frozen-lockfile
+      # The presets are their own pnpm root, pinned by their own lockfile, outside the workspace.
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        run: pnpm --dir packages/dialect-jest/oracle/presets install --frozen-lockfile
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        run: pnpm bench:jest-config presets
+
   corpora:
     name: Resolver and transform corpora (Node ESM agreement, excalidraw)
     if: ${{ github.event_name == 'push' || !startsWith(github.head_ref, 'task/') }}

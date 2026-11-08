@@ -4,21 +4,40 @@ import {
   type ConfigErrorCode,
   type ConfigIssue,
   formatConfigIssue,
+  importConfigModule,
   loadConfigFile,
   loadProject,
   type ResolvedProject,
+  type ResolveNeutralProjectOptions,
   type ResolveProjectOptions,
+  resolveNeutralProject,
   resolveProject,
 } from '@provino/config'
 import type {
   ConfigEnv,
   Dialect,
   IsolationTier,
+  NeutralDiscovery,
+  NeutralProject,
   Policy,
   ProvinoConfigInput,
   SerializedProjectConfig,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
+
+expectTypeOf(importConfigModule).toEqualTypeOf<
+  (path: string, options?: { readonly withoutDefault?: 'error' | 'namespace' }) => Promise<unknown>
+>()
+// @ts-expect-error not a way to treat a module with no default export
+void importConfigModule('/x.js', { withoutDefault: 'first-export' })
+expectTypeOf(resolveNeutralProject).toEqualTypeOf<
+  (neutral: NeutralProject, options: ResolveNeutralProjectOptions) => Promise<ResolvedProject>
+>()
+expectTypeOf<ResolveNeutralProjectOptions['dialect']>().toEqualTypeOf<Dialect | null>()
+expectTypeOf<ResolvedProject['discovery']>().toEqualTypeOf<NeutralDiscovery | null>()
+const partial = { name: '', rootDir: '/' }
+// @ts-expect-error a neutral project needs its discovery rules
+void resolveNeutralProject(partial, { dialect: null, environments: {}, ci: false })
 
 expectTypeOf(loadConfigFile).toEqualTypeOf<
   (path: string, env: ConfigEnv) => Promise<ProvinoConfigInput>

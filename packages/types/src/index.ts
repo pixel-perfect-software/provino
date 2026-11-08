@@ -38,7 +38,8 @@ export type {
 export type {
   ApiModule,
   ConfigReader,
-  ConfigReadResult,
+  ConfigReadOutcome,
+  ConfigSource,
   DetectContext,
   Diagnostic,
   Dialect,
@@ -51,6 +52,10 @@ export type {
   LoaderPolicies,
   ModuleScope,
   ModuleScopeFactory,
+  NeutralAlias,
+  NeutralDiscovery,
+  NeutralProject,
+  NeutralTransform,
   ReporterAdapter,
 } from './dialect.ts'
 export type {

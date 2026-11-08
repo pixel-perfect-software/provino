@@ -325,6 +325,7 @@ export function runtimeProject(
     policy,
     include,
     exclude,
+    discovery: null,
     environment: 'recording',
     isolation: 'registry',
     config: runtimeConfig(rootDir, {

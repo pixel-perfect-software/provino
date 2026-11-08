@@ -19,6 +19,10 @@
       "provino-source": "./src/index.ts",
       "types": "./dist/index.d.ts"
     },
+    "./node": {
+      "provino-source": "./src/node/index.ts",
+      "types": "./dist/node/index.d.ts"
+    },
     "./runtime": {
       "provino-source": "./src/runtime/index.ts",
       "types": "./dist/runtime/index.d.ts"
@@ -36,10 +40,12 @@
   "dependencies": {
     "@jest/expect-utils": "catalog:",
     "@jest/get-type": "catalog:",
+    "@provino/config": "workspace:*",
     "@provino/core": "workspace:*",
     "@provino/expect": "workspace:*",
     "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
+    "@provino/resolver": "workspace:*",
     "@provino/types": "workspace:*",
     "jest-matcher-utils": "catalog:",
     "jest-message-util": "catalog:",

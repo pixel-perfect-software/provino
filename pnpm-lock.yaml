@@ -415,6 +415,9 @@ importers:
       jest:
         specifier: 'catalog:'
         version: 30.5.2(@types/node@22.20.5)(supports-color@8.1.1)
+      jest-config:
+        specifier: 'catalog:'
+        version: 30.5.2(@types/node@22.20.5)(supports-color@8.1.1)
       jest-mock:
         specifier: 'catalog:'
         version: 30.5.2
@@ -473,6 +476,9 @@ importers:
       '@jest/get-type':
         specifier: 'catalog:'
         version: 30.5.0
+      '@provino/config':
+        specifier: workspace:*
+        version: link:../config
       '@provino/core':
         specifier: workspace:*
         version: link:../core
@@ -485,6 +491,9 @@ importers:
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
+      '@provino/resolver':
+        specifier: workspace:*
+        version: link:../resolver
       '@provino/types':
         specifier: workspace:*
         version: link:../types
