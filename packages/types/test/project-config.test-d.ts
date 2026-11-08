@@ -9,12 +9,16 @@ import type {
   FileRegistry,
   GlobalsFactory,
   GlobalsHost,
+  HoistPolicy,
   JsonValue,
   MockPolicy,
   ModuleId,
   ModuleMapper,
   ModuleMapperFactory,
+  ModuleMockRegistry,
   ModuleRef,
+  ModuleScope,
+  ModuleScopeFactory,
   SerializedError,
   SerializedLoaderConfig,
   SerializedModuleMapper,
@@ -30,7 +34,12 @@ declare const globalsRef: ModuleRef<GlobalsFactory>
 declare const mapperRef: ModuleRef<ModuleMapperFactory>
 declare const closureMapperFactory: ModuleMapperFactory
 
+declare const hoist: HoistPolicy
+declare const scopeRef: ModuleRef<ModuleScopeFactory>
+
 const loader: SerializedLoaderConfig = {
+  hoist,
+  moduleScope: ['jest'],
   extensions: ['.ts', '.js'],
   conditions: ['node'],
   tsconfig: 'auto',
@@ -49,10 +58,32 @@ const config: SerializedProjectConfig = {
   policy,
   environment,
   globals: globalsRef,
+  moduleScope: scopeRef,
   setupFiles: ['/repo/setup.ts'],
   setupFilesAfterEnv: [],
   loader,
 }
+
+// B13c: the hoist policy crosses by value (data, `RegExp` and `Set` leaves), and the per-module
+// bindings as names plus a factory ref.
+expectTypeOf<SerializedLoaderConfig['hoist']>().toEqualTypeOf<HoistPolicy | null>()
+expectTypeOf<HoistPolicy>().toExtend<CloneSafe<HoistPolicy>>()
+expectTypeOf<SerializedLoaderConfig['moduleScope']>().toEqualTypeOf<readonly string[]>()
+expectTypeOf<
+  SerializedProjectConfig['moduleScope']
+>().toEqualTypeOf<ModuleRef<ModuleScopeFactory> | null>()
+const noScope: SerializedProjectConfig = { ...config, moduleScope: null }
+// @ts-expect-error a factory crosses by ref, never as a closure
+const closureScope: SerializedProjectConfig = { ...config, moduleScope: () => () => ({}) }
+// @ts-expect-error the loader config needs its hoist key, `null` for none
+const noHoist: SerializedLoaderConfig = { ...loader, hoist: undefined }
+declare const scopeHost: GlobalsHost
+declare const scopeFactory: ModuleScopeFactory
+expectTypeOf(scopeFactory(scopeHost)).toEqualTypeOf<
+  (from: string) => Readonly<Record<string, unknown>>
+>()
+expectTypeOf<Dialect['moduleScope']>().toEqualTypeOf<ModuleScope | undefined>()
+expectTypeOf(scopeHost.moduleMocks()).toEqualTypeOf<ModuleMockRegistry>()
 
 // What crosses to the worker is clone-safe, all the way down.
 expectTypeOf<SerializedProjectConfig>().toExtend<CloneSafe<SerializedProjectConfig>>()
@@ -195,13 +226,16 @@ export {
   closureFactoryGlobals,
   closureGlobals,
   closureOptions,
+  closureScope,
   customResolver,
   failed,
   mapperObject,
   missingField,
+  noHoist,
   narrow,
   noGlobals,
   noPass,
+  noScope,
   nullConfig,
   oldShape,
   returnsNothing,

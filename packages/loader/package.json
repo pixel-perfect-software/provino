@@ -34,5 +34,8 @@
     "@provino/resolver": "workspace:*",
     "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@provino/mock": "workspace:*"
   }
 }
