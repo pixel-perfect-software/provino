@@ -1,0 +1,5 @@
+{
+  "description": "A CommonJS-style test requires an ESM-syntax helper that calls jest.mock and imports what it mocks: Jest loads it synchronously and the helper sees the mock, also inside jest.isolateModules (D38).",
+  "runners": ["jest"],
+  "jestEsm": true
+}

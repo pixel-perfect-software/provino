@@ -1,0 +1,4 @@
+{
+  "description": "An automock's real load runs in a scratch registry: the module and its dependency run once for the automock, and a later requireActual evaluates both again; a second require of the automock runs nothing.",
+  "runners": ["jest"]
+}
