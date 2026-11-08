@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "policy/orchestrator-unhandled",
+  "files": [
+    {
+      "file": "unhandled.test.ts",
+      "status": "failed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    afterAll failed",
+        "userFrame": "<root>/unhandled.test.ts:5:9"
+      },
+      "tests": [
+        {
+          "id": {
+            "file": "unhandled.test.ts",
+            "path": [
+              "passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1
+  }
+}

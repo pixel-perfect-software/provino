@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "policy/orchestrator-pragmas",
+  "files": [
+    {
+      "file": "both-pragmas.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    ● Validation Error:\n\n      Test environment provino-no-such-environment cannot be found. Make sure the testEnvironment configuration option points to an existing node module.\n\n      Configuration Documentation:\n      https://jestjs.io/docs/configuration\n\n        Test environment provino-no-such-environment cannot be found. Make sure the testEnvironment configuration option points to an existing node module.\n        Configuration Documentation:\n        https://jestjs.io/docs/configuration"
+      },
+      "tests": []
+    },
+    {
+      "file": "jest-pragma.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    ● Validation Error:\n\n      Test environment provino-no-such-environment cannot be found. Make sure the testEnvironment configuration option points to an existing node module.\n\n      Configuration Documentation:\n      https://jestjs.io/docs/configuration\n\n        Test environment provino-no-such-environment cannot be found. Make sure the testEnvironment configuration option points to an existing node module.\n        Configuration Documentation:\n        https://jestjs.io/docs/configuration"
+      },
+      "tests": []
+    },
+    {
+      "file": "provino-pragma.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "provino-pragma.test.ts",
+            "path": [
+              "ran with the provino-environment pragma"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "vitest-pragma.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "vitest-pragma.test.ts",
+            "path": [
+              "ran with the vitest-environment pragma"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1
+  }
+}

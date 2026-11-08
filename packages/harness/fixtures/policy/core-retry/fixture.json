@@ -1,0 +1,4 @@
+{
+  "description": "How a failed test is retried (T1.7, core.retry): when the retry runs (Jest after the file's other tests, Vitest at once), whether the earlier attempt's error is kept on the result (the golden's errors of a test that fails every attempt), and, Vitest only, whether it reaches the reporter with the result (Jest's is core-retry-log). Jest uses jest.retryTimes(1), Vitest the retry option.",
+  "runners": ["jest", "vitest"]
+}

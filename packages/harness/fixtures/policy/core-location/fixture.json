@@ -1,0 +1,5 @@
+{
+  "description": "Which frame becomes a test's location (T1.7, core.locationFrame), read from the golden: a test a helper module registers points at the helper's test() call under Jest (the caller frame) and at the helper call in the test file under Vitest. jestEsm, so both runners load the helper with import.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

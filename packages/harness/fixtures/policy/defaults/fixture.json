@@ -1,0 +1,4 @@
+{
+  "description": "Config defaults no single run shows (T1.7, D27): pinned upstream code called inside the recorded run. Under Jest, jest-config 30.5.2's readConfig on an empty config (the values Jest normalizes, so paths go through the same code a project's do); under Vitest, vitest/config 5.0.5's configDefaults and coverageConfigDefaults. Each observe id is the policy key the value backs; a path is made relative to the root, and a runner's own name for a value is mapped to the policy's in the test file, with the mapping beside it.",
+  "runners": ["jest", "vitest"]
+}

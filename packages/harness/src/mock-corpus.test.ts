@@ -65,8 +65,8 @@ const DECLARED: Readonly<Record<string, Declared>> = {
  * and a fixture that went silent must fail, so the floor is the real total.
  */
 const EXPECTED_COUNTED: Readonly<Partial<Record<FixtureProfile, number>>> = {
-  jest: 117,
-  vitest: 111,
+  jest: 122,
+  vitest: 113,
 }
 
 const root = path.join(defaultFixturesRoot(), 'mocking')

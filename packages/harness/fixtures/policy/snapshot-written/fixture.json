@@ -1,0 +1,9 @@
+{
+  "description": "The .snap file each runner writes (T1.7, snapshot slice), outside CI so new snapshots are written: its directory and extension, its header, how a describe and a test name join in a key and how a hint joins, how a string with quotes and a backslash and a plain object print, and what toThrowErrorMatchingSnapshot stores. A black-box run capturing the file.",
+  "runners": ["jest", "vitest"],
+  "env": { "CI": "" },
+  "run": {
+    "argv": { "jest": ["--ci=false"] },
+    "capture": ["file:__snapshots__/written.test.ts.snap"]
+  }
+}

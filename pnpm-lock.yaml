@@ -254,6 +254,9 @@ catalogs:
     jest:
       specifier: 30.5.2
       version: 30.5.2
+    jest-config:
+      specifier: 30.5.2
+      version: 30.5.2
     jest-matcher-utils:
       specifier: 30.5.2
       version: 30.5.2
@@ -498,6 +501,9 @@ importers:
       expect:
         specifier: 'catalog:'
         version: 30.5.2
+      jest-config:
+        specifier: 'catalog:'
+        version: 30.5.2(@types/node@22.20.5)(supports-color@8.1.1)
       jest-mock:
         specifier: 'catalog:'
         version: 30.5.2
@@ -592,6 +598,9 @@ importers:
         specifier: 'catalog:'
         version: 30.5.0
       jest:
+        specifier: 'catalog:'
+        version: 30.5.2(@types/node@22.20.5)(supports-color@8.1.1)
+      jest-config:
         specifier: 'catalog:'
         version: 30.5.2(@types/node@22.20.5)(supports-color@8.1.1)
       oxc-parser:

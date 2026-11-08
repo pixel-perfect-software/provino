@@ -1,0 +1,11 @@
+{
+  "description": "Which of the runner's globals exist at each point a project's code runs (B10's note, T1.7, core.globalsBeforeSetupFiles and the dialects' global names): a setupFiles module, a setupFilesAfterEnv module (Jest only; Vitest has one kind of setup file, run after its globals), and the test file. Each traces the names, from Jest's and Vitest's lists together, whose typeof isn't undefined there. Vitest runs with globals on, as the recorder always does.",
+  "runners": ["jest", "vitest"],
+  "config": {
+    "jest": {
+      "setupFiles": ["<rootDir>/setup-files.ts"],
+      "setupFilesAfterEnv": ["<rootDir>/setup-files-after-env.ts"]
+    },
+    "vitest": { "test": { "setupFiles": ["./setup-files.ts"] } }
+  }
+}
