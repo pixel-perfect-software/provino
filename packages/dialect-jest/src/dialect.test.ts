@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { isAbsolute } from 'node:path'
 import { test } from 'node:test'
 import {
+  createBehaviourLoader,
   diffPolicy,
   isModuleRef,
   neutralPolicy,
@@ -135,7 +136,21 @@ test('the module slice: a missing export reads undefined, and the registry texts
     'automock-no-metadata':
       'Failed to get mock metadata: {id}\n\nSee: https://jestjs.io/docs/manual-mocks#content',
     'nested-isolation': '{caller} cannot be nested inside another {caller} or {other}.',
+    // The loader's: babel-jest throws a transform error as `<file>: <message>` (mod-factory-out-of-scope).
+    'transform-failed': '{file}: {message}',
+    // The loader's: jest-resolve's not-found text (mod-root-package-uninstalled).
+    'module-not-found': "Cannot find module '{specifier}' from '{from}'",
   })
+})
+
+test('every module gets its own jest, built by the runtime factory, whether or not globals are injected', async () => {
+  const scope = jestDialect.moduleScope
+  assert.ok(scope !== undefined)
+  assert.deepEqual(scope.names, ['jest'])
+  assert.match(scope.factory.module, /^file:\/\/\//, 'absolute (D21)')
+  assert.equal(scope.factory.export, 'jestModuleScope')
+  const factory = await createBehaviourLoader().load(scope.factory)
+  assert.equal(typeof factory, 'function')
 })
 
 test('values that equal the neutral ones are not divergences', () => {

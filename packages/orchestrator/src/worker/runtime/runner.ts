@@ -4,11 +4,12 @@
 //                  slot, table, `createExpect`) → core → environment `prepare` → the dialect's
 //                  globals factory → registry snapshot (last, so a matcher the factory adds is part
 //                  of the baseline a file's restore returns to)
-//   runFile        back-pressure → file registry → mock registry (new per file; one per worker
-//                  under `none`) → environment `setup` → globals → expect state → core (setup
-//                  files, then the test file, imported inside collection) → teardown, which
-//                  disposes the mock registry first, while the environment is still alive, so a
-//                  spy on a global is restored before the next file sees it
+//   runFile        back-pressure → mock registry (new per file; one per worker under `none`) →
+//                  file registry, with the file's module-mock registry and the per-module
+//                  bindings → environment `setup` → globals → expect state → core (setup files,
+//                  then the test file, imported inside collection) → teardown, which disposes the
+//                  module-mock registry and then the mock registry first, while the environment is
+//                  still alive, so a spy on a global is restored before the next file sees it
 //   stop           the worker's mock registry (isolation `none`) → core's worker teardowns → the
 //                  worker environment → loader → the matcher slot → the worker's lifetime signal
 // An environment's teardown may report globals it could not remove (D22): that is a `console`
@@ -29,7 +30,13 @@ import {
   snapshotRegistry,
 } from '@provino/expect'
 import { createProjectLoader } from '@provino/loader'
-import { createMockRegistry, type MockRegistry } from '@provino/mock'
+import {
+  createMockRegistry,
+  createModuleMockRegistry,
+  createRootMockIndex,
+  type MockRegistry,
+  type RootMockIndex,
+} from '@provino/mock'
 import { createBehaviourLoader } from '@provino/policy'
 import type {
   EnvironmentInstance,
@@ -39,6 +46,9 @@ import type {
   GlobalsHost,
   IsolationTier,
   Loader,
+  ModuleMockRegistry,
+  ModuleMocksFactory,
+  ModuleScopeValues,
   Policy,
 } from '@provino/types'
 import { WorkerError } from '../errors.ts'
@@ -88,9 +98,22 @@ interface Booted {
   workerEnvironment: { readonly instance: EnvironmentInstance; readonly name: string } | undefined
   /** The mock registry of a worker-scoped run (isolation `none`); `stop` disposes it. */
   workerMocks: MockRegistry | undefined
+  /** What each file's module-mock registry is built from (B13c). */
+  modules: ModuleMocking
+  /** The dialect's per-module bindings, built once from its factory; `undefined` for none. */
+  moduleScope: ModuleScopeValues | undefined
 }
 
-/** The pieces `boot` builds. `globals` and `workerEnvironment` may stay `undefined`. */
+/** What every file's module-mock registry shares: the policy slices, the roots and the root mocks. */
+interface ModuleMocking {
+  readonly policy: Policy
+  readonly roots: readonly string[]
+  readonly extensions: readonly string[]
+  /** The root `__mocks__` trees, listed once per worker (B13c Gap 8). */
+  readonly rootMocks: RootMockIndex
+}
+
+/** The pieces `boot` builds. `globals`, `moduleScope` and `workerEnvironment` may stay `undefined`. */
 const BUILT = [
   'slot',
   'loader',
@@ -100,6 +123,7 @@ const BUILT = [
   'environment',
   'tier',
   'scope',
+  'modules',
 ] as const satisfies readonly (keyof Booted)[]
 
 function isBooted(parts: Partial<Booted>): parts is Booted {
@@ -127,6 +151,8 @@ export interface RuntimeGlobalsHost extends GlobalsHost {
 interface FileScope {
   readonly registry: FileRegistry
   readonly mocks: MockRegistry
+  /** The file's module-mock registry: one per file in every tier (B13c Gap 9). */
+  readonly moduleMocks: ModuleMockRegistry
   /** Installs the globals that wait for `setupFiles` (`core.globalsBeforeSetupFiles`). */
   readonly installLateGlobals: () => void
 }
@@ -220,6 +246,7 @@ export function createRuntimeRunner(): WorkerRunner {
   }
   const activeMocks = (): MockRegistry => activeScope().mocks
   const activeRegistry = (): FileRegistry => activeScope().registry
+  const activeModuleMocks = (): ModuleMockRegistry => activeScope().moduleMocks
 
   async function boot(context: WorkerContext): Promise<void> {
     const config = parseProjectConfig(context.init.config)
@@ -287,15 +314,38 @@ export function createRuntimeRunner(): WorkerRunner {
 
     parts.environment = await prepareEnvironment(config.environment)
 
+    // Jest's `roots` default to the root; a project's own `roots` arrive with B14c.
+    const roots = [config.rootDir]
+    parts.modules = {
+      policy,
+      roots,
+      extensions: config.loader.extensions,
+      rootMocks: createRootMockIndex({ roots, extensions: config.loader.extensions }),
+    }
+
+    const host: RuntimeGlobalsHost = {
+      api: coreRuntime.api,
+      expect,
+      registry: activeRegistry,
+      mocks: activeMocks,
+      moduleMocks: activeModuleMocks,
+      mockPolicy: policy.mock,
+    }
+    // A module's own bindings (Jest's `jest`) exist whether or not globals are injected.
+    if (config.moduleScope !== null) {
+      const scopeFactory = await behaviours.load(config.moduleScope)
+      const values: unknown = scopeFactory(host)
+      if (typeof values !== 'function') {
+        throw new WorkerError(
+          'ORCH_BAD_GLOBALS',
+          `The module-scope factory ${config.moduleScope.module}#${config.moduleScope.export} did not return a function`,
+        )
+      }
+      parts.moduleScope = values as ModuleScopeValues
+    }
+
     if (policy.core.injectGlobals && config.globals !== null) {
       const factory = await behaviours.load(config.globals)
-      const host: RuntimeGlobalsHost = {
-        api: coreRuntime.api,
-        expect,
-        registry: activeRegistry,
-        mocks: activeMocks,
-        mockPolicy: policy.mock,
-      }
       const built: unknown = factory(host)
       if (typeof built !== 'object' || built === null) {
         throw new WorkerError(
@@ -359,17 +409,45 @@ export function createRuntimeRunner(): WorkerRunner {
       const { job } = context
       if (!(await writableUnlessAborted(context.sink, context.signal))) return {}
 
-      // Throws for the tier `realm` (the loader's LOADER_NOT_IMPLEMENTED), with nothing set up yet.
-      const registry = worker.loader.createFileRegistry(job.file, { tier: worker.tier })
       // The worker owns the mock registry, not core: a new one per file, or (isolation `none`, where
       // everything is kept) the worker's own, made for the first file and disposed in `stop`.
       const mocks = worker.workerMocks ?? createMockRegistry()
+      // The file's module-mock registry, built by the loader's call with the loader's own
+      // `loadActual` and resolver; it needs the mock slice and `mocks`, which the loader never reads.
+      const built: { moduleMocks?: ModuleMockRegistry } = {}
+      const buildModuleMocks: ModuleMocksFactory = (loaderContext) => {
+        const { policy, roots, extensions, rootMocks } = worker.modules
+        built.moduleMocks = createModuleMockRegistry({
+          policy: policy.module,
+          mockPolicy: policy.mock,
+          mocks,
+          resolver: loaderContext.resolver,
+          roots,
+          extensions,
+          conditions: loaderContext.conditions,
+          loadActual: loaderContext.loadActual,
+          rootMocks,
+        })
+        return built.moduleMocks
+      }
+      // Throws for the tier `realm` (the loader's LOADER_NOT_IMPLEMENTED), with nothing set up yet.
+      const registry = worker.loader.createFileRegistry(job.file, {
+        tier: worker.tier,
+        moduleMocks: buildModuleMocks,
+        ...(worker.moduleScope === undefined ? {} : { moduleScope: worker.moduleScope }),
+      })
+      const { moduleMocks } = built
+      if (moduleMocks === undefined) {
+        registry.dispose()
+        throw new WorkerError('ORCH_NOT_STARTED', 'The loader built no module-mock registry')
+      }
       if (worker.scope === 'worker') worker.workerMocks = mocks
       let instance: EnvironmentInstance | undefined
       const { globals } = worker
       const thisFile: FileScope = {
         registry,
         mocks,
+        moduleMocks,
         installLateGlobals: () => {
           if (globals !== undefined && instance !== undefined) {
             installGlobals(instance.global, globals.after)
@@ -408,11 +486,20 @@ export function createRuntimeRunner(): WorkerRunner {
       const restoreMatchers = () => worker.snapshot.restore()
       const disposeRegistry = () => registry.dispose()
       const disposeMocks = () => mocks.dispose()
+      // The module-mock registry before the mock registry: its mocks are in `mocks`. One per file
+      // in every tier, so it goes under `none` too (B13c Gap 9).
+      const disposeModuleMocks = () => thisFile.moduleMocks.dispose()
       errors.push(
         ...(await runAll(
           worker.scope === 'file'
-            ? [disposeMocks, teardownEnvironment, restoreMatchers, disposeRegistry]
-            : [disposeRegistry],
+            ? [
+                disposeModuleMocks,
+                disposeMocks,
+                teardownEnvironment,
+                restoreMatchers,
+                disposeRegistry,
+              ]
+            : [disposeModuleMocks, disposeRegistry],
         )),
       )
       fallback = undefined

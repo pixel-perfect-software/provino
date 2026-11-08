@@ -70,7 +70,7 @@ export const mockClaims: Claims = {
   ),
   // A spy on a module namespace is refused only by real ESM namespaces.
   'mock.messages.spy-namespace': pending(
-    'B13c',
-    "the fake loader's namespaces can be spied on, so no run reaches Vitest's refusal; the shipped loader's cannot",
+    'T11.16',
+    "no fixture spies on a module namespace: the loader's namespaces are real since B13c, and the first fixture that does records Vitest's refusal",
   ),
 }

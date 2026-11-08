@@ -24,4 +24,17 @@ export const MOD_DECLARED: Readonly<Record<string, Declared>> = {
       divergence: 'DV11',
       line: '{"id":"a change made through the re-exported function is seen by all three","value":{"source":3,"reExported":3,"importedThenExported":3}}',
     },
+  // Jest 30.5.2 runs a test file in a vm script, and an `import()` that its transformer leaves
+  // as written (babel-jest with the CommonJS plugin, as this fixture records it) throws without
+  // `--experimental-vm-modules`. We load it, as Vitest does (B13c Gap 6); a Jest-green suite never
+  // has this, so nothing green turns red (D7).
+  'mocking/mod-dynamic-only (jest) import() from a file with no other module syntax loads the module and its imports':
+    {
+      divergence: 'DV18',
+      line: '{"id":"import() from a file with no other module syntax loads the module and its imports","value":{"value":"base-target","described":"default of base-target"}}',
+    },
+  'mocking/mod-dynamic-only (jest) a second import() of the same module gets the same instance': {
+    divergence: 'DV18',
+    line: '{"id":"a second import() of the same module gets the same instance","value":true}',
+  },
 }

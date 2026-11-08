@@ -264,23 +264,27 @@ export const createPipeline: CreatePipeline = (options) => {
     let staticMocks: readonly StaticMockCall[] = []
     // Real Jest hoists in every file its transformer touches, and Vitest's plugin does the same, so
     // the gate is "not a dependency", not "a test or setup file" (B13b Gap 3).
-    let rewroteImports = false
+    let lateDeps: readonly string[] = []
     if (options.hoist !== null && request.role !== 'dependency') {
       const hoisted = hoistMocks(code, options.hoist, { filename, original: source })
       code = hoisted.code
       maps.push(hoisted.map)
       staticMocks = hoisted.staticMocks
-      rewroteImports = hoisted.rewroteImports
+      lateDeps = hoisted.lateDeps
       diagnostics.push(...hoisted.diagnostics)
     }
 
     const facts = moduleFacts(filename, source, found.lang, found.sourceType)
+    // A file with no module syntax that calls `require` or uses `module`/`exports` is CommonJS,
+    // even when it also has an `import()`; `unknown` is left for a file that shows neither.
     const format =
       found.sourceType === 'commonjs'
         ? 'cjs'
         : facts.hasModuleSyntax || /\.m[jt]s$/.test(filename)
           ? 'esm'
-          : 'unknown'
+          : facts.hasCommonJsSyntax
+            ? 'cjs'
+            : 'unknown'
     const cacheKey = createHash('sha256')
       .update(fingerprint)
       .update('\0')
@@ -299,8 +303,10 @@ export const createPipeline: CreatePipeline = (options) => {
       format,
       imports: facts.imports,
       staticMocks,
-      // `moduleFacts` reads the original source; rewritten imports add an `await` it never saw.
-      hasTopLevelAwait: facts.hasTopLevelAwait || rewroteImports,
+      // `moduleFacts` reads the original source. The `await`s of rewritten imports are not the
+      // module's own top-level await: they are late dependencies the loader can load either way (D38).
+      hasTopLevelAwait: facts.hasTopLevelAwait,
+      lateDeps,
       diagnostics,
       cacheKey,
       fromCache: false,

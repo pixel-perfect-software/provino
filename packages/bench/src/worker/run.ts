@@ -57,9 +57,13 @@ function benchProjectConfig(
     policy: serializePolicy(resolvePolicy(jestPolicy)),
     environment,
     globals: globals.factory,
+    // As `config` builds it for the Jest dialect (B13c): its hoist policy and each module's `jest`.
+    moduleScope: jestDialect.moduleScope?.factory ?? null,
     setupFiles,
     setupFilesAfterEnv,
     loader: {
+      hoist: jestDialect.loader?.hoist ?? null,
+      moduleScope: jestDialect.moduleScope?.names ?? [],
       extensions: ['.js', '.ts', '.mjs', '.cjs', '.json'],
       conditions: ['node'],
       tsconfig: false,

@@ -141,7 +141,6 @@ export async function corpusProblems(
       mock: policy.mock,
       module: policy.module,
       hoist: subject.hoist,
-      ...(profile === 'jest' ? { prefixTransformErrors: true } : {}),
     })
     trace = run.trace
     // As `mod-corpus.test.ts`: a crash must crash for the golden's cause.

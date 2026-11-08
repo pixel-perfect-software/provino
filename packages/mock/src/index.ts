@@ -8,9 +8,11 @@ export {
   automock,
 } from './module/automock.ts'
 export {
+  createRootMockIndex,
   type FindManualMockOptions,
   findManualMock,
   type ManualMock,
+  type RootMockIndex,
 } from './module/manual-mocks.ts'
 export type { ModuleMessageCode } from './module/messages.ts'
 export {

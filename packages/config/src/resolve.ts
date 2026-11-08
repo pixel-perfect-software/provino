@@ -244,9 +244,14 @@ export async function resolveProject(
     policy: serialized,
     environment: { module: environmentRef.module, export: environmentRef.export, options: {} },
     globals: globalsFactory,
+    // A module's own bindings exist whether or not globals are injected (Jest's `jest`).
+    moduleScope: dialect?.moduleScope?.factory ?? null,
     setupFiles: [],
     setupFilesAfterEnv,
     loader: {
+      // The dialect's hoist policy crosses by value: data, with `RegExp` and `Set` leaves (B13c Gap 12).
+      hoist: dialect?.loader?.hoist ?? null,
+      moduleScope: dialect?.moduleScope?.names ?? [],
       extensions: Object.freeze([...LOADER_EXTENSIONS]),
       conditions,
       tsconfig: 'auto',

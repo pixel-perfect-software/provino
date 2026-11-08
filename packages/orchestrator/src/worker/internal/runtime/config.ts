@@ -7,7 +7,9 @@ import { forEachModuleRef, isImportableLocation, isModuleRef, neutralPolicy } fr
 import type {
   EnvironmentRef,
   GlobalsFactory,
+  HoistPolicy,
   ModuleRef,
+  ModuleScopeFactory,
   SerializedLoaderConfig,
   SerializedModuleMapper,
   SerializedPolicy,
@@ -116,6 +118,26 @@ function mapperList(value: unknown): readonly SerializedModuleMapper[] {
   })
 }
 
+/**
+ * The dialect's hoist policy, or `null`. It is data (`RegExp` and `Set` leaves clone as they are),
+ * so the shape check is the slice's own: the hoister reads the keys it needs.
+ */
+function hoistPolicy(value: unknown): HoistPolicy | null {
+  if (value === null) return null
+  const hoist = record(value, 'loader.hoist')
+  text(hoist.id, 'loader.hoist.id')
+  record(hoist.hoistCalls, 'loader.hoist.hoistCalls')
+  record(hoist.messages, 'loader.hoist.messages')
+  return value as HoistPolicy
+}
+
+/** The module-scope factory's ref, or `null` for a dialect with none. */
+function moduleScopeRef(value: unknown): ModuleRef<ModuleScopeFactory> | null {
+  if (value === null) return null
+  if (!isModuleRef(value)) invalid('moduleScope', 'null or a { module, export } ref')
+  return { module: moduleLocation(value.module, 'moduleScope.module'), export: value.export }
+}
+
 function loaderConfig(value: unknown): SerializedLoaderConfig {
   const loader = record(value, 'loader')
   const { tsconfig, typescript } = loader
@@ -128,6 +150,8 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
     invalid('loader.typescript', "'oxc', 'node-strip' or 'off'")
   }
   return {
+    hoist: hoistPolicy(loader.hoist),
+    moduleScope: texts(loader.moduleScope, 'loader.moduleScope'),
     extensions: texts(loader.extensions, 'loader.extensions'),
     conditions: texts(loader.conditions, 'loader.conditions'),
     tsconfig,
@@ -151,6 +175,7 @@ export function parseProjectConfig(value: unknown): SerializedProjectConfig {
     policy: serializedPolicy(config.policy),
     environment: environmentRef(config.environment),
     globals: globalsRef(config.globals),
+    moduleScope: moduleScopeRef(config.moduleScope),
     setupFiles: absolutePaths(config.setupFiles, 'setupFiles'),
     setupFilesAfterEnv: absolutePaths(config.setupFilesAfterEnv, 'setupFilesAfterEnv'),
     loader: loaderConfig(config.loader),

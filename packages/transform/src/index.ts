@@ -2,6 +2,7 @@
 // `TransformRequest`, `Pipeline`) live in @provino/types.
 export type { TransformErrorCode } from './errors.ts'
 export { TransformError } from './errors.ts'
+export { LATE_IMPORT } from './hoist/apply.ts'
 export type { HoistOptions, HoistOutput } from './hoist/index.ts'
 export { hoistMocks } from './hoist/index.ts'
 export type { ModuleRunnerOutput } from './module-runner.ts'

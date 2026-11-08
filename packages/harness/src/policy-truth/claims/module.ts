@@ -1,15 +1,29 @@
-// The evidence for the `module` slice and the hoisting rules (T1.7). The mod corpus (B13b) runs the
-// module-mock registry and the hoister through a fake loader against the `mocking/mod-*` goldens;
-// the hoist corpus runs every case through the real `babel-plugin-jest-hoist` and `@vitest/mocker`
-// and flips each `HoistPolicy` key itself.
+// The evidence for the `module` slice and the hoisting rules (T1.7). The mod corpus (B13b, on the
+// real loader since B13c) runs the module-mock registry and the hoister through `@provino/loader`
+// against the `mocking/mod-*` goldens; the hoist corpus runs every case through the real
+// `babel-plugin-jest-hoist` and `@vitest/mocker` and flips each `HoistPolicy` key itself.
+import type { Golden } from '../../golden.ts'
 import { type Claims, corpus, each, golden, inert, own, pending } from '../evidence.ts'
-import { fileErrorOf, templateIn } from '../observe.ts'
+import { fileErrorOf, ObservationError, observation, templateIn } from '../observe.ts'
 
 const mod = (...fixtures: readonly string[]) =>
   corpus('mod', ...fixtures.map((name) => `mocking/${name}`))
 
-const builtByB13c = (what: string) =>
-  pending('B13c', `${what}: the shipped loader surfaces it, and its first fixture records the text`)
+/** The loader raises it (B13c), but no `mod-*` case does yet: the owner's first fixture records it. */
+const noCaseYet = (owner: string, what: string) =>
+  pending(owner, `${what}: the loader raises it, and the first fixture that does records the text`)
+
+/** The message of the error an `observe` case recorded: the case's `threw`, or its value. */
+function observedMessage(g: Golden, id: string): string {
+  const seen = observation(g, id)
+  const error = typeof seen === 'object' && seen !== null && 'threw' in seen ? seen.threw : seen
+  const message =
+    typeof error === 'object' && error !== null ? (error as { message?: unknown }).message : error
+  if (typeof message !== 'string') {
+    throw new ObservationError(`${g.suite} (${g.runner}) "${id}" recorded no error message`)
+  }
+  return message
+}
 
 export const moduleClaims: Claims = {
   'module.factoryShape': mod('mod-factory-shape', 'mod-automock-all', 'mod-automock-cjs'),
@@ -60,20 +74,49 @@ export const moduleClaims: Claims = {
     }),
   ],
   'module.messages.unmock-module-missing': mod('mod-unmock-missing'),
-  'module.messages.automock-no-metadata': builtByB13c(
+  'module.messages.automock-no-metadata': noCaseYet(
+    'B17c',
     'no mod-* case automocks a value with no metadata',
   ),
-  'module.messages.nested-isolation': mod('mod-isolate-modules'),
+  // The shipped `jest` refuses a nested isolation with its own copy of this text before the file's
+  // module-mock registry is asked, so no mod-* run reaches the registry's (this value); it is
+  // reached only when the global `jest` and a module's own nest. The golden records Jest's text.
+  'module.messages.nested-isolation': golden('jest-object-returns', {
+    matches: (g, value) =>
+      templateIn(value, observedMessage(g, 'isolateModules inside isolateModules')),
+  }),
+  // The loader's texts (B13c Gap 4). A transform error is the crash's cause; the golden's first
+  // paragraph is the whole of it, less Babel's `Allowed objects:` line (left out on both sides).
+  'module.messages.transform-failed': [
+    mod('mod-factory-out-of-scope'),
+    golden('mocking/mod-factory-out-of-scope', {
+      matches: (g, value) => templateIn(value, fileErrorOf(g)),
+    }),
+  ],
+  'module.messages.module-not-found': [
+    mod('mod-root-package-uninstalled'),
+    golden('mocking/mod-root-package-uninstalled', {
+      matches: (g, value) => templateIn(value, observedMessage(g, 'load after dontMock')),
+    }),
+  ],
   // Vitest's texts.
   'module.messages.factory-not-object': mod('mod-factory-function'),
   'module.messages.missing-factory-export': mod('mod-factory-async-missing-export'),
   'module.messages.unresolved-relative-mock': mod('mod-missing', 'mod-virtual'),
+  // The test file's load fails on the unresolved mock (`mod-virtual-static`, a crash); an import
+  // inside a test isn't wrapped (`mod-missing`).
+  'module.messages.unresolved-mock-import': [
+    mod('mod-virtual-static', 'mod-missing'),
+    golden('mocking/mod-virtual-static', {
+      matches: (g, value) => templateIn(value, fileErrorOf(g)),
+    }),
+  ],
   'module.messages.factory-error': mod('mod-factory-reject-retry'),
 }
 
 const hoist = corpus('hoist')
 
-/** Fixtures that run each dialect's hoister through the fake loader: an inert rule's readers. */
+/** Fixtures that run each dialect's hoister through the real loader: an inert rule's readers. */
 const jestHoisting = mod(
   'mod-hoist-order',
   'mod-hoist-require',
@@ -143,10 +186,10 @@ export const hoistClaims: Claims = {
   'hoist.rewrittenCalls': hoist,
   // Jest's plugin raises the first two; under enclosing-block placement the engine can't raise
   // the other four, whose text only says so.
+  // The loader raises it through `transform-failed` (B13c): the corpus compares the crash's cause,
+  // less the `Allowed objects:` line, which the golden drops (it follows Node's globals).
   'hoist.messages.HOIST_FACTORY_OUT_OF_SCOPE': each(
-    builtByB13c(
-      "the golden drops the Allowed objects line (it follows Node's globals), so only the loader's own run can show the whole text",
-    ),
+    mod('mod-factory-out-of-scope'),
     inert(
       'hoist.hoistCalls',
       noFactoryRule,
@@ -155,7 +198,7 @@ export const hoistClaims: Claims = {
     ),
   ),
   'hoist.messages.HOIST_FACTORY_NOT_FUNCTION': each(
-    builtByB13c('no mod-* case passes jest.mock a factory that is not a function'),
+    noCaseYet('B17c', 'no mod-* case passes jest.mock a factory that is not a function'),
     inert(
       'hoist.hoistCalls',
       noFactoryRule,
@@ -170,7 +213,7 @@ export const hoistClaims: Claims = {
       'Jest hoists within the block, so the engine never raises it',
       jestHoisting,
     ),
-    builtByB13c('no mod-* case calls vi.mock below the top level'),
+    noCaseYet('T11.16', 'no mod-* case calls vi.mock below the top level'),
   ),
   'hoist.messages.HOIST_NESTED': each(
     inert(
@@ -179,14 +222,14 @@ export const hoistClaims: Claims = {
       'Jest allows a hoisted call inside another',
       jestHoisting,
     ),
-    builtByB13c('no mod-* case nests vi.mock'),
+    noCaseYet('T11.16', 'no mod-* case nests vi.mock'),
   ),
   'hoist.messages.HOIST_EXPORTED': each(
     inert('hoist.placement', 'enclosing-block', 'Jest never looks at exports', jestHoisting),
-    builtByB13c('no mod-* case exports vi.mock'),
+    noCaseYet('T11.16', 'no mod-* case exports vi.mock'),
   ),
   'hoist.messages.HOIST_EXPORTED_VALUE': each(
     inert('hoist.placement', 'enclosing-block', 'Jest has no hoisted values', jestHoisting),
-    builtByB13c('no mod-* case exports vi.hoisted'),
+    noCaseYet('T11.16', 'no mod-* case exports vi.hoisted'),
   ),
 }

@@ -17,10 +17,10 @@ test('re-exports: in-order loads every export-from with the imports, in source o
   assertOrder(
     result.code,
     "jest.mock('./m')",
-    'await import("./a")',
-    'await import("./foo")',
-    'await import("./q")',
-    'await import("./b")',
+    'await __provino_import__("./a")',
+    'await __provino_import__("./foo")',
+    'await __provino_import__("./q")',
+    'await __provino_import__("./b")',
   )
   assert.ok(!result.code.includes('export * from'))
   assert.ok(!result.code.includes('from "./q"'))
@@ -33,7 +33,7 @@ test('re-exports: static leaves every export-from exactly as written', () => {
   assert.ok(result.code.includes("export * from './b'"))
   assert.ok(!result.code.includes('__vite_ssr_exportAll__'))
   assert.ok(!result.code.includes('__vite_ssr_exports__'))
-  assertOrder(result.code, "jest.mock('./m')", 'await import("./foo")')
+  assertOrder(result.code, "jest.mock('./m')", 'await __provino_import__("./foo")')
   assert.ok(result.code.includes('use(__provino_import_0__.foo)'))
 })
 
@@ -60,7 +60,9 @@ test('re-exports: static output survives the module-runner transform', () => {
   } as unknown as TransformRecord
   const output = toModuleRunner('/m.js', record)
   assert.ok(output.deps.includes('./a'), 'the re-exported module is a static dependency')
-  assert.ok(output.dynamicDeps.includes('./foo'))
+  assert.ok(!output.deps.includes('./foo'), 'a rewritten import is no static dependency')
+  assert.ok(result.lateDeps.includes('./foo'), 'it is a late one (D38)')
+  assert.ok(output.code.includes('await __provino_import__("./foo")'), output.code)
 })
 
 test('re-exports: in-order output survives the module-runner transform', () => {
@@ -71,5 +73,6 @@ test('re-exports: in-order output survives the module-runner transform', () => {
   } as unknown as TransformRecord
   const output = toModuleRunner('/m.js', record)
   assert.deepEqual(output.deps, [])
-  assert.deepEqual([...output.dynamicDeps].sort(), ['./a', './b', './foo', './q'])
+  assert.deepEqual(output.dynamicDeps, [])
+  assert.deepEqual([...result.lateDeps].sort(), ['./a', './b', './foo', './q'])
 })
