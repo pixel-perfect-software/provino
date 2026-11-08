@@ -45,6 +45,17 @@ function usageExitCode(): number {
   return policy.orchestrator?.exitCodes?.usage ?? ExitCode.UsageError
 }
 
+/**
+ * The environments a project may name. A run needs a built-in one, so a project whose
+ * environment isn't (jsdom, a custom one) is refused before anything starts. Listing the files and
+ * clearing the cache start no worker, so they accept any name, as Jest's `--listTests` does.
+ */
+function environmentsFor(request: RunRequest, project: NeutralProject): typeof ENVIRONMENTS {
+  const { name } = project.environment
+  if (request.mode === 'run' || name in ENVIRONMENTS) return ENVIRONMENTS
+  return { ...ENVIRONMENTS, [name]: ENVIRONMENTS.node as (typeof ENVIRONMENTS)[string] }
+}
+
 /** A diagnostic as a line (or lines) for the user. Jest's own texts keep their form. */
 function describeDiagnostic(diagnostic: Diagnostic): string {
   if (diagnostic.message.trimStart().startsWith('●')) return diagnostic.message
@@ -138,7 +149,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       projects.push(
         await resolveNeutralProject(neutral, {
           dialect: jestNodeDialect,
-          environments: ENVIRONMENTS,
+          environments: environmentsFor(request, neutral),
           ci: read.globalConfig.ci,
         }),
       )
