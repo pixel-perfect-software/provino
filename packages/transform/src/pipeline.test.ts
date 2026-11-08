@@ -273,7 +273,7 @@ test('a tsconfig base that cannot be found is a warning, and the rest still appl
   )
 })
 
-test('hoisting runs for every role but dependency, and says when imports became awaited', () => {
+test('hoisting runs for every role but dependency, and lists the imports it made late', () => {
   const root = writeTree({})
   const source = "import { dep } from './dep.js'\nexport const v = dep\njest.mock('./dep.js')\n"
   const pipeline = createPipeline(options(root, { hoist: HOIST }))
@@ -286,16 +286,30 @@ test('hoisting runs for every role but dependency, and says when imports became 
       role,
     )
     assert.ok(
-      record.code.indexOf("jest.mock('./dep.js')") < record.code.indexOf('await import'),
+      record.code.indexOf("jest.mock('./dep.js')") <
+        record.code.indexOf('await __provino_import__("./dep.js")'),
       role,
     )
-    assert.equal(record.hasTopLevelAwait, true, role)
+    // D38: the rewritten import is a late dependency, not the module's own top-level await.
+    assert.equal(record.hasTopLevelAwait, false, role)
+    assert.deepEqual(record.lateDeps, ['./dep.js'], role)
     assert.notEqual(record.map, null, role)
   }
   const dependency = pipeline.transform(request(file, source, { role: 'dependency' }))
   assert.deepEqual(dependency.staticMocks, [])
+  assert.deepEqual(dependency.lateDeps, [])
   assert.equal(dependency.hasTopLevelAwait, false)
   assert.ok(dependency.code.indexOf('import { dep }') < dependency.code.indexOf('jest.mock'))
+})
+
+test('a rewritten file that awaits at the top level of its own source keeps hasTopLevelAwait', () => {
+  const root = writeTree({})
+  const source = "import { dep } from './dep.js'\njest.mock('./dep.js')\nawait dep()\n"
+  const record = createPipeline(options(root, { hoist: HOIST })).transform(
+    request(join(root, 'tla.test.ts'), source, { role: 'test' }),
+  )
+  assert.equal(record.hasTopLevelAwait, true)
+  assert.deepEqual(record.lateDeps, ['./dep.js'])
 })
 
 test('a file whose mocks stay in a block keeps its imports and has no top-level await', () => {
@@ -366,13 +380,10 @@ test('a stack thrown from a hoisted .ts file maps to the original line and colum
     request(tsFile, source, { role: 'test' }),
   )
   assert.deepEqual(record.diagnostics, [])
-  assert.equal(record.hasTopLevelAwait, true)
+  assert.equal(record.hasTopLevelAwait, false)
+  assert.deepEqual(record.lateDeps, ['./dep.js'], 'the import is late now, so mocks can apply')
   const output = toModuleRunner(tsFile, record)
-  assert.deepEqual(
-    output.dynamicDeps,
-    ['./dep.js'],
-    'the import is dynamic now, so mocks can apply',
-  )
+  assert.deepEqual(output.dynamicDeps, [])
   assert.deepEqual(output.deps, [])
   assert.notEqual(output.map, null)
 
@@ -381,7 +392,7 @@ test('a stack thrown from a hoisted .ts file maps to the original line and colum
   // The wrapper header stays on the first line, so no line number moves.
   writeFileSync(
     jsFile,
-    `export default async function (__vite_ssr_import__, __vite_ssr_dynamic_import__, __vite_ssr_exports__, __vite_ssr_exportAll__, __vite_ssr_import_meta__) { ${output.code}\n}\n//# sourceMappingURL=data:application/json;base64,${inline}\n`,
+    `export default async function (__vite_ssr_import__, __vite_ssr_dynamic_import__, __vite_ssr_exports__, __vite_ssr_exportAll__, __vite_ssr_import_meta__, __provino_import__) { ${output.code}\n}\n//# sourceMappingURL=data:application/json;base64,${inline}\n`,
   )
   const calls: string[] = []
   Object.assign(globalThis, { jest: { mock: (path: string) => calls.push(path) } })
@@ -391,10 +402,11 @@ test('a stack thrown from a hoisted .ts file maps to the original line and colum
   const exports: { boom?: () => never } = {}
   await run(
     () => assert.fail('no static imports'),
-    () => Promise.resolve({ dep: 1 }),
+    () => assert.fail('no dynamic imports'),
     exports,
     () => undefined,
     {},
+    () => Promise.resolve({ dep: 1 }),
   )
   Reflect.deleteProperty(globalThis, 'jest')
   assert.deepEqual(calls, ['./dep.js'], 'the mock ran before the import')

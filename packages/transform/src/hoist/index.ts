@@ -34,8 +34,13 @@ export interface HoistOutput {
   readonly staticMocks: readonly StaticMockCall[]
   /** Hoisting violations (`HOIST_*`), which fail the file as a real runner's transform would. */
   readonly diagnostics: readonly TransformDiagnostic[]
-  /** Whether static imports became `await import()` (D36), so the code has top-level await. */
+  /**
+   * Whether static imports became `await __provino_import__()` calls (D36, in D38's form). The
+   * `await` is syntax only: the loader strips it on the sync path, so it isn't top-level await.
+   */
   readonly rewroteImports: boolean
+  /** The rewritten imports' specifiers, in source order (D38): the record's `lateDeps`. */
+  readonly lateDeps: readonly string[]
 }
 
 /**
@@ -51,6 +56,7 @@ export function hoistMocks(code: string, policy: HoistPolicy, options: HoistOpti
     staticMocks: [],
     diagnostics: [],
     rewroteImports: false,
+    lateDeps: [],
   }
   try {
     const prefilter = prefilterFor(policy)
@@ -71,6 +77,7 @@ export function hoistMocks(code: string, policy: HoistPolicy, options: HoistOpti
       staticMocks: analysis.staticMocks,
       diagnostics: [],
       rewroteImports: applied.rewroteImports,
+      lateDeps: applied.lateDeps,
     }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)

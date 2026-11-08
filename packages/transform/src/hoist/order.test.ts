@@ -28,9 +28,9 @@ test('order: a mock below an import between stayers loads before that import', (
   assertOrder(
     result.code,
     'jest.mock("./b")',
-    'await import("./a")',
-    'await import("./b")',
-    'await import("./c")',
+    'await __provino_import__("./a")',
+    'await __provino_import__("./b")',
+    'await __provino_import__("./c")',
     'const z = 1',
   )
 })
@@ -51,7 +51,12 @@ test('order: a hoisted value reading an earlier one stays below it', () => {
 
 test('order: moves with nothing staying keep the queue order', () => {
   const result = hoist('import a from "./a"\njest.mock("./a")\njest.mock("./b")\n', blockPolicy)
-  assertOrder(result.code, 'jest.mock("./a")', 'jest.mock("./b")', 'await import("./a")')
+  assertOrder(
+    result.code,
+    'jest.mock("./a")',
+    'jest.mock("./b")',
+    'await __provino_import__("./a")',
+  )
 })
 
 test('order: statements touching one another on one line are merged and keep their order', () => {
@@ -85,9 +90,9 @@ test('order: a TSX test mocks before its imports, through the real pipeline', ()
   assertOrder(
     record.code,
     'jest.mock("./api")',
-    'await import("@testing-library/react")',
-    'await import("./comp")',
-    'await import("./api")',
+    'await __provino_import__("@testing-library/react")',
+    'await __provino_import__("./comp")',
+    'await __provino_import__("./api")',
     '_jsxFileName =',
     'test("t"',
   )
