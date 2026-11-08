@@ -1,8 +1,15 @@
 // Track 1 §Config at v0. T1.4 (@provino/config) adds defineConfig, loading and validation, and
 // the keys each feature needs.
-import type { Dialect, DialectName, DialectRegistry, GlobalsFactory } from './dialect.ts'
+import type {
+  Dialect,
+  DialectName,
+  DialectRegistry,
+  GlobalsFactory,
+  ModuleScopeFactory,
+} from './dialect.ts'
 import type { EnvironmentRef } from './environment.ts'
 import type { PluginRegistry, ProvinoPlugin } from './extensions.ts'
+import type { HoistPolicy } from './hoist.ts'
 import type { IsolationTier } from './isolation.ts'
 import type { ModuleRef, SerializedPolicy } from './policy/index.ts'
 import type { SerializedModuleMapper } from './resolve.ts'
@@ -90,11 +97,15 @@ export interface ConfigEnv {
 /**
  * The clone-safe resolver and transform settings a worker builds its loader from
  * (`createProjectLoader` in `@provino/loader`). Everything else a resolver or pipeline can take
- * (a Jest `custom` resolver, a hoist policy, the transform cache) either has a closure in it or
- * is not wired yet.
+ * (a Jest `custom` resolver, the transform cache) either has a closure in it or is not wired yet.
+ * The hoist policy crosses by value: it is data, with `RegExp` and `Set` leaves, which clone.
  * @public
  */
 export interface SerializedLoaderConfig {
+  /** The dialect's mock-hoisting rules (`Dialect.loader.hoist`), or `null` for none. */
+  readonly hoist: HoistPolicy | null
+  /** The dialect's per-module binding names (`Dialect.moduleScope.names`); `[]` for none. */
+  readonly moduleScope: readonly string[]
   /** Extensions tried for a specifier without one, in order (`.ts`, `.js`, …). */
   readonly extensions: readonly string[]
   /** Environment export conditions for resolution; the call kind adds its own. */
@@ -131,6 +142,11 @@ export interface SerializedProjectConfig {
   readonly environment: EnvironmentRef
   /** The dialect's globals factory (its `module` absolute, as above), or `null` for a dialect that injects none. */
   readonly globals: ModuleRef<GlobalsFactory> | null
+  /**
+   * The factory of the dialect's per-module bindings (its `module` absolute, as above), or `null`
+   * for a dialect with none. Its names are `loader.moduleScope`.
+   */
+  readonly moduleScope: ModuleRef<ModuleScopeFactory> | null
   /** Absolute paths, imported before each test file, first (Jest `setupFiles`). */
   readonly setupFiles: readonly string[]
   /** Absolute paths, imported after `setupFiles` and before each test file (Jest `setupFilesAfterEnv`, Vitest `setupFiles`). */

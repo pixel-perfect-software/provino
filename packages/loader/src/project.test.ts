@@ -23,6 +23,8 @@ function writeTree(files: Readonly<Record<string, string>>): string {
 }
 
 const CONFIG: SerializedLoaderConfig = {
+  hoist: null,
+  moduleScope: [],
   extensions: ['.ts', '.js', '.cjs', '.json'],
   conditions: ['node'],
   tsconfig: false,

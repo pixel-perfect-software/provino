@@ -49,6 +49,8 @@ export type {
   GlobalsFactory,
   GlobalsHost,
   LoaderPolicies,
+  ModuleScope,
+  ModuleScopeFactory,
   ReporterAdapter,
 } from './dialect.ts'
 export type {
@@ -114,13 +116,23 @@ export type {
   FileRegistryOptions,
   LeakOptions,
   LeakReport,
+  LoadActual,
+  LoadActualOptions,
   Loader,
   LoaderOptions,
+  MockDecision,
   MockFactory,
   MockSpec,
   ModuleFormat,
   ModuleId,
+  ModuleMockRegisterOptions,
+  ModuleMockRegistry,
+  ModuleMocksContext,
+  ModuleMocksFactory,
+  ModuleScopeNames,
+  ModuleScopeValues,
   Realm,
+  RegisterMockOptions,
 } from './loader.ts'
 export type {
   BulkPayload,

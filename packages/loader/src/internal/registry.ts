@@ -1,37 +1,95 @@
 // The per-file half of the engine (Track 2 R1 steps 3–4, F3): instances of the worker's records,
 // evaluated synchronously unless their subgraph has top-level await. A registry never compiles or
 // transforms; it calls the records' compiled wrappers with fresh linkers.
+//
+// Every edge (a static import, `require`, `import()`, and a late import, D38) resolves, then asks
+// the running file's module-mock registry (T2.5 + T4.8): a mocked edge gets `materialize`'s value,
+// shaped for the edge (`interop.ts`); any other gets the real module. With no module-mock registry,
+// nothing is mocked and an edge costs what it did before B13c. The runner's own loads (a setup or
+// test file, with no parent) never ask: that module itself is never mocked.
 import { createRequire } from 'node:module'
 import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { ModuleId, ModulePolicy } from '@provino/types'
-import { LoaderError } from '../errors.ts'
+import type { ModuleId, ModuleMockRegistry, ModuleScopeValues, ResolveKind } from '@provino/types'
+import { LoaderError, ModuleNotFoundError } from '../errors.ts'
+import { actualView, cjsNamespace, createInteropCache, esmExports } from './interop.ts'
 import {
+  type Compiled,
   compile,
+  externalKey,
   linkAsync,
   linkSync,
   type ModuleRecord,
+  preloadAsync,
   type Records,
   recordFor,
+  resolveOrMissing,
   resolveTarget,
+  scopeOf,
   setResolved,
   type Target,
+  targetOfId,
 } from './records.ts'
+
+/** How the edge loads: `import` (a namespace) or `require` (the value itself). */
+type Style = 'esm' | 'cjs'
+
+/** A target that resolved. */
+type Found = Exclude<Target, { kind: 'missing' }>
 
 interface Instance {
   status: 'evaluating' | 'done' | 'errored'
-  /** The ESM namespace, or the import view of a CJS or JSON module. */
-  namespace: object
+  /** ESM: the exports object (`interop.ts`); JSON: its namespace. `null` for CJS. */
+  readonly exports: Record<string | symbol, unknown> | null
   /** CJS: the `module` object; `require()` returns its `exports`. */
   readonly module: { exports: unknown } | null
   promise: Promise<object> | null
   error: unknown
+  /** The actual paths' view of an ES module's exports, built once. */
+  view: object | null
 }
+
+/**
+ * A mock's value that isn't ready (a factory's Promise under `awaitFactory`), kept apart from a
+ * module whose own value is a Promise.
+ */
+class Pending {
+  readonly promise: Promise<unknown>
+  constructor(promise: Promise<unknown>) {
+    this.promise = promise
+  }
+}
+
+/** What the running file brings: its module-mock registry and its per-module bindings. */
+export interface FileContext {
+  /** `null`: nothing is mocked. */
+  readonly mocks: ModuleMockRegistry | null
+  readonly scope: ModuleScopeValues | null
+}
+
+/** No file's context: nothing is mocked, and a module that names a binding sees the global. */
+export const NO_FILE: FileContext = Object.freeze({ mocks: null, scope: null })
+
+/** Not mocked: the edge loads the real module. */
+const REAL: unique symbol = Symbol('real')
 
 function moduleNamespace(): Record<string | symbol, unknown> {
   const namespace: Record<string | symbol, unknown> = Object.create(null)
   Object.defineProperty(namespace, Symbol.toStringTag, { value: 'Module' })
   return namespace
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    value !== null &&
+    (typeof value === 'object' || typeof value === 'function') &&
+    typeof Reflect.get(value, 'then') === 'function'
+  )
+}
+
+/** The value an ESM wrapper's `await` takes: a pending mock as its Promise. */
+function settle(value: unknown): unknown {
+  return value instanceof Pending ? value.promise : value
 }
 
 /** `__vite_ssr_exportAll__`: re-export every name except `default` that isn't already set. */
@@ -47,29 +105,8 @@ function exportAll(target: object, source: unknown): void {
   }
 }
 
-/** The ESM view of a CJS module's exports, live, with the dialect's default interop. */
-function cjsView(module: { exports: unknown }, interop: ModulePolicy['interopDefault']): object {
-  const namespace = moduleNamespace()
-  const exports = module.exports
-  if (exports !== null && (typeof exports === 'object' || typeof exports === 'function')) {
-    for (const key of Object.keys(exports)) {
-      if (key === 'default') continue
-      Object.defineProperty(namespace, key, {
-        enumerable: true,
-        get: () => Reflect.get(module.exports as object, key),
-      })
-    }
-  }
-  const esModule =
-    interop === 'babel' &&
-    exports !== null &&
-    typeof exports === 'object' &&
-    Reflect.get(exports, '__esModule') === true
-  Object.defineProperty(namespace, 'default', {
-    enumerable: true,
-    get: () => (esModule ? Reflect.get(module.exports as object, 'default') : module.exports),
-  })
-  return namespace
+function asyncRequire(what: string, why: string): LoaderError {
+  return new LoaderError('ERR_REQUIRE_ASYNC_MODULE', `require() cannot load ${what}: ${why}`)
 }
 
 /**
@@ -79,6 +116,10 @@ function cjsView(module: { exports: unknown }, interop: ModulePolicy['interopDef
 export class Registry {
   readonly #state: Records
   readonly #maps: Map<ModuleId, Instance>[]
+  /** Namespaces built for CommonJS values and mocks, one per value, as Babel caches its wildcard. */
+  readonly #cache = createInteropCache()
+  /** The running file's context. Under `none` the registry is shared, and each file sets its own. */
+  context: FileContext = NO_FILE
 
   constructor(state: Records, base: Map<ModuleId, Instance> = new Map()) {
     this.#state = state
@@ -89,6 +130,10 @@ export class Registry {
     const top = this.#maps.at(-1)
     if (top === undefined) throw new Error('registry has no instance map')
     return top
+  }
+
+  get #interop() {
+    return this.#state.options.policy.interopDefault
   }
 
   loaded(): ModuleId[] {
@@ -114,13 +159,7 @@ export class Registry {
    */
   invalidate(specifier: string, importer: string): void {
     for (const kind of ['import', 'require'] as const) {
-      let target: Target
-      try {
-        target = resolveTarget(this.#state, specifier, importer, kind)
-      } catch (error) {
-        if (error instanceof LoaderError && error.code === 'ERR_MODULE_NOT_FOUND') continue
-        throw error
-      }
+      const target = resolveOrMissing(this.#state, specifier, importer, kind)
       if (target.kind === 'user') this.#instances.delete(target.id)
     }
   }
@@ -155,88 +194,279 @@ export class Registry {
     if (index > 0) this.#maps.splice(index, 1)
   }
 
-  /** `import(specifier)` from `importer`: link asynchronously, then evaluate. */
-  async import(specifier: string, importer: string, isEntry: boolean): Promise<object> {
+  // ---- the runner's own loads: never mocked themselves ----
+
+  /** The runner's `import(specifier)` of a setup or test file: link asynchronously, then evaluate. */
+  async load(specifier: string, importer: string, isTest: boolean): Promise<object> {
     const target = resolveTarget(this.#state, specifier, importer, 'import')
     if (target.kind !== 'user') return this.#externalAsync(target)
-    const record = recordFor(this.#state, target.id, isEntry)
+    const record = recordFor(this.#state, target.id, isTest)
     await linkAsync(this.#state, record)
-    return record.asyncGraph ? this.#evaluateAsync(record) : this.#namespaceOf(record)
+    return this.#evaluateForImport(record)
   }
 
-  /** `require(specifier)` from `importer`: link and evaluate synchronously. */
-  require(specifier: string, importer: string, isEntry: boolean): unknown {
+  /** The runner's `require(specifier)`: link and evaluate synchronously. */
+  loadSync(specifier: string, importer: string, isTest: boolean): unknown {
     const target = resolveTarget(this.#state, specifier, importer, 'require')
-    if (target.kind !== 'user') return this.#nativeRequire(target, importer)
-    const record = recordFor(this.#state, target.id, isEntry)
+    if (target.kind !== 'user') return this.#requireExternal(target)
+    const record = recordFor(this.#state, target.id, isTest)
     linkSync(this.#state, record)
     return this.#requireRecord(record)
   }
 
-  #nativeRequire(target: Target, from: string): unknown {
-    if (target.kind === 'user') throw new Error('not an external')
-    return createRequire(from)(target.kind === 'builtin' ? target.id : target.path)
+  // ---- edges from a module ----
+
+  /** An `import()` from `importer`, through the mock decision. */
+  async importFrom(specifier: string, importer: string): Promise<object> {
+    const target = resolveOrMissing(this.#state, specifier, importer, 'import')
+    const mocked = this.#mockOf(target, specifier, importer, 'esm')
+    if (mocked !== REAL) return (await settle(mocked)) as object
+    if (target.kind !== 'user') return this.#externalAsync(target as Found)
+    const record = recordFor(this.#state, target.id, false)
+    await linkAsync(this.#state, record)
+    return this.#evaluateForImport(record)
   }
 
-  async #externalAsync(target: Target): Promise<object> {
-    if (target.kind === 'user') throw new Error('not an external')
-    const key = target.kind === 'builtin' ? target.id : target.path
-    const cached = this.#state.externals.get(key)
-    if (cached !== undefined) return cached
-    const namespace: object = await import(
-      target.kind === 'builtin' ? target.id : pathToFileURL(target.path).href
+  /** A `require` from `importer` (from `record`, whose linked targets it reuses), through the mock decision. */
+  requireFrom(specifier: string, importer: string, record?: ModuleRecord): unknown {
+    const target =
+      record === undefined
+        ? resolveOrMissing(this.#state, specifier, importer, 'require')
+        : this.#targetOf(record, specifier, 'require')
+    const mocked = this.#mockOf(target, specifier, importer, 'cjs')
+    if (mocked !== REAL) {
+      if (mocked instanceof Pending) {
+        throw asyncRequire(`'${specifier}'`, 'its mock is asynchronous')
+      }
+      return mocked
+    }
+    if (target.kind !== 'user') return this.#requireExternal(target as Found)
+    const dep = recordFor(this.#state, target.id, false)
+    linkSync(this.#state, dep)
+    return this.#requireRecord(dep)
+  }
+
+  /** A static import inside `record`'s wrapper: its target was linked ahead. */
+  #importEdge(record: ModuleRecord, specifier: string): unknown {
+    const target = this.#targetOf(record, specifier, 'import')
+    const mocked = this.#mockOf(target, specifier, record.path, 'esm')
+    if (mocked !== REAL) return settle(mocked)
+    if (target.kind !== 'user') return this.#externalImport(target as Found)
+    const dep = this.#state.records.get(target.id)
+    if (dep === undefined) throw new Error(`${target.id} was never linked`)
+    return this.#importRecord(dep)
+  }
+
+  /** A late import (D38) on the sync path: what `require()` of a rewritten ES module needs. */
+  #lateImportSync(record: ModuleRecord, specifier: string): unknown {
+    const target = resolveOrMissing(this.#state, specifier, record.path, 'import')
+    const mocked = this.#mockOf(target, specifier, record.path, 'esm')
+    if (mocked !== REAL) {
+      if (mocked instanceof Pending) {
+        throw asyncRequire(`'${specifier}'`, 'its mock is asynchronous')
+      }
+      return mocked
+    }
+    if (target.kind !== 'user') return this.#externalImport(target as Found)
+    const dep = recordFor(this.#state, target.id, false)
+    linkSync(this.#state, dep)
+    if (dep.format === 'esm' && dep.asyncGraph) {
+      throw asyncRequire(dep.path, 'its graph has top-level await')
+    }
+    this.#evaluateSync(dep)
+    return this.#importValueOf(dep)
+  }
+
+  /**
+   * The mock decision for an edge: the mocked value shaped for the edge, or `REAL`. A specifier
+   * that didn't resolve is mocked only if `decideUnresolved` says so; otherwise its error is
+   * thrown here, when the edge runs.
+   */
+  #mockOf(target: Target, specifier: string, importer: string, style: Style): unknown {
+    const mocks = this.context.mocks
+    if (target.kind === 'missing') {
+      const found = mocks?.decideUnresolved(specifier, importer)
+      if (mocks !== null && found?.mocked === true) return this.#mocked(mocks, found.id, style)
+      throw new ModuleNotFoundError(target.error.code, target.error.message)
+    }
+    if (mocks === null) return REAL
+    const id = target.kind === 'user' ? target.id : externalKey(target)
+    const decision = mocks.decide(
+      id,
+      importer,
+      target.kind === 'builtin' ? 'builtin' : style,
+      specifier,
     )
-    this.#state.externals.set(key, namespace)
-    return namespace
+    return decision.mocked ? this.#mocked(mocks, decision.id, style) : REAL
+  }
+
+  /**
+   * A mocked module's value for an edge. Under `factoryShape: 'module-value'` an `import` sees it
+   * through the CommonJS interop, as it would the real `module.exports`; under `awaitFactory` a
+   * Promise is a result to wait for, otherwise it is the module itself.
+   */
+  #mocked(mocks: ModuleMockRegistry, id: string, style: Style): unknown {
+    const policy = this.#state.options.policy
+    const served = mocks.materialize(id)
+    const shape =
+      style === 'esm' && policy.factoryShape === 'module-value'
+        ? (value: unknown): unknown => cjsNamespace(value, policy.interopDefault, this.#cache)
+        : (value: unknown): unknown => value
+    if (policy.awaitFactory && isThenable(served)) {
+      return new Pending(Promise.resolve(served).then(shape))
+    }
+    return shape(served)
+  }
+
+  // ---- externals ----
+
+  /** An external's natively required value, shared by the worker (`require`, or the builtin). */
+  #requireExternal(target: Found): unknown {
+    const key = externalKey(target)
+    const state = this.#state
+    if (state.required.has(key)) return state.required.get(key)
+    const value: unknown = createRequire(
+      target.kind === 'external' ? target.path : state.options.root,
+    )(key)
+    state.required.set(key, value)
+    return value
+  }
+
+  /** What an `import` of an external sees, synchronously: Node's namespace when preloaded, else the interop over `require`. */
+  #externalImport(target: Found): object {
+    if (this.#interop === 'node') {
+      const native = this.#state.externals.get(externalKey(target))
+      if (native !== undefined) return native
+    }
+    return cjsNamespace(this.#requireExternal(target), this.#interop, this.#cache)
+  }
+
+  async #externalAsync(target: Found): Promise<object> {
+    await preloadAsync(this.#state, target)
+    return this.#externalImport(target)
+  }
+
+  // ---- the actual paths ----
+
+  /**
+   * The real module behind `id` (a resolved path, a `node:` builtin), synchronously: `require`'s
+   * view of it. A scratch load runs in a fresh instance map that is dropped afterwards.
+   */
+  actualSync(id: string, scratch = false): unknown {
+    return scratch ? this.isolate(() => this.#actualSync(id)) : this.#actualSync(id)
+  }
+
+  /** The same through `import`: a CommonJS module as its namespace. */
+  actualAsync(id: string, scratch = false): Promise<unknown> {
+    return scratch ? this.isolateAsync(() => this.#actualAsync(id)) : this.#actualAsync(id)
+  }
+
+  #actualTarget(id: string): Found {
+    if (id.startsWith('virtual:')) {
+      throw new LoaderError('LOADER_NO_REAL_MODULE', `there is no real module behind ${id}`)
+    }
+    return targetOfId(this.#state, id)
+  }
+
+  #actualSync(id: string): unknown {
+    const target = this.#actualTarget(id)
+    if (target.kind !== 'user') return this.#requireExternal(target)
+    const record = recordFor(this.#state, target.id, false)
+    linkSync(this.#state, record)
+    if (record.format === 'esm' && record.asyncGraph) {
+      throw asyncRequire(record.path, 'its graph has top-level await')
+    }
+    const instance = this.#evaluateSync(record)
+    if (record.format === 'cjs') return instance.module?.exports
+    if (record.format === 'json') return Reflect.get(instance.exports ?? {}, 'default')
+    return this.#viewOf(instance)
+  }
+
+  async #actualAsync(id: string): Promise<unknown> {
+    const target = this.#actualTarget(id)
+    if (target.kind !== 'user') {
+      return cjsNamespace(this.#requireExternal(target), this.#interop, this.#cache)
+    }
+    const record = recordFor(this.#state, target.id, false)
+    await linkAsync(this.#state, record)
+    await this.#evaluateForImport(record)
+    const instance = this.#instances.get(record.id)
+    if (instance === undefined) throw new Error(`${record.id} was evaluated in no instance map`)
+    if (record.format !== 'esm') return this.#importValueOf(record)
+    return this.#viewOf(instance)
+  }
+
+  #viewOf(instance: Instance): object {
+    instance.view ??= actualView(instance.exports ?? {}, this.#interop)
+    return instance.view
+  }
+
+  // ---- evaluation ----
+
+  /** What `import` of `record` resolves to: async when its graph awaits or it has late imports (D38). */
+  #evaluateForImport(record: ModuleRecord): object | Promise<object> {
+    if (record.format === 'esm' && (record.asyncGraph || record.lateDeps.length > 0)) {
+      return this.#evaluateAsync(record)
+    }
+    this.#evaluateSync(record)
+    return this.#importValueOf(record)
   }
 
   #requireRecord(record: ModuleRecord): unknown {
     if (record.format === 'esm' && record.asyncGraph) {
-      throw new LoaderError(
-        'ERR_REQUIRE_ASYNC_MODULE',
-        `require() cannot load ${record.path}: its graph has top-level await`,
-      )
+      throw asyncRequire(record.path, 'its graph has top-level await')
     }
     const instance = this.#evaluateSync(record)
     if (instance.module !== null) return instance.module.exports
     return record.format === 'json'
-      ? Reflect.get(instance.namespace, 'default')
-      : instance.namespace
+      ? Reflect.get(instance.exports ?? {}, 'default')
+      : instance.exports
   }
 
-  /** The value an ESM import of `target` sees: a namespace. */
-  #importValue(target: Target): object {
-    if (target.kind === 'user') {
-      const record = this.#state.records.get(target.id)
-      if (record === undefined) throw new Error(`${target.id} was never linked`)
-      const instance = this.#instances.get(record.id)
-      if (record.asyncGraph && instance?.status !== 'evaluating' && instance?.status !== 'done') {
-        // Only reached from inside an async wrapper, which awaits the promise.
-        return this.#evaluateAsync(record)
-      }
-      return this.#namespaceOf(record)
+  /** What a static import of `dep` sees: a namespace, or a Promise of one inside an async wrapper. */
+  #importRecord(dep: ModuleRecord): unknown {
+    const instance = this.#instances.get(dep.id)
+    if (
+      dep.format === 'esm' &&
+      dep.asyncGraph &&
+      instance?.status !== 'evaluating' &&
+      instance?.status !== 'done'
+    ) {
+      // Only reached from inside an async wrapper, which awaits the promise.
+      return this.#evaluateAsync(dep)
     }
-    const key = target.kind === 'builtin' ? target.id : target.path
-    const namespace = this.#state.externals.get(key)
-    if (namespace === undefined) throw new Error(`${key} was never preloaded`)
-    return namespace
+    this.#evaluateSync(dep)
+    return this.#importValueOf(dep)
   }
 
-  #namespaceOf(record: ModuleRecord): object {
-    return this.#evaluateSync(record).namespace
+  /**
+   * The namespace an `import` of an evaluated (or evaluating) record sees. A CommonJS module's is
+   * built from `module.exports` as it stands, and kept once the module has finished.
+   */
+  #importValueOf(record: ModuleRecord): object {
+    const instance = this.#instances.get(record.id)
+    if (instance === undefined) throw new Error(`${record.id} was evaluated in no instance map`)
+    if (instance.module === null) return instance.exports ?? {}
+    return cjsNamespace(
+      instance.module.exports,
+      this.#interop,
+      instance.status === 'done' ? this.#cache : undefined,
+    )
   }
 
   #newInstance(record: ModuleRecord): Instance {
-    const module = record.format === 'cjs' ? { exports: {} } : null
     const instance: Instance = {
       status: 'evaluating',
-      namespace:
-        module === null
-          ? moduleNamespace()
-          : cjsView(module, this.#state.options.policy.interopDefault),
-      module,
+      exports:
+        record.format === 'cjs'
+          ? null
+          : record.format === 'json'
+            ? moduleNamespace()
+            : esmExports(this.#interop),
+      module: record.format === 'cjs' ? { exports: {} } : null,
       promise: null,
       error: undefined,
+      view: null,
     }
     this.#instances.set(record.id, instance)
     return instance
@@ -251,14 +481,14 @@ export class Registry {
     const instance = this.#newInstance(record)
     try {
       if (record.format === 'json') {
-        Object.defineProperty(instance.namespace, 'default', {
+        Object.defineProperty(instance.exports, 'default', {
           enumerable: true,
           value: JSON.parse(record.source),
         })
       } else if (record.format === 'cjs') {
         const module = instance.module
         if (module === null) throw new Error('a CJS instance has no module object')
-        compile(this.#state, record).call(
+        this.#wrapper(record, 'sync').call(
           module.exports,
           module.exports,
           this.#requireFor(record),
@@ -266,15 +496,15 @@ export class Registry {
           record.path,
           dirname(record.path),
         )
-        // `module.exports` may have been replaced: rebuild the live view.
-        instance.namespace = cjsView(module, this.#state.options.policy.interopDefault)
       } else {
-        compile(this.#state, record)(
-          instance.namespace,
+        const exports = instance.exports ?? {}
+        this.#wrapper(record, 'sync')(
+          exports,
           this.#importMeta(record),
-          (specifier: string) => this.#importValue(this.#targetOf(record, specifier)),
-          (specifier: string) => this.import(specifier, record.path, false),
-          (source: unknown) => exportAll(instance.namespace, source),
+          (specifier: string) => this.#importEdge(record, specifier),
+          (specifier: string) => this.importFrom(specifier, record.path),
+          (source: unknown) => exportAll(exports, source),
+          (specifier: string) => this.#lateImportSync(record, specifier),
         )
       }
       instance.status = 'done'
@@ -291,20 +521,22 @@ export class Registry {
     if (existing !== undefined) {
       if (existing.status === 'errored') return Promise.reject(existing.error)
       // A cycle back into a module still evaluating sees its partial namespace.
-      return existing.promise ?? Promise.resolve(existing.namespace)
+      return existing.promise ?? Promise.resolve(existing.exports ?? {})
     }
     const instance = this.#newInstance(record)
+    const exports = instance.exports ?? {}
     const run = async (): Promise<object> => {
       try {
-        await compile(this.#state, record)(
-          instance.namespace,
+        await this.#wrapper(record, 'async')(
+          exports,
           this.#importMeta(record),
-          (specifier: string) => this.#importValue(this.#targetOf(record, specifier)),
-          (specifier: string) => this.import(specifier, record.path, false),
-          (source: unknown) => exportAll(instance.namespace, source),
+          (specifier: string) => this.#importEdge(record, specifier),
+          (specifier: string) => this.importFrom(specifier, record.path),
+          (source: unknown) => exportAll(exports, source),
+          (specifier: string) => this.importFrom(specifier, record.path),
         )
         instance.status = 'done'
-        return instance.namespace
+        return exports
       } catch (error) {
         instance.status = 'errored'
         instance.error = error
@@ -315,11 +547,36 @@ export class Registry {
     return instance.promise
   }
 
-  #targetOf(record: ModuleRecord, specifier: string): Target {
+  /** The record's wrapper for `mode`, with its scope bindings applied. */
+  #wrapper(record: ModuleRecord, mode: 'sync' | 'async'): Compiled {
+    const compiled = compile(this.#state, record, mode)
+    const scope = scopeOf(this.#state, record)
+    if (scope.length === 0) return compiled
+    return compiled(...this.#scopeValues(record, scope)) as Compiled
+  }
+
+  /** The values of `record`'s scope bindings: the dialect's from the file, the CommonJS ones from the record. */
+  #scopeValues(record: ModuleRecord, scope: readonly string[]): unknown[] {
+    const dialect = this.#state.options.moduleScope?.names ?? []
+    let values: Readonly<Record<string, unknown>> | undefined
+    return scope.map((name) => {
+      if (!dialect.includes(name)) {
+        if (name === 'require') return this.#requireFor(record)
+        if (name === '__filename') return record.path
+        if (name === '__dirname') return dirname(record.path)
+      }
+      values ??= this.context.scope?.(record.id) ?? {}
+      return Object.hasOwn(values, name) ? values[name] : Reflect.get(globalThis, name)
+    })
+  }
+
+  /** `record`'s target for `specifier`, from its link when the kind is the one it was linked with. */
+  #targetOf(record: ModuleRecord, specifier: string, kind: ResolveKind): Target {
+    const linkedKind: ResolveKind = record.format === 'cjs' ? 'require' : 'import'
+    if (kind !== linkedKind) return resolveOrMissing(this.#state, specifier, record.path, kind)
     const target = record.resolved.get(specifier)
     if (target !== undefined) return target
-    const kind = record.format === 'cjs' ? 'require' : 'import'
-    const resolved = resolveTarget(this.#state, specifier, record.path, kind)
+    const resolved = resolveOrMissing(this.#state, specifier, record.path, kind)
     setResolved(this.#state, record, specifier, resolved)
     return resolved
   }
@@ -327,14 +584,10 @@ export class Registry {
   #requireFor(record: ModuleRecord): NodeJS.Require {
     const native = createRequire(record.path)
     const require = ((specifier: string) =>
-      this.require(specifier, record.path, false)) as NodeJS.Require
+      this.requireFrom(specifier, record.path, record)) as NodeJS.Require
     const resolve = ((specifier: string) => {
       const target = resolveTarget(this.#state, specifier, record.path, 'require')
-      return target.kind === 'external'
-        ? target.path
-        : target.kind === 'user'
-          ? target.id
-          : target.id
+      return target.kind === 'external' ? target.path : target.id
     }) as NodeJS.RequireResolve
     resolve.paths = native.resolve.paths
     require.resolve = resolve

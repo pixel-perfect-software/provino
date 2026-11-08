@@ -8,8 +8,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import type {
+  LoadActual,
+  MockDecision,
   MockPolicy,
   MockSpec,
+  ModuleMockRegisterOptions,
+  ModuleMockRegistry,
   ModulePolicy,
   ResolveKind,
   ResolveResult,
@@ -22,33 +26,23 @@ import type { MockRegistry } from '../registry.ts'
 import { automock } from './automock.ts'
 import {
   coreName,
-  findManualMock,
-  findRootMock,
+  createRootMockIndex,
+  findAdjacentMock,
   isBareSpecifier,
   isCoreSpecifier,
   type ManualMock,
-  rootsWithMocks,
+  type RootMockIndex,
 } from './manual-mocks.ts'
 import { type ModuleMessageCode, moduleMessage } from './messages.ts'
 
 /**
- * Options for one `register` call.
+ * Options for one `register` call (`ModuleMockRegisterOptions` in `@provino/types`, where the
+ * registry's contract lives so the loader can take one by injection).
  * @public
  */
-export interface RegisterOptions {
-  /** The file that made the call (absolute): the specifier resolves from here. */
-  readonly from: string
-  /** The module need not exist. Under `requireVirtualFlag: false` a missing module is virtual anyway. */
-  readonly virtual?: boolean
-}
+export type RegisterOptions = ModuleMockRegisterOptions
 
-/**
- * The answer to "is this import mocked?". `id` is what `materialize` takes.
- * @public
- */
-export type MockDecision =
-  | { readonly mocked: false }
-  | { readonly mocked: true; readonly id: string }
+export type { MockDecision, ModuleMockRegistry }
 
 /**
  * What `createModuleMockRegistry` needs.
@@ -67,53 +61,16 @@ export interface ModuleMockRegistryOptions {
   readonly extensions: readonly string[]
   /** Resolution conditions for `register`'s resolve (default none: the resolver's own). */
   readonly conditions?: readonly string[]
-  /** Loads a module's real exports (and a manual mock's file), bypassing the registry. */
-  readonly loadActual: (id: string, importer: string) => unknown
-}
-
-/**
- * One test file's module-mock registry.
- * @public
- */
-export interface ModuleMockRegistry {
   /**
-   * `jest.mock`/`vi.mock`/`unmock` and their `do` forms. Resolves at once (kind `mock`) and
-   * throws the dialect's `module-missing` text for a missing module without `virtual`, under
-   * `requireVirtualFlag`. Registering an id again replaces its entry and drops its cached value.
+   * Loads a module's real exports (and a manual mock's file), bypassing the registry for that
+   * module. Automock asks for a scratch load.
    */
-  register(specifier: string, spec: MockSpec, options: RegisterOptions): void
+  readonly loadActual: LoadActual
   /**
-   * Whether an import edge is mocked, by Track 4 L342's precedence: explicit unmock, explicit
-   * registration, automock-all, root `__mocks__` (when `rootMocksAutoApply`). It changes nothing
-   * the answer depends on; it only remembers the specifier for `materialize`'s manual-mock name.
-   * `specifier` is the text as written, for the root-mock name; without it a `node_modules` path
-   * stands in.
+   * The root `__mocks__` trees, listed once per worker (`createRootMockIndex` over the same
+   * `roots` and `extensions`). Without it the registry lists them itself, once per file.
    */
-  decide(
-    resolvedId: string,
-    importer: string,
-    kind: 'esm' | 'cjs' | 'builtin',
-    specifier?: string,
-  ): MockDecision
-  /** The same for a specifier that didn't resolve: a virtual module, or a root-mocked package that isn't installed. */
-  decideUnresolved(specifier: string, importer: string): MockDecision
-  /**
-   * The mock's value, built once and cached (per isolation overlay). A Promise under
-   * `awaitFactory`, or when `loadActual` returns one.
-   */
-  materialize(id: string): unknown
-  /** `resetModules()`: drops cached values when the module registry owns them (`mockValueOwner`). */
-  onResetModules(): void
-  /** Turns automock-all on or off (`enableAutomock`/`disableAutomock`); starts at `policy.automock`. */
-  setAutomock(enabled: boolean): void
-  /**
-   * Opens `isolateModules`'s overlay: reads cascade to the outer values, writes stay inside.
-   * Throws the dialect's `nested-isolation` text if one is open. The names fill that text.
-   */
-  enterIsolation(caller?: string, other?: string): void
-  exitIsolation(): void
-  /** Forgets everything; further calls throw. */
-  dispose(): void
+  readonly rootMocks?: RootMockIndex
 }
 
 interface Entry {
@@ -165,14 +122,12 @@ class Registry implements ModuleMockRegistry {
   readonly #building = new Set<string>()
   /** The ids whose factory the current call stack, or async continuation, is inside; made on the first factory. */
   #inside: AsyncLocalStorage<ReadonlySet<string>> | null = null
-  readonly #values = new Map<string, unknown>()
+  #values = new Map<string, unknown>()
   #overlay: Map<string, unknown> | null = null
   /** Manual mocks by id; a root mock for an uninstalled package is seeded here by `decideUnresolved`. */
   readonly #manual = new Map<string, ManualMock | null>()
-  /** `findRootMock` by name, misses included. */
-  readonly #rootMocks = new Map<string, ManualMock | null>()
-  /** The roots that have a `__mocks__` directory, found on first use. */
-  #mockRoots: readonly string[] | null = null
+  /** The root mocks by name: the worker's list, or one of this registry's own. */
+  readonly #rootMocks: RootMockIndex
   #automock: boolean
   #disposed = false
 
@@ -180,6 +135,9 @@ class Registry implements ModuleMockRegistry {
     this.#options = options
     this.#policy = options.policy
     this.#automock = options.policy.automock
+    this.#rootMocks =
+      options.rootMocks ??
+      createRootMockIndex({ roots: options.roots, extensions: options.extensions })
   }
 
   register(specifier: string, spec: MockSpec, options: RegisterOptions): void {
@@ -209,6 +167,15 @@ class Registry implements ModuleMockRegistry {
     specifier?: string,
   ): MockDecision {
     this.#live()
+    // The fast path (B13c Gap 8): nothing registered, automock off and no root mock to apply, so
+    // the answer is known before any lookup. A suite that mocks nothing pays this per edge.
+    if (
+      this.#entries.size === 0 &&
+      !this.#automock &&
+      (!this.#policy.rootMocksAutoApply || this.#rootMocks.isEmpty())
+    ) {
+      return NOT_MOCKED
+    }
     const entry = this.#entries.get(resolvedId)
     if (entry !== undefined) {
       return entry.spec.kind === 'unmock'
@@ -230,7 +197,7 @@ class Registry implements ModuleMockRegistry {
           : isBareSpecifier(specifier)
             ? specifier
             : null
-      if (name !== null && this.#hasRootMock(name)) {
+      if (name !== null && this.#rootMocks.find(name) !== null) {
         this.#noteSpecifier(resolvedId, specifier)
         return { mocked: true, id: resolvedId }
       }
@@ -257,7 +224,7 @@ class Registry implements ModuleMockRegistry {
     }
     if (this.#manual.get(id) != null) return { mocked: true, id }
     if (this.#policy.rootMocksAutoApply && isBareSpecifier(specifier)) {
-      const found = this.#rootMock(specifier)
+      const found = this.#rootMocks.find(specifier)
       if (found !== null) {
         this.#manual.set(id, found)
         return { mocked: true, id }
@@ -307,6 +274,16 @@ class Registry implements ModuleMockRegistry {
     return value
   }
 
+  mockFor(specifier: string, from: string): unknown {
+    this.#live()
+    return this.materialize(this.#idFor(specifier, from))
+  }
+
+  createMockFromModule(specifier: string, from: string): unknown {
+    this.#live()
+    return this.#automockOf(this.#idFor(specifier, from), from, false)
+  }
+
   onResetModules(): void {
     this.#live()
     if (this.#policy.resetModulesClearsMocks) {
@@ -346,8 +323,6 @@ class Registry implements ModuleMockRegistry {
     this.#building.clear()
     this.#values.clear()
     this.#manual.clear()
-    this.#rootMocks.clear()
-    this.#mockRoots = null
     this.#overlay = null
     this.#inside?.disable()
     this.#inside = null
@@ -403,7 +378,7 @@ class Registry implements ModuleMockRegistry {
           !this.#policy.requireVirtualFlag ||
           (this.#policy.rootMocksAutoApply &&
             isBareSpecifier(specifier) &&
-            this.#rootMock(specifier) !== null)
+            this.#rootMocks.find(specifier) !== null)
         if (!allowed) {
           throw new MockError(
             'module-missing',
@@ -433,31 +408,9 @@ class Registry implements ModuleMockRegistry {
     return false
   }
 
-  #rootsWithMocks(): readonly string[] {
-    this.#mockRoots ??= rootsWithMocks(this.#options.roots)
-    return this.#mockRoots
-  }
-
   #chains(): AsyncLocalStorage<ReadonlySet<string>> {
     this.#inside ??= new AsyncLocalStorage()
     return this.#inside
-  }
-
-  #hasRootMock(name: string): boolean {
-    return this.#rootMock(name) !== null
-  }
-
-  /** The root mock of a package name, found once per name (a miss is remembered too). */
-  #rootMock(name: string): ManualMock | null {
-    let found = this.#rootMocks.get(name)
-    if (found === undefined) {
-      found = findRootMock(name, {
-        roots: this.#rootsWithMocks(),
-        extensions: this.#options.extensions,
-      })
-      this.#rootMocks.set(name, found)
-    }
-    return found
   }
 
   /** Remembers the specifier `decide` was given for `id`: a bare one wins over a relative one. */
@@ -474,13 +427,12 @@ class Registry implements ModuleMockRegistry {
     const cached = this.#manual.get(id)
     if (cached !== undefined) return cached
     // Never re-derived from the path when a specifier was given: `pkg/sub` is not `pkg`.
-    const specifier = entry?.specifier ?? this.#specifiers.get(id) ?? packageNameOf(id)
-    const found = findManualMock(specifier ?? id, {
-      roots: this.#rootsWithMocks(),
-      extensions: this.#options.extensions,
-      // A resolved file is its own id; a builtin or virtual id has no file to search beside.
-      resolved: isAbsolute(id) ? id : null,
-    })
+    const name = entry?.specifier ?? this.#specifiers.get(id) ?? packageNameOf(id) ?? id
+    // The root mock first, then `__mocks__/<file>` beside the resolved file, as `findManualMock`
+    // does. A resolved file is its own id; a builtin or virtual id has no file to search beside.
+    const found =
+      this.#rootMocks.find(name) ??
+      (isAbsolute(id) && !isCoreSpecifier(name) ? findAdjacentMock(id) : null)
     this.#manual.set(id, found)
     return found
   }
@@ -525,8 +477,46 @@ class Registry implements ModuleMockRegistry {
         throw error
       }
     }
-    const actual = options.loadActual(id, from)
+    const actual = this.#scratch(() => options.loadActual(id, from, { scratch: true }))
     return isThenable(actual) ? Promise.resolve(actual).then(build) : build(actual)
+  }
+
+  /**
+   * Runs automock's real load with fresh mock values, as Jest's `_generateMock` swaps its mock
+   * registry with its module registry (the loader swaps the module instances for a scratch load).
+   * A mocked dependency of the real module is built again inside and dropped. Only the
+   * synchronous part runs inside: an async load (`actual: 'async-import'`) shares the values
+   * after its first await, as Vitest's automock loads its dependencies normally.
+   */
+  #scratch<T>(load: () => T): T {
+    const values = this.#values
+    const overlay = this.#overlay
+    this.#values = new Map()
+    this.#overlay = null
+    try {
+      return load()
+    } finally {
+      this.#values = values
+      this.#overlay = overlay
+    }
+  }
+
+  /** The id `specifier` names from `from`, as a registration resolves it, or a virtual or root-mocked one. */
+  #idFor(specifier: string, from: string): string {
+    if (isCoreSpecifier(specifier)) return `node:${coreName(specifier)}`
+    const result = this.#options.resolver.resolve(specifier, {
+      importer: from,
+      kind: 'mock',
+      conditions: this.#options.conditions ?? [],
+    })
+    if (result.type === 'file') return result.path
+    if (result.type === 'builtin') return result.id
+    const found = this.decideUnresolved(specifier, from)
+    if (found.mocked) return found.id
+    throw new MockError(
+      'module-missing',
+      this.#text('unmock-module-missing', { specifier, from: this.#displayPath(from) }),
+    )
   }
 
   #runFactory(
