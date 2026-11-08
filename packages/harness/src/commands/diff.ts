@@ -59,7 +59,7 @@ async function readInputs(command: DiffCommand, today: string): Promise<Inputs> 
 }
 
 /** The reasons a report fails the command's bars; empty when it passes. */
-export function failures(report: ParityReport, command: DiffCommand): string[] {
+function failures(report: ParityReport, command: DiffCommand): string[] {
   const reasons: string[] = []
   const { counts } = report
   if (counts.comparedTests === 0) {
@@ -102,7 +102,7 @@ function tally(items: readonly string[]): string {
 }
 
 /** The summary a person reads: who, the four parities with their counts, and what is left. */
-export function summaryTable(report: ParityReport, reasons: readonly string[]): string {
+function summaryTable(report: ParityReport, reasons: readonly string[]): string {
   const { counts } = report
   const who = (side: ParityReport['reference']): string =>
     `${side.runner} ${side.runnerVersion} (${side.suite})`

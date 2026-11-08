@@ -28,12 +28,12 @@ When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (und
 - `packages/dialect-jest/CLAUDE.md`: the Jest dialect's value (`jestDialect`, `jestPolicy`) and globals (`jestGlobals`), its `expect` slice and matcher table, the vendored Jest matchers (their own tsconfig project, D17), and its tests.
 - `packages/env-node/CLAUDE.md`: how the Node environment restores the global (what is compared, the key-order limit, what an unrestorable key does, why setup reads every descriptor first).
 - `packages/expect/CLAUDE.md`: the neutral expect engine (front end, per-attempt state, slot), the stack-anchoring rule, the worker's boot order, and what is still stubbed (with owning tasks).
-- `packages/harness/CLAUDE.md`: the golden-fixture format and recorder (one format for every golden), converters, normalization and parity diffs.
+- `packages/harness/CLAUDE.md`: the golden-fixture format and recorder (one format for every golden), converters, normalization and parity diffs, the sidecar reporters and `runSubject`, the self-test sample and its recording, and the `diff`, `convert` and `self-test` commands.
 - `packages/loader/CLAUDE.md`: the engine's worker-wide and per-file halves, the module-runner wrapper shape, and what is still stubbed (with owning tasks).
 - `packages/mock/CLAUDE.md`: the neutral mock engine (mock functions, spies, the per-file registry), what the 1 µs creation bar forces on its layout, how methods work detached, its message codes, and what is still stubbed (with owning tasks).
 - `packages/orchestrator/CLAUDE.md`: the coordinator and worker halves (transports, `connectWorker`, `startWorker`, packer, console capture), how a worker boots and exits, the exit-reporting and link rules, the coordinator's run (`runProject`: discovery, results cache, sequencer, pool, event dispatch, exit codes), the end-to-end tests, and what is still stubbed (with owning tasks).
 - `packages/provino/CLAUDE.md`: the umbrella's `provino/node` `run()` (what it wires, how errors become exit codes), the `provino` bin, and the end-to-end tests including the segfault check.
-- `packages/reporters/CLAUDE.md`: the reporter bus (ordering, how a throwing reporter is handled), the default reporter's format and tallies, how the normalized-json reporter builds a `NormalizedRun`, and what is still stubbed (with owning tasks).
+- `packages/reporters/CLAUDE.md`: the reporter bus (ordering, how a throwing reporter is handled), the default reporter's format and tallies, how the normalized-json reporter builds a `NormalizedRun` (console per test by `taskId`), and what is still stubbed (with owning tasks).
 - `packages/transform/CLAUDE.md`: how the hoister is laid out, the import rewrite (D36) and its output shape, how the pipeline runs it, and what is still stubbed (with owning tasks).
 - `tooling/boundaries/CLAUDE.md`: the package manifest, what is generated from it, and how to add a package or rule.
 
