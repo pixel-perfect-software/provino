@@ -13,7 +13,7 @@ test('imports: a named import is read through the namespace', () => {
   assertOrder(
     result.code,
     MOCK.trim(),
-    'const __provino_import_0__ = await import("./a")',
+    'const __provino_import_0__ = await __provino_import__("./a")',
     'use(__provino_import_0__.x)',
   )
 })
@@ -74,7 +74,7 @@ test('imports: export { x as y } of an imported binding keeps the exported name'
 test('imports: a named re-export becomes an import and a getter', () => {
   const result = hoist(`${MOCK}export { q as r } from './q'\n`, blockPolicy)
   assert.equal(result.rewroteImports, true)
-  assert.ok(result.code.includes('const __provino_import_0__ = await import("./q");'))
+  assert.ok(result.code.includes('const __provino_import_0__ = await __provino_import__("./q");'))
   assert.ok(result.code.includes('__vite_ssr_exports__, "r"'))
   assert.ok(result.code.includes('get: () => __provino_import_0__.q'))
   assert.ok(!result.code.includes('from "./q"'))
@@ -87,7 +87,7 @@ test('imports: export * as ns becomes an import and an export of the namespace',
 
 test('imports: a side-effect import becomes an awaited import', () => {
   const result = hoist(`import './setup'\n${MOCK}`, blockPolicy)
-  assertOrder(result.code, MOCK.trim(), 'await import("./setup")')
+  assertOrder(result.code, MOCK.trim(), 'await __provino_import__("./setup")')
 })
 
 test('imports: import attributes are kept', () => {
@@ -95,7 +95,9 @@ test('imports: import attributes are kept', () => {
     `import data from './d.json' with { type: 'json' }\n${MOCK}use(data)\n`,
     blockPolicy,
   )
-  assert.ok(result.code.includes('await import("./d.json", { with: { type: \'json\' } })'))
+  assert.ok(
+    result.code.includes('await __provino_import__("./d.json", { with: { type: \'json\' } })'),
+  )
 })
 
 test('imports: numbering follows source order and the order is runner, hoisted, imports, rest', () => {
@@ -108,8 +110,8 @@ test('imports: numbering follows source order and the order is runner, hoisted, 
     "import { jest } from '@jest/globals'",
     "jest.mock('./a')",
     "jest.mock('./b')",
-    'const __provino_import_0__ = await import("./a")',
-    'const __provino_import_1__ = await import("./b")',
+    'const __provino_import_0__ = await __provino_import__("./a")',
+    'const __provino_import_1__ = await __provino_import__("./b")',
     'use(__provino_import_0__.a, __provino_import_1__.b)',
   )
 })
@@ -127,7 +129,12 @@ test('imports: both policies rewrite, and a file with no static imports has noth
 test('imports: a mock that is already first still gets the imports rewritten', () => {
   const result = hoist(`${MOCK}import { x } from './a'\nuse(x)\n`, blockPolicy)
   assert.equal(result.rewroteImports, true)
-  assertOrder(result.code, MOCK.trim(), 'await import("./a")', 'use(__provino_import_0__.x)')
+  assertOrder(
+    result.code,
+    MOCK.trim(),
+    'await __provino_import__("./a")',
+    'use(__provino_import_0__.x)',
+  )
 })
 
 test('imports: export * becomes an awaited import and the module-runner helper call', () => {
@@ -135,7 +142,7 @@ test('imports: export * becomes an awaited import and the module-runner helper c
   assert.equal(result.rewroteImports, true)
   assert.ok(
     result.code.includes(
-      'const __provino_import_0__ = await import("./all");__vite_ssr_exportAll__(__provino_import_0__);',
+      'const __provino_import_0__ = await __provino_import__("./all");__vite_ssr_exportAll__(__provino_import_0__);',
     ),
   )
 })

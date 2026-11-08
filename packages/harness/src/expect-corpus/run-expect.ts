@@ -18,6 +18,7 @@ import { createMockRegistry, type MockRegistry } from '@provino/mock'
 import { createBehaviourLoader } from '@provino/policy'
 import type {
   CorePolicy,
+  ExpectPolicy,
   MatcherState,
   RuntimeEvent,
   SerializedError,
@@ -59,34 +60,39 @@ function failureOf(error: SerializedError): ExpectFailure {
 
 /**
  * Runs `file` (absolute; imported once per process, so its frames are plain `file:` URLs) under
- * `policy`. `runtime.api`, `expect` and `jest` (the one `jestGlobals` ships, over a
+ * `policy`, with `expect` built from `options.expectPolicy` (the Jest dialect's by default; T1.7
+ * passes a flipped one). `runtime.api`, `expect` and `jest` (the one `jestGlobals` ships, over a
  * `@provino/mock` registry under `jestMockPolicy`) are globals for the duration.
  */
 export async function runExpectFile(
   file: string,
   rootDir: string,
   policy: CorePolicy,
+  options: ExpectRunOptions = {},
 ): Promise<readonly ExpectTest[]> {
+  const expectPolicy = options.expectPolicy ?? jestExpectPolicy
+  const query = options.importQuery === undefined ? '' : `?${options.importQuery}`
   const behaviours = createBehaviourLoader()
   const source = createStateSource(currentTest, {
     nameSeparator: policy.nameSeparator,
-    expand: jestExpectPolicy.expand,
+    expand: expectPolicy.expand,
   })
   const registry = createMatcherRegistry()
   const slot = installMatchersSlot(source, registry)
   const events: RuntimeEvent[] = []
   let mocks: MockRegistry | undefined
   try {
-    if (jestExpectPolicy.matcherTable === null) throw new Error('the Jest dialect has a table')
-    const table = (await behaviours.load(jestExpectPolicy.matcherTable))()
-    const expect = createExpect({ policy: jestExpectPolicy, table, source, registry })
+    if (expectPolicy.matcherTable === null)
+      throw new Error('the expect corpus needs a matcher table')
+    const table = (await behaviours.load(expectPolicy.matcherTable))()
+    const expect = createExpect({ policy: expectPolicy, table, source, registry })
     const mockRegistry = createMockRegistry()
     mocks = mockRegistry
     const runtime = await createRuntime({
       policy,
       behaviours,
       sink: { emit: (event) => events.push(event) },
-      importFile: (path) => import(pathToFileURL(path).href),
+      importFile: (path) => import(`${pathToFileURL(path).href}${query}`),
       rootDir,
       ci: true,
     })
@@ -100,6 +106,9 @@ export async function runExpectFile(
           throw new Error('the expect corpus does not use the module registry')
         },
         mocks: () => mockRegistry,
+        moduleMocks: () => {
+          throw new Error('the expect corpus does not use the module-mock registry')
+        },
         mockPolicy: jestMockPolicy,
       }).jest,
     })
@@ -122,7 +131,26 @@ export async function runExpectFile(
     }
   }
 
-  return summarizeExpectRun(events, (id, run) => source.stateOf(id, run))
+  const tests = summarizeExpectRun(events, (id, run) => source.stateOf(id, run))
+  if (query === '') return tests
+  // The query names this import, not the file: the frames a failure prints lose it again.
+  return tests.map((test) => ({
+    ...test,
+    failures: test.failures.map((failure) => ({
+      ...failure,
+      text: failure.text.replaceAll(query, ''),
+    })),
+  }))
+}
+
+/**
+ * How `runExpectFile` runs a file: under which expect policy, and with which query on its import
+ * URL. A process imports a file once, so a second run of the same file needs a query of its own;
+ * the frames a failure prints lose it again.
+ */
+export interface ExpectRunOptions {
+  readonly expectPolicy?: ExpectPolicy
+  readonly importQuery?: string
 }
 
 /**

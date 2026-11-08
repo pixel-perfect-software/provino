@@ -3,6 +3,22 @@ import { test } from 'node:test'
 import { HarnessError } from '../errors.ts'
 import { parseCommandLine } from './cli-args.ts'
 
+test('policy-diff takes exactly two dialect names', () => {
+  assert.deepEqual(parseCommandLine(['policy-diff', 'jest', 'vitest']), {
+    command: 'policy-diff',
+    a: 'jest',
+    b: 'vitest',
+  })
+  assert.deepEqual(parseCommandLine(['policy-diff', 'vitest', 'jest']), {
+    command: 'policy-diff',
+    a: 'vitest',
+    b: 'jest',
+  })
+  for (const argv of [[], ['jest'], ['jest', 'mocha'], ['jest', 'vitest', 'jest']]) {
+    assert.throws(() => parseCommandLine(['policy-diff', ...argv]), usageError)
+  }
+})
+
 function usageError(error: unknown): boolean {
   return error instanceof HarnessError && error.code === 'HARNESS_USAGE'
 }

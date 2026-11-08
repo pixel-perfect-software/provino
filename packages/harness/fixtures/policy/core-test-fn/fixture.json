@@ -1,0 +1,4 @@
+{
+  "description": "What a test function is given and may be (T1.7, core slice): a generator function's body runs only under Jest; a function that declares no parameter gets none under Jest (a done callback only by arity) and the test context under Vitest; a function returning a value fails only under Jest; a nested test's full name joins with ' ' or ' > '; an .each value longer than 40 characters is shown whole by Jest and cut by Vitest.",
+  "runners": ["jest", "vitest"]
+}

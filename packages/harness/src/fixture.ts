@@ -88,6 +88,52 @@ export interface FixtureManifest {
    * leaves real). Vitest has neither, so the Vitest run ignores them.
    */
   readonly jestConfig?: JestFixtureConfig
+  /**
+   * A JSON overlay on the config the recorder writes, per runner (B14a, T1.7): Jest's options, or
+   * Vitest's whole config object (`{ "test": { ... } }`). Objects merge key by key; an array
+   * replaces, except Jest's `setupFiles` and `setupFilesAfterEnv` and Vitest's `test.setupFiles`,
+   * which are appended after the recorder's own trace and observe setups. The keys the recorder
+   * owns (where the run happens and which files it runs) and the keys `mockCleanup` or
+   * `jestConfig` already set are refused.
+   */
+  readonly config?: FixtureConfigOverlay
+  /**
+   * Files written into the work directory before the run, per runner: `{ "jest": { "<relative
+   * path>": "<text>" } }`. A tree as data, for a file only one runner reads (a `.snap` with that
+   * runner's header) or one the repository can't hold (D13).
+   */
+  readonly files?: Readonly<Partial<Record<FixtureRunner, Readonly<Record<string, string>>>>>
+  /**
+   * A black-box run (B14a): the recorder also keeps what the run shows from outside, in the
+   * golden's `observed`, and the completeness rule (every test file ran, none crashed) doesn't
+   * apply.
+   */
+  readonly run?: FixtureRun
+}
+
+/**
+ * A fixture's config overlay: a JSON object per runner.
+ * @public
+ */
+export type FixtureConfigOverlay = Readonly<
+  Partial<Record<FixtureRunner, Readonly<Record<string, unknown>>>>
+>
+
+/**
+ * What a black-box run keeps. `capture` lists `exitCode`, `stdout`, `stderr` and `file:<relative
+ * path>` (the file's text after the run, `null` when it is not there). `argv` is added to the
+ * runner's command line. `keepLines` (a regular-expression source) keeps only the matching lines
+ * of `stdout` and `stderr`, and `sortStdout` sorts them, for output whose order or timing a run
+ * doesn't fix. A captured stream `keepLines` keeps no line of fails the recording, unless
+ * `emptyStreams` lists it.
+ * @public
+ */
+export interface FixtureRun {
+  readonly argv?: Readonly<Partial<Record<FixtureRunner, readonly string[]>>>
+  readonly capture: readonly string[]
+  readonly emptyStreams?: readonly ('stdout' | 'stderr')[]
+  readonly keepLines?: string
+  readonly sortStdout?: true
 }
 
 /**
@@ -142,6 +188,9 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
   'packages',
   'jestEsm',
   'jestConfig',
+  'config',
+  'files',
+  'run',
 ])
 
 function isFixtureProfile(value: unknown): value is FixtureProfile {
@@ -175,13 +224,24 @@ export function parseFixtureManifest(
     if (!KNOWN_KEYS.has(key)) {
       throw new HarnessError(
         'HARNESS_FIXTURE_UNKNOWN_KEY',
-        `${source}: unknown key "${key}" (expected description, runners, env, expectCrash, mockCleanup, packages, jestEsm, jestConfig)`,
+        `${source}: unknown key "${key}" (expected description, runners, env, expectCrash, mockCleanup, packages, jestEsm, jestConfig, config, files, run)`,
         { path: source },
       )
     }
   }
-  const { description, runners, env, expectCrash, mockCleanup, packages, jestEsm, jestConfig } =
-    value
+  const {
+    description,
+    runners,
+    env,
+    expectCrash,
+    mockCleanup,
+    packages,
+    jestEsm,
+    jestConfig,
+    config,
+    files,
+    run,
+  } = value
   if (typeof description !== 'string' || description.trim() === '') {
     throw new HarnessError(
       'HARNESS_FIXTURE_BAD_DESCRIPTION',
@@ -218,7 +278,290 @@ export function parseFixtureManifest(
     ...(jestConfig === undefined
       ? {}
       : { jestConfig: parseJestConfig(jestConfig, runners, source) }),
+    ...(config === undefined
+      ? {}
+      : {
+          config: parseConfigOverlay(config, runners, source, {
+            mockCleanup: mockCleanup !== undefined,
+            jestConfig: isRecord(jestConfig) ? Object.keys(jestConfig) : [],
+          }),
+        }),
+    ...(files === undefined ? {} : { files: parseRunnerFiles(files, runners, source) }),
+    ...(run === undefined ? {} : { run: parseRun(run, runners, source) }),
   }
+}
+
+/** The Jest options the recorder writes and a fixture may not override. */
+const JEST_RESERVED: readonly string[] = [
+  'rootDir',
+  'transform',
+  'testMatch',
+  'testPathIgnorePatterns',
+  'testLocationInResults',
+  'cacheDirectory',
+  'watchman',
+  // Projects bring configs of their own, which the recorder doesn't write.
+  'projects',
+]
+/** The Vitest keys (dotted) the recorder writes and a fixture may not override. */
+const VITEST_RESERVED: readonly string[] = [
+  'root',
+  'cacheDir',
+  'test.include',
+  'test.exclude',
+  'test.includeTaskLocation',
+  'projects',
+  'test.projects',
+]
+/** What `mockCleanup` and `jestConfig` set, as each runner spells it. */
+const JEST_MOCK_CLEANUP_OPTIONS: readonly string[] = ['clearMocks', 'resetMocks', 'restoreMocks']
+const VITEST_MOCK_CLEANUP_OPTIONS: readonly string[] = [
+  'test.clearMocks',
+  'test.mockReset',
+  'test.restoreMocks',
+  'test.unstubEnvs',
+  'test.unstubGlobals',
+]
+
+/** Every dotted key path of a JSON object: `{ test: { a: 1 } }` gives `test` and `test.a`. */
+function keyPaths(value: Readonly<Record<string, unknown>>, prefix = ''): string[] {
+  const out: string[] = []
+  for (const [key, inner] of Object.entries(value)) {
+    const dotted = prefix === '' ? key : `${prefix}.${key}`
+    out.push(dotted)
+    if (isRecord(inner)) out.push(...keyPaths(inner, dotted))
+  }
+  return out
+}
+
+/**
+ * `config` is a non-empty object from runners the fixture lists to non-empty JSON objects. A key
+ * the recorder owns, or one `mockCleanup` or `jestConfig` sets, is refused, so one value never has
+ * two sources. Under `vitest-list`, `test.sequence.hooks` is the profile's.
+ */
+function parseConfigOverlay(
+  config: unknown,
+  runners: readonly FixtureProfile[],
+  source: string,
+  owned: { readonly mockCleanup: boolean; readonly jestConfig: readonly string[] },
+): FixtureConfigOverlay {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_CONFIG', `${source}: "config" ${reason}`, {
+      path: source,
+    })
+  if (!isRecord(config) || Object.keys(config).length === 0) {
+    throw bad('must be a non-empty object from a runner to its options')
+  }
+  const out: Partial<Record<FixtureRunner, Record<string, unknown>>> = {}
+  for (const [runner, overlay] of Object.entries(config)) {
+    const known = FIXTURE_RUNNERS.find((name) => name === runner)
+    if (known === undefined) throw bad(`names "${runner}", which is not "jest" | "vitest"`)
+    if (!runners.some((profile) => runnerOfProfile(profile) === known)) {
+      throw bad(`names "${runner}", which "runners" does not list`)
+    }
+    if (!isRecord(overlay) || Object.keys(overlay).length === 0) {
+      throw bad(`must give "${runner}" a non-empty object`)
+    }
+    // Vitest's options are under `test`; any other value would hide the keys checked below.
+    if (known === 'vitest' && 'test' in overlay && !isRecord(overlay.test)) {
+      throw bad('must give "vitest.test" an object')
+    }
+    const paths = keyPaths(overlay)
+    const reserved =
+      known === 'jest'
+        ? [
+            ...JEST_RESERVED,
+            ...(owned.mockCleanup ? JEST_MOCK_CLEANUP_OPTIONS : []),
+            ...owned.jestConfig,
+          ]
+        : [
+            ...VITEST_RESERVED,
+            ...(owned.mockCleanup ? VITEST_MOCK_CLEANUP_OPTIONS : []),
+            ...(runners.includes('vitest-list') ? ['test.sequence.hooks'] : []),
+          ]
+    const taken = paths.find((dotted) => reserved.includes(dotted))
+    if (taken !== undefined) {
+      throw bad(`sets "${runner}.${taken}", which the recorder or another manifest key sets`)
+    }
+    out[known] = overlay
+  }
+  return out
+}
+
+/** `files` is a non-empty object from runners the fixture lists to `{ relative path: text }`. */
+function parseRunnerFiles(
+  files: unknown,
+  runners: readonly FixtureProfile[],
+  source: string,
+): Partial<Record<FixtureRunner, Record<string, string>>> {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_FILES', `${source}: "files" ${reason}`, { path: source })
+  if (!isRecord(files) || Object.keys(files).length === 0) {
+    throw bad('must be a non-empty object from a runner to its files')
+  }
+  const out: Partial<Record<FixtureRunner, Record<string, string>>> = {}
+  for (const [runner, tree] of Object.entries(files)) {
+    const known = FIXTURE_RUNNERS.find((name) => name === runner)
+    if (known === undefined) throw bad(`names "${runner}", which is not "jest" | "vitest"`)
+    if (!runners.some((profile) => runnerOfProfile(profile) === known)) {
+      throw bad(`names "${runner}", which "runners" does not list`)
+    }
+    if (!isRecord(tree) || Object.keys(tree).length === 0) {
+      throw bad(`must give "${runner}" a non-empty object from a relative file to its text`)
+    }
+    const written: Record<string, string> = {}
+    for (const [file, text] of Object.entries(tree)) {
+      if (!staysInside(file)) throw bad(`gives "${file}", which is not a relative path inside it`)
+      if (typeof text !== 'string') throw bad(`must give "${file}" its text as a string`)
+      const normalized = path.posix.normalize(file)
+      if (Object.hasOwn(written, normalized)) throw bad(`gives "${normalized}" twice`)
+      written[normalized] = text
+    }
+    out[known] = written
+  }
+  return out
+}
+
+/** What `run.capture` may name besides `file:<path>`. */
+const RUN_STREAMS: readonly string[] = ['exitCode', 'stdout', 'stderr']
+const RUN_KEYS: readonly string[] = ['argv', 'capture', 'emptyStreams', 'keepLines', 'sortStdout']
+
+/**
+ * The command-line options `run.argv` may not give, camel-cased: what the recorder passes (the
+ * config, the JSON results and where they go, the root) and what `mockCleanup` sets. `-c` and `-r`
+ * are the runners' short names for `--config` and Vitest's `--root`.
+ */
+const OWNED_FLAGS: ReadonlySet<string> = new Set([
+  'c',
+  'config',
+  'json',
+  'outputFile',
+  'r',
+  'root',
+  'rootDir',
+  'reporter',
+  'reporters',
+  ...JEST_MOCK_CLEANUP_OPTIONS,
+  ...VITEST_MOCK_CLEANUP_OPTIONS.map((option) => option.slice('test.'.length)),
+])
+
+/**
+ * The option an argument sets, camel-cased, without a `no-` prefix, a `=value` or a `.sub` key
+ * (`--no-output-file`, `--outputFile.json=x` and `--outputFile` are all `outputFile`); `undefined`
+ * for a value.
+ */
+function optionOf(arg: string): string | undefined {
+  const match = /^--?(?:no-)?([^=.]+)/.exec(arg)
+  return match?.[1]?.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())
+}
+
+/**
+ * Whether `arg` adds a text reporter by name: Vitest keeps every `--reporter` the command line
+ * gives, so the recorder's `json` stays (`policy/report-default` adds `default` this way).
+ */
+const addsTextReporter = (arg: string): boolean => /^--reporter=(?!json$)[a-z-]+$/.test(arg)
+
+/**
+ * `run` is `{ capture, argv?, keepLines?, emptyStreams?, sortStdout? }`: `capture` a non-empty list
+ * of `exitCode`, `stdout`, `stderr` and `file:<relative path>`, each once; `argv` per listed
+ * runner, a list of strings that sets no option the recorder owns (`OWNED_FLAGS`); `keepLines` a
+ * regular-expression source; `emptyStreams` the captured streams `keepLines` may keep no line of
+ * (else that is a broken run); `sortStdout` only `true`.
+ */
+function parseRun(run: unknown, runners: readonly FixtureProfile[], source: string): FixtureRun {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_RUN', `${source}: "run" ${reason}`, { path: source })
+  if (!isRecord(run)) throw bad('must be an object with "capture"')
+  for (const key of Object.keys(run)) {
+    if (!RUN_KEYS.includes(key)) {
+      throw bad(`has the unknown key "${key}" (expected ${RUN_KEYS.join(', ')})`)
+    }
+  }
+  const { argv, capture, emptyStreams, keepLines, sortStdout } = run
+  if (
+    !Array.isArray(capture) ||
+    capture.length === 0 ||
+    !capture.every((entry): entry is string => typeof entry === 'string')
+  ) {
+    throw bad('"capture" must be a non-empty array of strings')
+  }
+  for (const entry of capture) {
+    const file = entry.startsWith('file:') ? entry.slice('file:'.length) : undefined
+    if (file === undefined ? !RUN_STREAMS.includes(entry) : !staysInside(file)) {
+      throw bad(
+        `"capture" lists "${entry}" (expected exitCode, stdout, stderr or file:<relative path>)`,
+      )
+    }
+  }
+  if (new Set(capture).size !== capture.length) throw bad('"capture" lists an entry twice')
+  const out: {
+    argv?: Partial<Record<FixtureRunner, string[]>>
+    capture: string[]
+    emptyStreams?: ('stdout' | 'stderr')[]
+    keepLines?: string
+    sortStdout?: true
+  } = { capture }
+  if (argv !== undefined) {
+    if (!isRecord(argv) || Object.keys(argv).length === 0) {
+      throw bad('"argv" must be a non-empty object from a runner to its arguments')
+    }
+    const parsed: Partial<Record<FixtureRunner, string[]>> = {}
+    for (const [runner, args] of Object.entries(argv)) {
+      const known = FIXTURE_RUNNERS.find((name) => name === runner)
+      if (known === undefined || !runners.some((profile) => runnerOfProfile(profile) === known)) {
+        throw bad(`"argv" names "${runner}", which is not a runner "runners" lists`)
+      }
+      if (!Array.isArray(args) || !args.every((arg): arg is string => typeof arg === 'string')) {
+        throw bad(`"argv" must give "${runner}" an array of strings`)
+      }
+      const owned = args.find((arg) => {
+        const option = optionOf(arg)
+        return option !== undefined && OWNED_FLAGS.has(option) && !addsTextReporter(arg)
+      })
+      if (owned !== undefined) {
+        throw bad(`"argv" gives "${owned}" to ${runner}, which the recorder or "mockCleanup" sets`)
+      }
+      parsed[known] = args
+    }
+    out.argv = parsed
+  }
+  if (keepLines !== undefined) {
+    if (typeof keepLines !== 'string' || keepLines === '') {
+      throw bad('"keepLines" must be a non-empty regular-expression source')
+    }
+    try {
+      new RegExp(keepLines)
+    } catch (cause) {
+      throw new HarnessError(
+        'HARNESS_FIXTURE_BAD_RUN',
+        `${source}: "run" "keepLines" is not a regular expression`,
+        { path: source, cause },
+      )
+    }
+    out.keepLines = keepLines
+  }
+  if (emptyStreams !== undefined) {
+    if (
+      keepLines === undefined ||
+      !Array.isArray(emptyStreams) ||
+      emptyStreams.length === 0 ||
+      new Set(emptyStreams).size !== emptyStreams.length ||
+      !emptyStreams.every(
+        (name): name is 'stdout' | 'stderr' =>
+          (name === 'stdout' || name === 'stderr') && capture.includes(name),
+      )
+    ) {
+      throw bad(
+        '"emptyStreams" must list, once each, captured streams "keepLines" may keep no line of',
+      )
+    }
+    out.emptyStreams = emptyStreams
+  }
+  if (sortStdout !== undefined) {
+    if (sortStdout !== true) throw bad('"sortStdout" must be true (leave it out for off)')
+    out.sortStdout = true
+  }
+  return out
 }
 
 /**

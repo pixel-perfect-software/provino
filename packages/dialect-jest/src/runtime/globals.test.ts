@@ -13,7 +13,13 @@ const jestMock = resolvePolicy(jestPolicy).mock
 /** The two host members the mock functions read: a registry that can be swapped, and the policy. */
 function mockHost(mocks?: () => MockRegistry) {
   const own = createMockRegistry()
-  return { mocks: mocks ?? (() => own), mockPolicy: jestMock }
+  return {
+    mocks: mocks ?? (() => own),
+    moduleMocks: (): never => {
+      throw new Error('this test does not use the module-mock registry')
+    },
+    mockPolicy: jestMock,
+  }
 }
 
 /** A registry that records the calls the `jest` object makes, and runs the function it is given. */
@@ -410,6 +416,16 @@ test('the jest object has the registry methods, the mock functions and nothing e
     'restoreAllMocks',
     'spyOn',
   ])
+})
+
+// Jest 30.5 has no `jest.stubEnv` or `jest.stubGlobal`, so nothing a test does is ever unstubbed:
+// `mock.between.unstubEnvs` and `unstubGlobals` are `false` for that reason only (T1.7's claim).
+test('the jest object has no stubEnv or stubGlobal, so there is nothing to unstub', async (t) => {
+  const { jest } = await globalsFor(t)
+  assert.equal('stubEnv' in jest, false)
+  assert.equal('stubGlobal' in jest, false)
+  assert.equal(jestPolicy.mock?.between?.unstubEnvs, false)
+  assert.equal(jestPolicy.mock?.between?.unstubGlobals, false)
 })
 
 test('the mock functions act on the registry of the moment, read when they are called', async (t) => {

@@ -70,10 +70,25 @@ export interface SelfTestCommand {
 }
 
 /**
+ * `policy-diff`: the two dialects, in print order (T1.8).
+ * @internal
+ */
+export interface PolicyDiffCommand {
+  readonly command: 'policy-diff'
+  readonly a: 'jest' | 'vitest'
+  readonly b: 'jest' | 'vitest'
+}
+
+/**
  * What the command line asked for.
  * @internal
  */
-export type HarnessCommand = RecordCommand | DiffCommand | ConvertCommand | SelfTestCommand
+export type HarnessCommand =
+  | RecordCommand
+  | DiffCommand
+  | ConvertCommand
+  | SelfTestCommand
+  | PolicyDiffCommand
 
 /**
  * The usage text.
@@ -108,6 +123,10 @@ export const USAGE = `Usage: provino-harness <command> [options]
            calibrated parity (Track 12 T12.6). --candidate provino also runs Provino on the
            sample and writes its ParityReport to --out; it prints pass or fail only.
            --write-recorded rewrites sample/__recorded__ from this run.
+
+  policy-diff <jest|vitest> <jest|vitest>
+           Print every policy key, hoisting rule and global name where the two dialects
+           differ (T1.8).
 `
 
 function usage(message: string, cause?: unknown): HarnessError {
@@ -269,6 +288,16 @@ function parseSelfTest(argv: readonly string[]): SelfTestCommand {
   }
 }
 
+function parsePolicyDiff(argv: readonly string[]): PolicyDiffCommand {
+  const isDialect = (name: string | undefined): name is 'jest' | 'vitest' =>
+    name === 'jest' || name === 'vitest'
+  const [a, b, ...rest] = argv
+  if (!isDialect(a) || !isDialect(b) || rest.length > 0) {
+    throw usage('policy-diff takes two dialects: jest or vitest')
+  }
+  return { command: 'policy-diff', a, b }
+}
+
 /**
  * Parses `provino-harness` arguments: the command first, then its options. Throws a
  * `HARNESS_USAGE` error on anything else.
@@ -285,6 +314,8 @@ export function parseCommandLine(argv: readonly string[]): HarnessCommand {
       return parseConvert(rest)
     case 'self-test':
       return parseSelfTest(rest)
+    case 'policy-diff':
+      return parsePolicyDiff(rest)
     case undefined:
       throw usage('missing command')
     default:

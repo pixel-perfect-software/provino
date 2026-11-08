@@ -12,9 +12,12 @@ const valid: SerializedProjectConfig = {
   policy: serializePolicy(neutralPolicy),
   environment: { module: '/env.ts', export: 'env', options: { a: 1 } },
   globals: moduleRef('/globals.ts', 'factory'),
+  moduleScope: null,
   setupFiles: ['/setup.ts'],
   setupFilesAfterEnv: [],
   loader: {
+    hoist: null,
+    moduleScope: [],
     extensions: ['.ts'],
     conditions: ['node'],
     tsconfig: 'auto',
@@ -102,6 +105,56 @@ describe('parseProjectConfig', () => {
       assert.equal(
         parseProjectConfig(with_('environment.module', module)).environment.module,
         module,
+      )
+    }
+  })
+
+  it('takes the hoist policy by value and the per-module bindings as names and a ref (B13c)', () => {
+    const hoist = {
+      id: 'h',
+      objects: [],
+      hoistCalls: { mock: 'any' },
+      hoistValues: [],
+      rewriteImportArg: [],
+      chainable: true,
+      placement: 'enclosing-block',
+      topLevelGuards: [],
+      factoryReferences: {
+        allowGlobals: new Set(['Math']),
+        allowPattern: /^mock/i,
+        hoistPureConsts: true,
+      },
+      runnerModules: [],
+      reExports: 'in-order',
+      rewrittenCalls: 'detached',
+      messages: {},
+    }
+    const parsed = parseProjectConfig(
+      with_('loader', { ...valid.loader, hoist, moduleScope: ['jest'] }),
+    )
+    assert.deepEqual(parsed.loader.hoist, hoist)
+    assert.deepEqual(parsed.loader.moduleScope, ['jest'])
+    const scope = moduleRef('file:///dialect/runtime.ts', 'scope')
+    assert.deepEqual(parseProjectConfig(with_('moduleScope', scope)).moduleScope, scope)
+    for (const [path, value] of [
+      ['loader.hoist', undefined],
+      ['loader.hoist', 'jest'],
+      ['loader.hoist', { ...hoist, id: 1 }],
+      ['loader.hoist', { ...hoist, hoistCalls: undefined }],
+      ['loader.moduleScope', undefined],
+      ['loader.moduleScope', ['jest', 1]],
+      ['moduleScope', undefined],
+      ['moduleScope', { module: '/x.ts' }],
+      ['moduleScope', moduleRef('@provino/dialect-jest/runtime', 'scope')],
+      ['moduleScope', moduleRef('./runtime.ts', 'scope')],
+    ] as const) {
+      assert.throws(
+        () => parseProjectConfig(with_(path, value)),
+        (error: unknown) =>
+          error instanceof WorkerError &&
+          error.code === 'ORCH_BAD_CONFIG' &&
+          error.message.includes(path),
+        `${path}: ${String(value)}`,
       )
     }
   })

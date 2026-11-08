@@ -21,6 +21,9 @@
       "path": "../dialect-jest"
     },
     {
+      "path": "../dialect-vitest"
+    },
+    {
       "path": "../resolver"
     },
     {

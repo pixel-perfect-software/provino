@@ -26,3 +26,6 @@ CLAUDE.local.md
 packages/bench/.suites/
 packages/bench/.results/
 packages/harness/.record/
+
+# the Jest config oracle's preset projects, written at run time (pnpm bench:jest-config presets)
+packages/dialect-jest/oracle/presets/.work/

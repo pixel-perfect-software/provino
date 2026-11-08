@@ -2,10 +2,10 @@
 // compiled once per worker, its static deps are resolved once, and shared externals are loaded
 // natively. Records never hold per-file state; that lives in a registry's instances.
 import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
+import { relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { runInThisContext } from 'node:vm'
-import { toModuleRunner } from '@provino/transform'
+import { LATE_IMPORT, toModuleRunner } from '@provino/transform'
 import type {
   CompiledModuleEvent,
   LoaderOptions,
@@ -13,15 +13,29 @@ import type {
   ResolveKind,
   SourceMapV3,
 } from '@provino/types'
-import { LoaderError } from '../errors.ts'
+import { LoaderError, ModuleNotFoundError } from '../errors.ts'
+import { loaderMessage } from './messages.ts'
 
-/** Where a specifier leads. */
+/**
+ * Where a specifier leads. `missing` is a specifier that doesn't resolve, and `failed` a user module
+ * that doesn't transform (a `.css` file, a syntax error): both are recorded when the graph is linked
+ * and thrown only when the edge runs, after the mock registry had its say (a `virtual` mock, a
+ * factory for `./styles.css`, `try { require('optional') } catch {}`; B13c Gap 7 and the review).
+ */
 export type Target =
   | { readonly kind: 'user'; readonly id: ModuleId }
   | { readonly kind: 'external'; readonly path: string }
   | { readonly kind: 'builtin'; readonly id: string }
+  | { readonly kind: 'missing'; readonly error: ModuleNotFoundError }
+  | { readonly kind: 'failed'; readonly id: ModuleId; readonly error: unknown }
+
+/** A target that leads somewhere loadable. */
+export type Found = Extract<Target, { readonly kind: 'user' | 'external' | 'builtin' }>
 
 export type UserFormat = 'esm' | 'cjs' | 'json'
+
+/** A compiled wrapper. With scope bindings it is the outer function, which returns the wrapper. */
+export type Compiled = (...args: unknown[]) => unknown
 
 /** One user module, as every registry in the worker shares it. */
 export interface ModuleRecord {
@@ -33,18 +47,35 @@ export interface ModuleRecord {
   readonly map: SourceMapV3 | null
   /** Static deps: import specifiers (ESM) or literal `require` specifiers (CJS). */
   readonly deps: readonly string[]
+  /** Imports the hoister made late (D38): never linked ahead, loaded when their call runs. */
+  readonly lateDeps: readonly string[]
   readonly hasTopLevelAwait: boolean
   /** Its static subgraph has top-level await, so it evaluates with the async wrapper. */
   asyncGraph: boolean
+  /**
+   * Its static subgraph has a module with late deps (D38), so an `import` of it evaluates async: a
+   * late dependency with top-level await then works however the module was reached.
+   */
+  lateGraph: boolean
   readonly resolved: Map<string, Target>
   linked: boolean
-  compiled: ((...args: unknown[]) => unknown) | null
+  /** The plain wrapper (`await` stripped from its import calls) and the async one, each compiled on first use. */
+  compiledSync: Compiled | null
+  compiledAsync: Compiled | null
+  /**
+   * The scope bindings this module's source names, in the worker's order (B13c Gap 2): the
+   * dialect's per-module names, and for ES modules under `injectCjsGlobals` `require`,
+   * `__filename` and `__dirname`. Found by a word scan at the first compile; a module that names
+   * none gets no outer function and pays nothing.
+   */
+  scope: readonly string[] | null
 }
 
-/** The wrapper parameters, in order. ESM gets Vite's linkers; CJS gets Node's wrapper. */
-const ESM_PARAMS =
-  '__vite_ssr_exports__, __vite_ssr_import_meta__, __vite_ssr_import__, __vite_ssr_dynamic_import__, __vite_ssr_exportAll__'
+/** The wrapper parameters, in order. ESM gets Vite's linkers and the late import; CJS gets Node's wrapper. */
+const ESM_PARAMS = `__vite_ssr_exports__, __vite_ssr_import_meta__, __vite_ssr_import__, __vite_ssr_dynamic_import__, __vite_ssr_exportAll__, ${LATE_IMPORT}`
 const CJS_PARAMS = 'exports, require, module, __filename, __dirname'
+/** What an ES module gets under `ModulePolicy.injectCjsGlobals`, when its source names them. */
+const CJS_GLOBALS: readonly string[] = ['require', '__filename', '__dirname']
 
 export function toModuleId(path: string): ModuleId {
   return path as ModuleId
@@ -60,9 +91,15 @@ function isThirdParty(path: string, inline: readonly (string | RegExp)[]): boole
 export interface Records {
   readonly options: LoaderOptions
   readonly records: Map<ModuleId, ModuleRecord>
-  /** Native namespaces of shared externals and builtins, by path or `node:` id. */
+  /** Native namespaces of shared externals and builtins (`import()`), by path or `node:` id. */
   readonly externals: Map<string, object>
+  /** Natively required values of shared externals and builtins, by path or `node:` id. */
+  readonly required: Map<string, unknown>
   readonly listeners: Set<(event: CompiledModuleEvent) => void>
+  /** The scope names a module of each format can be given, in order. */
+  readonly scopeNames: { readonly esm: readonly string[]; readonly cjs: readonly string[] }
+  /** One word-scan pattern per scope name. */
+  readonly scopePatterns: ReadonlyMap<string, RegExp>
   /**
    * Whether anything `markAsyncGraphs` reads has changed since it last ran: a new record, a record
    * linked, a resolved target. It is on the state, not in a walk, so a walk that throws partway
@@ -72,23 +109,60 @@ export interface Records {
   asyncGraphsStale: boolean
 }
 
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 export function createRecords(options: LoaderOptions): Records {
+  const dialect = options.moduleScope?.names ?? []
+  const esm = [
+    ...dialect,
+    ...(options.policy.injectCjsGlobals
+      ? CJS_GLOBALS.filter((name) => !dialect.includes(name))
+      : []),
+  ]
+  const scopePatterns = new Map(
+    esm.map((name) => [name, new RegExp(`(?<![\\w$])${escapeRegExp(name)}(?![\\w$])`)]),
+  )
   return {
     options,
     records: new Map(),
     externals: new Map(),
+    required: new Map(),
     listeners: new Set(),
+    scopeNames: { esm, cjs: dialect },
+    scopePatterns,
     asyncGraphsStale: false,
   }
 }
 
-/** Resolves `specifier` from `importer` to a target, or throws `ERR_MODULE_NOT_FOUND`. */
-export function resolveTarget(
+/**
+ * The error for a specifier that doesn't resolve: the dialect's `module-not-found` text, with
+ * Node's code for the kind of call (`MODULE_NOT_FOUND` for `require`, else `ERR_MODULE_NOT_FOUND`).
+ */
+function notFound(
   state: Records,
   specifier: string,
   importer: string,
   kind: ResolveKind,
-): Target {
+): ModuleNotFoundError {
+  const from = relative(state.options.root, importer).split(sep).join('/')
+  const message =
+    loaderMessage(state.options.policy, 'module-not-found', { specifier, from, importer }) ??
+    `Cannot find module '${specifier}' imported from ${importer}`
+  return new ModuleNotFoundError(
+    kind === 'require' ? 'MODULE_NOT_FOUND' : 'ERR_MODULE_NOT_FOUND',
+    message,
+  )
+}
+
+/** Resolves `specifier` from `importer` to a target; one that doesn't resolve is `missing`. */
+export function resolveOrMissing(
+  state: Records,
+  specifier: string,
+  importer: string,
+  kind: ResolveKind,
+): Found | Extract<Target, { readonly kind: 'missing' }> {
   const result = state.options.resolver.resolve(specifier, {
     importer,
     kind,
@@ -101,10 +175,39 @@ export function resolveTarget(
     }
     return { kind: 'user', id: toModuleId(result.path) }
   }
-  throw new LoaderError(
-    'ERR_MODULE_NOT_FOUND',
-    `Cannot find module '${specifier}' imported from ${importer}`,
-  )
+  return { kind: 'missing', error: notFound(state, specifier, importer, kind) }
+}
+
+/** Resolves `specifier` from `importer` to a target, or throws `ERR_MODULE_NOT_FOUND` (`MODULE_NOT_FOUND` for `require`). */
+export function resolveTarget(
+  state: Records,
+  specifier: string,
+  importer: string,
+  kind: ResolveKind,
+): Found {
+  const target = resolveOrMissing(state, specifier, importer, kind)
+  if (target.kind === 'missing') throw target.error
+  return target
+}
+
+/**
+ * The target behind an id the module-mock registry hands back (`loadActual`): `node:<name>` is a
+ * builtin, a path under `node_modules` that `inline` doesn't match (or an addon) is an external,
+ * any other path a user module.
+ */
+export function targetOfId(state: Records, id: string): Found {
+  if (id.startsWith('node:')) return { kind: 'builtin', id }
+  if (id.endsWith('.node') || isThirdParty(id, state.options.inline ?? [])) {
+    return { kind: 'external', path: id }
+  }
+  return { kind: 'user', id: toModuleId(id) }
+}
+
+/** The key of an external or builtin in `externals` and `required`. */
+export function externalKey(target: Target): string {
+  if (target.kind === 'builtin') return target.id
+  if (target.kind === 'external') return target.path
+  throw new Error(`${target.kind} is not an external`)
 }
 
 /** Transforms a user module once per worker. */
@@ -115,7 +218,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   const text = readFileSync(path, 'utf8')
   let record: ModuleRecord
   if (path.endsWith('.json')) {
-    record = makeRecord(id, 'json', text, null, [], false)
+    record = makeRecord(id, 'json', text, null, [], [], false)
   } else if (/\.(?:wasm|node)$/.test(path)) {
     throw new LoaderError('LOADER_UNSUPPORTED_MODULE', `cannot load ${path} as a user module`)
   } else {
@@ -129,12 +232,24 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
     const error = transformed.diagnostics.find((diagnostic) => diagnostic.severity === 'error')
     if (error !== undefined) {
       const where = error.loc === undefined ? '' : `:${error.loc.line}:${error.loc.column}`
+      const message =
+        loaderMessage(state.options.policy, 'transform-failed', {
+          file: path,
+          where,
+          message: error.message,
+        }) ?? `${path}${where}: ${error.message}`
       throw new LoaderError(
         'LOADER_TRANSFORM_FAILED',
-        `${path}${where}: ${error.message}${error.codeFrame === undefined ? '' : `\n${error.codeFrame}`}`,
+        error.codeFrame === undefined ? message : `${message}\n\n${error.codeFrame}`,
       )
     }
-    if (transformed.format === 'esm') {
+    // A file whose only module syntax is `import()` has no static form (`unknown`), and `import()`
+    // fails in a CommonJS `vm` script, so it runs in module form (B13c Gap 6).
+    const esm =
+      transformed.format === 'esm' ||
+      (transformed.format === 'unknown' &&
+        transformed.imports.some((entry) => entry.kind === 'dynamic'))
+    if (esm) {
       const runner = toModuleRunner(path, transformed)
       record = makeRecord(
         id,
@@ -142,13 +257,14 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
         runner.code,
         runner.map,
         runner.deps,
+        transformed.lateDeps,
         transformed.hasTopLevelAwait,
       )
     } else {
       const requires = transformed.imports
         .filter((entry) => entry.kind === 'require')
         .map((entry) => entry.specifier)
-      record = makeRecord(id, 'cjs', transformed.code, transformed.map, requires, false)
+      record = makeRecord(id, 'cjs', transformed.code, transformed.map, requires, [], false)
     }
   }
   state.records.set(id, record)
@@ -162,6 +278,7 @@ function makeRecord(
   source: string,
   map: SourceMapV3 | null,
   deps: readonly string[],
+  lateDeps: readonly string[],
   hasTopLevelAwait: boolean,
 ): ModuleRecord {
   return {
@@ -171,51 +288,66 @@ function makeRecord(
     source,
     map,
     deps,
+    lateDeps,
     hasTopLevelAwait,
     asyncGraph: hasTopLevelAwait,
+    lateGraph: lateDeps.length > 0,
     resolved: new Map(),
     linked: false,
-    compiled: null,
+    compiledSync: null,
+    compiledAsync: null,
+    scope: null,
   }
 }
 
-/** A CJS external's namespace for an ESM import, when it can't come from native `import()`. */
-function cjsNamespace(exports: unknown): object {
-  const namespace: Record<string, unknown> = Object.create(null)
-  if (exports !== null && (typeof exports === 'object' || typeof exports === 'function')) {
-    for (const key of Object.keys(exports)) {
-      if (key !== 'default') namespace[key] = Reflect.get(exports, key)
-    }
-  }
-  namespace.default = exports
-  return namespace
-}
-
-/** Loads a shared external natively: `import()` when async, `require` (and `require(esm)`) when sync. */
-async function preloadAsync(state: Records, target: Target): Promise<void> {
-  if (target.kind === 'user') return
-  const key = target.kind === 'builtin' ? target.id : target.path
+/**
+ * Preloads a shared external natively with `import()`, for the async path under `interopDefault:
+ * 'node'` (Node's own namespaces). Under `babel` nothing is preloaded: the edge `require`s the
+ * external when it runs, as Jest's CommonJS output does, so a mocked package never loads.
+ */
+export async function preloadAsync(state: Records, target: Target): Promise<void> {
+  if (target.kind !== 'external' && target.kind !== 'builtin') return
+  if (state.options.policy.interopDefault !== 'node') return
+  const key = externalKey(target)
   if (state.externals.has(key)) return
   const specifier = target.kind === 'builtin' ? target.id : pathToFileURL(target.path).href
   const namespace: object = await import(specifier)
   state.externals.set(key, namespace)
 }
 
-function preloadSync(state: Records, target: Target, from: string): void {
-  if (target.kind === 'user') return
-  const key = target.kind === 'builtin' ? target.id : target.path
-  if (state.externals.has(key)) return
-  const loaded: unknown = createRequire(from)(key)
-  const esModule =
-    loaded !== null &&
-    typeof loaded === 'object' &&
-    Reflect.get(loaded, Symbol.toStringTag) === 'Module'
-  state.externals.set(key, esModule ? (loaded as object) : cjsNamespace(loaded))
+/**
+ * One dep of `record` at link time: its target, with a user module transformed (and queued on
+ * `stack`) or, when it doesn't transform, recorded `failed`. A mocked module is never evaluated,
+ * so its transform error only matters if the edge decides on the real module.
+ */
+function linkDep(
+  state: Records,
+  record: ModuleRecord,
+  specifier: string,
+  stack: ModuleRecord[],
+): Target {
+  let target: Target = resolveOrMissing(
+    state,
+    specifier,
+    record.path,
+    record.format === 'cjs' ? 'require' : 'import',
+  )
+  if (target.kind === 'user') {
+    try {
+      stack.push(recordFor(state, target.id, false))
+    } catch (error) {
+      target = { kind: 'failed', id: target.id, error }
+    }
+  }
+  setResolved(state, record, specifier, target)
+  return target
 }
 
 /**
  * Links a module's static subgraph (Track 2 R1 step 2): resolve every dep, transform user modules,
- * and preload externals the ESM code imports. `mode: 'sync'` serves `require()`.
+ * and preload externals the ESM code imports. A dep that doesn't resolve is recorded `missing`, one
+ * that doesn't transform `failed`; each fails only when its edge runs. Late deps are not linked:
+ * the mocks register first.
  */
 export async function linkAsync(state: Records, root: ModuleRecord): Promise<void> {
   const stack = [root]
@@ -224,12 +356,9 @@ export async function linkAsync(state: Records, root: ModuleRecord): Promise<voi
     if (record === undefined || record.linked) continue
     record.linked = true
     state.asyncGraphsStale = true
-    const kind: ResolveKind = record.format === 'cjs' ? 'require' : 'import'
     for (const specifier of record.deps) {
-      const target = resolveTarget(state, specifier, record.path, kind)
-      setResolved(state, record, specifier, target)
-      if (target.kind === 'user') stack.push(recordFor(state, target.id, false))
-      else if (record.format === 'esm') await preloadAsync(state, target)
+      const target = linkDep(state, record, specifier, stack)
+      if (record.format === 'esm') await preloadAsync(state, target)
     }
   }
   markAsyncGraphs(state)
@@ -242,13 +371,7 @@ export function linkSync(state: Records, root: ModuleRecord): void {
     if (record === undefined || record.linked) continue
     record.linked = true
     state.asyncGraphsStale = true
-    const kind: ResolveKind = record.format === 'cjs' ? 'require' : 'import'
-    for (const specifier of record.deps) {
-      const target = resolveTarget(state, specifier, record.path, kind)
-      setResolved(state, record, specifier, target)
-      if (target.kind === 'user') stack.push(recordFor(state, target.id, false))
-      else if (record.format === 'esm') preloadSync(state, target, record.path)
-    }
+    for (const specifier of record.deps) linkDep(state, record, specifier, stack)
   }
   markAsyncGraphs(state)
 }
@@ -265,9 +388,9 @@ export function setResolved(
 }
 
 /**
- * Marks every module whose static subgraph has top-level await, to a fixed point over cycles.
- * A no-op unless something it reads has changed since the last run, so it is safe to call after
- * every link.
+ * Marks every module whose static subgraph has top-level await (`asyncGraph`) or late deps
+ * (`lateGraph`), to a fixed point over cycles. A no-op unless something it reads has changed since
+ * the last run, so it is safe to call after every link.
  */
 function markAsyncGraphs(state: Records): void {
   if (!state.asyncGraphsStale) return
@@ -276,34 +399,70 @@ function markAsyncGraphs(state: Records): void {
   while (changed) {
     changed = false
     for (const record of state.records.values()) {
-      if (record.asyncGraph || !record.linked) continue
+      if (!record.linked || (record.asyncGraph && record.lateGraph)) continue
       for (const target of record.resolved.values()) {
-        if (target.kind === 'user' && state.records.get(target.id)?.asyncGraph === true) {
+        // A `missing` or `failed` target has no record: it adds nothing to the graph.
+        const dep = target.kind === 'user' ? state.records.get(target.id) : undefined
+        if (dep === undefined) continue
+        if (dep.asyncGraph && !record.asyncGraph) {
           record.asyncGraph = true
           changed = true
-          break
+        }
+        if (dep.lateGraph && !record.lateGraph) {
+          record.lateGraph = true
+          changed = true
         }
       }
     }
   }
 }
 
-/** Compiles a record's wrapper once per worker (filename = the real path, for stacks and coverage). */
-export function compile(state: Records, record: ModuleRecord): (...args: unknown[]) => unknown {
-  if (record.compiled !== null) return record.compiled
-  let prefix: string
+/** The scope bindings `record`'s source names, found once. */
+export function scopeOf(state: Records, record: ModuleRecord): readonly string[] {
+  if (record.scope !== null) return record.scope
+  const names = record.format === 'esm' ? state.scopeNames.esm : state.scopeNames.cjs
+  record.scope =
+    record.format === 'json'
+      ? []
+      : names.filter((name) => state.scopePatterns.get(name)?.test(record.source) === true)
+  return record.scope
+}
+
+/**
+ * Compiles a record's wrapper once per worker and mode (filename = the real path, for stacks and
+ * coverage). `sync` strips the `await` from the import calls, which only the sync path may do;
+ * `async` keeps them. A module with scope bindings gets an outer function taking them, so a
+ * module's own `const require = …` shadows the binding instead of clashing with a parameter.
+ */
+export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'async'): Compiled {
+  const cached = mode === 'sync' ? record.compiledSync : record.compiledAsync
+  if (cached !== null) return cached
+  const scope = scopeOf(state, record)
   let body = record.source
+  let inner: string
+  let head = ''
   if (record.format === 'esm') {
-    if (!record.asyncGraph)
-      body = body.replaceAll('await __vite_ssr_import__(', '__vite_ssr_import__(')
-    prefix = `'use strict';(${record.asyncGraph ? 'async ' : ''}function (${ESM_PARAMS}) {`
+    if (mode === 'sync') {
+      body = body
+        .replaceAll('await __vite_ssr_import__(', '__vite_ssr_import__(')
+        .replaceAll(`await ${LATE_IMPORT}(`, `${LATE_IMPORT}(`)
+    }
+    head = "'use strict';"
+    inner = `${mode === 'async' ? 'async ' : ''}function (${ESM_PARAMS}) {`
   } else {
-    prefix = `(function (${CJS_PARAMS}) {`
+    inner = `function (${CJS_PARAMS}) {`
   }
-  const compiled: unknown = runInThisContext(`${prefix}${body}\n})`, { filename: record.path })
+  const prefix =
+    scope.length === 0
+      ? `${head}(${inner}`
+      : `${head}(function (${scope.join(', ')}) { return ${inner}`
+  const suffix = scope.length === 0 ? '\n})' : '\n}})'
+  const compiled: unknown = runInThisContext(`${prefix}${body}${suffix}`, { filename: record.path })
   if (typeof compiled !== 'function')
     throw new Error(`the wrapper for ${record.path} is not a function`)
-  record.compiled = compiled as (...args: unknown[]) => unknown
+  const fn = compiled as Compiled
+  if (mode === 'sync') record.compiledSync = fn
+  else record.compiledAsync = fn
   for (const listener of state.listeners) {
     listener({
       id: record.id,
@@ -313,5 +472,5 @@ export function compile(state: Records, record: ModuleRecord): (...args: unknown
       thirdParty: false,
     })
   }
-  return record.compiled
+  return fn
 }

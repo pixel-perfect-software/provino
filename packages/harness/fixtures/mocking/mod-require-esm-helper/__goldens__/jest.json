@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/mod-require-esm-helper",
+  "files": [
+    {
+      "file": "mod-require-esm-helper.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-require-esm-helper.jest.test.ts",
+            "path": [
+              "require() of an ESM helper that mocks and imports loads it synchronously"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-require-esm-helper.jest.test.ts",
+            "path": [
+              "the helper's mock applies to the test file too"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-require-esm-helper.jest.test.ts",
+            "path": [
+              "inside isolateModules the helper loads again, synchronously, and still sees the mock"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"require() of an ESM helper that mocks and imports loads it synchronously\",\"value\":{\"seen\":{\"who\":\"mock-dep\",\"greeting\":\"hello ada from the mock\"},\"loads\":1}}",
+    "{\"id\":\"the helper's mock applies to the test file too\",\"value\":\"mock-dep\"}",
+    "{\"id\":\"inside isolateModules the helper loads again, synchronously, and still sees the mock\",\"value\":{\"who\":\"mock-dep\",\"loads\":2}}"
+  ]
+}

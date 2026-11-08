@@ -44,6 +44,7 @@
     "es-module-lexer": "catalog:",
     "expect": "catalog:",
     "jest": "catalog:",
+    "jest-config": "catalog:",
     "jest-mock": "catalog:",
     "lodash": "catalog:",
     "magic-string": "catalog:",

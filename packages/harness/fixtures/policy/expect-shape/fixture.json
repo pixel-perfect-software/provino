@@ -1,0 +1,4 @@
+{
+  "description": "What the runner's expect is (T1.7, expect slice): the class of a failed assertion's error, how toEqual compares two errors and two invalid dates, whether expect.soft and expect.poll exist, and, Vitest only, how long expect.poll waits and how often it asks. Plus the lines of context a diff shows around a change, and a test with no assertion (it passes: no assertion is required).",
+  "runners": ["jest", "vitest"]
+}

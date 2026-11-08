@@ -116,8 +116,11 @@ test('top-level await makes its importers async, and require() of them throws', 
 test('a link that throws partway still gets its async graphs marked by the next link', async () => {
   const root = writeTree({
     'slow.ts': 'export const value: number = await Promise.resolve(42)\n',
-    'broken.ts': "import './missing.ts'\nexport const broken = 1\n",
-    // `half.ts` resolves both of its imports before the walk reaches `broken.ts` and throws,
+    // A missing import no longer fails the link (it fails when its edge runs), but a file that
+    // doesn't transform still does.
+    'broken.ts': "import './bad.ts'\nexport const broken = 1\n",
+    'bad.ts': 'export const = 1\n',
+    // `half.ts` resolves both of its imports before the walk reaches `bad.ts` and throws,
     // whichever order the walk takes them in.
     'half.ts': "import './slow.ts'\nimport './broken.ts'\nexport const half = 1\n",
     'entry.test.ts': '',
@@ -125,7 +128,7 @@ test('a link that throws partway still gets its async graphs marked by the next 
   const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
     tier: 'registry',
   })
-  await assert.rejects(registry.import(join(root, 'half.ts')), { code: 'ERR_MODULE_NOT_FOUND' })
+  await assert.rejects(registry.import(join(root, 'half.ts')), { code: 'LOADER_TRANSFORM_FAILED' })
   // `half.ts` stays linked with `slow.ts` resolved, and nothing marked it. This second link finds
   // nothing new to link, but still has to mark it: its graph has top-level await.
   assert.throws(() => registry.require(join(root, 'half.ts')), { code: 'ERR_REQUIRE_ASYNC_MODULE' })
@@ -339,9 +342,11 @@ test('failures are per file and coded', async () => {
   assert.throws(() => loader.createFileRegistry(join(root, 'x.ts'), { tier: 'realm' }), {
     code: 'LOADER_NOT_IMPLEMENTED',
   })
+  // With no module-mock registry given, nothing is mocked and registering is refused.
   assert.throws(() => registry.registerMock('./x', null, { kind: 'automock', spy: false }), {
-    code: 'LOADER_NOT_IMPLEMENTED',
+    code: 'LOADER_NO_MODULE_MOCKS',
   })
+  assert.throws(() => registry.unregisterMock('./x', null), { code: 'LOADER_NO_MODULE_MOCKS' })
 })
 
 test('compiled scripts are reported once per worker, with their maps', async () => {

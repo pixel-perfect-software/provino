@@ -45,7 +45,7 @@ export type HoistErrorCode =
 
 /**
  * What a dialect's mock hoisting does. Replaces Track 1's `module.hoistNames` (now `objects`) and
- * `module.nonTopLevelMock` (now `placement`). Jest/Vitest values: track-03 L612 (unverified).
+ * `module.nonTopLevelMock` (now `placement`). Jest/Vitest values: track-03 L612; the dialects' claims (T1.7) hold the evidence.
  * @public
  */
 export interface HoistPolicy<Calls extends string = string, Values extends string = string> {

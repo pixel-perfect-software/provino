@@ -1,0 +1,13 @@
+{
+  "description": "An obsolete snapshot under CI (T1.7, snapshot.obsolete.failCI): the .snap holds one entry the test checks and one nothing checks; the exit code says whether the run fails for it. The .snap is written per runner, with that runner's header.",
+  "runners": ["jest", "vitest"],
+  "files": {
+    "jest": {
+      "__snapshots__/obsolete.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`kept 1`] = `\"kept\"`;\n\nexports[`obsolete 1`] = `\"gone\"`;\n"
+    },
+    "vitest": {
+      "__snapshots__/obsolete.test.ts.snap": "// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html\n\nexports[`kept 1`] = `\"kept\"`;\n\nexports[`obsolete 1`] = `\"gone\"`;\n"
+    }
+  },
+  "run": { "capture": ["exitCode"] }
+}

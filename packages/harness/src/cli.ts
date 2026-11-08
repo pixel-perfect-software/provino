@@ -8,13 +8,21 @@ import { HarnessError } from './errors.ts'
 import { defaultFixturesRoot, findFixtures, readFixture, resolveFixtureDirs } from './fixture.ts'
 import {
   type HarnessCommand,
+  type PolicyDiffCommand,
   parseCommandLine,
   type RecordCommand,
   USAGE,
 } from './internal/cli-args.ts'
 import { findStaleGoldens } from './internal/stale-goldens.ts'
+import { formatDialectDiff } from './policy-truth/diff.ts'
 import { recordRead } from './record.ts'
 import { exitOnSignals } from './spawn-in-group.ts'
+
+// provino-harness policy-diff <jest|vitest> <jest|vitest>: the dialects' differing keys (T1.8).
+function policyDiff(command: PolicyDiffCommand): number {
+  console.log(formatDialectDiff(command.a, command.b))
+  return 0
+}
 
 // provino-harness record [--check] [--keep] [<fixture dir>...]
 async function record(command: RecordCommand): Promise<number> {
@@ -83,6 +91,8 @@ async function main(argv: readonly string[]): Promise<number> {
       return convertCommand(command, processIo)
     case 'self-test':
       return selfTestCommand(command, processIo)
+    case 'policy-diff':
+      return policyDiff(command)
     default: {
       const unexpected: never = command
       throw new Error(`unhandled command ${JSON.stringify(unexpected)}`)

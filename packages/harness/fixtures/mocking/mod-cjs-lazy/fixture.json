@@ -1,0 +1,4 @@
+{
+  "description": "A CommonJS test whose requires are only tried when they run: a virtual mock required from the test and from a support file, and try { require('missing') } catch {} that goes on (B13c Gap 7).",
+  "runners": ["jest"]
+}

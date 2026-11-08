@@ -52,9 +52,12 @@ const config: SerializedProjectConfig = {
     options: {},
   },
   globals: null,
+  moduleScope: null,
   setupFiles: [],
   setupFilesAfterEnv: [],
   loader: {
+    hoist: null,
+    moduleScope: [],
     extensions: ['.ts', '.js'],
     conditions: ['node'],
     tsconfig: false,
@@ -203,9 +206,12 @@ export function runtimeConfig(
       options: environmentOptions ?? {},
     },
     globals: moduleRef<GlobalsFactory>(fixture('runtime-globals.ts').href, 'testGlobals'),
+    moduleScope: null,
     setupFiles: [],
     setupFilesAfterEnv: [],
     loader: {
+      hoist: null,
+      moduleScope: [],
       extensions: ['.js', '.ts'],
       conditions: ['node'],
       tsconfig: false,
@@ -319,6 +325,7 @@ export function runtimeProject(
     policy,
     include,
     exclude,
+    discovery: null,
     environment: 'recording',
     isolation: 'registry',
     config: runtimeConfig(rootDir, {

@@ -1,7 +1,9 @@
 // The editing half of the hoister: move the statements `analyse` chose, and, when something moves
-// to the top of a file that has static imports, turn those imports into `await import()` calls
-// placed after the hoisted block (D36). Moves go through magic-string's `move`, so every moved
-// statement and rewritten reference keeps its original line and column in the map.
+// to the top of a file that has static imports, turn those imports into
+// `await __provino_import__()` calls placed after the hoisted block (D36, in D38's sync-capable
+// form: the loader supplies the function and strips the `await` when it evaluates synchronously).
+// Moves go through magic-string's `move`, so every moved statement and rewritten reference keeps
+// its original line and column in the map.
 import type { HoistPolicy, SourceMapV3 } from '@provino/types'
 import MagicString from 'magic-string'
 import { toSourceMapV3 } from '../internal/maps.ts'
@@ -23,9 +25,17 @@ export interface Applied {
   readonly code: string
   readonly map: SourceMapV3
   readonly rewroteImports: boolean
+  readonly lateDeps: readonly string[]
 }
 
 const IMPORT_PREFIX = '__provino_import_'
+/**
+ * The loader's late import (D38): `await __provino_import__('./a')` loads `./a` through the mock
+ * decision when the call runs. The loader's wrapper passes it in, and on its sync path strips the
+ * `await`.
+ * @public
+ */
+export const LATE_IMPORT = '__provino_import__'
 /** The module-runner form's helper for `export * from` (the loader's wrapper passes it in). */
 const EXPORT_ALL = '__vite_ssr_exportAll__'
 /** The module-runner form's exports object (the loader's wrapper passes it in). */
@@ -74,7 +84,15 @@ function importExpression(code: string, node: Node): string {
       : [],
   )
   const withClause = attributes.length === 0 ? '' : `, { with: { ${attributes.join(', ')} } }`
-  return `await import(${JSON.stringify(source.value)}${withClause})`
+  return `await ${LATE_IMPORT}(${JSON.stringify(source.value)}${withClause})`
+}
+
+function sourceOf(node: Node): string {
+  const source = 'source' in node && node.source !== null ? node.source : null
+  if (source === null || !('value' in source) || typeof source.value !== 'string') {
+    throw new Error('an import without a source')
+  }
+  return source.value
 }
 
 /** A read of one export of the namespace `id`. */
@@ -211,12 +229,14 @@ export function applyHoist(
     for (const unit of ordered) placeUnit(unit)
   }
 
+  const lateDeps: string[] = []
   if (rewrite) {
     const ids = new Map<Node, string>()
     let next = 0
     for (const node of program.body) {
       if ((isImportDeclaration(node) && imports.has(node)) || reexports.includes(node)) {
         ids.set(node, `${IMPORT_PREFIX}${next++}__`)
+        lateDeps.push(sourceOf(node))
       }
     }
 
@@ -299,5 +319,6 @@ export function applyHoist(
       s.generateMap({ source: filename, hires: 'boundary', includeContent: false }),
     ),
     rewroteImports: rewrite,
+    lateDeps,
   }
 }

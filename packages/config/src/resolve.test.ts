@@ -8,6 +8,8 @@ import type {
   Dialect,
   EnvironmentConditions,
   GlobalsFactory,
+  HoistPolicy,
+  ModuleScopeFactory,
   ProvinoConfigInput,
 } from '@provino/types'
 import { ConfigError } from './errors.ts'
@@ -88,12 +90,15 @@ describe('resolveProject', () => {
       assert.deepEqual(project.config.setupFilesAfterEnv, [])
       assert.equal(project.config.ci, true)
       assert.deepEqual(project.config.loader, {
+        hoist: null,
+        moduleScope: [],
         extensions: ['.js', '.mjs', '.cjs', '.jsx', '.ts', '.mts', '.cts', '.tsx', '.json'],
         conditions: ['node'],
         tsconfig: 'auto',
         mappers: [],
         typescript: 'oxc',
       })
+      assert.equal(project.config.moduleScope, null)
     })
 
     test('gives a worker config that survives structuredClone', async () => {
@@ -716,6 +721,80 @@ describe('resolveProject', () => {
         { dialects: [pipe] },
       )
       assert.equal(project.config.globals, null)
+    })
+  })
+
+  describe('mock hoisting and per-module bindings (B13c)', () => {
+    const scopeFactory = moduleRef<ModuleScopeFactory>('file:///dialect/scope.mjs', 'perModule')
+    const hoist: HoistPolicy = {
+      id: 'test-hoist',
+      objects: [{ kind: 'name', name: 'mocker' }],
+      hoistCalls: { mock: 'any' },
+      hoistValues: [],
+      rewriteImportArg: [],
+      chainable: true,
+      placement: 'enclosing-block',
+      topLevelGuards: [],
+      factoryReferences: {
+        allowGlobals: new Set(['Math']),
+        allowPattern: /^mock/i,
+        hoistPureConsts: false,
+      },
+      runnerModules: [],
+      reExports: 'in-order',
+      rewrittenCalls: 'detached',
+      messages: {
+        HOIST_FACTORY_OUT_OF_SCOPE: 'out of scope',
+        HOIST_FACTORY_NOT_FUNCTION: 'not a function',
+        HOIST_NOT_TOP_LEVEL: 'not top level',
+        HOIST_NESTED: 'nested',
+        HOIST_EXPORTED: 'exported',
+        HOIST_EXPORTED_VALUE: 'exported value',
+      },
+    }
+    const hoisting = defineDialect({
+      name: 'hoisting',
+      version: '1',
+      policy: { core: { injectGlobals: false } },
+      loader: { hoist },
+      moduleScope: { names: ['mocker'], factory: scopeFactory },
+    })
+
+    test('the dialect’s hoist policy crosses by value, RegExp and Set included', async () => {
+      const project = await resolveWith({ dialect: 'hoisting' as never }, { dialects: [hoisting] })
+      assert.deepEqual(project.config.loader.hoist, hoist)
+      assert.deepEqual(structuredClone(project.config).loader.hoist, hoist)
+    })
+
+    test('the per-module names and factory cross, with globals off', async () => {
+      const project = await resolveWith({ dialect: 'hoisting' as never }, { dialects: [hoisting] })
+      assert.equal(project.config.globals, null)
+      assert.deepEqual(project.config.loader.moduleScope, ['mocker'])
+      assert.deepEqual(project.config.moduleScope, scopeFactory)
+    })
+
+    test('a dialect with neither gives no hoisting and no bindings', async () => {
+      const project = await resolveWith({ dialect: 'pipe' as never }, { dialects: [pipe] })
+      assert.equal(project.config.loader.hoist, null)
+      assert.deepEqual(project.config.loader.moduleScope, [])
+      assert.equal(project.config.moduleScope, null)
+    })
+
+    test('a relative module-scope factory is CONFIG_INVALID, naming moduleScope.module', async () => {
+      const relative = defineDialect({
+        name: 'relscope',
+        version: '1',
+        policy: {},
+        moduleScope: {
+          names: ['mocker'],
+          factory: moduleRef<ModuleScopeFactory>('./scope.ts', 'f'),
+        },
+      })
+      const error = await rejectsWith(
+        resolveWith({ dialect: 'relscope' as never }, { dialects: [relative] }),
+        'CONFIG_INVALID',
+      )
+      assert.match(error.message, /moduleScope\.module/)
     })
   })
 

@@ -8,7 +8,10 @@ import {
 } from '@provino/policy'
 import type {
   Dialect,
+  EnvironmentRef,
   IsolationTier,
+  NeutralDiscovery,
+  NeutralProject,
   Policy,
   PolicyOverrides,
   ProvinoConfigInput,
@@ -54,6 +57,12 @@ export interface ResolvedProject {
   /** The globs that find test files, relative to `rootDir`. */
   readonly include: readonly string[]
   readonly exclude: readonly string[]
+  /**
+   * A dialect reader's discovery rules (roots, patterns on absolute paths, extensions), or `null`
+   * for a `provino.config.*` project, which finds tests by `include` and `exclude`. Carried for
+   * discovery to read (B14c); today's discovery uses `include` and `exclude`.
+   */
+  readonly discovery: NeutralDiscovery | null
   /** The environment's name: `WorkerKey.environment`. */
   readonly environment: string
   readonly isolation: IsolationTier
@@ -192,19 +201,124 @@ export async function resolveProject(
           dialect,
           Object.hasOwn(input, dialect.name) ? Reflect.get(input, dialect.name) : undefined,
         )
+  return finishProject(
+    {
+      name: parsed.name ?? '',
+      rootDir,
+      dialect,
+      layers: [dialectLayer, projectLayer(parsed.include, parsed.exclude, parsed.globals)],
+      environment: parsed.environment,
+      environmentOptions: {},
+      isolation: parsed.isolation,
+      setupFiles: [],
+      setupFilesAfterEnv: parsed.setupFiles ?? [],
+      setupFilesAfterEnvKey: 'setupFiles',
+      discovery: null,
+    },
+    options,
+  )
+}
+
+/**
+ * What `resolveNeutralProject` needs besides the project: the dialect its reader belongs to (the
+ * caller has it already), the environments, and whether this is a CI run.
+ * @public
+ */
+export interface ResolveNeutralProjectOptions {
+  /** The dialect whose config reader produced the project, or `null` for neutral. */
+  readonly dialect: Dialect | null
+  /** Each environment by name, as an absolute ref the worker can import. */
+  readonly environments: ResolveProjectOptions['environments']
+  readonly ci: boolean
+}
+
+/**
+ * Resolves a project a dialect's config reader produced (`ConfigReader.toNeutral`): the dialect's
+ * policy with the project's own layered over it, its environment and isolation, and the
+ * `SerializedProjectConfig` its workers start with. The same steps as `resolveProject` after
+ * reading a `provino.config.*`. Its `setupFiles` stay the worker's `setupFiles` (run before the
+ * framework) and its `setupFilesAfterEnv` the worker's; each must be an absolute path to a file.
+ * Every failure is a `ConfigError`.
+ * @public
+ */
+export async function resolveNeutralProject(
+  neutral: NeutralProject,
+  options: ResolveNeutralProjectOptions,
+): Promise<ResolvedProject> {
+  if (!isAbsolute(neutral.rootDir)) {
+    throw new ConfigError(
+      'CONFIG_INVALID',
+      `the project's rootDir must be absolute (got "${neutral.rootDir}")`,
+    )
+  }
+  await assertDirectory(neutral.rootDir)
+  const dialectLayer =
+    options.dialect === null ? undefined : await dialectPolicy(options.dialect, undefined)
+  for (const [key, paths] of [
+    ['setupFiles', neutral.setupFiles],
+    ['setupFilesAfterEnv', neutral.setupFilesAfterEnv],
+  ] as const) {
+    const relative = paths.find((path) => !isAbsolute(path))
+    if (relative !== undefined) {
+      throw new ConfigError(
+        'CONFIG_INVALID',
+        `the project's ${key} must hold absolute paths (got "${relative}")`,
+      )
+    }
+  }
+  return finishProject(
+    {
+      name: neutral.name,
+      rootDir: neutral.rootDir,
+      dialect: options.dialect,
+      layers: [dialectLayer, neutral.policy],
+      environment: neutral.environment.name,
+      environmentOptions: neutral.environment.options,
+      isolation: undefined,
+      setupFiles: neutral.setupFiles,
+      setupFilesAfterEnv: neutral.setupFilesAfterEnv,
+      setupFilesAfterEnvKey: 'setupFilesAfterEnv',
+      discovery: neutral.discovery,
+    },
+    { environments: options.environments, ci: options.ci },
+  )
+}
+
+/** A project after its input is read: what `finishProject` builds the rest from. */
+interface ProjectInput {
+  readonly name: string
+  readonly rootDir: string
+  readonly dialect: Dialect | null
+  /** The policy layers, lowest first (the dialect's, then the project's). */
+  readonly layers: readonly (PolicyOverrides | undefined)[]
+  readonly environment: string | undefined
+  readonly environmentOptions: EnvironmentRef['options']
+  readonly isolation: IsolationTier | undefined
+  /** Worker `setupFiles` (absolute, or relative to `rootDir`). */
+  readonly setupFiles: readonly string[]
+  /** Worker `setupFilesAfterEnv` (absolute, relative to `rootDir`, or a `file:` URL). */
+  readonly setupFilesAfterEnv: readonly string[]
+  /** The config key `setupFilesAfterEnv` came from, for messages. */
+  readonly setupFilesAfterEnvKey: string
+  readonly discovery: NeutralDiscovery | null
+}
+
+/** The steps every project shares once its input is read: policy, environment, the worker config. */
+async function finishProject(
+  input: ProjectInput,
+  options: Pick<ResolveProjectOptions, 'environments' | 'ci'>,
+): Promise<ResolvedProject> {
+  const { dialect, rootDir } = input
   let policy: Policy
   try {
-    policy = resolvePolicy(
-      dialectLayer,
-      projectLayer(parsed.include, parsed.exclude, parsed.globals),
-    )
+    policy = resolvePolicy(...input.layers)
   } catch (cause) {
     throw new ConfigError('CONFIG_INVALID', `the policy didn't resolve: ${messageOf(cause)}`, {
       cause,
     })
   }
 
-  const environment = parsed.environment ?? policy.orchestrator.envDefault
+  const environment = input.environment ?? policy.orchestrator.envDefault
   const environmentRef = entry(options.environments, environment)
   if (environmentRef === undefined) {
     const known = Object.keys(options.environments)
@@ -215,7 +329,7 @@ export async function resolveProject(
   }
   const { isolationDefault } = policy.orchestrator
   const isolation =
-    parsed.isolation ??
+    input.isolation ??
     entry(isolationDefault.byEnvironment, environment) ??
     isolationDefault.default
 
@@ -233,20 +347,32 @@ export async function resolveProject(
     )
   }
 
-  const [setupFilesAfterEnv, conditions] = await inParallel(
-    resolveSetupFiles(parsed.setupFiles ?? [], rootDir),
+  const [[setupFiles, setupFilesAfterEnv], conditions] = await inParallel(
+    Promise.all([
+      resolveSetupFiles(input.setupFiles, rootDir, 'setupFiles'),
+      resolveSetupFiles(input.setupFilesAfterEnv, rootDir, input.setupFilesAfterEnvKey),
+    ]),
     loaderConditions(policy, environment),
   )
   const config: SerializedProjectConfig = {
-    name: parsed.name ?? '',
+    name: input.name,
     rootDir,
     ci: options.ci,
     policy: serialized,
-    environment: { module: environmentRef.module, export: environmentRef.export, options: {} },
+    environment: {
+      module: environmentRef.module,
+      export: environmentRef.export,
+      options: input.environmentOptions,
+    },
     globals: globalsFactory,
-    setupFiles: [],
+    // A module's own bindings exist whether or not globals are injected (Jest's `jest`).
+    moduleScope: dialect?.moduleScope?.factory ?? null,
+    setupFiles,
     setupFilesAfterEnv,
     loader: {
+      // The dialect's hoist policy crosses by value: data, with `RegExp` and `Set` leaves (B13c Gap 12).
+      hoist: dialect?.loader?.hoist ?? null,
+      moduleScope: dialect?.moduleScope?.names ?? [],
       extensions: Object.freeze([...LOADER_EXTENSIONS]),
       conditions,
       tsconfig: 'auto',
@@ -257,12 +383,13 @@ export async function resolveProject(
   assertWorkerConfig(config)
 
   return {
-    name: parsed.name ?? '',
+    name: input.name,
     rootDir,
     dialect,
     policy,
     include: policy.orchestrator.include,
     exclude: policy.orchestrator.exclude,
+    discovery: input.discovery,
     environment,
     isolation,
     config,

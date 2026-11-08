@@ -1,7 +1,7 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
-import type { BaseConfig } from './config.ts'
+import type { JsonValue } from './clone-safe.ts'
 import type { HoistPolicy } from './hoist.ts'
-import type { FileRegistry } from './loader.ts'
+import type { FileRegistry, ModuleMockRegistry } from './loader.ts'
 import type { MockPolicy, ModuleRef, PolicyOverrides } from './policy/index.ts'
 
 /**
@@ -41,24 +41,119 @@ export interface Diagnostic {
 }
 
 /**
- * What a dialect's config reader produces from a `jest.config.*` or `vitest.config.*`.
+ * Where a runner's config was found: a config file, a `package.json` (its runner key), or config
+ * given as text (Jest's `--config '{…}'`). `path` is absolute: the file, or for `inline` the
+ * directory the config's relative paths start from.
  * @public
  */
-export interface ConfigReadResult<Options> {
-  readonly config: BaseConfig
-  readonly options: Options
-  readonly policy: PolicyOverrides
+export type ConfigSource =
+  | { readonly kind: 'file' | 'package-json'; readonly path: string }
+  | { readonly kind: 'inline'; readonly path: string; readonly text: string }
+
+/**
+ * What a reader step returns: its value and the problems it found along the way (warnings, such as
+ * Jest's "did you mean"; an error is thrown, not returned).
+ * @public
+ */
+export interface ConfigReadOutcome<Value> {
+  readonly value: Value
   readonly diagnostics: readonly Diagnostic[]
 }
 
 /**
- * Reads a runner's own config file (Track 11 owns the full contract).
+ * One module-mapping rule (Jest's `moduleNameMapper` entry): a specifier matching `pattern` (a
+ * regular expression's source) is replaced by the first of `targets` that resolves, with `$1`…
+ * from the match. Rules run in order and the first match wins.
  * @public
  */
-export interface ConfigReader<Options> {
-  /** File names to look for, in order. */
+export interface NeutralAlias {
+  readonly pattern: string
+  readonly targets: readonly string[]
+}
+
+/**
+ * One transform rule (Jest's `transform` entry): a file whose path matches `pattern` (a regular
+ * expression's source) goes through `module` (an absolute path, or the bare name of a package the
+ * runner itself ships) with `options`.
+ * @public
+ */
+export interface NeutralTransform {
+  readonly pattern: string
+  readonly module: string
+  readonly options: JsonValue
+}
+
+/**
+ * How a project finds its test files. Patterns match absolute paths. `includePatterns` is globs
+ * (Jest's `testMatch`) or regular expressions' sources (`testRegex`), never both;
+ * `excludePatterns` (`testPathIgnorePatterns`) and `crawlIgnorePatterns`
+ * (`modulePathIgnorePatterns`) are regular expressions' sources. `extensions` have no dot.
+ * @public
+ */
+export interface NeutralDiscovery {
+  /** Absolute directories to look in. */
+  readonly roots: readonly string[]
+  readonly extensions: readonly string[]
+  readonly includePatterns: {
+    readonly kind: 'glob' | 'regex'
+    readonly patterns: readonly string[]
+  }
+  readonly excludePatterns: readonly string[]
+  readonly crawlIgnorePatterns: readonly string[]
+}
+
+/**
+ * One project as a dialect's config reader hands it to the neutral config (`resolveNeutralProject`
+ * in `@provino/config`). It stays in the coordinator, but holds no `RegExp` and no function, and
+ * every path in it is absolute (D21), so what is built from it can cross to a worker.
+ * @public
+ */
+export interface NeutralProject {
+  /** `''` when the config gives none. */
+  readonly name: string
+  readonly rootDir: string
+  readonly discovery: NeutralDiscovery
+  /** Absolute paths, run before the test framework is installed (Jest's `setupFiles`). */
+  readonly setupFiles: readonly string[]
+  /** Absolute paths, run after it (Jest's `setupFilesAfterEnv`, Vitest's `setupFiles`). */
+  readonly setupFilesAfterEnv: readonly string[]
+  /** Absolute paths, or `[]`. */
+  readonly globalSetup: readonly string[]
+  readonly globalTeardown: readonly string[]
+  /** The environment's neutral name (`node`, `jsdom`), or an absolute path to a custom one. */
+  readonly environment: {
+    readonly name: string
+    readonly options: Readonly<Record<string, JsonValue>>
+  }
+  readonly aliases: readonly NeutralAlias[]
+  readonly transforms: readonly NeutralTransform[]
+  /** Regular expressions' sources: files they match are not transformed. */
+  readonly transformIgnorePatterns: readonly string[]
+  /** Absolute paths. */
+  readonly snapshotSerializers: readonly string[]
+  /** The config's keys that map onto the policy, as overrides over the dialect's own. */
+  readonly policy: PolicyOverrides
+}
+
+/**
+ * Reads a runner's own config (Track 11's contract): `find` it, `load` what the file gives,
+ * `resolve` that the way the runner does (presets, defaults, `<rootDir>`, paths), and turn the
+ * result into neutral projects. `Raw` and `Resolved` are the dialect's own shapes; the methods are
+ * declared as methods, so a reader of any `Raw` and `Resolved` is a `ConfigReader`.
+ * @public
+ */
+export interface ConfigReader<Raw = unknown, Resolved = unknown> {
+  /** File names looked for in each directory, in order. */
   readonly candidates: readonly string[]
-  read(path: string): Promise<ConfigReadResult<Options>>
+  /**
+   * Finds the config for `cwd`, or the one `explicit` names (a path, or inline text where the
+   * runner accepts it). `undefined` when an implicit search finds nothing; an explicit one that
+   * finds nothing throws.
+   */
+  find(cwd: string, explicit?: string): Promise<ConfigSource | undefined>
+  load(source: ConfigSource): Promise<Raw>
+  resolve(raw: Raw, source: ConfigSource): Promise<ConfigReadOutcome<Resolved>>
+  toNeutral(resolved: Resolved): ConfigReadOutcome<readonly NeutralProject[]>
 }
 
 /**
@@ -138,8 +233,34 @@ export interface GlobalsHost {
    * worker under isolation `none`). Read it when the global is called, like `registry()`.
    */
   mocks(): object
+  /**
+   * The module-mock registry of the file running now (one per file, in every tier). Read it when
+   * the global is called, like `registry()`.
+   */
+  moduleMocks(): ModuleMockRegistry
   /** The mock slice of the resolved policy: what a mock function built here follows. */
   readonly mockPolicy: MockPolicy
+}
+
+/**
+ * Builds the values of a dialect's per-module bindings: given the worker's host once, it returns
+ * the function the loader calls for each module that names a binding (`from` is that module).
+ * Bivariant in the host, as `GlobalsFactory` is.
+ * @public
+ */
+export type ModuleScopeFactory = {
+  bivarianceHack(host: GlobalsHost): (from: string) => Readonly<Record<string, unknown>>
+}['bivarianceHack']
+
+/**
+ * A dialect's per-module bindings (Jest gives each module its own `jest`, as jest-runtime's
+ * `_createJestObjectFor(from)` does): the names every module's wrapper declares, and the factory
+ * that builds their values, by `ModuleRef` so it loads in the worker.
+ * @public
+ */
+export interface ModuleScope {
+  readonly names: readonly string[]
+  readonly factory: ModuleRef<ModuleScopeFactory>
 }
 
 /**
@@ -166,7 +287,7 @@ export interface Dialect<Name extends string = string, Options = unknown> {
   readonly policy: PolicyOverrides | DialectPolicyFactory<Options>
   /** Validates `config[name]`. */
   readonly options?: StandardSchemaV1<unknown, Options>
-  readonly configReader?: ConfigReader<Options>
+  readonly configReader?: ConfigReader
   readonly flags?: readonly FlagSpec[]
   readonly modules?: readonly ApiModule[]
   /**
@@ -178,6 +299,8 @@ export interface Dialect<Name extends string = string, Options = unknown> {
     readonly names: readonly string[]
   }
   readonly loader?: LoaderPolicies
+  /** Bindings each module gets its own value of, whether or not globals are injected. */
+  readonly moduleScope?: ModuleScope
   readonly reporterAdapters?: readonly ReporterAdapter[]
   /** Type entry points, e.g. `'@provino/dialect-jest/globals'`. */
   readonly typeEntries?: readonly string[]

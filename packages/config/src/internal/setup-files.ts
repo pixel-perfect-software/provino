@@ -29,10 +29,11 @@ function setupPath(entry: string, rootDir: string, key: string): string {
 export async function resolveSetupFiles(
   entries: readonly string[],
   rootDir: string,
+  name = 'setupFiles',
 ): Promise<readonly string[]> {
   return Promise.all(
     entries.map(async (entry, index) => {
-      const key = `config key "setupFiles[${index}]" (${JSON.stringify(entry)})`
+      const key = `config key "${name}[${index}]" (${JSON.stringify(entry)})`
       const path = setupPath(entry, rootDir, key)
       let isFile = false
       try {

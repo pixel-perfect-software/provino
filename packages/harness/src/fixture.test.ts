@@ -41,11 +41,11 @@ test('text that is not JSON, or not an object, is HARNESS_FIXTURE_BAD_JSON', () 
 
 test('an unknown key is HARNESS_FIXTURE_UNKNOWN_KEY and names the key', () => {
   assert.throws(
-    () => parseFixtureManifest(JSON.stringify({ ...VALID, config: {} }), 'f/fixture.json'),
+    () => parseFixtureManifest(JSON.stringify({ ...VALID, settings: {} }), 'f/fixture.json'),
     (error: unknown) =>
       rejects('HARNESS_FIXTURE_UNKNOWN_KEY')(error) &&
       error instanceof Error &&
-      error.message.includes('"config"') &&
+      error.message.includes('"settings"') &&
       error.message.includes('f/fixture.json'),
   )
 })
@@ -552,4 +552,150 @@ test('jestConfig refuses a bad shape, a root that leaves the fixture and a bad p
   bad({ unmockedModulePathPatterns: [''] })
   bad({ unmockedModulePathPatterns: ['('] })
   bad({ roots: ['one'] }, ['vitest'])
+})
+
+test('config keeps a JSON overlay per runner the fixture lists', () => {
+  const config = { jest: { testTimeout: 50 }, vitest: { test: { globals: false } } }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, config })).config, config)
+  assert.equal('config' in parseFixtureManifest(JSON.stringify(VALID)), false)
+})
+
+test('config refuses a bad shape, an unlisted runner and a key someone else sets', () => {
+  const bad = (manifest: Record<string, unknown>): void =>
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, ...manifest })),
+      rejects('HARNESS_FIXTURE_BAD_CONFIG'),
+    )
+  bad({ config: {} })
+  bad({ config: [] })
+  bad({ config: { mocha: { a: 1 } } })
+  bad({ config: { jest: {} } })
+  bad({ config: { jest: 1 } })
+  bad({ runners: ['vitest'], config: { jest: { a: 1 } } })
+  // The recorder's own keys.
+  bad({ config: { jest: { rootDir: '/x' } } })
+  bad({ config: { jest: { testMatch: ['**/*.ts'] } } })
+  bad({ config: { vitest: { root: '/x' } } })
+  bad({ config: { vitest: { test: { include: ['x'] } } } })
+  // Projects bring configs the recorder doesn't write, and a `test` that isn't an object hides keys.
+  bad({ config: { jest: { projects: ['a'] } } })
+  bad({ config: { vitest: { projects: ['a'] } } })
+  bad({ config: { vitest: { test: { projects: ['a'] } } } })
+  bad({ config: { vitest: { test: 'x' } } })
+  bad({ config: { vitest: { test: ['x'] } } })
+  // A key `mockCleanup` or `jestConfig` sets.
+  bad({ mockCleanup: { clear: true }, config: { jest: { clearMocks: false } } })
+  bad({ mockCleanup: { clear: true }, config: { vitest: { test: { clearMocks: false } } } })
+  bad({ runners: ['jest'], jestConfig: { roots: ['a'] }, config: { jest: { roots: ['b'] } } })
+  // The `vitest-list` profile's own key.
+  bad({ runners: ['vitest-list'], config: { vitest: { test: { sequence: { hooks: 'stack' } } } } })
+  // Without the other source, the same key is the fixture's.
+  assert.deepEqual(
+    parseFixtureManifest(JSON.stringify({ ...VALID, config: { jest: { clearMocks: true } } }))
+      .config,
+    { jest: { clearMocks: true } },
+  )
+})
+
+test('files keeps a tree per runner, under its normalized paths', () => {
+  const files = { jest: { './__snapshots__/a.test.ts.snap': 'x' }, vitest: { 'b.txt': '' } }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, files })).files, {
+    jest: { '__snapshots__/a.test.ts.snap': 'x' },
+    vitest: { 'b.txt': '' },
+  })
+})
+
+test('files refuses a bad shape, an unlisted runner and a path that leaves the work directory', () => {
+  const bad = (files: unknown, runners: string[] = ['jest', 'vitest']): void =>
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, runners, files })),
+      rejects('HARNESS_FIXTURE_BAD_FILES'),
+    )
+  bad({})
+  bad({ jest: {} })
+  bad({ jest: { 'a.txt': 1 } })
+  bad({ jest: { '../a.txt': '' } })
+  bad({ jest: { '/a.txt': '' } })
+  bad({ jest: { 'a.txt': '', './a.txt': '' } })
+  bad({ mocha: { 'a.txt': '' } })
+  bad({ jest: { 'a.txt': '' } }, ['vitest'])
+})
+
+test('run keeps what a black-box run captures', () => {
+  const run = {
+    argv: { jest: ['--passWithNoTests'] },
+    capture: ['exitCode', 'stderr', 'file:__snapshots__/a.test.ts.snap'],
+    keepLines: '^Snapshots:',
+    sortStdout: true,
+  }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, run })).run, run)
+  assert.deepEqual(
+    parseFixtureManifest(JSON.stringify({ ...VALID, run: { capture: ['exitCode'] } })).run,
+    { capture: ['exitCode'] },
+  )
+})
+
+test('run refuses a bad capture, argv, keepLines or sortStdout', () => {
+  const bad = (run: unknown): void =>
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, run })),
+      rejects('HARNESS_FIXTURE_BAD_RUN'),
+    )
+  bad([])
+  bad({})
+  bad({ capture: [] })
+  bad({ capture: ['exit'] })
+  bad({ capture: ['file:../x'] })
+  bad({ capture: ['exitCode', 'exitCode'] })
+  bad({ capture: ['exitCode'], other: 1 })
+  bad({ capture: ['exitCode'], argv: {} })
+  bad({ capture: ['exitCode'], argv: { mocha: [] } })
+  bad({ capture: ['exitCode'], argv: { jest: [1] } })
+  bad({ capture: ['exitCode'], keepLines: '' })
+  bad({ capture: ['exitCode'], keepLines: '(' })
+  bad({ capture: ['exitCode'], sortStdout: false })
+  // `emptyStreams` lists captured streams once each, and only beside `keepLines`.
+  bad({ capture: ['stdout'], emptyStreams: ['stdout'] })
+  bad({ capture: ['stdout'], keepLines: 'x', emptyStreams: [] })
+  bad({ capture: ['stdout'], keepLines: 'x', emptyStreams: ['stderr'] })
+  bad({ capture: ['stdout'], keepLines: 'x', emptyStreams: ['stdout', 'stdout'] })
+})
+
+test('run.argv refuses an option the recorder or mockCleanup sets, in any spelling', () => {
+  const bad = (args: readonly string[]): void =>
+    assert.throws(
+      () =>
+        parseFixtureManifest(
+          JSON.stringify({
+            ...VALID,
+            run: { capture: ['stdout'], argv: { jest: args, vitest: [] } },
+          }),
+        ),
+      rejects('HARNESS_FIXTURE_BAD_RUN'),
+    )
+  for (const arg of [
+    '--config=other.json',
+    '-c',
+    '--outputFile=x.json',
+    '--output-file',
+    '--outputFile.json=x.json',
+    '--json',
+    '--no-json',
+    '--root=/x',
+    '--rootDir',
+    '--root-dir=/x',
+    '--reporter',
+    '--reporter=json',
+    '--reporters=default',
+    '--clearMocks',
+    '--no-restore-mocks',
+    '--mockReset',
+    '--unstubGlobals',
+  ]) {
+    bad([arg])
+  }
+  // A text reporter beside the recorder's JSON one, and options it doesn't own, are the fixture's.
+  const args = ['--reporter=default', '--ci=false', '--passWithNoTests', 'some.test.ts']
+  const run = { capture: ['stdout'], argv: { jest: args } }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, run })).run, run)
 })

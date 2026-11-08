@@ -1,0 +1,4 @@
+{
+  "description": "Modules across tests and CommonJS globals (T1.7, module slice): a module loaded in one test is the same instance in the next (neither runner resets modules between tests by default), and a test file sees __dirname, __filename, require and module.",
+  "runners": ["jest", "vitest"]
+}

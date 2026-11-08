@@ -1,9 +1,20 @@
 // Track 2 §Types → "Type tests that gate CI" (T2.1).
 import type {
   FileRegistry,
+  FileRegistryOptions,
+  LoadActual,
+  LoadActualOptions,
   Loader,
+  LoaderOptions,
+  MockDecision,
   ModuleId,
+  ModuleMockRegistry,
+  ModuleMocksContext,
+  ModuleMocksFactory,
+  ModuleScopeNames,
   ModuleTransformer,
+  RegisterMockOptions,
+  Resolver,
   TransformRecord,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
@@ -42,5 +53,55 @@ expectTypeOf(loader).toExtend<Disposable>()
 // The loader evaluates Track 3's transform record, synchronously.
 expectTypeOf<ReturnType<ModuleTransformer['transform']>>().toEqualTypeOf<TransformRecord>()
 expectTypeOf<TransformRecord['hasTopLevelAwait']>().toEqualTypeOf<boolean>()
+// D38: the hoister's rewritten imports, as specifiers.
+expectTypeOf<TransformRecord['lateDeps']>().toEqualTypeOf<readonly string[]>()
 
-export { bad }
+// B13c: `registerMock` takes `{ virtual?, hoisted? }`.
+reg.registerMock('virtual-thing', null, { kind: 'unmock' }, { virtual: true, hoisted: false })
+reg.registerMock('./a', '/abs/a.ts' as ModuleId, { kind: 'automock', spy: true }, {})
+// @ts-expect-error an option the loader doesn't take
+reg.registerMock('./a', null, { kind: 'unmock' }, { spy: true })
+// @ts-expect-error `virtual` is a boolean
+reg.registerMock('./a', null, { kind: 'unmock' }, { virtual: 'yes' })
+expectTypeOf<RegisterMockOptions>().toEqualTypeOf<{
+  readonly virtual?: boolean
+  readonly hoisted?: boolean
+}>()
+
+// B13c: a file's module-mock registry is built by a factory the loader calls with its own
+// `loadActual`, resolver and conditions; the per-module bindings come per module.
+declare const registry: ModuleMockRegistry
+loader.createFileRegistry('/f.test.ts', {
+  tier: 'registry',
+  moduleMocks: (context) => {
+    expectTypeOf(context).toEqualTypeOf<ModuleMocksContext>()
+    expectTypeOf(context.loadActual).toEqualTypeOf<LoadActual>()
+    expectTypeOf(context.resolver).toEqualTypeOf<Resolver>()
+    return registry
+  },
+  moduleScope: (from) => {
+    expectTypeOf(from).toEqualTypeOf<ModuleId>()
+    return { jest: {} }
+  },
+})
+// @ts-expect-error the factory must return a registry
+loader.createFileRegistry('/f.test.ts', { tier: 'none', moduleMocks: () => ({}) })
+// @ts-expect-error the bindings are a record by name, not a list
+loader.createFileRegistry('/f.test.ts', { tier: 'none', moduleScope: () => [1] })
+expectTypeOf<FileRegistryOptions['moduleMocks']>().toEqualTypeOf<ModuleMocksFactory | undefined>()
+expectTypeOf<LoaderOptions['moduleScope']>().toEqualTypeOf<ModuleScopeNames | undefined>()
+const scratchLoad: LoadActual = (id, importer, options?: LoadActualOptions) =>
+  options?.scratch === true ? `${id} from ${importer}` : null
+// @ts-expect-error `scratch` is a boolean
+const badLoad: LoadActual = (_id, _importer, options?: { scratch: string }) => options
+expectTypeOf(registry.decide('/a.ts', '/b.ts', 'esm', './a')).toEqualTypeOf<MockDecision>()
+// @ts-expect-error an edge is `esm`, `cjs` or `builtin`
+registry.decide('/a.ts', '/b.ts', 'import')
+expectTypeOf(registry.mockFor('./a', '/b.ts')).toEqualTypeOf<unknown>()
+expectTypeOf(registry.createMockFromModule('./a', '/b.ts')).toEqualTypeOf<unknown>()
+declare const decision: MockDecision
+if (decision.mocked) expectTypeOf(decision.id).toEqualTypeOf<string>()
+// @ts-expect-error only a mocked decision has an id
+decision.id
+
+export { bad, badLoad, scratchLoad }

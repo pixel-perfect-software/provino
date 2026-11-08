@@ -1,0 +1,14 @@
+# Its own pnpm root, so the presets T11.5 checks never enter the workspace's lockfile.
+# Install: pnpm --dir packages/dialect-jest/oracle/presets install --frozen-lockfile
+packages: []
+
+# As the workspace: only versions published at least 7 days ago.
+minimumReleaseAge: 10080
+
+# A flat node_modules, as npm and yarn users (most React Native and Expo projects) have.
+nodeLinker: hoisted
+
+# No install scripts run; reading a preset needs none.
+allowBuilds:
+  "@parcel/watcher": false
+  esbuild: false

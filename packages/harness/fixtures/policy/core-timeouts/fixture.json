@@ -1,0 +1,4 @@
+{
+  "description": "The default timeouts (T1.7, core slice), each shown by a call that runs past it: a test (Jest and Vitest 5000 ms), a beforeEach (Jest 5000 ms, Vitest 10000 ms), a test given a timeout of 0 (Jest falls back to the default, Vitest sets no deadline), and, Vitest only, a cleanup a beforeEach returns, which Vitest runs with no deadline (Jest has no returned cleanups). Vitest's cases run concurrently to keep the recording short; the timeouts apply the same.",
+  "runners": ["jest", "vitest"]
+}

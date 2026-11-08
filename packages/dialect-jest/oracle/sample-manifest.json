@@ -1,0 +1,2077 @@
+{
+  "$comment": [
+    "T11.6's sample, rebuilt (D28; bundles/B14.md question 2). Written by `pnpm bench:jest-config sample --build-manifest`; never hand-edited.",
+    "Track 11 F4 rules: the most-starred TypeScript and JavaScript repositories on GitHub (search by stars, forks left out), configs in fixtures, templates, e2e and node_modules left out, at most 6 per repository, until each format has F4's count.",
+    "A config is jest.config.<ext> or a variant named like one, or a package.json whose `jest` key is an object; shallowest first within a repository. A format whose quota is full takes no more configs.",
+    "Only repository, commit and path are committed; the tarballs go to .refs/jest-config-sample/ (`sample --fetch`)."
+  ],
+  "generated": "2026-11-08",
+  "quotas": {
+    ".js": 179,
+    "package.json": 44,
+    ".ts": 28,
+    ".json": 17,
+    ".mjs": 14,
+    ".cjs": 11,
+    ".cts": 6,
+    ".mts": 0
+  },
+  "perRepoCap": 6,
+  "scanned": {
+    "repos": 1064,
+    "truncatedTrees": 5,
+    "errors": 0
+  },
+  "repos": [
+    {
+      "repo": "react/react",
+      "sha": "d71b537241d26861df496413db2142c7ba192c25",
+      "stars": 252366,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "packages/eslint-plugin-react-hooks/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "compiler/packages/babel-plugin-react-compiler/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "compiler/packages/make-read-only-util/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "trekhleb/javascript-algorithms",
+      "sha": "85293e3e2b88f4d2ce330d956b139cf628aa1e82",
+      "stars": 196718,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "vercel/next.js",
+      "sha": "ec8ddcd7a52fb7b3508fa1cf467abc85dea3a0b8",
+      "stars": 143387,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "jest.config.turbopack.js",
+          "format": ".js"
+        },
+        {
+          "path": "examples/with-jest-babel/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "examples/with-jest/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "examples/with-typescript-graphql/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/next-routing/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "nodejs/node",
+      "sha": "ae353ec38d57385e8b06cc14521ef75718cdd86c",
+      "stars": 123404,
+      "configs": [
+        {
+          "path": "deps/undici/src/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "supabase/supabase",
+      "sha": "dc73b346c1f37eaae9e529fae81a4307b78fefe6",
+      "stars": 114644,
+      "configs": [
+        {
+          "path": "examples/user-management/ionic-vue-user-management/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "react/create-react-app",
+      "sha": "6254386531d263688ccfa542d0e628fbc0de0b28",
+      "stars": 103228,
+      "configs": [
+        {
+          "path": "test/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/react-error-overlay/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "angular/angular",
+      "sha": "b4089e5f53f5ca7975dda34ae10f631e82f9c585",
+      "stars": 101466,
+      "configs": [
+        {
+          "path": "packages/zone.js/test/jest/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/zone.js/test/jest/jest.node.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "storybookjs/storybook",
+      "sha": "44ea08aede7d3062e19740116998bde9e7c7ec98",
+      "stars": 91483,
+      "configs": [
+        {
+          "path": "test-storybooks/portable-stories-kitchen-sink/nextjs/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "test-storybooks/portable-stories-kitchen-sink/react/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "ChatGPTNextWeb/NextChat",
+      "sha": "1d3dc331512929a4b1d3e82354e72acce33b5c7a",
+      "stars": 88945,
+      "configs": [
+        {
+          "path": "jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "hoppscotch/hoppscotch",
+      "sha": "55908a76a1d0555c9bbb5d74244c14173df95b06",
+      "stars": 80765,
+      "configs": [
+        {
+          "path": "packages/hoppscotch-backend/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "anuraghazra/github-readme-stats",
+      "sha": "54a7985aeefda00d5eadb55b80c17c7f976c37d2",
+      "stars": 79846,
+      "configs": [
+        {
+          "path": "jest.bench.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "coder/code-server",
+      "sha": "fcd14dceb7f60195d6925ec5d0716e08a6e04b22",
+      "stars": 79785,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "grafana/grafana",
+      "sha": "84cd7c5c0521d205d95a4987d6e545996d729975",
+      "stars": 77758,
+      "configs": [
+        {
+          "path": "jest.config.codeowner.js",
+          "format": ".js"
+        },
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/grafana-eslint-rules/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/grafana-test-utils/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/grafana-plugin-configs/jest/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "public/app/plugins/datasource/azuremonitor/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "strapi/strapi",
+      "sha": "ced844fd29a8bd3a33f95143e975ed1c2231ea41",
+      "stars": 73443,
+      "configs": [
+        {
+          "path": "jest.config.api.js",
+          "format": ".js"
+        },
+        {
+          "path": "jest.config.cli.js",
+          "format": ".js"
+        },
+        {
+          "path": "scripts/front/jest.config.front.js",
+          "format": ".js"
+        },
+        {
+          "path": "tests-next/api/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "tests-next/cli/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "tests/cli/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "Mintplex-Labs/anything-llm",
+      "sha": "308b27662b2f6fd4947791d61c797945c609fcbc",
+      "stars": 68047,
+      "configs": [
+        {
+          "path": "jest.config.cjs",
+          "format": ".cjs"
+        }
+      ]
+    },
+    {
+      "repo": "apache/echarts",
+      "sha": "34f4d927eafe251f26f63afd3aeefa30f2feba30",
+      "stars": 67692,
+      "configs": [
+        {
+          "path": "test/ut/jest.config.cjs",
+          "format": ".cjs"
+        }
+      ]
+    },
+    {
+      "repo": "webpack/webpack",
+      "sha": "d3b2ce84c95fd208722f685da7d7ec36a73aca22",
+      "stars": 65995,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "nocodb/nocodb",
+      "sha": "5f2e38194e0bda13d8818a412bd4d723fd944cb8",
+      "stars": 65441,
+      "configs": [
+        {
+          "path": "packages/nocodb-sdk/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/nocodb/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "socketio/socket.io",
+      "sha": "91d1f57334f424f952c4e08ba0cd0403737c47a8",
+      "stars": 63236,
+      "configs": [
+        {
+          "path": "examples/ReactNativeExample/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "examples/nestjs-example/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "twentyhq/twenty",
+      "sha": "fbe38eec9a141ce305ded44819133f636c9041e1",
+      "stars": 60614,
+      "configs": [
+        {
+          "path": "packages/create-twenty-app/jest.config.mjs",
+          "format": ".mjs"
+        },
+        {
+          "path": "packages/twenty-front-component-renderer/jest.config.mjs",
+          "format": ".mjs"
+        },
+        {
+          "path": "packages/twenty-front/jest.config.mjs",
+          "format": ".mjs"
+        },
+        {
+          "path": "packages/twenty-server/jest.config.mjs",
+          "format": ".mjs"
+        },
+        {
+          "path": "packages/twenty-server/jest.snapshot-tmp.config.mjs",
+          "format": ".mjs"
+        },
+        {
+          "path": "packages/twenty-shared/jest.config.mjs",
+          "format": ".mjs"
+        }
+      ]
+    },
+    {
+      "repo": "laurent22/joplin",
+      "sha": "73394294bf18a29f8b72847bda641cc2be60a425",
+      "stars": 57072,
+      "configs": [
+        {
+          "path": "jest.config.base.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/app-cli/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/app-desktop/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/app-mobile/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/editor/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/fork-htmlparser2/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "remix-run/react-router",
+      "sha": "fcfccb2e3cefa2bd73dc43cc68146fbaa11b180b",
+      "stars": 56631,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "jest/jest.config.shared.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/create-react-router/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/react-router-architect/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/react-router-dev/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/react-router-express/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "gatsbyjs/gatsby",
+      "sha": "516700a1dca1e982b6d098ab57230b25e0318a1f",
+      "stars": 55918,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "peril/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "deprecated-packages/gatsby-recipes/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "examples/using-jest/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "integration-tests/artifacts/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "integration-tests/cache-resilience/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "FlowiseAI/Flowise",
+      "sha": "9291856d1ea4a4ceea9f8fef8ce14f4f6c81e8eb",
+      "stars": 55562,
+      "configs": [
+        {
+          "path": "packages/agentflow/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/components/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/observe/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/server/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/ui/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "expo/expo",
+      "sha": "b0d00c225f7d1a46ca081eba6e47fa430f031076",
+      "stars": 53387,
+      "configs": [
+        {
+          "path": "docs/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "apps/notification-tester/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "apps/test-suite/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/babel-preset-expo/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/create-expo-module/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/create-expo/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "ionic-team/ionic-framework",
+      "sha": "597b9e24d82650ceed982961033d8747305ad7f5",
+      "stars": 52745,
+      "configs": [
+        {
+          "path": "core/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "packages/react/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "packages/vue/test/apps/vue3/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "prettier/prettier",
+      "sha": "b09dd90022c875f3089f19f37724da6377e52b7f",
+      "stars": 52407,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "cypress-io/cypress",
+      "sha": "4f1753e7ba44f597341865c1690412938c005f0f",
+      "stars": 51022,
+      "configs": [
+        {
+          "path": "packages/data-context/jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "calcom/cal.diy",
+      "sha": "2eb48eccd8aca8a0c0ffabf28cf92e298b33ecee",
+      "stars": 49781,
+      "configs": [
+        {
+          "path": "packages/lib/jest.config.json",
+          "format": ".json"
+        },
+        {
+          "path": "apps/api/v2/jest.config.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "packages/platform/atoms/jest.config.json",
+          "format": ".json"
+        },
+        {
+          "path": "packages/platform/utils/jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "iamkun/dayjs",
+      "sha": "d3e43be0489ff1d010aca42b3115b6059215ed60",
+      "stars": 48652,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "pixijs/pixijs",
+      "sha": "2ab93d21c9b4f28e3e6f66a9e82ea1e81e771a49",
+      "stars": 48646,
+      "configs": [
+        {
+          "path": ".configs/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "usebruno/bruno",
+      "sha": "1982a7b1bfa865194292bd08d0fa9e090ae89b4a",
+      "stars": 48272,
+      "configs": [
+        {
+          "path": "packages/bruno-app/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/bruno-common/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/bruno-converters/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/bruno-electron/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "packages/bruno-filestore/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/bruno-graphql-docs/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "serverless/serverless",
+      "sha": "e6a53f2252fb55a9812cde36d340022571a962c5",
+      "stars": 46931,
+      "configs": [
+        {
+          "path": "packages/engine/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/mcp/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/sf-core/jest.config.cjs",
+          "format": ".cjs"
+        }
+      ]
+    },
+    {
+      "repo": "LibreChat-AI/LibreChat",
+      "sha": "f4154b649efa37e1345ccc517a4d8d1ed2178c82",
+      "stars": 46845,
+      "configs": [
+        {
+          "path": "api/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "client/jest.config.cjs",
+          "format": ".cjs"
+        },
+        {
+          "path": "config/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/api/jest.config.mjs",
+          "format": ".mjs"
+        },
+        {
+          "path": "packages/chat/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/client/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "RocketChat/Rocket.Chat",
+      "sha": "7625d7cc40f3320fad17b29236deed4530084cdb",
+      "stars": 46374,
+      "configs": [
+        {
+          "path": "apps/meteor/jest.config.mjs",
+          "format": ".mjs"
+        },
+        {
+          "path": "packages/ai-search/jest.config.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "packages/api-client/jest.config.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "packages/authorization/jest.config.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "packages/base64/jest.config.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "packages/cas-validate/jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "payloadcms/payload",
+      "sha": "25dfb248a86991f9adbdd5de645794dceeef6b83",
+      "stars": 45722,
+      "configs": [
+        {
+          "path": ".github/actions/release-commenter/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": ".github/actions/triage/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "jestjs/jest",
+      "sha": "72614448ecb9d16c58d6474b3091247c14a5c090",
+      "stars": 45470,
+      "configs": [
+        {
+          "path": "jest.config.ci.mjs",
+          "format": ".mjs"
+        },
+        {
+          "path": "jest.config.mjs",
+          "format": ".mjs"
+        },
+        {
+          "path": "jest.config.ts.mjs",
+          "format": ".mjs"
+        },
+        {
+          "path": "benchmarks/test-file-overhead/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "examples/angular/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "examples/automatic-mocks/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "sudheerj/reactjs-interview-questions",
+      "sha": "55b7d491cd74c7b37f9352f3b2420d66e7187951",
+      "stars": 44918,
+      "configs": [
+        {
+          "path": "coding-projects/star-rating/jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "react-hook-form/react-hook-form",
+      "sha": "c6d78665fb23f3555f2aefab9de77cf6b41cdd3e",
+      "stars": 44907,
+      "configs": [
+        {
+          "path": "scripts/jest/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "meteor/meteor",
+      "sha": "e587c05d3abd25484adfd5e2e55373fd5c725469",
+      "stars": 44796,
+      "configs": [
+        {
+          "path": "tools/unit-tests/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "babel/babel",
+      "sha": "d7a0cccbb7b3e6fdabdd3870b720fd6b38435893",
+      "stars": 44054,
+      "configs": [
+        {
+          "path": "jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "streamich/react-use",
+      "sha": "fbe99c6327e6af94df03bc8bd6ecc5e3ff04fbcc",
+      "stars": 43979,
+      "configs": [
+        {
+          "path": "jest.config.base.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "jest.config.node.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "dcloudio/uni-app",
+      "sha": "456e06bde8146715745e75a0b35c32f1f864d28f",
+      "stars": 41624,
+      "configs": [
+        {
+          "path": "src/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "examples/hello-uts/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "examples/hello-uvue/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "src/code-review/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "examples/hello-uvue/code-review/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "yarnpkg/yarn",
+      "sha": "c2dda503f3759b5be5f0e24ecd9cf5c97a540147",
+      "stars": 41459,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "packages/pkg-tests/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "appsmithorg/appsmith",
+      "sha": "04f845ebfe6eb366a0fca227db58f51415c4536b",
+      "stars": 41189,
+      "configs": [
+        {
+          "path": "app/client/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "app/client/packages/ast/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "app/client/packages/dsl/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "app/client/packages/eslint-plugin/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "app/client/packages/mcp/jest.config.cjs",
+          "format": ".cjs"
+        },
+        {
+          "path": "app/client/packages/rts/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "gitroomhq/postiz-app",
+      "sha": "59277cf21b109d746875b7ea08fb54c53935799b",
+      "stars": 41089,
+      "configs": [
+        {
+          "path": "jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "styled-components/styled-components",
+      "sha": "9e9efe63231757ff500eab799c2ee467c63c5393",
+      "stars": 41047,
+      "configs": [
+        {
+          "path": "packages/styled-components/jest.config.base.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/styled-components/jest.config.bench-rsc.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/styled-components/jest.config.bench.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/styled-components/jest.config.build.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/styled-components/jest.config.main.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/styled-components/jest.config.native.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "novuhq/novu",
+      "sha": "46ff54befda2a5174bd2016cdff00326d9f3921a",
+      "stars": 40295,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/stateless/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "mattermost/mattermost",
+      "sha": "ce429e80c29df69091b3829fa3a7c11029de296d",
+      "stars": 39557,
+      "configs": [
+        {
+          "path": "webapp/channels/jest.config.channels.js",
+          "format": ".js"
+        },
+        {
+          "path": "webapp/channels/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "webapp/channels/jest.config.mattermost-redux.js",
+          "format": ".js"
+        },
+        {
+          "path": ".github/actions/save-junit-report-tms/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "webapp/platform/client/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "webapp/platform/components/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "CopilotKit/CopilotKit",
+      "sha": "c7815d9ac96f48fb3a64ad8c18e176a870c81763",
+      "stars": 38558,
+      "configs": [
+        {
+          "path": "examples/integrations/agentcore/infra-cdk/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "examples/v2/react-native/demo/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "NervJS/taro",
+      "sha": "4cee413881946240d8ce1cd5e317d8def50d0335",
+      "stars": 37742,
+      "configs": [
+        {
+          "path": "tests/jest.config.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "examples/external-prebundle/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "packages/babel-plugin-transform-solid-jsx/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/eslint-plugin-taro/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/postcss-pxtransform/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "packages/postcss-unit-transform/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "medusajs/medusa",
+      "sha": "0f9014650066193280e0cbc4f3898c02319fffc6",
+      "stars": 37126,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "integration-tests/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "integration-tests/http/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "integration-tests/modules/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/eslint-plugin/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/medusa-test-utils/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "continuedev/continue",
+      "sha": "5522c6f44ca0ac3528b37244818fbfa39b5af470",
+      "stars": 36429,
+      "configs": [
+        {
+          "path": "binary/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "core/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/config-yaml/jest.config.mjs",
+          "format": ".mjs"
+        },
+        {
+          "path": "packages/openai-adapters/jest.config.mjs",
+          "format": ".mjs"
+        },
+        {
+          "path": "packages/continue-sdk/typescript/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "reworkd/AgentGPT",
+      "sha": "18b073ab05b2902e1d052c3d2799786d8623b5e5",
+      "stars": 36261,
+      "configs": [
+        {
+          "path": "next/jest.config.cjs",
+          "format": ".cjs"
+        }
+      ]
+    },
+    {
+      "repo": "refinedev/refine",
+      "sha": "2352eb5b6539e2f39ad9aef652279ad1dcf2c467",
+      "stars": 36010,
+      "configs": [
+        {
+          "path": "documentation/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "SillyTavern/SillyTavern",
+      "sha": "06bde939fb1e9c4c8d8641d810f0a916b5bce127",
+      "stars": 35388,
+      "configs": [
+        {
+          "path": "tests/jest.config.json",
+          "format": ".json"
+        }
+      ]
+    },
+    {
+      "repo": "nativefier/nativefier",
+      "sha": "9078a3071a3c7fab977d4e0bb54d3579af8296f3",
+      "stars": 35211,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "motiondivision/motion",
+      "sha": "78f3ff51b5508f7e8c1c283d8e80bcd26fec37d7",
+      "stars": 34995,
+      "configs": [
+        {
+          "path": "packages/framer-motion/jest.config.json",
+          "format": ".json"
+        },
+        {
+          "path": "packages/framer-motion/jest.config.ssr.json",
+          "format": ".json"
+        },
+        {
+          "path": "packages/motion-dom/jest.config.json",
+          "format": ".json"
+        },
+        {
+          "path": "packages/motion-utils/jest.config.json",
+          "format": ".json"
+        },
+        {
+          "path": "packages/motion/jest.config.json",
+          "format": ".json"
+        }
+      ]
+    },
+    {
+      "repo": "backstage/backstage",
+      "sha": "a5d59c3955a25aae16dee7ae1459611e86d6f045",
+      "stars": 34796,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "packages/cli-module-build/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "jaredpalmer/formik",
+      "sha": "91475adbf33579561e580eceea0c031f4ec2e992",
+      "stars": 34303,
+      "configs": [
+        {
+          "path": "packages/formik/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "iOfficeAI/AionUi",
+      "sha": "e108b6b56b1a6eb99a00904878d0582f657b2908",
+      "stars": 34091,
+      "configs": [
+        {
+          "path": "mobile/jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "atlassian/react-beautiful-dnd",
+      "sha": "2baf5c6344cbb7862cf21ee697152bffb3765fa9",
+      "stars": 33892,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "pmndrs/react-three-fiber",
+      "sha": "d74622ea8ed717f7212d7e19d65ff3e325508389",
+      "stars": 33563,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "mckaywrigley/chatbot-ui",
+      "sha": "81328b61d2a4ab597a7a057be70e785cf756d9f8",
+      "stars": 33316,
+      "configs": [
+        {
+          "path": "jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "immutable-js/immutable-js",
+      "sha": "4f1582f38a75f006fea761619d38d7be730c3975",
+      "stars": 33019,
+      "configs": [
+        {
+          "path": "jest.config.mjs",
+          "format": ".mjs"
+        }
+      ]
+    },
+    {
+      "repo": "SigNoz/signoz",
+      "sha": "43cde62108f144a110337251cff8991f401c7fb9",
+      "stars": 32544,
+      "configs": [
+        {
+          "path": "frontend/jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "vercel/swr",
+      "sha": "8148ef012fd5b317d1e8ec2da4b2ca0673f63c0f",
+      "stars": 32489,
+      "configs": [
+        {
+          "path": "jest.config.build.js",
+          "format": ".js"
+        },
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "niklasvh/html2canvas",
+      "sha": "6020386bbeed60ad68e675fdcaa6220e292fd35a",
+      "stars": 31923,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "mantinedev/mantine",
+      "sha": "82fb128c43f9927c1370a2732cd5aa9e6663ca11",
+      "stars": 31919,
+      "configs": [
+        {
+          "path": "jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "ianstormtaylor/slate",
+      "sha": "fd42a8046db8da329f4584dcf2a68ac7abd3137b",
+      "stars": 31746,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "docsifyjs/docsify",
+      "sha": "f795d3e749764ac2396d2bc34ddb3042e6b23b71",
+      "stars": 31578,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "shardeum/shardeum",
+      "sha": "0c454caf067f7b896569eabdd5f47cb8b61738b3",
+      "stars": 31178,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "vuejs/vue-cli",
+      "sha": "7eb93c169c7520935252e2473387f923ef80d856",
+      "stars": 29496,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "nrwl/nx",
+      "sha": "b68115cd05cd2b79c36b216f6c03dafb8266f1e0",
+      "stars": 29453,
+      "configs": [
+        {
+          "path": "jest.config.cts",
+          "format": ".cts"
+        },
+        {
+          "path": "graph/client/jest.config.cts",
+          "format": ".cts"
+        },
+        {
+          "path": "graph/migrate/jest.config.cts",
+          "format": ".cts"
+        },
+        {
+          "path": "graph/project-details/jest.config.cts",
+          "format": ".cts"
+        },
+        {
+          "path": "graph/ui-code-block/jest.config.cts",
+          "format": ".cts"
+        },
+        {
+          "path": "graph/ui-project-details/jest.config.cts",
+          "format": ".cts"
+        }
+      ]
+    },
+    {
+      "repo": "react-boilerplate/react-boilerplate",
+      "sha": "d19099afeff64ecfb09133c06c1cb18c0d40887e",
+      "stars": 29444,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "swagger-api/swagger-ui",
+      "sha": "d3296954a6b813898d298815ac3e68daa1cf7408",
+      "stars": 29078,
+      "configs": [
+        {
+          "path": "config/jest/jest.artifact.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "config/jest/jest.unit.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "getredash/redash",
+      "sha": "09740eaf6359af4ac4f932b620f28add2299142e",
+      "stars": 28874,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "viz-lib/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "tailwindlabs/headlessui",
+      "sha": "eea57cf46fd6767ed1059012f7073b88eb159fba",
+      "stars": 28813,
+      "configs": [
+        {
+          "path": "jest.config.cjs",
+          "format": ".cjs"
+        },
+        {
+          "path": "packages/@headlessui-react/jest.config.cjs",
+          "format": ".cjs"
+        },
+        {
+          "path": "packages/@headlessui-tailwindcss/jest.config.cjs",
+          "format": ".cjs"
+        },
+        {
+          "path": "packages/@headlessui-vue/jest.config.cjs",
+          "format": ".cjs"
+        }
+      ]
+    },
+    {
+      "repo": "4ian/GDevelop",
+      "sha": "16e8b96986e8f0fda0aa8ddda4accf6c55ce270d",
+      "stars": 28572,
+      "configs": [
+        {
+          "path": "GDevelop.js/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "Budibase/budibase",
+      "sha": "e29a27ac946c043fe7455af64b7f12b9031df72b",
+      "stars": 28394,
+      "configs": [
+        {
+          "path": "packages/backend-core/jest.config.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "packages/pro/jest.config.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "packages/server/jest.config.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "packages/shared-core/jest.config.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "packages/worker/jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "nextauthjs/next-auth",
+      "sha": "a1a16a5a7780488c7449feece410033f445d0b31",
+      "stars": 28374,
+      "configs": [
+        {
+          "path": "packages/adapter-dynamodb/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "maotoumao/MusicFree",
+      "sha": "d118b18b3d0c904400f7eea7bf99c0ceec6c1aee",
+      "stars": 28331,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "eyaltoledano/claude-task-master",
+      "sha": "c0c98d367c55296bfe69e65680625b6db437af02",
+      "stars": 28324,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "vuejs/vuex",
+      "sha": "bd907467b8392d6671bb115738285ff7f63d0cf6",
+      "stars": 28285,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "digitalocean/nginxconfig.io",
+      "sha": "dd290c0b706b8a8c2f86cfbffaae9c17715b431d",
+      "stars": 28244,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "mobxjs/mobx",
+      "sha": "2a97ff69a8bb4d6c3c8582da07ffd1c53c6612db",
+      "stars": 28216,
+      "configs": [
+        {
+          "path": "jest.base.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/mobx-react-lite/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/mobx-react-plugin/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/mobx-react/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/mobx-undecorate/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "hcengineering/platform",
+      "sha": "3688e203179be6d79c4618221fef846fd6111e09",
+      "stars": 28071,
+      "configs": [
+        {
+          "path": "desktop/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "dev/doc-import-tool/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "dev/import-tool/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "dev/tool/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "models/achievement/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "models/activity/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "JedWatson/react-select",
+      "sha": "4b6948078684bee394e09dd8e7cdc2d7f89e0fad",
+      "stars": 28013,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "vercel/ai",
+      "sha": "0f3a85f92d1ce06ccde01d662407ef83e097a712",
+      "stars": 27805,
+      "configs": [
+        {
+          "path": "examples/nest/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "virattt/dexter",
+      "sha": "534f6be455523c5926eba72bdaf4f914555be5c9",
+      "stars": 27774,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "humanlayer/12-factor-agents",
+      "sha": "d20c728368bf9c189d6d7aab704744decb6ec0cc",
+      "stars": 27039,
+      "configs": [
+        {
+          "path": "packages/walkthroughgen/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "marmelab/react-admin",
+      "sha": "c1526acdd163686351b9b99e369721ec2c56bd6c",
+      "stars": 26987,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "promptfoo/promptfoo",
+      "sha": "2a6fdf9b2e1600ffa2a204e70e9fea7cb0c14cff",
+      "stars": 26944,
+      "configs": [
+        {
+          "path": "examples/integration-jest/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "discordjs/discord.js",
+      "sha": "5bb74922a1fb36e0d20e2656fa1bfb8944758882",
+      "stars": 26825,
+      "configs": [
+        {
+          "path": "packages/api-extractor/config/jest.config.json",
+          "format": ".json"
+        }
+      ]
+    },
+    {
+      "repo": "mattermost-community/focalboard",
+      "sha": "a84bbb65e32edf972856b329417096ac413518e9",
+      "stars": 26550,
+      "configs": [
+        {
+          "path": "webapp/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "import/jira/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "anomalyco/sst",
+      "sha": "e49ac31411f63ab4ed0d802b7e15d95f6b827e47",
+      "stars": 26424,
+      "configs": [
+        {
+          "path": "examples/aws-nestjs-container/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "examples/aws-nestjs-redis/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "GrapesJS/grapesjs",
+      "sha": "e023d69b9fa97fbbc693052c9818f0c477b105a5",
+      "stars": 26395,
+      "configs": [
+        {
+          "path": "packages/cli/jest.config.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "packages/core/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/webmcp/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "feathericons/feather",
+      "sha": "3dc050d97405062eba78aa57115c0a15c63abdaa",
+      "stars": 26039,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "NativeScript/NativeScript",
+      "sha": "07e84ec588e1103bda0f58bbb37594bf48ccba57",
+      "stars": 25692,
+      "configs": [
+        {
+          "path": "jest.config.ts",
+          "format": ".ts"
+        },
+        {
+          "path": "packages/webpack5/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "tools/workspace-plugin/jest.config.ts",
+          "format": ".ts"
+        }
+      ]
+    },
+    {
+      "repo": "dubinc/dub.link",
+      "sha": "6b463b4bdd9ed2fd9aa416f67b5b77d317b1471e",
+      "stars": 25131,
+      "configs": [
+        {
+          "path": "packages/stripe-app/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "winstonjs/winston",
+      "sha": "ff0b79de8562bb322c390fbc82fe71c11f373428",
+      "stars": 24528,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "test/jest.config.integration.js",
+          "format": ".js"
+        },
+        {
+          "path": "test/jest.config.unit.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "react-navigation/react-navigation",
+      "sha": "281b54cbe043adc3188cdc1c77c7f3a26da911a5",
+      "stars": 24518,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "electron-react-boilerplate/electron-react-boilerplate",
+      "sha": "e5b8242d8b21a4290c3a1f18ae3b64167e9de04a",
+      "stars": 24251,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "pedronauck/docz",
+      "sha": "e0a53cb64fa8bb7a9e02f4f39eada7f74566dd3c",
+      "stars": 23560,
+      "configs": [
+        {
+          "path": "core/rehype-docz/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "core/remark-docz/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "other-packages/babel-plugin-export-metadata/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "super-productivity/super-productivity",
+      "sha": "08c605201890c3daf6849f8a9e20374c86bfba89",
+      "stars": 23492,
+      "configs": [
+        {
+          "path": "packages/plugin-dev/sync-md/jest.config.cjs",
+          "format": ".cjs"
+        }
+      ]
+    },
+    {
+      "repo": "usablica/intro.js",
+      "sha": "5b12889b4b7f82bd935a5153af574869eeaab755",
+      "stars": 23452,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "pubkey/rxdb",
+      "sha": "605fb7210e1aa13cfe79a4bbed827c9865586049",
+      "stars": 23421,
+      "configs": [
+        {
+          "path": "examples/react-native/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "conwnet/github1s",
+      "sha": "c415af3c02d9fccd64ecf5ce8efead0da5c9740c",
+      "stars": 23312,
+      "configs": [
+        {
+          "path": "tests/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "openobserve/openobserve",
+      "sha": "52174ac0312c9df1d51e3e745262b12c4270c906",
+      "stars": 22887,
+      "configs": [
+        {
+          "path": "tests/mobile-testing/apps/o2-rum-tester/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "vuejs/vuepress",
+      "sha": "9fb4bb00925d9409e6732118e996411c6a82c85d",
+      "stars": 22714,
+      "configs": [
+        {
+          "path": "scripts/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/@vuepress/test-utils/lib/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "facebookarchive/draft-js",
+      "sha": "afdb5c3177c13fd26cb0abbdc439488f3e21b73b",
+      "stars": 22553,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "react-grid-layout/react-grid-layout",
+      "sha": "f0dd77c5b2fee2d2cb09541d220c00d6814c7242",
+      "stars": 22485,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "docmost/docmost",
+      "sha": "adb2ba5076eeddcccaa55cfbb1296f104d1cce47",
+      "stars": 22255,
+      "configs": [
+        {
+          "path": "apps/server/package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "t4t5/sweetalert",
+      "sha": "d927c9bbc66bd26380dc360a71e1876d284a7faf",
+      "stars": 22238,
+      "configs": [
+        {
+          "path": "package.json",
+          "format": "package.json"
+        }
+      ]
+    },
+    {
+      "repo": "necolas/react-native-web",
+      "sha": "4ccb5f4106ad7ae7f382d98aa2bccea20c3ca771",
+      "stars": 22159,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "handsontable/handsontable",
+      "sha": "1d5365bd3ca7cdd130bd9d9e0789dd35fb5ed509",
+      "stars": 22078,
+      "configs": [
+        {
+          "path": "handsontable/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "handsontable/jest.stryker.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "wrappers/react-wrapper/package.json",
+          "format": "package.json"
+        },
+        {
+          "path": "wrappers/vue3/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "wrappers/angular-wrapper/projects/hot-table/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "SBoudrias/Inquirer.js",
+      "sha": "5bf11c77658bdc2468d1df4ac789bfd7cd57c56f",
+      "stars": 21640,
+      "configs": [
+        {
+          "path": "jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "react-dnd/react-dnd",
+      "sha": "1de654eb466b9563fa50df070c244d6f3ab43ca7",
+      "stars": 21626,
+      "configs": [
+        {
+          "path": "packages/backend-html5/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/backend-touch/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/dnd-core/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/examples/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/react-dnd/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/util-shallowequal/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "elastic/kibana",
+      "sha": "6c05ff27867bbb4d447286287f2bd110bc0cc911",
+      "stars": 21356,
+      "configs": [
+        {
+          "path": "examples/content_management_examples/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "examples/controls_example/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "examples/embeddable_examples/jest.config.js",
+          "format": ".js"
+        },
+        {
+          "path": "packages/kbn-api-contracts/jest.config.js",
+          "format": ".js"
+        }
+      ]
+    },
+    {
+      "repo": "corsairdev/corsair",
+      "sha": "b442c4f86ac910ff00d987fbd3e678c2b65f1c07",
+      "stars": 15689,
+      "configs": [
+        {
+          "path": "packages/activetrail/jest.config.json",
+          "format": ".json"
+        },
+        {
+          "path": "packages/affinda/jest.config.json",
+          "format": ".json"
+        },
+        {
+          "path": "packages/agencyzoom/jest.config.json",
+          "format": ".json"
+        },
+        {
+          "path": "packages/agenty/jest.config.json",
+          "format": ".json"
+        },
+        {
+          "path": "packages/algolia/jest.config.json",
+          "format": ".json"
+        },
+        {
+          "path": "packages/anchorbrowser/jest.config.json",
+          "format": ".json"
+        }
+      ]
+    },
+    {
+      "repo": "BrainJS/brain.js",
+      "sha": "7c9db32d9c3894ae494e6497eb7b7a9ff28a6999",
+      "stars": 14855,
+      "configs": [
+        {
+          "path": "jest.config.json",
+          "format": ".json"
+        }
+      ]
+    },
+    {
+      "repo": "codesandbox/codesandbox-client",
+      "sha": "dcba8ebc49cd46838e298cfa1501811ac67fb0c9",
+      "stars": 13661,
+      "configs": [
+        {
+          "path": "packages/app/integration-tests/jest.config.json",
+          "format": ".json"
+        }
+      ]
+    }
+  ]
+}

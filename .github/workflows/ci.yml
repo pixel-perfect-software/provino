@@ -125,62 +125,39 @@ jobs:
       # The suite checks take about 11 of this job's 12 minutes, and their result depends only on
       # the generator and check code (bench, and the harness helpers it uses), the runners'
       # versions (lockfile, catalog), Node (.tool-versions), the root scripts and this workflow.
-      # The app-500 check also runs Provino itself (`--runner provino`), so it depends on the
-      # source and manifest of every package a Provino run might load: any workspace package's
+      # The app-500 and mock-heavy-500 checks also run Provino itself (`--runner provino`), so they
+      # depend on the source and manifest of every package a Provino run might load: any workspace package's
       # `src/` or `package.json`, so a package that starts to be loaded later needs no edit here.
       # Unit tests beside that source (`*.test.ts`, `*.test-d.ts`) are not loaded by a run, so
       # editing one alone doesn't count; bench and harness keep counting them. The harness
       # self-test also reads its sample and recording (`packages/harness/sample/`).
-      # They run on main, and on a task branch whose changes against main touch any of those.
-      # Paths are NUL-separated and never quoted, so a name with non-ASCII, a tab, `"` or `\`
-      # still matches.
+      # Each check runs on main, and on a task branch whose changes against main touch its inputs
+      # (`.github/actions/scope`, which fails closed).
       - id: scope
         name: Decide whether the suite checks run
-        run: |
-          set -euo pipefail
-          # Fail closed: everything runs unless a diff shows its inputs didn't change, so an early exit
-          # needs no output lines of its own, and a new output can't be missed at one of them.
-          run=true
-          mocking=true
-          trap 'echo "run=$run" >> "$GITHUB_OUTPUT"; echo "mocking=$mocking" >> "$GITHUB_OUTPUT"' EXIT
-          if [ "$GITHUB_REF" = refs/heads/main ]; then exit 0; fi
-          if ! base=$(git merge-base origin/main HEAD); then
-            echo "No merge base with main; running the suite checks."
-            exit 0
-          fi
-          inputs="^(packages/bench/|packages/harness/src/|packages/harness/sample/|packages/[^/]+/(src/|package\\.json\$)|pnpm-lock\\.yaml\$|pnpm-workspace\\.yaml\$|\\.tool-versions\$|package\\.json\$|\\.github/workflows/ci\\.yml\$)"
-          # What the Node 22 mocking check reads: the recorder and its fixtures, the runners' versions,
-          # Node and the root scripts. The engine isn't one: this records real Jest and Vitest.
-          mocking_inputs="^(packages/harness/(src/|fixtures/mocking/|package\\.json\$)|pnpm-lock\\.yaml\$|pnpm-workspace\\.yaml\$|\\.tool-versions\$|package\\.json\$|\\.github/workflows/ci\\.yml\$)"
-          unit_tests="^packages/[^/]+/src/.*\\.test(-d)?\\.ts\$"
-          kept="^packages/(bench|harness)/"
-          work=$(mktemp -d)
-          # --no-renames lists both paths of a move, so moving a file out of an input counts.
-          if ! git -c core.quotePath=false diff -z --no-renames --name-only "$base" HEAD > "$work/diff"; then
-            echo "Couldn't diff against main; running the suite checks."
-            exit 0
-          fi
-          # grep exits 1 when nothing matches, which is an answer, and 2 or more on an error, which
-          # is not: that fails closed like the steps above.
-          match() {
-            local status=0
-            grep -z "$@" || status=$?
-            if [ "$status" -gt 1 ]; then
-              echo "Couldn't match the changed files; running the suite checks." >&2
-              exit 0
-            fi
-          }
-          match -E "$inputs" "$work/diff" > "$work/inputs"
-          { match -vE "$unit_tests" "$work/inputs"; match -E "$kept" "$work/inputs"; } > "$work/changed"
-          if [ -s "$work/changed" ]; then
-            printf 'Suite inputs changed against main:\n'
-            tr '\0' '\n' < "$work/changed" | sort -u
-          else
-            echo "No suite inputs changed against main; skipping the suite checks."
-            run=false
-          fi
-          match -E "$mocking_inputs" "$work/diff" > "$work/mocking"
-          if [ ! -s "$work/mocking" ]; then mocking=false; fi
+        uses: ./.github/actions/scope
+        with:
+          label: the suite checks
+          include: '^(packages/bench/|packages/harness/src/|packages/harness/sample/|packages/[^/]+/(src/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
+          exclude: '^packages/[^/]+/src/.*\.test(-d)?\.ts$'
+          keep: "^packages/(bench|harness)/"
+      # What `record --check` reads (B14a): the recorder and every fixture, the runners' versions,
+      # Node and the root scripts. A dialect's values aren't one: `policy-truth.test.ts` holds them
+      # to the committed goldens in `pnpm test`.
+      - id: goldens
+        name: Decide whether the goldens are re-recorded
+        uses: ./.github/actions/scope
+        with:
+          label: the goldens check
+          include: '^(packages/harness/(src/|fixtures/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
+      # What the Node 22 mocking check reads: the recorder and its fixtures, the runners' versions,
+      # Node and the root scripts. The engine isn't one: this records real Jest and Vitest.
+      - id: mocking
+        name: Decide whether the mocking goldens are checked on Node 22
+        uses: ./.github/actions/scope
+        with:
+          label: the Node 22 mocking check
+          include: '^(packages/harness/(src/|fixtures/mocking/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           cache: true
@@ -189,17 +166,17 @@ jobs:
           node-version-file: .tool-versions
       - id: install
         run: pnpm install --frozen-lockfile
-      # Every generated suite must pass under both real runners (Track 12 T12.12). app-500 also runs
-      # Provino (the `provino` bin, as a black box, all cores but one): every test passes, its
-      # normalized-json parses, and each test's status equals Jest's (B11).
+      # Every generated suite must pass under both real runners (Track 12 T12.12). app-500 and
+      # mock-heavy-500 (B13c) also run Provino (the `provino` bin, as a black box, all cores but one):
+      # every test passes, its normalized-json parses, and each test's status equals Jest's (B11).
       - if: ${{ steps.scope.outputs.run == 'true' }}
         run: pnpm provino-bench check app-500 --runner jest --runner vitest --runner provino
       - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
-        run: pnpm provino-bench check mock-heavy-500 --runner jest --runner vitest
+        run: pnpm provino-bench check mock-heavy-500 --runner jest --runner vitest --runner provino
       - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
         run: pnpm provino-bench check isolate-heavy --runner jest --runner vitest
       # Re-record every fixture and fail if a golden drifted (.claude/rules/tests.md).
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.goldens.outputs.run == 'true' }}
         run: pnpm provino-harness record --check
       # The harness self-test (Track 12 T12.6, T12.16): the sample under real Jest and Vitest, its
       # recording, the sidecars and the calibrated parity, then Provino (the `provino` bin) as a
@@ -210,14 +187,55 @@ jobs:
       # T4.1: the mocking goldens regenerate byte-identically on the oldest Node we support. Below
       # 22.18 the recorder takes type stripping from NODE_OPTIONS (DECISIONS S1). Last in this job,
       # because it changes the Node every later step would run on.
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.mocking == 'true' }}
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.mocking.outputs.run == 'true' }}
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.15.0
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.mocking == 'true' }}
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.mocking.outputs.run == 'true' }}
         env:
           NODE_OPTIONS: --experimental-strip-types
         run: pnpm record:mocking --check
+
+  jest-oracles:
+    name: Jest config reader against real presets (jest-config 30.5)
+    if: ${{ github.event_name == 'push' || !startsWith(github.head_ref, 'task/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history, so the branch can be diffed against main below.
+          fetch-depth: 0
+      # T11.5: ts-jest, React Native, jest-expo, jest-preset-angular and a relative preset, read by
+      # ours and by real jest-config, equal on the 55 keys (B14b). The check installs about 850
+      # packages, and its result depends only on the Jest dialect (all of it: `/node` imports `.`,
+      # and the oracle presets and type tests live there), what the reader loads (config, resolver,
+      # policy, types), the bench command and the harness modules it runs children with, the
+      # runners' versions (lockfile, catalog), Node, the root scripts, this workflow and the scope
+      # action. It runs on main, and on a task branch whose changes against main touch any of
+      # those (`.github/actions/scope`, which fails closed, as the suites job's checks do);
+      # `packages/bench/src/jest-config/jest-config.test.ts` checks the paths it covers.
+      - id: scope
+        name: Decide whether the oracle check runs
+        uses: ./.github/actions/scope
+        with:
+          label: the oracle check
+          include: '^(packages/dialect-jest/|packages/harness/(src/|package\.json$)|packages/bench/(src/jest-config/|package\.json$)|packages/(config|resolver|policy|types)/(src/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          cache: true
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .tool-versions
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        run: pnpm install --frozen-lockfile
+      # The presets are their own pnpm root, pinned by their own lockfile, outside the workspace.
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        run: pnpm --dir packages/dialect-jest/oracle/presets install --frozen-lockfile
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        run: pnpm bench:jest-config presets
 
   corpora:
     name: Resolver and transform corpora (Node ESM agreement, excalidraw)

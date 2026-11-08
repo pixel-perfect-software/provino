@@ -8,6 +8,11 @@ export interface ModuleFacts {
   readonly imports: readonly ImportRecord[]
   readonly hasModuleSyntax: boolean
   readonly hasTopLevelAwait: boolean
+  /**
+   * Whether a file with no module syntax shows it is CommonJS: a `require(…)` call, or a member of
+   * `module` or `exports`. Read only for such a file, so a file with `import` syntax pays nothing.
+   */
+  readonly hasCommonJsSyntax: boolean
 }
 
 const RAW_TRANSFER = rawTransferSupported()
@@ -96,6 +101,29 @@ function requireCalls(program: unknown, source: string): ImportRecord[] {
   return records
 }
 
+/** Whether `program` calls `require` or reads a member of `module` or `exports`. */
+function commonJsSignals(program: unknown): boolean {
+  let found = false
+  walk(program, (node) => {
+    if (found) return false
+    if (node.type === 'CallExpression') {
+      const callee = node.callee
+      if (isNode(callee) && callee.type === 'Identifier' && callee.name === 'require') found = true
+    } else if (node.type === 'MemberExpression') {
+      const object = node.object
+      if (
+        isNode(object) &&
+        object.type === 'Identifier' &&
+        (object.name === 'module' || object.name === 'exports')
+      ) {
+        found = true
+      }
+    }
+    return !found
+  })
+  return found
+}
+
 /** Parses `source` once and reads its imports, module syntax and top-level await. */
 export function moduleFacts(
   filename: string,
@@ -158,7 +186,12 @@ export function moduleFacts(
     })
   }
 
-  const needsProgram = source.includes('require(') || source.includes('await')
+  // Only a file with no module syntax needs telling apart: CommonJS, or a script.
+  const mayBeCommonJs =
+    !module.hasModuleSyntax &&
+    sourceType !== 'commonjs' &&
+    (source.includes('module') || source.includes('exports') || source.includes('require'))
+  const needsProgram = source.includes('require(') || source.includes('await') || mayBeCommonJs
   const program = needsProgram ? result.program : null
   if (program !== null && source.includes('require('))
     imports.push(...requireCalls(program, source))
@@ -167,6 +200,10 @@ export function moduleFacts(
   return {
     imports,
     hasModuleSyntax: module.hasModuleSyntax,
+    hasCommonJsSyntax:
+      program !== null && mayBeCommonJs
+        ? imports.some((entry) => entry.kind === 'require') || commonJsSignals(program)
+        : false,
     hasTopLevelAwait:
       program !== null && sourceType !== 'commonjs' && source.includes('await')
         ? topLevelAwait(program)
