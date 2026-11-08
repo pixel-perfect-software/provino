@@ -85,6 +85,43 @@ describe('setup order', () => {
     ])
     assert.deepEqual(states(run.events), { one: 'pass', two: 'pass' })
   })
+
+  // B14a's `core-globals-at-setup`: Jest 30.5's setupFiles see only `jest`; jest-circus installs
+  // the rest before setupFilesAfterEnv. The policy names the globals that come first.
+  it('installs only the globals core.globalsBeforeSetupFiles lists before setupFiles, the rest after them', async () => {
+    const p = await project({
+      'setup.js':
+        "__trace.push('setupFiles: test is ' + typeof test + ', expect is ' + typeof expect)",
+      'after-env.js': "__trace.push('setupFilesAfterEnv: test is ' + typeof test)",
+      'a.test.js': ["__trace.push('file: test is ' + typeof test)", "test('one', () => {})"].join(
+        '\n',
+      ),
+    })
+    const base = runtimeConfig(p.dir, {
+      setupFiles: [p.path('setup.js')],
+      setupFilesAfterEnv: [p.path('after-env.js')],
+    })
+    const config = runtimeConfig(p.dir, {
+      setupFiles: [p.path('setup.js')],
+      setupFilesAfterEnv: [p.path('after-env.js')],
+      policy: {
+        ...base.policy,
+        core: { ...base.policy.core, globalsBeforeSetupFiles: ['expect'] },
+      },
+    })
+    const trace: string[] = []
+    const run = await runJobs({ config, trace, jobs: [runtimeJob(config, p.path('a.test.js'))] })
+    assert.deepEqual(run.exit, { type: 'exit', code: 0 })
+    assert.deepEqual(
+      trace.filter((line) => line.includes(' is ')),
+      [
+        'setupFiles: test is undefined, expect is function',
+        'setupFilesAfterEnv: test is function',
+        'file: test is function',
+      ],
+    )
+    assert.deepEqual(states(run.events), { one: 'pass' })
+  })
 })
 
 describe('the file id (D23)', () => {

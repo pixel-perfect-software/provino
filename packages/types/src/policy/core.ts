@@ -137,8 +137,16 @@ export interface CorePolicy {
    * `hooks.beforeReturn`. Jest: `false`. Vitest: `true`. unverified: track-01 L196, track-05 L314
    */
   readonly hookReturnsCleanup: boolean
-  /** Whether the dialect's globals are injected before setup files run. Jest: `true`. Vitest: config `globals` (default `false`). unverified: track-11 L521 */
+  /** Whether the dialect's globals are injected at all. Jest: `true`. Vitest: config `globals` (default `false`). research: track-11 L521 */
   readonly injectGlobals: boolean
+  /**
+   * Which of the dialect's globals exist while `setupFiles` run: `'all'`, or only the names
+   * listed; the rest are installed after `setupFiles` and before `setupFilesAfterEnv`. Jest 30.5:
+   * `['jest']` (jest-runner runs `setupFiles` before jest-circus installs `describe`, `expect` and
+   * the rest; `jest` is the module's own). Vitest 5.0 and neutral: `'all'` (Vitest has one kind of
+   * setup file, run after its globals). Recorded: `fixtures/policy/core-globals-at-setup` (B14a).
+   */
+  readonly globalsBeforeSetupFiles: 'all' | readonly string[]
   /** Warning printed when a test uses a `done` callback, or `null` for none. Values: not in the research; B14 records them. */
   readonly doneDeprecatedMessage: string | null
   /** Collection (Track 5 `collect.*`). */

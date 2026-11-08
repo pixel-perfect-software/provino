@@ -77,6 +77,9 @@ export const jestPolicy: PolicyOverrides = {
     hookReturnsCleanup: false,
     // unverified: track-11 L521
     injectGlobals: true,
+    // jest-runner runs `setupFiles` before jest-circus installs its globals; `jest` is each
+    // module's own (`policy/core-globals-at-setup`).
+    globalsBeforeSetupFiles: ['jest'],
     collect: {
       // unverified: track-05 L311 (runtime corpus `describe-body` agrees)
       describeBody: 'immediate',

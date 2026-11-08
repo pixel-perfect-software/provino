@@ -43,6 +43,8 @@ export const vitestPolicy: PolicyOverrides = {
     hookReturnsCleanup: true,
     // Vitest's `globals` option, off by default.
     injectGlobals: false,
+    // With `globals: true`, setup files run after the globals are in (`core-globals-at-setup`).
+    globalsBeforeSetupFiles: 'all',
     doneDeprecatedMessage: null,
     collect: {
       describeBody: 'deferred',
@@ -63,7 +65,8 @@ export const vitestPolicy: PolicyOverrides = {
       skippedBlock: 'none',
     },
     concurrency: { grouping: 'consecutive', limitHooks: true },
-    errors: { lateErrors: 'report-run', hasAssertionsWhenFailed: 'check' },
+    // Vitest checks `expect.hasAssertions` only on a test that passed (`policy/core-outcomes`).
+    errors: { lateErrors: 'report-run', hasAssertionsWhenFailed: 'skip' },
     focus: { scope: 'suite', insideSkip: 'skipped' },
     status: { todoUnderSkip: 'todo', expectFail: 'attempt' },
     locationFrame: 'test-file',
