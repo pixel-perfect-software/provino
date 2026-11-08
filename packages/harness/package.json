@@ -35,6 +35,7 @@
     "@jest/test-result": "catalog:",
     "@provino/core": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
+    "@provino/dialect-vitest": "workspace:*",
     "@provino/expect": "workspace:*",
     "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",

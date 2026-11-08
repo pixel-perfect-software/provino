@@ -1,0 +1,206 @@
+// The Vitest 5.0 dialect value (T1.8's Vitest half, T11.1, T11.2). Policy values, the names of the
+// globals it injects and its type entries; no config reader, flags or facades yet (T11.15, T11.16,
+// Phase 2), so `provino` doesn't list it among its built-in dialects and no run reaches the stubs.
+//
+// Every value matches Vitest 5.0.5. The evidence for each one is in `@provino/harness`'s
+// `src/policy-truth/claims/` (T1.7, CLAUDE.md non-negotiable 2): a golden recorded from the real
+// Vitest (or, for a value no run shows, its pinned code called inside a recorded fixture, D27), a
+// corpus check whose flipped value fails, our own key with its test, or a `pending` entry naming
+// the bundle that builds it. `policy-truth.test.ts` fails when a value and its evidence disagree.
+// A comment here says why a value is what it is where that isn't obvious.
+import { defineDialect, moduleRef } from '@provino/policy'
+import type { Dialect, GlobalsFactory, PolicyOverrides } from '@provino/types'
+import { vitestHoistPolicy } from './hoist-policy.ts'
+import { vitestMockPolicy, vitestModulePolicy } from './mock-policy.ts'
+
+/**
+ * Vitest 5.0's policy (with `sequence.hooks: 'stack'`, its default), layered over the neutral
+ * policy by `resolvePolicy`. This is `vitestDialect.policy`, typed as the overrides it is.
+ * @public
+ */
+export const vitestPolicy: PolicyOverrides = {
+  core: {
+    hookOrder: {
+      beforeAll: 'declaration',
+      beforeEach: 'declaration',
+      afterEach: 'reverse',
+      afterAll: 'reverse',
+    },
+    eachHooksForConcurrent: true,
+    firstArg: 'context',
+    allowGeneratorFns: false,
+    timeouts: { test: 5000, hook: 10000, teardown: 10000, catchSyncOverrun: true, zero: 'none' },
+    nameSeparator: ' > ',
+    testNamePatternFlags: '',
+    missingTestFn: 'todo',
+    asyncDescribe: 'await',
+    nonPromiseReturn: 'ignore',
+    eachTitleTruncate: 40,
+    retry: { timing: 'immediate', logErrorsBeforeRetry: true, keepEarlierErrors: true },
+    allowOnly: 'not-in-ci',
+    maxConcurrency: 5,
+    unawaitedAsyncAssertion: 'fail',
+    hookReturnsCleanup: true,
+    // Vitest's `globals` option, off by default.
+    injectGlobals: false,
+    doneDeprecatedMessage: null,
+    collect: {
+      describeBody: 'deferred',
+      describeReturnValue: 'ignore',
+      lateRegistration: 'warn-drop',
+      emptyDescribe: 'fail-suite',
+      nestedInTest: 'throw',
+      todoWithFn: 'todo',
+      // Vitest drops an incomplete trailing row.
+      eachTableError: 'lenient',
+    },
+    hooks: {
+      afterError: 'abort-chain',
+      beforeAllError: 'skip-subtree',
+      nestedHooksAfterBeforeAllError: 'skip',
+      afterAllError: 'fail-suite',
+      timeoutCountsTestTimeout: false,
+      skippedBlock: 'none',
+    },
+    concurrency: { grouping: 'consecutive', limitHooks: true },
+    errors: { lateErrors: 'report-run', hasAssertionsWhenFailed: 'check' },
+    focus: { scope: 'suite', insideSkip: 'skipped' },
+    status: { todoUnderSkip: 'todo', expectFail: 'attempt' },
+    locationFrame: 'test-file',
+  },
+  lazy: { readInBeforeAll: 'error' },
+  mock: vitestMockPolicy,
+  timers: {
+    toFakeDefault: 'all-but-microtasks',
+    loopLimit: 10000,
+    fakeTemporal: true,
+    legacyAvailable: false,
+    enableGlobally: false,
+    optionNames: 'to-fake',
+    notFaked: 'throw',
+    setSystemTimeWithoutFakes: 'fake-date-only',
+    advanceToNextTimerHonorsSteps: false,
+    facadeReturns: 'facade',
+  },
+  module: vitestModulePolicy,
+  snapshot: {
+    header: '// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html',
+    keyJoin: ' > ',
+    hintJoin: ' > ',
+    dirName: '__snapshots__',
+    extension: '.snap',
+    format: { escapeString: false, printBasicPrototype: false, maxOutputLength: 2 ** 27 },
+    obsolete: { failLocal: false, failCI: true },
+    ciUpdate: 'none',
+    updateEnvVar: 'UPDATE_SNAPSHOT',
+    throwErrorBody: 'error',
+    inline: { indent: 'call', formatter: 'none' },
+  },
+  expect: {
+    matcherNamespace: 'vitest',
+    pollFailsOnTimeout: true,
+    diffContextLines: 5,
+    valueFormatter: 'pretty-format',
+    errorShape: 'assertion-error',
+    equality: { errors: 'assert', invalidDate: 'equal' },
+    soft: true,
+    poll: { enabled: true, intervalMs: 50, timeoutMs: 1000 },
+    requireAssertions: false,
+    expand: false,
+  },
+  orchestrator: {
+    include: ['**/*.{test,spec}.?(c|m)[jt]s?(x)'],
+    exclude: ['**/node_modules/**', '**/.git/**'],
+    bail: { checkAfter: 'test' },
+    watchDefault: 'tty-not-ci',
+    watch: { initialRun: 'all' },
+    passWithNoTests: false,
+    exitCodes: { failure: 1, noTests: 1, unhandled: 1 },
+    unhandledErrors: 'fail-run',
+    coverageProvider: 'v8',
+    coverageReporters: ['text', 'html', 'clover', 'json'],
+    slowTestThresholdMs: 300,
+    // Ours (D6 for Jest; Vitest isolates each file in its own module graph, as `registry` does).
+    isolationDefault: { default: 'registry' },
+    envDefault: 'node',
+    environmentPragmas: ['vitest-environment', 'jest-environment'],
+    pool: { default: 'forks' },
+    runInBand: { auto: false },
+    shard: { fallback: 'sha1-slice' },
+    sequence: { unknownFirst: true },
+    globalSetup: { signature: 'project-with-teardown' },
+  },
+  report: {
+    displaySeparator: ' > ',
+    defaultReporters: ['default'],
+    failureTitleBullet: null,
+    resultStatusSkipped: 'skipped',
+  },
+  coverage: {
+    thresholdGrouping: 'all-files',
+    globThresholdScope: 'aggregate',
+    includeUntestedByDefault: true,
+    reportsDirectory: './coverage',
+  },
+}
+
+/**
+ * The globals Vitest 5.0 injects with `globals: true` (`vitest/src/constants.ts`'s `globalApis`,
+ * which `integrations/globals.ts` installs), sorted. `core-globals-at-setup` records them.
+ */
+const VITEST_GLOBAL_NAMES: readonly string[] = [
+  'afterAll',
+  'afterEach',
+  'aroundAll',
+  'aroundEach',
+  'assert',
+  'assertType',
+  'beforeAll',
+  'beforeEach',
+  'chai',
+  'describe',
+  'expect',
+  'expectTypeOf',
+  'it',
+  'onTestFailed',
+  'onTestFinished',
+  'suite',
+  'test',
+  'vi',
+  'vitest',
+]
+
+/**
+ * What a project config may put under `vitest`: nothing yet, so only an empty object. Vitest's own
+ * options arrive with the config reader (T11.15, Phase 2).
+ * @public
+ */
+export type VitestDialectOptions = Record<string, never>
+
+// Registers the dialect's name, as `@provino/dialect-jest` does for `jest`.
+declare module '@provino/types' {
+  interface DialectRegistry {
+    vitest: VitestDialectOptions
+  }
+}
+
+/**
+ * The Vitest 5.0 dialect: its policy values, the globals it injects and its type entries. The
+ * config reader, the CLI flags and the `vitest` facade come with T11.15 and T11.16 (Phase 2); until
+ * then the globals factory is a stub that throws.
+ * @public
+ */
+export const vitestDialect: Dialect<'vitest'> = defineDialect({
+  name: 'vitest',
+  version: '5.0',
+  policy: vitestPolicy,
+  globals: {
+    factory: moduleRef<GlobalsFactory>(
+      import.meta.resolve('@provino/dialect-vitest/runtime'),
+      'vitestGlobals',
+    ),
+    names: VITEST_GLOBAL_NAMES,
+  },
+  loader: { hoist: vitestHoistPolicy },
+  typeEntries: ['@provino/dialect-vitest/runtime'],
+})
