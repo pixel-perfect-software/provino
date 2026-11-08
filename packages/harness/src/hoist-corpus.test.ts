@@ -308,6 +308,7 @@ const passThrough = (code: string): ReturnType<Hoister> => ({
   staticMocks: [],
   diagnostics: [],
   rewroteImports: false,
+  lateDeps: [],
 })
 
 /**
@@ -394,7 +395,7 @@ const SABOTAGES: readonly {
     hoist: sabotage((code) =>
       replaced(
         code,
-        /const (__provino_import_0__) = await import\("\.\/m"\);?/,
+        /const (__provino_import_0__) = await __provino_import__\("\.\/m"\);?/,
         'import * as $1 from "./m";',
       ),
     ),

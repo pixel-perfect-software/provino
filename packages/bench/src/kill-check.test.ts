@@ -103,6 +103,16 @@ const passing = (): BenchResult[] =>
     { jest: 100, registry: 40, none: 30 },
   )
 
+// The two synthetic suites, both passing: mock-heavy-500 is measured at `registry` only.
+const passingSynthetic = (): BenchResult[] => [
+  ...passing(),
+  ...suiteResults('mock-heavy-500', { jest: 100, registry: 35 }, { jest: 100, registry: 45 }),
+]
+const SYNTHETIC_PARITY = new Map([
+  ['app-500', parityOf(4000, 4000)],
+  ['mock-heavy-500', parityOf(2000, 2000)],
+])
+
 // Isolation kept comfortably passing so a test can vary only the speed.
 const FINE_COLD: Walls = { jest: 100, registry: 10, none: 10 }
 
@@ -128,17 +138,27 @@ test('the criterion is D5 and R2, as fixed numbers', () => {
   )
   assert.deepEqual(
     R6_SUITES.filter((suite) => suite.pending === undefined).map((suite) => suite.name),
-    ['app-500'],
+    ['app-500', 'mock-heavy-500'],
   )
 })
 
-test('a passing app-500 is GO, provisional because six suites are pending', () => {
-  const verdict = verdictOf(passing(), { suites: R6_SUITES })
+test('passing synthetic suites are GO, provisional because five suites are pending', () => {
+  const verdict = verdictOf(passingSynthetic(), { suites: R6_SUITES, parity: SYNTHETIC_PARITY })
   assert.equal(verdict.outcome, 'GO')
   assert.deepEqual(verdict.failures, [])
   assert.equal(verdict.provisional, true)
-  assert.equal(measuredOf(verdict).length, 1)
-  assert.equal(verdict.suites.length - measuredOf(verdict).length, 6)
+  assert.equal(measuredOf(verdict).length, 2)
+  assert.equal(verdict.suites.length - measuredOf(verdict).length, 5)
+})
+
+test('a measured mock-heavy-500 with no result, or no parity, is NO-GO: no data never passes', () => {
+  const missing = verdictOf(passing(), { suites: R6_SUITES, parity: SYNTHETIC_PARITY })
+  assert.equal(missing.outcome, 'NO-GO')
+  assert.match(missing.failures.join('\n'), /mock-heavy-500 warm: no Provino registry result/)
+  assert.match(missing.failures.join('\n'), /mock-heavy-500 cold: no Provino registry result/)
+  const unread = verdictOf(passingSynthetic(), { suites: R6_SUITES })
+  assert.equal(unread.outcome, 'NO-GO')
+  assert.match(unread.failures.join('\n'), /mock-heavy-500 parity: no parity was read/)
 })
 
 test('warm: exactly 0.50 passes, a hair over fails', () => {
@@ -274,9 +294,9 @@ test('a dry run skips parity and never fails on it', () => {
 })
 
 test('pending suites are listed and never measured', () => {
-  const verdict = verdictOf(passing(), { suites: R6_SUITES })
+  const verdict = verdictOf(passingSynthetic(), { suites: R6_SUITES, parity: SYNTHETIC_PARITY })
   const pending = verdict.suites.filter((suite) => 'pending' in suite)
-  assert.equal(pending.length, 6)
+  assert.equal(pending.length, 5)
   for (const suite of pending) {
     assert.equal('warm' in suite, false)
     assert.equal('cold' in suite, false)
@@ -491,7 +511,9 @@ test('a ratio of 1.0 is NO-GO', () => {
 })
 
 test('the report has the literal strings, three decimals, and the label on every line', () => {
-  const lines = formatKillCheck(verdictOf(passing(), { suites: R6_SUITES }))
+  const lines = formatKillCheck(
+    verdictOf(passingSynthetic(), { suites: R6_SUITES, parity: SYNTHETIC_PARITY }),
+  )
   assert.ok(lines.length > 8)
   assert.ok(
     lines.every((line) => line.startsWith('[local] ')),
@@ -506,15 +528,19 @@ test('the report has the literal strings, three decimals, and the label on every
     text,
     /app-500 +100\.0% \(4000\/4000\) +0\.300 \(0\.300-0\.300\) +pass +0\.400 \(0\.400-0\.400\) +pass/,
   )
-  assert.match(text, /mock-heavy-500 +PENDING: Provino has no jest\.mock until B13c/)
-  assert.equal(text.match(/ {2}PENDING:/g)?.length, 6)
+  assert.match(
+    text,
+    /mock-heavy-500 +100\.0% \(2000\/2000\) +0\.350 \(0\.350-0\.350\) +pass +0\.450 \(0\.450-0\.450\) +pass/,
+  )
+  assert.match(text, /jest-extended +PENDING: corpus repo/)
+  assert.equal(text.match(/ {2}PENDING:/g)?.length, 5)
   assert.match(
     text,
     /isolation app-500 registry\/none warm: median ratio 1\.500 \(95% CI 1\.500-1\.500\), <=3\.0 pass/,
   )
   assert.match(text, /isolation app-500 registry\/none cold: median ratio 1\.333/)
   assert.match(text, /\[local\] VERDICT: GO, PROVISIONAL \(local\)$/m)
-  assert.match(text, /1 of 7 suites measured, 6 PENDING: only a pinned run of all 7 decides GO\./)
+  assert.match(text, /2 of 7 suites measured, 5 PENDING: only a pinned run of all 7 decides GO\./)
 
   const slow = suiteResults('app-500', { jest: 100, registry: 100, none: 100 })
   const bad = formatKillCheck(verdictOf(slow))

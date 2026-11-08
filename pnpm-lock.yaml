@@ -554,6 +554,9 @@ importers:
       '@provino/expect':
         specifier: workspace:*
         version: link:../expect
+      '@provino/loader':
+        specifier: workspace:*
+        version: link:../loader
       '@provino/mock':
         specifier: workspace:*
         version: link:../mock
@@ -581,6 +584,9 @@ importers:
       oxc-parser:
         specifier: 'catalog:'
         version: 0.156.0
+      provino:
+        specifier: workspace:*
+        version: link:../provino
       vitest:
         specifier: 'catalog:'
         version: 5.0.5(@types/node@22.20.5)(jsdom@30.1.3)(vite@8.3.5(@types/node@22.20.5))
@@ -599,6 +605,10 @@ importers:
       '@provino/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      '@provino/mock':
+        specifier: workspace:*
+        version: link:../mock
 
   packages/mock:
     dependencies:

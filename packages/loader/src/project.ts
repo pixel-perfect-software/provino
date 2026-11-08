@@ -73,8 +73,9 @@ function buildMapper(
 
 /**
  * Creates the worker's loader for one project. `config.mappers` are loaded by `ModuleRef` first,
- * which is why this is async. Mock hoisting and the transform cache are off until their tasks land
- * (B13, T3.6).
+ * which is why this is async. Mock hoisting follows `config.hoist` (the dialect's policy, by
+ * value), and every module's wrapper declares `config.moduleScope`'s names. The transform cache is
+ * off until T3.6.
  * @public
  */
 export async function createProjectLoader(
@@ -103,10 +104,11 @@ export async function createProjectLoader(
       root,
       typescript: config.typescript,
       tsconfig,
-      hoist: null,
+      hoist: config.hoist,
       cache: false,
     }),
     policy,
     conditions: config.conditions,
+    ...(config.moduleScope.length === 0 ? {} : { moduleScope: { names: config.moduleScope } }),
   })
 }

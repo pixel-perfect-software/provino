@@ -20,6 +20,7 @@
 // - Import attributes go in `loadOptions`, not the log: Babel's CJS step and Vitest's rewritten
 //   import both drop them, and ours keeps them (see the test `import attributes survive`).
 
+import { LATE_IMPORT } from '@provino/transform'
 import { errorMessage } from '../internal/guards.ts'
 
 const MAX_LINES = 5000
@@ -363,6 +364,12 @@ class Recording {
     const moduleObject = { exports: this.exports }
     const importModule = (specifier: unknown): Promise<object> =>
       Promise.resolve().then(() => this.load(String(specifier)))
+    const dynamicImport = (specifier: unknown, options: unknown): Promise<object> => {
+      if (options !== undefined) {
+        this.loadOptions.push(`${String(specifier)} ${JSON.stringify(options)}`)
+      }
+      return importModule(specifier)
+    }
     return new Map<string, unknown>([
       ['require', (specifier: unknown) => this.load(String(specifier))],
       ['module', moduleObject],
@@ -372,15 +379,9 @@ class Recording {
       ['__vite_ssr_exports__', this.exports],
       ['__vite_ssr_import_meta__', this.value('import.meta')],
       ['__vite_ssr_import__', importModule],
-      [
-        '__vite_ssr_dynamic_import__',
-        (specifier: unknown, options: unknown) => {
-          if (options !== undefined) {
-            this.loadOptions.push(`${String(specifier)} ${JSON.stringify(options)}`)
-          }
-          return importModule(specifier)
-        },
-      ],
+      ['__vite_ssr_dynamic_import__', dynamicImport],
+      // Our hoister's late import (D38): the loader passes it in, as the wrapper does the others.
+      [LATE_IMPORT, dynamicImport],
       [
         '__vite_ssr_exportAll__',
         (source: object) => {

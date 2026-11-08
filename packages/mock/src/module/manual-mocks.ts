@@ -4,9 +4,9 @@
 // - A root mock: `<root>/__mocks__/<name>` for a package (`pkg`, `@scope/pkg`) or a core module,
 //   where `node:fs` and `fs` are one name (a colon is no filename character on Windows).
 // - An adjacent mock: `__mocks__/<file>` beside the resolved file.
-import { statSync } from 'node:fs'
+import { readdirSync, statSync } from 'node:fs'
 import { builtinModules } from 'node:module'
-import { basename, dirname, isAbsolute, join } from 'node:path'
+import { basename, dirname, isAbsolute, join, sep } from 'node:path'
 
 /**
  * A manual mock the search found.
@@ -96,6 +96,73 @@ export function findRootMock(
     }
   }
   return null
+}
+
+/**
+ * The root `__mocks__` trees, listed once (B13c Gap 8). Under `rootMocksAutoApply` every bare
+ * specifier asks for its root mock, so the worker lists the trees once and every file's registry
+ * looks names up in the list instead of stat-ing a path per name. Nothing invalidates it: there is
+ * no watch mode yet.
+ * @public
+ */
+export interface RootMockIndex {
+  /** The root mock of a package or core name, as `findRootMock` would find it, or `null`. */
+  find(specifier: string): ManualMock | null
+  /** Whether no root has a root mock at all: then nothing is looked up. */
+  isEmpty(): boolean
+}
+
+/**
+ * Lists each root's `__mocks__` tree on first use. A name is the file's path under `__mocks__`
+ * without its extension (`pkg`, `@scope/pkg`, `pkg/sub`, `fs`); the first root wins, then the
+ * first extension, as in `findRootMock`.
+ * @public
+ */
+export function createRootMockIndex(
+  options: Pick<FindManualMockOptions, 'roots' | 'extensions'>,
+): RootMockIndex {
+  let byName: Map<string, ManualMock> | null = null
+  const build = (): Map<string, ManualMock> => {
+    const found = new Map<string, ManualMock>()
+    const extensions = options.extensions.map(dotted)
+    for (const root of options.roots) {
+      const dir = join(root, '__mocks__')
+      let files: string[]
+      try {
+        files = readdirSync(dir, { recursive: true, encoding: 'utf8' })
+      } catch {
+        continue
+      }
+      for (const extension of extensions) {
+        for (const file of files) {
+          if (!file.endsWith(extension)) continue
+          const name = file.slice(0, -extension.length).split(sep).join('/')
+          const path = join(dir, file)
+          if (found.has(name) || !isFile(path)) continue
+          found.set(name, { path, kind: 'root' })
+        }
+      }
+    }
+    return found
+  }
+  const index = (): Map<string, ManualMock> => {
+    byName ??= build()
+    return byName
+  }
+  return {
+    find(specifier) {
+      if (!isBareSpecifier(specifier) || specifier.split(/[\\/]/).includes('..')) return null
+      const name = isCoreSpecifier(specifier) ? coreName(specifier) : specifier
+      return index().get(name) ?? null
+    },
+    isEmpty: () => index().size === 0,
+  }
+}
+
+/** `__mocks__/<file>` beside a resolved file, or `null`. */
+export function findAdjacentMock(resolved: string): ManualMock | null {
+  const sibling = join(dirname(resolved), '__mocks__', basename(resolved))
+  return isFile(sibling) ? { path: sibling, kind: 'adjacent' } : null
 }
 
 /**
