@@ -45,7 +45,6 @@ const PROFILES: Readonly<Partial<Record<FixtureProfile, ModProfile>>> = {
     mock: mockPolicyFor.jest,
     module: resolvePolicy(jestPolicy).module,
     hoist: jestHoistPolicy,
-    prefixTransformErrors: true,
   },
   vitest: {
     facade: 'vi',

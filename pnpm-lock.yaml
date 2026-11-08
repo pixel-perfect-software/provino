@@ -554,6 +554,9 @@ importers:
       '@provino/expect':
         specifier: workspace:*
         version: link:../expect
+      '@provino/loader':
+        specifier: workspace:*
+        version: link:../loader
       '@provino/mock':
         specifier: workspace:*
         version: link:../mock

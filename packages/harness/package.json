@@ -36,6 +36,7 @@
     "@provino/core": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
     "@provino/expect": "workspace:*",
+    "@provino/loader": "workspace:*",
     "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/resolver": "workspace:*",

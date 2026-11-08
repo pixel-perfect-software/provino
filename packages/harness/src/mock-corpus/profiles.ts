@@ -185,6 +185,9 @@ export const vitestModulePolicy: ModulePolicy = {
     // Vite's module runner raises it for the file that is not there (not in `.refs/vitest`): the
     // text is the recorded one, `mod-missing` and `mod-virtual` (vitest). `{id}` is root-relative.
     'unresolved-relative-mock': "Cannot find module '{id}'",
+    // The loader's (B13c Gap 4): when the test file fails to load on that mock, the module runner
+    // names the importer; an import from inside a test doesn't (`mod-virtual-static`, `mod-missing`).
+    'unresolved-mock-import': '{message} imported from {importer}',
     // packages/mocker/src/registry.ts L298-L300 (`createHelpfulError`; the original is the cause)
     'factory-error':
       '[vitest] There was an error when mocking a module. If you are using "vi.mock" factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock',
