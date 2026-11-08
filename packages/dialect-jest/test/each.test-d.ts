@@ -14,12 +14,12 @@ expectTypeOf(formatEachTitle).toEqualTypeOf<
     kind?: EachTableKind,
   ) => string
 >()
-expectTypeOf<EachTableKind>().toEqualTypeOf<'rows' | 'template'>()
+expectTypeOf<EachTableKind>().toEqualTypeOf<'rows' | 'template' | 'mixed'>()
 
 formatEachTitle('%s', ['a'], 0)
 formatEachTitle('$a', { a: 1 }, 0, 'template')
 
-// @ts-expect-error a table kind outside the two is refused
+// @ts-expect-error a table kind outside the three is refused
 formatEachTitle('$a', { a: 1 }, 0, 'list')
 // @ts-expect-error a title is a string
 formatEachTitle(1, [1], 0)

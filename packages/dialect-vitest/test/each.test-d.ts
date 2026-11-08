@@ -7,7 +7,12 @@ import { expectTypeOf } from 'expect-type'
 
 expectTypeOf(formatEachTitle).toEqualTypeOf<FormatEachTitle>()
 expectTypeOf(formatEachTitle).parameters.toEqualTypeOf<
-  [template: string, row: readonly unknown[] | Readonly<Record<string, unknown>>, index: number]
+  [
+    template: string,
+    row: readonly unknown[] | Readonly<Record<string, unknown>>,
+    index: number,
+    kind?: 'rows' | 'template' | 'mixed' | undefined,
+  ]
 >()
 expectTypeOf(formatEachTitle).returns.toBeString()
 expectTypeOf(VITEST_EACH_TITLE_TRUNCATE).toBeNumber()
@@ -18,5 +23,5 @@ formatEachTitle(1, [1], 0)
 formatEachTitle('%s', 1, 0)
 // @ts-expect-error the index is a number
 formatEachTitle('%s', [1], '0')
-// @ts-expect-error Vitest titles one row at a time: there is no table kind to pass
-formatEachTitle('%s', [1], 0, 'template')
+// @ts-expect-error a table kind outside rows, template and mixed is refused
+formatEachTitle('%s', [1], 0, 'list')

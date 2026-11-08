@@ -494,6 +494,7 @@ describe('the normalized-json reporter', () => {
         ['thrown after its test ended'],
       )
       assert.equal(second?.status, 'passed')
+      assert.equal(run.files[0]?.status, 'failed', 'a failed test fails its file')
       assert.equal(run.files[0]?.fileError, undefined, 'the error is the test`s, not the file`s')
       assert.deepEqual(run.runErrors, [])
     })

@@ -48,6 +48,8 @@ export class ProcessErrors {
   /** Tests of the current file that an event charged an error to after they ended. */
   readonly #chargedTests = new Set<TaskId>()
   #chargedFiles = 0
+  /** Whether a file is running: a rejection reported outside one is charged at once. */
+  #active = false
 
   constructor(config: ProcessErrorsConfig) {
     this.#config = config
@@ -62,6 +64,7 @@ export class ProcessErrors {
   startFile(): void {
     this.#chargedTests.clear()
     this.#chargedFiles = 0
+    this.#active = true
   }
 
   /**
@@ -78,7 +81,9 @@ export class ProcessErrors {
       this.#emit(null, frame, origin, error)
       return
     }
-    if (promise !== undefined) {
+    // Between files nothing is left to wait for: a rejection Node reports after the file ended (the
+    // worker yields a turn for it) is charged to its test at once.
+    if (promise !== undefined && this.#active) {
       this.#pending.set(promise, { error, frame })
       return
     }
@@ -113,6 +118,7 @@ export class ProcessErrors {
 
   /** The file is over: every rejection still held is charged now, to the task that owned it. */
   flush(): void {
+    this.#active = false
     for (const pending of this.#pending.values()) {
       this.#charge(pending.frame, 'unhandledRejection', pending.error)
     }

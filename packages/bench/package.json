@@ -32,6 +32,7 @@
     "@provino/orchestrator": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/resolver": "workspace:*",
+    "@provino/timers": "workspace:*",
     "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*",
     "provino": "workspace:*"

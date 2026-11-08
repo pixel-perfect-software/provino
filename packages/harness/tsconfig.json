@@ -21,6 +21,18 @@
       "path": "../timers"
     },
     {
+      "path": "../reporters"
+    },
+    {
+      "path": "../orchestrator"
+    },
+    {
+      "path": "../env-node"
+    },
+    {
+      "path": "../config"
+    },
+    {
       "path": "../dialect-jest"
     },
     {

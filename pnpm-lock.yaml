@@ -384,6 +384,9 @@ importers:
       '@provino/resolver':
         specifier: workspace:*
         version: link:../resolver
+      '@provino/timers':
+        specifier: workspace:*
+        version: link:../timers
       '@provino/transform':
         specifier: workspace:*
         version: link:../transform
@@ -579,6 +582,9 @@ importers:
       '@jest/test-result':
         specifier: 'catalog:'
         version: 30.5.2
+      '@provino/config':
+        specifier: workspace:*
+        version: link:../config
       '@provino/core':
         specifier: workspace:*
         version: link:../core
@@ -588,6 +594,9 @@ importers:
       '@provino/dialect-vitest':
         specifier: workspace:*
         version: link:../dialect-vitest
+      '@provino/env-node':
+        specifier: workspace:*
+        version: link:../env-node
       '@provino/expect':
         specifier: workspace:*
         version: link:../expect
@@ -597,9 +606,15 @@ importers:
       '@provino/mock':
         specifier: workspace:*
         version: link:../mock
+      '@provino/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
+      '@provino/reporters':
+        specifier: workspace:*
+        version: link:../reporters
       '@provino/resolver':
         specifier: workspace:*
         version: link:../resolver

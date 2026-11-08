@@ -257,7 +257,7 @@ function normalizeFile(
   const failedState = result.state === 'fail'
   let status: FileStatus
   if (result.workerExit !== undefined || (failedState && tests.length === 0)) status = 'crashed'
-  else if (failedState || chargedFails) status = 'failed'
+  else if (failedState || chargedFails || record.late.size > 0) status = 'failed'
   else if (result.state === 'skip') status = 'skipped'
   else status = 'passed'
   const fileError =

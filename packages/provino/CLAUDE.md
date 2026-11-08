@@ -37,6 +37,7 @@ Flow: check `config` and `maxWorkers` → `loadProject(config against cwd, { dia
   - `run.test.ts`: `run()` (pass, fail, the exit-2 cases, no files, `-t`, both reporters, `env.ci` in the JSON, the cache, the pools, `maxWorkers`, sequential and concurrent calls, an aborted signal).
   - `cli.test.ts`: the bin as a child process.
   - `crash.test.ts`: B11's acceptance check: a test that sends its worker SIGSEGV fails that file (`workerExit` `{ type: 'signal', signal: 'SIGSEGV' }`, `FAIL` with "killed by SIGSEGV", `crashed` in the JSON), the other files pass, no worker outlives the run; through `run()` and through the bin. Skipped on win32.
+  - `runtime.test.ts` (B17a): fake timers and the errors a test leaves behind, through `run()` on forks: a callback fires as the test that scheduled it (`expect.getState().currentTestName`, whoever calls `jest.advanceTimersByTime`), the real timers are back for the next file, Jest's not-faked warning, a late timer's exception fails the test that made it, and so does a rejection nobody handled.
   - `run.test-d.ts`: the types of `run`'s options and result.
 - Test files note their worker's pid in a file under the project (`noting`) so a test can check afterwards that every worker has exited.
 - Workers' own stderr goes to the `stderr` you pass. Some environments (this sandbox) print noise there at every Node start, so assert with patterns, not that stderr is empty.
