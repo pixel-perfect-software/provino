@@ -5,6 +5,7 @@ import { HarnessError } from './errors.ts'
 import {
   assembleFile,
   assembleTest,
+  attachConsole,
   countersOf,
   jsonFile,
   runOf,
@@ -38,20 +39,24 @@ function mapStatus(status: VitestAssertion['status']): TestStatus {
 /**
  * Converts Vitest's `--reporter=json` output to a `NormalizedRun`. Vitest's `pending` becomes
  * `notRun`. A failed file with no tests becomes `crashed` with a `fileError`. The JSON has no
- * console output, matcher names or assertion counts, so those fields are absent. A failure's text
+ * matcher names or assertion counts, so those fields are absent, and no console output: that comes
+ * from the sidecar reporter through `opts.console`, per test where Vitest names one. A failure's text
  * is `e.stack || e.message`, which is nothing at all for `throw { status: 404 }`, and JSON makes
  * that a null.
  * @public
  */
 export function convertVitest(input: JsonTestResults, opts: VitestConvertOptions): NormalizedRun {
   const conversion = startConversion(opts)
-  const files = input.testResults.map((file) =>
-    assembleFile(
-      jsonFile(file, file.status, (assertion, allocate) =>
-        assembleTest(assertion, allocate, conversion, { status: mapStatus(assertion.status) }),
+  const files = attachConsole(
+    input.testResults.map((file) =>
+      assembleFile(
+        jsonFile(file, file.status, (assertion, allocate) =>
+          assembleTest(assertion, allocate, conversion, { status: mapStatus(assertion.status) }),
+        ),
+        conversion,
       ),
-      conversion,
     ),
+    conversion,
   )
   return runOf(
     {

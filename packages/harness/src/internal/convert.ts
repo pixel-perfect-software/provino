@@ -2,6 +2,7 @@
 // and runs. A converter supplies only what is particular to its runner.
 import path from 'node:path'
 import type {
+  ConsoleEntry,
   FileStatus,
   NormalizedError,
   NormalizedFile,
@@ -17,6 +18,7 @@ import { SCHEMA_VERSION } from '../schema.ts'
 import { byFile, finiteNumber } from './guards.ts'
 import { pathText } from './keys.ts'
 import { WINDOWS_ABSOLUTE } from './paths.ts'
+import type { SidecarEntry } from './sidecar-format.ts'
 
 /**
  * POSIX and relative to `rootDir`. A path that is already relative is only re-slashed. Windows
@@ -184,6 +186,87 @@ export function assembleFile(raw: RawFile, conversion: Conversion): NormalizedFi
     tests,
     ...(raw.durationMs === undefined ? {} : { durationMs: raw.durationMs }),
   }
+}
+
+/**
+ * A sidecar entry's text as lines: split on `\n`, because Vitest merges adjacent writes to one
+ * stream and Jest doesn't (Track 12 F1). A trailing newline ends the last line rather than starting
+ * an empty one, so `console.log('')` is one empty line under both runners.
+ */
+export function consoleLines(text: string): string[] {
+  const lines = text.split('\n')
+  if (lines.length > 1 && lines.at(-1) === '') lines.pop()
+  return lines
+}
+
+// Keys in the order `parseNormalizedRun` builds them, so a converted run and the same run read
+// back from its file serialize alike (a golden passes console entries through as they are).
+function entriesOf(entry: SidecarEntry, conversion: Conversion): ConsoleEntry[] {
+  const { fired } = conversion.options
+  return consoleLines(entry.text).map((line) => ({
+    stream: entry.stream,
+    text: conversion.normalizer.text(line, fired),
+    ...(entry.level === undefined ? {} : { level: entry.level }),
+  }))
+}
+
+/**
+ * Puts the sidecar's console output (`ConvertOptions.console`) into the files: an entry that names
+ * a test goes to that test, matched by title path and `dupIndex`; any other entry, and one whose
+ * test the runner's JSON doesn't list, goes to its file. An entry for a file the run doesn't list,
+ * or for no file at all, has nowhere to go in the model and is dropped. Lines keep the sidecar's
+ * order. Files and tests that printed nothing get no `console`.
+ */
+export function attachConsole(
+  files: readonly NormalizedFile[],
+  conversion: Conversion,
+): NormalizedFile[] {
+  const entries = conversion.options.console
+  if (entries === undefined) return [...files]
+  const fileLines = new Map<string, ConsoleEntry[]>()
+  const testLines = new Map<string, Map<string, ConsoleEntry[]>>()
+  const push = <K>(map: Map<K, ConsoleEntry[]>, key: K, lines: readonly ConsoleEntry[]): void => {
+    const existing = map.get(key)
+    if (existing === undefined) map.set(key, [...lines])
+    else existing.push(...lines)
+  }
+  const testKeys = new Map(
+    files.map((file) => [
+      file.file,
+      new Set(file.tests.map((test) => `${pathText(test.id.path)}#${test.id.dupIndex}`)),
+    ]),
+  )
+  for (const entry of entries) {
+    if (entry.file === undefined) continue
+    const file = toRelativePath(conversion.options.rootDir, entry.file)
+    const known = testKeys.get(file)
+    if (known === undefined) continue
+    const lines = entriesOf(entry, conversion)
+    const key =
+      entry.test === undefined ? undefined : `${pathText(entry.test.path)}#${entry.test.dupIndex}`
+    if (key !== undefined && known.has(key)) {
+      let byTest = testLines.get(file)
+      if (byTest === undefined) {
+        byTest = new Map()
+        testLines.set(file, byTest)
+      }
+      push(byTest, key, lines)
+    } else {
+      push(fileLines, file, lines)
+    }
+  }
+  return files.map((file) => {
+    const own = fileLines.get(file.file)
+    const byTest = testLines.get(file.file)
+    const tests =
+      byTest === undefined
+        ? file.tests
+        : file.tests.map((test) => {
+            const lines = byTest.get(`${pathText(test.id.path)}#${test.id.dupIndex}`)
+            return lines === undefined ? test : { ...test, console: lines }
+          })
+    return { ...file, tests, ...(own === undefined ? {} : { console: own }) }
+  })
 }
 
 /** The ten snapshot totals, copied by name: both runners write more than the model keeps. */

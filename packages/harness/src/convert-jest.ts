@@ -5,6 +5,7 @@ import { HarnessError } from './errors.ts'
 import {
   assembleFile,
   assembleTest,
+  attachConsole,
   type Conversion,
   countersOf,
   errorOf,
@@ -102,7 +103,8 @@ function rawFile(file: JestFile, conversion: Conversion): RawFile {
  * Converts Jest's JSON to a `NormalizedRun`. Both shapes work: `--json` (`name`,
  * `assertionResults`) and the reporter's `AggregatedResult` (`testFilePath`, `testResults`).
  * A failed file with no tests becomes `crashed` with a `fileError`. Console output is not in either
- * shape, so `console` is absent.
+ * shape: it comes from the sidecar reporter through `opts.console`, per file, and is absent
+ * without it.
  * @public
  */
 export function convertJest(
@@ -110,7 +112,10 @@ export function convertJest(
   opts: JestConvertOptions,
 ): NormalizedRun {
   const conversion = startConversion(opts)
-  const files = input.testResults.map((file) => assembleFile(rawFile(file, conversion), conversion))
+  const files = attachConsole(
+    input.testResults.map((file) => assembleFile(rawFile(file, conversion), conversion)),
+    conversion,
+  )
   const runExecError = 'runExecError' in input ? input.runExecError : undefined
   const runErrors = runExecError
     ? [errorOf(runExecError.stack ?? runExecError.message, conversion)]

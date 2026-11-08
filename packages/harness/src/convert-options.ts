@@ -1,4 +1,5 @@
 import type { RunEnvironment, SnapshotFileState } from '@provino/types'
+import type { SidecarEntry } from './internal/sidecar-format.ts'
 
 /**
  * What every converter needs besides the runner's own JSON.
@@ -23,6 +24,12 @@ export interface ConvertOptions {
   readonly snapshotFiles?: readonly SnapshotFileState[]
   /** Collects the ids of the normalization rules that changed any text. */
   readonly fired?: Set<string>
+  /**
+   * The run's console output, as a sidecar reporter wrote it (`parseSidecar`). Each entry is split
+   * into lines (Track 12 F1), each line is normalized, and the lines go to the test the entry
+   * names, else to its file. Without it the run has no `console` anywhere.
+   */
+  readonly console?: readonly SidecarEntry[]
 }
 
 /**
