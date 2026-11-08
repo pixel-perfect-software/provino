@@ -161,3 +161,21 @@ test('the output tail keeps the end of long output', { timeout: 15_000 }, async 
   assert.equal(result.output.length, 4_000)
   assert.ok(result.output.endsWith('END'))
 })
+
+test('keepStreams keeps all of stdout and all of stderr, each on its own', {
+  timeout: 15_000,
+}, async () => {
+  const script = "process.stdout.write('o'.repeat(5000) + 'OUT'); process.stderr.write('ERR')"
+  const kept = await runNode(['-e', script], {
+    ...baseOptions,
+    deadline: new AbortController().signal,
+    keepStreams: true,
+  })
+  assert.equal(kept.streams?.stdout, `${'o'.repeat(5000)}OUT`)
+  assert.equal(kept.streams?.stderr, 'ERR')
+  const plain = await runNode(['-e', script], {
+    ...baseOptions,
+    deadline: new AbortController().signal,
+  })
+  assert.equal('streams' in plain, false)
+})

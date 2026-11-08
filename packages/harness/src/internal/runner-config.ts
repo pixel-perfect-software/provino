@@ -15,6 +15,25 @@ const INHERITED_NOISE: ReadonlySet<string> = new Set([
   'NODE_ENV',
   'JEST_WORKER_ID',
   'VITEST',
+  // std-env (Vitest's) reads these as "an agent runs this" or "GitHub Actions runs this", and
+  // Vitest's defaults follow (`reporters`, `watch`): a golden would differ between a terminal, an
+  // agent's shell and CI. The list is std-env 4's `detectAgent` and the GitHub provider.
+  'AI_AGENT',
+  'AUGMENT_AGENT',
+  'CLAUDECODE',
+  'CLAUDE_CODE',
+  'CODEX_SANDBOX',
+  'CODEX_THREAD_ID',
+  'COPILOT_AGENT',
+  'COPILOT_CLI',
+  'CURSOR_AGENT',
+  'GEMINI_CLI',
+  'GITHUB_ACTIONS',
+  'GOOSE_PROVIDER',
+  'JUNIE_DATA',
+  'JUNIE_SHIM_PATH',
+  'OPENCODE',
+  'REPL_ID',
 ])
 
 /**
@@ -56,6 +75,45 @@ export interface RunnerConfigOptions {
   readonly jestEsm?: true
   /** The fixture's `jestConfig`: Jest's `roots` and `unmockedModulePathPatterns`. */
   readonly jestConfig?: JestFixtureConfig
+  /** The fixture's `config` overlay for this runner, applied last (`applyOverlay`). */
+  readonly overlay?: Readonly<Record<string, unknown>>
+}
+
+/** The overlay arrays that add to the recorder's instead of replacing them, by dotted path. */
+const APPENDED: ReadonlySet<string> = new Set([
+  'setupFiles',
+  'setupFilesAfterEnv',
+  'test.setupFiles',
+])
+
+function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Lays a fixture's `config` overlay over a runner config: objects merge key by key, an array
+ * replaces, except the setup-file lists (`APPENDED`), whose entries go after the recorder's, so
+ * the trace and observe setups still run first. The manifest parser has already refused the keys
+ * the recorder owns.
+ */
+export function applyOverlay(
+  base: Readonly<Record<string, unknown>>,
+  overlay: Readonly<Record<string, unknown>> | undefined,
+  prefix = '',
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base }
+  for (const [key, value] of Object.entries(overlay ?? {})) {
+    const dotted = prefix === '' ? key : `${prefix}.${key}`
+    const current = out[key]
+    if (APPENDED.has(dotted) && Array.isArray(current) && Array.isArray(value)) {
+      out[key] = [...current, ...value]
+    } else if (isPlainRecord(current) && isPlainRecord(value)) {
+      out[key] = applyOverlay(current, value, dotted)
+    } else {
+      out[key] = value
+    }
+  }
+  return out
 }
 
 /**
@@ -129,6 +187,8 @@ export interface JestConfigFile {
   readonly restoreMocks?: boolean
   readonly roots?: readonly string[]
   readonly unmockedModulePathPatterns?: readonly string[]
+  /** What a fixture's `config` overlay adds (`applyOverlay`). */
+  readonly [option: string]: unknown
 }
 
 /**
@@ -141,7 +201,7 @@ export function jestConfig(
   setupFile: string,
   options: RunnerConfigOptions = {},
 ): JestConfigFile {
-  return {
+  const base: JestConfigFile = {
     rootDir: workDir,
     transform: {
       '\\.[cm]?ts$':
@@ -156,6 +216,8 @@ export function jestConfig(
     ...jestMockCleanupOptions(options.mockCleanup),
     ...jestFixtureOptions(options.jestConfig),
   }
+  if (options.overlay === undefined) return base
+  return { ...base, ...applyOverlay(base, options.overlay) } as JestConfigFile
 }
 
 function setupFilesOf(setupFile: string, options: RunnerConfigOptions): string[] {
@@ -190,7 +252,8 @@ export function vitestConfigSource(
       ...(profile === 'vitest-list' ? { sequence: { hooks: 'list' } } : {}),
     },
   }
-  return `export default ${JSON.stringify(config, null, 2)}\n`
+  const written = options.overlay === undefined ? config : applyOverlay(config, options.overlay)
+  return `export default ${JSON.stringify(written, null, 2)}\n`
 }
 
 /**

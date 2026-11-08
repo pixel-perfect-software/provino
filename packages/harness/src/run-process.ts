@@ -21,6 +21,8 @@ export interface ProcessOptions {
   readonly tailChars?: number
   /** Called with each chunk of output as it arrives. */
   readonly onOutput?: (chunk: string) => void
+  /** Also keep all of stdout and all of stderr, each on its own (`ProcessResult.streams`). */
+  readonly keepStreams?: boolean
 }
 
 /**
@@ -39,6 +41,8 @@ export interface ProcessResult {
   readonly wallMs: number
   /** Signals that could not be sent to the group, other than to a group that was already gone. */
   readonly problems: readonly string[]
+  /** All of stdout and all of stderr, with `keepStreams` only. */
+  readonly streams?: { readonly stdout: string; readonly stderr: string }
 }
 
 const DEFAULT_TAIL_CHARS = 4_000
@@ -91,6 +95,15 @@ export async function runProcess(
   }
   child.stdout?.on('data', collect)
   child.stderr?.on('data', collect)
+  const streams = { stdout: '', stderr: '' }
+  if (options.keepStreams === true) {
+    child.stdout?.on('data', (chunk: Buffer) => {
+      if (collecting) streams.stdout += chunk.toString('utf8')
+    })
+    child.stderr?.on('data', (chunk: Buffer) => {
+      if (collecting) streams.stderr += chunk.toString('utf8')
+    })
+  }
 
   try {
     const exit = await exited
@@ -103,6 +116,7 @@ export async function runProcess(
       timedOut: exit.timedOut,
       wallMs: exit.endedAt - startedAt,
       problems: exit.problems,
+      ...(options.keepStreams === true ? { streams: { ...streams } } : {}),
     }
   } finally {
     // Pipes a grandchild still holds would keep the loop, and this promise, waiting.
