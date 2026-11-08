@@ -130,6 +130,15 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
       entry.results.set(task.id, event.result)
     },
 
+    console(file, event) {
+      record(file.fileId).console.push({
+        taskId: event.taskId,
+        stream: event.stream,
+        level: event.level,
+        text: event.text,
+      })
+    },
+
     unhandled(file, event) {
       if (file === null) runErrors.push({ error: event.error, unhandled: true })
       else record(file.fileId).unhandled.push(event.error)

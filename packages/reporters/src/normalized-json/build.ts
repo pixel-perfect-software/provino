@@ -1,5 +1,6 @@
 import { stripVTControlCharacters } from 'node:util'
 import type {
+  ConsoleEntry,
   FileInfo,
   FileResult,
   FileStatus,
@@ -29,8 +30,18 @@ export interface FileRecord {
   readonly suiteErrors: SerializedError[]
   /** Real retries per test, counted from `test:attempt-end` events with `willRetry`. */
   readonly retries: Map<TaskId, number>
+  /** The file's `console` events, in the order they came. */
+  readonly console: ConsoleWrite[]
   /** Set by `file:end`. */
   ended: FileResult | undefined
+}
+
+/** One `console` event: the task it ran in, and what it wrote. */
+export interface ConsoleWrite {
+  readonly taskId: TaskId | null
+  readonly stream: ConsoleEntry['stream']
+  readonly level: string | null
+  readonly text: string
 }
 
 /** A run-level error. `unhandled` ones are ignored for `success` when the policy says so. */
@@ -49,8 +60,50 @@ export function newFileRecord(): FileRecord {
     unhandled: [],
     suiteErrors: [],
     retries: new Map(),
+    console: [],
     ended: undefined,
   }
+}
+
+/**
+ * A write as lines (the model has one entry per line): split on `\n`, with a trailing newline
+ * ending the last line rather than starting an empty one, so `console.log('')` is one empty line.
+ */
+function linesOf(text: string): string[] {
+  const lines = text.split('\n')
+  if (lines.length > 1 && lines.at(-1) === '') lines.pop()
+  return lines
+}
+
+/**
+ * The file's console output as the model has it: each write split into lines, given to the test
+ * it ran in (its each-hooks included), or to the file when it ran in a suite's or the file's
+ * `beforeAll`/`afterAll`, at the top level, or outside any task. Lines keep the order they came.
+ */
+function consoleOf(record: FileRecord): {
+  readonly file: ConsoleEntry[]
+  readonly tests: Map<TaskId, ConsoleEntry[]>
+} {
+  const file: ConsoleEntry[] = []
+  const tests = new Map<TaskId, ConsoleEntry[]>()
+  for (const write of record.console) {
+    const entries = linesOf(write.text).map(
+      (text): ConsoleEntry => ({
+        stream: write.stream,
+        text,
+        ...(write.level === null ? {} : { level: write.level }),
+      }),
+    )
+    const test = write.taskId === null ? undefined : record.tests.get(write.taskId)
+    if (test === undefined) {
+      file.push(...entries)
+      continue
+    }
+    const existing = tests.get(test.id)
+    if (existing === undefined) tests.set(test.id, entries)
+    else existing.push(...entries)
+  }
+  return { file, tests }
 }
 
 /** Everything `buildNormalizedRun` needs. */
@@ -151,6 +204,7 @@ function normalizeTest(
   test: TestTask,
   result: TaskResult | undefined,
   counted: number | undefined,
+  console: readonly ConsoleEntry[] | undefined,
 ): NormalizedTest {
   const retries = result === undefined ? undefined : retriesOf(test, result, counted)
   return {
@@ -164,6 +218,7 @@ function normalizeTest(
     ...(test.location === null
       ? {}
       : { location: { line: test.location.line, column: test.location.column } }),
+    ...(console === undefined ? {} : { console }),
     ...(test.expectFail ? { expectedToFail: true } : {}),
   }
 }
@@ -182,8 +237,15 @@ function normalizeFile(
   result: FileResult,
   unhandledErrors: UnhandledErrors,
 ): NormalizedFile {
+  const console = consoleOf(record)
   const tests = [...record.tests.values()].map((test) =>
-    normalizeTest(info, test, record.results.get(test.id), record.retries.get(test.id)),
+    normalizeTest(
+      info,
+      test,
+      record.results.get(test.id),
+      record.retries.get(test.id),
+      console.tests.get(test.id),
+    ),
   )
   const own = [...result.errors, ...record.suiteErrors]
   const known = new Set(own.map((error) => `${error.name}\0${error.message}`))
@@ -206,13 +268,15 @@ function normalizeFile(
     status,
     ...(fileError === undefined ? {} : { fileError }),
     tests,
+    ...(console.file.length === 0 ? {} : { console: console.file }),
     durationMs: result.durationMs,
   }
 }
 
 /**
- * Builds the run: files sorted by path (they finish in any order), tests in collection order.
- * `snapshots`, `console` and `trace` are left out; they are T12.16's. `success` is false when a
+ * Builds the run: files sorted by path (they finish in any order), tests in collection order,
+ * console output per test where a write names one and per file otherwise (`consoleOf`).
+ * `snapshots` (the harness hashes the files) and `trace` (T12.7) are left out. `success` is false when a
  * file failed or crashed, a run error was reported, or the run was interrupted. Under
  * `unhandledErrors: 'ignore'` unhandled errors are recorded but fail neither a file nor the run,
  * as the orchestrator's exit code has it.
