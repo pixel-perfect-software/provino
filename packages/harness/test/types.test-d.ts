@@ -2,10 +2,14 @@ import type { ChildProcess } from 'node:child_process'
 import type { AggregatedResult, FormattedTestResults } from '@jest/test-result'
 import {
   convertJest,
+  convertProvino,
   convertVitest,
+  DIFF_KINDS,
   type DiffKind,
   type DiffOptions,
   diffRuns,
+  EXCLUSION_MAX_DAYS,
+  type ExclusionLimits,
   type ExclusionRule,
   exitOnSignals,
   type FixtureProfile,
@@ -21,8 +25,12 @@ import {
   type ParityReport,
   type ProcessOptions,
   type ProcessResult,
+  type ProvinoConvertOptions,
+  parseExclusions,
+  parseFlaky,
   parseJestJson,
   parseNormalizedRun,
+  parseSidecar,
   parseVitestJson,
   type RecordOptions,
   type RecordOutcome,
@@ -34,8 +42,15 @@ import {
   resolveRunnerPackage,
   rules,
   runProcess,
+  runSubject,
   SCHEMA_VERSION,
+  SIDECAR_ENV,
+  type SidecarEntry,
   type SpawnInGroupOptions,
+  type SubjectOptions,
+  type SubjectResult,
+  type SubjectRunner,
+  sidecarReporterPath,
   spawnInGroup,
   testKey,
   type VitestConvertOptions,
@@ -313,3 +328,72 @@ void badRowTest
 // @ts-expect-error schemaVersion is the literal 1
 const badIndex: SiteIndex = { schemaVersion: 2, generatedAt: '2026-01-01', refs: [] }
 void badIndex
+
+// B15: the sidecars, runSubject, convertProvino, exclusions and flaky lists.
+expectTypeOf(sidecarReporterPath).parameter(0).toEqualTypeOf<FixtureRunner>()
+expectTypeOf(sidecarReporterPath).returns.toEqualTypeOf<string>()
+expectTypeOf<SidecarEntry['stream']>().toEqualTypeOf<'stdout' | 'stderr'>()
+expectTypeOf<SidecarEntry['test']>().toEqualTypeOf<
+  { readonly path: readonly string[]; readonly dupIndex: number } | undefined
+>()
+expectTypeOf(parseSidecar).returns.toEqualTypeOf<SidecarEntry[]>()
+expectTypeOf(SIDECAR_ENV).toEqualTypeOf<string>()
+expectTypeOf<JestConvertOptions['console']>().toEqualTypeOf<readonly SidecarEntry[] | undefined>()
+
+expectTypeOf<SubjectRunner>().toEqualTypeOf<'jest' | 'vitest' | 'provino'>()
+expectTypeOf(runSubject).parameter(0).toEqualTypeOf<SubjectOptions>()
+expectTypeOf(runSubject).returns.resolves.toEqualTypeOf<SubjectResult>()
+expectTypeOf<SubjectResult['run']>().toEqualTypeOf<NormalizedRun>()
+expectTypeOf<SubjectResult['exitCode']>().toEqualTypeOf<number | null>()
+
+expectTypeOf(convertProvino).parameter(0).toEqualTypeOf<string>()
+expectTypeOf(convertProvino).parameter(1).toEqualTypeOf<ProvinoConvertOptions>()
+expectTypeOf(convertProvino).returns.toEqualTypeOf<NormalizedRun>()
+
+expectTypeOf(parseExclusions).parameter(2).toEqualTypeOf<ExclusionLimits>()
+expectTypeOf(parseExclusions).returns.toEqualTypeOf<ExclusionRule[]>()
+expectTypeOf(parseFlaky).returns.toEqualTypeOf<string[]>()
+expectTypeOf(EXCLUSION_MAX_DAYS).toEqualTypeOf<number>()
+expectTypeOf(DIFF_KINDS).toEqualTypeOf<readonly DiffKind[]>()
+expectTypeOf<ExclusionRule['policyKey']>().toEqualTypeOf<string | undefined>()
+expectTypeOf<DiffOptions['flaky']>().toEqualTypeOf<readonly string[] | undefined>()
+expectTypeOf<ParityReport['counts']['flaky']>().toEqualTypeOf<number>()
+
+// @ts-expect-error Provino has no sidecar: it writes console output in normalized-json itself
+void sidecarReporterPath('provino')
+
+// @ts-expect-error a subject run needs the directory it normalizes against
+const subjectWithoutRoot: SubjectOptions = {
+  runner: 'jest',
+  cwd: '/w',
+  argv: [],
+  env: {},
+  suite: 's',
+  outDir: '/o',
+}
+void subjectWithoutRoot
+
+// @ts-expect-error mocha is not a subject runner
+const mochaSubject: SubjectRunner = 'mocha'
+void mochaSubject
+
+// @ts-expect-error convertProvino reads the JSON text, not a parsed run
+void convertProvino({ files: [] }, { rootDir: '/w' })
+
+// @ts-expect-error the limits need the day they are measured from
+const noToday: ExclusionLimits = { calibration: true }
+void noToday
+
+// @ts-expect-error a sidecar entry's stream is stdout or stderr
+const stdinEntry: SidecarEntry = { stream: 'stdin', text: 'x' }
+void stdinEntry
+
+const badFlaky: DiffOptions = {
+  messageMode: 'exact',
+  compareConsole: false,
+  compareTrace: false,
+  exclusions: [],
+  // @ts-expect-error the flaky list is test keys, not tests
+  flaky: [{ file: 'a.test.ts' }],
+}
+void badFlaky
