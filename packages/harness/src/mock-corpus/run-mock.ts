@@ -36,7 +36,7 @@ type Loose = (...args: never[]) => unknown
  * the methods are loosely typed; the engine's own types are covered by `@provino/mock`'s type
  * tests.
  */
-function createViFacade(
+export function createViFacade(
   policy: MockPolicy,
   registry: MockRegistry,
   stubs: Stubs,
@@ -81,6 +81,30 @@ function createViFacade(
   return object
 }
 
+/**
+ * The host `jestGlobals` is given by the corpora that run a file over `@provino/mock` alone: its
+ * `mocks()` is the file's registry, and `expect` and the module registry throw, because the
+ * fixtures of these corpora use neither. `label` names the corpus in that error.
+ */
+export function unusedJestHost(
+  api: JestGlobalsHost['api'],
+  mocks: MockRegistry,
+  mockPolicy: MockPolicy,
+  label: string,
+): JestGlobalsHost {
+  return {
+    api,
+    expect: (() => {
+      throw new Error(`${label} does not use expect`)
+    }) as unknown as JestGlobalsHost['expect'],
+    registry: () => {
+      throw new Error(`${label} does not use the module registry`)
+    },
+    mocks: () => mocks,
+    mockPolicy,
+  }
+}
+
 let imports = 0
 
 /**
@@ -118,19 +142,9 @@ export async function runMockFile(
   })
   let object: unknown
   if (facade === 'jest') {
-    const host: JestGlobalsHost = {
-      api: runtime.api,
-      // The mocking fixtures observe values; none of them reads `expect`.
-      expect: (() => {
-        throw new Error('the mocking corpus does not use expect')
-      }) as unknown as JestGlobalsHost['expect'],
-      registry: () => {
-        throw new Error('the mocking corpus does not use the module registry')
-      },
-      mocks: () => registry,
-      mockPolicy,
-    }
-    object = jestGlobals(host).jest
+    object = jestGlobals(
+      unusedJestHost(runtime.api, registry, mockPolicy, 'the mocking corpus'),
+    ).jest
   } else {
     object = createViFacade(mockPolicy, registry, stubs)
   }

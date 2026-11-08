@@ -1,0 +1,5 @@
+{
+  "description": "A factory that reads a pure, non-`mock`-prefixed const, run by a static import at load. Jest hoists the pure const with the factory, for a plain const and an `export const`; Vitest runs the factory before the const exists (see the Vitest file: a test-time import sees it).",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

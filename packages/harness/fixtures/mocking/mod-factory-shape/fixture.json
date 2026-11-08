@@ -1,0 +1,5 @@
+{
+  "description": "What a factory's return value becomes as a module: a missing named export (undefined in Jest, an error on access in Vitest), and a { default } object without __esModule (the whole object in Jest, the default export in Vitest).",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

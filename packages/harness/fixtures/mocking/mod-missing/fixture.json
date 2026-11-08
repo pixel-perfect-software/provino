@@ -1,0 +1,5 @@
+{
+  "description": "Mocking a module that does not exist, with no virtual flag: Jest fails the file at the jest.mock call with a Cannot find module error and its hint; Vitest serves a bare name but cannot resolve a missing relative path.",
+  "runners": ["jest", "vitest"],
+  "expectCrash": { "jest": "Cannot find module" }
+}

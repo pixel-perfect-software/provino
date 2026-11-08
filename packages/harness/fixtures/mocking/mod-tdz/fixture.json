@@ -1,0 +1,9 @@
+{
+  "description": "A factory that reads a top-level variable before it is initialized, because the mock call is hoisted above it and the static import runs the factory at once: Jest fails the file with the ReferenceError itself; Vitest wraps it in an error with a hoisting hint.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true,
+  "expectCrash": {
+    "jest": "before initialization",
+    "vitest": "There was an error when mocking a module"
+  }
+}

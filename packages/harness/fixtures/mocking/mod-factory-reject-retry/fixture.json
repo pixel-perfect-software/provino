@@ -1,0 +1,5 @@
+{
+  "description": "A factory that fails on its first run: whether the failure is cached, and whether the next load runs the factory again. Vitest also covers an async factory that rejects.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

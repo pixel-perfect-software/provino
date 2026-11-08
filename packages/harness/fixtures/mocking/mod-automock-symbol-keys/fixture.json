@@ -1,0 +1,5 @@
+{
+  "description": "Automocking an export with a symbol-keyed method: Vitest's deep walk mocks symbol keys, Jest's metadata walk does not see them.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

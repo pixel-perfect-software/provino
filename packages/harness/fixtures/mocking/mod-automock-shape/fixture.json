@@ -1,0 +1,5 @@
+{
+  "description": "What automock (a mock call with no factory and no __mocks__ file) makes of each export shape: functions, classes with per-instance methods that record into the prototype mock, statics, nested objects and getters, arrays, Maps, primitives and null, and the Jest-only extras (an __esModule key, emptied RegExp, dropped Date and BigInt).",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

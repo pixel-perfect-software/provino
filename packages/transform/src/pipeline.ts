@@ -17,9 +17,10 @@ import type {
 } from '@provino/types'
 import { type JsxOptions, type OxcError, type TransformOptions, transformSync } from 'oxc-transform'
 import { TransformError } from './errors.ts'
-import { hoistMocks } from './internal/hoist.ts'
+import { hoistMocks } from './hoist/index.ts'
 import { moduleFacts } from './internal/imports.ts'
 import { composeMaps, toSourceMapV3 } from './internal/maps.ts'
+import { positionOf } from './internal/position.ts'
 import {
   createTsconfigFinder,
   type EmitOptions,
@@ -150,24 +151,13 @@ function jsxOptions(emit: EmitOptions, override: PipelineJsxOptions | undefined)
   }
 }
 
-/** 1-based line and column of a UTF-16 offset. */
-function position(source: string, offset: number): { line: number; column: number } {
-  let line = 1
-  let lineStart = 0
-  for (let i = source.indexOf('\n'); i !== -1 && i < offset; i = source.indexOf('\n', i + 1)) {
-    line++
-    lineStart = i + 1
-  }
-  return { line, column: offset - lineStart + 1 }
-}
-
 function diagnostic(source: string, error: OxcError): TransformDiagnostic {
   const label = error.labels[0]
   return {
     severity: String(error.severity) === 'Error' ? 'error' : 'warning',
     code: 'PARSE_ERROR',
     message: error.message,
-    ...(label === undefined ? {} : { loc: position(source, label.start) }),
+    ...(label === undefined ? {} : { loc: positionOf(source, label.start) }),
     ...(error.codeframe === null ? {} : { codeFrame: error.codeframe }),
   }
 }
@@ -272,11 +262,16 @@ export const createPipeline: CreatePipeline = (options) => {
     }
 
     let staticMocks: readonly StaticMockCall[] = []
-    if (options.hoist !== null && (request.role === 'test' || request.role === 'setup')) {
-      const hoisted = hoistMocks(code, options.hoist)
+    // Real Jest hoists in every file its transformer touches, and Vitest's plugin does the same, so
+    // the gate is "not a dependency", not "a test or setup file" (B13b Gap 3).
+    let rewroteImports = false
+    if (options.hoist !== null && request.role !== 'dependency') {
+      const hoisted = hoistMocks(code, options.hoist, { filename, original: source })
       code = hoisted.code
       maps.push(hoisted.map)
       staticMocks = hoisted.staticMocks
+      rewroteImports = hoisted.rewroteImports
+      diagnostics.push(...hoisted.diagnostics)
     }
 
     const facts = moduleFacts(filename, source, found.lang, found.sourceType)
@@ -292,6 +287,8 @@ export const createPipeline: CreatePipeline = (options) => {
       .update(filename)
       .update('\0')
       .update(stableJson(oxc))
+      .update('\0')
+      .update(request.role)
       .update(request.instrument ? '\0i\0' : '\0-\0')
       .update(source)
       .digest('hex')
@@ -302,7 +299,8 @@ export const createPipeline: CreatePipeline = (options) => {
       format,
       imports: facts.imports,
       staticMocks,
-      hasTopLevelAwait: facts.hasTopLevelAwait,
+      // `moduleFacts` reads the original source; rewritten imports add an `await` it never saw.
+      hasTopLevelAwait: facts.hasTopLevelAwait || rewroteImports,
       diagnostics,
       cacheKey,
       fromCache: false,

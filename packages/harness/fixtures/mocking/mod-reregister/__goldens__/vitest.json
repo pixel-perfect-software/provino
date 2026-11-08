@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "mocking/mod-reregister",
+  "files": [
+    {
+      "file": "mod-reregister.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-reregister.vitest.test.ts",
+            "path": [
+              "the first load runs the first factory"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-reregister.vitest.test.ts",
+            "path": [
+              "a second doMock after the load: the next load, with no reset"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-reregister.vitest.test.ts",
+            "path": [
+              "after resetModules the second factory runs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-reregister.vitest.test.ts",
+            "path": [
+              "two doMocks before any load: the last one wins and the first never runs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"the first load runs the first factory\",\"value\":{\"who\":\"first\",\"runs\":[\"first\"]}}",
+    "{\"id\":\"a second doMock after the load: the next load, with no reset\",\"value\":{\"who\":\"second\",\"runs\":[\"first\",\"second\"]}}",
+    "{\"id\":\"after resetModules the second factory runs\",\"value\":{\"who\":\"second\",\"runs\":[\"first\",\"second\"]}}",
+    "{\"id\":\"two doMocks before any load: the last one wins and the first never runs\",\"value\":{\"who\":\"fourth\",\"runs\":[\"first\",\"second\",\"fourth\"]}}"
+  ]
+}

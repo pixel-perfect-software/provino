@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/mod-factory-out-of-scope",
+  "files": [
+    {
+      "file": "mod-factory-out-of-scope.jest.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    <root>/mod-factory-out-of-scope.jest.test.ts: The module factory of `jest.mock()` is not allowed to reference any out-of-scope variables.\n    Invalid variable access: outside\n    Note: This is a precaution to guard against uninitialized mock variables. If it is ensured that the mock is required lazily, variable names prefixed with `mock` (case insensitive) are permitted.\n\n      Invalid variable access: outside\n      Note: This is a precaution to guard against uninitialized mock variables. If it is ensured that the mock is required lazily, variable names prefixed with `mock` (case insensitive) are permitted."
+      },
+      "tests": []
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false
+}

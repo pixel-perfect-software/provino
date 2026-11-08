@@ -5,7 +5,7 @@ export type {
   ModuleNamespace,
 } from './behaviour-loader.ts'
 export { callBehaviour, createBehaviourLoader } from './behaviour-loader.ts'
-export { defineDialect } from './dialect.ts'
+export { defineDialect, defineHoistPolicy } from './dialect.ts'
 export type { PolicyDifference } from './diff.ts'
 export { diffPolicy, formatPolicyDiff } from './diff.ts'
 export type { PolicyErrorCode } from './errors.ts'

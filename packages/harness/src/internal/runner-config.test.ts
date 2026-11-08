@@ -199,3 +199,22 @@ test('runnerEnv lets a fixture override its own variables, last', () => {
   assert.equal(env.TZ, 'Asia/Tokyo')
   assert.equal(env.EXTRA, '1')
 })
+
+test('jestEsm gives the transformer its config; without it the transform is the bare path', () => {
+  const on = jestConfig('/work/x', '/t.ts', '/s.ts', { jestEsm: true })
+  assert.deepEqual(on.transform, { '\\.[cm]?ts$': ['/t.ts', { jestEsm: true }] })
+  assert.deepEqual(jestConfig('/work/x', '/t.ts', '/s.ts', {}).transform, {
+    '\\.[cm]?ts$': '/t.ts',
+  })
+})
+
+test('a fixture jestConfig reaches Jest as roots under <rootDir> and the patterns as given', () => {
+  const config = jestConfig('/work/x', '/t.ts', '/s.ts', {
+    jestConfig: { roots: ['one', 'a/two'], unmockedModulePathPatterns: ['keep'] },
+  })
+  assert.deepEqual(config.roots, ['<rootDir>/one', '<rootDir>/a/two'])
+  assert.deepEqual(config.unmockedModulePathPatterns, ['keep'])
+  const plain = jestConfig('/work/x', '/t.ts', '/s.ts', {})
+  assert.equal('roots' in plain, false)
+  assert.equal('unmockedModulePathPatterns' in plain, false)
+})

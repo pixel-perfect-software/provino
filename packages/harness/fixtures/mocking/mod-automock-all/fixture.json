@@ -1,0 +1,15 @@
+{
+  "description": "enableAutomock (Jest only): local modules and installed packages are automocked, an unmocked path stays real, a root __mocks__ file is used for its package, and core modules are never mocked.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "packages": {
+    "auto-lib": {
+      "package.json": "{ \"name\": \"auto-lib\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.run = function run() { return 'real-auto-lib' }\n"
+    },
+    "manual-lib": {
+      "package.json": "{ \"name\": \"manual-lib\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.run = function run() { return 'real-manual-lib' }\n"
+    }
+  }
+}

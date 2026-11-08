@@ -1,0 +1,5 @@
+{
+  "description": "Node core modules: a root __mocks__ file for os is not applied without a mock call, and a mock call for 'zlib' or 'node:dns' applies to both spellings of the specifier.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

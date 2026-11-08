@@ -1,0 +1,61 @@
+# @provino/transform
+
+The per-file transform pipeline (Track 3): TypeScript and JSX through Oxc, mock hoisting, source-map composition, import records, and the stopgap module-runner rewrite. Follow `.claude/rules/typescript.md`.
+
+## Layout
+
+| Path | Role |
+|---|---|
+| `src/pipeline.ts` | `createPipeline().transform(request)`: route by extension, `oxc-transform.transformSync` with tsconfig-derived options, then `hoistMocks` for every role but `dependency` (B13b Gap 3), then the record's import facts. `hasTopLevelAwait` is `true` when the hoist step rewrote imports (`moduleFacts` reads the original source and never sees that `await`). Hoister diagnostics are appended to the record's. The pipeline passes `source` as `original` (see "Generated names"). |
+| `src/module-runner.ts` | `toModuleRunner`: the only caller of oxc's deprecated `moduleRunnerTransformSync` (D10). Only ever sees stripped output. |
+| `src/internal/` | `maps.ts` (compose maps), `imports.ts` (import records), `position.ts` (offset to line and column; `positionCursor` for ascending offsets), `tsconfig.ts` |
+| `src/hoist/` | The mock hoister (T3.4), below. |
+
+## The hoister (`src/hoist/`)
+
+`hoistMocks(code, policy, { filename, original? }) -> { code, map, staticMocks, diagnostics, rewroteImports }`. One neutral engine driven entirely by a `HoistPolicy`; it never compares against a runner's name. Pure: it reads nothing but its arguments.
+
+| File | Role |
+|---|---|
+| `index.ts` | `hoistMocks`: prefilter, parse, analyse, apply. Any error returns the input untouched, with the errors as diagnostics. A failure of the step itself, such as a `MagicStringError`, is `TRANSFORMER_FAILED`; it never throws. |
+| `prefilter.ts` | A regex built from the policy's `hoistCalls`, `hoistValues` and `rewriteImportArg`, cached per policy: a name, then `(` with only whitespace and comments between, or any `\u` (an identifier can spell a name with an escape). No hit returns the input with `map: null`. A hit in a comment or string costs one parse and edits nothing. |
+| `parse.ts` | `oxc-parser` `parseSync`, with `experimentalRawTransfer` when `rawTransferSupported()` (about 3x faster), `lang: 'jsx'`, `sourceType: 'unambiguous'` (CommonJS files work), `preserveParens: false`. A syntax error is `PARSE_ERROR`. |
+| `analyse.ts` | Finds what to hoist and checks the policy's rules; edits nothing. Two walks share one `HoistScopes`: the first only declares, so a `jest` imported below the call still resolves; the second, frozen, resolves each name from inside the walk. Recognition goes through `policy.objects`. It also picks the imports to rewrite (`Analysis.rewritable`: all but the runner's and type-only ones). Whether a binding is reassigned is by binding, not by name: a first pass collects the names written (destructuring and for-in/of heads included), and only a factory reading one of those names pays for the walk that resolves each write. |
+| `scope.ts` | `HoistScopes`, an `oxc-walker` `ScopeTracker` with the two scopes it merges kept apart: a `var` belongs to the function's body, not the scope of its parameters, and a `switch`'s scope opens at its first case, after the discriminant. So references, the factory check, purity and reassignment get the language's answer. Three places follow Babel's bindings instead, because the Jest plugin reads them: `isDeclaredInMergedScope` is `hasBinding`, which sees a function's body from its parameter defaults and a `switch`'s cases from its discriminant, so the global mock object is shadowed there; a `var` of a parameter's name, or of a function expression's own name, declares nothing, since Babel holds one binding; and `isRedeclared` makes a second `var` of a name count as a write. It relies on protected members of the pinned 1.1.1, and the hoist corpus catches a break. `getUndeclaredIdentifiersInFunction` stays on the base tracker: Babel has the same merge there, so `(a = k) => { var k }` agrees. Known difference, left because it needs a mock call inside a `switch` discriminant: `getBinding` is merged there too, so an imported `jest` or an allow-listed global shadowed by a case's `let` is still read as the outer one. |
+| `purity.ts` | Babel's `scope.isPure(node, true)`, for `hoistPureConsts`. |
+| `apply.ts` | The edits, with `magic-string`: `move` for hoisted statements (so positions survive in the map), `overwrite`/`update` for rewritten references. |
+| `diagnostics.ts` | Code frames, and `{call}`/`{name}` filling from `policy.messages`. Positions come from `internal/position.ts`, shared with the pipeline. |
+| `test-policies.ts`, `test-helpers.ts` | Small inline policies and helpers for the tests. They are not the dialects' values. |
+
+Tests: `rules-block.test.ts` (enclosing-block rules, one rule per case), `rules-top-level.test.ts` (top-level-only rules), `rules-generated.test.ts`, `imports.test.ts` (the import rewrite), `order.test.ts` (the order layouts by name, TSX through the pipeline, and a seeded property test), `asi.test.ts` (what a move leaves behind in raw JavaScript), `live-exports.test.ts` (exports of imports, run in module-runner form), `review-regressions.test.ts`, `maps.test.ts` (28 probes traced with `@jridgewell/trace-mapping` to exact line and column). The agreement with the real Jest and Vitest hoisters is `packages/harness/src/hoist-corpus.test.ts`; the cost bar is `pnpm bench:hoist`.
+
+### Two placements
+
+- **`enclosing-block`** (the shape of Jest's plugin): a chain of calls on a mock object that is an expression statement, and whose calls all satisfy their argument rule, moves to the top of its own block. Hoisted pure `const`s (`hoistPureConsts`) go first, then calls, each in source order. A call whose arguments fail its rule, or a chain with one non-hoisting call, stays put and is not an error. As Babel's `getStatementParent` does, what moves is the nearest statement in a list: `if (c) jest.mock('./a')` and `l: jest.mock('./a')` move whole (and aren't in `staticMocks`, since whether they run is only known when they do), and a statement in a `switch` case stays. A namespace member can be computed: `G['jest']`.
+- **`top-level-only`** (the shape of Vitest's): a call anywhere is a candidate; its statement must be directly in the program (or in an `if (<topLevelGuards>) {}` block, which hoists wrapped in the guard). Otherwise `HOIST_NOT_TOP_LEVEL`; a hoisted call inside another is `HOIST_NESTED`, reported first, as upstream throws it first, with `{call}` and `{name}` as the inner and outer calls and their arguments; exporting a result is `HOIST_EXPORTED`, in the `HOIST_EXPORTED_VALUE` text when it is one of `hoistValues`. `vi?.mock()` and `vi.mock?.()` are not candidates, as in both real hoisters.
+
+### The import rewrite (D36)
+
+The module-runner transform moves every import above everything, so a mock call below an import would never apply. Under both policies, when a call moves to the top of a file that has static imports, the output is: runner-module imports (`policy.runnerModules`, kept static), the hoisted block, `const __provino_import_N__ = await import('./a')` in source order, then the rest, with every use rewritten through scope analysis (`.x`, `.default`, the namespace itself, `{ x }` becomes `{ x: ….x }`; shadowed names stay). `policy.rewrittenCalls` decides `this` for a call or tag through a named or default binding: `detached` writes `(0, ns.f)()` (with a leading `;` when it opens a statement in a statement list, since it starts with `(`), `member` writes `ns.f()`. `export * as ns` exports the namespace.
+- **Exports of imports are live.** `export { x }` of an import, and `export { a } from` under `in-order`, become a getter on `__vite_ssr_exports__` straight before that declaration's `await import`, so a read during a cycle meets the namespace `const` in its dead zone rather than a frozen `undefined`. The export list keeps only its local names (`export {};` when none are left). Real Vitest's `hoistMocks.ts` leaves `export { x }` as written with `x` gone, so it exports `undefined`; this is a deliberate fix (D7), and `mod-reexport-live` records the real value.
+
+- **`policy.reExports` says what happens to `export … from`.** `'in-order'` (Jest: Babel's CJS step keeps source order) loads each with the imports, after the hoisted block. `'static'` (Vitest: `hoistMocks.ts` rewrites only `ImportDeclaration`) leaves every one as written, including `export *` and named re-exports, so the module-runner transform moves them above the mocks and a re-exported module loads before mocks exist. `re-exports.test.ts` covers both, and that each output survives `toModuleRunner`.
+- **Under `in-order`, `export * from` has no dynamic form in ESM.** It becomes `await import()` plus `__vite_ssr_exportAll__(ns)`, the module-runner helper the loader's wrapper passes in. So the hoister's output is only valid as input to `toModuleRunner` when a file has a program-level hoist and either `export *` or an export of an import: the getters use `__vite_ssr_exports__`, which the same wrapper passes in.
+- A block-level hoist leaves imports alone; a file with no static imports has nothing to rewrite (`rewroteImports: false`). A call named in `policy.rewriteImportArg` on a mock object also rewrites imports with nothing hoisted, as Vitest's `hasMockApiCall` does, so a file whose only mock call is `vi.doMock` has `await import()`s and top-level await.
+- **How `arrange` in `apply.ts` orders moves.** `move(start, end, index)` inserts before the chunk that starts at `index`, wherever that chunk is by now, and throws only for an `index` within `[start, end]`. Queued statements consecutive in the target order and touching in the source merge into one block, so no index falls inside a moved range. The pivot is the first statement that stays; with none, the last block stays. Walking the blocks from last to first with `target` at the pivot, a block that ends exactly at `target` needs no move, every other block moves to `target`, and `target` becomes that block's start.
+- **A move leaves `;` where the code needs it, by three rules.** Moved text ends in `;`: a statement moves as its node, so a `;` on a later line (`foo()\n;[1].map(f)`) goes with it, and one is added if it has none. Seam guards: when a moved block is followed by a token that could continue the line before (`[`, `(`, a backtick, `+`, `-`, `/`, `<`), it leaves a `;` at the old position, and a moved block that opens with one of those gets a `;` of its own. The detached opener: `(0, ns.f)()` opening a statement gets a leading `;`. TypeScript and TSX come out of Oxc with semicolons, so this is about raw JavaScript.
+
+### Generated names
+
+Hoisting runs after the JSX and TypeScript step, so a factory can read names the transform made (`_jsxDEV`). `options.original` is the source before the transform: a free identifier in a factory that does not occur in it, as a whole identifier, was generated and is allowed, under any policy. Without `original` nothing extra is allowed.
+
+### Contract choices
+
+- Calls keep their text. Nothing is rewritten to `__provino_mock__.register` (B13b Gap 1).
+- `staticMocks` lists hoisted calls with a literal, template, or `import()` specifier, in source order. `automock` is "exactly one argument". `factoryLoadsOriginal` is a factory with parameters, or whose text names `importActual`/`importOriginal`/`requireActual`/`requireOriginal`. `loc` and diagnostic positions are in the hoister's input (the stripped code), not the original TypeScript.
+- A hoisted `const` in a multi-declarator declaration is allowed by the factory rule but not moved. `export const` moves whole, with its export.
+- Code frames are two lines of context either side of the position, with a caret; the text is the policy's.
+
+## Not done here
+
+`FileRegistry.registerMock`, `decide()` per edge, and turning `hoist` on in the real loader are B13c. Caching hoist output is T3.6. The native hoist pass is Phase 3.

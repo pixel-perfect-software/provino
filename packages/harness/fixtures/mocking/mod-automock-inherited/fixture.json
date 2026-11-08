@@ -1,0 +1,5 @@
+{
+  "description": "Automocking a class that extends another and an object with a prototype: whether inherited methods, statics and prototype-chain members become mocks, and what the chain looks like.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

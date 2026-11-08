@@ -1,0 +1,11 @@
+{
+  "description": "Automock of an installed CommonJS package (mock call, no factory, no __mocks__ file): its functions and nested methods become mocks returning undefined, and its values are kept.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true,
+  "packages": {
+    "cjs-lib": {
+      "package.json": "{ \"name\": \"cjs-lib\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.greet = function greet(name) { return 'real greet ' + name }\nexports.config = { level: 1, hello() { return 'real hello' } }\nexports.VERSION = '1.2.3'\n"
+    }
+  }
+}

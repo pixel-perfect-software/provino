@@ -1,0 +1,5 @@
+{
+  "description": "What `this` is inside a function reached through an import, in a file that hoists a mock: a bare call, a namespace-member call, a default-import member call and tagged templates, bare and through the namespace.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

@@ -40,6 +40,8 @@
     "bench:worker": "node --conditions=provino-source packages/bench/src/worker/cli.ts",
     "bench:expect": "node --conditions=provino-source packages/bench/src/expect/cli.ts",
     "bench:mock": "node --conditions=provino-source packages/bench/src/mock/cli.ts",
+    "bench:hoist": "node --conditions=provino-source packages/bench/src/hoist/cli.ts",
+    "hoist:extract": "node --conditions=provino-source packages/harness/src/hoist-corpus/extract-upstream.ts",
     "deps:check": "autd check",
     "deps:update": "autd update"
   },

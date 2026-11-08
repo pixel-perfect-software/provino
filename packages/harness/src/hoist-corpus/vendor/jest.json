@@ -1,0 +1,67 @@
+{
+  "license": "MIT, Copyright (c) Meta Platforms, Inc. and affiliates (Jest)",
+  "source": ".refs/jest/packages/babel-plugin-jest-hoist/src/__tests__/hoistPlugin.nodejs18.test.ts",
+  "cases": [
+    {
+      "name": "automatic react runtime",
+      "code": "\n          jest.mock('./App', () => () => <div>Hello world</div>);\n        ",
+      "filename": "file.jsx",
+      "jsx": "automatic"
+    },
+    {
+      "name": "top level mocking",
+      "code": "\n          require('x');\n\n          jest.enableAutomock();\n          jest.disableAutomock();\n        ",
+      "filename": "file.js"
+    },
+    {
+      "name": "within a block",
+      "code": "\n          beforeEach(() => {\n            require('x')\n            jest.mock('someNode')\n          })\n        ",
+      "filename": "file.js"
+    },
+    {
+      "name": "within a block with no siblings",
+      "code": "\n          beforeEach(() => {\n            jest.mock('someNode')\n          })\n        ",
+      "filename": "file.js"
+    },
+    {
+      "name": "required `jest` within `jest`",
+      "code": "\n          const {jest} = require('@jest/globals');\n\n          jest.mock('some-module', () => {\n            jest.requireActual('some-module');\n          });\n        ",
+      "filename": "file.js"
+    },
+    {
+      "name": "imported jest.mock within jest.mock",
+      "code": "\n          import {jest} from '@jest/globals';\n\n          jest.mock('some-module', () => {\n            jest.mock('some-module');\n          });\n        ",
+      "filename": "file.js"
+    },
+    {
+      "name": "global jest.mock within jest.mock",
+      "code": "\n          jest.mock('some-module', () => {\n            jest.mock('some-module');\n          });\n        ",
+      "filename": "file.js"
+    },
+    {
+      "name": "imported jest.requireActual in jest.mock",
+      "code": "\n          import {jest} from '@jest/globals';\n\n          jest.mock('some-module', () => {\n            jest.requireActual('some-module');\n          });\n\n          jest.requireActual('some-module');\n        ",
+      "filename": "file.js"
+    },
+    {
+      "name": "global jest.requireActual in jest.mock",
+      "code": "\n          jest.mock('some-module', () => {\n            jest.requireActual('some-module');\n          });\n\n          jest.requireActual('some-module');\n        ",
+      "filename": "file.js"
+    },
+    {
+      "name": "TS typeof usage in jest.mock",
+      "code": "\n          jest.mock('some-module', () => {\n            const actual = jest.requireActual('some-module');\n\n            return jest.fn<typeof actual.method>();\n          });\n        ",
+      "filename": "file.ts"
+    },
+    {
+      "name": "jest.spyOn call on the imported module",
+      "code": "\n          jest.mock('some-module', () => {\n            const module = jest.requireActual('some-module');\n            jest.spyOn(module, 'add');\n            return module;\n          });\n        ",
+      "filename": "file.js"
+    },
+    {
+      "name": "jest.spyOn call in class constructor",
+      "code": "\n          jest.mock('some-module', () => {\n            const Actual = jest.requireActual('some-module');\n            return class Mocked extends Actual {\n              constructor() {\n                super();\n                jest.spyOn(this, 'add');\n              }\n            };\n          });\n        ",
+      "filename": "file.js"
+    }
+  ]
+}

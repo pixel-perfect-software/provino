@@ -1,0 +1,5 @@
+{
+  "description": "Where `export ... from` loads against static imports and a hoisted mock. Jest's CommonJS step keeps source order after the mock, so a mocked re-export is never loaded for real. Vitest leaves re-exports static, so the module runner loads them first, before the mock is registered.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

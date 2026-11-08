@@ -433,3 +433,123 @@ test('readFixture does not list files in node_modules or nested goldens director
     assert.deepEqual(fixture.files, ['a.test.ts', 'sub/b.ts'])
   })
 })
+
+test('jestEsm is optional, true only, and needs a fixture that runs Jest', () => {
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, jestEsm: true })), {
+    ...VALID,
+    jestEsm: true,
+  })
+  assert.equal('jestEsm' in parseFixtureManifest(JSON.stringify(VALID)), false)
+  for (const jestEsm of [false, 'true', 1, null]) {
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, jestEsm })),
+      rejects('HARNESS_FIXTURE_BAD_JEST_ESM'),
+    )
+  }
+  assert.throws(
+    () => parseFixtureManifest(JSON.stringify({ ...VALID, runners: ['vitest'], jestEsm: true })),
+    rejects('HARNESS_FIXTURE_BAD_JEST_ESM'),
+  )
+})
+
+test('packages keeps plain and scoped packages with their files', () => {
+  const packages = {
+    left: { 'package.json': '{"main":"index.js"}', 'index.js': 'module.exports = 1' },
+    '@scope/right': { 'package.json': '{}', 'lib/index.js': 'module.exports = 2' },
+  }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, packages })), {
+    ...VALID,
+    packages,
+  })
+  assert.equal('packages' in parseFixtureManifest(JSON.stringify(VALID)), false)
+})
+
+test('packages refuses a bad shape, a name or a file that escapes its directory', () => {
+  const bad = (packages: unknown): void =>
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, packages })),
+      rejects('HARNESS_FIXTURE_BAD_PACKAGES'),
+    )
+  bad({})
+  bad([])
+  bad({ a: {} })
+  bad({ a: 'index.js' })
+  bad({ a: { 'index.js': 1 } })
+  bad({ '../a': { 'index.js': '' } })
+  bad({ '/abs': { 'index.js': '' } })
+  bad({ 'a/b': { 'index.js': '' } })
+  bad({ '@scope': { 'index.js': '' } })
+  bad({ A: { 'index.js': '' } })
+  // Each file is refused for itself: the package has its package.json.
+  const badFile = (file: string): void => bad({ a: { 'package.json': '{}', [file]: '' } })
+  badFile('../index.js')
+  badFile('x/../../index.js')
+  badFile('/etc/passwd')
+  badFile('x\\..\\y.js')
+  badFile('')
+  badFile('.')
+  badFile('lib/')
+  badFile('./lib/')
+})
+
+test('packages requires a package.json in every package', () => {
+  assert.throws(
+    () => parseFixtureManifest(JSON.stringify({ ...VALID, packages: { a: { 'index.js': '' } } })),
+    (error) =>
+      rejects('HARNESS_FIXTURE_BAD_PACKAGES')(error) && /package\.json/.test(String(error)),
+  )
+  // `./package.json` is the same file.
+  assert.deepEqual(
+    parseFixtureManifest(
+      JSON.stringify({ ...VALID, packages: { a: { './package.json': '{}', 'index.js': '' } } }),
+    ).packages,
+    { a: { 'package.json': '{}', 'index.js': '' } },
+  )
+})
+
+test('packages refuses two spellings of one file, and keeps a name that only starts with ..', () => {
+  assert.throws(
+    () =>
+      parseFixtureManifest(
+        JSON.stringify({
+          ...VALID,
+          packages: { a: { 'package.json': '{}', './x.js': '1', 'x.js': '2', 'y/../x.js': '3' } },
+        }),
+      ),
+    rejects('HARNESS_FIXTURE_BAD_PACKAGES'),
+  )
+  assert.deepEqual(
+    parseFixtureManifest(
+      JSON.stringify({ ...VALID, packages: { a: { 'package.json': '{}', '..foo.js': '1' } } }),
+    ).packages,
+    { a: { 'package.json': '{}', '..foo.js': '1' } },
+  )
+})
+
+test('jestConfig keeps roots and unmocked patterns, for a fixture that runs Jest', () => {
+  const jestConfig = { roots: ['one', 'a/two'], unmockedModulePathPatterns: ['keep', 'x\\.ts$'] }
+  assert.deepEqual(
+    parseFixtureManifest(JSON.stringify({ ...VALID, runners: ['jest'], jestConfig })).jestConfig,
+    jestConfig,
+  )
+  assert.equal('jestConfig' in parseFixtureManifest(JSON.stringify(VALID)), false)
+})
+
+test('jestConfig refuses a bad shape, a root that leaves the fixture and a bad pattern', () => {
+  const bad = (jestConfig: unknown, runners: string[] = ['jest']): void =>
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, runners, jestConfig })),
+      rejects('HARNESS_FIXTURE_BAD_JEST_CONFIG'),
+    )
+  bad({})
+  bad([])
+  bad({ other: ['x'] })
+  bad({ roots: [] })
+  bad({ roots: [1] })
+  bad({ roots: ['../up'] })
+  bad({ roots: ['/abs'] })
+  bad({ roots: ['one', './one'] })
+  bad({ unmockedModulePathPatterns: [''] })
+  bad({ unmockedModulePathPatterns: ['('] })
+  bad({ roots: ['one'] }, ['vitest'])
+})

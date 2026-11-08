@@ -1,0 +1,12 @@
+{
+  "description": "A root __mocks__/pkg/sub.ts for the sub-path `pkg/sub` of an installed package: Jest applies it with no mock call, and a bare mock call of the sub-path uses it in both runners. The package root is unaffected.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true,
+  "packages": {
+    "pkg": {
+      "package.json": "{ \"name\": \"pkg\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.who = 'real-pkg'\n",
+      "sub.js": "exports.who = 'real-sub'\n"
+    }
+  }
+}

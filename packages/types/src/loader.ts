@@ -29,21 +29,19 @@ export type ModuleId = string & { readonly __brand: 'ModuleId' }
  * Builds a mocked module's value (Track 4).
  * @public
  */
-export type MockFactory<T = unknown> = () => T | Promise<T>
+export type MockFactory<T = unknown> = (importOriginal: () => Promise<unknown>) => T | Promise<T>
 
 /**
- * How a module is mocked: by a factory, by redirecting to another module, or by automocking.
- * Track 4 builds these; the loader decides where they apply.
+ * How a module is mocked: by a factory, by redirecting to another module, by automocking, or not
+ * at all (`unmock`). The policy holds the factory's result shape. Track 4 builds these; the loader
+ * decides where they apply.
  * @public
  */
 export type MockSpec<T = unknown> =
-  | {
-      readonly kind: 'factory'
-      readonly factory: MockFactory<T>
-      readonly shape: 'module-value' | 'namespace'
-    }
+  | { readonly kind: 'factory'; readonly factory: MockFactory<T> }
   | { readonly kind: 'redirect'; readonly to: ModuleId }
   | { readonly kind: 'automock'; readonly spy: boolean }
+  | { readonly kind: 'unmock' }
 
 /**
  * The global realm a `realm`-tier file runs in (Track 8 supplies it).

@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/mod-reexport-live",
+  "files": [
+    {
+      "file": "mod-reexport-live.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-reexport-live.jest.test.ts",
+            "path": [
+              "before any change all three read 0"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-reexport-live.jest.test.ts",
+            "path": [
+              "after the source changes count, both re-exports follow"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-reexport-live.jest.test.ts",
+            "path": [
+              "a change made through the re-exported function is seen by all three"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"before any change all three read 0\",\"value\":{\"source\":0,\"reExported\":0,\"importedThenExported\":0}}",
+    "{\"id\":\"after the source changes count, both re-exports follow\",\"value\":{\"source\":2,\"reExported\":2,\"importedThenExported\":2}}",
+    "{\"id\":\"a change made through the re-exported function is seen by all three\",\"value\":{\"source\":3,\"reExported\":3,\"importedThenExported\":3}}"
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "description": "Vitest only: `vi.mock(path, { spy: true })` over a module that re-exports a namespace and exports an array. The functions inside keep their behaviour and are spied, the namespace stays a namespace, and the array is copied item by item.",
+  "runners": ["vitest"]
+}

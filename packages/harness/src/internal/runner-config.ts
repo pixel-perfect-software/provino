@@ -1,7 +1,12 @@
 // The config the recorder writes for each runner. Fixtures carry none, so this is the one place
 // that decides how Jest and Vitest are run for a golden.
 import path from 'node:path'
-import { type FixtureProfile, GOLDENS_DIR, type MockCleanup } from '../fixture.ts'
+import {
+  type FixtureProfile,
+  GOLDENS_DIR,
+  type JestFixtureConfig,
+  type MockCleanup,
+} from '../fixture.ts'
 
 const LOCALE = 'C.UTF-8'
 const INHERITED_NOISE: ReadonlySet<string> = new Set([
@@ -47,6 +52,28 @@ export interface RunnerConfigOptions {
   readonly observeSetupFile?: string
   /** The fixture's `mockCleanup`: only the keys it sets reach the runner's config. */
   readonly mockCleanup?: MockCleanup
+  /** The fixture's `jestEsm`: Jest's transformer also turns `import` into `require`. */
+  readonly jestEsm?: true
+  /** The fixture's `jestConfig`: Jest's `roots` and `unmockedModulePathPatterns`. */
+  readonly jestConfig?: JestFixtureConfig
+}
+
+/**
+ * Jest's options for a fixture's `jestConfig`: `roots` become `<rootDir>/<dir>` entries, the
+ * patterns are passed as they are.
+ */
+export function jestFixtureOptions(config: JestFixtureConfig | undefined): {
+  roots?: string[]
+  unmockedModulePathPatterns?: string[]
+} {
+  return {
+    ...(config?.roots === undefined
+      ? {}
+      : { roots: config.roots.map((dir) => `<rootDir>/${dir}`) }),
+    ...(config?.unmockedModulePathPatterns === undefined
+      ? {}
+      : { unmockedModulePathPatterns: [...config.unmockedModulePathPatterns] }),
+  }
 }
 
 /**
@@ -88,7 +115,9 @@ export function vitestMockCleanupOptions(cleanup: MockCleanup | undefined): {
 /** Anything a runner config can hold; JSON-safe by construction. */
 export interface JestConfigFile {
   readonly rootDir: string
-  readonly transform: Readonly<Record<string, string>>
+  readonly transform: Readonly<
+    Record<string, string | readonly [string, { readonly jestEsm: true }]>
+  >
   readonly setupFiles: readonly string[]
   readonly testMatch: readonly string[]
   readonly testPathIgnorePatterns: readonly string[]
@@ -98,6 +127,8 @@ export interface JestConfigFile {
   readonly clearMocks?: boolean
   readonly resetMocks?: boolean
   readonly restoreMocks?: boolean
+  readonly roots?: readonly string[]
+  readonly unmockedModulePathPatterns?: readonly string[]
 }
 
 /**
@@ -112,7 +143,10 @@ export function jestConfig(
 ): JestConfigFile {
   return {
     rootDir: workDir,
-    transform: { '\\.[cm]?ts$': transformerPath },
+    transform: {
+      '\\.[cm]?ts$':
+        options.jestEsm === true ? [transformerPath, { jestEsm: true }] : transformerPath,
+    },
     setupFiles: setupFilesOf(setupFile, options),
     testMatch: ['<rootDir>/**/*.test.ts'],
     testPathIgnorePatterns: ['/node_modules/', `/${GOLDENS_DIR}/`, '\\.vitest\\.test\\.ts$'],
@@ -120,6 +154,7 @@ export function jestConfig(
     cacheDirectory: path.join(workDir, '.jest-cache'),
     watchman: false,
     ...jestMockCleanupOptions(options.mockCleanup),
+    ...jestFixtureOptions(options.jestConfig),
   }
 }
 

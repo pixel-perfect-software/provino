@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "mocking/mod-factory-cache",
+  "files": [
+    {
+      "file": "mod-factory-cache.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-factory-cache.vitest.test.ts",
+            "path": [
+              "a factory runs once for two imports of the module"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-factory-cache.vitest.test.ts",
+            "path": [
+              "every importer gets the same module object"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-factory-cache.vitest.test.ts",
+            "path": [
+              "requireActual is the real module, loaded once and cached"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-factory-cache.vitest.test.ts",
+            "path": [
+              "requireActual of a mocked module bypasses the factory and does not run it again"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"a factory runs once for two imports of the module\",\"value\":{\"runs\":1,\"firstKind\":\"mock\",\"secondKind\":\"mock\",\"thirdKind\":\"mock\"}}",
+    "{\"id\":\"every importer gets the same module object\",\"value\":{\"same\":true,\"runs\":1}}",
+    "{\"id\":\"requireActual is the real module, loaded once and cached\",\"value\":{\"kind\":\"real\",\"same\":true,\"realLoads\":1}}",
+    "{\"id\":\"requireActual of a mocked module bypasses the factory and does not run it again\",\"value\":{\"kind\":\"real-mocked\",\"same\":true,\"runs\":1}}"
+  ]
+}

@@ -541,6 +541,21 @@ describe('createMockFn options', () => {
   })
 })
 
+describe('createMockFn: original on its own', () => {
+  for (const [name, policy] of policies) {
+    test(`an anonymous original is called through (${name})`, () => {
+      const registry = createMockRegistry()
+      const anonymous = (
+        () => () =>
+          'real'
+      )()
+      const mock = createMockFn<UnknownFunction>(policy, registry, { original: anonymous })
+      assert.equal(mock(), 'real')
+      assert.equal(mock.mock.calls.length, 1)
+    })
+  }
+})
+
 describe('creation without code generation', () => {
   test('fn() and fn(impl) work under --disallow-code-generation-from-strings', () => {
     const fixture = fileURLToPath(new URL('./internal/no-codegen.fixture.ts', import.meta.url))

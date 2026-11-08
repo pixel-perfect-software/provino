@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "mocking/mod-factory-symbol-reads",
+  "files": [
+    {
+      "file": "mod-factory-symbol-reads.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mod-factory-symbol-reads.jest.test.ts",
+            "path": [
+              "well-known symbols read undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-factory-symbol-reads.jest.test.ts",
+            "path": [
+              "the module-protocol keys"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-factory-symbol-reads.jest.test.ts",
+            "path": [
+              "an absent string key"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mod-factory-symbol-reads.jest.test.ts",
+            "path": [
+              "the object prototype string and JSON"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"well-known symbols read undefined\",\"value\":{\"toStringTag\":{\"$\":\"undefined\"},\"iterator\":\"undefined\",\"toPrimitive\":\"undefined\",\"asyncIterator\":\"undefined\"}}",
+    "{\"id\":\"the module-protocol keys\",\"value\":{\"thenType\":\"undefined\",\"esModule\":{\"$\":\"undefined\"}}}",
+    "{\"id\":\"an absent string key\",\"value\":{\"absent\":{\"$\":\"undefined\"}}}",
+    "{\"id\":\"the object prototype string and JSON\",\"value\":{\"tag\":\"[object Object]\",\"json\":\"{\\\"present\\\":\\\"mock\\\"}\"}}"
+  ]
+}

@@ -8,12 +8,11 @@
 // Jest's `toThrow` prints a thrown error's stack with paths relative to `process.cwd()`, which
 // was the fixture's directory when it was recorded, so each fixture runs from its directory.
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, test } from 'node:test'
 import { runExpectFile } from './expect-corpus/run-expect.ts'
 import { defaultFixturesRoot, findFixtures, readFixture, testFilesFor } from './fixture.ts'
-import { type Golden, goldenPath } from './golden.ts'
+import { readGolden } from './golden.ts'
 import { createNormalizer, testKey } from './normalize.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
 
@@ -56,7 +55,7 @@ function comparable({ name, message, matcher, userFrame }: ComparableError): Com
 for (const fixture of fixtures) {
   describe(fixture.id, () => {
     test('jest', async () => {
-      const golden = JSON.parse(await readFile(goldenPath(fixture.dir, 'jest'), 'utf8')) as Golden
+      const golden = await readGolden(fixture.dir, 'jest')
       const expected = new Map<string, Comparable>()
       for (const file of golden.files) {
         for (const goldenTest of file.tests) {

@@ -1,0 +1,5 @@
+{
+  "description": "Where a module mock call may sit in a file with static imports: a call below the imports still applies, calls keep source order (the last registration of a module wins), and a factory runs when the module is first imported, not when the mock call runs.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

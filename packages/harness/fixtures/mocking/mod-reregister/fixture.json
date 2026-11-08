@@ -1,0 +1,5 @@
+{
+  "description": "doMock for one id twice with a load between: whether the second load sees the first or the second factory, with and without resetModules, and how often each factory runs.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

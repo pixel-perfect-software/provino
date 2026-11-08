@@ -23,8 +23,17 @@ loader.createFileRegistry('f', { tier: 'process' })
 const bad: ModuleId = '/abs/path.ts'
 // @ts-expect-error redirect needs `to`
 reg.registerMock('./a', null, { kind: 'redirect' })
-// @ts-expect-error a factory mock needs its shape
+// @ts-expect-error a factory mock needs its factory
+reg.registerMock('./a', null, { kind: 'factory' })
+// A zero-argument factory still satisfies `MockFactory`, and so does one that takes importOriginal.
 reg.registerMock('./a', null, { kind: 'factory', factory: () => ({}) })
+reg.registerMock('./a', null, {
+  kind: 'factory',
+  factory: async (importOriginal) => ({ ...((await importOriginal()) as object) }),
+})
+reg.registerMock('./a', null, { kind: 'unmock' })
+// @ts-expect-error the factory's result shape is the policy's, not the spec's
+reg.registerMock('./a', null, { kind: 'factory', factory: () => ({}), shape: 'namespace' })
 
 // `using reg = …` works.
 expectTypeOf(reg).toExtend<Disposable>()

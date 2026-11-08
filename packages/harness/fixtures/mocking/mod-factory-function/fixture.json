@@ -1,0 +1,5 @@
+{
+  "description": "A factory that returns a bare function as the module: Jest uses it as the module, Vitest throws that the factory is not returning an object. Loaded inside a case, so the error is an observation.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true
+}

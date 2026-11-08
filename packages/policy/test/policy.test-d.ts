@@ -3,6 +3,7 @@ import {
   callBehaviour,
   createBehaviourLoader,
   defineDialect,
+  defineHoistPolicy,
   diffPolicy,
   forEachModuleRef,
   formatPolicyDiff,
@@ -21,6 +22,8 @@ import type {
   Dialect,
   EnvironmentConditions,
   FormatEachTitle,
+  HoistArgRule,
+  HoistPolicy,
   ModuleRef,
   Policy,
   SerializedPolicy,
@@ -140,3 +143,113 @@ new PolicyError('POLICY_TYPO', 'x')
 expectTypeOf(formatEachTitle).toEqualTypeOf<FormatEachTitle>()
 expectTypeOf(snapshotKey).toEqualTypeOf<SnapshotKey>()
 expectTypeOf(environmentConditions).toEqualTypeOf<EnvironmentConditions>()
+
+// defineHoistPolicy (Track 3 L563) keeps the literal names of hoisted calls and values.
+const messages = {
+  HOIST_FACTORY_OUT_OF_SCOPE: '',
+  HOIST_NOT_TOP_LEVEL: '',
+  HOIST_NESTED: '',
+  HOIST_EXPORTED: '',
+  HOIST_EXPORTED_VALUE: '',
+  HOIST_FACTORY_NOT_FUNCTION: '',
+} as const
+const hoist = defineHoistPolicy({
+  id: 'x',
+  objects: [{ kind: 'name', name: 'vi' }],
+  hoistCalls: { mock: 'any', unmock: 'one-string' },
+  hoistValues: ['hoisted'],
+  rewriteImportArg: ['mock'],
+  chainable: false,
+  placement: 'top-level-only',
+  topLevelGuards: ['import.meta.vitest'],
+  factoryReferences: 'allow',
+  runnerModules: ['vitest'],
+  reExports: 'static',
+  rewrittenCalls: 'member',
+  messages,
+})
+expectTypeOf(hoist.hoistCalls).toEqualTypeOf<{
+  readonly mock: HoistArgRule
+  readonly unmock: HoistArgRule
+}>()
+expectTypeOf(hoist.hoistValues).toEqualTypeOf<readonly 'hoisted'[]>()
+expectTypeOf(hoist).toExtend<HoistPolicy>()
+defineHoistPolicy({
+  id: 'x',
+  objects: [],
+  hoistCalls: { mock: 'any' },
+  hoistValues: [],
+  rewriteImportArg: [],
+  chainable: false,
+  placement: 'enclosing-block',
+  topLevelGuards: [],
+  factoryReferences: 'allow',
+  runnerModules: [],
+  reExports: 'in-order',
+  rewrittenCalls: 'detached',
+  messages,
+})
+defineHoistPolicy({
+  id: 'x',
+  objects: [],
+  // @ts-expect-error not an argument rule
+  hoistCalls: { mock: 'sometimes' },
+  hoistValues: [],
+  rewriteImportArg: [],
+  chainable: false,
+  placement: 'enclosing-block',
+  topLevelGuards: [],
+  factoryReferences: 'allow',
+  runnerModules: [],
+  reExports: 'in-order',
+  rewrittenCalls: 'detached',
+  messages,
+})
+defineHoistPolicy({
+  id: 'x',
+  objects: [],
+  hoistCalls: {},
+  hoistValues: [],
+  rewriteImportArg: [],
+  chainable: false,
+  // @ts-expect-error not a placement
+  placement: 'anywhere',
+  topLevelGuards: [],
+  factoryReferences: 'allow',
+  runnerModules: [],
+  reExports: 'in-order',
+  rewrittenCalls: 'detached',
+  messages,
+})
+defineHoistPolicy({
+  id: 'x',
+  objects: [],
+  hoistCalls: {},
+  hoistValues: [],
+  rewriteImportArg: [],
+  chainable: false,
+  placement: 'enclosing-block',
+  topLevelGuards: [],
+  factoryReferences: 'allow',
+  runnerModules: [],
+  reExports: 'in-order',
+  rewrittenCalls: 'detached',
+  // @ts-expect-error every HOIST_* code needs a message
+  messages: { HOIST_NESTED: '' },
+})
+defineHoistPolicy({
+  id: 'x',
+  objects: [],
+  hoistCalls: {},
+  hoistValues: [],
+  rewriteImportArg: [],
+  chainable: false,
+  placement: 'enclosing-block',
+  topLevelGuards: [],
+  factoryReferences: 'allow',
+  runnerModules: [],
+  reExports: 'in-order',
+  // @ts-expect-error not a way to call through a rewritten import
+  rewrittenCalls: 'bound',
+  messages,
+})

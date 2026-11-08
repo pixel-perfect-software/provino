@@ -1,0 +1,5 @@
+{
+  "description": "A jest.mock factory that reads a variable from outside its scope, whose name does not start with mock: Jest refuses the file with a ReferenceError naming the variable.",
+  "runners": ["jest"],
+  "expectCrash": { "jest": "out-of-scope" }
+}
