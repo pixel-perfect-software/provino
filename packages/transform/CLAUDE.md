@@ -6,7 +6,7 @@ The per-file transform pipeline (Track 3): TypeScript and JSX through Oxc, mock 
 
 | Path | Role |
 |---|---|
-| `src/pipeline.ts` | `createPipeline().transform(request)`: route by extension, `oxc-transform.transformSync` with tsconfig-derived options, then `hoistMocks` for every role but `dependency` (B13b Gap 3), then the record's import facts. `hasTopLevelAwait` reads the original source only (`moduleFacts`): the hoist step's rewritten imports are `lateDeps`, not top-level await (D38). Hoister diagnostics are appended to the record's. The pipeline passes `source` as `original` (see "Generated names"). |
+| `src/pipeline.ts` | `createPipeline().transform(request)`: route by extension, `oxc-transform.transformSync` with tsconfig-derived options, then `hoistMocks` for every role but `dependency` (B13b Gap 3), then the record's import facts. `hasTopLevelAwait` reads the original source only (`moduleFacts`): the hoist step's rewritten imports are `lateDeps`, not top-level await (D38). Hoister diagnostics are appended to the record's. The pipeline passes `source` as `original` (see "Generated names"). `format` is `esm` for module syntax or `.mjs`/`.mts`, `cjs` for `.cjs` and for a file with no module syntax that calls `require` or reads a member of `module`/`exports` (`hasCommonJsSyntax`, from the AST, so a comment doesn't count), else `unknown`. |
 | `src/module-runner.ts` | `toModuleRunner`: the only caller of oxc's deprecated `moduleRunnerTransformSync` (D10). Only ever sees stripped output. |
 | `src/internal/` | `maps.ts` (compose maps), `imports.ts` (import records), `position.ts` (offset to line and column; `positionCursor` for ascending offsets), `tsconfig.ts` |
 | `src/hoist/` | The mock hoister (T3.4), below. |

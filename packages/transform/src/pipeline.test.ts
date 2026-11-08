@@ -152,6 +152,27 @@ test('require calls are recorded in CommonJS files', () => {
   )
 })
 
+test('a file with no module syntax is cjs when it uses require, module or exports, else unknown (B13c review)', () => {
+  const root = writeTree({})
+  const pipeline = createPipeline(options(root))
+  const format = (source: string) => pipeline.transform(request(join(root, 'f.js'), source)).format
+  // An import() doesn't make a CommonJS file a module: it still needs `module` and `require`.
+  assert.equal(
+    format("const fs = require('node:fs')\nmodule.exports = { load: () => import('./x.js') }\n"),
+    'cjs',
+  )
+  assert.equal(format("exports.load = () => import('./x.js')\n"), 'cjs')
+  assert.equal(format('const r = require\nconst m = r(name)\n'), 'unknown')
+  assert.equal(format('const x = require(name)\n'), 'cjs')
+  // Only import() and comments that name module, exports or require: no CommonJS use.
+  assert.equal(
+    format("// no require, module.exports or exports here\nglobalThis.p = import('./x.js')\n"),
+    'unknown',
+  )
+  assert.equal(format("import('./x.js')\n"), 'unknown')
+  assert.equal(format('export const a = 1\nmodule.exports = 2\n'), 'esm')
+})
+
 test('top-level await is found at the top level only', () => {
   const root = writeTree({})
   const pipeline = createPipeline(options(root))

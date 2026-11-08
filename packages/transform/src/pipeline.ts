@@ -275,12 +275,16 @@ export const createPipeline: CreatePipeline = (options) => {
     }
 
     const facts = moduleFacts(filename, source, found.lang, found.sourceType)
+    // A file with no module syntax that calls `require` or uses `module`/`exports` is CommonJS,
+    // even when it also has an `import()`; `unknown` is left for a file that shows neither.
     const format =
       found.sourceType === 'commonjs'
         ? 'cjs'
         : facts.hasModuleSyntax || /\.m[jt]s$/.test(filename)
           ? 'esm'
-          : 'unknown'
+          : facts.hasCommonJsSyntax
+            ? 'cjs'
+            : 'unknown'
     const cacheKey = createHash('sha256')
       .update(fingerprint)
       .update('\0')
