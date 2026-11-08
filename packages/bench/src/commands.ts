@@ -15,6 +15,7 @@ import {
   type KillCheckSuite,
   R6_SUITES,
 } from './kill-check.ts'
+import { listTestsCommand, type TestLists } from './list-tests.ts'
 import { prepareOutput, writeRecordFile } from './output.ts'
 import { checkStatusParity, parityLines, type StatusParity, unavailableParity } from './parity.ts'
 import {
@@ -57,6 +58,8 @@ export interface CliIo {
 export interface CliDeps {
   readonly exec?: ExecProcess
   readonly readParity?: (suite: SuiteSpec) => Promise<StatusParity>
+  /** `list-tests`: what each runner lists in a directory. */
+  readonly readLists?: (dir: string) => Promise<TestLists>
   readonly paths?: BenchPaths
   readonly now?: () => Date
 }
@@ -430,6 +433,8 @@ export async function runCli(
       case 'generate':
         await generated(command.suite, io, paths.suitesRoot)
         return 0
+      case 'list-tests':
+        return await listTestsCommand(command.dir, io, deps.readLists)
       case 'check':
         return await checkCommand(command, io, paths)
       case 'run':

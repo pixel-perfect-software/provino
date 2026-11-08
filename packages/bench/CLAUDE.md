@@ -7,6 +7,7 @@ The benchmark protocol (Track 12 R5/R6), the synthetic suites, and the `provino-
 - `src/run-bench.ts`: the protocol. One discarded warm-up per subject, then 10 warm and 5 cold rounds, interleaved. A cold run deletes that subject's caches right before it starts.
 - `src/kill-check.ts`: the R6 gate, pure. `evaluateKillCheck` takes a record and the parity reads and returns a verdict. It runs nothing.
 - `src/commands.ts`: the CLI commands, including `killCheckCommand`, which does the running.
+- `src/list-tests.ts`: `provino-bench list-tests <project dir>` (U2, B14c): Jest's `--listTests --json` (the project's own Jest when it has one) and `provino jest --listTests --json` (the bin, from source) in the directory, compared as sets (`compareLists`); prints both counts and every difference, exit 0 when the same set. It is how the 5 R6 repos are checked once B16 has put them on disk (`readLists` is a seam for the tests).
 - `src/check.ts`, `src/parity.ts`: one run of a runner with a report, and Jest's statuses against Provino's.
 - `src/generators/`: the suites. `.suites/` and `.results/` are gitignored.
 - `src/loader/`, `src/worker/`, `src/expect/`, `src/mock/`: the `bench:*` benches, which run Provino's pieces in-process.

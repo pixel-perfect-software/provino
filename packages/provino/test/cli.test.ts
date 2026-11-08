@@ -2,7 +2,9 @@
 // does not end by itself fails the test instead of hanging the suite.
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { failing, passing, spawnCli, trackedProjects, viewOfNormalized } from './support.ts'
 
@@ -189,7 +191,6 @@ describe('provino run', () => {
 
 describe('usage errors: the message and the usage text on stderr, exit 2', () => {
   const cases: readonly (readonly [string, readonly string[], RegExp])[] = [
-    ['no command', [], /a command is required/],
     ['an unknown command', ['walk'], /unknown command "walk"/],
     ['an unknown flag', ['run', '--config', 'x.mjs', '--turbo'], /--turbo/],
     ['a missing --config', ['run'], /--config <file> is required/],
@@ -221,6 +222,22 @@ describe('usage errors: the message and the usage text on stderr, exit 2', () =>
       assert.equal(ended.stdout, '')
     })
   }
+})
+
+describe('provino with no command', () => {
+  it('is exit code 2 where there is nothing to run, with the usage text', async () => {
+    const empty = await mkdtemp(join(tmpdir(), 'provino-empty-'))
+    try {
+      const ended = await spawnCli([], { cwd: empty })
+
+      assert.equal(ended.signal, null)
+      assert.equal(ended.code, 2, ended.stderr)
+      assert.match(ended.stderr, /found no provino\.config\.\*, Jest config or Vitest config/)
+      assert.match(ended.stderr, /Usage: provino <command>/)
+    } finally {
+      await rm(empty, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('provino --help', () => {

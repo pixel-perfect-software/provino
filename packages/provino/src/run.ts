@@ -1,11 +1,11 @@
 import { resolve } from 'node:path'
 import { loadProject } from '@provino/config'
 import { jestDialect } from '@provino/dialect-jest'
-import { ExitCode, exitCodeFor, type RunProjectOptions, runProject } from '@provino/orchestrator'
-import { createReporterBus } from '@provino/reporters'
+import { ExitCode, type RunProjectOptions } from '@provino/orchestrator'
+import { ENVIRONMENTS } from './internal/built-ins.ts'
 import { isCi } from './internal/ci.ts'
 import { usageMessage } from './internal/describe.ts'
-import { reportersFor } from './internal/reporters.ts'
+import { executeProject } from './internal/execute.ts'
 import { UsageError } from './internal/usage-error.ts'
 import type { RunOptions, RunResult } from './types.ts'
 
@@ -38,42 +38,21 @@ async function execute(
 
   const project = await loadProject(resolve(cwd, options.config), {
     dialects: [jestDialect],
-    environments: {
-      node: { module: import.meta.resolve('@provino/env-node'), export: 'nodeEnvironment' },
-    },
+    environments: ENVIRONMENTS,
     ci: options.ci ?? isCi(process.env),
   })
-  const bus = createReporterBus(reportersFor(options.reporters, { project, cwd, stdout, stderr }))
-
-  const summary = await runProject(project, {
-    bus,
-    pool,
-    // Jest writes all test output to stderr and keeps stdout for `--json`: a worker's own stdout
-    // (a direct write to fd 1) goes there too, so it can't land in the middle of a reporter's.
-    stdout: stderr,
+  return executeProject({
+    project,
+    cwd,
+    stdout,
     stderr,
-    // Omitted, `runProject` keeps the cache in the project's `node_modules/.cache/provino`.
+    reporters: options.reporters,
+    pool,
     ...(options.cache === false ? { cache: false } : {}),
-    ...(options.testNamePattern === undefined ? {} : { testNamePattern: options.testNamePattern }),
-    ...(options.signal === undefined ? {} : { signal: options.signal }),
+    testNamePattern: options.testNamePattern,
+    passWithNoTests: options.passWithNoTests,
+    signal: options.signal,
   })
-
-  // A reporter that failed (a JSON file that couldn't be written) fails the run. The default
-  // reporter shows such an error itself; the others may not, so it is said here as well.
-  const reporterFailures = bus.failures()
-  for (const failure of reporterFailures) {
-    stderr.write(`Provino: a reporter failed: ${failure.message}\n`)
-  }
-  return {
-    exitCode: exitCodeFor(summary, {
-      policy: project.policy,
-      reporterFailures,
-      ...(options.passWithNoTests === undefined
-        ? {}
-        : { passWithNoTests: options.passWithNoTests }),
-    }),
-    summary,
-  }
 }
 
 /**
