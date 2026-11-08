@@ -5,8 +5,8 @@
 // configs read with is installed beside them (`.refs/jest-config-sample/node_modules`, hoisted, as
 // an npm user's install is). Every repository sits under that directory, so its configs resolve
 // packages from there. A repository already fetched (its `.provino-fetched` marker) is skipped.
-import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { type ChildProcess, spawn } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { SampleManifest } from './sample-manifest.ts'
 import { MANIFEST_PATH, repoDir, SAMPLE_DIR } from './sample-paths.ts'
@@ -58,6 +58,9 @@ export const SHARED_PACKAGES: Readonly<Record<string, string>> = {
   'zone.js': '0.15.1',
 }
 
+/** The file a fetched repository's directory holds: the commit its tree is. */
+const FETCHED_MARKER = '.provino-fetched'
+
 /**
  * Editor, agent and git metadata, and `.env` files, which a tarball may hold. Left out on
  * extraction: some sandboxes refuse to write the first kind or to read the second (the B14b run's
@@ -76,33 +79,91 @@ const EXCLUDED_NAMES: readonly string[] = [
   '.env.*',
 ]
 
-/** Runs `curl … | tar -xz` with no shell; resolves with the exit codes. */
-function download(
-  url: string,
-  dest: string,
-): Promise<{ curl: number | null; tar: number | null; stderr: string }> {
+/** A command and its arguments, run with no shell. */
+export interface Command {
+  readonly command: string
+  readonly args: readonly string[]
+}
+
+/** How `producer | consumer` ended: each one's exit code (`null` for a signal), and both stderrs. */
+export interface PipeOutcome {
+  readonly producer: number | null
+  readonly consumer: number | null
+  readonly stderr: string
+}
+
+/** Resolves with a child's exit code once it has closed (`null` for a signal or a failed spawn). */
+function closed(child: ChildProcess, onError: (error: Error) => void): Promise<number | null> {
   return new Promise((resolve) => {
-    const curl = spawn('curl', ['-fsSL', '--retry', '3', url], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+    child.once('error', (error) => {
+      onError(error)
+      resolve(null)
     })
-    const excludes = EXCLUDED_NAMES.flatMap((name) => ['--exclude', name, '--exclude', `*/${name}`])
-    const tar = spawn('tar', ['-xzf', '-', '-C', dest, '--strip-components=1', ...excludes], {
-      stdio: ['pipe', 'ignore', 'pipe'],
-    })
-    let stderr = ''
-    curl.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString()
-    })
-    tar.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString()
-    })
-    curl.stdout.pipe(tar.stdin)
-    let curlCode: number | null = null
-    curl.on('close', (code) => {
-      curlCode = code
-    })
-    tar.on('close', (code) => resolve({ curl: curlCode, tar: code, stderr }))
+    child.once('close', (code) => resolve(code))
   })
+}
+
+/**
+ * Runs `producer | consumer` with no shell and waits for both to end, then gives both exit codes.
+ * A consumer that ends first (`tar` refusing a bad tarball) leaves the producer writing into a
+ * closed pipe: the `EPIPE` is expected and absorbed, and the producer is stopped, so one bad
+ * repository is one failure, never a crash or a process left behind.
+ */
+export async function pipeProcesses(producer: Command, consumer: Command): Promise<PipeOutcome> {
+  let stderr = ''
+  const note = (text: string) => {
+    stderr += text
+  }
+  const source = spawn(producer.command, producer.args, { stdio: ['ignore', 'pipe', 'pipe'] })
+  const sink = spawn(consumer.command, consumer.args, { stdio: ['pipe', 'ignore', 'pipe'] })
+  source.stderr?.on('data', (chunk: Buffer) => note(chunk.toString()))
+  sink.stderr?.on('data', (chunk: Buffer) => note(chunk.toString()))
+  const ignoreBrokenPipe = (error: Error) => {
+    if (Reflect.get(error, 'code') !== 'EPIPE') note(`${error.message}\n`)
+  }
+  sink.stdin?.on('error', ignoreBrokenPipe)
+  source.stdout?.on('error', ignoreBrokenPipe)
+  let producerFinished = false
+  source.stdout?.once('end', () => {
+    producerFinished = true
+  })
+  if (source.stdout && sink.stdin) source.stdout.pipe(sink.stdin)
+  const onSpawnError = (error: Error) => note(`${error.message}\n`)
+  const [producerCode, consumerCode] = await Promise.all([
+    closed(source, onSpawnError),
+    closed(sink, onSpawnError).then((code) => {
+      // A consumer that ended before the producer's output did will never read the rest. One that
+      // ended after it (the usual case, `tar` done) leaves the producer to exit by itself.
+      if (!producerFinished && source.exitCode === null && source.signalCode === null) {
+        source.kill('SIGTERM')
+      }
+      return code
+    }),
+  ])
+  return { producer: producerCode, consumer: consumerCode, stderr }
+}
+
+/**
+ * Gets a repository's directory ready: `'fetched'` when it already holds this commit's tree (its
+ * marker names the commit), else `'fetch'`, with whatever was there removed first, so files the
+ * commit doesn't have (another commit's, or a part-extracted run's) can't survive. Throws when the
+ * old tree can't be removed.
+ */
+export function prepareRepoDir(dest: string, sha: string): 'fetched' | 'fetch' {
+  const marker = join(dest, FETCHED_MARKER)
+  if (existsSync(marker) && readFileSync(marker, 'utf8').trim() === sha) return 'fetched'
+  rmSync(dest, { recursive: true, force: true })
+  mkdirSync(dest, { recursive: true })
+  return 'fetch'
+}
+
+/** Downloads a repository's tarball at a commit and extracts it into `dest` (`curl … | tar -xz`). */
+function download(url: string, dest: string): Promise<PipeOutcome> {
+  const excludes = EXCLUDED_NAMES.flatMap((name) => ['--exclude', name, '--exclude', `*/${name}`])
+  return pipeProcesses(
+    { command: 'curl', args: ['-fsSL', '--retry', '3', url] },
+    { command: 'tar', args: ['-xzf', '-', '-C', dest, '--strip-components=1', ...excludes] },
+  )
 }
 
 function run(command: string, args: readonly string[], cwd: string): Promise<number | null> {
@@ -123,23 +184,29 @@ export async function fetchSample(options: {
   const workers = Array.from({ length: 4 }, async () => {
     for (let entry = queue.shift(); entry !== undefined; entry = queue.shift()) {
       const dest = repoDir(entry.repo)
-      const marker = join(dest, '.provino-fetched')
-      if (existsSync(marker) && readFileSync(marker, 'utf8').trim() === entry.sha) continue
-      // A directory is only ever this commit's tree (it's named for the repository, and the
-      // manifest pins one commit), so a part-extracted one is extracted over, not removed first.
-      mkdirSync(dest, { recursive: true })
+      let state: 'fetched' | 'fetch'
+      try {
+        state = prepareRepoDir(dest, entry.sha)
+      } catch (error) {
+        failed++
+        options.log(
+          `  FAIL ${entry.repo}@${entry.sha.slice(0, 8)}: can't remove the old tree: ${error instanceof Error ? error.message : String(error)}`,
+        )
+        continue
+      }
+      if (state === 'fetched') continue
       const result = await download(
         `https://codeload.github.com/${entry.repo}/tar.gz/${entry.sha}`,
         dest,
       )
-      if (result.curl !== 0 || result.tar !== 0) {
+      if (result.producer !== 0 || result.consumer !== 0) {
         failed++
         options.log(
-          `  FAIL ${entry.repo}@${entry.sha.slice(0, 8)}: curl ${result.curl}, tar ${result.tar}: ${result.stderr.trim().slice(0, 200)}`,
+          `  FAIL ${entry.repo}@${entry.sha.slice(0, 8)}: curl ${result.producer}, tar ${result.consumer}: ${result.stderr.trim().slice(0, 200)}`,
         )
         continue
       }
-      writeFileSync(marker, `${entry.sha}\n`)
+      writeFileSync(join(dest, FETCHED_MARKER), `${entry.sha}\n`)
       options.log(`  fetched ${entry.repo}@${entry.sha.slice(0, 8)}`)
     }
   })

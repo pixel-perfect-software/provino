@@ -224,11 +224,13 @@ jobs:
           fetch-depth: 0
       # T11.5: ts-jest, React Native, jest-expo, jest-preset-angular and a relative preset, read by
       # ours and by real jest-config, equal on the 55 keys (B14b). The check installs about 850
-      # packages, and its result depends only on the reader (dialect-jest's `src/node/` and what it
-      # loads: config, resolver, policy, types), the bench command, the pinned presets, the runners'
-      # versions (lockfile, catalog), Node, the root scripts and this workflow. It runs on main, and
-      # on a task branch whose changes against main touch any of those. The same fail-closed scope
-      # as the suites job (B14a moves both into .github/actions/scope/).
+      # packages, and its result depends only on the Jest dialect (all of it: `/node` imports `.`,
+      # and the oracle presets and type tests live there), what the reader loads (config, resolver,
+      # policy, types), the bench command and the harness modules it runs children with, the
+      # runners' versions (lockfile, catalog), Node, the root scripts and this workflow. It runs on
+      # main, and on a task branch whose changes against main touch any of those. The same
+      # fail-closed scope as the suites job (B14a moves both into .github/actions/scope/);
+      # `packages/bench/src/jest-config/jest-config.test.ts` checks the paths it covers.
       - id: scope
         name: Decide whether the oracle check runs
         run: |
@@ -241,7 +243,7 @@ jobs:
             echo "No merge base with main; running the oracle check."
             exit 0
           fi
-          inputs="^(packages/dialect-jest/(src/node/|oracle/|package\\.json\$)|packages/bench/(src/jest-config/|package\\.json\$)|packages/(config|resolver|policy|types)/(src/|package\\.json\$)|pnpm-lock\\.yaml\$|pnpm-workspace\\.yaml\$|\\.tool-versions\$|package\\.json\$|\\.github/workflows/ci\\.yml\$)"
+          inputs="^(packages/dialect-jest/|packages/harness/(src/|package\\.json\$)|packages/bench/(src/jest-config/|package\\.json\$)|packages/(config|resolver|policy|types)/(src/|package\\.json\$)|pnpm-lock\\.yaml\$|pnpm-workspace\\.yaml\$|\\.tool-versions\$|package\\.json\$|\\.github/workflows/ci\\.yml\$)"
           work=$(mktemp -d)
           # --no-renames lists both paths of a move, so moving a file out of an input counts.
           if ! git -c core.quotePath=false diff -z --no-renames --name-only "$base" HEAD > "$work/diff"; then

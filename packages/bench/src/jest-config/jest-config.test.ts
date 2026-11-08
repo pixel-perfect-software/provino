@@ -1,6 +1,7 @@
 // The pure parts of `bench:jest-config`: the 55 keys, gap 5's package-relative rule, the encoding,
 // the sample's selection rules (F4) and T11.4's bar.
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import {
   BAR_KEY_COUNT,
@@ -142,6 +143,44 @@ test('takeConfigs: shallowest first, at most 6, quotas respected', () => {
     [],
   )
   assert.ok(!quotasFull(tally))
+})
+
+test("the jest-oracles job's scope covers every file the oracle check loads", () => {
+  const ci = readFileSync(new URL('../../../../.github/workflows/ci.yml', import.meta.url), 'utf8')
+  const job = ci.slice(ci.indexOf('\n  jest-oracles:'))
+  const line = /\n\s+inputs="([^"]+)"/.exec(job)?.[1]
+  assert.ok(line !== undefined, 'the jest-oracles scope step has an inputs line')
+  // The shell sees `\\.` and `\$` in double quotes as `\.` and `$`.
+  const inputs = new RegExp(line.replaceAll('\\\\', '\\').replaceAll('\\$', '$'))
+  for (const path of [
+    'packages/dialect-jest/src/node/normalize.ts',
+    'packages/dialect-jest/src/dialect.ts',
+    'packages/dialect-jest/src/runtime/globals.ts',
+    'packages/dialect-jest/test/node.test-d.ts',
+    'packages/dialect-jest/oracle/presets/pnpm-lock.yaml',
+    'packages/dialect-jest/package.json',
+    'packages/harness/src/run-process.ts',
+    'packages/bench/src/jest-config/presets.ts',
+    'packages/bench/package.json',
+    'packages/config/src/load.ts',
+    'packages/resolver/src/resolver.ts',
+    'packages/policy/src/dialect.ts',
+    'packages/types/src/dialect.ts',
+    'pnpm-lock.yaml',
+    'pnpm-workspace.yaml',
+    '.tool-versions',
+    'package.json',
+    '.github/workflows/ci.yml',
+  ]) {
+    assert.ok(inputs.test(path), `${path} should trigger the oracle check`)
+  }
+  for (const path of [
+    'packages/core/src/runtime.ts',
+    'packages/bench/src/kill-check.ts',
+    'docs-x.md',
+  ]) {
+    assert.ok(!inputs.test(path), `${path} shouldn't trigger it`)
+  }
 })
 
 test("T11.4's bar: strictly under, on both medians, and NaN fails", () => {
