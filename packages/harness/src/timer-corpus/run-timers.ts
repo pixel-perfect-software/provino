@@ -43,7 +43,7 @@ const VI_MEMBERS = [
 ] as const
 
 /** The part of `vi` the timer corpus uses: Vitest's timer members over one clock. */
-export function createViTimers(clock: FakeClock, policy: TimersPolicy): Record<string, unknown> {
+function createViTimers(clock: FakeClock, policy: TimersPolicy): Record<string, unknown> {
   const vi: Record<string, unknown> = {}
   const members = createTimerMembers(
     () => clock,

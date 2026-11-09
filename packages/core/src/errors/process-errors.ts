@@ -76,11 +76,8 @@ export class ProcessErrors {
    */
   report(origin: UnhandledErrorOrigin, error: unknown, promise?: Promise<unknown>): void {
     const frame = this.#config.frame()
-    if (this.#config.lateErrors === 'report-run') {
-      this.#emit(null, frame, origin, error)
-      return
-    }
-    if (frame === undefined) {
+    // The run's own error: the policy says so, or no test or hook of any file is running.
+    if (this.#config.lateErrors === 'report-run' || frame === undefined) {
       this.#emit(null, frame, origin, error)
       return
     }
