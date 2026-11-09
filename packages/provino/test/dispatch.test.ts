@@ -60,7 +60,28 @@ describe('provino jest', () => {
     })
     assert.equal((await provino(['jest', 'tests/a'], dir)).code, 0)
     assert.equal((await provino(['jest', '-t', '^a$'], dir)).code, 0, 'b has no test named a')
-    assert.equal((await provino(['jest', '--config', 'other.config.json', 'a.test'], dir)).code, 0)
+    // `a\.test`, not `a.test`: a pattern is also tried on the absolute path (below), and the `.`
+    // would match the `a/test` of a temp directory whose random name ends in `a`.
+    assert.equal(
+      (await provino(['jest', '--config', 'other.config.json', 'a\\.test'], dir)).code,
+      0,
+    )
+  })
+
+  it('tries a path pattern on the absolute path too, as Jest does', async () => {
+    // The project's directory is named `xa`, so `a.test` matches `.../xa/tests/b.test.js`.
+    const parent = await tree({
+      'xa/jest.config.json': JEST_CONFIG,
+      'xa/tests/a.test.js': passing('a'),
+      'xa/tests/b.test.js': failing('the bad one'),
+    })
+    const dir = join(parent, 'xa')
+    const loose = await provino(['jest', 'a.test'], dir)
+    assert.equal(loose.code, 1, 'b ran, through the directory name')
+    assert.match(loose.stderr, /FAIL tests\/b\.test\.js/)
+    const exact = await provino(['jest', 'a\\.test'], dir)
+    assert.equal(exact.code, 0, exact.stderr)
+    assert.doesNotMatch(exact.stderr, /b\.test\.js/)
   })
 
   it('refuses a flag it can’t run yet by name, with Jest’s usage exit code', async () => {
