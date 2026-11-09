@@ -28,7 +28,7 @@ import { runMockFile } from '../mock-corpus/run-mock.ts'
 import { MOD_DECLARED } from '../mod-corpus/declared.ts'
 import { runModFile } from '../mod-corpus/run-mod.ts'
 import { assertRunMatchesGolden } from '../runtime-corpus/compare.ts'
-import { COLLECTION_ERROR_CODES } from '../runtime-corpus/expectations.ts'
+import { COLLECTION_ERROR_CODES, MESSAGE_FIXTURES } from '../runtime-corpus/expectations.ts'
 import { runUnderCore } from '../runtime-corpus/run-core.ts'
 import type { CorpusName } from './evidence.ts'
 
@@ -109,6 +109,7 @@ export async function corpusProblems(
       assertRunMatchesGolden(run, golden, {
         testFile,
         ...(collectionErrorCode === undefined ? {} : { collectionErrorCode }),
+        ...(MESSAGE_FIXTURES.has(fixture.id) ? { compareMessages: true } : {}),
       }),
     )
   }

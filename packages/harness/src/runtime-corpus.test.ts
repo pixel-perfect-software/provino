@@ -7,12 +7,23 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { describe, test } from 'node:test'
-import { defaultFixturesRoot, findFixtures, readFixture, testFilesFor } from './fixture.ts'
+import {
+  checkedOnNode,
+  defaultFixturesRoot,
+  findFixtures,
+  readFixture,
+  testFilesFor,
+} from './fixture.ts'
 import { readGolden } from './golden.ts'
 import { assertRunMatchesGolden, testsWithoutLocation } from './runtime-corpus/compare.ts'
-import { COLLECTION_ERROR_CODES, UNLOCATED_TESTS } from './runtime-corpus/expectations.ts'
+import {
+  COLLECTION_ERROR_CODES,
+  MESSAGE_FIXTURES,
+  UNLOCATED_TESTS,
+} from './runtime-corpus/expectations.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
 import { runUnderCore } from './runtime-corpus/run-core.ts'
+import { needsChild, runUnderCoreInChild } from './runtime-corpus/run-core-child.ts'
 import { pairLabel } from './test-support.ts'
 
 const root = path.join(defaultFixturesRoot(), 'runtime')
@@ -47,7 +58,10 @@ test('the tests named as having no location belong to pairs in the corpus', () =
 for (const fixture of fixtures) {
   describe(fixture.id, () => {
     for (const profile of fixture.manifest.runners) {
-      test(profile, async () => {
+      const skip = checkedOnNode(fixture.manifest, profile)
+        ? false
+        : `the ${profile} golden is checked on Node ${fixture.manifest.nodeMajors?.[profile]?.join(', ')} only`
+      test(profile, { skip }, async () => {
         const label = pairLabel(fixture, profile)
         const golden = await readGolden(fixture.dir, profile)
         const files = testFilesFor(fixture.files, profile)
@@ -58,15 +72,18 @@ for (const fixture of fixtures) {
           UNLOCATED_TESTS[label] ?? [],
           'the tests the golden has no location for',
         )
-        const run = await runUnderCore(
-          path.join(fixture.dir, testFile),
-          fixture.dir,
-          corePolicyFor[profile],
-        )
+        const run = needsChild(fixture.id)
+          ? await runUnderCoreInChild(path.join(fixture.dir, testFile), fixture.dir, profile)
+          : await runUnderCore(
+              path.join(fixture.dir, testFile),
+              fixture.dir,
+              corePolicyFor[profile],
+            )
         const collectionErrorCode = COLLECTION_ERROR_CODES[label]
         assertRunMatchesGolden(run, golden, {
           testFile,
           ...(collectionErrorCode === undefined ? {} : { collectionErrorCode }),
+          ...(MESSAGE_FIXTURES.has(fixture.id) ? { compareMessages: true } : {}),
         })
       })
     }

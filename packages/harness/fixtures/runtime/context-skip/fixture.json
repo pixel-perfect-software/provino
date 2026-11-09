@@ -1,0 +1,4 @@
+{
+  "description": "ctx.skip() in Vitest: skip(note?) and skip(condition, note?) end the test as skipped, from the body and from a beforeEach; skip(false) carries on; afterEach and onTestFinished still run (or not) after a skip; a skip does not fail the file.",
+  "runners": ["vitest"]
+}

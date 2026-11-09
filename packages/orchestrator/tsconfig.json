@@ -28,6 +28,9 @@
     },
     {
       "path": "../snapshot"
+    },
+    {
+      "path": "../timers"
     }
   ]
 }

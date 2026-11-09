@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/done-callback",
+  "files": [
+    {
+      "file": "done.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "done called synchronously"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "done called later"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "done with an Error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: failed through done",
+              "userFrame": "<root>/done.test.ts:19:8"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 18,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "done with a string"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Failed: \"a string reason\"",
+              "userFrame": "<root>/done.test.ts:23:3"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "done with an object"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Failed: Object {\n  \"code\": 7,\n}",
+              "userFrame": "<root>/done.test.ts:27:3"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 26,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "done called twice in a row"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Expected done to be called once, but it was called multiple times.",
+              "userFrame": "<root>/done.test.ts:33:5"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "done called twice, the second call later"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "done and a returned promise"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Test functions cannot both take a 'done' callback and return something. Either use a 'done' callback, or return a promise.\nReturned value: Promise {}",
+              "userFrame": "<root>/done.test.ts:52:1"
+            }
+          ],
+          "passingAssertions": 0
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "done and a returned value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Test functions cannot both take a 'done' callback and return something. Either use a 'done' callback, or return a promise.\nReturned value: 1",
+              "userFrame": "<root>/done.test.ts:57:1"
+            }
+          ],
+          "passingAssertions": 0
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "done never called"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: thrown: \"Exceeded timeout of 100 ms for a test while waiting for `done()` to be called.\nAdd a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout.\"\n\n[cause]: Error: thrown: \"Exceeded timeout of 100 ms for a test while waiting for `done()` to be called.\nAdd a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout.\"",
+              "userFrame": "<root>/done.test.ts:62:1"
+            }
+          ],
+          "passingAssertions": 0
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "a throw in a test that declares done"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: thrown before done",
+              "userFrame": "<root>/done.test.ts:67:9"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 66,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "an async function that declares done"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Test functions cannot both take a 'done' callback and return something. Either use a 'done' callback, or return a promise.\nReturned value: Promise {}",
+              "userFrame": "<root>/done.test.ts:70:1"
+            }
+          ],
+          "passingAssertions": 0
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "a default parameter is not done"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 75,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "a rest parameter is not done"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 79,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "a function declaring two parameters"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 83,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "a generator that declares a parameter"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: thrown: \"Exceeded timeout of 100 ms for a test while waiting for `done()` to be called.\nAdd a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout.\"\n\n[cause]: Error: thrown: \"Exceeded timeout of 100 ms for a test while waiting for `done()` to be called.\nAdd a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout.\"",
+              "userFrame": "<root>/done.test.ts:88:1"
+            }
+          ],
+          "passingAssertions": 0
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "a generator with no parameter"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 93,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "done.test.ts",
+            "path": [
+              "lets the timers above fire"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 99,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "body: done called synchronously",
+    "timer: done called later",
+    "second call threw: Expected done to be called once, but it was called multiple times.",
+    "body: done never called",
+    "late second call returned",
+    "body: async with done",
+    "body: default parameter, a is number",
+    "body: rest parameter, 0 arguments",
+    "body: two parameters, function undefined",
+    "body: generator, no parameter"
+  ]
+}

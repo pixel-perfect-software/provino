@@ -3,7 +3,15 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { RuntimeEventOf } from '@provino/types'
-import { eventsOf, KINDS, runJobs, runtimeConfig, runtimeJob, trackedProjects } from './support.ts'
+import {
+  eventsOf,
+  KINDS,
+  runJobs,
+  runtimeConfig,
+  runtimeJob,
+  runtimePolicy,
+  trackedProjects,
+} from './support.ts'
 
 const project = trackedProjects()
 
@@ -48,6 +56,35 @@ for (const pool of KINDS) {
         assert.equal(names.get(log?.taskId ?? ''), 'passes')
       }
     })
+
+    // Inline workers share the test process's own timers, which a fake clock must not touch.
+    if (pool !== 'inline') {
+      it('timers.enableGlobally installs the file’s fake clock before the file runs, in every file', async () => {
+        const p = await project({
+          'a.test.js': [
+            "test('is faked before the file', () => {",
+            "  expect('clock' in setTimeout).toBe(true)",
+            '})',
+          ].join('\n'),
+          'b.test.js': [
+            "test('is faked in the next file too', () => {",
+            "  expect('clock' in setTimeout).toBe(true)",
+            '})',
+          ].join('\n'),
+        })
+        const config = runtimeConfig(p.dir, {
+          policy: runtimePolicy({ timers: { enableGlobally: true } }),
+        })
+        const run = await runJobs({
+          pool,
+          config,
+          jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
+        })
+        const states = eventsOf(run.events, 'test-end').map((event) => event.result.state)
+        assert.deepEqual(states, ['pass', 'pass'])
+        assert.deepEqual(run.exit, { type: 'exit', code: 0 })
+      })
+    }
 
     it('keeps the code of a startup error across the link, charged to the file', async () => {
       const p = await project({ 'a.test.js': '' })

@@ -1,36 +1,90 @@
-// The test context (Track 5 §Types → TestContext). B07 gives it `task`, `signal`,
-// `onTestFinished` and `onTestFailed`; `skip` and `annotate` arrive with T5.8.
-import type { TestContext, TestTask } from '@provino/types'
+// The test context (T5.8, Track 5 §Types → TestContext): `task`, `signal`, `skip`, `annotate`,
+// `onTestFinished` and `onTestFailed`. Under `firstArg: 'context'` it is also a function: calling
+// it (a stray `done()`) throws the policy's `doneDeprecatedMessage`, as Vitest 5.0's context does.
+// A dialect adds what is its own (Vitest's `expect`) on the object this returns.
+import type { RuntimeEvent, SourceLocation, TestContext, TestTask } from '@provino/types'
 import { CoreError } from '../errors.ts'
 import type { AttemptState, UserFn } from '../internal/model.ts'
 
-const skip = (): never => {
-  throw new CoreError('CORE_NOT_IMPLEMENTED', '`ctx.skip` arrives with T5.8')
+/**
+ * The error `ctx.skip()` throws to end a test as skipped. The executor catches it wherever user
+ * code was running (the body, an each-hook) and gives the test the `skip` state, with `note`.
+ */
+export class SkipSignal extends Error {
+  readonly note: string | undefined
+
+  constructor(note: string | undefined) {
+    super(note === undefined ? 'test is skipped' : `test is skipped: ${note}`)
+    this.note = note
+  }
 }
 
-const annotate = (): Promise<void> =>
-  Promise.reject(new CoreError('CORE_NOT_IMPLEMENTED', '`ctx.annotate` arrives with T5.8'))
+/** What a context needs from the runtime. */
+export interface ContextEnv {
+  /** `CorePolicy.doneDeprecatedMessage`: the text a call to the context throws, if it is callable. */
+  readonly doneDeprecatedMessage: string | null
+  /** Emits an `annotation` event. */
+  readonly emit: (event: RuntimeEvent) => void
+  readonly now: () => number
+  /** Where the annotate call was made, or `null` when locations are off. */
+  readonly callerLocation: (entry: (...args: never[]) => unknown) => SourceLocation | null
+}
 
 /**
  * A context for one test attempt. `attempt` returns the attempt the context belongs to; it is
  * called only once the test runs, so the attempt can hold the context it is built with.
  */
-export function createTestContext(task: TestTask, attempt: () => AttemptState): TestContext {
-  const context: TestContext = {
-    task,
-    get signal(): AbortSignal {
-      return attempt().controller.signal
-    },
-    skip,
-    annotate,
-    onTestFinished(fn: (ctx: TestContext) => void | Promise<void>, timeoutMs?: number): void {
-      addCallback(attempt(), 'onTestFinished', fn, timeoutMs)
-    },
-    onTestFailed(fn: (ctx: TestContext) => void | Promise<void>, timeoutMs?: number): void {
-      addCallback(attempt(), 'onTestFailed', fn, timeoutMs)
-    },
+export function createTestContext(
+  task: TestTask,
+  attempt: () => AttemptState,
+  env: ContextEnv,
+): TestContext {
+  const { doneDeprecatedMessage } = env
+  const base: object =
+    doneDeprecatedMessage === null
+      ? {}
+      : () => {
+          throw new Error(doneDeprecatedMessage)
+        }
+  const skip = (conditionOrNote?: boolean | string, note?: string): void => {
+    if (conditionOrNote === false) return
+    throw new SkipSignal(typeof conditionOrNote === 'string' ? conditionOrNote : note)
   }
-  return context
+  const annotate = (message: string, kind: string = 'notice'): Promise<void> => {
+    env.emit({
+      type: 'annotation',
+      testId: task.id,
+      message,
+      kind,
+      location: env.callerLocation(annotate),
+      t: env.now(),
+    })
+    return Promise.resolve()
+  }
+  Object.defineProperties(base, {
+    task: { value: task, enumerable: true },
+    signal: {
+      get(): AbortSignal {
+        return attempt().controller.signal
+      },
+      enumerable: true,
+    },
+    skip: { value: skip, enumerable: true },
+    annotate: { value: annotate, enumerable: true },
+    onTestFinished: {
+      value(fn: (ctx: TestContext) => void | Promise<void>, timeoutMs?: number): void {
+        addCallback(attempt(), 'onTestFinished', fn, timeoutMs)
+      },
+      enumerable: true,
+    },
+    onTestFailed: {
+      value(fn: (ctx: TestContext) => void | Promise<void>, timeoutMs?: number): void {
+        addCallback(attempt(), 'onTestFailed', fn, timeoutMs)
+      },
+      enumerable: true,
+    },
+  })
+  return base as TestContext
 }
 
 /** Adds an `onTestFinished`/`onTestFailed` callback to an attempt. */

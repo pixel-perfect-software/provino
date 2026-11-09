@@ -17,11 +17,11 @@
 | `jest-expect/print.ts` | `print.ts` | copied unchanged |
 | `jest-expect/types.ts` | `types.ts` | copied, patched (the other files import it) |
 | `jest-expect/customMatcher.ts` | `jestMatchersObject.ts` L79–L107 | extracted: `expect.extend`'s asymmetric `CustomMatcher`, its class body unchanged, in a factory called once per registration, so every instance shares one class as in Jest |
-| `jest-expect/messages.ts` | `index.ts` L107, L161, L182–L192, L205–L213, L256–L264, L430–L435, L451; `jestMatchersObject.ts` L66, L135 | extracted: the engine's own failure text, each expression Jest's, as functions |
+| `jest-expect/messages.ts` | `index.ts` L107, L161, L182–L192, L205–L213, L256–L264, L430–L435, L451; `jestMatchersObject.ts` L66, L135; `extractExpectedAssertionsErrors.ts` L46–L56, L65–L73 | extracted: the engine's own failure text, each expression Jest's, as functions (the two assertion-count texts are `assertionCount` and `noAssertions`) |
 | `jest-expect/jestMatchersObject.ts` | none | **Provino's own file**, standing in for Jest's: `@provino/expect` owns the slot, so this only reads it |
 | `jest-snapshot/mockSerializer.ts` | `packages/jest-snapshot/src/mockSerializer.ts` (v30.5.2) | copied unchanged (B17b, T7.10): how a mock function prints in a snapshot. The plugin order, `serialize` and the words are `../../snapshot-printer.ts`, composed from `jest-snapshot`'s `plugins.ts` L9-L22, `utils.ts` L56-L72 and `index.ts`/`printSnapshot.ts` |
 
-Not copied: `index.ts` (the front end, which `@provino/expect` replaces), `jestMatchersObject.ts` (the slot, owned by `@provino/expect`) and `extractExpectedAssertionsErrors.ts` (T7.8).
+Not copied: `index.ts` (the front end, which `@provino/expect` replaces), `jestMatchersObject.ts` (the slot, owned by `@provino/expect`) and `extractExpectedAssertionsErrors.ts` (its two message texts are extracted into `messages.ts`; the counting is `@provino/expect`'s `end-of-test.ts`, T7.8).
 
 ## Local patches
 

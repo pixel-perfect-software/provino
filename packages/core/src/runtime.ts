@@ -18,9 +18,16 @@ import { Collector } from './collector/collector.ts'
 import { type FinalizeOptions, fileIdOf, finalize } from './collector/finalize.ts'
 import { newFileState } from './collector/nodes.ts'
 import { type CurrentTestService, currentTest, reportAsyncContext } from './current/current-test.ts'
+import { listenForProcessErrors, ProcessErrors, type ProcessLike } from './errors/process-errors.ts'
 import { CoreError, serializeError } from './errors.ts'
 import { capturedTimers, createDeadlines, type RealTimers } from './executor/deadline.ts'
-import { Executor, type Outcome, taskResult } from './executor/executor.ts'
+import {
+  Executor,
+  type Outcome,
+  type TryTaskListener,
+  type TryTaskListeners,
+  taskResult,
+} from './executor/executor.ts'
 import type { FileState } from './internal/model.ts'
 import { createLazyHost } from './lazy-host.ts'
 
@@ -30,7 +37,7 @@ import { createLazyHost } from './lazy-host.ts'
  */
 export interface RuntimeOptions {
   readonly policy: CorePolicy
-  /** Loads `formatEachTitle` and `orderHooks` (the worker's one loader). */
+  /** Loads `formatEachTitle`, `formatValue` and `orderHooks` (the worker's one loader). */
   readonly behaviours: BehaviourLoader
   readonly sink: EventSink
   /** Loads a test file; the worker passes the loader's import. */
@@ -95,6 +102,25 @@ export interface Runtime {
    * Rejects with `CORE_BUSY` while another file of this runtime is still collecting or running.
    */
   runFile(path: string, options?: RunFileOptions): Promise<TaskResult>
+  /**
+   * Registers a function that runs at the start of every attempt of every test (before its first
+   * `beforeEach`, in the attempt's own async context): the hook point for work the runner owes the
+   * test, such as the mock cleanup between tests (T4.10). A function that throws fails the
+   * attempt. Returns the function that removes it.
+   */
+  onBeforeTryTask(listener: TryTaskListener): () => void
+  /**
+   * Registers a function that runs at the end of every attempt (after its last `afterEach` and
+   * teardowns, before `onTestFinished`), told whether the attempt has failed: where the
+   * assertion-count checks live (T7.8). A function that throws fails the attempt.
+   */
+  onAfterTryTask(listener: TryTaskListener): () => void
+  /**
+   * Listens on `target` (default: the process) for uncaught exceptions and rejections with no
+   * handler, and charges each as `errors.lateErrors` says (T5.11). The worker calls it once;
+   * returns the function that removes the listeners.
+   */
+  captureProcessErrors(target?: ProcessLike): () => void
   /** Runs the worker teardowns (last first); rejects with an `AggregateError` if any failed. */
   dispose(): Promise<void>
 }
@@ -112,6 +138,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   const deadlines = createDeadlines(policy.timeouts, timers, now)
   const projectName = options.projectName ?? ''
   const formatEachTitle = await options.behaviours.load(policy.formatEachTitle)
+  const formatValue = await options.behaviours.load(policy.formatValue)
   const orderHooks =
     policy.orderHooks === null ? undefined : await options.behaviours.load(policy.orderHooks)
   const runs = new WeakMap<object, TestRunHandle>()
@@ -131,7 +158,28 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       })
     },
   })
-  const executor = new Executor({ policy, orderHooks, sink, deadlines, timers, now, runs })
+  const tryTask: TryTaskListeners = { before: [], after: [] }
+  const processErrors: ProcessErrors = new ProcessErrors({
+    lateErrors: policy.errors.lateErrors,
+    emit: (event) => sink.emit(event),
+    now,
+    frame: () => currentTest.get(),
+    runningAttempt: (frame) => executor.attemptFor(frame),
+    lastTestId: () => executor.lastTestId,
+  })
+  const executor: Executor = new Executor({
+    policy,
+    orderHooks,
+    sink,
+    deadlines,
+    timers,
+    now,
+    runs,
+    formatValue,
+    processErrors,
+    tryTask,
+    locations: options.locations ?? true,
+  })
   const pattern = options.testNamePattern
   const finalizeOptions: Omit<FinalizeOptions, 'lines'> = {
     policy,
@@ -242,6 +290,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       ? fileOptions.fileId
       : fileIdOf(projectName, relativePath)
     const start = now()
+    processErrors.startFile(fileId)
     sink.emit({ type: 'file-collect-start', fileId, path: relativePath, t: start })
     let outcome: Outcome = 'fail'
     try {
@@ -268,8 +317,10 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       // listener, a root `aroundAll` that never ran the suite.
       file.errors.push(...(await deadlines.drain(file.handle.teardowns)))
       collector.release(file)
+      // A rejection still held belongs to the task that made it; this is where it is charged.
+      processErrors.flush()
     }
-    const failed = file.errors.length > 0 || outcome === 'fail'
+    const failed = file.errors.length > 0 || outcome === 'fail' || processErrors.failsFile
     const end = now()
     const result = taskResult(failed ? 'fail' : outcome, start, end, file.errors)
     sink.emit({ type: 'file-end', fileId, result, t: end })
@@ -281,12 +332,24 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     currentTest,
     lazyHost: createLazyHost({ collector, runs, workerTeardowns, workerSlots: new Map() }),
     runFile,
+    onBeforeTryTask: (listener) => addListener(tryTask.before, listener),
+    onAfterTryTask: (listener) => addListener(tryTask.after, listener),
+    captureProcessErrors: (target = process) => listenForProcessErrors(processErrors, target),
     async dispose(): Promise<void> {
       const errors = await deadlines.drain(workerTeardowns)
       if (errors.length > 0) {
         throw new AggregateError(errors, 'Worker teardowns failed')
       }
     },
+  }
+}
+
+/** Adds a listener to a list and returns the function that takes it out. */
+function addListener(list: TryTaskListener[], listener: TryTaskListener): () => void {
+  list.push(listener)
+  return () => {
+    const at = list.indexOf(listener)
+    if (at !== -1) list.splice(at, 1)
   }
 }
 

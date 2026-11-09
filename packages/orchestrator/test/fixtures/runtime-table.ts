@@ -30,6 +30,13 @@ export function testTable(): ExpectTable {
       invalidMatcher: (name) => `invalid matcher: ${name}`,
       invalidTesters: () => 'invalid testers',
       ensureNoExpected: () => {},
+      assertionCount: (expected, actual) => `expected ${expected} assertions, made ${actual}`,
+      noAssertions: () => 'expected an assertion, made none',
+      requiredAssertions: () => 'every test must make an assertion',
+      unawaited: ({ call }) => `${call.matcherName} was not awaited`,
+      pollTimeout: (stage) => `poll ${stage} timed out`,
+      pollUnsupported: (name) => `poll cannot use ${name}`,
+      outsideTest: (name) => `${name} needs a running test`,
     },
     customAsymmetric: (name) => (inverse) => asymmetric(name, inverse),
   }

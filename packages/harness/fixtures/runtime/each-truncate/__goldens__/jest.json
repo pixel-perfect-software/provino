@@ -1,0 +1,3135 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/each-truncate",
+  "files": [
+    {
+      "file": "truncate.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=word word word word word word word word word word word word word word word word word word word word end"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=line one\nline two\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o='word word word word word word word word word word word word word word word word word word word word end'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o='line one\\n' +\n  'line two\\n' +\n  'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O='word word word word word word word word word word word word word word word word word word word word end'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O='line one\\n' +\n  'line two\\n' +\n  'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=\"word word word word word word word word word word word word word word word word word word word word end\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=\"line one\\nline two\\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=\"word word word word word word word word word word word word word word word word word word word word end\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=\"line one\nline two\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 43
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 50
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 50
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 50
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 50
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 50
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 50
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 50
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 50
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx🎉yyyyyyyyyyyyyyyyyyyy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 50
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=word word word word word word word word word word word word word word word word word word word word end"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 50
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=line one\nline two\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 50
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=[\n   0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,\n  11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,\n  22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,\n  33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43,\n  44, 45, 46, 47, 48, 49\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s={\n  key0: 0,\n  key1: 1,\n  key2: 2,\n  key3: 3,\n  key4: 4,\n  key5: 5,\n  key6: 6,\n  key7: 7,\n  key8: 8,\n  key9: 9,\n  key10: 10,\n  key11: 11,\n  key12: 12,\n  key13: 13,\n  key14: 14,\n  key15: 15,\n  key16: 16,\n  key17: 17,\n  key18: 18,\n  key19: 19,\n  key20: 20,\n  key21: 21,\n  key22: 22,\n  key23: 23,\n  key24: 24,\n  key25: 25,\n  key26: 26,\n  key27: 27,\n  key28: 28,\n  key29: 29,\n  key30: 30,\n  key31: 31,\n  key32: 32,\n  key33: 33,\n  key34: 34,\n  key35: 35,\n  key36: 36,\n  key37: 37,\n  key38: 38,\n  key39: 39,\n  key40: 40,\n  key41: 41,\n  key42: 42,\n  key43: 43,\n  key44: 44,\n  key45: 45,\n  key46: 46,\n  key47: 47,\n  key48: 48,\n  key49: 49\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=[ [Array], [Array] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s={\n  list: [Array],\n  text: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s={ a: [Object] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=[ [Array] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=Map(50) {\n  0 => 'value 0',\n  1 => 'value 1',\n  2 => 'value 2',\n  3 => 'value 3',\n  4 => 'value 4',\n  5 => 'value 5',\n  6 => 'value 6',\n  7 => 'value 7',\n  8 => 'value 8',\n  9 => 'value 9',\n  10 => 'value 10',\n  11 => 'value 11',\n  12 => 'value 12',\n  13 => 'value 13',\n  14 => 'value 14',\n  15 => 'value 15',\n  16 => 'value 16',\n  17 => 'value 17',\n  18 => 'value 18',\n  19 => 'value 19',\n  20 => 'value 20',\n  21 => 'value 21',\n  22 => 'value 22',\n  23 => 'value 23',\n  24 => 'value 24',\n  25 => 'value 25',\n  26 => 'value 26',\n  27 => 'value 27',\n  28 => 'value 28',\n  29 => 'value 29',\n  30 => 'value 30',\n  31 => 'value 31',\n  32 => 'value 32',\n  33 => 'value 33',\n  34 => 'value 34',\n  35 => 'value 35',\n  36 => 'value 36',\n  37 => 'value 37',\n  38 => 'value 38',\n  39 => 'value 39',\n  40 => 'value 40',\n  41 => 'value 41',\n  42 => 'value 42',\n  43 => 'value 43',\n  44 => 'value 44',\n  45 => 'value 45',\n  46 => 'value 46',\n  47 => 'value 47',\n  48 => 'value 48',\n  49 => 'value 49'\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=Set(50) {\n  0,\n  1,\n  2,\n  3,\n  4,\n  5,\n  6,\n  7,\n  8,\n  9,\n  10,\n  11,\n  12,\n  13,\n  14,\n  15,\n  16,\n  17,\n  18,\n  19,\n  20,\n  21,\n  22,\n  23,\n  24,\n  25,\n  26,\n  27,\n  28,\n  29,\n  30,\n  31,\n  32,\n  33,\n  34,\n  35,\n  36,\n  37,\n  38,\n  39,\n  40,\n  41,\n  42,\n  43,\n  44,\n  45,\n  46,\n  47,\n  48,\n  49\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=Wide {\n  alpha: 'aaaaaaaaaaaaaaaaaaaa',\n  beta: 'bbbbbbbbbbbbbbbbbbbb',\n  gamma: 'cccccccccccccccccccc'\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=[ [Wide], [Wide] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=aVeryLongFunctionNameThatKeepsGoing() {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=/a-very-long-regular-expression-that-keeps-on-going-and-going/giu"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=Symbol(a symbol description that is longer than forty characters)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=[ 'short' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s={ short: 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s={ 'a-long-key-name-that-goes-past-the-limit-on-its-own': 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=[ 1, 2, 3, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "s=[ 1, 2, 3, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=[\n  0,  1,  2,            3,\n  4,  5,  6,            7,\n  8,  9,  10,           11,\n  12, 13, 14,           15,\n  16, 17, 18,           19,\n  20, 21, 22,           23,\n  24, 25, 26,           27,\n  28, 29, 30,           31,\n  32, 33, 34,           35,\n  36, 37, 38,           39,\n  40, 41, 42,           43,\n  44, 45, 46,           47,\n  48, 49, [length]: 50\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o={\n  key0: 0,\n  key1: 1,\n  key2: 2,\n  key3: 3,\n  key4: 4,\n  key5: 5,\n  key6: 6,\n  key7: 7,\n  key8: 8,\n  key9: 9,\n  key10: 10,\n  key11: 11,\n  key12: 12,\n  key13: 13,\n  key14: 14,\n  key15: 15,\n  key16: 16,\n  key17: 17,\n  key18: 18,\n  key19: 19,\n  key20: 20,\n  key21: 21,\n  key22: 22,\n  key23: 23,\n  key24: 24,\n  key25: 25,\n  key26: 26,\n  key27: 27,\n  key28: 28,\n  key29: 29,\n  key30: 30,\n  key31: 31,\n  key32: 32,\n  key33: 33,\n  key34: 34,\n  key35: 35,\n  key36: 36,\n  key37: 37,\n  key38: 38,\n  key39: 39,\n  key40: 40,\n  key41: 41,\n  key42: 42,\n  key43: 43,\n  key44: 44,\n  key45: 45,\n  key46: 46,\n  key47: 47,\n  key48: 48,\n  key49: 49\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=[\n  [\n    0,  1,  2,            3,\n    4,  5,  6,            7,\n    8,  9,  10,           11,\n    12, 13, 14,           15,\n    16, 17, 18,           19,\n    20, 21, 22,           23,\n    24, 25, 26,           27,\n    28, 29, 30,           31,\n    32, 33, 34,           35,\n    36, 37, 38,           39,\n    40, 41, 42,           43,\n    44, 45, 46,           47,\n    48, 49, [length]: 50\n  ],\n  [\n    0,  1,  2,            3,\n    4,  5,  6,            7,\n    8,  9,  10,           11,\n    12, 13, 14,           15,\n    16, 17, 18,           19,\n    20, 21, 22,           23,\n    24, 25, 26,           27,\n    28, 29, 30,           31,\n    32, 33, 34,           35,\n    36, 37, 38,           39,\n    40, 41, 42,           43,\n    44, 45, 46,           47,\n    48, 49, [length]: 50\n  ],\n  [length]: 2\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o={\n  list: [\n    0,  1,  2,            3,\n    4,  5,  6,            7,\n    8,  9,  10,           11,\n    12, 13, 14,           15,\n    16, 17, 18,           19,\n    20, 21, 22,           23,\n    24, 25, 26,           27,\n    28, 29, 30,           31,\n    32, 33, 34,           35,\n    36, 37, 38,           39,\n    40, 41, 42,           43,\n    44, 45, 46,           47,\n    48, 49, [length]: 50\n  ],\n  text: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o={\n  a: {\n    b: {\n      c: {\n        d: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'\n      }\n    }\n  }\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=[\n  [\n    [\n      'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',\n      [length]: 1\n    ],\n    [length]: 1\n  ],\n  [length]: 1\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=Map(50) {\n  0 => 'value 0',\n  1 => 'value 1',\n  2 => 'value 2',\n  3 => 'value 3',\n  4 => 'value 4',\n  5 => 'value 5',\n  6 => 'value 6',\n  7 => 'value 7',\n  8 => 'value 8',\n  9 => 'value 9',\n  10 => 'value 10',\n  11 => 'value 11',\n  12 => 'value 12',\n  13 => 'value 13',\n  14 => 'value 14',\n  15 => 'value 15',\n  16 => 'value 16',\n  17 => 'value 17',\n  18 => 'value 18',\n  19 => 'value 19',\n  20 => 'value 20',\n  21 => 'value 21',\n  22 => 'value 22',\n  23 => 'value 23',\n  24 => 'value 24',\n  25 => 'value 25',\n  26 => 'value 26',\n  27 => 'value 27',\n  28 => 'value 28',\n  29 => 'value 29',\n  30 => 'value 30',\n  31 => 'value 31',\n  32 => 'value 32',\n  33 => 'value 33',\n  34 => 'value 34',\n  35 => 'value 35',\n  36 => 'value 36',\n  37 => 'value 37',\n  38 => 'value 38',\n  39 => 'value 39',\n  40 => 'value 40',\n  41 => 'value 41',\n  42 => 'value 42',\n  43 => 'value 43',\n  44 => 'value 44',\n  45 => 'value 45',\n  46 => 'value 46',\n  47 => 'value 47',\n  48 => 'value 48',\n  49 => 'value 49'\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=Set(50) {\n  0,\n  1,\n  2,\n  3,\n  4,\n  5,\n  6,\n  7,\n  8,\n  9,\n  10,\n  11,\n  12,\n  13,\n  14,\n  15,\n  16,\n  17,\n  18,\n  19,\n  20,\n  21,\n  22,\n  23,\n  24,\n  25,\n  26,\n  27,\n  28,\n  29,\n  30,\n  31,\n  32,\n  33,\n  34,\n  35,\n  36,\n  37,\n  38,\n  39,\n  40,\n  41,\n  42,\n  43,\n  44,\n  45,\n  46,\n  47,\n  48,\n  49\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=Wide {\n  alpha: 'aaaaaaaaaaaaaaaaaaaa',\n  beta: 'bbbbbbbbbbbbbbbbbbbb',\n  gamma: 'cccccccccccccccccccc'\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=[\n  Wide {\n    alpha: 'aaaaaaaaaaaaaaaaaaaa',\n    beta: 'bbbbbbbbbbbbbbbbbbbb',\n    gamma: 'cccccccccccccccccccc'\n  },\n  Wide {\n    alpha: 'aaaaaaaaaaaaaaaaaaaa',\n    beta: 'bbbbbbbbbbbbbbbbbbbb',\n    gamma: 'cccccccccccccccccccc'\n  },\n  [length]: 2\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=[Function: aVeryLongFunctionNameThatKeepsGoing] {\n  [length]: 0,\n  [name]: 'aVeryLongFunctionNameThatKeepsGoing'\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=/a-very-long-regular-expression-that-keeps-on-going-and-going/giu {\n  [lastIndex]: 0\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=Symbol(a symbol description that is longer than forty characters)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=[ 'short', [length]: 1 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o={ short: 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o={ 'a-long-key-name-that-goes-past-the-limit-on-its-own': 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=[ 1, 2, 3, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [length]: 4 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "o=[ 1, 2, 3, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', [length]: 4 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=[\n   0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,\n  11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,\n  22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,\n  33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43,\n  44, 45, 46, 47, 48, 49\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O={\n  key0: 0,\n  key1: 1,\n  key2: 2,\n  key3: 3,\n  key4: 4,\n  key5: 5,\n  key6: 6,\n  key7: 7,\n  key8: 8,\n  key9: 9,\n  key10: 10,\n  key11: 11,\n  key12: 12,\n  key13: 13,\n  key14: 14,\n  key15: 15,\n  key16: 16,\n  key17: 17,\n  key18: 18,\n  key19: 19,\n  key20: 20,\n  key21: 21,\n  key22: 22,\n  key23: 23,\n  key24: 24,\n  key25: 25,\n  key26: 26,\n  key27: 27,\n  key28: 28,\n  key29: 29,\n  key30: 30,\n  key31: 31,\n  key32: 32,\n  key33: 33,\n  key34: 34,\n  key35: 35,\n  key36: 36,\n  key37: 37,\n  key38: 38,\n  key39: 39,\n  key40: 40,\n  key41: 41,\n  key42: 42,\n  key43: 43,\n  key44: 44,\n  key45: 45,\n  key46: 46,\n  key47: 47,\n  key48: 48,\n  key49: 49\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=[\n  [\n     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,\n    11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,\n    22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,\n    33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43,\n    44, 45, 46, 47, 48, 49\n  ],\n  [\n     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,\n    11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,\n    22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,\n    33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43,\n    44, 45, 46, 47, 48, 49\n  ]\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O={\n  list: [\n     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,\n    11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,\n    22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,\n    33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43,\n    44, 45, 46, 47, 48, 49\n  ],\n  text: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O={ a: { b: { c: [Object] } } }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=[\n  [\n    [ 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' ]\n  ]\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=Map(50) {\n  0 => 'value 0',\n  1 => 'value 1',\n  2 => 'value 2',\n  3 => 'value 3',\n  4 => 'value 4',\n  5 => 'value 5',\n  6 => 'value 6',\n  7 => 'value 7',\n  8 => 'value 8',\n  9 => 'value 9',\n  10 => 'value 10',\n  11 => 'value 11',\n  12 => 'value 12',\n  13 => 'value 13',\n  14 => 'value 14',\n  15 => 'value 15',\n  16 => 'value 16',\n  17 => 'value 17',\n  18 => 'value 18',\n  19 => 'value 19',\n  20 => 'value 20',\n  21 => 'value 21',\n  22 => 'value 22',\n  23 => 'value 23',\n  24 => 'value 24',\n  25 => 'value 25',\n  26 => 'value 26',\n  27 => 'value 27',\n  28 => 'value 28',\n  29 => 'value 29',\n  30 => 'value 30',\n  31 => 'value 31',\n  32 => 'value 32',\n  33 => 'value 33',\n  34 => 'value 34',\n  35 => 'value 35',\n  36 => 'value 36',\n  37 => 'value 37',\n  38 => 'value 38',\n  39 => 'value 39',\n  40 => 'value 40',\n  41 => 'value 41',\n  42 => 'value 42',\n  43 => 'value 43',\n  44 => 'value 44',\n  45 => 'value 45',\n  46 => 'value 46',\n  47 => 'value 47',\n  48 => 'value 48',\n  49 => 'value 49'\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=Set(50) {\n  0,\n  1,\n  2,\n  3,\n  4,\n  5,\n  6,\n  7,\n  8,\n  9,\n  10,\n  11,\n  12,\n  13,\n  14,\n  15,\n  16,\n  17,\n  18,\n  19,\n  20,\n  21,\n  22,\n  23,\n  24,\n  25,\n  26,\n  27,\n  28,\n  29,\n  30,\n  31,\n  32,\n  33,\n  34,\n  35,\n  36,\n  37,\n  38,\n  39,\n  40,\n  41,\n  42,\n  43,\n  44,\n  45,\n  46,\n  47,\n  48,\n  49\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=Wide {\n  alpha: 'aaaaaaaaaaaaaaaaaaaa',\n  beta: 'bbbbbbbbbbbbbbbbbbbb',\n  gamma: 'cccccccccccccccccccc'\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=[\n  Wide {\n    alpha: 'aaaaaaaaaaaaaaaaaaaa',\n    beta: 'bbbbbbbbbbbbbbbbbbbb',\n    gamma: 'cccccccccccccccccccc'\n  },\n  Wide {\n    alpha: 'aaaaaaaaaaaaaaaaaaaa',\n    beta: 'bbbbbbbbbbbbbbbbbbbb',\n    gamma: 'cccccccccccccccccccc'\n  }\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=[Function: aVeryLongFunctionNameThatKeepsGoing]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=/a-very-long-regular-expression-that-keeps-on-going-and-going/giu"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=Symbol(a symbol description that is longer than forty characters)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=[ 'short' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O={ short: 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O={ 'a-long-key-name-that-goes-past-the-limit-on-its-own': 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=[ 1, 2, 3, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "O=[ 1, 2, 3, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 61,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j={\"key0\":0,\"key1\":1,\"key2\":2,\"key3\":3,\"key4\":4,\"key5\":5,\"key6\":6,\"key7\":7,\"key8\":8,\"key9\":9,\"key10\":10,\"key11\":11,\"key12\":12,\"key13\":13,\"key14\":14,\"key15\":15,\"key16\":16,\"key17\":17,\"key18\":18,\"key19\":19,\"key20\":20,\"key21\":21,\"key22\":22,\"key23\":23,\"key24\":24,\"key25\":25,\"key26\":26,\"key27\":27,\"key28\":28,\"key29\":29,\"key30\":30,\"key31\":31,\"key32\":32,\"key33\":33,\"key34\":34,\"key35\":35,\"key36\":36,\"key37\":37,\"key38\":38,\"key39\":39,\"key40\":40,\"key41\":41,\"key42\":42,\"key43\":43,\"key44\":44,\"key45\":45,\"key46\":46,\"key47\":47,\"key48\":48,\"key49\":49}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=[[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49],[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j={\"list\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49],\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j={\"a\":{\"b\":{\"c\":{\"d\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}}}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=[[[\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j={\"alpha\":\"aaaaaaaaaaaaaaaaaaaa\",\"beta\":\"bbbbbbbbbbbbbbbbbbbb\",\"gamma\":\"cccccccccccccccccccc\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=[{\"alpha\":\"aaaaaaaaaaaaaaaaaaaa\",\"beta\":\"bbbbbbbbbbbbbbbbbbbb\",\"gamma\":\"cccccccccccccccccccc\"},{\"alpha\":\"aaaaaaaaaaaaaaaaaaaa\",\"beta\":\"bbbbbbbbbbbbbbbbbbbb\",\"gamma\":\"cccccccccccccccccccc\"}]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=undefined"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=[\"short\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j={\"short\":1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j={\"a-long-key-name-that-goes-past-the-limit-on-its-own\":1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=[1,2,3,\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "j=[1,2,3,\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p={\"key0\": 0, \"key1\": 1, \"key10\": 10, \"key11\": 11, \"key12\": 12, \"key13\": 13, \"key14\": 14, \"key15\": 15, \"key16\": 16, \"key17\": 17, \"key18\": 18, \"key19\": 19, \"key2\": 2, \"key20\": 20, \"key21\": 21, \"key22\": 22, \"key23\": 23, \"key24\": 24, \"key25\": 25, \"key26\": 26, \"key27\": 27, \"key28\": 28, \"key29\": 29, \"key3\": 3, \"key30\": 30, \"key31\": 31, \"key32\": 32, \"key33\": 33, \"key34\": 34, \"key35\": 35, \"key36\": 36, \"key37\": 37, \"key38\": 38, \"key39\": 39, \"key4\": 4, \"key40\": 40, \"key41\": 41, \"key42\": 42, \"key43\": 43, \"key44\": 44, \"key45\": 45, \"key46\": 46, \"key47\": 47, \"key48\": 48, \"key49\": 49, \"key5\": 5, \"key6\": 6, \"key7\": 7, \"key8\": 8, \"key9\": 9}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=[[Array], [Array]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p={\"list\": [Array], \"text\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p={\"a\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=[[Array]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=Map {0 => \"value 0\", 1 => \"value 1\", 2 => \"value 2\", 3 => \"value 3\", 4 => \"value 4\", 5 => \"value 5\", 6 => \"value 6\", 7 => \"value 7\", 8 => \"value 8\", 9 => \"value 9\", 10 => \"value 10\", 11 => \"value 11\", 12 => \"value 12\", 13 => \"value 13\", 14 => \"value 14\", 15 => \"value 15\", 16 => \"value 16\", 17 => \"value 17\", 18 => \"value 18\", 19 => \"value 19\", 20 => \"value 20\", 21 => \"value 21\", 22 => \"value 22\", 23 => \"value 23\", 24 => \"value 24\", 25 => \"value 25\", 26 => \"value 26\", 27 => \"value 27\", 28 => \"value 28\", 29 => \"value 29\", 30 => \"value 30\", 31 => \"value 31\", 32 => \"value 32\", 33 => \"value 33\", 34 => \"value 34\", 35 => \"value 35\", 36 => \"value 36\", 37 => \"value 37\", 38 => \"value 38\", 39 => \"value 39\", 40 => \"value 40\", 41 => \"value 41\", 42 => \"value 42\", 43 => \"value 43\", 44 => \"value 44\", 45 => \"value 45\", 46 => \"value 46\", 47 => \"value 47\", 48 => \"value 48\", 49 => \"value 49\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=Set {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p={\"alpha\": \"aaaaaaaaaaaaaaaaaaaa\", \"beta\": \"bbbbbbbbbbbbbbbbbbbb\", \"gamma\": \"cccccccccccccccccccc\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=[[Wide], [Wide]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=[Function aVeryLongFunctionNameThatKeepsGoing]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=/a-very-long-regular-expression-that-keeps-on-going-and-going/giu"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=Symbol(a symbol description that is longer than forty characters)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=[\"short\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p={\"short\": 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p={\"a-long-key-name-that-goes-past-the-limit-on-its-own\": 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=[1, 2, 3, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "p=[1, 2, 3, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v={\"key0\": 0, \"key1\": 1, \"key10\": 10, \"key11\": 11, \"key12\": 12, \"key13\": 13, \"key14\": 14, \"key15\": 15, \"key16\": 16, \"key17\": 17, \"key18\": 18, \"key19\": 19, \"key2\": 2, \"key20\": 20, \"key21\": 21, \"key22\": 22, \"key23\": 23, \"key24\": 24, \"key25\": 25, \"key26\": 26, \"key27\": 27, \"key28\": 28, \"key29\": 29, \"key3\": 3, \"key30\": 30, \"key31\": 31, \"key32\": 32, \"key33\": 33, \"key34\": 34, \"key35\": 35, \"key36\": 36, \"key37\": 37, \"key38\": 38, \"key39\": 39, \"key4\": 4, \"key40\": 40, \"key41\": 41, \"key42\": 42, \"key43\": 43, \"key44\": 44, \"key45\": 45, \"key46\": 46, \"key47\": 47, \"key48\": 48, \"key49\": 49, \"key5\": 5, \"key6\": 6, \"key7\": 7, \"key8\": 8, \"key9\": 9}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=[[Array], [Array]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v={\"list\": [Array], \"text\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v={\"a\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=[[Array]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=Map {0 => \"value 0\", 1 => \"value 1\", 2 => \"value 2\", 3 => \"value 3\", 4 => \"value 4\", 5 => \"value 5\", 6 => \"value 6\", 7 => \"value 7\", 8 => \"value 8\", 9 => \"value 9\", 10 => \"value 10\", 11 => \"value 11\", 12 => \"value 12\", 13 => \"value 13\", 14 => \"value 14\", 15 => \"value 15\", 16 => \"value 16\", 17 => \"value 17\", 18 => \"value 18\", 19 => \"value 19\", 20 => \"value 20\", 21 => \"value 21\", 22 => \"value 22\", 23 => \"value 23\", 24 => \"value 24\", 25 => \"value 25\", 26 => \"value 26\", 27 => \"value 27\", 28 => \"value 28\", 29 => \"value 29\", 30 => \"value 30\", 31 => \"value 31\", 32 => \"value 32\", 33 => \"value 33\", 34 => \"value 34\", 35 => \"value 35\", 36 => \"value 36\", 37 => \"value 37\", 38 => \"value 38\", 39 => \"value 39\", 40 => \"value 40\", 41 => \"value 41\", 42 => \"value 42\", 43 => \"value 43\", 44 => \"value 44\", 45 => \"value 45\", 46 => \"value 46\", 47 => \"value 47\", 48 => \"value 48\", 49 => \"value 49\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=Set {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v={\"alpha\": \"aaaaaaaaaaaaaaaaaaaa\", \"beta\": \"bbbbbbbbbbbbbbbbbbbb\", \"gamma\": \"cccccccccccccccccccc\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=[[Wide], [Wide]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=[Function aVeryLongFunctionNameThatKeepsGoing]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=/a-very-long-regular-expression-that-keeps-on-going-and-going/giu"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=Symbol(a symbol description that is longer than forty characters)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=[\"short\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v={\"short\": 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v={\"a-long-key-name-that-goes-past-the-limit-on-its-own\": 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=[1, 2, 3, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v=[1, 2, 3, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 64,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49] v={\"inner\": [Array]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner={\"key0\": 0, \"key1\": 1, \"key10\": 10, \"key11\": 11, \"key12\": 12, \"key13\": 13, \"key14\": 14, \"key15\": 15, \"key16\": 16, \"key17\": 17, \"key18\": 18, \"key19\": 19, \"key2\": 2, \"key20\": 20, \"key21\": 21, \"key22\": 22, \"key23\": 23, \"key24\": 24, \"key25\": 25, \"key26\": 26, \"key27\": 27, \"key28\": 28, \"key29\": 29, \"key3\": 3, \"key30\": 30, \"key31\": 31, \"key32\": 32, \"key33\": 33, \"key34\": 34, \"key35\": 35, \"key36\": 36, \"key37\": 37, \"key38\": 38, \"key39\": 39, \"key4\": 4, \"key40\": 40, \"key41\": 41, \"key42\": 42, \"key43\": 43, \"key44\": 44, \"key45\": 45, \"key46\": 46, \"key47\": 47, \"key48\": 48, \"key49\": 49, \"key5\": 5, \"key6\": 6, \"key7\": 7, \"key8\": 8, \"key9\": 9} v={\"inner\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner=[[Array], [Array]] v={\"inner\": [Array]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner={\"list\": [Array], \"text\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"} v={\"inner\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner={\"a\": [Object]} v={\"inner\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner=[[Array]] v={\"inner\": [Array]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner=Map {0 => \"value 0\", 1 => \"value 1\", 2 => \"value 2\", 3 => \"value 3\", 4 => \"value 4\", 5 => \"value 5\", 6 => \"value 6\", 7 => \"value 7\", 8 => \"value 8\", 9 => \"value 9\", 10 => \"value 10\", 11 => \"value 11\", 12 => \"value 12\", 13 => \"value 13\", 14 => \"value 14\", 15 => \"value 15\", 16 => \"value 16\", 17 => \"value 17\", 18 => \"value 18\", 19 => \"value 19\", 20 => \"value 20\", 21 => \"value 21\", 22 => \"value 22\", 23 => \"value 23\", 24 => \"value 24\", 25 => \"value 25\", 26 => \"value 26\", 27 => \"value 27\", 28 => \"value 28\", 29 => \"value 29\", 30 => \"value 30\", 31 => \"value 31\", 32 => \"value 32\", 33 => \"value 33\", 34 => \"value 34\", 35 => \"value 35\", 36 => \"value 36\", 37 => \"value 37\", 38 => \"value 38\", 39 => \"value 39\", 40 => \"value 40\", 41 => \"value 41\", 42 => \"value 42\", 43 => \"value 43\", 44 => \"value 44\", 45 => \"value 45\", 46 => \"value 46\", 47 => \"value 47\", 48 => \"value 48\", 49 => \"value 49\"} v={\"inner\": [Map]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner=Set {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49} v={\"inner\": [Set]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner={\"alpha\": \"aaaaaaaaaaaaaaaaaaaa\", \"beta\": \"bbbbbbbbbbbbbbbbbbbb\", \"gamma\": \"cccccccccccccccccccc\"} v={\"inner\": [Wide]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner=[[Wide], [Wide]] v={\"inner\": [Array]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner=[Function aVeryLongFunctionNameThatKeepsGoing] v={\"inner\": [Function aVeryLongFunctionNameThatKeepsGoing]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner=/a-very-long-regular-expression-that-keeps-on-going-and-going/giu v={\"inner\": /a-very-long-regular-expression-that-keeps-on-going-and-going/giu}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner=Symbol(a symbol description that is longer than forty characters) v={\"inner\": Symbol(a symbol description that is longer than forty characters)}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner=[\"short\"] v={\"inner\": [Array]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner={\"short\": 1} v={\"inner\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner={\"a-long-key-name-that-goes-past-the-limit-on-its-own\": 1} v={\"inner\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner=[1, 2, 3, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"] v={\"inner\": [Array]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "v.inner=[1, 2, 3, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"] v={\"inner\": [Array]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 60
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx | [\n  0,  1,  2,            3,\n  4,  5,  6,            7,\n  8,  9,  10,           11,\n  12, 13, 14,           15,\n  16, 17, 18,           19,\n  20, 21, 22,           23,\n  24, 25, 26,           27,\n  28, 29, 30,           31,\n  32, 33, 34,           35,\n  36, 37, 38,           39,\n  40, 41, 42,           43,\n  44, 45, 46,           47,\n  48, 49, [length]: 50\n] | {\n  key0: 0,\n  key1: 1,\n  key2: 2,\n  key3: 3,\n  key4: 4,\n  key5: 5,\n  key6: 6,\n  key7: 7,\n  key8: 8,\n  key9: 9,\n  key10: 10,\n  key11: 11,\n  key12: 12,\n  key13: 13,\n  key14: 14,\n  key15: 15,\n  key16: 16,\n  key17: 17,\n  key18: 18,\n  key19: 19,\n  key20: 20,\n  key21: 21,\n  key22: 22,\n  key23: 23,\n  key24: 24,\n  key25: 25,\n  key26: 26,\n  key27: 27,\n  key28: 28,\n  key29: 29,\n  key30: 30,\n  key31: 31,\n  key32: 32,\n  key33: 33,\n  key34: 34,\n  key35: 35,\n  key36: 36,\n  key37: 37,\n  key38: 38,\n  key39: 39,\n  key40: 40,\n  key41: 41,\n  key42: 42,\n  key43: 43,\n  key44: 44,\n  key45: 45,\n  key46: 46,\n  key47: 47,\n  key48: 48,\n  key49: 49\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 68,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "truncate.test.ts",
+            "path": [
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx | [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49] | {\"key0\": 0, \"key1\": 1, \"key10\": 10, \"key11\": 11, \"key12\": 12, \"key13\": 13, \"key14\": 14, \"key15\": 15, \"key16\": 16, \"key17\": 17, \"key18\": 18, \"key19\": 19, \"key2\": 2, \"key20\": 20, \"key21\": 21, \"key22\": 22, \"key23\": 23, \"key24\": 24, \"key25\": 25, \"key26\": 26, \"key27\": 27, \"key28\": 28, \"key29\": 29, \"key3\": 3, \"key30\": 30, \"key31\": 31, \"key32\": 32, \"key33\": 33, \"key34\": 34, \"key35\": 35, \"key36\": 36, \"key37\": 37, \"key38\": 38, \"key39\": 39, \"key4\": 4, \"key40\": 40, \"key41\": 41, \"key42\": 42, \"key43\": 43, \"key44\": 44, \"key45\": 45, \"key46\": 46, \"key47\": 47, \"key48\": 48, \"key49\": 49, \"key5\": 5, \"key6\": 6, \"key7\": 7, \"key8\": 8, \"key9\": 9}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 69,
+            "column": 60
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

@@ -178,6 +178,7 @@ export class Collector {
       id: '' as TestNode['id'],
       each: spec.each !== undefined,
       fn: fn as UserFn | undefined,
+      arity: typeof fn === 'function' ? fn.length : 0,
       rowArgs: spec.each?.args,
       passContext: spec.each?.passContext ?? true,
       concurrent: spec.flags.concurrent ?? spec.options.concurrent ?? inherited.concurrent ?? false,
@@ -268,6 +269,7 @@ export class Collector {
     const hook: HookNode = {
       kind,
       fn: fn as UserFn,
+      arity: (fn as UserFn).length,
       ordinal: hooks.length,
       owner,
       timeoutMs: resolveTimeout(
@@ -286,6 +288,7 @@ export class Collector {
     hooks.push({
       kind,
       fn,
+      arity: fn.length,
       ordinal: hooks.length,
       owner,
       timeoutMs: undefined,
@@ -387,7 +390,13 @@ export class Collector {
     const rows = strict ? strictRows(table) : eachRows(table.cases, table.values, false)
     if (rows instanceof CoreError) return rows
     return rows.map((row, index) => ({
-      title: this.#config.formatEachTitle(name, row.row, index),
+      // `.for` titles a row that is `null` or `undefined` as an empty one, where `.each` has `[null]`.
+      title: this.#config.formatEachTitle(
+        name,
+        table.mode === 'for' && row.item == null ? [] : row.row,
+        index,
+        row.kind,
+      ),
       args: table.mode === 'for' ? [row.item] : row.args,
     }))
   }

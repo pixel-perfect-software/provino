@@ -1,0 +1,4 @@
+{
+  "description": "`done` in Jest hooks: beforeAll, beforeEach, afterEach and afterAll that declare a parameter get `done`; one that never calls it times out, one that calls it with an error fails. Jest only: Vitest parses a hook's first argument like a fixture's and refuses `done` when the file is collected (FixtureParseError, T5.9).",
+  "runners": ["jest"]
+}

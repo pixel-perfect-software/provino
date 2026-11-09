@@ -10,8 +10,12 @@
 //                  then the test file, imported inside collection) → teardown, which disposes the
 //                  module-mock registry and then the mock registry first, while the environment is
 //                  still alive, so a spy on a global is restored before the next file sees it
-//   stop           the worker's mock registry (isolation `none`) → core's worker teardowns → the
-//                  worker environment → loader → the matcher slot → the worker's lifetime signal
+//   stop           the process error listeners → the worker's mock registry (isolation `none`) →
+//                  core's worker teardowns → the worker environment → loader → the matcher slot →
+//                  the worker's lifetime signal
+// The fake clock (T4.9) is per file, on the environment's global; the mock cleanup between tests
+// (T4.10) is core's `onBeforeTryTask`; uncaught exceptions and rejections reach core through
+// `captureProcessErrors` (T5.11).
 // An environment's teardown may report globals it could not remove (D22): that is a `console`
 // warning and, for a file, `leakedGlobals` on its outcome; it is never a failure.
 // The environment and the globals come in by ref, never by import: this node knows no dialect and
@@ -19,6 +23,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createRuntime, currentTest, type Runtime } from '@provino/core'
 import {
+  createEndOfTest,
   createExpect,
   createMatcherRegistry,
   createStateSource,
@@ -43,6 +48,7 @@ import {
   type SnapshotLifecycle,
   type SnapshotState,
 } from '@provino/snapshot/runtime'
+import { createFakeClock, type FakeClock } from '@provino/timers'
 import type {
   EnvironmentInstance,
   EnvironmentScope,
@@ -114,6 +120,8 @@ interface Booted {
   modules: ModuleMocking
   /** The dialect's per-module bindings, built once from its factory; `undefined` for none. */
   moduleScope: ModuleScopeValues | undefined
+  /** Removes the process listeners core charges errors from (`captureProcessErrors`). */
+  stopProcessErrors: (() => void) | undefined
   /** What every file's snapshot state is built from: the policy's behaviours, loaded once. */
   snapshots: SnapshotBehaviours
 }
@@ -169,6 +177,8 @@ export interface RuntimeGlobalsHost extends GlobalsHost {
   readonly expect: ReturnType<typeof createExpect>
   /** The mock registry of the file running now (the worker's, under isolation `none`). */
   mocks(): MockRegistry
+  /** The fake clock of the file running now, on the environment's global. */
+  timers(): FakeClock
 }
 
 /** What a file's code finds through the host: its own registries, whoever runs when it asks. */
@@ -179,6 +189,8 @@ interface FileScope {
   readonly moduleMocks: ModuleMockRegistry
   /** Installs the globals that wait for `setupFiles` (`core.globalsBeforeSetupFiles`). */
   readonly installLateGlobals: () => void
+  /** The file's fake clock, made once its environment exists. */
+  clock: FakeClock | undefined
 }
 
 /**
@@ -306,6 +318,13 @@ export function createRuntimeRunner(): WorkerRunner {
   const activeMocks = (): MockRegistry => activeScope().mocks
   const activeRegistry = (): FileRegistry => activeScope().registry
   const activeModuleMocks = (): ModuleMockRegistry => activeScope().moduleMocks
+  const activeClock = (): FakeClock => {
+    const { clock } = activeScope()
+    if (clock === undefined) {
+      throw new WorkerError('ORCH_NO_ACTIVE_FILE', "The file's environment is not set up yet")
+    }
+    return clock
+  }
 
   async function boot(context: WorkerContext): Promise<void> {
     const config = parseProjectConfig(context.init.config)
@@ -337,7 +356,21 @@ export function createRuntimeRunner(): WorkerRunner {
       )
     }
     const table = (await behaviours.load(policy.expect.matcherTable))()
-    const expect = createExpect({ policy: policy.expect, table, source, registry })
+    // `expect.poll` moves the file's fake clock by the interval after each wait, as Vitest does
+    // (T7.8). With no file running, or no clock installed, there is none to move.
+    const advanceFakeClock = (ms: number): Promise<void> | undefined => {
+      const clock = (fileScope.getStore() ?? fallback)?.clock
+      return clock?.isInstalled() ? clock.advanceByAsync(ms) : undefined
+    }
+    const expect = createExpect({
+      policy: policy.expect,
+      table,
+      source,
+      registry,
+      // This package reads only its own slice, so the worker hands over the core leaf (T7.8).
+      unawaited: policy.core.unawaitedAsyncAssertion,
+      pollTimers: { advance: advanceFakeClock },
+    })
 
     // Setup files run inside core's collection, so the hooks they register belong to the file.
     const importFile = async (path: string): Promise<unknown> => {
@@ -381,6 +414,29 @@ export function createRuntimeRunner(): WorkerRunner {
       ci: config.ci,
     })
     parts.runtime = coreRuntime
+    // Cleanup between tests (T4.10): where `registry.beforeEach` sits in a test's order is core's
+    // call (before its first `beforeEach`, in its own async context). `activeMocks` is read when it
+    // runs, because every file has its own registry. The project's own flags layer over the
+    // policy's `mock.between` through the policy, so there is nothing else to pass.
+    coreRuntime.onBeforeTryTask(() => {
+      activeMocks().beforeEach({}, policy.mock.between)
+    })
+    // What `expect` owes a test when its attempt ends (T7.8): soft failures, `expect.assertions`,
+    // `hasAssertions`, `requireAssertions` and async assertions nobody awaited. It runs after the
+    // last `afterEach` and the teardowns, in the attempt's own async context. Core adds one error
+    // per thrown value, so several are thrown together.
+    const endOfTest = createEndOfTest({
+      source,
+      messages: table.messages,
+      policy: policy.expect,
+      hasAssertionsWhenFailed: policy.core.errors.hasAssertionsWhenFailed,
+    })
+    coreRuntime.onAfterTryTask(({ test, attempt, repeat, failed, fail }) => {
+      // One error each, as the runners report them (two soft failures are two errors).
+      for (const error of endOfTest({ test, attempt, repeat, failed })) fail(error)
+    })
+    // Uncaught exceptions and rejections with no handler are charged by `errors.lateErrors` (T5.11).
+    parts.stopProcessErrors = coreRuntime.captureProcessErrors()
 
     // The snapshot slice's behaviours, once: every file's state is built from them.
     const { snapshot } = policy
@@ -411,6 +467,8 @@ export function createRuntimeRunner(): WorkerRunner {
       mocks: activeMocks,
       moduleMocks: activeModuleMocks,
       mockPolicy: policy.mock,
+      timers: activeClock,
+      timersPolicy: policy.timers,
     }
     // A module's own bindings (Jest's `jest`) exist whether or not globals are injected.
     if (config.moduleScope !== null) {
@@ -534,12 +592,19 @@ export function createRuntimeRunner(): WorkerRunner {
             installGlobals(instance.global, globals.after)
           }
         },
+        clock: undefined,
       }
       fallback = thisFile
       const errors: unknown[] = []
       let snapshotReport: SnapshotFileReport | null = null
       try {
         instance = await setUpEnvironment(worker, context)
+        // The fake clock of this file, on the environment's global (the registry tier keeps one
+        // global per file): each callback it schedules runs as the test that scheduled it.
+        thisFile.clock = createFakeClock(instance.global, worker.modules.policy.timers, {
+          bind: currentTest.bind,
+        })
+        if (worker.modules.policy.timers.enableGlobally) thisFile.clock.install()
         // The rest go on after `setupFiles` (`importFile`). Under `none` the environment, and so
         // the late globals of the file before, persist: a later file's `setupFiles` sees them.
         // Deliberate: Jest has no `none` to match, and the tier keeps everything (runtime.test.ts
@@ -585,17 +650,21 @@ export function createRuntimeRunner(): WorkerRunner {
       // The module-mock registry before the mock registry: its mocks are in `mocks`. One per file
       // in every tier, so it goes under `none` too (B13c Gap 9).
       const disposeModuleMocks = () => thisFile.moduleMocks.dispose()
+      // The real timers go back first: a callback the mock teardown or the environment fires must
+      // not meet a fake clock of a file that is over.
+      const disposeClock = () => thisFile.clock?.dispose()
       errors.push(
         ...(await runAll(
           worker.scope === 'file'
             ? [
+                disposeClock,
                 disposeModuleMocks,
                 disposeMocks,
                 teardownEnvironment,
                 restoreMatchers,
                 disposeRegistry,
               ]
-            : [disposeModuleMocks, disposeRegistry],
+            : [disposeClock, disposeModuleMocks, disposeRegistry],
         )),
       )
       fallback = undefined
@@ -618,7 +687,8 @@ export function createRuntimeRunner(): WorkerRunner {
       fallback = undefined
       let leaked: readonly string[] = []
       const errors = await runAll([
-        // First, while the worker environment is alive (isolation `none`).
+        () => torn.stopProcessErrors?.(),
+        // While the worker environment is alive (isolation `none`).
         () => torn.workerMocks?.dispose(),
         () => torn.runtime?.dispose(),
         async () => {

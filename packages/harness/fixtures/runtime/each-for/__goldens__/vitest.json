@@ -1,0 +1,260 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/each-for",
+  "files": [
+    {
+      "file": "for.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "array rows: 1 2 0"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 16,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "array rows: 3 4 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 16,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "object rows: 1 undefined $#"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 17,
+            "column": 46
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "object rows: x 2 $#"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 17,
+            "column": 46
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "bare rows: 1 %p 0"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 18,
+            "column": 28
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "bare rows: x %p 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 18,
+            "column": 28
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "bare rows: true %p 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 18,
+            "column": 28
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "bare rows: 0 %p 3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 18,
+            "column": 28
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "array row with an object first: first { a: 'first' } second { a: 'first' }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 19,
+            "column": 39
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "template rows: 1 { c: 'd' } d $#"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 28,
+            "column": 2
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "template rows: 2 [ 1, 2 ] undefined $#"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 28,
+            "column": 2
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "describe array rows: 1 a 0",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 34,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "describe array rows: 2 b 1",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 34,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "describe object rows: 1 $#",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 37,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "for.vitest.test.ts",
+            "path": [
+              "describe object rows: 2 $#",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 37,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

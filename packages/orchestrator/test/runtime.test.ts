@@ -10,6 +10,7 @@ import type {
   FileJob,
   GlobalsFactory,
   ModuleMapperFactory,
+  PolicyOverrides,
   RuntimeEventOf,
   TaskId,
   WorkerEvent,
@@ -20,6 +21,7 @@ import {
   runJobs,
   runtimeConfig,
   runtimeJob,
+  runtimePolicy,
   trackedProjects,
 } from './support.ts'
 
@@ -476,6 +478,63 @@ describe('assertion counts', () => {
       'one fails': ['fail', 2, 1],
       none: ['pass', 0, 0],
       skipped: ['skip', 0, 0],
+    })
+  })
+})
+
+describe('the end of a test (T7.8)', () => {
+  const file = [
+    "test('assertions(2) missed', () => { expect.assertions(2); expect(1).toBe(1) })",
+    "test('assertions(1) met', () => { expect.assertions(1); expect(1).toBe(1) })",
+    "test('hasAssertions none', () => { expect.hasAssertions() })",
+    "test('soft failure', () => { if (expect.soft) expect.soft(1).toBe(2); expect(1).toBe(1) })",
+    "test('unawaited', () => { expect(Promise.resolve(1)).resolves.toBe(1) })",
+    "test('awaited', async () => { await expect(Promise.resolve(1)).resolves.toBe(1) })",
+    "test('no assertion', () => {})",
+  ].join('\n')
+
+  /** Each test's state and error messages. */
+  async function outcomes(policy: PolicyOverrides): Promise<Record<string, unknown>> {
+    const p = await project({ 'a.test.js': file })
+    const config = runtimeConfig(p.dir, { policy: runtimePolicy(policy) })
+    const run = await runJobs({ config, jobs: [runtimeJob(config, p.path('a.test.js'))] })
+    return Object.fromEntries(
+      [...resultsByName(run.events)].map(([name, event]) => [
+        name,
+        [event.result.state, ...event.result.errors.map((error) => error.message)],
+      ]),
+    )
+  }
+
+  it('fails a test on a missed count, a soft failure, an unawaited assertion and a missing one', async () => {
+    const results = await outcomes({
+      core: { unawaitedAsyncAssertion: 'fail' },
+      expect: { soft: true, requireAssertions: true },
+    })
+    assert.deepEqual(results, {
+      'assertions(2) missed': ['fail', 'expected 2 assertions, made 1'],
+      'assertions(1) met': ['pass'],
+      'hasAssertions none': ['fail', 'expected an assertion, made none'],
+      'soft failure': ['fail', 'expected 1 to be 2'],
+      unawaited: ['fail', 'toBe was not awaited'],
+      awaited: ['pass'],
+      'no assertion': ['fail', 'every test must make an assertion'],
+    })
+  })
+
+  it('with the policies off, only the counts apply: no soft, and an unawaited assertion passes', async () => {
+    const results = await outcomes({
+      core: { unawaitedAsyncAssertion: 'ignore' },
+      expect: { soft: false, requireAssertions: false },
+    })
+    assert.deepEqual(results, {
+      'assertions(2) missed': ['fail', 'expected 2 assertions, made 1'],
+      'assertions(1) met': ['pass'],
+      'hasAssertions none': ['fail', 'expected an assertion, made none'],
+      'soft failure': ['pass'],
+      unawaited: ['pass'],
+      awaited: ['pass'],
+      'no assertion': ['pass'],
     })
   })
 })

@@ -48,6 +48,16 @@ export interface CoreRun {
   readonly fileErrors: readonly SerializedError[]
   /** The errors on the `file-collect-end` event: what stopped the file from collecting. */
   readonly collectionErrors: readonly SerializedError[]
+  /**
+   * The `unhandled-error` events: who each was charged to (`'run'`, `'file'`, or a test's title
+   * path), where it came from and its error. A test charged one has the error in `errors` and is
+   * `failed` here, as a consumer of the events shows it.
+   */
+  readonly unhandled: ReadonlyArray<{
+    readonly chargedTo: 'run' | 'file' | readonly string[]
+    readonly origin: string
+    readonly error: SerializedError
+  }>
 }
 
 let imports = 0
@@ -61,6 +71,7 @@ export async function runUnderCore(
   file: string,
   rootDir: string,
   policy: CorePolicy,
+  options: { readonly processErrors?: boolean } = {},
 ): Promise<CoreRun> {
   const events: RuntimeEvent[] = []
   const trace: string[] = []
@@ -82,9 +93,17 @@ export async function runUnderCore(
     },
     ...runtime.api,
   })
+  // The process's own listeners, for the fixtures whose errors come from timers and rejections: a
+  // test process (`node:test`) has its own handlers, so those run in a child (`child.ts`).
+  const stop = options.processErrors === true ? runtime.captureProcessErrors() : undefined
+  // A deadline's timer never holds the process open (a run's worker port does), so a test that
+  // waits out a real deadline would let `node --test` on Node 22 find an empty event loop.
+  const keepAlive = setInterval(() => {}, 60_000)
   try {
     await runtime.runFile(file)
   } finally {
+    clearInterval(keepAlive)
+    stop?.()
     restore()
     await runtime.dispose()
   }
@@ -129,19 +148,36 @@ export function summarizeRun(events: readonly RuntimeEvent[], trace: readonly st
   for (const event of events) {
     if (event.type === 'test-end') results.set(event.id, event.result)
   }
+  const charged = new Map<TaskId, SerializedError[]>()
+  const unhandled: Array<CoreRun['unhandled'][number]> = []
+  for (const event of events) {
+    if (event.type !== 'unhandled-error') continue
+    const owner = tasks.find((task) => task.id === event.ownerId)
+    const chargedTo =
+      owner === undefined || event.ownerId === null
+        ? 'run'
+        : owner.type === 'test'
+          ? owner.fullName
+          : 'file'
+    unhandled.push({ chargedTo, origin: event.origin, error: event.error })
+    if (event.ownerId !== null && owner?.type === 'test') {
+      charged.set(event.ownerId, [...(charged.get(event.ownerId) ?? []), event.error])
+    }
+  }
   const tests = tasks
     .filter((task): task is TestTask => task.type === 'test')
     .map((task): CoreTest => {
       const result = results.get(task.id)
+      const late = charged.get(task.id) ?? []
       return {
         path: task.fullName,
         dupIndex: task.dupIndex,
-        status: reported(result?.state),
+        status: late.length > 0 ? 'failed' : reported(result?.state),
         location:
           task.location === null
             ? null
             : { line: task.location.line, column: task.location.column },
-        errors: result?.errors ?? [],
+        errors: [...(result?.errors ?? []), ...late],
       }
     })
   const collectionErrors = collected?.errors ?? []
@@ -151,7 +187,11 @@ export function summarizeRun(events: readonly RuntimeEvent[], trace: readonly st
     trace,
     tests,
     fileStatus: crashed ? 'crashed' : status,
-    fileErrors: fileEnd?.result.errors ?? [],
+    fileErrors: [
+      ...(fileEnd?.result.errors ?? []),
+      ...unhandled.filter((item) => item.chargedTo === 'file').map((item) => item.error),
+    ],
     collectionErrors,
+    unhandled,
   }
 }

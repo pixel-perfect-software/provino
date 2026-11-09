@@ -1,0 +1,5 @@
+{
+  "description": "An error thrown by a timer while the test that made it is still running, and one thrown from a hook's timer. Jest fails the running test; Vitest reports an error of the run and the test passes. A black-box run, so the exit code is recorded.",
+  "runners": ["jest", "vitest"],
+  "run": { "capture": ["exitCode"] }
+}

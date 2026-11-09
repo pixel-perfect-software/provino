@@ -1,7 +1,10 @@
-// Calling user functions: the `done` callback under `firstArg: 'done-if-arity'` (a basic one;
-// Jest's exact `done` errors are T5.7), generator tests under `allowGeneratorFns`, and the
-// `nonPromiseReturn` check for test bodies.
-import type { CorePolicy } from '@provino/types'
+// Calling user functions: the `done` callback under `firstArg: 'done-if-arity'`, generator tests
+// under `allowGeneratorFns`, and the `nonPromiseReturn` check for test bodies (T5.7).
+//
+// `done` follows jest-circus 30.5 `utils.ts` `callAsyncCircusFn` (L196-L312), including its
+// words, which are Jest's: this path runs only under `firstArg: 'done-if-arity'`, a Jest policy.
+// The values it prints go through the policy's `formatValue` (pretty-format in Jest).
+import type { CorePolicy, FormatValue } from '@provino/types'
 import { CoreError } from '../errors.ts'
 import type { UserFn } from '../internal/model.ts'
 import { isThenable } from '../internal/thenable.ts'
@@ -9,6 +12,8 @@ import { isThenable } from '../internal/thenable.ts'
 /** How a user function is called. */
 export interface Invocation {
   readonly fn: UserFn
+  /** `fn.length`, read once when the function was registered. */
+  readonly arity: number
   readonly thisArg: unknown
   /** Arguments before any `done` callback (`.each` row values). */
   readonly args: readonly unknown[]
@@ -18,15 +23,30 @@ export interface Invocation {
   readonly isTest: boolean
 }
 
-/** Whether the policy gives this function a `done` callback. */
-function takesDone(policy: CorePolicy, fn: UserFn, argCount: number): boolean {
-  return policy.firstArg === 'done-if-arity' && !isGenerator(fn) && fn.length > argCount
+/** What a call needs from the executor besides the policy. */
+export interface InvokeEnv {
+  readonly policy: CorePolicy
+  readonly format: FormatValue
+  /** Whether the test or hook this call belongs to is over: a `done` after that is late. */
+  readonly over: () => boolean
+  /** Reports the error of a `done(reason)` that came after the end (`late-done`). */
+  readonly late: (error: Error) => void
+}
+
+/**
+ * Whether the policy gives this function a `done` callback: it declares more parameters than the
+ * arguments passed before it (jest-circus: `fn.length > 0`; jest-each's wrapper: `fn.length >
+ * row.length`). A generator that declares a parameter takes `done` too, and then never runs.
+ */
+function takesDone(policy: CorePolicy, arity: number, argCount: number): boolean {
+  return policy.firstArg === 'done-if-arity' && arity > argCount
 }
 
 /** Calls a user function; the result is its return value, or a promise for `done`. */
-export function invoke(policy: CorePolicy, call: Invocation): unknown {
+export function invoke(env: InvokeEnv, call: Invocation): unknown {
+  const { policy } = env
   const { fn, thisArg, args } = call
-  if (takesDone(policy, fn, args.length)) return invokeWithDone(call)
+  if (takesDone(policy, call.arity, args.length)) return invokeWithDone(env, call)
   if (isGenerator(fn) && policy.allowGeneratorFns) {
     return drive(Reflect.apply(fn, thisArg, [...args, ...call.contextArgs]) as Generator)
   }
@@ -37,56 +57,74 @@ export function invoke(policy: CorePolicy, call: Invocation): unknown {
     result !== undefined &&
     !isThenable(result)
   ) {
+    // jest-circus 30.5 `utils.ts` L290-L300.
     throw new CoreError(
       'CORE_NON_PROMISE_RETURN',
-      `A test function can only return a promise or undefined; it returned ${describe(result)}`,
+      `test functions can only return Promise or undefined.\nReturned value: ${env.format(result)}`,
     )
   }
   return result
 }
 
-function invokeWithDone(call: Invocation): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    let called = false
-    let returnedThenable = false
-    const settle = (reason: unknown): void => {
-      if (reason === undefined || reason === null) resolve()
-      else reject(reason instanceof Error ? reason : new Error(`Failed: ${describe(reason)}`))
-    }
-    const done = (reason?: unknown): void => {
-      if (called) {
-        reject(new CoreError('CORE_INVALID_ARGUMENT', '`done` was called more than once'))
-        return
-      }
-      called = true
-      // Wait until the function has returned: one that also returned a promise fails for that,
-      // even when it called `done` first (as jest-circus does).
-      queueMicrotask(() => {
-        if (!returnedThenable) settle(reason)
-      })
-    }
-    try {
-      const result = Reflect.apply(call.fn, call.thisArg, [...call.args, done])
-      if (isThenable(result)) {
-        returnedThenable = true
-        rejectAfter(result, reject)
-      }
-    } catch (error) {
-      reject(error)
-    }
-  })
+/** jest-circus's `checkIsError`. */
+function isErrorLike(value: unknown): value is Error {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Boolean((value as Error).message) &&
+    Boolean((value as Error).stack)
+  )
 }
 
-/**
- * Fails a function that took `done` and returned a promise, once that promise settles: observing
- * it keeps its rejection from going unhandled, and the rejection becomes the `cause`.
- */
-function rejectAfter(returned: PromiseLike<unknown>, reject: (error: unknown) => void): void {
-  const message = 'A function cannot both take a `done` callback and return a promise'
-  Promise.resolve(returned).then(
-    () => reject(new CoreError('CORE_INVALID_ARGUMENT', message)),
-    (error: unknown) => reject(new CoreError('CORE_INVALID_ARGUMENT', message, { cause: error })),
-  )
+function invokeWithDone(env: InvokeEnv, call: Invocation): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    let seenDone = false
+    let settled = false
+    let returned: unknown
+    const done = (reason?: unknown): void => {
+      // The stack is taken here, before the promise tick, as jest-circus does.
+      const errorAtDone = new Error()
+      Error.captureStackTrace(errorAtDone, done)
+      const over = settled || env.over()
+      if (!over && seenDone) {
+        errorAtDone.message = 'Expected done to be called once, but it was called multiple times.'
+        if (reason) errorAtDone.message += ` Reason: ${env.format(reason)}`
+        settled = true
+        reject(errorAtDone)
+        throw errorAtDone
+      }
+      if (!over) seenDone = true
+      // One tick, in case `done` was called synchronously: the function has returned by then.
+      void Promise.resolve().then(() => {
+        if (returned !== undefined) {
+          settled = true
+          reject(
+            new Error(
+              `Test functions cannot both take a 'done' callback and return something. Either use a 'done' callback, or return a promise.\nReturned value: ${env.format(returned)}`,
+            ),
+          )
+          return
+        }
+        let error: Error
+        if (isErrorLike(reason)) {
+          error = reason
+        } else {
+          error = errorAtDone
+          error.message = `Failed: ${env.format(reason)}`
+        }
+        if (over && reason) {
+          error.message = `Caught error after test environment was torn down\n\n${error.message}`
+          env.late(error)
+          return
+        }
+        settled = true
+        if (reason) reject(error)
+        else resolve()
+      })
+    }
+    // A throw here rejects the promise, as a throw in the executor of `new Promise` does.
+    returned = Reflect.apply(call.fn, call.thisArg, [...call.args, done])
+  })
 }
 
 function isGenerator(fn: UserFn): boolean {
@@ -106,13 +144,4 @@ async function drive(generator: Generator | AsyncGenerator): Promise<unknown> {
     }
   }
   return step.value
-}
-
-function describe(value: unknown): string {
-  if (typeof value === 'string') return JSON.stringify(value)
-  try {
-    return String(value)
-  } catch {
-    return typeof value
-  }
 }

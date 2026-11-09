@@ -1,0 +1,5 @@
+{
+  "description": "A timer that throws after its test ended, while another test runs. Jest charges the error to the test that made the timer (its async context), so that test fails. Vitest reports it as an error of the run: every test passes and the run exits 1. A black-box run, so the exit code is recorded.",
+  "runners": ["jest", "vitest"],
+  "run": { "capture": ["exitCode"] }
+}

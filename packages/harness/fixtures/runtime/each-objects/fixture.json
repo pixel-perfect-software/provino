@@ -1,0 +1,4 @@
+{
+  "description": "Object rows and $variables in a .each title: $a, $a.b.c, $0 and $1, $# (Jest only), a variable the row lacks, keys that overlap or hold regex characters, an array row whose first item is an object (Vitest reads $a from it), $ with nothing after it, an object row beside % tokens (Jest then prints the row as one value and leaves $a alone), and %% in a title that has only $variables.",
+  "runners": ["jest", "vitest"]
+}

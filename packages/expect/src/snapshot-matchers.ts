@@ -6,12 +6,12 @@
 // the set in its table (`snapshotMatchers()`); a matcher finds the file's state in the matcher
 // state, where the worker put it (Jest's `setState({ snapshotState })`).
 //
-// One difference from Jest, until T7.8: Jest calls `this.dontThrow()` first, so a mismatch is
-// added to the test's `suppressedErrors` and the test goes on to its other snapshots (and fails
-// when it ends). Nothing reads `suppressedErrors` at the end of a test yet, so a held-back
-// mismatch would pass; these matchers throw at the call instead. The test fails either way, but
-// its later snapshots aren't checked, so they count as obsolete (the lifecycle marks a failed
-// test's snapshots as checked, which covers the stored ones). T7.8 turns `dontThrow` on here.
+// Like Jest's, `toMatchSnapshot`, `toMatchInlineSnapshot` and the two `toThrowErrorMatching*`
+// matchers call `this.dontThrow()` first (T7.8): a mismatch is added to the test's
+// `suppressedErrors` and the test goes on to its other snapshots, then fails when it ends (the
+// end-of-test check, `createEndOfTest`). A matcher that throws on its own (`.not`, a bad argument,
+// no snapshot state) still throws at the call, and so does `toMatchFileSnapshot`, which Jest
+// doesn't have. Under `expect.soft` the engine holds every failure the same way.
 import { dirname, resolve } from 'node:path'
 import {
   deepMerge,
@@ -139,6 +139,7 @@ function infoOf(
 /** Jest's `_toMatchSnapshot` (index.ts L222-L367). */
 function match(call: Call): SnapshotResult {
   const { context, state, matcherName, isInline, hint, inlineSnapshot, properties } = call
+  context.dontThrow()
   let { received } = call
   if (context.isNot) throw notAllowedWithNot(matcherName)
 
@@ -314,6 +315,7 @@ function matchThrown(
   },
 ): SnapshotResult {
   const { matcherName, isInline, hint, inlineSnapshot, fromPromise } = options
+  context.dontThrow()
   const state = stateOf(context, matcherName)
   if (!fromPromise && typeof received !== 'function') {
     throw new Error(

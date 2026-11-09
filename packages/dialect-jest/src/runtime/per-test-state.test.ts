@@ -45,6 +45,7 @@ test('control: one shared state, reset as each test starts (as in Jest), miscoun
     expectedAssertionsNumber: null,
     isExpectingAssertions: false,
     numPassingAsserts: 0,
+    pendingAsync: new Set(),
     suppressedErrors: [],
   }
   const source: StateSource = {

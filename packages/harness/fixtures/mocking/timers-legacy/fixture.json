@@ -1,0 +1,4 @@
+{
+  "description": "legacyFakeTimers: true. Jest installs its legacy implementation (mock functions with runAllImmediates); Vitest has none and installs the modern one. Provino implements only the modern timers, so its Jest dialect refuses the option when a test installs it (a declared divergence, pinned in the timer corpus). Each case is one observation.",
+  "runners": ["jest", "vitest"]
+}

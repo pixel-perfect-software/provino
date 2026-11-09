@@ -1,0 +1,4 @@
+{
+  "description": "`done` in a .each test. Jest passes `done` after the row when the function declares more parameters than the row has (fn.length > row.length); Vitest spreads the row and passes no context, so a declared `done` is undefined.",
+  "runners": ["jest", "vitest"]
+}

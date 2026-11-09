@@ -11,10 +11,12 @@
 import { defineDialect, moduleRef } from '@provino/policy'
 import type {
   Dialect,
+  FormatEachTitle,
   GlobalsFactory,
   PolicyOverrides,
   SnapshotPrinterFactory,
 } from '@provino/types'
+import { VITEST_EACH_TITLE_TRUNCATE } from './each/title-truncate.ts'
 import { vitestHoistPolicy } from './hoist-policy.ts'
 import { vitestMockPolicy, vitestModulePolicy } from './mock-policy.ts'
 
@@ -40,7 +42,13 @@ export const vitestPolicy: PolicyOverrides = {
     missingTestFn: 'todo',
     asyncDescribe: 'await',
     nonPromiseReturn: 'ignore',
-    eachTitleTruncate: 40,
+    // Vitest's `formatTitle` and `format` (`src/each/`), exported by `/runtime`. It cuts each value to
+    // `eachTitleTruncate` characters: the formatter reads no policy, so it holds that 40 itself.
+    formatEachTitle: moduleRef<FormatEachTitle>(
+      import.meta.resolve('@provino/dialect-vitest/runtime'),
+      'formatEachTitle',
+    ),
+    eachTitleTruncate: VITEST_EACH_TITLE_TRUNCATE,
     retry: { timing: 'immediate', logErrorsBeforeRetry: true, keepEarlierErrors: true },
     allowOnly: 'not-in-ci',
     maxConcurrency: 5,
@@ -50,7 +58,9 @@ export const vitestPolicy: PolicyOverrides = {
     injectGlobals: false,
     // With `globals: true`, setup files run after the globals are in (`core-globals-at-setup`).
     globalsBeforeSetupFiles: 'all',
-    doneDeprecatedMessage: null,
+    // The context is a function; calling it (a stray `done()`) throws this (`runtime/done-callback`,
+    // `runtime/context-shape`, Vitest 5.0.5 `runner/src/context.ts`).
+    doneDeprecatedMessage: 'done() callback is deprecated, use promise instead',
     collect: {
       describeBody: 'deferred',
       describeReturnValue: 'ignore',
@@ -88,7 +98,13 @@ export const vitestPolicy: PolicyOverrides = {
     notFaked: 'throw',
     setSystemTimeWithoutFakes: 'fake-date-only',
     advanceToNextTimerHonorsSteps: false,
-    facadeReturns: 'facade',
+    // Every `vi` timer member returns `vi`, an async one resolving to it.
+    facadeReturns: 'all',
+    // Vitest 5.0.5 `integrations/mock/timers.ts` `_checkFakeTimers`.
+    messages: {
+      notFaked:
+        'A function to advance timers was called but the timers APIs are not mocked. Call `vi.useFakeTimers()` in the test file first.',
+    },
   },
   module: vitestModulePolicy,
   snapshot: {

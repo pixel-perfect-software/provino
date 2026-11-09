@@ -89,6 +89,10 @@ export type {
   MatcherSet,
   MatcherState,
   Matchers,
+  PendingAssertion,
+  PollAssertion,
+  PollContext,
+  PollOptions,
   PromiseVoice,
   TesterContext,
 } from './expect.ts'

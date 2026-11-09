@@ -74,3 +74,29 @@ export const invalidTesters = (newTesters: unknown): string =>
 // index.ts L451
 export const ensureNoExpected = (expected: unknown, matcherName: string): void =>
   matcherUtils.ensureNoExpected(expected, matcherName);
+
+// extractExpectedAssertionsErrors.ts L46-L56: `expect.assertions(expected)` and `actual` calls.
+export const assertionCount = (expected: number, actual: number): string => {
+  const numOfAssertionsExpected = matcherUtils.EXPECTED_COLOR(
+    matcherUtils.pluralize('assertion', expected),
+  );
+
+  return (
+    `${matcherUtils.matcherHint('.assertions', '', expected.toString(), {
+      isDirectExpectCall: true,
+    })}\n\n` +
+    `Expected ${numOfAssertionsExpected} to be called but received ${matcherUtils.RECEIVED_COLOR(
+      matcherUtils.pluralize('assertion call', actual || 0),
+    )}.`
+  );
+};
+
+// extractExpectedAssertionsErrors.ts L65-L73: `expect.hasAssertions()` and none were made.
+export const noAssertions = (): string => {
+  const expected = matcherUtils.EXPECTED_COLOR('at least one assertion');
+  const received = matcherUtils.RECEIVED_COLOR('received none');
+
+  return `${matcherUtils.matcherHint('.hasAssertions', '', '', {
+    isDirectExpectCall: true,
+  })}\n\nExpected ${expected} to be called but ${received}.`;
+};

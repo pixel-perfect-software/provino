@@ -1,0 +1,407 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/each-describe",
+  "files": [
+    {
+      "file": "describe.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "rows: 1 a 0 1",
+              "inner 1a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "rows: 1 a 0 1",
+              "nested: 1/a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 6,
+            "column": 22
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "rows: 2 b 1 2",
+              "inner 2b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "rows: 2 b 1 2",
+              "nested: 2/b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 6,
+            "column": 22
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "bare: 1 %p",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "bare: two %p",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "bare: { three: 3 } %p",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "bare: null %p",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "objects: 1 undefined $#",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "objects: x 2 $#",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "objects with tokens: { a: 1 } 1",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 18,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "objects with tokens: { a: 'x', b: { c: 2 } } x",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 18,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "template: 1 { c: 'd' } d $#",
+              "inner 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 26,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "template: 2 [ 1, 2 ] undefined $#",
+              "inner 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 26,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "outer 0",
+              "inner x of undefined",
+              "leaf %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 31,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "outer 0",
+              "inner x of undefined",
+              "leaf each 1 x 0 % undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 32,
+            "column": 29
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "outer 0",
+              "inner y of undefined",
+              "leaf %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 31,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "outer 0",
+              "inner y of undefined",
+              "leaf each 1 y 0 % undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 32,
+            "column": 29
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "outer 1",
+              "inner x of undefined",
+              "leaf %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 31,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "outer 1",
+              "inner x of undefined",
+              "leaf each 2 x 0 % undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 32,
+            "column": 29
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "outer 1",
+              "inner y of undefined",
+              "leaf %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 31,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "outer 1",
+              "inner y of undefined",
+              "leaf each 2 y 0 % undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 32,
+            "column": 29
+          }
+        },
+        {
+          "id": {
+            "file": "describe.test.ts",
+            "path": [
+              "percent: 50% off | %s | 100% undefined",
+              "inner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 37,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

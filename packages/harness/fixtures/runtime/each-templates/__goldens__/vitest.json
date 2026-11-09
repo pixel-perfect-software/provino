@@ -1,0 +1,1006 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/each-templates",
+  "files": [
+    {
+      "file": "templates.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "plain title"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "plain title"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "plain title"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "plain title"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "plain title"
+            ],
+            "dupIndex": 4
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "plain title"
+            ],
+            "dupIndex": 5
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "1 + 1 = 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "x + null = undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "{ k: 'v' } + [ 1, 2 ] = 1970-01-01T00:00:00.000Z"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "true + -0 = NaN"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "50% off + $a = %s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "10 + Symbol(s) = [Function anonymous]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "1|1|2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "x|null|undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "{ k: 'v' }|[ 1, 2 ]|1970-01-01T00:00:00.000Z"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "true|-0|NaN"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "50% off|$a|%s"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "10|Symbol(s)|[Function anonymous]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "$# 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "$# x"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "$# { k: 'v' }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "$# true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "$# 50% off"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "$# 10"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined undefined undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined undefined undefined"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "v 1 undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined undefined undefined"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined $ undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined undefined undefined"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "[Function getTime]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined"
+            ],
+            "dupIndex": 4
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "missing undefined and undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "missing undefined and undefined"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "missing undefined and undefined"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "missing undefined and undefined"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "missing undefined and undefined"
+            ],
+            "dupIndex": 4
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "missing undefined and undefined"
+            ],
+            "dupIndex": 5
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "$"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "$"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "$"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "$"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "$"
+            ],
+            "dupIndex": 4
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "$"
+            ],
+            "dupIndex": 5
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined undefined"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined undefined"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined undefined"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined undefined"
+            ],
+            "dupIndex": 4
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined undefined"
+            ],
+            "dupIndex": 5
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 40,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "one column 1 $# undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 44,
+            "column": 59
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "one column two $# undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 44,
+            "column": 59
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "one column { three: 3 } $# undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 44,
+            "column": 59
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "1 2 3 undefined undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 53,
+            "column": 2
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "a b c undefined undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 53,
+            "column": 2
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "{ deep: { deeper: { deepest: 1 } } } | [ [ 1, [ 2, [ 3 ] ] ] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 64,
+            "column": 2
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "Map { 1 => 2 } | Set { 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 64,
+            "column": 2
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "/x/g | Date { NaN }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 64,
+            "column": 2
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "{ deeper: { deepest: 1 } } | 1 | [ 1, [ 2, [ 3 ] ] ] | [ 2, [ 3 ] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 66,
+            "column": 91
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined / 4 3 2 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 80,
+            "column": 2
+          }
+        },
+        {
+          "id": {
+            "file": "templates.test.ts",
+            "path": [
+              "undefined / 8 7 6 5"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 80,
+            "column": 2
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

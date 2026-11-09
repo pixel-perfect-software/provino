@@ -18,8 +18,9 @@ import {
   spyOn,
   type UnknownFunction,
 } from '@provino/mock'
-import { createBehaviourLoader } from '@provino/policy'
-import type { CorePolicy, MockPolicy, RuntimeEvent } from '@provino/types'
+import { createBehaviourLoader, neutralPolicy } from '@provino/policy'
+import type { FakeClock } from '@provino/timers'
+import type { CorePolicy, MockPolicy, RuntimeEvent, TimersPolicy } from '@provino/types'
 import type { MockCleanup } from '../fixture.ts'
 import { installGlobals } from '../internal/globals.ts'
 import '../internal/observe-setup.ts'
@@ -84,13 +85,14 @@ export function createViFacade(
 /**
  * The host `jestGlobals` is given by the corpora that run a file over `@provino/mock` alone: its
  * `mocks()` is the file's registry, and `expect` and the module registry throw, because the
- * fixtures of these corpora use neither. `label` names the corpus in that error.
+ * fixtures of these corpora use neither (`timers`, when given, is the clock the timer members act on). `label` names the corpus in that error.
  */
 export function unusedJestHost(
   api: JestGlobalsHost['api'],
   mocks: MockRegistry,
   mockPolicy: MockPolicy,
   label: string,
+  timers?: { readonly clock: () => FakeClock; readonly policy: TimersPolicy },
 ): JestGlobalsHost {
   return {
     api,
@@ -105,6 +107,12 @@ export function unusedJestHost(
       throw new Error(`${label} does not use the module-mock registry`)
     },
     mockPolicy,
+    timers:
+      timers?.clock ??
+      ((): never => {
+        throw new Error(`${label} does not use the fake clock`)
+      }),
+    timersPolicy: timers?.policy ?? neutralPolicy.timers,
   }
 }
 

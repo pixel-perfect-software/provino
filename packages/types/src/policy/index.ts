@@ -61,7 +61,15 @@ export type {
   ModuleRef,
   PolicyAtom,
 } from './behaviour.ts'
-export type { CorePolicy, FormatEachTitle, HookKind, HookOrder, OrderHooks } from './core.ts'
+export type {
+  CorePolicy,
+  EachTableKind,
+  FormatEachTitle,
+  FormatValue,
+  HookKind,
+  HookOrder,
+  OrderHooks,
+} from './core.ts'
 export type { CoveragePolicy } from './coverage.ts'
 export type { ExpectPolicy, MatcherTableFactory } from './expect.ts'
 export type { LazyPolicy } from './lazy.ts'

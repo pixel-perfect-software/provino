@@ -2,7 +2,12 @@
 // (`@provino/policy/behaviours`), so it serializes like any dialect's policy.
 
 import { inspect } from 'node:util'
-import type { EnvironmentConditions, FormatEachTitle, SnapshotKey } from '@provino/types'
+import type {
+  EnvironmentConditions,
+  FormatEachTitle,
+  FormatValue,
+  SnapshotKey,
+} from '@provino/types'
 
 // `$name` or `$a.b`; a path never ends in a dot, so `$value.` keeps its period.
 const PLACEHOLDER = /%[%#$sdifjoOp]|\$([A-Za-z_]\w*(?:\.\w+)*)/g
@@ -30,6 +35,14 @@ export const formatEachTitle: FormatEachTitle = (template, row, index) => {
     return show(values[next++], kind)
   })
 }
+
+/**
+ * Prints a value on one line, as `util.inspect` does to a depth of 3, for a message the runtime
+ * builds. A string prints in quotes.
+ * @public
+ */
+export const formatValue: FormatValue = (value) =>
+  inspect(value, { depth: 3, breakLength: Infinity, compact: true })
 
 /**
  * Names the `count`-th snapshot of a test: `` `${fullName} ${count}` ``.

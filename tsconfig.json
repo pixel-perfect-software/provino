@@ -50,6 +50,9 @@
       "path": "packages/mock"
     },
     {
+      "path": "packages/timers"
+    },
+    {
       "path": "packages/dialect-jest"
     },
     {

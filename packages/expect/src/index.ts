@@ -2,9 +2,21 @@
 // the asymmetric matchers, `this.utils` and every message through an `ExpectTable`.
 export { AsymmetricMatcher } from './asymmetric.ts'
 export type { MatcherContext } from './context.ts'
+export {
+  createEndOfTest,
+  type EndOfTest,
+  type EndOfTestAttempt,
+  type EndOfTestOptions,
+} from './end-of-test.ts'
 export { equalityTesters } from './equality.ts'
 export { ExpectError, type ExpectErrorCode } from './errors.ts'
-export { type CreateExpectOptions, createExpect, MatcherResultError } from './expect.ts'
+export {
+  type CreateExpectOptions,
+  createExpect,
+  MatcherResultError,
+  type UnawaitedAssertion,
+} from './expect.ts'
+export type { PollTimers } from './poll.ts'
 export {
   createMatcherRegistry,
   installMatchersSlot,

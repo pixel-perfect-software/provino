@@ -18,7 +18,20 @@ import {
   spyOn,
   type UnknownFunction,
 } from '@provino/mock'
-import type { FileRegistry, GlobalsHost, MockFactory, MockSpec, ModuleId } from '@provino/types'
+import {
+  createTimerMembers,
+  type FakeClock,
+  type FakeTimersConfig,
+  type TimerMembers,
+} from '@provino/timers'
+import type {
+  FileRegistry,
+  GlobalsHost,
+  MockFactory,
+  MockSpec,
+  ModuleId,
+  TimersPolicy,
+} from '@provino/types'
 
 /**
  * What `jestGlobals` builds the globals from: `GlobalsHost` with the real types of the
@@ -34,6 +47,65 @@ export interface JestGlobalsHost extends GlobalsHost {
   readonly expect: ReturnType<typeof createExpect>
   /** The mock registry of the file running now (the worker's, under isolation `none`). */
   mocks(): MockRegistry
+  /** The fake clock of the file running now, on the environment's global. */
+  timers(): FakeClock
+  /** The `timers` slice of the policy: what the timer members follow. */
+  readonly timersPolicy: TimersPolicy
+}
+
+/**
+ * What `jest.useFakeTimers` takes (Jest's `fakeTimers` config): which globals stay real, whether
+ * the clock advances with real time, the loop limit, the start time. `legacyFakeTimers: true` is
+ * refused when a test installs it (`TIMERS_LEGACY_UNSUPPORTED`).
+ * @public
+ */
+export type JestFakeTimersConfig = Pick<
+  FakeTimersConfig,
+  'now' | 'doNotFake' | 'advanceTimers' | 'timerLimit' | 'legacyFakeTimers'
+>
+
+/**
+ * The timer members of `jest` (jest-runtime 30.5.2 `JestGlobals.ts`), over the fake clock of the file
+ * running now. `J` is the object a chained call returns: the global `jest`, or a module's.
+ * `useFakeTimers`, `useRealTimers` and `setTimerTickMode` return it (`facadeReturns: 'lifecycle'`);
+ * the rest return nothing.
+ * @public
+ */
+export interface JestTimerMembers<J> {
+  /** Fakes the environment's timers; a second call drops the pending timers first. */
+  useFakeTimers(config?: JestFakeTimersConfig): J
+  /** Puts the real timers back. */
+  useRealTimers(): J
+  /** Runs every timer until none is left (at most `timerLimit`). */
+  runAllTimers(): void
+  runAllTimersAsync(): Promise<void>
+  /** Runs the timers that are pending now, and none a callback adds. */
+  runOnlyPendingTimers(): void
+  runOnlyPendingTimersAsync(): Promise<void>
+  /** Moves the clock forward by `msToRun`, firing the timers that fall due. */
+  advanceTimersByTime(msToRun: number): void
+  advanceTimersByTimeAsync(msToRun: number): Promise<void>
+  /** Moves the clock to the next `steps` timers (default one). */
+  advanceTimersToNextTimer(steps?: number): void
+  advanceTimersToNextTimerAsync(steps?: number): Promise<void>
+  /** Moves the clock to the next 16 ms animation frame. */
+  advanceTimersToNextFrame(): void
+  /** Runs the jobs a faked `process.nextTick` or `queueMicrotask` queued. */
+  runAllTicks(): void
+  /** Drops every pending timer. */
+  clearAllTimers(): void
+  /** How many timers are pending. */
+  getTimerCount(): number
+  /** The fake time while timers are fake, else `Date.now()`. */
+  now(): number
+  /** Sets the fake time without firing a timer. */
+  setSystemTime(now?: number | Date): void
+  /** `Date.now()` as it was before any install. */
+  getRealSystemTime(): number
+  /** How the fake clock moves on its own. */
+  setTimerTickMode(mode: { mode: 'manual' | 'nextAsync' } | { mode: 'interval'; delta?: number }): J
+  /** Legacy timers only: always throws, because Provino has no legacy timers. */
+  runAllImmediates(): void
 }
 
 /**
@@ -45,7 +117,7 @@ export interface JestGlobalsHost extends GlobalsHost {
  * the rest of Jest's `jest` object are not here yet (T11.10).
  * @public
  */
-export interface JestObject {
+export interface JestObject extends JestTimerMembers<JestObject> {
   /** Runs `fn` in an isolated module registry, then returns `jest`. */
   isolateModules(fn: () => void): JestObject
   /** Runs `fn` in an isolated module registry; resolves with nothing when `fn` has settled. */
@@ -91,6 +163,11 @@ export interface JestMockOptions {
  * @public
  */
 export interface JestModuleObject extends JestObject {
+  useFakeTimers(config?: JestFakeTimersConfig): JestModuleObject
+  useRealTimers(): JestModuleObject
+  setTimerTickMode(
+    mode: { mode: 'manual' | 'nextAsync' } | { mode: 'interval'; delta?: number },
+  ): JestModuleObject
   /** Mocks `moduleName` for this file, hoisted above the imports: by `factory`, a manual mock, or an automock. */
   mock(moduleName: string, factory?: () => unknown, options?: JestMockOptions): JestModuleObject
   /** `mock`, not hoisted. */
@@ -164,7 +241,7 @@ function enterIsolation(
 }
 
 /** The members the global `jest` and every module's own share; a chained call returns `J`. */
-interface SharedMembers<J> {
+interface SharedMembers<J> extends JestTimerMembers<J> {
   isolateModules(fn: () => void): J
   isolateModulesAsync(fn: () => Promise<void>): Promise<void>
   resetModules(): J
@@ -177,6 +254,45 @@ interface SharedMembers<J> {
   restoreAllMocks(): J
 }
 
+/** The names of `jest`'s timer members that `createTimerMembers` builds (Vitest-only ones left out). */
+const TIMER_MEMBER_NAMES = [
+  'useFakeTimers',
+  'useRealTimers',
+  'runAllTimers',
+  'runAllTimersAsync',
+  'runOnlyPendingTimers',
+  'runOnlyPendingTimersAsync',
+  'advanceTimersByTime',
+  'advanceTimersByTimeAsync',
+  'advanceTimersToNextTimer',
+  'advanceTimersToNextTimerAsync',
+  'advanceTimersToNextFrame',
+  'runAllTicks',
+  'clearAllTimers',
+  'getTimerCount',
+  'now',
+  'setSystemTime',
+  'getRealSystemTime',
+  'setTimerTickMode',
+] as const satisfies readonly (keyof TimerMembers)[]
+
+/** `jest`'s timer members over the clock of the file running now. */
+function timerMembers<J>(host: JestGlobalsHost, self: () => J): JestTimerMembers<J> {
+  const all = createTimerMembers(() => host.timers(), host.timersPolicy, self)
+  const members: Record<string, unknown> = {}
+  for (const name of TIMER_MEMBER_NAMES) members[name] = all[name]
+  // jest-runtime 30.5.2 `JestGlobals.ts` `runAllImmediates`: the modern timers answer with this.
+  Object.assign(members, {
+    runAllImmediates: (): never => {
+      throw new TypeError(
+        '`jest.runAllImmediates()` is only available when using legacy fake timers.',
+      )
+    },
+  })
+  // The members are loosely typed (`TimerMembers`); the interface above is their contract.
+  return members as unknown as JestTimerMembers<J>
+}
+
 /** The shared members. `self` is the object a chained call returns: the global, or the module's. */
 function sharedMembers<J>(
   host: JestGlobalsHost,
@@ -184,6 +300,7 @@ function sharedMembers<J>(
   self: () => J,
 ): SharedMembers<J> {
   return {
+    ...timerMembers(host, self),
     isolateModules(fn) {
       const registry = host.registry()
       enterIsolation(isolating, registry, 'isolateModules')

@@ -15,6 +15,24 @@ export interface GoldenExpectations {
    * `crashed` (it fixes which check failed: core's messages are neutral, not the runner's text).
    */
   readonly collectionErrorCode?: CoreErrorCode
+  /**
+   * Also compare each error's text with the golden's. Core's messages are neutral except where a
+   * dialect owns the words (T5.7's `done` errors, the callable context), so only the fixtures
+   * that exercise those ask. A timeout is a timeout: its text is core's.
+   */
+  readonly compareMessages?: boolean
+}
+
+/** The golden's text for a Jest or Vitest timeout, which core words its own way. */
+const TIMEOUT_TEXT = /^Error: (thrown: "Exceeded timeout|.* timed out in )/
+
+/** An error as a golden prints it: `Name: message`, or `<timeout>` for a timeout. */
+function printed(error: {
+  readonly name: string
+  readonly message: string
+  readonly code?: string
+}): string {
+  return error.code === 'CORE_TIMEOUT' ? '<timeout>' : `${error.name}: ${error.message}`
 }
 
 /**
@@ -65,6 +83,16 @@ export function assertRunMatchesGolden(
     goldenFile.tests.map((t) => ({ path: t.id.path, hasErrors: t.errors.length > 0 })),
     'tests: which carry errors',
   )
+  if (expected.compareMessages === true) {
+    assert.deepEqual(
+      run.tests.map((t) => ({ path: t.path, messages: t.errors.map(printed) })),
+      goldenFile.tests.map((t) => ({
+        path: t.id.path,
+        messages: t.errors.map((e) => (TIMEOUT_TEXT.test(e.message) ? '<timeout>' : e.message)),
+      })),
+      'tests: the text of each error',
+    )
+  }
   assert.equal(run.fileStatus, goldenFile.status, 'file status')
   // The converters keep `fileError` only for a file that failed outside its tests: when a test
   // failed, the file's message repeats that failure and is dropped (`assembleFile`). Such a golden
@@ -75,6 +103,23 @@ export function assertRunMatchesGolden(
       goldenFile.fileError !== undefined,
       'whether the file carries an error',
     )
+  }
+  // A run that exits non-zero with nothing failed has an error of the run (Vitest charges a stray
+  // timer or rejection there); one that exits 0 has none. When a task failed, the exit code says
+  // nothing about it.
+  const exitCode = golden.observed?.exitCode
+  if (typeof exitCode === 'number') {
+    const taskFailed =
+      goldenFile.status === 'failed' || goldenFile.tests.some((t) => t.status === 'failed')
+    const ofTheRun = run.unhandled.filter((item) => item.chargedTo === 'run')
+    if (!taskFailed) {
+      assert.equal(
+        ofTheRun.length > 0,
+        exitCode !== 0,
+        'whether the run carries an error of its own',
+      )
+    }
+    if (exitCode === 0) assert.deepEqual(run.unhandled, [], 'no error was charged to anything')
   }
   if (goldenFile.status === 'crashed') {
     assert.ok(

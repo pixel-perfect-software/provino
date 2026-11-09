@@ -1,0 +1,4 @@
+{
+  "description": "A .each table whose rows are not all alike: arrays beside objects and primitives. Jest decides per table (array rows are spread only when every row is an array, and a table of objects is read as templates only when every row is an object and the title has no % token), so in a mixed table each row is one value and a $variable stays as written. Vitest decides per row.",
+  "runners": ["jest", "vitest"]
+}

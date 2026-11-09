@@ -13,6 +13,7 @@ export type {
 } from './collector/api.ts'
 export type { CommonOptions, SuiteOptions, TestOptions } from './collector/collector.ts'
 export { type CurrentTestService, currentTest } from './current/current-test.ts'
+export type { ProcessLike } from './errors/process-errors.ts'
 export {
   AroundHookMultipleCallsError,
   AroundHookSetupError,
@@ -22,6 +23,7 @@ export {
   serializeError,
 } from './errors.ts'
 export type { RealTimers } from './executor/deadline.ts'
+export type { TryTaskInfo, TryTaskListener } from './executor/executor.ts'
 export {
   createRuntime,
   type RunFileOptions,

@@ -6,11 +6,12 @@ import { after, describe, test } from 'node:test'
 import { iterableEquality, subsetEquality } from '@jest/expect-utils'
 import { SnapshotError, SnapshotState } from '@provino/snapshot/runtime'
 import type { ExpectStatic, SnapshotMessageInfo, SnapshotPrinter } from '@provino/types'
-import { createExpect } from './expect.ts'
+import { createEndOfTest } from './end-of-test.ts'
+import { createExpect, MatcherResultError } from './expect.ts'
 import { manualCurrentTest, testPolicy, testTable, testTask } from './internal/test-support.ts'
 import { createMatcherRegistry } from './slot.ts'
 import { snapshotMatchers } from './snapshot-matchers.ts'
-import { createStateSource } from './state.ts'
+import { createStateSource, type StateSource } from './state.ts'
 
 const HEADER = '// Test Snapshot v1'
 
@@ -45,6 +46,8 @@ interface Options {
   stored?: string
   update?: 'all' | 'new' | 'none'
   fileSnapshot?: boolean
+  /** `ExpectPolicy.soft`: `expect.soft` exists (T7.8). */
+  soft?: boolean
   throwErrorBody?: 'message' | 'error'
   keyJoin?: string
   hintJoin?: string
@@ -52,12 +55,21 @@ interface Options {
 
 interface Setup {
   readonly expect: ExpectStatic
+  readonly source: StateSource
   readonly dir: string
   readonly state: SnapshotState
   readonly snapPath: string
-  /** Runs `fn` as the test with this title path. */
+  /**
+   * Runs `fn` as the test with this title path, then the end-of-test check the runtime runs: the
+   * first error the test held back (`dontThrow`, `expect.soft`) is thrown, as it fails the test.
+   */
   inTest<T>(titlePath: string[], fn: () => T, id?: string): T
+  /** Runs `fn` as the test with this title path and nothing else: held errors stay held. */
+  inRawTest<T>(titlePath: string[], fn: () => T, id?: string): T
 }
+
+const isThenable = (value: unknown): value is Promise<unknown> =>
+  typeof value === 'object' && value !== null && typeof Reflect.get(value, 'then') === 'function'
 
 const put = (path: string, text: string): void => {
   mkdirSync(dirname(path), { recursive: true })
@@ -74,7 +86,7 @@ function setup(options: Options = {}): Setup {
   const base = testTable()
   const snapshot = snapshotMatchers({ fileSnapshot: options.fileSnapshot ?? false })
   const expect = createExpect({
-    policy: testPolicy,
+    policy: { ...testPolicy, soft: options.soft ?? false },
     table: {
       ...base,
       matchers: { ...base.matchers, ...snapshot.matchers },
@@ -102,18 +114,41 @@ function setup(options: Options = {}): Setup {
     printer,
   })
   expect.setState({ snapshotState: state })
+  function inRawTest<T>(titlePath: string[], fn: () => T, id = titlePath.join('/')): T {
+    current.enter(testTask(id, titlePath))
+    try {
+      return fn()
+    } finally {
+      current.enter(null)
+    }
+  }
   return {
     expect,
+    source,
     dir,
     state,
     snapPath,
+    inRawTest,
     inTest(titlePath, fn, id = titlePath.join('/')) {
-      current.enter(testTask(id, titlePath))
-      try {
-        return fn()
-      } finally {
-        current.enter(null)
+      const endOfTest = createEndOfTest({
+        source,
+        messages: base.messages,
+        policy: { requireAssertions: false },
+        hasAssertionsWhenFailed: 'skip',
+      })
+      const check = () => {
+        const [first] = endOfTest({ test: { id }, attempt: 0, repeat: 0, failed: false })
+        if (first !== undefined) throw first
       }
+      const result = inRawTest(titlePath, fn, id)
+      if (isThenable(result)) {
+        return result.then((value) => {
+          check()
+          return value
+        }) as typeof result
+      }
+      check()
+      return result
     },
   }
 }
@@ -239,6 +274,135 @@ describe('toMatchSnapshot', () => {
       () => inTest(['t'], () => expect(1).toMatchSnapshot()),
       (error) => error instanceof SnapshotError && error.code === 'SNAPSHOT_NOT_INITIALIZED',
     )
+  })
+})
+
+describe('expect.soft with the snapshot matchers (T7.8)', () => {
+  const STORED = `${HEADER}\n\nexports[\`t 1\`] = \`1\`;\n\nexports[\`t 2\`] = \`2\`;\n`
+
+  /** `expect.soft` of the setup: its presence is the point of the option. */
+  const softOf = (expect: ExpectStatic): NonNullable<ExpectStatic['soft']> => {
+    assert.ok(expect.soft, 'expect.soft is there under ExpectPolicy.soft')
+    return expect.soft
+  }
+
+  test('a mismatch is held in suppressedErrors, with the result, and the test goes on', () => {
+    const { expect, inRawTest, source, state } = setup({
+      update: 'none',
+      stored: STORED,
+      soft: true,
+    })
+    inRawTest(['t'], () => {
+      softOf(expect)(9).toMatchSnapshot()
+      // The next line runs: the second snapshot of the test is checked and matches.
+      expect(2).toMatchSnapshot()
+      const held = source.current().suppressedErrors
+      assert.equal(held.length, 1)
+      assert.equal(held[0]?.message, 'mismatch t 1|t||1|9')
+      assert.ok(held[0] instanceof MatcherResultError)
+      assert.equal(held[0].matcherResult?.pass, false)
+      assert.equal(source.current().numPassingAsserts, 1)
+    })
+    assert.equal(state.unmatched, 1)
+    assert.equal(state.matched, 1)
+  })
+
+  test('the other snapshot matchers hold their failures the same way', () => {
+    const { expect, inRawTest, source } = setup({ update: 'none', stored: STORED, soft: true })
+    inRawTest(['t'], () => {
+      softOf(expect)({ id: 7 }).toMatchSnapshot({ id: 8 })
+      softOf(expect)(9).toMatchInlineSnapshot('1')
+      softOf(expect)(() => {
+        throw new Error('boom')
+      }).toThrowErrorMatchingInlineSnapshot('different')
+      assert.equal(source.current().suppressedErrors.length, 3)
+    })
+  })
+
+  test('a hard assertion of another matcher beside a soft snapshot one still throws', () => {
+    const { expect, inRawTest, source } = setup({ update: 'none', stored: STORED, soft: true })
+    inRawTest(['t'], () => {
+      softOf(expect)(9).toMatchSnapshot()
+      assert.throws(() => expect(1).toBe(2), { message: 'toBe: 1 vs 2' })
+      assert.equal(source.current().suppressedErrors.length, 1)
+    })
+  })
+
+  test('a soft match that passes records nothing', () => {
+    const { expect, inRawTest, source } = setup({ update: 'none', stored: STORED, soft: true })
+    inRawTest(['t'], () => {
+      softOf(expect)(1).toMatchSnapshot()
+      assert.equal(source.current().suppressedErrors.length, 0)
+      assert.equal(source.current().numPassingAsserts, 1)
+    })
+  })
+})
+
+describe('the snapshot matchers call dontThrow, as Jest`s do (T7.8)', () => {
+  const STORED = `${HEADER}\n\nexports[\`t 1\`] = \`1\`;\n\nexports[\`t 2\`] = \`2\`;\n`
+
+  test('a mismatch does not throw at the call: it is held, and the test fails when it ends', () => {
+    const { expect, inRawTest, source } = setup({ update: 'none', stored: STORED })
+    inRawTest(['t'], () => {
+      expect(9).toMatchSnapshot()
+      assert.equal(source.current().suppressedErrors.length, 1)
+    })
+  })
+
+  test('the test`s other snapshots are still checked, and its end-of-test check throws the mismatch', () => {
+    const { expect, inTest, state } = setup({ update: 'none', stored: STORED })
+    assert.throws(
+      () =>
+        inTest(['t'], () => {
+          expect(9).toMatchSnapshot()
+          expect(2).toMatchSnapshot()
+        }),
+      { message: 'mismatch t 1|t||1|9' },
+    )
+    assert.equal(state.matched, 1)
+  })
+
+  test('a missing snapshot under `none` and a failed property match are held the same way', () => {
+    const { expect, inRawTest, source } = setup({ update: 'none' })
+    inRawTest(['t'], () => {
+      expect(1).toMatchSnapshot()
+      expect({ id: 7 }).toMatchSnapshot({ id: 8 })
+      assert.deepEqual(
+        source.current().suppressedErrors.map((error) => error.message),
+        ['not written t 1|1', 'properties t 2'],
+      )
+    })
+  })
+
+  test('toThrowErrorMatchingSnapshot and the inline forms hold their mismatches', () => {
+    const { expect, inRawTest, source } = setup({ update: 'none', stored: STORED })
+    inRawTest(['t'], () => {
+      expect(() => {
+        throw new Error('boom')
+      }).toThrowErrorMatchingSnapshot()
+      expect(9).toMatchInlineSnapshot('1')
+      assert.equal(source.current().suppressedErrors.length, 2)
+    })
+  })
+
+  test('a matcher that throws on its own still throws at the call', () => {
+    const { expect, inRawTest, source } = setup({ update: 'none', stored: STORED })
+    inRawTest(['t'], () => {
+      assert.throws(() => expect(1).not.toMatchSnapshot(), /cannot be used with not/)
+      assert.equal(source.current().suppressedErrors.length, 0)
+    })
+  })
+
+  test('toMatchFileSnapshot, which Jest does not have, still fails at the call', async () => {
+    const { expect, dir, inRawTest, source } = setup({ update: 'none', fileSnapshot: true })
+    put(join(dir, 'out', 'hello.txt'), 'hello\n')
+    await inRawTest(['t'], async () => {
+      await assert.rejects(
+        async () => loose(expect('bye\n')).toMatchFileSnapshot('./out/hello.txt'),
+        /mismatch/,
+      )
+      assert.equal(source.current().suppressedErrors.length, 0)
+    })
   })
 })
 

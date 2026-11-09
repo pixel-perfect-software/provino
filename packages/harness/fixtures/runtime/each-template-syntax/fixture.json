@@ -1,0 +1,4 @@
+{
+  "description": "The tagged-template syntax itself, for Jest: test.each and describe.each called as a tag, with $variables, $a.b and $#. The Vitest twin is not in the corpus: Vitest reports the location of a multi-line tagged template from its transformed code, where the lines no longer add up, so the other fixtures build their templates by hand (an array with a raw, which is all either runner reads).",
+  "runners": ["jest"]
+}

@@ -46,6 +46,7 @@
     "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/resolver": "workspace:*",
+    "@provino/timers": "workspace:*",
     "@provino/types": "workspace:*",
     "jest-matcher-utils": "catalog:",
     "jest-message-util": "catalog:",

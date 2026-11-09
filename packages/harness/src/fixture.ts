@@ -53,6 +53,19 @@ export interface FixtureManifest {
   /** Environment variables for the runner process, on top of the recorder's own. */
   readonly env?: Readonly<Record<string, string>>
   /**
+   * Flags for `node` itself, before the runner's bin (`--harmony-temporal`, which `NODE_OPTIONS`
+   * refuses). B17a's `policy/timers-temporal` needs a Node with a `Temporal`.
+   */
+  readonly nodeFlags?: readonly string[]
+  /**
+   * The Node majors a profile's golden is checked on, for a runner that titles or prints values
+   * through Node's own `util.format` and `util.inspect` (Jest's `.each` titles), whose text changes
+   * between majors: `{ "jest": [24] }` checks Jest's golden on Node 24 only, where it was recorded.
+   * A profile left out is checked on every Node. Provino calls the same `util.format` as Jest, so
+   * on another major both print what that Node prints.
+   */
+  readonly nodeMajors?: Readonly<Partial<Record<FixtureProfile, readonly number[]>>>
+  /**
    * The profiles (a subset of `runners`) whose test files must crash at collection, e.g. Jest on
    * `test(name)` with no function, each with the text the crash's `fileError` message must
    * contain: `{ "jest": "Missing second argument" }`. The crash's `fileError` is recorded;
@@ -188,6 +201,8 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
   'description',
   'runners',
   'env',
+  'nodeFlags',
+  'nodeMajors',
   'expectCrash',
   'mockCleanup',
   'packages',
@@ -229,7 +244,7 @@ export function parseFixtureManifest(
     if (!KNOWN_KEYS.has(key)) {
       throw new HarnessError(
         'HARNESS_FIXTURE_UNKNOWN_KEY',
-        `${source}: unknown key "${key}" (expected description, runners, env, expectCrash, mockCleanup, packages, jestEsm, jestConfig, config, files, run)`,
+        `${source}: unknown key "${key}" (expected description, runners, env, nodeFlags, nodeMajors, expectCrash, mockCleanup, packages, jestEsm, jestConfig, config, files, run)`,
         { path: source },
       )
     }
@@ -238,6 +253,8 @@ export function parseFixtureManifest(
     description,
     runners,
     env,
+    nodeFlags,
+    nodeMajors,
     expectCrash,
     mockCleanup,
     packages,
@@ -272,6 +289,10 @@ export function parseFixtureManifest(
     description,
     runners,
     ...(env === undefined ? {} : { env: parseEnv(env, source) }),
+    ...(nodeFlags === undefined ? {} : { nodeFlags: parseNodeFlags(nodeFlags, source) }),
+    ...(nodeMajors === undefined
+      ? {}
+      : { nodeMajors: parseNodeMajors(nodeMajors, runners, source) }),
     ...(expectCrash === undefined
       ? {}
       : { expectCrash: parseExpectCrash(expectCrash, runners, source) }),
@@ -784,6 +805,75 @@ function parseEnv(env: unknown, source: string): Record<string, string> {
     if (typeof entry === 'string') stringEnv[name] = entry
   }
   return stringEnv
+}
+
+/** `nodeFlags` is a non-empty array of `--flag` strings (no script, no `-e`, no `--require`). */
+function parseNodeFlags(nodeFlags: unknown, source: string): readonly string[] {
+  if (
+    !Array.isArray(nodeFlags) ||
+    nodeFlags.length === 0 ||
+    !nodeFlags.every(
+      (flag) =>
+        typeof flag === 'string' &&
+        /^--[a-z][a-z0-9-]*(=\S+)?$/.test(flag) &&
+        !/^--(require|import|eval|print|input-type|experimental-loader|loader)\b/.test(flag),
+    )
+  ) {
+    throw new HarnessError(
+      'HARNESS_FIXTURE_BAD_NODE_FLAGS',
+      `${source}: "nodeFlags" must be a non-empty array of node flags such as "--harmony-temporal" (not --require, --import, --eval or a loader)`,
+      { path: source },
+    )
+  }
+  return nodeFlags
+}
+
+/**
+ * `nodeMajors` is a non-empty object from profiles of the fixture's own `runners` to a non-empty
+ * array of Node major versions.
+ */
+function parseNodeMajors(
+  nodeMajors: unknown,
+  runners: readonly FixtureProfile[],
+  source: string,
+): Partial<Record<FixtureProfile, readonly number[]>> {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_NODE_MAJORS', `${source}: "nodeMajors" ${reason}`, {
+      path: source,
+    })
+  if (!isRecord(nodeMajors) || Object.keys(nodeMajors).length === 0) {
+    throw bad('must be a non-empty object from a profile to the Node majors it is checked on')
+  }
+  const majors: Partial<Record<FixtureProfile, readonly number[]>> = {}
+  for (const [profile, list] of Object.entries(nodeMajors)) {
+    if (!isFixtureProfile(profile)) throw bad(`names "${profile}", which is not ${PROFILE_CHOICES}`)
+    if (!runners.includes(profile)) throw bad(`names "${profile}", which "runners" does not list`)
+    if (
+      !Array.isArray(list) ||
+      list.length === 0 ||
+      !list.every((major) => Number.isInteger(major) && major > 0)
+    ) {
+      throw bad(`must give "${profile}" a non-empty array of Node majors such as [24]`)
+    }
+    majors[profile] = list
+  }
+  return majors
+}
+
+/** The Node major this process runs on. */
+export const NODE_MAJOR: number = Number.parseInt(process.versions.node, 10)
+
+/**
+ * Whether a fixture's golden for `profile` is checked on `nodeMajor`: the profile is one of its
+ * `runners`, and its `nodeMajors` (if it has any for the profile) lists the major.
+ */
+export function checkedOnNode(
+  manifest: FixtureManifest,
+  profile: FixtureProfile,
+  nodeMajor: number = NODE_MAJOR,
+): boolean {
+  if (!manifest.runners.includes(profile)) return false
+  return manifest.nodeMajors?.[profile]?.includes(nodeMajor) ?? true
 }
 
 /**

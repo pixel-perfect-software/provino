@@ -7,7 +7,14 @@ import type { JestGlobalsHost, jestGlobals, jestModuleScope } from '@provino/dia
 import type { createExpect } from '@provino/expect'
 import type { MockRegistry } from '@provino/mock'
 import type { RuntimeGlobalsHost } from '@provino/orchestrator/worker'
-import type { FileRegistry, GlobalsHost, MockPolicy, ModuleMockRegistry } from '@provino/types'
+import type { FakeClock } from '@provino/timers'
+import type {
+  FileRegistry,
+  GlobalsHost,
+  MockPolicy,
+  ModuleMockRegistry,
+  TimersPolicy,
+} from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
 // What the worker passes is what the Jest dialect's factory takes.
@@ -24,18 +31,23 @@ expectTypeOf<JestGlobalsHost['expect']>().toEqualTypeOf<RuntimeGlobalsHost['expe
 expectTypeOf<RuntimeGlobalsHost['mocks']>().returns.toEqualTypeOf<MockRegistry>()
 expectTypeOf<JestGlobalsHost['mocks']>().returns.toEqualTypeOf<MockRegistry>()
 expectTypeOf<RuntimeGlobalsHost['mockPolicy']>().toEqualTypeOf<MockPolicy>()
+expectTypeOf<RuntimeGlobalsHost['timers']>().returns.toEqualTypeOf<FakeClock>()
+expectTypeOf<JestGlobalsHost['timers']>().returns.toEqualTypeOf<FakeClock>()
+expectTypeOf<RuntimeGlobalsHost['timersPolicy']>().toEqualTypeOf<TimersPolicy>()
 
 declare const registry: () => FileRegistry
 declare const mocks: () => MockRegistry
 declare const mockPolicy: MockPolicy
 declare const moduleMocks: () => ModuleMockRegistry
+declare const timers: () => FakeClock
+declare const timersPolicy: TimersPolicy
 declare const api: RuntimeGlobalsHost['api']
 declare const expectStatic: RuntimeGlobalsHost['expect']
 
 // A host with the wrong objects is not a `RuntimeGlobalsHost`, and so not what the dialect takes.
 // The parts each case keeps, so each case stays on the line its `@ts-expect-error` covers.
 const core = { api, expect: expectStatic, registry }
-const rest = { mocks, moduleMocks, mockPolicy }
+const rest = { mocks, moduleMocks, mockPolicy, timers, timersPolicy }
 // @ts-expect-error `api` must be core's, not any object
 const wrongApi: RuntimeGlobalsHost = { ...rest, api: {}, expect: expectStatic, registry }
 // @ts-expect-error `expect` must be the worker's `expect`, not any object
@@ -43,11 +55,15 @@ const wrongExpect: RuntimeGlobalsHost = { ...rest, api, expect: {}, registry }
 // @ts-expect-error `registry` is part of the host
 const noRegistry: RuntimeGlobalsHost = { ...rest, api, expect: expectStatic }
 // @ts-expect-error `mocks` is part of the host
-const noMocks: RuntimeGlobalsHost = { ...core, moduleMocks, mockPolicy }
+const noMocks: RuntimeGlobalsHost = { ...core, moduleMocks, mockPolicy, timers, timersPolicy }
 // @ts-expect-error `moduleMocks` is part of the host (B13c)
-const noModuleMocks: RuntimeGlobalsHost = { ...core, mocks, mockPolicy }
+const noModuleMocks: RuntimeGlobalsHost = { ...core, mocks, mockPolicy, timers, timersPolicy }
 // @ts-expect-error `mockPolicy` is part of the host
-const noMockPolicy: RuntimeGlobalsHost = { ...core, mocks, moduleMocks }
+const noMockPolicy: RuntimeGlobalsHost = { ...core, mocks, moduleMocks, timers, timersPolicy }
+// @ts-expect-error `timers` is part of the host (B17a)
+const noTimers: RuntimeGlobalsHost = { ...core, mocks, moduleMocks, mockPolicy, timersPolicy }
+// @ts-expect-error `timersPolicy` is part of the host (B17a)
+const noTimersPolicy: RuntimeGlobalsHost = { ...core, mocks, moduleMocks, mockPolicy, timers }
 const right: RuntimeGlobalsHost = { ...core, ...rest }
 
 // The Jest dialect's per-module bindings take the same host the worker builds.
@@ -56,4 +72,14 @@ expectTypeOf<ReturnType<typeof jestModuleScope>>().toEqualTypeOf<
   (from: string) => Readonly<Record<string, unknown>>
 >()
 
-export { noMockPolicy, noMocks, noModuleMocks, noRegistry, right, wrongApi, wrongExpect }
+export {
+  noMockPolicy,
+  noMocks,
+  noModuleMocks,
+  noRegistry,
+  noTimers,
+  noTimersPolicy,
+  right,
+  wrongApi,
+  wrongExpect,
+}
