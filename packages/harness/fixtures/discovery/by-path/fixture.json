@@ -1,0 +1,24 @@
+{
+  "description": "--runTestsByPath with --listTests (U2, T11.13): the arguments are exact paths, resolved against the working directory, and a path that is not a test file by testMatch is dropped; the patterns do not apply. The list is recorded sorted. Jest only.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testMatch": ["**/*.test.ts"],
+      "testPathIgnorePatterns": ["/node_modules/"]
+    }
+  },
+  "files": {
+    "jest": {
+      "src/one.test.ts": "// listed: named by path\n",
+      "src/two.test.ts": "// not named\n",
+      "src/not-a-test.ts": "// named, but testMatch does not match it\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--runTestsByPath", "src/one.test.ts", "src/not-a-test.ts"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

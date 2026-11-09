@@ -14,6 +14,7 @@ import { parseSuiteName, RUNNERS, type RunnerName, type SuiteSpec } from './suit
 export type CliCommand =
   | { readonly command: 'help' }
   | { readonly command: 'generate'; readonly suite: SuiteSpec }
+  | { readonly command: 'list-tests'; readonly dir: string }
   | {
       readonly command: 'check'
       readonly suite: SuiteSpec
@@ -58,12 +59,15 @@ Usage:
                     [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}] [--out <file>] [--machine-id <id>]
   provino-bench kill-check [--label local|desktop|pinned] [--dry-run] [--out <file>]
                     [--machine-id <id>] [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}]
+  provino-bench list-tests <project dir>
 
 Suites: app-N, mock-heavy-N (N from 1 to 9999), isolate-heavy.
 Runners: jest, vitest, and provino, which runs the provino bin on the suite's jest/ tree (all cores
   but one, the default) at isolation registry, with its results cache kept (it only orders files).
   \`check\` requires every test to pass; with --runner jest in the same check it also requires
   Provino's per-test statuses to equal Jest's.
+list-tests: U2. Jest's --listTests --json and \`provino jest --listTests --json\` in a project directory
+  (its own Jest when it has one), compared as sets. Exit 0 when they are the same set, 1 when not.
 kill-check: Track 12 R6 on the R6 suite set: Provino against Jest, warm and cold, with the 10 warm and
   5 cold runs R6 fixes (so no --warm or --cold), plus registry/none on app-500. Suites that can't run
   yet print PENDING. The verdict is PROVISIONAL unless the label is pinned and every suite ran. Exit
@@ -98,9 +102,10 @@ type OptionName = keyof typeof options
 
 // Which options each command reads. Anything else on the command line is an error, not ignored.
 const COMMAND_OPTIONS: Readonly<
-  Record<'generate' | 'check' | 'run' | 'kill-check', readonly OptionName[]>
+  Record<'generate' | 'list-tests' | 'check' | 'run' | 'kill-check', readonly OptionName[]>
 > = {
   generate: [],
+  'list-tests': [],
   check: ['runner', 'timeout'],
   run: ['runner', 'warm', 'cold', 'label', 'out', 'machine-id', 'timeout'],
   'kill-check': ['label', 'dry-run', 'out', 'machine-id', 'timeout'],
@@ -202,6 +207,12 @@ export function parseCli(argv: readonly string[]): CliCommand {
       )
     }
     return { command, dryRun, ...recordOptions(values, label) }
+  }
+  if (command === 'list-tests') {
+    onlyOptions(command, values)
+    if (suiteName === undefined) throw usage('list-tests needs a project directory')
+    if (extra.length > 0) throw usage(`unexpected argument ${extra[0]}`)
+    return { command, dir: suiteName }
   }
   if (suiteName === undefined) throw usage(`${command} needs a suite`)
   if (extra.length > 0) throw usage(`unexpected argument ${extra[0]}`)

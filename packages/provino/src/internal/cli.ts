@@ -4,6 +4,8 @@ import type { TextSink } from '@provino/reporters'
 import type { PoolKind } from '@provino/types'
 import { run } from '../run.ts'
 import type { ReporterChoice, RunOptions } from '../types.ts'
+import { detectProject } from './detect.ts'
+import { runJestCommand } from './jest-command.ts'
 import { BUILT_IN_REPORTERS } from './reporters.ts'
 import { UsageError } from './usage-error.ts'
 
@@ -19,11 +21,15 @@ const POOL_KINDS: readonly PoolKind[] = ['forks', 'threads', 'inline']
 export const USAGE = `Usage: provino <command> [options]
 
 Commands:
-  run    Run a project's tests
+  jest     Run a Jest project with Jest's command line: provino jest [--config <file>] [patterns]
+  vitest   Run a Vitest project (not available yet)
+  run      Run a project from a provino config file: provino run --config <file> [options]
 
-provino run --config <file> [options]
+With no command, provino [options] runs provino.config.* if this directory has one, else the Jest
+config found from it; --dialect jest|vitest names the runner and skips that search. provino jest
+takes Jest's own flags; one Provino can't run yet is refused by name, with the task that builds it.
 
-Options:
+Options of provino run:
   -c, --config <file>               The config file (required)
       --maxWorkers <n>              Run at most n workers (default: the cores, less one)
       --pool <kind>                 forks, threads or inline (default: the dialect's); inline
@@ -44,6 +50,8 @@ Options:
 export type RunCommand =
   | { readonly type: 'help' }
   | { readonly type: 'run'; readonly options: RunOptions }
+  | { readonly type: 'jest'; readonly args: readonly string[] }
+  | { readonly type: 'bare'; readonly args: readonly string[] }
 
 function isPoolKind(value: string): value is PoolKind {
   return POOL_KINDS.some((kind) => kind === value)
@@ -87,7 +95,9 @@ function parseReporters(
  * `--config` is a `UsageError`.
  * @internal
  */
-export function parseRunArgs(args: readonly string[]): RunCommand {
+export function parseRunArgs(
+  args: readonly string[],
+): Extract<RunCommand, { readonly type: 'help' | 'run' }> {
   let parsed: ReturnType<typeof parse>
   try {
     parsed = parse(args.map(longFormOfShortWithEquals))
@@ -162,38 +172,93 @@ export interface CliIo {
   readonly cwd?: string
 }
 
-/** What `command` and its `args` ask for; T11.13 adds `jest` and `vitest` beside `run`. */
+/** What `command` and its `args` ask for. */
 function parseCommand(command: string | undefined, args: readonly string[]): RunCommand {
   if (command === '--help' || command === '-h') return { type: 'help' }
-  if (command === undefined) throw new UsageError('a command is required')
+  if (command === undefined) return { type: 'bare', args: [] }
   if (command === 'run') return parseRunArgs(args)
+  if (command === 'jest') return { type: 'jest', args }
+  if (command === 'vitest') {
+    throw new UsageError(
+      'provino vitest is not available yet: the Vitest dialect has no config reader or command line (T11.15, T11.16, Phase 2)',
+    )
+  }
+  // Anything else starting with a dash is the bare form: `provino --dialect jest -t foo`.
+  if (command.startsWith('-')) return { type: 'bare', args: [command, ...args] }
   throw new UsageError(`unknown command "${command}"`)
 }
 
 /**
- * The `provino` command: dispatches on the first argument (`run` today; `jest` and `vitest` join
- * it with T11.13) and resolves with the exit code. It never rejects and never exits the process.
+ * The bare `provino` form: `--dialect <name>` picks the runner, else the project says which it is
+ * (`detectProject`); a `provino.config.*` runs as `provino run --config <it>`.
+ */
+async function runBare(args: readonly string[], io: CliIo): Promise<number> {
+  const cwd = io.cwd ?? process.cwd()
+  const rest: string[] = []
+  let dialect: string | undefined
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index] as string
+    if (arg === '--dialect') {
+      dialect = args[++index]
+      if (dialect === undefined) throw new UsageError('--dialect needs jest or vitest')
+    } else if (arg.startsWith('--dialect=')) {
+      dialect = arg.slice('--dialect='.length)
+    } else {
+      rest.push(arg)
+    }
+  }
+  if (dialect !== undefined && dialect !== 'jest' && dialect !== 'vitest') {
+    throw new UsageError(`--dialect must be jest or vitest (got "${dialect}")`)
+  }
+  const found = await detectProject(cwd, dialect)
+  if (found.kind === 'vitest') {
+    throw new UsageError(
+      'this is a Vitest project, and provino vitest is not available yet (T11.15, T11.16, Phase 2)',
+    )
+  }
+  if (found.kind === 'jest') return runBareJest(rest, io)
+  const parsed = parseRunArgs(['--config', found.config, ...rest])
+  if (parsed.type === 'help') return helpExit(io)
+  return (await run({ ...parsed.options, ...ioOptions(io) })).exitCode
+}
+
+function runBareJest(args: readonly string[], io: CliIo): Promise<number> {
+  return runJestCommand(args, {
+    stdout: io.stdout ?? process.stdout,
+    stderr: io.stderr ?? process.stderr,
+    cwd: io.cwd ?? process.cwd(),
+  })
+}
+
+async function helpExit(io: CliIo): Promise<number> {
+  await (io.stdout ?? process.stdout).write(USAGE)
+  return ExitCode.Pass
+}
+
+function ioOptions(io: CliIo): Pick<RunOptions, 'stdout' | 'stderr' | 'cwd'> {
+  return {
+    stdout: io.stdout ?? process.stdout,
+    stderr: io.stderr ?? process.stderr,
+    ...(io.cwd === undefined ? {} : { cwd: io.cwd }),
+  }
+}
+
+/**
+ * The `provino` command: dispatches on the first argument (`jest`, `vitest`, `run`, or none, which
+ * detects the project) and resolves with the exit code. It never rejects and never exits the process.
  * Bad usage prints the message and the usage text to stderr and is exit code 2; `--help` prints
  * the usage text to stdout; a bug in Provino prints its stack and is exit code 1.
  * @internal
  */
 export async function main(argv: readonly string[], io: CliIo = {}): Promise<number> {
-  const stdout = io.stdout ?? process.stdout
   const stderr = io.stderr ?? process.stderr
   try {
     const [command, ...args] = argv
     const parsed = parseCommand(command, args)
-    if (parsed.type === 'help') {
-      await stdout.write(USAGE)
-      return ExitCode.Pass
-    }
-    const result = await run({
-      ...parsed.options,
-      stdout,
-      stderr,
-      ...(io.cwd === undefined ? {} : { cwd: io.cwd }),
-    })
-    return result.exitCode
+    if (parsed.type === 'help') return await helpExit(io)
+    if (parsed.type === 'bare') return await runBare(parsed.args, io)
+    if (parsed.type === 'jest') return await runBareJest(parsed.args, io)
+    return (await run({ ...parsed.options, ...ioOptions(io) })).exitCode
   } catch (error) {
     if (error instanceof UsageError) {
       stderr.write(`Provino: ${error.message}\n\n${USAGE}`)

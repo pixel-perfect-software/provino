@@ -1,0 +1,26 @@
+{
+  "description": "How moduleFileExtensions narrow Jest's --listTests (U2): the crawl only keeps files with one of the extensions, so a file testMatch would match is not found when its extension is not listed. The list is recorded sorted. Jest only.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "moduleFileExtensions": ["js", "ts"],
+      "testMatch": ["**/*.test.*"],
+      "testPathIgnorePatterns": ["/node_modules/"]
+    }
+  },
+  "files": {
+    "jest": {
+      "src/one.test.js": "// listed only\n",
+      "src/two.test.tsx": "// not listed: tsx is not an extension\n",
+      "src/three.test.json": "{}\n",
+      "src/four.test.mjs": "// not listed: mjs is not an extension\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

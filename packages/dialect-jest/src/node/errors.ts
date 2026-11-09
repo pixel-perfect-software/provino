@@ -40,6 +40,42 @@ export class JestConfigError extends Error {
   }
 }
 
+/**
+ * Stable codes for errors parsing a Jest command line (T11.7). The message is Jest's own text where
+ * Jest has one (uncoloured). Real Jest prints these and exits with code 1; the caller maps a
+ * `JestCliError` to Provino's usage exit code.
+ *
+ * - `JEST_CLI_INVALID`: yargs or `jest-cli`'s `check` refused the arguments (a missing value, a
+ *   value outside the choices, flags that exclude each other), or a value Provino can't use.
+ * - `JEST_CLI_UNRECOGNIZED`: jest-validate's "Unrecognized CLI Parameter" (with a "did you mean").
+ * - `JEST_CLI_DEPRECATED`: a removed option (`--testPathPattern`, `--timers`, …).
+ * - `JEST_CLI_UNSUPPORTED`: `--help`, `-h`, `help` or `--version`, which Provino leaves to the
+ *   real `jest`.
+ * - `JEST_CLI_UNSUPPORTED_FORM`: a yargs behaviour the parser doesn't rebuild, refused by name
+ *   rather than parsed differently.
+ * @public
+ */
+export type JestCliErrorCode =
+  | 'JEST_CLI_INVALID'
+  | 'JEST_CLI_UNRECOGNIZED'
+  | 'JEST_CLI_DEPRECATED'
+  | 'JEST_CLI_UNSUPPORTED'
+  | 'JEST_CLI_UNSUPPORTED_FORM'
+
+/**
+ * An error parsing a Jest command line, with a stable code.
+ * @public
+ */
+export class JestCliError extends Error {
+  override readonly name = 'JestCliError'
+  readonly code: JestCliErrorCode
+
+  constructor(code: JestCliErrorCode, message: string) {
+    super(message)
+    this.code = code
+  }
+}
+
 /** An error's message, or the text of whatever was thrown. */
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)

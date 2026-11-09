@@ -1,0 +1,24 @@
+{
+  "description": "How the positional test path patterns narrow Jest's --listTests (U2, T11.13): each is a regular expression, tested without regard to case on the path from the root and on the absolute path, and a file any of them matches is kept. `^lib/three` is anchored to the start of the path from the root. The list is recorded sorted. Jest only.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testMatch": ["**/*.{test,spec}.ts"],
+      "testPathIgnorePatterns": ["/node_modules/"]
+    }
+  },
+  "files": {
+    "jest": {
+      "src/one.test.ts": "// not matched by a pattern\n",
+      "src/Two.test.ts": "// matched by the pattern two, without regard to case\n",
+      "lib/three.spec.ts": "// matched by ^lib/three\n",
+      "lib/four.test.ts": "// not matched by a pattern\n",
+      "other/lib/three.test.ts": "// not matched: ^lib/three is anchored to the root\n"
+    }
+  },
+  "run": {
+    "argv": { "jest": ["--listTests", "two", "^lib/three"] },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

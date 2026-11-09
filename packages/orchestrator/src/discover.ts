@@ -1,10 +1,10 @@
-// U2, minimal: the project's `include` and `exclude` globs through tinyglobby. `roots`,
-// `testRegex` and regex ignores are B14's; this is `include`/`exclude` and nothing else.
+// U2: the project's `include` and `exclude` globs through tinyglobby. A dialect reader's own rules
+// (`roots`, `testMatch`, `testRegex`, the ignore patterns) are `discover-rules.ts`.
 import { realpath, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { glob } from 'tinyglobby'
 import { relativePosix } from './file-id.ts'
-import { byText } from './util.ts'
+import { BATCH, byText, mapInBatches } from './util.ts'
 
 /**
  * Where to look for test files.
@@ -27,22 +27,6 @@ export interface DiscoveredFile {
   /** Relative to `rootDir`, with `/` separators: what task ids and reporters use. */
   readonly relativePath: string
   readonly sizeBytes: number
-}
-
-/** How many files are `stat`ed (or resolved) at once: a project can have thousands. */
-const BATCH = 256
-
-/** `fn` over `items`, a bounded number at a time; the results are in the items' order. */
-async function mapInBatches<Item, Result>(
-  items: readonly Item[],
-  size: number,
-  fn: (item: Item) => Promise<Result>,
-): Promise<Result[]> {
-  const results: Result[] = []
-  for (let from = 0; from < items.length; from += size) {
-    results.push(...(await Promise.all(items.slice(from, from + size).map((item) => fn(item)))))
-  }
-  return results
 }
 
 /** What `stat` says of one found path: its size and which file on which device it is. */

@@ -215,6 +215,9 @@ catalogs:
     '@types/node':
       specifier: 22.20.5
       version: 22.20.5
+    '@types/picomatch':
+      specifier: 4.0.2
+      version: 4.0.2
     '@types/sinonjs__fake-timers':
       specifier: 15.0.1
       version: 15.0.1
@@ -254,6 +257,9 @@ catalogs:
     jest:
       specifier: 30.5.2
       version: 30.5.2
+    jest-cli:
+      specifier: 30.5.2
+      version: 30.5.2
     jest-config:
       specifier: 30.5.2
       version: 30.5.2
@@ -290,6 +296,9 @@ catalogs:
     oxc-walker:
       specifier: 1.1.1
       version: 1.1.1
+    picomatch:
+      specifier: 4.0.7
+      version: 4.0.7
     pretty-format:
       specifier: 30.5.1
       version: 30.5.1
@@ -510,6 +519,9 @@ importers:
       expect:
         specifier: 'catalog:'
         version: 30.5.2
+      jest-cli:
+        specifier: 'catalog:'
+        version: 30.5.2(@types/node@22.20.5)(supports-color@8.1.1)
       jest-config:
         specifier: 'catalog:'
         version: 30.5.2(@types/node@22.20.5)(supports-color@8.1.1)
@@ -680,6 +692,9 @@ importers:
       '@provino/types':
         specifier: workspace:*
         version: link:../types
+      picomatch:
+        specifier: 'catalog:'
+        version: 4.0.7
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.17
@@ -687,6 +702,9 @@ importers:
       '@provino/reporters':
         specifier: workspace:*
         version: link:../reporters
+      '@types/picomatch':
+        specifier: 'catalog:'
+        version: 4.0.2
 
   packages/policy:
     dependencies:
@@ -2115,6 +2133,9 @@ packages:
 
   '@types/node@22.20.5':
     resolution: {integrity: sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==}
+
+  '@types/picomatch@4.0.2':
+    resolution: {integrity: sha512-qHHxQ+P9PysNEGbALT8f8YOSHW0KJu6l2xU8DYY0fu/EmGxXdVnuTLvFUvBgPJMSqXq29SYHveejeAha+4AYgA==}
 
   '@types/sinonjs__fake-timers@15.0.1':
     resolution: {integrity: sha512-Ko2tjWJq8oozHzHV+reuvS5KYIRAokHnGbDwGh/J64LntgpbuylF74ipEL24HCyRjf9FOlBiBHWBR1RlVKsI1w==}
@@ -5080,6 +5101,8 @@ snapshots:
   '@types/node@22.20.5':
     dependencies:
       undici-types: 6.21.0
+
+  '@types/picomatch@4.0.2': {}
 
   '@types/sinonjs__fake-timers@15.0.1': {}
 

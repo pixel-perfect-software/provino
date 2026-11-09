@@ -65,6 +65,16 @@ export const orchestratorClaims: Claims = {
   ),
   'orchestrator.exitCodes.failure': golden('orchestrator-exit-codes', { read: exitCode }),
   'orchestrator.exitCodes.noTests': golden('orchestrator-no-tests', { read: exitCode }),
+  // A flag the runner doesn't know: Jest names it, Vitest's cac throws; both exit with 1. A bad
+  // Jest config (`cli/bad-config`) exits with 1 as well.
+  'orchestrator.exitCodes.usage': each(
+    [golden('cli/unknown-flag', { read: exitCode }), golden('cli/bad-config', { read: exitCode })],
+    golden('cli/unknown-flag', { read: exitCode }),
+  ),
+  // Does a relative glob find the test file? Jest matches the absolute path, so it doesn't.
+  'orchestrator.globMatchesOn': golden('orchestrator-match-path', {
+    read: (g) => (g.files.length === 0 ? 'absolute-path' : 'root-relative-path'),
+  }),
   'orchestrator.exitCodes.unhandled': each(
     golden('orchestrator-unhandled', { read: exitCode }),
     golden('core-late-error', { read: exitCode }),

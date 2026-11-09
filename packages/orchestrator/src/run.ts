@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import type { ResolvedProject } from '@provino/config'
 import { serializeError } from '@provino/rpc'
 import type {
+  FileFilter,
   FileInfo,
   FileJob,
   FileResult,
@@ -22,11 +23,13 @@ import type {
 } from '@provino/types'
 import { createResultsCache, defaultCacheDir, type ResultsCache } from './cache.ts'
 import { type DiscoveredFile, discoverFiles } from './discover.ts'
+import { discoverByRules } from './discover-rules.ts'
 import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
 import { OrchestratorError } from './errors.ts'
 import { fileIdOf, relativePosix } from './file-id.ts'
 import { hashOf, workerKeyOf } from './key.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
+import { selectFiles } from './select.ts'
 import { createHistorySequencer } from './sequencer.ts'
 import { type TransportForOptions, transportFor } from './transport/for-kind.ts'
 import { describeExit } from './transport/shared.ts'
@@ -72,6 +75,14 @@ export interface RunProjectOptions {
   /** Run only tests whose full name matches (`-t`). Validated once, here, before anything starts. */
   readonly testNamePattern?: string
   /**
+   * Run only the files these filters keep (`selectFiles`). A filtered run still discovers every
+   * file, so the results cache is pruned against the whole set and keeps the history of the
+   * files it did not run.
+   */
+  readonly fileFilters?: readonly FileFilter[]
+  /** Where an exact-path filter that is relative starts. Default: this process's directory. */
+  readonly cwd?: string
+  /**
    * Where the workers' own stdout goes (a fork's or thread's direct write to fd 1; not the
    * tests' `console`, which is an event). Default: this process's. A caller that prints
    * machine-readable output on its own stdout passes its stderr here. An inline worker shares
@@ -93,8 +104,8 @@ export interface RunProjectOptions {
 
 /**
  * What the results cache keys a project's history by: its name and a short hash of what makes
- * the config different (root, include, exclude), so two configs without a name in one root don't
- * prune each other's history.
+ * the config different (root, include, exclude, and a dialect reader's discovery rules), so two
+ * configs without a name in one root don't prune each other's history.
  * @public
  */
 export function projectCacheKey(project: ResolvedProject): string {
@@ -102,8 +113,39 @@ export function projectCacheKey(project: ResolvedProject): string {
     project.rootDir,
     [...project.include].sort(),
     [...project.exclude].sort(),
+    // A dialect reader's rules (roots, patterns) find other files than the globs do.
+    project.discovery === null
+      ? null
+      : [
+          project.discovery.roots,
+          project.discovery.extensions,
+          project.discovery.includePatterns.kind,
+          project.discovery.includePatterns.patterns,
+          project.discovery.excludePatterns,
+          project.discovery.crawlIgnorePatterns,
+        ],
   ])
   return `${project.name}#${identity.slice(0, 8)}`
+}
+
+/**
+ * Every test file the project has: by the dialect reader's rules when it gave some, else by the
+ * config's `include` and `exclude` globs.
+ * @public
+ */
+export function discoverProject(project: ResolvedProject): Promise<readonly DiscoveredFile[]> {
+  const { discovery } = project
+  return discovery === null
+    ? discoverFiles({
+        rootDir: project.rootDir,
+        include: project.include,
+        exclude: project.exclude,
+      })
+    : discoverByRules({
+        rootDir: project.rootDir,
+        discovery,
+        globMatchesOn: project.policy.orchestrator.globMatchesOn,
+      })
 }
 
 /** `new RegExp` with the policy's flags, once; the workers get the string. */
@@ -346,10 +388,10 @@ export async function runProject(
   }
 
   try {
-    const discovered = await discoverFiles({
+    const everything = await discoverProject(project)
+    const discovered = selectFiles(everything, options.fileFilters ?? [], {
       rootDir: project.rootDir,
-      include: project.include,
-      exclude: project.exclude,
+      cwd: resolve(options.cwd ?? process.cwd()),
     })
     const info: RunInfo = {
       root: project.rootDir,
@@ -366,7 +408,14 @@ export async function runProject(
       return summary
     }
 
-    queue = planQueue(project, discovered, cache, cacheProject, orchestrator.sequence.unknownFirst)
+    queue = planQueue(
+      project,
+      everything,
+      discovered,
+      cache,
+      cacheProject,
+      orchestrator.sequence.unknownFirst,
+    )
 
     announced = true
     await bus.emit(
@@ -409,18 +458,20 @@ export async function runProject(
 
 /**
  * Prunes the cache's history of files the project no longer has, and returns the files in the
- * order they should run. Discovery is unfiltered, so what it found is the project's whole file
- * set, and the history of any other file is stale. A run that filters its files (T11.13, U2) sees
- * only some of them and must not prune.
+ * order they should run. `everything` is the project's whole file set (discovery is unfiltered),
+ * so the history of any other file is stale; `discovered` is what a run's file filters kept, and
+ * is what runs. Pruning against the filtered set would drop the history of every file the filter
+ * left out.
  */
 function planQueue(
   project: ResolvedProject,
+  everything: readonly DiscoveredFile[],
   discovered: readonly DiscoveredFile[],
   cache: ResultsCache | undefined,
   cacheProject: string,
   unknownFirst: boolean,
 ): QueuedFile[] {
-  cache?.prune(cacheProject, new Set(discovered.map((file) => file.relativePath)))
+  cache?.prune(cacheProject, new Set(everything.map((file) => file.relativePath)))
   const entries = new Map<string, QueuedFile>()
   const inputs: ScheduleInput[] = discovered.map((file) => {
     entries.set(file.relativePath, {

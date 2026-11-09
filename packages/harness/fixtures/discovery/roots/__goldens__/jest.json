@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "discovery/roots",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      ".harness-out/jest.json": "<root>/packages/app/tests/three.test.ts\n<root>/src/nested/two.test.ts\n<root>/src/one.test.ts"
+    }
+  }
+}

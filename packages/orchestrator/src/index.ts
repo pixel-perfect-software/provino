@@ -11,6 +11,12 @@ export {
 } from './connect.ts'
 export { type DiscoveredFile, type DiscoverOptions, discoverFiles } from './discover.ts'
 export {
+  discoverByRules,
+  type GlobMatchesOn,
+  type RuleDiscoverOptions,
+  testFilePredicate,
+} from './discover-rules.ts'
+export {
   createFileDispatch,
   createIdleDispatch,
   type FileDispatch,
@@ -31,11 +37,13 @@ export {
   type PoolOutcome,
 } from './pool.ts'
 export {
+  discoverProject,
   projectCacheKey,
   type RunPoolOptions,
   type RunProjectOptions,
   runProject,
 } from './run.ts'
+export { type SelectOptions, selectFiles } from './select.ts'
 export { createHistorySequencer, type HistorySequencerOptions } from './sequencer.ts'
 export { type TransportForOptions, transportFor } from './transport/for-kind.ts'
 export { type ForksTransportOptions, forksTransport } from './transport/forks.ts'

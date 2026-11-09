@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "discovery/path-patterns",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      ".harness-out/jest.json": "<root>/lib/three.spec.ts\n<root>/src/Two.test.ts"
+    }
+  }
+}
