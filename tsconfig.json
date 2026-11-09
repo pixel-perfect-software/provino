@@ -41,6 +41,9 @@
       "path": "packages/loader"
     },
     {
+      "path": "packages/snapshot"
+    },
+    {
       "path": "packages/expect"
     },
     {

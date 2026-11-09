@@ -2,6 +2,10 @@
 import {
   createJestConfigReader,
   findJestConfig,
+  type JestArgv,
+  JestCliError,
+  type JestCliErrorCode,
+  type JestCliSupport,
   JestConfigError,
   type JestConfigErrorCode,
   type JestGlobalConfig,
@@ -10,21 +14,29 @@ import {
   type JestReadOutcome,
   type JestResolvedConfig,
   type JestTransformEntry,
+  jestArgvToRunRequest,
+  jestCli,
   jestConfigReader,
+  jestFlags,
   jestNodeDialect,
   jestProjectToNeutral,
   loadJestConfig,
+  parseJestArgv,
+  parseJestCli,
   readJestConfig,
   readJestConfigs,
   resolveJestConfigPath,
 } from '@provino/dialect-jest/node'
 import type {
+  CliDialect,
   ConfigReader,
   ConfigReadOutcome,
   ConfigSource,
   Diagnostic,
   Dialect,
+  FlagSpec,
   NeutralProject,
+  RunRequest,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -81,3 +93,28 @@ expectTypeOf(jestProjectToNeutral).returns.toEqualTypeOf<{
 expectTypeOf<JestConfigError['code']>().toEqualTypeOf<JestConfigErrorCode>()
 // @ts-expect-error not a Jest config error code
 void new JestConfigError('CONFIG_INVALID', 'x')
+
+// The command line (T11.7, B14c): Jest's flags into Jest's own argv, and into a neutral request.
+expectTypeOf(parseJestArgv).parameters.toEqualTypeOf<[args: readonly string[]]>()
+expectTypeOf(parseJestArgv).returns.toEqualTypeOf<JestArgv>()
+expectTypeOf(parseJestCli).returns.toEqualTypeOf<{
+  readonly argv: JestArgv
+  readonly diagnostics: Diagnostic[]
+}>()
+expectTypeOf(jestArgvToRunRequest).parameters.toEqualTypeOf<[argv: JestArgv]>()
+expectTypeOf(jestArgvToRunRequest).returns.toEqualTypeOf<RunRequest>()
+expectTypeOf(jestCli).toEqualTypeOf<CliDialect<JestArgv>>()
+expectTypeOf(jestFlags).toEqualTypeOf<readonly FlagSpec[]>()
+expectTypeOf(jestNodeDialect.cli).toEqualTypeOf<CliDialect | undefined>()
+// @ts-expect-error the arguments are strings
+void parseJestArgv([1, 2])
+// @ts-expect-error the parser takes the arguments after the command name, not a string
+void parseJestArgv('--ci')
+
+// A refusal carries a code, so a caller maps it to an exit code without reading its text.
+expectTypeOf<JestCliError['code']>().toEqualTypeOf<JestCliErrorCode>()
+expectTypeOf<JestCliSupport>().toEqualTypeOf<
+  'request' | 'config' | 'accepted' | 'warn' | 'refuse'
+>()
+// @ts-expect-error not a Jest CLI error code
+void new JestCliError('CONFIG_INVALID', 'x')

@@ -1,0 +1,13 @@
+{
+  "description": "What a snapshot of arrays, objects, collections, class instances, a circular reference and deep nesting looks like: key order, empty containers, holes, symbol keys, a null prototype, Map, Set, typed arrays and boxed primitives. A black-box run in write mode capturing the .snap.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/structures.test.ts.snap"]
+  }
+}

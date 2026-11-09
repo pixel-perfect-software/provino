@@ -1,0 +1,10 @@
+{
+  "description": "A new snapshot in a CI run with UPDATE_SNAPSHOT=new in the environment: Vitest writes it, Jest ignores the variable and fails.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "UPDATE_SNAPSHOT": "new"
+  },
+  "run": {
+    "capture": ["exitCode", "file:__snapshots__/variable.test.ts.snap"]
+  }
+}

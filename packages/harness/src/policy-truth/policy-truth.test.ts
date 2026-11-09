@@ -45,8 +45,7 @@ const CLAIM_KEYS: ReadonlySet<string> = new Set(Object.keys(CLAIMS))
  */
 const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   // Behaviour another bundle builds; its first fixture records the value.
-  'jest snapshot.inline.formatter': 'B17b',
-  'jest snapshot.inline.indent': 'B17b',
+  'jest snapshot.inline.formatter': 'T7.11',
   'jest orchestrator.environmentConditions': 'B17c',
   'jest hoist.messages.HOIST_FACTORY_NOT_FUNCTION': 'B17c',
   'jest module.messages.automock-no-metadata': 'B17c',
@@ -58,9 +57,7 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'jest coverage.includeUntestedByDefault': 'T8.9',
   'jest coverage.thresholdGrouping': 'T8.9',
   'jest lazy.readInBeforeAll': 'T6.5',
-  'vitest snapshot.format.maxOutputLength': 'B17b',
-  'vitest snapshot.inline.formatter': 'B17b',
-  'vitest snapshot.inline.indent': 'B17b',
+  'vitest snapshot.inline.formatter': 'T7.11',
   'vitest orchestrator.environmentConditions': 'B17c',
   'vitest hoist.messages.HOIST_EXPORTED': 'T11.16',
   'vitest hoist.messages.HOIST_EXPORTED_VALUE': 'T11.16',

@@ -1,0 +1,5 @@
+{
+  "description": "A run where every test passes exits with code 0 under both runners (U3). A black-box run.",
+  "runners": ["jest", "vitest"],
+  "run": { "capture": ["exitCode"] }
+}

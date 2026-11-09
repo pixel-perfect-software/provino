@@ -2,7 +2,8 @@
 // find (T11.3), load (T11.4), presets (T11.5), normalize and the neutral projects (T11.6), each a
 // rebuild of `jest-config` 30.5.2 checked against it. `jestNodeDialect` is `jestDialect` with the
 // reader; `.` can't import this entry (the manifest has `/node` depending on `.`), so the reader
-// lives on this value. The CLI flags are T11.7's (B14c).
+// lives on this value. The same goes for the command line (T11.7, B14c): `jestCli` parses Jest's
+// flags, `jestFlags` lists them.
 
 import { jestDialect } from '@provino/dialect-jest'
 import type {
@@ -12,6 +13,7 @@ import type {
   Dialect,
   NeutralProject,
 } from '@provino/types'
+import { jestCli, jestFlags } from './cli.ts'
 import { JestConfigError } from './errors.ts'
 import { findJestConfig, JEST_CONFIG_CANDIDATES } from './find.ts'
 import { loadJestConfig } from './load.ts'
@@ -19,7 +21,22 @@ import { type NormalizeOptions, readJestConfigs } from './normalize.ts'
 import { jestProjectToNeutral } from './to-neutral.ts'
 import type { JestGlobalConfig, JestLoadedConfig, JestProjectConfig } from './types.ts'
 
-export { JestConfigError, type JestConfigErrorCode } from './errors.ts'
+export {
+  JEST_CLI_OPTIONS,
+  type JestCliOption,
+  type JestCliSupport,
+  jestArgvToRunRequest,
+  jestCli,
+  jestFlags,
+  parseJestArgv,
+  parseJestCli,
+} from './cli.ts'
+export {
+  JestCliError,
+  type JestCliErrorCode,
+  JestConfigError,
+  type JestConfigErrorCode,
+} from './errors.ts'
 export {
   findJestConfig,
   isJSONString,
@@ -143,11 +160,13 @@ export const jestConfigReader: ConfigReader<JestLoadedConfig, JestResolvedConfig
   createJestConfigReader()
 
 /**
- * The Jest 30.5 dialect with its config reader: what the coordinator uses. `jestDialect` (`.`) is
- * the same value without it, for code that runs in a worker.
+ * The Jest 30.5 dialect with its config reader and command line: what the coordinator uses.
+ * `jestDialect` (`.`) is the same value without them, for code that runs in a worker.
  * @public
  */
 export const jestNodeDialect: Dialect<'jest'> = {
   ...jestDialect,
   configReader: jestConfigReader,
+  cli: jestCli,
+  flags: jestFlags,
 }

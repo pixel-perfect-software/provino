@@ -1,0 +1,13 @@
+{
+  "description": "An inline snapshot with nothing written in it, in a local run: both runners write it into the test file, so the source says where the snapshot goes and how it is indented. Jest formats the edit with Prettier when it can find it.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:inline-written.test.ts"]
+  }
+}

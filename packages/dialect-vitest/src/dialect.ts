@@ -9,7 +9,13 @@
 // the bundle that builds it. `policy-truth.test.ts` fails when a value and its evidence disagree.
 // A comment here says why a value is what it is where that isn't obvious.
 import { defineDialect, moduleRef } from '@provino/policy'
-import type { Dialect, FormatEachTitle, GlobalsFactory, PolicyOverrides } from '@provino/types'
+import type {
+  Dialect,
+  FormatEachTitle,
+  GlobalsFactory,
+  PolicyOverrides,
+  SnapshotPrinterFactory,
+} from '@provino/types'
 import { VITEST_EACH_TITLE_TRUNCATE } from './each/title-truncate.ts'
 import { vitestHoistPolicy } from './hoist-policy.ts'
 import { vitestMockPolicy, vitestModulePolicy } from './mock-policy.ts'
@@ -107,12 +113,22 @@ export const vitestPolicy: PolicyOverrides = {
     hintJoin: ' > ',
     dirName: '__snapshots__',
     extension: '.snap',
-    format: { escapeString: false, printBasicPrototype: false, maxOutputLength: 2 ** 27 },
+    format: {
+      escapeString: false,
+      printBasicPrototype: false,
+      maxOutputLength: 2 ** 27,
+      extra: {},
+    },
     obsolete: { failLocal: false, failCI: true },
     ciUpdate: 'none',
     updateEnvVar: 'UPDATE_SNAPSHOT',
     throwErrorBody: 'error',
     inline: { indent: 'call', formatter: 'none' },
+    // Provino's own key (T7.10): `@vitest/pretty-format` 5.0, vendored, and its words.
+    printer: moduleRef<SnapshotPrinterFactory>(
+      import.meta.resolve('@provino/dialect-vitest/runtime'),
+      'vitestSnapshotPrinter',
+    ),
   },
   expect: {
     matcherNamespace: 'vitest',
@@ -132,8 +148,11 @@ export const vitestPolicy: PolicyOverrides = {
     bail: { checkAfter: 'test' },
     watchDefault: 'tty-not-ci',
     watch: { initialRun: 'all' },
+    // Vitest's `include` is relative to the root (`policy/orchestrator-match-path`).
+    globMatchesOn: 'root-relative-path',
     passWithNoTests: false,
-    exitCodes: { failure: 1, noTests: 1, unhandled: 1 },
+    // `usage` is `cli/unknown-flag`: cac throws on an unknown option and the process exits 1.
+    exitCodes: { failure: 1, noTests: 1, unhandled: 1, usage: 1 },
     unhandledErrors: 'fail-run',
     coverageProvider: 'v8',
     coverageReporters: ['text', 'html', 'clover', 'json'],

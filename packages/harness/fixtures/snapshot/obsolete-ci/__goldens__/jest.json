@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/obsolete-ci",
+  "files": [
+    {
+      "file": "obsolete.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "obsolete.test.ts",
+            "path": [
+              "kept"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 2,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 1,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 1,
+      "total": 1,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/obsolete.test.ts.snap",
+        "sha256": "c45075a9e449be61631f75d44841d2c42b8039cc2a1c87d7686813baf6a275c3"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "files": {
+      "__snapshots__/obsolete.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`kept 1`] = `\"kept\"`;\n\nexports[`obsolete 1`] = `\"gone\"`;\n"
+    }
+  }
+}

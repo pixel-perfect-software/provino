@@ -1,0 +1,379 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "expect/realm",
+  "files": [
+    {
+      "file": "realm.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toEqual across realms",
+              "01 an array"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toEqual across realms",
+              "02 an object"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 13,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toEqual across realms",
+              "03 a Map"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected Map{ 'k' => Object{ n: 1 } } to deeply equal Map{ 'k' => { n: 1 } }",
+              "userFrame": "<root>/realm.test.ts:17:49"
+            }
+          ],
+          "location": {
+            "line": 16,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toEqual across realms",
+              "04 a Set"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected Set{ 1, 2 } to deeply equal Set{ 1, 2 }",
+              "userFrame": "<root>/realm.test.ts:20:38"
+            }
+          ],
+          "location": {
+            "line": 19,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toEqual across realms",
+              "05 a Date"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 22,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toEqual across realms",
+              "06 a RegExp"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 25,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toEqual across realms",
+              "07 an Error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 28,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toEqual across realms",
+              "08 a typed array"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected Uint8Array[ 1, 2 ] to deeply equal Uint8Array[ 1, 2 ]",
+              "userFrame": "<root>/realm.test.ts:32:45"
+            }
+          ],
+          "location": {
+            "line": 31,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toEqual across realms",
+              "09 an object holding a Map and an Error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected Object{ m: Map{ 1 => 2 }, …(1) } to deeply equal { m: Map{ 1 => 2 }, e: TypeError: t }",
+              "userFrame": "<root>/realm.test.ts:35:72"
+            }
+          ],
+          "location": {
+            "line": 34,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toStrictEqual across realms",
+              "10 an array"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected [ 1, 2 ] to strictly equal [ 1, 2 ]",
+              "userFrame": "<root>/realm.test.ts:44:29"
+            }
+          ],
+          "location": {
+            "line": 43,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toStrictEqual across realms",
+              "11 an object"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected Object{ a: 1 } to strictly equal { a: 1 }",
+              "userFrame": "<root>/realm.test.ts:47:33"
+            }
+          ],
+          "location": {
+            "line": 46,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toStrictEqual across realms",
+              "12 a Map"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected Map{ 'k' => 1 } to strictly equal Map{ 'k' => 1 }",
+              "userFrame": "<root>/realm.test.ts:50:42"
+            }
+          ],
+          "location": {
+            "line": 49,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toStrictEqual across realms",
+              "13 a Set"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected Set{ 1 } to strictly equal Set{ 1 }",
+              "userFrame": "<root>/realm.test.ts:53:35"
+            }
+          ],
+          "location": {
+            "line": 52,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "toStrictEqual across realms",
+              "14 an Error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected RangeError: r to strictly equal RangeError: r",
+              "userFrame": "<root>/realm.test.ts:56:42"
+            }
+          ],
+          "location": {
+            "line": 55,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "asymmetric matchers across realms",
+              "15 expect.any(Array) against an array"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "AssertionError",
+              "message": "AssertionError: expected [ 1 ] to deeply equal Any<Array>",
+              "userFrame": "<root>/realm.test.ts:62:26"
+            }
+          ],
+          "location": {
+            "line": 61,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "asymmetric matchers across realms",
+              "16 expect.any(Object) against an object"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 64,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "asymmetric matchers across realms",
+              "17 expect.any(Function) against a function"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 67,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "realm.test.ts",
+            "path": [
+              "asymmetric matchers across realms",
+              "18 expect.objectContaining against an object"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 70,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false
+}

@@ -1,0 +1,13 @@
+{
+  "description": "toThrowErrorMatchingInlineSnapshot against what is stored in the test file: Jest stores the message, Vitest the error. Each runner has its own file.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode"]
+  }
+}

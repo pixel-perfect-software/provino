@@ -27,6 +27,9 @@
       "path": "../mock"
     },
     {
+      "path": "../snapshot"
+    },
+    {
       "path": "../timers"
     }
   ]

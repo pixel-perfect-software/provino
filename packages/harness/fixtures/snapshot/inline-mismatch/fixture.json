@@ -1,0 +1,13 @@
+{
+  "description": "An inline snapshot that differs from the received value: the test fails and the run does.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:inline-mismatch.test.ts"]
+  }
+}

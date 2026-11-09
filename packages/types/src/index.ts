@@ -173,6 +173,8 @@ export type {
   RunSummary,
   ScheduleInput,
   Sequencer,
+  SnapshotFileReport,
+  SnapshotRunSummary,
   TimingsFile,
   Transport,
   TransportFactory,
@@ -217,6 +219,7 @@ export type {
   TestStatus,
   TraceEntry,
 } from './result.ts'
+export type { CliDialect, FileFilter, RunRequest } from './run-request.ts'
 export type {
   CurrentTest,
   EachApi,

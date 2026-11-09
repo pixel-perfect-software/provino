@@ -1,0 +1,13 @@
+{
+  "description": "Inline snapshots that match what is stored in the test file: a multi-line object (with the indentation the editor gave it) and a string. The tests pass and the source is as it was.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:inline.test.ts"]
+  }
+}

@@ -328,11 +328,7 @@ describe('the policy values B08 builds', () => {
     )
   })
 
-  for (const [key, override] of [
-    ['errorShape', { errorShape: 'assertion-error' }],
-    ['equality.errors', { equality: { errors: 'assert', invalidDate: 'unequal' } }],
-    ['equality.invalidDate', { equality: { errors: 'message', invalidDate: 'equal' } }],
-  ] as const) {
+  for (const [key, override] of [['errorShape', { errorShape: 'assertion-error' }]] as const) {
     test(`${key} not yet built throws EXPECT_NOT_IMPLEMENTED`, () => {
       assert.throws(
         () => createExpect({ policy: { ...testPolicy, ...override }, table: testTable(), source }),

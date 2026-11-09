@@ -1,0 +1,32 @@
+{
+  "description": "How Jest's testMatch globs combine in --listTests (U2): they match the absolute path, in order, and a later glob can undo an earlier one: a negated glob drops the paths it matches, and a positive glob after it brings some back. A relative glob (src/**) matches no absolute path. The list is recorded sorted. Jest only.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testMatch": [
+        "<rootDir>/src/**/*.test.ts",
+        "!**/*.slow.test.ts",
+        "**/keep/*.slow.test.ts",
+        "lib/**/*.test.ts"
+      ],
+      "testPathIgnorePatterns": ["/node_modules/"]
+    }
+  },
+  "files": {
+    "jest": {
+      "src/one.test.ts": "// listed only\n",
+      "src/two.slow.test.ts": "// dropped by the negation\n",
+      "src/keep/three.slow.test.ts": "// brought back by the glob after the negation\n",
+      "src/keep/four.test.ts": "// listed only\n",
+      "other/five.test.ts": "// no glob matches\n",
+      "lib/six.test.ts": "// a relative glob matches no absolute path\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

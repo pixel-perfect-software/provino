@@ -1,0 +1,22 @@
+{
+  "description": "A run narrowed by a test name pattern (-t): the tests it leaves out are skipped, so their stored snapshots are not obsolete. The run passes and the .snap is as it was.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/filtered.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`filtered out 1`] = `\"left out\"`;\n\nexports[`runs 1`] = `\"ran\"`;\n"
+    },
+    "vitest": {
+      "__snapshots__/filtered.test.ts.snap": "// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html\n\nexports[`filtered out 1`] = `\"left out\"`;\n\nexports[`runs 1`] = `\"ran\"`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false", "-t", "runs"],
+      "vitest": ["-t", "runs"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/filtered.test.ts.snap"]
+  }
+}

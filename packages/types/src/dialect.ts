@@ -3,6 +3,7 @@ import type { JsonValue } from './clone-safe.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { FileRegistry, ModuleMockRegistry } from './loader.ts'
 import type { MockPolicy, ModuleRef, PolicyOverrides, TimersPolicy } from './policy/index.ts'
+import type { CliDialect } from './run-request.ts'
 
 /**
  * Dialect option types by dialect name. Each dialect package augments it:
@@ -296,6 +297,8 @@ export interface Dialect<Name extends string = string, Options = unknown> {
   /** Validates `config[name]`. */
   readonly options?: StandardSchemaV1<unknown, Options>
   readonly configReader?: ConfigReader
+  /** Parses this runner's command line into a `RunRequest` (Track 11 T11.7). */
+  readonly cli?: CliDialect
   readonly flags?: readonly FlagSpec[]
   readonly modules?: readonly ApiModule[]
   /**

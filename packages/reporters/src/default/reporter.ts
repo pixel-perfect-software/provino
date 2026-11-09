@@ -13,8 +13,10 @@ import type { TextSink } from '../sink.ts'
 import {
   failLine,
   failureBlock,
+  obsoleteBlock,
   passLine,
   skipLine,
+  snapshotLine,
   summaryLines,
   type TestCounts,
   testTitle,
@@ -138,7 +140,12 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
       const unhandled = summary.unhandled.map((error) =>
         failureBlock(report, 'Unhandled error', [error]),
       )
-      const parts = [...unhandled, summaryLines(state.files, state.tests, summary.durationMs)]
+      const obsolete = obsoleteBlock(summary.snapshots)
+      const parts = [
+        ...unhandled,
+        ...(obsolete === '' ? [] : [obsolete]),
+        summaryLines(state.files, state.tests, summary.durationMs, snapshotLine(summary.snapshots)),
+      ]
       await print((atBlank ? parts : ['', ...parts]).join('\n'))
     },
   }

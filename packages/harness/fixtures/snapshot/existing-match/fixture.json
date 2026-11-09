@@ -1,0 +1,21 @@
+{
+  "description": "A .snap that already holds every snapshot the tests check, in write mode: the tests pass, nothing is added, and the file is as it was.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/existing.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`stored 1`] = `\n{\n  \"a\": 1,\n}\n`;\n\nexports[`stored with hint: hint 1`] = `\"text\"`;\n"
+    },
+    "vitest": {
+      "__snapshots__/existing.test.ts.snap": "// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html\n\nexports[`stored 1`] = `\n{\n  \"a\": 1,\n}\n`;\n\nexports[`stored with hint > hint 1`] = `\"text\"`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/existing.test.ts.snap"]
+  }
+}

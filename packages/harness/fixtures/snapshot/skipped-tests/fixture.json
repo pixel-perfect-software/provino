@@ -1,0 +1,21 @@
+{
+  "description": "The snapshots of a skipped test, a skipped describe and a todo are not obsolete: the run passes in write mode with the .snap as it was.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/skipped.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`runs 1`] = `\"ran\"`;\n\nexports[`skipped 1`] = `\"skipped\"`;\n\nexports[`skipped block inside 1`] = `\"inside\"`;\n"
+    },
+    "vitest": {
+      "__snapshots__/skipped.test.ts.snap": "// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html\n\nexports[`runs 1`] = `\"ran\"`;\n\nexports[`skipped 1`] = `\"skipped\"`;\n\nexports[`skipped block > inside 1`] = `\"inside\"`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/skipped.test.ts.snap"]
+  }
+}

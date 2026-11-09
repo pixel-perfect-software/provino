@@ -6,7 +6,7 @@ import { jestExpectPolicy } from '../expect-policy.ts'
 import { jestExpectTable } from './expect-table.ts'
 import { setUpJestExpect } from './internal/test-support.ts'
 
-/** Jest 30.5's instance matchers (Track 7 F2) without the 4 snapshot ones (T7.10). */
+/** Jest 30.5's instance matchers (Track 7 F2) without the 4 snapshot ones (T7.10), sorted. */
 const JEST_MATCHERS = [
   'toBe',
   'toBeCloseTo',
@@ -57,11 +57,21 @@ const REMOVED_ALIASES = [
   'toThrowError',
 ]
 
-test('the table has Jest 30.5`s 32 non-snapshot matchers, in order of registration', () => {
+const SNAPSHOT_MATCHERS = [
+  'toMatchInlineSnapshot',
+  'toMatchSnapshot',
+  'toThrowErrorMatchingInlineSnapshot',
+  'toThrowErrorMatchingSnapshot',
+]
+
+test('the table has Jest 30.5`s 32 matchers in order of registration, then its 4 snapshot ones', () => {
   const { matchers } = jestExpectTable()
-  assert.deepEqual(Object.keys(matchers).toSorted(), JEST_MATCHERS)
-  assert.equal(Object.keys(matchers)[0], 'toBe')
-  assert.equal(Object.keys(matchers).at(-1), 'toThrow')
+  const names = Object.keys(matchers)
+  assert.deepEqual(names.toSorted(), [...JEST_MATCHERS, ...SNAPSHOT_MATCHERS].toSorted())
+  assert.equal(names[0], 'toBe')
+  assert.equal(names[31], 'toThrow')
+  assert.deepEqual(names.slice(32).toSorted(), SNAPSHOT_MATCHERS)
+  assert.equal(names.includes('toMatchFileSnapshot'), false, 'that one is Vitest`s')
 })
 
 test('no removed alias is registered', () => {
@@ -71,7 +81,11 @@ test('no removed alias is registered', () => {
 
 test('toThrow has a promise form; the asymmetric tables match index.ts', () => {
   const table = jestExpectTable()
-  assert.deepEqual(Object.keys(table.promiseMatchers), ['toThrow'])
+  assert.deepEqual(Object.keys(table.promiseMatchers), [
+    'toThrow',
+    'toThrowErrorMatchingSnapshot',
+    'toThrowErrorMatchingInlineSnapshot',
+  ])
   assert.notEqual(table.promiseMatchers.toThrow, table.matchers.toThrow)
   assert.deepEqual(Object.keys(table.asymmetric).toSorted(), [
     'any',

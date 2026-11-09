@@ -1,0 +1,13 @@
+{
+  "description": "How snapshot keys are built and ordered: nested describes, a hint, a hint with a colon, several snapshots in one test, two tests with one name, a test.each title with no placeholder, names that sort differently as text and as numbers, and a name with a backtick and a dollar-brace. A black-box run in write mode capturing the .snap.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/names.test.ts.snap"]
+  }
+}

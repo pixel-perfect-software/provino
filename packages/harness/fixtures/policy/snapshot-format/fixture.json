@@ -1,0 +1,4 @@
+{
+  "description": "The pretty-format options a runner's snapshot state holds (T1.7, snapshot slice), read from the state a test finds in its expect state: Vitest's output cap (maxOutputLength, 2**27) and, for Jest, that it has none.",
+  "runners": ["jest", "vitest"]
+}

@@ -1,0 +1,13 @@
+{
+  "description": "toThrowErrorMatchingSnapshot: what is stored for a message, a custom error class, an error with a cause, a multi-line message, a hint, and for a rejection. Jest stores the message and the causes; Vitest stores the error. A black-box run in write mode capturing the .snap.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/throws.test.ts.snap"]
+  }
+}

@@ -191,6 +191,36 @@ async function readCaptured(file: string): Promise<string | null> {
   }
 }
 
+/** Whether `text` is a JSON array: what Jest's `--listTests --json` writes in place of results. */
+function isPathList(text: string): boolean {
+  try {
+    return Array.isArray(JSON.parse(text))
+  } catch {
+    return false
+  }
+}
+
+/** The elements of the JSON array of strings `lines` make up, sorted (`sortStdout: 'json'`). */
+function sortedJsonArray(lines: readonly string[], stream: string, source: string): string[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(lines.join('\n'))
+  } catch {
+    parsed = undefined
+  }
+  if (
+    !Array.isArray(parsed) ||
+    !parsed.every((entry): entry is string => typeof entry === 'string')
+  ) {
+    throw new HarnessError(
+      'HARNESS_FIXTURE_BAD_RUN',
+      `${source}: "run" "sortStdout" is "json", but the kept lines of ${stream} are not one JSON array of strings`,
+      { path: source },
+    )
+  }
+  return parsed.toSorted(compareStrings)
+}
+
 /**
  * What a black-box run shows, in `capture`'s order of kinds: the exit code, the normalized
  * streams (only `keepLines`' lines, sorted under `sortStdout`) and the named files. A stream
@@ -218,6 +248,7 @@ export function observedOf(
       }
     }
     if (spec.sortStdout === true) lines = lines.toSorted(compareStrings)
+    if (spec.sortStdout === 'json') lines = sortedJsonArray(lines, name, source)
     return lines.join('\n')
   }
   const captured = (name: string): boolean => spec.capture.includes(name)
@@ -231,8 +262,16 @@ export function observedOf(
       : {
           files: Object.fromEntries(
             named.map((entry) => {
-              const text = files[entry.slice('file:'.length)] ?? null
-              return [entry.slice('file:'.length), text === null ? null : normalize(text)]
+              const file = entry.slice('file:'.length)
+              const text = files[file] ?? null
+              if (text === null) return [file, null]
+              const normalized = normalize(text)
+              return [
+                file,
+                spec.sortStdout === 'json'
+                  ? sortedJsonArray([normalized], file, source).join('\n')
+                  : normalized,
+              ]
             }),
           ),
         }),
@@ -359,10 +398,13 @@ async function runUnderRunner(
   // A failing test makes the runner exit non-zero, which is expected. No JSON is not, except for a
   // black-box run, where a runner that stops before any test (no tests found, a bad option) is
   // what the fixture records.
-  const json =
+  const written =
     spec === undefined
       ? await readFile(outputFile, 'utf8').catch(noJson)
       : await readCaptured(outputFile)
+  // `--listTests` (with the recorder's `--json`) writes the list, a JSON array of paths, where the
+  // results go: a black-box run that did that has no results, and keeps the list as a file.
+  const json = spec !== undefined && written !== null && isPathList(written) ? null : written
   function noJson(cause: unknown): never {
     throw new HarnessError(
       'HARNESS_RUNNER_FAILED',

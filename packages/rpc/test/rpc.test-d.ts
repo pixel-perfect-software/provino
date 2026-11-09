@@ -33,7 +33,6 @@ const toCoordinator = createRpc<WorkerMethods, CoordinatorMethods>(port, { memor
 expectTypeOf(toCoordinator.readTimings).toEqualTypeOf<
   (file: string) => Promise<number | undefined>
 >()
-expectTypeOf(toCoordinator.resolveSnapshotPath).returns.toEqualTypeOf<Promise<string>>()
 // @ts-expect-error readTimings takes a file path
 void toCoordinator.readTimings(1)
 // @ts-expect-error not a coordinator method

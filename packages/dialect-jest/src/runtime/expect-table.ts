@@ -2,8 +2,11 @@
 // matchers, asymmetric matchers and messages are Jest 30.5.2's own, vendored in
 // `vendor/jest-expect/` (see its UPSTREAM.md). Jest 30 removed the aliases (`toBeCalled`,
 // `toThrowError`, …, #14632), so none is registered: calling one throws V8's
-// `expect(...).toBeCalled is not a function`, as in Jest. The snapshot matchers come with T7.10.
+// `expect(...).toBeCalled is not a function`, as in Jest. The four snapshot matchers are
+// `@provino/expect`'s (T7.10): they run over the file's snapshot state, whose printer and words are
+// this dialect's (`snapshot-printer.ts`).
 import { iterableEquality, subsetEquality } from '@jest/expect-utils'
+import { snapshotMatchers } from '@provino/expect'
 import type { ExpectTable } from '@provino/types'
 import * as matcherUtils from 'jest-matcher-utils'
 import * as policyMessages from './policy-messages.ts'
@@ -38,12 +41,16 @@ import type { RawMatcherFn } from './vendor/jest-expect/types.ts'
  * @public
  */
 export function jestExpectTable(): ExpectTable {
+  // `toMatchFileSnapshot` is Vitest's; Jest has no such matcher.
+  const snapshot = snapshotMatchers({ fileSnapshot: false })
   return {
-    // The order Jest registers them in (`expect/src/index.ts` L459–L461).
-    matchers: { ...matchers, ...spyMatchers, ...toThrowMatchers },
+    // The order Jest registers them in (`expect/src/index.ts` L459–L461), then jest-circus's
+    // `expect.extend` of the snapshot matchers.
+    matchers: { ...matchers, ...spyMatchers, ...toThrowMatchers, ...snapshot.matchers },
     // `getPromiseMatcher` (index.ts L92–L103): under `.resolves`/`.rejects`, `toThrow` reads the
-    // settled value as the thrown one. It is a fresh function, so it isn't flagged internal.
-    promiseMatchers: { toThrow: createThrowMatcher('toThrow', true) },
+    // settled value as the thrown one, and the two snapshot matchers that read a thrown error are
+    // told the value is the error. They are fresh functions, so they aren't flagged internal.
+    promiseMatchers: { toThrow: createThrowMatcher('toThrow', true), ...snapshot.promiseMatchers },
     asymmetric: {
       any,
       anything,

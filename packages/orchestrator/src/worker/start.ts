@@ -11,6 +11,7 @@ import type {
   FileJob,
   RpcClient,
   SerializedError,
+  SnapshotFileReport,
   TaskId,
   WorkerInit,
   WorkerMethods,
@@ -63,6 +64,12 @@ export interface FileOutcome {
    * or empty for a clean file. The runner sends the matching `console` warning itself.
    */
   readonly leakedGlobals?: readonly string[]
+  /**
+   * What the file's snapshot state ended with (the `.snap` is already written). It goes out as
+   * `fileDone.snapshot`; the coordinator adds the files up. Absent for a runner that keeps no
+   * snapshot state, or a file that never collected its tests.
+   */
+  readonly snapshot?: SnapshotFileReport
 }
 
 /**
@@ -225,11 +232,13 @@ export function startWorker(
     capture.reset()
     let leakedHandles = 0
     let leakedGlobals: readonly string[] = []
+    let snapshot: SnapshotFileReport | null = null
     try {
       if (startFailure !== undefined) throw startFailure.error
       const outcome = await runner.runFile({ ...context(), job, signal: controller.signal })
       leakedHandles = outcome?.leakedHandles ?? 0
       leakedGlobals = outcome?.leakedGlobals ?? []
+      snapshot = outcome?.snapshot ?? null
     } catch (error) {
       // The runtime reports test failures as events; a runner that throws is a bug, charged to the file.
       charge(error, job.fileId)
@@ -239,7 +248,14 @@ export function startWorker(
     await settle()
     const memoryBytes = measureMemory(init)
     packer.afterSent(() =>
-      port.send({ t: 'fileDone', seq, memoryBytes, leakedHandles, leakedGlobals }),
+      port.send({
+        t: 'fileDone',
+        seq,
+        memoryBytes,
+        leakedHandles,
+        leakedGlobals,
+        ...(snapshot === null ? {} : { snapshot }),
+      }),
     )
   }
 

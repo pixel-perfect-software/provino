@@ -142,8 +142,6 @@ interface RunningFile {
 }
 
 const METHODS: CoordinatorMethods = {
-  resolveSnapshotPath: async (file) => file,
-  writeSnapshot: async () => {},
   readTimings: async () => undefined,
 }
 

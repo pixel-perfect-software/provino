@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/serializers",
+  "files": [
+    {
+      "file": "serializers.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "serializers.test.ts",
+            "path": [
+              "serializers",
+              "jest-serializer-vue, from the config"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 15,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "serializers.test.ts",
+            "path": [
+              "serializers",
+              "a plugin added by the file"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 20,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "serializers.test.ts",
+            "path": [
+              "serializers",
+              "the plugin added last is tried first"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 25,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "serializers.test.ts",
+            "path": [
+              "serializers",
+              "plain values are untouched"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 6,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 6,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/serializers.test.ts.snap",
+        "sha256": "fbd42839920ea321dc248621d662116fbf1936bf7a2858e8ff4699d5bd644b79"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      "__snapshots__/serializers.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`serializers a plugin added by the file 1`] = `Redacted<\"x\">`;\n\nexports[`serializers a plugin added by the file 2`] = `\n{\n  \"list\": [\n    Redacted<\"z\">,\n  ],\n  \"outer\": Redacted<\"y\">,\n}\n`;\n\nexports[`serializers jest-serializer-vue, from the config 1`] = `<div class=\"a\"><span>hi</span><b>there</b></div>`;\n\nexports[`serializers jest-serializer-vue, from the config 2`] = `\n<ul>\n  <li>1</li>\n  <li>2</li>\n</ul>\n`;\n\nexports[`serializers plain values are untouched 1`] = `\n{\n  \"name\": \"plain\",\n}\n`;\n\nexports[`serializers the plugin added last is tried first 1`] = `Later`;\n"
+    }
+  }
+}

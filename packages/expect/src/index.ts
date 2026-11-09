@@ -8,6 +8,7 @@ export {
   type EndOfTestAttempt,
   type EndOfTestOptions,
 } from './end-of-test.ts'
+export { equalityTesters } from './equality.ts'
 export { ExpectError, type ExpectErrorCode } from './errors.ts'
 export {
   type CreateExpectOptions,
@@ -26,6 +27,7 @@ export {
   type SlotHandle,
   snapshotRegistry,
 } from './slot.ts'
+export { type SnapshotMatchersOptions, snapshotMatchers } from './snapshot-matchers.ts'
 export {
   createStateSource,
   type StateSource,

@@ -127,10 +127,14 @@ export function jestProjectToNeutral(
   if (project.modulePaths !== undefined && project.modulePaths.length > 0) {
     notApplied(diagnostics, 'modulePaths', 'T3.3')
   }
-  if (project.snapshotSerializers.length > 0) {
-    notApplied(diagnostics, 'snapshotSerializers', 'T7.10')
+  if (project.snapshotResolver !== undefined) {
+    notApplied(
+      diagnostics,
+      'snapshotResolver',
+      'a later bundle',
+      '; snapshots stay beside the test file',
+    )
   }
-  if (project.snapshotResolver !== undefined) notApplied(diagnostics, 'snapshotResolver', 'T7.9')
   if (project.fakeTimers.enableGlobally === true) notApplied(diagnostics, 'fakeTimers', 'T4.9')
   if (project.globalSetup !== undefined) notApplied(diagnostics, 'globalSetup', 'Track 9')
   if (project.globalTeardown !== undefined) notApplied(diagnostics, 'globalTeardown', 'Track 9')
@@ -153,6 +157,9 @@ export function jestProjectToNeutral(
       restore: project.restoreMocks,
     },
   }
+  // `snapshotFormat` is pretty-format's options, already merged over Jest's two defaults: the two
+  // the policy types go in their keys, the rest (`indent`, `maxDepth`, `min`, ...) in `extra`.
+  const { escapeString, printBasicPrototype, ...otherFormat } = project.snapshotFormat
   const policy: PolicyOverrides = {
     core: {
       injectGlobals: project.injectGlobals,
@@ -163,6 +170,20 @@ export function jestProjectToNeutral(
     orchestrator: {
       passWithNoTests: globalConfig.passWithNoTests,
       slowTestThresholdMs: project.slowTestThreshold * 1000,
+      // `testFailureExitCode` is what Jest exits with when the run didn't succeed: a failed test
+      // or file, and an error outside the tests (`readResultsAndExit`).
+      exitCodes: {
+        failure: globalConfig.testFailureExitCode,
+        unhandled: globalConfig.testFailureExitCode,
+      },
+    },
+    snapshot: {
+      serializers: [...project.snapshotSerializers],
+      format: {
+        ...(typeof escapeString === 'boolean' ? { escapeString } : {}),
+        ...(typeof printBasicPrototype === 'boolean' ? { printBasicPrototype } : {}),
+        extra: jsonObject(otherFormat, 'snapshotFormat', diagnostics),
+      },
     },
   }
   const neutral: NeutralProject = {
@@ -176,7 +197,14 @@ export function jestProjectToNeutral(
           ? { kind: 'regex', patterns: [...project.testRegex] }
           : { kind: 'glob', patterns: [...project.testMatch] },
       excludePatterns: [...project.testPathIgnorePatterns],
-      crawlIgnorePatterns: [...project.modulePathIgnorePatterns],
+      crawlIgnorePatterns: [
+        ...project.modulePathIgnorePatterns,
+        // jest-runtime `createHasteMap`: a cache directory inside the root is not crawled. It
+        // joins the ignore regular expression as it is, unescaped, as Jest builds it.
+        ...(project.cacheDirectory.startsWith(`${project.rootDir}/`)
+          ? [project.cacheDirectory]
+          : []),
+      ],
     },
     setupFiles: [...project.setupFiles],
     setupFilesAfterEnv: [...project.setupFilesAfterEnv],

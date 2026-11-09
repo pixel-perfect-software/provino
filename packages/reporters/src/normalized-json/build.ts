@@ -114,6 +114,8 @@ export interface RunParts {
   readonly reason: RunEndReason
   /** Default `fail-run`. */
   readonly unhandledErrors?: UnhandledErrors
+  /** The run's snapshot totals and files (`normalizeSnapshots`), when it had any. */
+  readonly snapshots?: NormalizedRun['snapshots']
 }
 
 /**
@@ -277,8 +279,9 @@ function normalizeFile(
 /**
  * Builds the run: files sorted by path (they finish in any order), tests in collection order,
  * console output per test where a write names one and per file otherwise (`consoleOf`).
- * `snapshots` (the harness hashes the files) and `trace` (T12.7) are left out. `success` is false when a
- * file failed or crashed, a run error was reported, or the run was interrupted. Under
+ * `trace` (T12.7) is left out. `snapshots` is what the run's snapshots were (the caller hashes the
+ * files). `success` is false when a file failed or crashed, a run error was reported, the run
+ * failed on its snapshots, or the run was interrupted. Under
  * `unhandledErrors: 'ignore'` unhandled errors are recorded but fail neither a file nor the run,
  * as the orchestrator's exit code has it.
  */
@@ -304,7 +307,9 @@ export function buildNormalizedRun(parts: RunParts): NormalizedRun {
     startedAt: parts.startedAt,
     env: parts.env,
     files,
+    ...(parts.snapshots === undefined ? {} : { snapshots: parts.snapshots }),
     runErrors,
-    success: clean && !failingRunErrors && parts.reason !== 'interrupted',
+    // `failed` also covers what no file shows: a run whose obsolete snapshots fail it.
+    success: clean && !failingRunErrors && parts.reason === 'passed',
   }
 }

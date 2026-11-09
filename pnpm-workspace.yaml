@@ -49,6 +49,8 @@ catalog:
   "@types/jsdom": 30.0.0
   # Node 22.15 is the floor, so type against the 22.x API.
   "@types/node": 22.20.5
+  # picomatch ships no types (D26).
+  "@types/picomatch": 4.0.2
   "@types/sinonjs__fake-timers": 15.0.1
   # Interop tests only: our asymmetric matchers inside Vitest's expect, and its inside ours (T7.4).
   "@vitest/expect": 5.0.5
@@ -74,23 +76,33 @@ catalog:
   # the Jest dialect's defaults check (T11.2), and as the Jest config reader's oracle (B14b): real
   # `readConfig` / `readInitialOptions`, in-process. The version `jest@30.5.2` installs.
   jest-config: 30.5.2
+  # The Jest CLI parser's oracle (T11.7, B14c): `buildArgv` and `yargsOptions`, in-process. The
+  # version `jest@30.5.2` installs.
+  jest-cli: 30.5.2
   # jest-matcher-utils, jest-message-util and jest-util: the Jest dialect's expect (D18, above).
   jest-matcher-utils: 30.5.2
   jest-message-util: 30.5.1
   # The mock bench's second baseline (T4.3), and the Jest dialect's upstream expect tests.
   jest-mock: 30.5.2
+  # A real `print`-style snapshot serializer: the snapshot corpus runs it under both runners (T7.10).
+  jest-serializer-vue: 3.1.0
   jest-util: 30.5.1
   # jsdom (Track 8's version): the propagation test's DOM rows, later the jsdom environment.
   jsdom: 30.1.3
   lodash: 4.18.1
   # The hoister's edits and maps (Track 3 R2), and the Spike A loader fixture.
   magic-string: 1.4.5
+  # The oracle for the vendored key order in @provino/snapshot (T7.9): same pairs, same order.
+  natural-compare: 1.4.0
   # Oxc (Track 3): the resolver, and the transform pipeline with its parser.
   oxc-parser: 0.156.0
   oxc-resolver: 11.24.2
   oxc-transform: 0.156.0
   # The hoister's AST walk and scope tracking (Track 3 R2).
   oxc-walker: 1.1.1
+  # Discovery matches `testMatch` on absolute paths with ordered negation, as Jest's
+  # `globsToMatcher` does (DECISIONS D26): a runtime dependency of `@provino/orchestrator`.
+  picomatch: 4.0.7
   pretty-format: 30.5.1
   # File discovery in the coordinator (B11): include/exclude globs.
   tinyglobby: 0.2.17

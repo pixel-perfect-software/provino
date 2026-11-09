@@ -126,5 +126,12 @@ function newAttemptState(
     isExpectingAssertionsError: _expecting,
     ...carried
   } = fileState
-  return { ...carried, ...freshCounters(), currentTestName: test.fullName.join(nameSeparator) }
+  return {
+    ...carried,
+    ...freshCounters(),
+    currentTestName: test.fullName.join(nameSeparator),
+    currentTestPath: test.fullName,
+    currentTestId: test.id,
+    testFailing: test.expectFail,
+  }
 }

@@ -86,8 +86,6 @@ function harness(runner: WorkerRunner, options: StartWorkerOptions = {}) {
   const done = startWorker(workerPort, runner, options)
   // A round trip to the worker: once it is answered, every message sent before it was handled.
   const worker = createRpc<CoordinatorMethods, WorkerMethods>(coordinator, {
-    resolveSnapshotPath: async (file) => file,
-    writeSnapshot: async () => {},
     readTimings: async () => undefined,
   })
   const barrier = async (): Promise<void> => {

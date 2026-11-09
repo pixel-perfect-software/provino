@@ -6,6 +6,7 @@ import type { GlobalsHost } from '@provino/types'
 // `formatEachTitle` (T5.4) is the dialect's `core.formatEachTitle` behaviour, built; the globals
 // below are still the stub.
 export { formatEachTitle } from '../each/format-each-title.ts'
+export { vitestSnapshotPrinter } from './snapshot-printer.ts'
 
 /**
  * The code a `VitestDialectError` carries.

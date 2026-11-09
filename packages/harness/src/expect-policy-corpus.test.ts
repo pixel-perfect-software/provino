@@ -66,7 +66,7 @@ test('the substituted Vitest policy values are exactly the ones createExpect sti
       refused.push(key)
     }
   }
-  assert.deepEqual(refused.sort(), ['equality', 'errorShape'])
+  assert.deepEqual(refused.sort(), ['errorShape'])
 })
 
 describe('the Jest goldens', () => {

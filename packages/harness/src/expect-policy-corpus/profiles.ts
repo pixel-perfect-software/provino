@@ -12,13 +12,12 @@ export type PolicyProfile = 'jest' | 'vitest'
 
 /**
  * The Vitest `ExpectPolicy` values `createExpect` does not build yet, with the Jest values that
- * stand in for them: the error shape (T7.6) and the equality edge cases (T7.7). Nothing the policy
- * corpus runs reads them. The corpus test keeps this list honest: it must name exactly the keys
- * `createExpect` still refuses.
+ * stand in for them: the error shape (T7.6). Nothing the policy corpus runs reads it. The corpus
+ * test keeps this list honest: it must name exactly the keys `createExpect` still refuses (the
+ * equality edge cases, T7.7, are built, so Vitest's own run here).
  */
-export const SUBSTITUTED: Pick<ExpectPolicy, 'errorShape' | 'equality'> = {
+export const SUBSTITUTED: Pick<ExpectPolicy, 'errorShape'> = {
   errorShape: jestExpectPolicy.errorShape,
-  equality: jestExpectPolicy.equality,
 }
 
 /** One wrong policy value, laid over a profile's policy: `core` and `expect` replace those keys. */

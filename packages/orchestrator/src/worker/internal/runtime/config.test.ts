@@ -206,6 +206,24 @@ describe('parseProjectConfig', () => {
       }
     })
 
+    it('wants the snapshot serializers to be absolute paths, and names the one that is not', () => {
+      assert.deepEqual(
+        parseProjectConfig(with_('policy.snapshot.serializers', ['/abs/a.js', '/abs/b.js'])).policy
+          .snapshot.serializers,
+        ['/abs/a.js', '/abs/b.js'],
+      )
+      assert.throws(
+        () =>
+          parseProjectConfig(
+            with_('policy.snapshot.serializers', ['/abs/a.js', 'jest-serializer-vue']),
+          ),
+        {
+          code: 'ORCH_BAD_CONFIG',
+          message: /policy\.snapshot\.serializers\[1\] must be an absolute path/,
+        },
+      )
+    })
+
     it('finds a ref wherever it is nested, in an array too, and names it', () => {
       const nested = { list: [moduleRef('/ok.ts', 'a'), { deeper: moduleRef('bare', 'b') }] }
       assert.throws(() => parseProjectConfig(with_('policy.core.extra', nested)), {

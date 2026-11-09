@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/new-ci",
+  "files": [
+    {
+      "file": "new.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "new.test.ts",
+            "path": [
+              "a new snapshot"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toMatchSnapshot()\n\nSnapshot name: `a new snapshot 1`\n\nNew snapshot was not written. The update flag must be explicitly passed to write a new snapshot.\n\nThis is likely because this test is run in a continuous integration (CI) environment in which snapshots are not written by default.\n\nReceived: \"new\"",
+              "matcher": "toMatchSnapshot",
+              "userFrame": "<root>/new.test.ts:2:17"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 1,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 1,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 1,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "files": {
+      "__snapshots__/new.test.ts.snap": null
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "discovery/glob-negation",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      ".harness-out/jest.json": "<root>/src/keep/four.test.ts\n<root>/src/keep/three.slow.test.ts\n<root>/src/one.test.ts"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["src"],
-  "exclude": ["src/each/vendor"],
+  "exclude": ["src/each/vendor", "src/vendor"],
   "references": [
     {
       "path": "../types"
@@ -11,6 +11,9 @@
     },
     {
       "path": "src/each/vendor"
+    },
+    {
+      "path": "src/vendor/pretty-format"
     }
   ]
 }

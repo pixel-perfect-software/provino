@@ -186,8 +186,6 @@ function deps(f: Fake, extra: Partial<PoolDeps> = {}): PoolDeps {
       config: undefined as never,
     }),
     methods: {
-      resolveSnapshotPath: (file) => file,
-      writeSnapshot: () => {},
       readTimings: () => undefined,
     },
     ...extra,

@@ -21,6 +21,7 @@ const RECORD_PATHS = [
   'mock.messages',
   'module.messages',
   'orchestrator.isolationDefault.byEnvironment',
+  'snapshot.format.extra',
 ] as const satisfies readonly RecordPaths<Policy>[]
 type UnlistedRecord = Exclude<RecordPaths<Policy>, (typeof RECORD_PATHS)[number]>
 const _everyRecordListed: [UnlistedRecord] extends [never] ? true : UnlistedRecord = true

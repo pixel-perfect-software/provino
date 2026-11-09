@@ -146,7 +146,12 @@ export interface FixtureRun {
   readonly capture: readonly string[]
   readonly emptyStreams?: readonly ('stdout' | 'stderr')[]
   readonly keepLines?: string
-  readonly sortStdout?: true
+  /**
+   * `true` sorts the kept lines. `'json'` reads the kept lines as one JSON array of strings (Jest's
+   * `--listTests --json`) and records its elements sorted, one to a line: a list whose order
+   * depends on file sizes and timings is recorded as the set it is.
+   */
+  readonly sortStdout?: true | 'json'
 }
 
 /**
@@ -305,6 +310,7 @@ export function parseFixtureManifest(
           config: parseConfigOverlay(config, runners, source, {
             mockCleanup: mockCleanup !== undefined,
             jestConfig: isRecord(jestConfig) ? Object.keys(jestConfig) : [],
+            run: run !== undefined,
           }),
         }),
     ...(files === undefined ? {} : { files: parseRunnerFiles(files, runners, source) }),
@@ -334,6 +340,9 @@ const VITEST_RESERVED: readonly string[] = [
   'projects',
   'test.projects',
 ]
+/** The reserved keys a `run` fixture's overlay may set after all: which files the run finds. */
+const JEST_DISCOVERY: readonly string[] = ['testMatch', 'testPathIgnorePatterns']
+const VITEST_DISCOVERY: readonly string[] = ['test.include', 'test.exclude']
 /** What `mockCleanup` and `jestConfig` set, as each runner spells it. */
 const JEST_MOCK_CLEANUP_OPTIONS: readonly string[] = ['clearMocks', 'resetMocks', 'restoreMocks']
 const VITEST_MOCK_CLEANUP_OPTIONS: readonly string[] = [
@@ -364,7 +373,11 @@ function parseConfigOverlay(
   config: unknown,
   runners: readonly FixtureProfile[],
   source: string,
-  owned: { readonly mockCleanup: boolean; readonly jestConfig: readonly string[] },
+  owned: {
+    readonly mockCleanup: boolean
+    readonly jestConfig: readonly string[]
+    readonly run: boolean
+  },
 ): FixtureConfigOverlay {
   const bad = (reason: string): HarnessError =>
     new HarnessError('HARNESS_FIXTURE_BAD_CONFIG', `${source}: "config" ${reason}`, {
@@ -388,15 +401,17 @@ function parseConfigOverlay(
       throw bad('must give "vitest.test" an object')
     }
     const paths = keyPaths(overlay)
+    // A black-box run finds its own tests: which files a run picks is what it may be about
+    // (`discovery/*`), so its overlay sets the discovery options the recorder otherwise writes.
     const reserved =
       known === 'jest'
         ? [
-            ...JEST_RESERVED,
+            ...JEST_RESERVED.filter((key) => !owned.run || !JEST_DISCOVERY.includes(key)),
             ...(owned.mockCleanup ? JEST_MOCK_CLEANUP_OPTIONS : []),
             ...owned.jestConfig,
           ]
         : [
-            ...VITEST_RESERVED,
+            ...VITEST_RESERVED.filter((key) => !owned.run || !VITEST_DISCOVERY.includes(key)),
             ...(owned.mockCleanup ? VITEST_MOCK_CLEANUP_OPTIONS : []),
             ...(runners.includes('vitest-list') ? ['test.sequence.hooks'] : []),
           ]
@@ -520,7 +535,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     capture: string[]
     emptyStreams?: ('stdout' | 'stderr')[]
     keepLines?: string
-    sortStdout?: true
+    sortStdout?: true | 'json'
   } = { capture }
   if (argv !== undefined) {
     if (!isRecord(argv) || Object.keys(argv).length === 0) {
@@ -579,8 +594,10 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     out.emptyStreams = emptyStreams
   }
   if (sortStdout !== undefined) {
-    if (sortStdout !== true) throw bad('"sortStdout" must be true (leave it out for off)')
-    out.sortStdout = true
+    if (sortStdout !== true && sortStdout !== 'json') {
+      throw bad('"sortStdout" must be true or "json" (leave it out for off)')
+    }
+    out.sortStdout = sortStdout
   }
   return out
 }
