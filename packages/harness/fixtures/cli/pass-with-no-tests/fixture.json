@@ -1,0 +1,11 @@
+{
+  "description": "--passWithNoTests turns a run that finds no tests into a pass (U3, orchestrator.passWithNoTests): a path filter matching nothing, with the flag, exits with code 0 under both runners. A black-box run.",
+  "runners": ["jest", "vitest"],
+  "run": {
+    "argv": {
+      "jest": ["--passWithNoTests", "matches-no-file"],
+      "vitest": ["--passWithNoTests", "matches-no-file"]
+    },
+    "capture": ["exitCode"]
+  }
+}

@@ -255,3 +255,26 @@ test('parts that are already the right shape are passed through as they are', ()
   assert.deepEqual(golden0?.location, test0?.location)
   assert.deepEqual(toGolden(run).snapshots?.files, run.snapshots?.files)
 })
+
+test('sortStdout "json" records the JSON array of paths in a stream or a file as a sorted set', () => {
+  const list = '["<root>/z.test.ts","<root>/a.test.ts"]'
+  const observe = (stdout: string) =>
+    observedOf(
+      { capture: ['stdout', 'file:out.json'], sortStdout: 'json' },
+      { exitCode: 0, stdout, stderr: '' },
+      { 'out.json': '["/work/b","/work/a"]' },
+      (text) => text.replaceAll('/work', '<root>'),
+      'fixture.json',
+    )
+  assert.deepEqual(observe(list), {
+    stdout: '<root>/a.test.ts\n<root>/z.test.ts',
+    files: { 'out.json': '<root>/a\n<root>/b' },
+  })
+  assert.throws(
+    () => observe('no list here'),
+    (error: unknown) =>
+      error instanceof HarnessError &&
+      error.code === 'HARNESS_FIXTURE_BAD_RUN' &&
+      /not one JSON array of strings/.test(error.message),
+  )
+})

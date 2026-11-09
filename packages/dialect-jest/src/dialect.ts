@@ -253,10 +253,12 @@ export const jestPolicy: PolicyOverrides = {
     watchDefault: 'never',
     // research: track-09 L560 (`all` with `--watchAll`)
     watch: { initialRun: 'changed' },
+    // Ours: Jest's `testMatch` is picomatch on the absolute path (`policy/orchestrator-match-path`).
+    globMatchesOn: 'absolute-path',
     // research: track-01 L227
     passWithNoTests: false,
-    // research: track-01 L228, track-09 L563
-    exitCodes: { failure: 1, noTests: 1, unhandled: 1 },
+    // research: track-01 L228, track-09 L563; `usage` is `cli/unknown-flag` and `cli/bad-config`.
+    exitCodes: { failure: 1, noTests: 1, unhandled: 1, usage: 1 },
     // research: track-01 L229
     unhandledErrors: 'fail-run',
     // research: track-01 L230, track-08 L516

@@ -215,6 +215,7 @@ export type {
   TestStatus,
   TraceEntry,
 } from './result.ts'
+export type { CliDialect, FileFilter, RunRequest } from './run-request.ts'
 export type {
   CurrentTest,
   EachApi,

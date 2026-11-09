@@ -170,6 +170,12 @@ export function jestProjectToNeutral(
     orchestrator: {
       passWithNoTests: globalConfig.passWithNoTests,
       slowTestThresholdMs: project.slowTestThreshold * 1000,
+      // `testFailureExitCode` is what Jest exits with when the run didn't succeed: a failed test
+      // or file, and an error outside the tests (`readResultsAndExit`).
+      exitCodes: {
+        failure: globalConfig.testFailureExitCode,
+        unhandled: globalConfig.testFailureExitCode,
+      },
     },
     snapshot: {
       serializers: [...project.snapshotSerializers],
@@ -191,7 +197,14 @@ export function jestProjectToNeutral(
           ? { kind: 'regex', patterns: [...project.testRegex] }
           : { kind: 'glob', patterns: [...project.testMatch] },
       excludePatterns: [...project.testPathIgnorePatterns],
-      crawlIgnorePatterns: [...project.modulePathIgnorePatterns],
+      crawlIgnorePatterns: [
+        ...project.modulePathIgnorePatterns,
+        // jest-runtime `createHasteMap`: a cache directory inside the root is not crawled. It
+        // joins the ignore regular expression as it is, unescaped, as Jest builds it.
+        ...(project.cacheDirectory.startsWith(`${project.rootDir}/`)
+          ? [project.cacheDirectory]
+          : []),
+      ],
     },
     setupFiles: [...project.setupFiles],
     setupFilesAfterEnv: [...project.setupFilesAfterEnv],

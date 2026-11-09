@@ -1,0 +1,27 @@
+{
+  "description": "How testPathIgnorePatterns and modulePathIgnorePatterns narrow Jest's --listTests (U2): the first is a regular expression tested on the absolute path of each match, the second removes files from the crawl itself. Both are regular expressions, and <rootDir> is replaced in them. The list is recorded sorted. Jest only.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testMatch": ["**/*.test.ts"],
+      "testPathIgnorePatterns": ["/node_modules/", "/skip/", "\\.slow\\.test\\.ts$"],
+      "modulePathIgnorePatterns": ["<rootDir>/crawl-ignored/"]
+    }
+  },
+  "files": {
+    "jest": {
+      "src/one.test.ts": "// listed only\n",
+      "src/two.slow.test.ts": "// ignored: testPathIgnorePatterns\n",
+      "skip/three.test.ts": "// ignored: testPathIgnorePatterns\n",
+      "crawl-ignored/four.test.ts": "// ignored: modulePathIgnorePatterns\n",
+      "node_modules/pkg/five.test.ts": "// ignored: node_modules\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

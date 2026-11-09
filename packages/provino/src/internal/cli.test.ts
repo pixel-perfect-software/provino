@@ -145,7 +145,9 @@ describe('main', () => {
   })
 
   it('is exit code 2 with the message and the usage text on stderr for bad usage', async () => {
-    for (const argv of [[], ['jest'], ['run'], ['run', '--config', 'c.mjs', '--bad']]) {
+    // `jest` is a command now; `vitest` is a command that is refused, and a bare `provino` in a
+    // directory with nothing to run is too.
+    for (const argv of [['walk'], ['vitest'], ['run'], ['run', '--config', 'c.mjs', '--bad']]) {
       const stdout = new Sink()
       const stderr = new Sink()
       assert.equal(await main(argv, { stdout, stderr }), 2, argv.join(' '))

@@ -46,13 +46,26 @@ export interface OrchestratorPolicy {
     /** What the first watch run covers. Jest: `changed` (`all` with `--watchAll`). Vitest: `all`. research: track-09 L560 */
     readonly initialRun: 'changed' | 'all'
   }
+  /**
+   * What an `include` glob (Jest's `testMatch`) is matched against. Jest: `absolute-path`, so a
+   * relative glob needs a leading `**\/` or `<rootDir>`. Vitest: `root-relative-path`. Ours.
+   * Evidence: `policy/orchestrator-match-path` (U2, B14c).
+   */
+  readonly globMatchesOn: 'absolute-path' | 'root-relative-path'
   /** Whether a run that finds no tests passes. Jest: `false`. Vitest: `false`. research: track-01 L227 */
   readonly passWithNoTests: boolean
-  /** Exit codes. Also Track 9's `exitCode.failure`. Jest: 1/1/1. Vitest: 1/1/1. research: track-01 L228, track-09 L563 */
+  /**
+   * Exit codes. Also Track 9's `exitCode.failure`. Jest: 1/1/1, and 1 for `usage`. Vitest: 1/1/1,
+   * and 1 for `usage`. research: track-01 L228, track-09 L563. `usage` is the code for a command
+   * line or config the runner refuses before any test is found (U3, B14c); the neutral value is
+   * 2, Track 9's `ExitCode.UsageError`, and both dialects record 1
+   * (`cli/unknown-flag`, `cli/bad-config`).
+   */
   readonly exitCodes: {
     readonly failure: number
     readonly noTests: number
     readonly unhandled: number
+    readonly usage: number
   }
   /** What an unhandled error does to the run. Jest: `fail-run`. Vitest: `fail-run`. research: track-01 L229 */
   readonly unhandledErrors: 'fail-run' | 'ignore'

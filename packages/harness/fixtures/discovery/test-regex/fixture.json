@@ -1,0 +1,29 @@
+{
+  "description": "Which files Jest's --listTests finds with testRegex instead of testMatch (U2): the regular expression is tested on the absolute path, so a directory name can match; testMatch is set to null because Jest refuses both. The list is recorded sorted. Jest only.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testMatch": null,
+      "testRegex": ["/specs/.*\\.ts$", "\\.check\\.js$"],
+      "testPathIgnorePatterns": ["/node_modules/", "/specs/skip/"]
+    }
+  },
+  "files": {
+    "jest": {
+      "specs/one.ts": "// listed only\n",
+      "specs/deep/two.ts": "// listed only\n",
+      "specs/skip/three.ts": "// ignored: testPathIgnorePatterns\n",
+      "src/four.check.js": "// listed only\n",
+      "src/five.js": "// not matched\n",
+      "src/six.test.ts": "// not matched: testMatch is off\n",
+      "node_modules/pkg/seven.check.js": "// ignored: node_modules\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

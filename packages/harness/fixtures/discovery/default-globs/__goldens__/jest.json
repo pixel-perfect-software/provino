@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "discovery/default-globs",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      ".harness-out/jest.json": "<root>/.hidden/g.test.js\n<root>/a.test.ts\n<root>/src/__tests__/d.js\n<root>/src/__tests__/helper/e.ts\n<root>/src/a.test.js\n<root>/src/b.spec.ts\n<root>/src/c.test.tsx\n<root>/test.js"
+    }
+  }
+}

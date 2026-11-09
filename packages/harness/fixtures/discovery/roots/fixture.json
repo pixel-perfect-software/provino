@@ -1,0 +1,27 @@
+{
+  "description": "Which files Jest's --listTests finds with roots (U2): only files under a root are crawled, so a matching file outside every root is not listed. Two roots, one of them nested in a directory the other roots skip. The list is recorded sorted. Jest only.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "roots": ["<rootDir>/src", "<rootDir>/packages/app/tests"],
+      "testMatch": ["**/*.test.ts"],
+      "testPathIgnorePatterns": ["/node_modules/"]
+    }
+  },
+  "files": {
+    "jest": {
+      "src/one.test.ts": "// listed only\n",
+      "src/nested/two.test.ts": "// listed only\n",
+      "packages/app/tests/three.test.ts": "// listed only\n",
+      "packages/app/src/four.test.ts": "// outside every root\n",
+      "other/five.test.ts": "// outside every root\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}
