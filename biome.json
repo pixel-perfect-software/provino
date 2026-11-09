@@ -16,6 +16,7 @@
       "!tooling/boundaries/generated",
       "!**/__goldens__",
       "!**/__recorded__",
+      "!packages/harness/corpus",
       "!**/vendor"
     ]
   },

@@ -50,6 +50,15 @@ export interface SubjectOptions {
   readonly fired?: Set<string>
   /** Called with each chunk of the runner's output. */
   readonly onOutput?: (chunk: string) => void
+  /**
+   * Wraps the process that is spawned (B16: a `sandbox-exec` around Node). It receives the command
+   * and its arguments and returns what to run instead; the working directory, environment and
+   * deadline are unchanged.
+   */
+  readonly wrap?: (
+    command: string,
+    args: readonly string[],
+  ) => { readonly command: string; readonly args: readonly string[] }
 }
 
 /**
@@ -171,17 +180,18 @@ export async function runSubject(options: SubjectOptions): Promise<SubjectResult
   const nodeArgs = runner === 'provino' ? PROVINO_NODE_ARGS : []
   const timeoutMs = options.timeoutMs ?? TIMEOUT_MS
   let result: ProcessResult
+  const spawned = {
+    command: process.execPath,
+    args: [...nodeArgs, install.bin, ...subjectArgs(runner, options.argv, files)],
+  }
+  const target = options.wrap === undefined ? spawned : options.wrap(spawned.command, spawned.args)
   try {
-    result = await runProcess(
-      process.execPath,
-      [...nodeArgs, install.bin, ...subjectArgs(runner, options.argv, files)],
-      {
-        cwd,
-        env: runner === 'provino' ? options.env : { ...options.env, [SIDECAR_ENV]: files.sidecar },
-        timeoutMs,
-        ...(options.onOutput === undefined ? {} : { onOutput: options.onOutput }),
-      },
-    )
+    result = await runProcess(target.command, target.args, {
+      cwd,
+      env: runner === 'provino' ? options.env : { ...options.env, [SIDECAR_ENV]: files.sidecar },
+      timeoutMs,
+      ...(options.onOutput === undefined ? {} : { onOutput: options.onOutput }),
+    })
   } catch (cause) {
     throw new HarnessError('HARNESS_RUNNER_FAILED', `could not start ${runner} in ${cwd}`, {
       path: cwd,

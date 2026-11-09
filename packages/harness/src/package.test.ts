@@ -13,7 +13,13 @@ async function readExports(): Promise<Record<string, unknown>> {
 
 test('the package exports only its public entries and the sidecar reporters; the Jest transformer is loaded by path', async () => {
   const exports = await readExports()
-  assert.deepEqual(Object.keys(exports), ['.', './site', './reporters/jest', './reporters/vitest'])
+  assert.deepEqual(Object.keys(exports), [
+    '.',
+    './site',
+    './corpus',
+    './reporters/jest',
+    './reporters/vitest',
+  ])
 })
 
 test('every export points the provino-source condition at src/', async () => {
