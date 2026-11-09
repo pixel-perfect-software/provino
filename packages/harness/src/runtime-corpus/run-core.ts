@@ -96,9 +96,13 @@ export async function runUnderCore(
   // The process's own listeners, for the fixtures whose errors come from timers and rejections: a
   // test process (`node:test`) has its own handlers, so those run in a child (`child.ts`).
   const stop = options.processErrors === true ? runtime.captureProcessErrors() : undefined
+  // A deadline's timer never holds the process open (a run's worker port does), so a test that
+  // waits out a real deadline would let `node --test` on Node 22 find an empty event loop.
+  const keepAlive = setInterval(() => {}, 60_000)
   try {
     await runtime.runFile(file)
   } finally {
+    clearInterval(keepAlive)
     stop?.()
     restore()
     await runtime.dispose()

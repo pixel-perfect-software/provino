@@ -158,7 +158,6 @@ export function createPoll(
     let failed = false
     try {
       for (;;) {
-        const before = state.assertionCalls
         try {
           const read = await raceWith(
             Promise.resolve().then(() => fn({ signal: controller.signal })),
@@ -170,7 +169,18 @@ export function createPoll(
             break
           }
           const tried = await raceWith(
-            Promise.resolve().then(() => engine.run(name, isNot, read.value, args, state)),
+            Promise.resolve().then(() => {
+              // Taken here, with nothing awaited between it and the matcher, so a failed try takes
+              // back its own count and not one that other code made while `fn` was awaited.
+              const before = state.assertionCalls
+              try {
+                return engine.run(name, isNot, read.value, args, state)
+              } catch (error) {
+                // A try that didn't pass doesn't count as an assertion.
+                state.assertionCalls = before
+                throw error
+              }
+            }),
             timedOut,
           )
           if (!tried.ok) {
@@ -180,8 +190,6 @@ export function createPoll(
           }
           return
         } catch (error) {
-          // A try that didn't pass doesn't count as an assertion.
-          state.assertionCalls = before
           lastError = error
           failed = true
           const nap = wait(interval)

@@ -52,7 +52,6 @@ const values: unknown[] = [
   arrowFn,
   anonymousFn,
   new Point(),
-  new Date(0),
   new Date(Number.NaN),
   /re+/gi,
   new Map([[1, 'a']]),

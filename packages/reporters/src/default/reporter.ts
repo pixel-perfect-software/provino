@@ -84,6 +84,7 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
       if (task.type !== 'test' || event.type !== 'test-end') return
       const { state: testState, errors } = event.result
       state.tests = tally(state.tests, testState)
+      state.testStates.set(task.id, testState)
       if (testState !== 'fail') return
       push(state.failures, task.fileId, { title: testTitle(report, task.fullName), errors })
     },
@@ -95,6 +96,7 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
       const failedSuites = state.suiteFailures.get(fileId) ?? []
       state.failures.delete(fileId)
       state.suiteFailures.delete(fileId)
+      for (const task of state.collected.get(fileId) ?? []) state.testStates.delete(task.id)
       state.collected.delete(fileId)
       await print(fileText(result.file, result, failed, failedSuites))
     },
@@ -106,11 +108,24 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
         .get(file.fileId)
         ?.find((task) => task.id === event.ownerId && task.type === 'test')
       if (test === undefined || test.type !== 'test') return
-      push(state.failures, file.fileId, {
-        title: testTitle(report, test.fullName),
-        errors: [event.error],
-      })
-      // The test was counted as passed when it ended: move it to the failures.
+      const title = testTitle(report, test.fullName)
+      const ended = state.testStates.get(test.id)
+      const listed = state.failures.get(file.fileId)?.findIndex((entry) => entry.title === title)
+      if (ended === 'fail' && listed !== undefined && listed >= 0) {
+        // It already failed: the late error joins its entry, and the counts stand.
+        const entry = state.failures.get(file.fileId)?.[listed]
+        if (entry !== undefined) {
+          state.failures.get(file.fileId)?.splice(listed, 1, {
+            title,
+            errors: [...entry.errors, event.error],
+          })
+        }
+        return
+      }
+      // Only a test that passed moves from the passed count to the failed one.
+      if (ended !== 'pass') return
+      push(state.failures, file.fileId, { title, errors: [event.error] })
+      state.testStates.set(test.id, 'fail')
       const { passed, failed } = state.tests
       state.tests = { ...state.tests, failed: failed + 1, passed: Math.max(0, passed - 1) }
     },
@@ -157,6 +172,8 @@ interface RunState {
   suiteFailures: Map<TaskId, FailedTest[]>
   /** Each file's collected tasks, from `file:collected` until its `file:end`. */
   collected: Map<TaskId, readonly TaskNode[]>
+  /** How each test ended, from its `task:end` until its file ends (a late error reads it). */
+  testStates: Map<TaskId, TaskState>
   /** File tallies (`todo` stays 0) and test tallies. */
   files: TestCounts
   tests: TestCounts
@@ -167,6 +184,7 @@ function freshState(): RunState {
     failures: new Map(),
     suiteFailures: new Map(),
     collected: new Map(),
+    testStates: new Map(),
     files: zeroCounts(),
     tests: zeroCounts(),
   }

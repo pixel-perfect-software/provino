@@ -290,7 +290,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       ? fileOptions.fileId
       : fileIdOf(projectName, relativePath)
     const start = now()
-    processErrors.startFile()
+    processErrors.startFile(fileId)
     sink.emit({ type: 'file-collect-start', fileId, path: relativePath, t: start })
     let outcome: Outcome = 'fail'
     try {

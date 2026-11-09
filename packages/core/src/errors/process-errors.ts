@@ -50,6 +50,8 @@ export class ProcessErrors {
   #chargedFiles = 0
   /** Whether a file is running: a rejection reported outside one is charged at once. */
   #active = false
+  /** The file that is running, or ran last. */
+  #fileId: TaskId | undefined
 
   constructor(config: ProcessErrorsConfig) {
     this.#config = config
@@ -61,7 +63,8 @@ export class ProcessErrors {
   }
 
   /** Starts a file: nothing is charged yet. */
-  startFile(): void {
+  startFile(fileId: TaskId): void {
+    this.#fileId = fileId
     this.#chargedTests.clear()
     this.#chargedFiles = 0
     this.#active = true
@@ -133,12 +136,14 @@ export class ProcessErrors {
         attempt.errors.push(error)
         return
       }
-      this.#chargedTests.add(frame.test.id)
+      // Only a test of the file now running fails it: a timer of an earlier file's test may fire
+      // during this one, and its error is reported with its owner without failing this file.
+      if (frame.fileId === this.#fileId) this.#chargedTests.add(frame.test.id)
       this.#emit(frame.test.id, frame, origin, error)
       return
     }
     // A hook outside any test (beforeAll, afterAll): the file fails.
-    this.#chargedFiles++
+    if (frame.fileId === this.#fileId) this.#chargedFiles++
     this.#emit(frame.fileId, frame, origin, error)
   }
 

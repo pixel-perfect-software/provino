@@ -47,7 +47,6 @@ const others: unknown[] = [
   new Wide(),
   [new Wide(), new Wide()],
   aVeryLongFunctionNameThatKeepsGoing,
-  new Date(0),
   /a-very-long-regular-expression-that-keeps-on-going-and-going/giu,
   Symbol('a symbol description that is longer than forty characters'),
   ['short'],

@@ -12,6 +12,7 @@ import { after, before, describe, test } from 'node:test'
 import { isDeepStrictEqual } from 'node:util'
 import type { HoistPolicy } from '@provino/types'
 import {
+  checkedOnNode,
   defaultFixturesRoot,
   FIXTURE_RUNNERS,
   type FixtureRunner,
@@ -163,7 +164,7 @@ let strayDuringBaselines: readonly string[] = []
 before(async () => {
   stray = captureStrayErrors()
   for (const run of corpusRuns()) {
-    if (!(await fixtureById(run.fixture)).manifest.runners.includes(run.runner)) continue
+    if (!checkedOnNode((await fixtureById(run.fixture)).manifest, run.runner)) continue
     const subject = SUBJECTS[run.runner]
     baselines.set(
       runKey(run),
@@ -199,7 +200,7 @@ async function recordedFixtures(
   const out: string[] = []
   for (const fixture of evidence.fixtures) {
     // A fixture recorded for the other runner only says nothing about this one.
-    if (!(await fixtureById(fixture)).manifest.runners.includes(subject.runner)) continue
+    if (!checkedOnNode((await fixtureById(fixture)).manifest, subject.runner)) continue
     // The dialect's own subject has its baselines from `before`; another (the checks that prove
     // the checks, below) runs its own.
     const baseline: readonly string[] | undefined =

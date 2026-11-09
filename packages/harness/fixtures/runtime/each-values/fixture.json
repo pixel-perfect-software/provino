@@ -1,4 +1,5 @@
 {
-  "description": "How the two runners print structured values in a .each title: class instances, subclasses, getters, symbol keys, cycles, nesting deeper than the print depth, typed arrays, boxed primitives, sparse arrays, errors, Proxies, objects with their own toString, toJSON or inspect hook, and a null-prototype object. Through %s %o %O %p %j and a $variable.",
-  "runners": ["jest", "vitest"]
+  "description": "How the two runners print structured values in a .each title: class instances, subclasses, getters, symbol keys, cycles, nesting deeper than the print depth, typed arrays, boxed primitives, sparse arrays, errors, Proxies, objects with their own toString, toJSON or inspect hook, and a null-prototype object. Through %s %o %O %p %j and a $variable. Jest titles through Node's util.format, whose text for these values changes between Node majors (a Proxy prints its target on 22 and 24, as Proxy(...) on 26; a Date under %s, a symbol key and ArrayBuffer fields differ on 22), so Jest's golden is checked on Node 24, where it was recorded.",
+  "runners": ["jest", "vitest"],
+  "nodeMajors": { "jest": [24] }
 }

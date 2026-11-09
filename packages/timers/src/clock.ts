@@ -178,12 +178,16 @@ export function createFakeClock(
   const milliseconds = (ms: AdvanceBy): number =>
     typeof ms === 'number' ? ms : ms.total({ unit: 'millisecond' })
 
+  // A Date is told by `getTime`, not `instanceof`: one made in another realm (a jsdom window, a
+  // `vm` context) is not an instance of this realm's `Date`.
   const timeOf = (time: SystemTime | undefined): Date | undefined =>
     time === undefined
       ? undefined
-      : time instanceof Date
-        ? time
-        : new Date(typeof time === 'number' ? time : time.epochMilliseconds)
+      : typeof time === 'number'
+        ? new Date(time)
+        : 'getTime' in time
+          ? new Date(time.getTime())
+          : new Date(time.epochMilliseconds)
 
   const self: FakeClock = {
     install(config = {}) {
@@ -225,21 +229,24 @@ export function createFakeClock(
     next(steps = 1) {
       if (!check()) return
       const count = policy.advanceToNextTimerHonorsSteps ? steps : 1
+      // Taken once: a timer callback may uninstall the clock, and `live()` is then null.
+      const fake = live()
       for (let step = count; step > 0; step--) {
-        live().next()
+        fake.next()
         // Fire all timers at this point: https://github.com/sinonjs/fake-timers/issues/250
-        live().tick(0)
-        if (live().countTimers() === 0) break
+        fake.tick(0)
+        if (fake.countTimers() === 0) break
       }
     },
 
     async nextAsync(steps = 1) {
       if (!check()) return
       const count = policy.advanceToNextTimerHonorsSteps ? steps : 1
+      const fake = live()
       for (let step = count; step > 0; step--) {
-        await live().nextAsync()
-        await live().tickAsync(0)
-        if (live().countTimers() === 0) break
+        await fake.nextAsync()
+        await fake.tickAsync(0)
+        if (fake.countTimers() === 0) break
       }
     },
 

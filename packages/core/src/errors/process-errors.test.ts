@@ -48,6 +48,31 @@ describe('fail-owner', () => {
     assert.equal(result.file.state, 'fail', 'the file fails for a test that was charged late')
   })
 
+  test('an error charged late to a test of an earlier file does not fail the file running now', async () => {
+    const process = new EventEmitter()
+    let files = 0
+    const first = await runScript(({ test }, _step, runtime) => {
+      files++
+      if (files > 1) {
+        test('in the second file', () => sleep(80))
+        return
+      }
+      runtime.captureProcessErrors(process)
+      test('owner', () => {
+        setTimeout(
+          () => process.emit('uncaughtException', new Error('late'), 'uncaughtException'),
+          30,
+        )
+      })
+    }, owner)
+    assert.equal(first.file.state, 'pass')
+    const second = await first.runtime.runFile('/project/second.test.ts')
+    const [event, ...rest] = eventsOf(first.events, 'unhandled-error')
+    assert.equal(rest.length, 0, 'the error is still reported, once')
+    assert.equal(event?.error.message, 'late')
+    assert.equal(second.state, 'pass', 'it was the earlier file`s test that was charged')
+  })
+
   test('a rejection waits for the end of the body, then fails the test', async () => {
     const process = new EventEmitter()
     const result = await runScript(({ test }, _step, runtime) => {

@@ -7,7 +7,13 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { describe, test } from 'node:test'
-import { defaultFixturesRoot, findFixtures, readFixture, testFilesFor } from './fixture.ts'
+import {
+  checkedOnNode,
+  defaultFixturesRoot,
+  findFixtures,
+  readFixture,
+  testFilesFor,
+} from './fixture.ts'
 import { readGolden } from './golden.ts'
 import { assertRunMatchesGolden, testsWithoutLocation } from './runtime-corpus/compare.ts'
 import {
@@ -52,7 +58,10 @@ test('the tests named as having no location belong to pairs in the corpus', () =
 for (const fixture of fixtures) {
   describe(fixture.id, () => {
     for (const profile of fixture.manifest.runners) {
-      test(profile, async () => {
+      const skip = checkedOnNode(fixture.manifest, profile)
+        ? false
+        : `the ${profile} golden is checked on Node ${fixture.manifest.nodeMajors?.[profile]?.join(', ')} only`
+      test(profile, { skip }, async () => {
         const label = pairLabel(fixture, profile)
         const golden = await readGolden(fixture.dir, profile)
         const files = testFilesFor(fixture.files, profile)

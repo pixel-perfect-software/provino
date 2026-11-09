@@ -102,6 +102,34 @@ describe('expect.poll', () => {
     assert.equal(clock.pending(), 0, 'the timeout timer is cleared')
   })
 
+  test('a failed try takes back only its own count, not one made meanwhile', async () => {
+    const clock = manualClock()
+    const { expect, current, source } = testEngine({ policy: POLICY, pollTimers: clock.timers })
+    current.enter(testTask('t'))
+    let release: () => void = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let calls = 0
+    // The first read waits on the gate, so the try that follows fails after other code has counted.
+    const outcome = watch(
+      poll(expect)(async () => {
+        if (++calls === 1) await gate
+        return calls
+      }).toBe(2),
+    )
+    await clock.move(0)
+    expect(1).toBe(1)
+    assert.equal(source.current().assertionCalls, 1)
+    release()
+    await clock.move(0)
+    assert.equal(calls, 1, 'the first try failed')
+    assert.equal(source.current().assertionCalls, 1, 'the failed try left the other count alone')
+    await clock.move(20)
+    assert.equal(outcome.state(), 'resolved')
+    assert.equal(source.current().assertionCalls, 2, 'the other assertion and the passing try')
+  })
+
   test('advances the fake clock by the interval after each wait', async () => {
     const clock = manualClock()
     const { expect, current } = testEngine({ policy: POLICY, pollTimers: clock.timers })

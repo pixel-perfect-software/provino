@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { describe, test } from 'node:test'
+import { runInNewContext } from 'node:vm'
 import type { TimersPolicy } from '@provino/types'
 import { createFakeClock } from './clock.ts'
 import { TimersError } from './errors.ts'
@@ -142,6 +143,25 @@ describe('advancing', () => {
       clock.next(2)
       assert.deepEqual(fired, expected)
       clock.uninstall()
+    }
+  })
+
+  test('next and nextAsync survive a timer that uninstalls the clock', async () => {
+    for (const policy of [jestLike, vitestLike]) {
+      const { env } = makeEnv()
+      const realSetTimeout = env.setTimeout
+      const clock = createFakeClock(env, policy)
+      clock.install()
+      env.setTimeout(() => clock.uninstall(), 10)
+      env.setTimeout(() => {}, 20)
+      clock.next()
+      assert.equal(env.setTimeout === realSetTimeout, true, 'the callback put the real timers back')
+
+      clock.install()
+      env.setTimeout(() => clock.uninstall(), 10)
+      env.setTimeout(() => {}, 20)
+      await clock.nextAsync()
+      assert.equal(env.setTimeout === realSetTimeout, true)
     }
   })
 
@@ -296,6 +316,15 @@ describe('timers that are real', () => {
     clock.uninstall()
     clock.dispose()
     assert.deepEqual(warnings, [])
+  })
+
+  test('setSystemTime takes a Date from another realm', () => {
+    const { env } = makeEnv()
+    const clock = createFakeClock(env, vitestLike)
+    clock.install()
+    clock.setSystemTime(runInNewContext('new Date(86400000)') as Date)
+    assert.equal(env.Date.now(), 86400000)
+    clock.uninstall()
   })
 
   test('setSystemTime warns and does nothing under warn-noop', () => {
