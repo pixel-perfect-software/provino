@@ -57,6 +57,7 @@ Flow: check `config` and `maxWorkers` → `loadProject(config against cwd, { dia
   - `list-tests.test.ts` (U2): `--listTests` (plain and `--json`) equals the set real Jest listed, on each `fixtures/discovery/*` (default globs, `testRegex`, `roots`, ignore patterns, extensions, ordered negation, path patterns, `--runTestsByPath`).
   - `jest-exit-codes.test.ts` (U3): the bin's exit code (and the lines of Jest's message the golden kept) equal Jest's for a pass, a failing test, no tests, `--passWithNoTests`, an unknown flag, `--testPathPattern`, and a config Jest refuses.
   - `jest-snapshots.test.ts` (B17b, T7.9): `provino jest -u`, `--updateSnapshot` and `--ci` leave Jest's exit code and the `.snap` bytes the `snapshot/*` goldens hold.
+  - `jest-mock-cleanup.test.ts` (T4.10, B17a): the project's `clearMocks`, `resetMocks` and `restoreMocks` reach the worker's mock cleanup through `provino jest` (each key against a control without it, and no "not applied" warning for them).
 - `test/*.test.ts`: real projects generated into `$TMPDIR` as text (no `.js` is committed, D13): a Jest-style `tests/*.test.js`, a `provino.config.mjs` and a CommonJS `package.json` (`test/support.ts`: `makeProject`, `trackedProjects`, `spawnCli` with a deadline, `viewOfNormalized`). Real forks by default.
   - `run.test.ts`: `run()` (pass, fail, the exit-2 cases, no files, `-t`, both reporters, `env.ci` in the JSON, the cache, the pools, `maxWorkers`, sequential and concurrent calls, an aborted signal).
   - `cli.test.ts`: the bin as a child process.

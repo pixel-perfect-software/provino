@@ -2,7 +2,8 @@
 // cleanup configured the way a Jest project configures it: `clearMocks`, `resetMocks` and
 // `restoreMocks` in a `jest.config.json`, read by the Jest dialect's config reader (B14b), turned
 // into a neutral project and resolved by `@provino/config`, then run by `runProject` (T4.10). That
-// is the path `provino jest` takes once B14c builds it; `run()` has no way to name those keys yet.
+// is the path `provino jest` takes (B14c; `packages/provino/test/jest-mock-cleanup.test.ts` runs it
+// through the bin); `run()` has no key for those three.
 // What comes back is the normalized run and the fixture's trace, which the caller compares with the
 // golden as the in-process check does.
 import { copyFile, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
