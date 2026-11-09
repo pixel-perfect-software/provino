@@ -273,6 +273,30 @@ describe('toThrowErrorMatchingSnapshot', () => {
     assert.match(readFileSync(snapPath, 'utf8'), /exports\[`t 1`\] = `"later"`;/)
   })
 
+  test('a thrown object without a message is stored as Jest stores it: the message as it is', () => {
+    const { expect, inTest, state, snapPath } = setup()
+    inTest(['t'], () =>
+      expect(() => {
+        throw { code: 1 }
+      }).toThrowErrorMatchingSnapshot(),
+    )
+    state.finish()
+    assert.match(readFileSync(snapPath, 'utf8'), /exports\[`t 1`\] = `undefined`;/)
+  })
+
+  test('a thrown string fails as it does in Jest (`cause` in a string)', () => {
+    const { expect, inTest } = setup()
+    assert.throws(
+      () =>
+        inTest(['t'], () =>
+          expect(() => {
+            throw 'boom'
+          }).toThrowErrorMatchingSnapshot(),
+        ),
+      TypeError,
+    )
+  })
+
   test('a function that doesn`t throw, and a value that isn`t a function, are errors', () => {
     const { expect, inTest } = setup()
     assert.throws(

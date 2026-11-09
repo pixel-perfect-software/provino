@@ -115,6 +115,8 @@ interface AttemptRecord {
   readonly counters: Map<string, number | undefined>
   readonly counts: Counts
   readonly fileSnapshots: Map<string, string | undefined>
+  /** The files (`matchRaw`) it queued to write. */
+  readonly rawSnapshots: RawSnapshot[]
   writes: AttemptWrites | undefined
 }
 
@@ -236,6 +238,8 @@ export class SnapshotState {
       if (previous === undefined) delete this.data[key]
       else this.data[key] = previous
     }
+    for (const raw of record.rawSnapshots)
+      this.rawSnapshots.splice(this.rawSnapshots.indexOf(raw), 1)
     for (const key of record.checkedKeys) this.uncheckedKeys.add(key)
     for (const [testName, previous] of record.counters) {
       if (previous === undefined) this.counters.delete(testName)
@@ -366,10 +370,10 @@ export class SnapshotState {
           this.incrementCount('matched', testId)
         } else {
           this.incrementCount(hasSnapshot ? 'updated' : 'added', testId)
-          this.addRaw(file, received)
+          this.addRaw(file, received, testId)
         }
       } else {
-        this.addRaw(file, received)
+        this.addRaw(file, received, testId)
         this.incrementCount('added', testId)
       }
       return result(true)
@@ -496,6 +500,7 @@ export class SnapshotState {
         counters: new Map(),
         counts: { added: 0, matched: 0, unmatched: 0, updated: 0 },
         fileSnapshots: new Map(),
+        rawSnapshots: [],
         writes: undefined,
       }
       this.attempts.set(testId, record)
@@ -554,8 +559,10 @@ export class SnapshotState {
     this.data[key] = receivedSerialized
   }
 
-  private addRaw(file: string, snapshot: string): void {
-    this.dirty = true
-    this.rawSnapshots.push({ file, snapshot })
+  private addRaw(file: string, snapshot: string, testId: string | undefined): void {
+    this.noteWrite(testId)
+    const raw = { file, snapshot }
+    this.rawSnapshots.push(raw)
+    this.recordFor(testId)?.rawSnapshots.push(raw)
   }
 }

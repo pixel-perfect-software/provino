@@ -47,7 +47,9 @@ export function evaluateSnapFile(text: string): SnapshotData {
  * @public
  */
 export function checkSnapHeader(text: string, header: string): string | null {
-  const [first = ''] = text.split('\n', 1)
+  // Without a trailing `\r`: a file checked out with CRLF line endings (Jest's check is a
+  // multi-line regexp, where `$` stops before it).
+  const first = (text.split('\n', 1)[0] ?? '').replace(/\r$/, '')
   if (first === header) return null
   if (!/^\/\/ .*\bv\d+/.test(first)) {
     return `Outdated snapshot: no snapshot header found. The file must start with "${header}". Update the snapshots of this file to write it.`

@@ -123,6 +123,42 @@ describe('setup order', () => {
     assert.deepEqual(states(run.events), { one: 'pass' })
   })
 
+  // Jest adds the config's `snapshotSerializers` when the test framework starts (jestAdapterInit):
+  // after `setupFiles` and the globals the framework installs, before `setupFilesAfterEnv`.
+  it('imports the project`s snapshot serializers after setupFiles and the late globals, before setupFilesAfterEnv', async () => {
+    const p = await project({
+      'setup.js': "__trace.push('setupFiles: test is ' + typeof test)",
+      'serializer.js': [
+        "__trace.push('snapshotSerializers: test is ' + typeof test)",
+        'module.exports = { test: () => false, serialize: () => "" }',
+      ].join('\n'),
+      'after-env.js': "__trace.push('setupFilesAfterEnv: test is ' + typeof test)",
+      'a.test.js': "test('one', () => {})",
+    })
+    const base = runtimeConfig(p.dir)
+    const config = runtimeConfig(p.dir, {
+      setupFiles: [p.path('setup.js')],
+      setupFilesAfterEnv: [p.path('after-env.js')],
+      policy: {
+        ...base.policy,
+        core: { ...base.policy.core, globalsBeforeSetupFiles: ['expect'] },
+        snapshot: { ...base.policy.snapshot, serializers: [p.path('serializer.js')] },
+      },
+    })
+    const trace: string[] = []
+    const run = await runJobs({ config, trace, jobs: [runtimeJob(config, p.path('a.test.js'))] })
+    assert.deepEqual(run.exit, { type: 'exit', code: 0 })
+    assert.deepEqual(
+      trace.filter((line) => line.includes(' is ')),
+      [
+        'setupFiles: test is undefined',
+        'snapshotSerializers: test is function',
+        'setupFilesAfterEnv: test is function',
+      ],
+    )
+    assert.deepEqual(states(run.events), { one: 'pass' })
+  })
+
   // Deliberate: `none` keeps the environment, and so the late globals, for the next file. Jest has
   // no `none` to match, and removing them per file would cost the tier its point.
   it('under none, a later file`s setupFiles see the late globals an earlier file installed', async () => {

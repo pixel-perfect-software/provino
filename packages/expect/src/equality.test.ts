@@ -43,14 +43,29 @@ describe('equalityTesters', () => {
     assert.equal(equalityTesters(VITEST).length, 2)
   })
 
-  test('createExpect puts them ahead of the testers the user adds', () => {
+  test('the testers the user adds go ahead of them: Vitest`s equals asks the custom testers first', () => {
     const expect = expectWith(VITEST)
     const mine = (): undefined => undefined
     expect.addEqualityTesters([mine])
     ;(expect(1) as unknown as { toReadContext(): void }).toReadContext()
     const testers = lastContext?.customTesters ?? []
     assert.equal(testers.length, 3)
-    assert.equal(testers.at(-1), mine)
+    assert.equal(testers[0], mine)
+  })
+
+  test('a user tester that judges errors is heard before the policy`s', () => {
+    const expect = expectWith(VITEST)
+    const anyTwoErrors = (a: unknown, b: unknown): boolean | undefined =>
+      a instanceof Error && b instanceof Error ? true : undefined
+    assert.equal(
+      passes(() => expect(new Error('p')).toEqual(new Error('q'))),
+      false,
+    )
+    expect.addEqualityTesters([anyTwoErrors])
+    assert.equal(
+      passes(() => expect(new Error('p')).toEqual(new Error('q'))),
+      true,
+    )
   })
 })
 
@@ -112,6 +127,15 @@ describe('errors: assert', () => {
       return error
     }
     assert.equal(equal(vitest, loop(), loop()), true)
+  })
+
+  test('an error that is its own cause is not equal to one that is not', () => {
+    // Vitest`s stacks are shared with the cause walk: the second visit to `a` must meet `b` again.
+    const own = new Error('x')
+    Object.defineProperty(own, 'cause', { value: own, configurable: true, writable: true })
+    const nested = new Error('x', { cause: new Error('x') })
+    assert.equal(equal(vitest, own, nested), false)
+    assert.equal(equal(vitest, nested, own), false)
   })
 
   test('judges an error from another realm by its class, not its constructor', () => {

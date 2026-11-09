@@ -97,8 +97,10 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   checkPolicy(policy)
   const registry = options.registry ?? createMatcherRegistry()
   registry.utils = table.utils
-  // T7.7: the policy's equality rules go ahead of Jest's `equals` and of the user's testers.
-  registry.customEqualityTesters.push(...equalityTesters(policy.equality))
+  // T7.7: the policy's equality rules go ahead of Jest's `equals`, after the user's testers:
+  // Vitest's `equals` asks the custom testers first and judges errors and dates itself after them.
+  const policyTesters = equalityTesters(policy.equality)
+  registry.customEqualityTesters.push(...policyTesters)
   const { messages } = table
   /** The table's promise forms: dialect code, so their errors are re-anchored like built-ins'. */
   const promiseForms = new WeakSet<Matcher>(Object.values(table.promiseMatchers))
@@ -350,7 +352,9 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     if (!Array.isArray(testers)) {
       throw anchor(new TypeError(messages.invalidTesters(testers)), addEqualityTesters)
     }
-    registry.customEqualityTesters.push(...testers)
+    // The policy's testers stay last.
+    const { customEqualityTesters } = registry
+    customEqualityTesters.splice(customEqualityTesters.length - policyTesters.length, 0, ...testers)
   }
 
   function assertions(expected: number): void {

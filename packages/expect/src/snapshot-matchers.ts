@@ -281,18 +281,20 @@ function toMatchInlineSnapshot(
 
 /**
  * The text of an error as `toThrowErrorMatchingSnapshot` stores it in Jest: the message, then
- * `\nCause: ` and the message of each cause down the chain (index.ts L552-L564).
+ * `\nCause: ` and the message of each cause down the chain (index.ts L552-L564). As in Jest, the
+ * message is kept as it is (a thrown object without one stores `undefined`) and a thrown primitive
+ * fails the test with the `in` operator's own TypeError.
  */
-function messageWithCauses(thrown: unknown): string {
+function messageWithCauses(thrown: unknown): unknown {
   let error = thrown as { message?: unknown; cause?: unknown }
-  let message = String(error.message)
-  while (typeof error === 'object' && error !== null && 'cause' in error) {
+  let message: unknown = error.message
+  while ('cause' in error) {
     const cause: unknown = error.cause
     if (isError(cause)) {
       error = cause
-      message += `\nCause: ${cause.message}`
+      message = `${String(message)}\nCause: ${cause.message}`
     } else {
-      if (typeof cause === 'string') message += `\nCause: ${cause}`
+      if (typeof cause === 'string') message = `${String(message)}\nCause: ${cause}`
       break
     }
   }

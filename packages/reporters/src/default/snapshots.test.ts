@@ -73,6 +73,41 @@ describe('the default reporter: snapshots', () => {
     )
   })
 
+  test('says removed, not obsolete, when the run rewrote the snapshots', async () => {
+    const text = await summaryText({
+      counters: { ...counters, matched: 1, unchecked: 2, total: 1 },
+      uncheckedKeysByFile: [{ file: '/p/a.test.ts', keys: ['gone 1', 'also gone 1'] }],
+      update: 'all',
+      files: [],
+    })
+    assert.match(text, /2 snapshots removed from 1 test suite\.\n {2}↳ \/p\/a\.test\.ts\n/)
+    assert.doesNotMatch(text, /obsolete|Run with -u/)
+    assert.match(text, /Snapshots: {3}2 removed, 1 passed, 1 total/)
+  })
+
+  test('counts snapshot files as obsolete or removed, with a plural', async () => {
+    const files = { ...counters, filesRemoved: 2 }
+    const kept = await summaryText({
+      counters: files,
+      uncheckedKeysByFile: [],
+      update: 'new',
+      files: [],
+    })
+    assert.match(
+      kept,
+      /2 snapshot files obsolete from 2 test suites\. Run with -u to remove them all\./,
+    )
+    assert.match(kept, /Snapshots: {3}2 files obsolete, 0 total/)
+    const gone = await summaryText({
+      counters: files,
+      uncheckedKeysByFile: [],
+      update: 'all',
+      files: [],
+    })
+    assert.match(gone, /2 snapshot files removed from 2 test suites\./)
+    assert.match(gone, /Snapshots: {3}2 files removed, 0 total/)
+  })
+
   test('counts failed and updated snapshots, and a removed file', async () => {
     const text = await summaryText({
       counters: { ...counters, unmatched: 1, updated: 2, filesRemoved: 1, total: 3 },

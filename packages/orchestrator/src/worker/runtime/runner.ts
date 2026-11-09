@@ -342,14 +342,6 @@ export function createRuntimeRunner(): WorkerRunner {
     // Setup files run inside core's collection, so the hooks they register belong to the file.
     const importFile = async (path: string): Promise<unknown> => {
       const files = activeRegistry()
-      // The project's snapshot serializers, before any setup file: Jest tries them ahead of its own
-      // and in the order listed, so they are added in reverse (jestAdapterInit.ts L134-L136).
-      const snapshotState = openSnapshots?.state
-      if (snapshotState !== undefined) {
-        for (const serializer of [...policy.snapshot.serializers].reverse()) {
-          snapshotState.addSerializer(pluginOf(await files.import(serializer)))
-        }
-      }
       // Under `none` one registry serves every file of the worker, so a module it already
       // evaluated is cached: the setup files and the test file itself (queued twice, or imported
       // by an earlier file) are dropped and evaluated again, while their dependencies stay shared.
@@ -361,6 +353,15 @@ export function createRuntimeRunner(): WorkerRunner {
       }
       // The globals a dialect installs only after `setupFiles` (Jest's `describe`, `expect`, ...).
       activeScope().installLateGlobals()
+      // The project's snapshot serializers, when the test framework starts: after `setupFiles` and
+      // the globals, before `setupFilesAfterEnv`. Jest tries them ahead of its own and in the order
+      // listed, so they are added in reverse (jestAdapterInit.ts L134-L136).
+      const snapshotState = openSnapshots?.state
+      if (snapshotState !== undefined) {
+        for (const serializer of [...policy.snapshot.serializers].reverse()) {
+          snapshotState.addSerializer(pluginOf(await files.import(serializer)))
+        }
+      }
       for (const setup of config.setupFilesAfterEnv) {
         if (shared) files.invalidate(setup)
         await files.import(setup)

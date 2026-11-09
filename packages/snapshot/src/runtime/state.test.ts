@@ -437,6 +437,28 @@ describe('matchRaw', () => {
     assert.equal(readFileSync(file, 'utf8'), 'new')
   })
 
+  test('a retry takes back the file its earlier attempt wrote', () => {
+    const dir = tempDir()
+    const file = join(dir, 'out.txt')
+    const state = stateIn(dir)
+    state.matchRaw({ testName: 't', testId: 'id', received: 'first', file, existing: undefined })
+    state.clearTest('id')
+    assert.equal(state.added, 0)
+    state.finish()
+    assert.equal(existsSync(file), false, 'the discarded attempt left no file')
+  })
+
+  test('another test’s retry does not take back a file this test wrote', () => {
+    const dir = tempDir()
+    const file = join(dir, 'out.txt')
+    const state = stateIn(dir)
+    state.match({ testName: 'a', testId: 'A', received: 1, isInline: false })
+    state.matchRaw({ testName: 'b', testId: 'B', received: 'kept', file, existing: undefined })
+    state.clearTest('A')
+    state.finish()
+    assert.equal(readFileSync(file, 'utf8'), 'kept')
+  })
+
   test('a non-string value is serialized first', () => {
     const dir = tempDir()
     const file = join(dir, 'out.json')

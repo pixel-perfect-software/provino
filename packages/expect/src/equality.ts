@@ -32,7 +32,7 @@ const isDate = (value: unknown): value is Date => classTag.call(value) === '[obj
 const invalidDatesAreEqual: EqualityTester = (a, b) =>
   isDate(a) && isDate(b) && Number.isNaN(+a) && Number.isNaN(+b) ? true : undefined
 
-/** The pairs of errors being compared now, so an error that is its own cause ends the walk. */
+/** The pairs of errors being compared now (Vitest's `aStack` and `bStack`), so an error that is its own cause ends the walk. */
 const comparing: [object, object][] = []
 
 /**
@@ -43,8 +43,14 @@ const comparing: [object, object][] = []
  */
 const errorsLikeAssert: EqualityTester = function (a, b, customTesters) {
   if (!isError(a) || !isError(b)) return undefined
-  // An error being compared again, nested in itself, is equal to where it was met first.
-  if (comparing.some(([x, y]) => x === a && y === b)) return true
+  // Vitest's stack rule: an error met again, nested in itself, is equal only if it meets the same
+  // partner as where it was first met, and a partner met again with another error is not.
+  for (let i = comparing.length - 1; i >= 0; i--) {
+    const pair = comparing[i]
+    if (pair === undefined) continue
+    if (pair[0] === a) return pair[1] === b
+    if (pair[1] === b) return false
+  }
   comparing.push([a, b])
   try {
     const sameKind =

@@ -119,6 +119,11 @@ for (const fixture of fixtures) {
         assert.deepEqual([...got], [...wanted], `tests (stderr: ${result.stderr.slice(0, 400)})`)
         if (ran.length === testFilesFor(fixture.files, profile).length) {
           assert.equal(result.exitCode, observed.exitCode, 'the exit code')
+        } else {
+          // Files that call `vi` are left out, so the golden's code is not comparable: the files
+          // that ran call for 1 when one of their tests failed, else 0.
+          const failed = [...wanted.values()].includes('failed')
+          assert.equal(result.exitCode, failed ? 1 : 0, 'the exit code of the files that ran')
         }
         for (const file of files) {
           assert.equal(result.files[file], observed.files?.[file], file)

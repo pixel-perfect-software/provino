@@ -99,28 +99,50 @@ function part(count: number, label: string): string {
   return `${count} ${label}`
 }
 
+/** `1 file`, `2 files`. */
+function counted(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`
+}
+
 /**
- * The obsolete snapshots by test file, as Jest lists them above its summary; `''` when none are.
+ * The obsolete snapshots by test file, as Jest lists them above its summary, or, when the run
+ * rewrote snapshots (`-u`), that they were removed; `''` when there are none.
  */
 export function obsoleteBlock(snapshots: SnapshotRunSummary | undefined): string {
-  if (snapshots === undefined || snapshots.counters.unchecked === 0) return ''
+  if (snapshots === undefined) return ''
   const { counters, uncheckedKeysByFile, update } = snapshots
-  const noun = counters.unchecked === 1 ? 'snapshot' : 'snapshots'
-  const suites = uncheckedKeysByFile.length === 1 ? 'test suite' : 'test suites'
+  const removed = update === 'all'
   const remove =
     update === 'none' ? 'Run without --ci and with -u to remove' : 'Run with -u to remove'
-  const lines = [
-    `${counters.unchecked} ${noun} obsolete from ${uncheckedKeysByFile.length} ${suites}. ${remove} ${counters.unchecked === 1 ? 'it' : 'them'}.`,
-  ]
-  for (const { file, keys } of uncheckedKeysByFile) {
-    lines.push(`  ↳ ${file}`, ...keys.map((key) => `      • ${key}`))
+  const lines: string[] = []
+  if (counters.filesRemoved > 0) {
+    const files = counted(counters.filesRemoved, 'snapshot file')
+    const suites = counted(counters.filesRemoved, 'test suite')
+    lines.push(
+      removed
+        ? `${files} removed from ${suites}.`
+        : `${files} obsolete from ${suites}. ${remove} ${counters.filesRemoved === 1 ? 'it' : 'them all'}.`,
+    )
   }
-  return `${lines.join('\n')}\n`
+  if (counters.unchecked > 0) {
+    const noun = counted(counters.unchecked, 'snapshot')
+    const suites = counted(uncheckedKeysByFile.length, 'test suite')
+    lines.push(
+      removed
+        ? `${noun} removed from ${suites}.`
+        : `${noun} obsolete from ${suites}. ${remove} ${counters.unchecked === 1 ? 'it' : 'them'}.`,
+    )
+    for (const { file, keys } of uncheckedKeysByFile) {
+      lines.push(`  ↳ ${file}`, ...keys.map((key) => `      • ${key}`))
+    }
+  }
+  return lines.length === 0 ? '' : `${lines.join('\n')}\n`
 }
 
 /**
  * Jest's `Snapshots:` line; zero parts are left out except `total`. `undefined` when no snapshot
- * was checked, written or is obsolete.
+ * was checked, written or is obsolete. A run that rewrote snapshots (`-u`) says "removed" where
+ * the others say "obsolete".
  */
 export function snapshotLine(snapshots: SnapshotRunSummary | undefined): string | undefined {
   if (snapshots === undefined) return undefined
@@ -128,10 +150,13 @@ export function snapshotLine(snapshots: SnapshotRunSummary | undefined): string 
   if (counters.total === 0 && counters.unchecked === 0 && counters.filesRemoved === 0) {
     return undefined
   }
+  const gone = snapshots.update === 'all' ? 'removed' : 'obsolete'
   const parts = [
     ...(counters.unmatched > 0 ? [part(counters.unmatched, 'failed')] : []),
-    ...(counters.unchecked > 0 ? [part(counters.unchecked, 'obsolete')] : []),
-    ...(counters.filesRemoved > 0 ? [part(counters.filesRemoved, 'file removed')] : []),
+    ...(counters.unchecked > 0 ? [part(counters.unchecked, gone)] : []),
+    ...(counters.filesRemoved > 0
+      ? [part(counters.filesRemoved, `${counters.filesRemoved === 1 ? 'file' : 'files'} ${gone}`)]
+      : []),
     ...(counters.updated > 0 ? [part(counters.updated, 'updated')] : []),
     ...(counters.added > 0 ? [part(counters.added, 'written')] : []),
     ...(counters.matched > 0 ? [part(counters.matched, 'passed')] : []),

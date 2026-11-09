@@ -120,7 +120,7 @@ export const snapshotClaims: Claims = {
   'snapshot.printer': each(
     own(
       'packages/dialect-jest/src/runtime/snapshot-printer.test.ts',
-      'printer',
+      'the policy`s printer ref loads',
       {
         module: import.meta.resolve('@provino/dialect-jest/runtime'),
         export: 'jestSnapshotPrinter',
@@ -129,7 +129,7 @@ export const snapshotClaims: Claims = {
     ),
     own(
       'packages/dialect-vitest/src/runtime/snapshot-printer.test.ts',
-      'printer',
+      'the policy`s printer ref loads',
       {
         module: import.meta.resolve('@provino/dialect-vitest/runtime'),
         export: 'vitestSnapshotPrinter',

@@ -62,6 +62,8 @@ describe('the .snap file', () => {
 
   test('the header check names what is wrong', () => {
     assert.equal(checkSnapHeader(`${HEADER}\n\n`, HEADER), null)
+    // A file checked out with CRLF line endings: Jest's header check (a multi-line regexp) takes it.
+    assert.equal(checkSnapHeader(`${HEADER}\r\n\r\nexports[\`a 1\`] = \`1\`;\r\n`, HEADER), null)
     assert.match(checkSnapHeader('exports[`a 1`] = `1`;\n', HEADER) ?? '', /no snapshot header/)
     assert.match(
       checkSnapHeader('// Other Snapshot v1, https://x\n', HEADER) ?? '',

@@ -56,10 +56,17 @@ function collector(): { readonly stream: Writable; text(): string } {
 /** The flags the recorded run was given, as `run()` options. */
 function optionsOf(fixture: Fixture, profile: SnapshotProfile) {
   const argv = fixture.manifest.run?.argv?.[profile] ?? []
+  // A flag this runner doesn't map would run differently from the recording, silently.
+  const pattern = argv.indexOf('-t')
+  argv.forEach((token, index) => {
+    const patternValue = pattern !== -1 && index === pattern + 1
+    if (!patternValue && token !== '--ci=false' && token !== '-u' && token !== '-t') {
+      throw new Error(`${fixture.id}: the corpus runner doesn't map the argument "${token}"`)
+    }
+  })
   const env = fixture.manifest.env ?? {}
   // The recorder runs with `CI=1`; a fixture clears it, and Jest also takes `--ci=false`.
   const ci = env.CI !== '' && !argv.includes('--ci=false')
-  const pattern = argv.indexOf('-t')
   return {
     ci,
     update: argv.includes('-u'),
