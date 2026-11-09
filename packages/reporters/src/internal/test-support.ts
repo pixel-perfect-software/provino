@@ -12,6 +12,7 @@ import type {
   RuntimeEventOf,
   SerializedError,
   SkipReason,
+  SnapshotRunSummary,
   SuiteTask,
   TaskId,
   TaskNode,
@@ -316,7 +317,13 @@ export async function emitFile(bus: ReporterBus, spec: FileSpec): Promise<FileRe
 export async function playRun(
   bus: ReporterBus,
   files: readonly FileSpec[],
-  options: { readonly unhandled?: readonly SerializedError[]; readonly durationMs?: number } = {},
+  options: {
+    readonly unhandled?: readonly SerializedError[]
+    readonly durationMs?: number
+    readonly snapshots?: SnapshotRunSummary
+    /** The run's end reason; default `failed` when a file failed, else `passed`. */
+    readonly reason?: RunSummary['reason']
+  } = {},
 ): Promise<RunSummary> {
   const infos = files.map((spec) => fileInfo(spec.path, spec.project ?? ''))
   await bus.emit(
@@ -328,10 +335,11 @@ export async function playRun(
   for (const spec of files) results.push(await emitFile(bus, spec))
   const failed = results.some((r) => r.state === 'fail')
   const summary: RunSummary = {
-    reason: failed ? 'failed' : 'passed',
+    reason: options.reason ?? (failed ? 'failed' : 'passed'),
     files: results,
     unhandled: options.unhandled ?? [],
     durationMs: options.durationMs ?? 1234,
+    ...(options.snapshots === undefined ? {} : { snapshots: options.snapshots }),
   }
   await bus.emit('run:end', summary)
   return summary

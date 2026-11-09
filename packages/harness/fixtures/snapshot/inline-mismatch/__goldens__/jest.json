@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/inline-mismatch",
+  "files": [
+    {
+      "file": "inline-mismatch.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "inline-mismatch.test.ts",
+            "path": [
+              "inline mismatch"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toMatchInlineSnapshot(snapshot)\n\nSnapshot name: `inline mismatch 1`\n\nSnapshot: 1\nReceived: 2",
+              "matcher": "toMatchInlineSnapshot",
+              "userFrame": "<root>/inline-mismatch.test.ts:2:13"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 1,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 1,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 1,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "files": {
+      "inline-mismatch.test.ts": "test('inline mismatch', () => {\n  expect(2).toMatchInlineSnapshot(`1`)\n})\n"
+    }
+  }
+}

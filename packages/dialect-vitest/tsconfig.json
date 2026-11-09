@@ -1,12 +1,16 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["src"],
+  "exclude": ["src/vendor"],
   "references": [
     {
       "path": "../types"
     },
     {
       "path": "../policy"
+    },
+    {
+      "path": "src/vendor/pretty-format"
     }
   ]
 }

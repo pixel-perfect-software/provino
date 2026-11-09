@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "snapshot/throw",
+  "files": [
+    {
+      "file": "throws.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "throws.test.ts",
+            "path": [
+              "thrown errors",
+              "messages"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 9,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "throws.test.ts",
+            "path": [
+              "thrown errors",
+              "causes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "throws.test.ts",
+            "path": [
+              "thrown errors",
+              "rejections"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 30,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 7,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 7,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/throws.test.ts.snap",
+        "sha256": "c901e41b3171417ee6294f11efec5d50ddf4987681981af984a3686eec62dc01"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      "__snapshots__/throws.test.ts.snap": "// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html\n\nexports[`thrown errors > causes 1`] = `[Error: outer]`;\n\nexports[`thrown errors > causes 2`] = `[Error: with a string cause]`;\n\nexports[`thrown errors > messages > with hint 1`] = `[CustomError: custom]`;\n\nexports[`thrown errors > messages 1`] = `[Error: boom]`;\n\nexports[`thrown errors > messages 2`] = `\n[TypeError: multi\nline]\n`;\n\nexports[`thrown errors > rejections 1`] = `[Error: rejected]`;\n\nexports[`thrown errors > rejections 2`] = `[Error: async function]`;\n"
+    }
+  }
+}

@@ -68,6 +68,11 @@ function serializedPolicy(value: unknown): SerializedPolicy {
   forEachModuleRef(policy, 'policy', (ref, path) => {
     moduleLocation(ref.module, `${path}.module`)
   })
+  // The project's snapshot serializers are imported through the file's registry as they are.
+  absolutePaths(
+    record(policy.snapshot, 'policy.snapshot').serializers,
+    'policy.snapshot.serializers',
+  )
   return policy as SerializedPolicy
 }
 

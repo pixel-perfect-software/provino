@@ -38,9 +38,15 @@ import {
   type RootMockIndex,
 } from '@provino/mock'
 import { createBehaviourLoader } from '@provino/policy'
+import {
+  openFileSnapshots,
+  type SnapshotLifecycle,
+  type SnapshotState,
+} from '@provino/snapshot/runtime'
 import type {
   EnvironmentInstance,
   EnvironmentScope,
+  EventSink,
   FileJob,
   FileRegistry,
   GlobalsHost,
@@ -50,6 +56,12 @@ import type {
   ModuleMocksFactory,
   ModuleScopeValues,
   Policy,
+  ResolveSnapshotPath,
+  RuntimeEvent,
+  SnapshotFileReport,
+  SnapshotKey,
+  SnapshotPlugin,
+  SnapshotPrinter,
 } from '@provino/types'
 import { WorkerError } from '../errors.ts'
 import { parseProjectConfig } from '../internal/runtime/config.ts'
@@ -102,6 +114,17 @@ interface Booted {
   modules: ModuleMocking
   /** The dialect's per-module bindings, built once from its factory; `undefined` for none. */
   moduleScope: ModuleScopeValues | undefined
+  /** What every file's snapshot state is built from: the policy's behaviours, loaded once. */
+  snapshots: SnapshotBehaviours
+}
+
+/** The snapshot slice's behaviours, loaded by ref when the worker starts (B17b). */
+interface SnapshotBehaviours {
+  readonly key: SnapshotKey
+  /** `null`: the policy names no printer. */
+  readonly printer: SnapshotPrinter | null
+  /** `null`: the default layout beside the test file. */
+  readonly resolvePath: ResolveSnapshotPath | null
 }
 
 /** What every file's module-mock registry shares: the policy slices, the roots and the root mocks. */
@@ -124,6 +147,7 @@ const BUILT = [
   'tier',
   'scope',
   'modules',
+  'snapshots',
 ] as const satisfies readonly (keyof Booted)[]
 
 function isBooted(parts: Partial<Booted>): parts is Booted {
@@ -171,6 +195,39 @@ interface FileScope {
  * sites for a rare edge.
  */
 const fileScope = new AsyncLocalStorage<FileScope>()
+
+/** The snapshot state and lifecycle of the file running now: what the event stream is told. */
+interface OpenSnapshots {
+  readonly state: SnapshotState
+  readonly lifecycle: SnapshotLifecycle
+}
+
+/** A file that checked, wrote and left no snapshot has nothing to tell the coordinator. */
+function isEmptyReport(report: SnapshotFileReport): boolean {
+  return (
+    report.file === null &&
+    !report.fileDeleted &&
+    report.added + report.matched + report.unmatched + report.updated + report.unchecked === 0
+  )
+}
+
+/** Hands every event to `observe` first, then on. */
+function observingSink(next: EventSink, observe: (event: RuntimeEvent) => void): EventSink {
+  return {
+    emit(event: RuntimeEvent): void {
+      observe(event)
+      next.emit(event)
+    },
+  }
+}
+
+/** The plugin a serializer module exports: its default export when that is an object, else the module. */
+function pluginOf(exported: unknown): SnapshotPlugin {
+  const fallback = exported as SnapshotPlugin
+  if (typeof exported !== 'object' || exported === null) return fallback
+  const inner: unknown = Reflect.get(exported, 'default')
+  return typeof inner === 'object' && inner !== null ? (inner as SnapshotPlugin) : fallback
+}
 
 /**
  * Runs every step, in order, whatever the earlier ones threw, and returns what they threw.
@@ -236,6 +293,8 @@ export function createRuntimeRunner(): WorkerRunner {
    * callback must still find the current file, or a green suite goes red.
    */
   let fallback: FileScope | undefined
+  /** The snapshots of the file running now; the runtime's events pass through its lifecycle. */
+  let openSnapshots: OpenSnapshots | undefined
 
   const activeScope = (): FileScope => {
     const found = fileScope.getStore() ?? fallback
@@ -294,6 +353,15 @@ export function createRuntimeRunner(): WorkerRunner {
       }
       // The globals a dialect installs only after `setupFiles` (Jest's `describe`, `expect`, ...).
       activeScope().installLateGlobals()
+      // The project's snapshot serializers, when the test framework starts: after `setupFiles` and
+      // the globals, before `setupFilesAfterEnv`. Jest tries them ahead of its own and in the order
+      // listed, so they are added in reverse (jestAdapterInit.ts L134-L136).
+      const snapshotState = openSnapshots?.state
+      if (snapshotState !== undefined) {
+        for (const serializer of [...policy.snapshot.serializers].reverse()) {
+          snapshotState.addSerializer(pluginOf(await files.import(serializer)))
+        }
+      }
       for (const setup of config.setupFilesAfterEnv) {
         if (shared) files.invalidate(setup)
         await files.import(setup)
@@ -304,13 +372,26 @@ export function createRuntimeRunner(): WorkerRunner {
     const coreRuntime = await createRuntime({
       policy: policy.core,
       behaviours,
-      sink: assertionCountSink(source, context.sink),
+      sink: observingSink(assertionCountSink(source, context.sink), (event) =>
+        openSnapshots?.lifecycle.observe(event),
+      ),
       importFile,
       rootDir: config.rootDir,
       projectName: config.name,
       ci: config.ci,
     })
     parts.runtime = coreRuntime
+
+    // The snapshot slice's behaviours, once: every file's state is built from them.
+    const { snapshot } = policy
+    const printerFactory =
+      snapshot.printer === null ? null : await behaviours.load(snapshot.printer)
+    parts.snapshots = {
+      key: await behaviours.load(snapshot.key),
+      printer: printerFactory === null ? null : printerFactory(),
+      resolvePath:
+        snapshot.resolvePath === null ? null : await behaviours.load(snapshot.resolvePath),
+    }
 
     parts.environment = await prepareEnvironment(config.environment)
 
@@ -456,6 +537,7 @@ export function createRuntimeRunner(): WorkerRunner {
       }
       fallback = thisFile
       const errors: unknown[] = []
+      let snapshotReport: SnapshotFileReport | null = null
       try {
         instance = await setUpEnvironment(worker, context)
         // The rest go on after `setupFiles` (`importFile`). Under `none` the environment, and so
@@ -464,12 +546,26 @@ export function createRuntimeRunner(): WorkerRunner {
         // pins it).
         if (globals !== undefined) installGlobals(instance.global, globals.before)
         worker.source.startFile(job.file)
+        // The file's snapshots: the state is where the matchers find it (Jest's
+        // `setState({ snapshotState, testPath })`), and the lifecycle follows the file's events.
+        const snapshots = openFileSnapshots({
+          testPath: job.file,
+          update: job.updateSnapshots,
+          expand: worker.modules.policy.expect.expand,
+          policy: worker.modules.policy.snapshot,
+          ...worker.snapshots,
+        })
+        openSnapshots = snapshots
+        Object.assign(worker.source.file(), { snapshotState: snapshots.state })
         // The coordinator's id for the file (D23), so every event carries the id it expects.
         await fileScope.run(thisFile, () =>
           worker.runtime.runFile(job.file, { fileId: job.fileId, ...filtersOf(job) }),
         )
+        snapshotReport = snapshots.lifecycle.finish()
       } catch (error) {
         errors.push(error)
+      } finally {
+        openSnapshots = undefined
       }
 
       // Teardown, always, in this order. A step that throws doesn't stop the next ones. The mock
@@ -507,7 +603,12 @@ export function createRuntimeRunner(): WorkerRunner {
       // arrives after them and before `fileDone`. It has no task: the file's tasks have ended.
       if (leaked.length > 0) context.sink.emit(fileLeakEvent(job.file, leaked))
       rethrow(errors, `Tearing down ${job.file} failed`)
-      return leaked.length > 0 ? { leakedGlobals: leaked } : {}
+      return {
+        ...(leaked.length > 0 ? { leakedGlobals: leaked } : {}),
+        ...(snapshotReport === null || isEmptyReport(snapshotReport)
+          ? {}
+          : { snapshot: snapshotReport }),
+      }
     },
 
     async stop(context): Promise<void> {

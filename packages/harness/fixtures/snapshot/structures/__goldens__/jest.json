@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/structures",
+  "files": [
+    {
+      "file": "structures.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "structures.test.ts",
+            "path": [
+              "structures",
+              "arrays"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 5,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "structures.test.ts",
+            "path": [
+              "structures",
+              "objects"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 6,
+          "location": {
+            "line": 11,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "structures.test.ts",
+            "path": [
+              "structures",
+              "collections"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 5,
+          "location": {
+            "line": 20,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "structures.test.ts",
+            "path": [
+              "structures",
+              "class instances"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "structures.test.ts",
+            "path": [
+              "structures",
+              "circular references"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 46,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "structures.test.ts",
+            "path": [
+              "structures",
+              "boxed values and deep nesting"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 4,
+          "location": {
+            "line": 53,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 24,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 24,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/structures.test.ts.snap",
+        "sha256": "41b45a823eb3dfaa57d26f2c9035c847698ed1205769ca9aba0e15e623adb9f7"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      "__snapshots__/structures.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`structures arrays 1`] = `[]`;\n\nexports[`structures arrays 2`] = `\n[\n  1,\n  [\n    2,\n    [\n      3,\n      [\n        4,\n      ],\n    ],\n  ],\n]\n`;\n\nexports[`structures arrays 3`] = `\n[\n  1,\n  ,\n  3,\n]\n`;\n\nexports[`structures arrays 4`] = `\n[\n  ,\n  ,\n]\n`;\n\nexports[`structures arrays 5`] = `\n[\n  undefined,\n  null,\n  \"x\",\n]\n`;\n\nexports[`structures boxed values and deep nesting 1`] = `Number {}`;\n\nexports[`structures boxed values and deep nesting 2`] = `\nString {\n  \"0\": \"s\",\n}\n`;\n\nexports[`structures boxed values and deep nesting 3`] = `Boolean {}`;\n\nexports[`structures boxed values and deep nesting 4`] = `\n{\n  \"l1\": {\n    \"l2\": {\n      \"l3\": {\n        \"l4\": {\n          \"l5\": {\n            \"l6\": \"deep\",\n          },\n        },\n      },\n    },\n  },\n}\n`;\n\nexports[`structures circular references 1`] = `\n{\n  \"list\": [\n    [Circular],\n    {\n      \"again\": [Circular],\n    },\n  ],\n  \"name\": \"node\",\n  \"self\": [Circular],\n}\n`;\n\nexports[`structures class instances 1`] = `\nPoint {\n  \"x\": 1,\n  \"y\": 2,\n}\n`;\n\nexports[`structures class instances 2`] = `\nNamed {\n  \"label\": \"n\",\n  \"x\": 1,\n  \"y\": 2,\n}\n`;\n\nexports[`structures class instances 3`] = `\n{\n  \"nested\": Point {\n    \"x\": 1,\n    \"y\": 2,\n  },\n}\n`;\n\nexports[`structures collections 1`] = `\nMap {\n  \"a\" => 1,\n  {\n    \"key\": 1,\n  } => Set {\n    1,\n    2,\n  },\n}\n`;\n\nexports[`structures collections 2`] = `Set {}`;\n\nexports[`structures collections 3`] = `WeakMap {}`;\n\nexports[`structures collections 4`] = `\nUint8Array [\n  1,\n  2,\n  3,\n]\n`;\n\nexports[`structures collections 5`] = `Float32Array []`;\n\nexports[`structures objects 1`] = `{}`;\n\nexports[`structures objects 2`] = `\n{\n  \"a\": {\n    \"c\": [\n      1,\n      {\n        \"d\": 2,\n      },\n    ],\n  },\n  \"b\": 1,\n}\n`;\n\nexports[`structures objects 3`] = `\n{\n  \"2\": \"two\",\n  \"plain\": 3,\n  \"quoted key\": 1,\n}\n`;\n\nexports[`structures objects 4`] = `{}`;\n\nexports[`structures objects 5`] = `\n{\n  \"visible\": 2,\n  Symbol(key): 1,\n}\n`;\n\nexports[`structures objects 6`] = `\n{\n  \"a\": undefined,\n}\n`;\n"
+    }
+  }
+}

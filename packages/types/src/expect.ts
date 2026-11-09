@@ -3,6 +3,7 @@
 // end, the per-test state and the global slot; the table owns every matcher, every asymmetric
 // matcher, `this.utils` and every word the engine prints. Augmentation, the context supertype
 // and the Jest/Vitest bridges are T7.13's (Phase 2).
+import type { SnapshotPlugin } from './policy/snapshot.ts'
 
 /**
  * What an equality tester's `this` is: the deep equality it may recurse with.
@@ -73,7 +74,15 @@ export interface MatcherState {
   expand?: boolean
   /** The test's full name, joined by the core policy's `nameSeparator`. */
   currentTestName?: string
+  /** The test's title path: describe titles, then the test title (`TestTask.fullName`). */
+  currentTestPath?: readonly string[]
+  /** The running test's id; a retry or a repeat has the same one. */
+  currentTestId?: string
+  /** The test is `test.failing` (`test.fails`): a failed assertion is its expected outcome. */
+  testFailing?: boolean
   testPath?: string
+  /** The file's snapshot state (`@provino/snapshot/runtime`), set by the worker. */
+  snapshotState?: unknown
   /** Keys a user or a plugin sets through `expect.setState`. */
   [key: string]: unknown
 }
@@ -221,6 +230,12 @@ export interface Matchers<R extends void | Promise<void> = void> {
   toHaveReturnedWith(expected: unknown): R
   toHaveLastReturnedWith(expected: unknown): R
   toHaveNthReturnedWith(nth: number, expected: unknown): R
+  /** Compares with the snapshot stored in the file's `.snap` (Track 7, T7.10). */
+  toMatchSnapshot(propertiesOrHint?: object | string, hint?: string): R
+  /** Compares with the snapshot written in the test's source (T7.10; the writer is T7.11). */
+  toMatchInlineSnapshot(propertiesOrSnapshot?: object | string, snapshot?: string): R
+  toThrowErrorMatchingSnapshot(hint?: string): R
+  toThrowErrorMatchingInlineSnapshot(snapshot?: string): R
 }
 
 /**
@@ -261,5 +276,7 @@ export interface ExpectStatic extends InvertibleAsymmetric {
   hasAssertions(): void
   getState(): MatcherState
   setState(state: Partial<MatcherState>): void
+  /** Adds a snapshot serializer for the running file, ahead of the others. */
+  addSnapshotSerializer(plugin: SnapshotPlugin): void
   readonly [asymmetric: string]: unknown
 }

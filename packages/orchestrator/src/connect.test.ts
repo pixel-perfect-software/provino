@@ -44,8 +44,6 @@ function fakeTransport() {
 }
 
 const methods = {
-  resolveSnapshotPath: async (file: string) => file,
-  writeSnapshot: async () => {},
   readTimings: async () => undefined,
 }
 const event = (n: number): WorkerEvent => ({ type: 'test-start', id: `t${n}` as TaskId, t: n })

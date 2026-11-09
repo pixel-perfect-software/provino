@@ -996,7 +996,7 @@ describe('the options table', () => {
   it('classifies every option once, and counts the classes', (t) => {
     const counts = Object.fromEntries(supports)
     t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
-    assert.deepEqual(counts, { request: 13, config: 50, accepted: 5, warn: 10, refuse: 27 })
+    assert.deepEqual(counts, { request: 14, config: 50, accepted: 5, warn: 10, refuse: 26 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'
       assert.equal(option.owner !== undefined, needsOwner, name)
@@ -1024,6 +1024,7 @@ describe('the options table', () => {
         'showConfig',
         'testNamePattern',
         'testPathPatterns',
+        'updateSnapshot',
         'workerThreads',
       ].sort(),
     )
@@ -1089,7 +1090,7 @@ describe('diagnostics', () => {
   }
 
   it('gives an error diagnostic for each refused flag, naming the task', () => {
-    assert.equal(Object.keys(REFUSED).length, 27)
+    assert.equal(Object.keys(REFUSED).length, 26)
     for (const [name, owner] of Object.entries(REFUSED)) {
       const { diagnostics } = parseJestCli(lineFor(name))
       assert.deepEqual(
@@ -1128,7 +1129,6 @@ describe('diagnostics', () => {
       forceExit: 'T9.10',
       detectOpenHandles: 'T9.10',
       detectLeaks: 'T2.7',
-      updateSnapshot: 'T7.9',
       projects: 'multi-project runs, D29/B17',
       selectProjects: 'multi-project runs, D29/B17',
       ignoreProjects: 'multi-project runs, D29/B17',
@@ -1252,6 +1252,10 @@ describe('the run request', () => {
     assert.equal(request(['--ci']).ci, true)
     assert.equal(request(['--no-ci']).ci, false)
     assert.equal('ci' in request([]), false)
+    assert.equal(request(['-u']).update, true)
+    assert.equal(request(['--updateSnapshot']).update, true)
+    assert.equal(request(['--no-updateSnapshot']).update, false)
+    assert.equal('update' in request([]), false)
     assert.equal(request(['--passWithNoTests']).passWithNoTests, true)
     assert.equal('passWithNoTests' in request([]), false)
     assert.equal(request(['--no-cache']).cache, false)

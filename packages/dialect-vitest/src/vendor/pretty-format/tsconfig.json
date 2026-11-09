@@ -1,0 +1,11 @@
+{
+  "extends": "../../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false,
+    "isolatedDeclarations": false,
+    "rootDir": ".",
+    "outDir": "../../../.tsc/src/vendor/pretty-format"
+  },
+  "include": ["."]
+}

@@ -23,7 +23,13 @@
 //   user's `snapshotResolver`), snapshot.serializers (`[]`: Jest's is the user's list),
 //   orchestrator.isolationDefault.byEnvironment (see there).
 import { defineDialect, moduleRef } from '@provino/policy'
-import type { Dialect, GlobalsFactory, ModuleScopeFactory, PolicyOverrides } from '@provino/types'
+import type {
+  Dialect,
+  GlobalsFactory,
+  ModuleScopeFactory,
+  PolicyOverrides,
+  SnapshotPrinterFactory,
+} from '@provino/types'
 import { jestExpectPolicy } from './expect-policy.ts'
 import { jestHoistPolicy } from './hoist-policy.ts'
 import { jestMockPolicy } from './mock-policy.ts'
@@ -217,7 +223,7 @@ export const jestPolicy: PolicyOverrides = {
     // research: track-01 L217
     extension: '.snap',
     // research: track-01 L218, track-07 L474 (no `maxOutputLength`: unlimited)
-    format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null },
+    format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
     // research: track-07 L472 (track-01 L220 says `report` for both; Track 7's detail is used)
     obsolete: { failLocal: true, failCI: true },
     // research: track-01 L220, track-07 L473
@@ -228,6 +234,12 @@ export const jestPolicy: PolicyOverrides = {
     throwErrorBody: 'message',
     // research: track-07 L471
     inline: { indent: 'column0', formatter: 'prettier' },
+    // Provino's own key (T7.10): Jest's `pretty-format` 30.5 with its plugin order, and its words.
+    // Resolved here, so the worker's loader finds it from any package.
+    printer: moduleRef<SnapshotPrinterFactory>(
+      import.meta.resolve('@provino/dialect-jest/runtime'),
+      'jestSnapshotPrinter',
+    ),
   },
   expect: jestExpectPolicy,
   orchestrator: {

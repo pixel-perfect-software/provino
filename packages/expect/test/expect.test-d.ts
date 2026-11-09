@@ -7,6 +7,7 @@ import {
   createStateSource,
   type ExpectError,
   type ExpectErrorCode,
+  equalityTesters,
   installMatchersSlot,
   MATCHERS_SLOT,
   type MatcherContext,
@@ -15,16 +16,22 @@ import {
   type MatchersSlot,
   type RegistrySnapshot,
   type SlotHandle,
+  type SnapshotMatchersOptions,
   type StateSource,
+  snapshotMatchers,
   snapshotRegistry,
 } from '@provino/expect'
 import type {
   Assertion,
   AsymmetricMatcherLike,
   CurrentTest,
+  EqualityTester,
+  ExpectPolicy,
   ExpectStatic,
   MatcherResult,
+  MatcherSet,
   MatcherState,
+  SnapshotPlugin,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -91,3 +98,32 @@ class Even extends AsymmetricMatcher<void> {
   }
 }
 expectTypeOf(new Even(undefined)).toExtend<AsymmetricMatcherLike>()
+
+// The snapshot matchers (T7.10) and the equality policies (T7.7).
+expectTypeOf(snapshotMatchers({ fileSnapshot: false })).toEqualTypeOf<{
+  readonly matchers: MatcherSet
+  readonly promiseMatchers: MatcherSet
+}>()
+expectTypeOf<SnapshotMatchersOptions>().toEqualTypeOf<{ readonly fileSnapshot: boolean }>()
+// @ts-expect-error the options name whether to include toMatchFileSnapshot
+snapshotMatchers({})
+declare const expectStatic: ExpectStatic
+expectTypeOf(expectStatic.addSnapshotSerializer).parameters.toEqualTypeOf<[SnapshotPlugin]>()
+// @ts-expect-error a serializer is an object with test and serialize (or print)
+expectStatic.addSnapshotSerializer({ test: () => true })
+expectTypeOf(expectStatic(1).toMatchSnapshot).toBeCallableWith()
+expectTypeOf(expectStatic(1).toMatchSnapshot).toBeCallableWith('a hint')
+expectTypeOf(expectStatic(1).toMatchSnapshot).toBeCallableWith({ id: 1 }, 'a hint')
+// @ts-expect-error a hint is a string
+expectStatic(1).toMatchSnapshot({ id: 1 }, 2)
+expectTypeOf(expectStatic(() => {}).toThrowErrorMatchingSnapshot).toBeCallableWith('a hint')
+// @ts-expect-error an inline snapshot is a string
+expectStatic(() => {}).toThrowErrorMatchingInlineSnapshot(1)
+expectTypeOf(expectStatic(Promise.resolve(1)).resolves.toMatchInlineSnapshot).returns.toEqualTypeOf<
+  Promise<void>
+>()
+expectTypeOf(equalityTesters({ errors: 'assert', invalidDate: 'equal' })).toEqualTypeOf<
+  EqualityTester[]
+>()
+// @ts-expect-error the policy's rule is one of its two names
+equalityTesters({ errors: 'exact', invalidDate: 'equal' } satisfies ExpectPolicy['equality'])

@@ -23,10 +23,13 @@ import type {
   MatcherSet,
   MatcherState,
   PromiseVoice,
+  SnapshotPlugin,
 } from '@provino/types'
 import type { MatcherContext } from './context.ts'
+import { equalityTesters } from './equality.ts'
 import { ExpectError } from './errors.ts'
 import { createMatcherRegistry, type MatcherRegistry } from './slot.ts'
+import { addSnapshotSerializer } from './snapshot-matchers.ts'
 import type { StateSource } from './state.ts'
 
 /**
@@ -94,6 +97,10 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   checkPolicy(policy)
   const registry = options.registry ?? createMatcherRegistry()
   registry.utils = table.utils
+  // T7.7: the policy's equality rules go ahead of Jest's `equals`, after the user's testers:
+  // Vitest's `equals` asks the custom testers first and judges errors and dates itself after them.
+  const policyTesters = equalityTesters(policy.equality)
+  registry.customEqualityTesters.push(...policyTesters)
   const { messages } = table
   /** The table's promise forms: dialect code, so their errors are re-anchored like built-ins'. */
   const promiseForms = new WeakSet<Matcher>(Object.values(table.promiseMatchers))
@@ -345,7 +352,9 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     if (!Array.isArray(testers)) {
       throw anchor(new TypeError(messages.invalidTesters(testers)), addEqualityTesters)
     }
-    registry.customEqualityTesters.push(...testers)
+    // The policy's testers stay last.
+    const { customEqualityTesters } = registry
+    customEqualityTesters.splice(customEqualityTesters.length - policyTesters.length, 0, ...testers)
   }
 
   function assertions(expected: number): void {
@@ -373,6 +382,9 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     setState(state: Partial<MatcherState>): void {
       Object.assign(getState(), state)
     },
+    addSnapshotSerializer(plugin: SnapshotPlugin): void {
+      addSnapshotSerializer(getState(), plugin)
+    },
   }
   register(table.matchers, true, createExpect)
   return Object.assign(expect, statics) as unknown as ExpectStatic
@@ -389,9 +401,6 @@ function checkPolicy(policy: ExpectPolicy): void {
   }
   if (policy.errorShape !== 'matcher-result')
     missing.push(`errorShape: '${policy.errorShape}' (T7.6)`)
-  if (policy.equality.errors !== 'message') missing.push(`equality.errors: 'assert' (T7.7)`)
-  if (policy.equality.invalidDate !== 'unequal')
-    missing.push(`equality.invalidDate: 'equal' (T7.7)`)
   if (policy.soft) missing.push('soft (T7.8)')
   if (policy.poll.enabled) missing.push('poll (T7.8)')
   if (policy.requireAssertions) missing.push('requireAssertions (T7.8)')

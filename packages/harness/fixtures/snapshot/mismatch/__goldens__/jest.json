@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/mismatch",
+  "files": [
+    {
+      "file": "mismatch.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "mismatch.test.ts",
+            "path": [
+              "changed value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toMatchSnapshot()\n\nSnapshot name: `changed value 1`\n\nSnapshot: \"old value\"\nReceived: \"new value\"",
+              "matcher": "toMatchSnapshot",
+              "userFrame": "<root>/mismatch.test.ts:2:23"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "mismatch.test.ts",
+            "path": [
+              "unchanged value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 1,
+      "unmatched": 1,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 2,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 1,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/mismatch.test.ts.snap",
+        "sha256": "59ca88daf5a0c0be63891f9081d8466b65ba4665c976fe890d2f48718b28339a"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "files": {
+      "__snapshots__/mismatch.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`changed value 1`] = `\"old value\"`;\n\nexports[`unchanged value 1`] = `\"same\"`;\n"
+    }
+  }
+}

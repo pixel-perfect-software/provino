@@ -85,8 +85,6 @@ export function initFor(pool: PoolKind, workerId = 1): WorkerInit {
 
 /** Coordinator methods for tests that never call them. */
 export const methods: RpcHandlers<CoordinatorMethods> = {
-  resolveSnapshotPath: async (file) => file,
-  writeSnapshot: async () => {},
   readTimings: async () => undefined,
 }
 

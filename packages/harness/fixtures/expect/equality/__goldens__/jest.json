@@ -1,0 +1,635 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "expect/equality",
+  "files": [
+    {
+      "file": "equality.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "01 toEqual: the same primitive"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 16,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "02 toEqual: nested objects and arrays"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 19,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "03 toEqual: an undefined property is ignored"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 22,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "04 toStrictEqual: an undefined property is not"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toStrictEqual(expected) // deep equality\n\n- Expected  - 0\n+ Received  + 1\n\n  Object {\n    \"a\": 1,\n+   \"b\": undefined,\n  }",
+              "matcher": "toStrictEqual",
+              "userFrame": "<root>/equality.test.ts:26:36"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "05 toEqual: a sparse array and one filled with undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 28,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "06 toStrictEqual: a sparse array and one filled with undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toStrictEqual(expected) // deep equality\n\nExpected: [undefined, 1]\nReceived: [, 1]",
+              "matcher": "toStrictEqual",
+              "userFrame": "<root>/equality.test.ts:34:19"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "07 toEqual: a class instance and a literal"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 36,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "08 toStrictEqual: a class instance and a literal"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toStrictEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 1\n\n- Object {\n+ Point {\n    \"x\": 1,\n    \"y\": 2,\n  }",
+              "matcher": "toStrictEqual",
+              "userFrame": "<root>/equality.test.ts:40:29"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 39,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "09 toEqual: a non-enumerable property is ignored"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 42,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "10 toEqual: symbol keys with different values"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 1\n\n  Object {\n-   Symbol(k): 2,\n+   Symbol(k): 1,\n  }",
+              "matcher": "toEqual",
+              "userFrame": "<root>/equality.test.ts:47:26"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 45,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "11 toEqual: symbol keys with the same value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 49,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "12 toEqual: equal typed arrays"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 53,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "13 toEqual: typed arrays of different types"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 1\n\n- Int8Array [\n+ Uint8Array [\n    1,\n    2,\n  ]",
+              "matcher": "toEqual",
+              "userFrame": "<root>/equality.test.ts:57:36"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 56,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "14 toEqual: equal maps"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 59,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "15 toEqual: equal sets"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 62,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "16 toEqual: different sets"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 1\n\n  Set {\n    1,\n-   3,\n+   2,\n  }",
+              "matcher": "toEqual",
+              "userFrame": "<root>/equality.test.ts:66:29"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "17 toEqual: equal valid dates"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 68,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "18 toEqual: different valid dates"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toEqual(expected) // deep equality\n\nExpected: 1970-01-01T00:00:02.000Z\nReceived: 1970-01-01T00:00:01.000Z",
+              "matcher": "toEqual",
+              "userFrame": "<root>/equality.test.ts:72:28"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 71,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "19 toEqual: equal regular expressions"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 74,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "20 toEqual: regular expressions with different flags"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toEqual(expected) // deep equality\n\nExpected: /a+b/i\nReceived: /a+b/g",
+              "matcher": "toEqual",
+              "userFrame": "<root>/equality.test.ts:78:20"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 77,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "21 toEqual: two errors of one class and message"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 80,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "22 toEqual: two errors with different messages"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toEqual(expected) // deep equality\n\nExpected: [Error: two]\nReceived: [Error: one]",
+              "matcher": "toEqual",
+              "userFrame": "<root>/equality.test.ts:84:30"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 83,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "23 toEqual: NaN and NaN"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 86,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "24 toEqual: +0 and -0"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toEqual(expected) // deep equality\n\nExpected: -0\nReceived: 0",
+              "matcher": "toEqual",
+              "userFrame": "<root>/equality.test.ts:90:15"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 89,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "25 toEqual: an asymmetric matcher inside an object"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 92,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where Jest and Vitest agree",
+              "26 addEqualityTesters: a tester applies inside nested values"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 95,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where they differ: errors and invalid dates",
+              "27 toEqual: an Error and a TypeError with the same message"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 107,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where they differ: errors and invalid dates",
+              "28 toEqual: errors with different causes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 110,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where they differ: errors and invalid dates",
+              "29 toEqual: an error with an extra own enumerable property"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 113,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where they differ: errors and invalid dates",
+              "30 toEqual: AggregateErrors with different errors"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 116,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "equality.test.ts",
+            "path": [
+              "where they differ: errors and invalid dates",
+              "31 toEqual: two different invalid dates"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toEqual(expected) // deep equality\n\nExpected: Date { NaN }\nReceived: serializes to the same string",
+              "matcher": "toEqual",
+              "userFrame": "<root>/equality.test.ts:122:27"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 121,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false
+}

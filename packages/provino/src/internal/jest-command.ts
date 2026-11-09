@@ -198,6 +198,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       },
       ...(request.cache === false || !read.cache ? { cache: false } : {}),
       testNamePattern: read.globalConfig.testNamePattern,
+      update: request.update,
       fileFilters: request.fileFilters,
     })
     return result.exitCode

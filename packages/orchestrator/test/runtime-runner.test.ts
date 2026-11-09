@@ -44,8 +44,6 @@ async function started(
     sink,
     console: globalThis.console,
     coordinator: {
-      resolveSnapshotPath: async (file: string) => file,
-      writeSnapshot: async () => {},
       readTimings: async () => undefined,
     },
   }

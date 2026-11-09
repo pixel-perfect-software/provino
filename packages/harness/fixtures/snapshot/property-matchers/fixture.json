@@ -1,0 +1,13 @@
+{
+  "description": "toMatchSnapshot with property matchers: asymmetric matchers merged into the stored object, with and without a hint, nested and in arrays. A black-box run in write mode capturing the .snap.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/properties.test.ts.snap"]
+  }
+}

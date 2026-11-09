@@ -1,5 +1,6 @@
 // Track 9 §Lifecycle and L476: the process exit codes. The failure, no-tests and unhandled codes
 // are the dialect's (`orchestrator.exitCodes`; Jest and Vitest both use 1); the rest are fixed.
+import { snapshotRunFails } from '@provino/snapshot/node'
 import type { Policy, RunSummary } from '@provino/types'
 
 /**
@@ -35,9 +36,11 @@ export interface ExitCodeOptions {
  *    handling is T9.10's);
  * 2. no files ran, and `passWithNoTests` is off: `exitCodes.noTests`;
  * 3. a file failed: `exitCodes.failure`;
- * 4. an unhandled error, when the policy's `unhandledErrors` is `fail-run`: `exitCodes.unhandled`;
- * 5. a reporter failed: `exitCodes.failure`;
- * 6. otherwise `ExitCode.Pass`.
+ * 4. the run's snapshots fail it: obsolete snapshots that the policy's `snapshot.obsolete` says
+ *    fail the run in this update mode (Jest: `snapshot.failure`): `exitCodes.failure`;
+ * 5. an unhandled error, when the policy's `unhandledErrors` is `fail-run`: `exitCodes.unhandled`;
+ * 6. a reporter failed: `exitCodes.failure`;
+ * 7. otherwise `ExitCode.Pass`.
  * @public
  */
 export function exitCodeFor(summary: RunSummary, options: ExitCodeOptions): number {
@@ -46,6 +49,9 @@ export function exitCodeFor(summary: RunSummary, options: ExitCodeOptions): numb
   const passWithNoTests = options.passWithNoTests ?? orchestrator.passWithNoTests
   if (summary.files.length === 0 && !passWithNoTests) return orchestrator.exitCodes.noTests
   if (summary.files.some((file) => file.state === 'fail')) return orchestrator.exitCodes.failure
+  if (snapshotRunFails(summary.snapshots, options.policy.snapshot)) {
+    return orchestrator.exitCodes.failure
+  }
   if (orchestrator.unhandledErrors === 'fail-run' && summary.unhandled.length > 0) {
     return orchestrator.exitCodes.unhandled
   }

@@ -1,0 +1,4 @@
+{
+  "description": "Spike C's 31 equality cases, rebuilt (Track 7 F4, T7.7): one assertion per test, so a golden holds each runner's verdict. 26 cases agree; the 5 that don't are about Error (a subclass, a cause, an own property, an AggregateError's errors) and two different invalid Dates.",
+  "runners": ["jest", "vitest"]
+}

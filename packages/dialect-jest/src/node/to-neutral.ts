@@ -127,10 +127,14 @@ export function jestProjectToNeutral(
   if (project.modulePaths !== undefined && project.modulePaths.length > 0) {
     notApplied(diagnostics, 'modulePaths', 'T3.3')
   }
-  if (project.snapshotSerializers.length > 0) {
-    notApplied(diagnostics, 'snapshotSerializers', 'T7.10')
+  if (project.snapshotResolver !== undefined) {
+    notApplied(
+      diagnostics,
+      'snapshotResolver',
+      'a later bundle',
+      '; snapshots stay beside the test file',
+    )
   }
-  if (project.snapshotResolver !== undefined) notApplied(diagnostics, 'snapshotResolver', 'T7.9')
   if (project.fakeTimers.enableGlobally === true) notApplied(diagnostics, 'fakeTimers', 'T4.9')
   if (project.globalSetup !== undefined) notApplied(diagnostics, 'globalSetup', 'Track 9')
   if (project.globalTeardown !== undefined) notApplied(diagnostics, 'globalTeardown', 'Track 9')
@@ -153,6 +157,9 @@ export function jestProjectToNeutral(
       restore: project.restoreMocks,
     },
   }
+  // `snapshotFormat` is pretty-format's options, already merged over Jest's two defaults: the two
+  // the policy types go in their keys, the rest (`indent`, `maxDepth`, `min`, ...) in `extra`.
+  const { escapeString, printBasicPrototype, ...otherFormat } = project.snapshotFormat
   const policy: PolicyOverrides = {
     core: {
       injectGlobals: project.injectGlobals,
@@ -168,6 +175,14 @@ export function jestProjectToNeutral(
       exitCodes: {
         failure: globalConfig.testFailureExitCode,
         unhandled: globalConfig.testFailureExitCode,
+      },
+    },
+    snapshot: {
+      serializers: [...project.snapshotSerializers],
+      format: {
+        ...(typeof escapeString === 'boolean' ? { escapeString } : {}),
+        ...(typeof printBasicPrototype === 'boolean' ? { printBasicPrototype } : {}),
+        extra: jsonObject(otherFormat, 'snapshotFormat', diagnostics),
       },
     },
   }
