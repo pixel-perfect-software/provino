@@ -29,7 +29,6 @@ export interface JestCommandIo {
   readonly stdout: TextSink
   readonly stderr: NodeJS.WritableStream
   readonly cwd: string
-  readonly signal?: AbortSignal | undefined
 }
 
 /** The version of Jest the dialect mirrors, for `--showConfig`. */
@@ -43,6 +42,17 @@ function usageExitCode(): number {
   const { policy } = jestNodeDialect
   if (typeof policy === 'function') return ExitCode.UsageError
   return policy.orchestrator?.exitCodes?.usage ?? ExitCode.UsageError
+}
+
+/**
+ * The environments a project may name. A run needs a built-in one, so a project whose
+ * environment isn't (jsdom, a custom one) is refused before anything starts. Listing the files and
+ * clearing the cache start no worker, so they accept any name, as Jest's `--listTests` does.
+ */
+function environmentsFor(request: RunRequest, project: NeutralProject): typeof ENVIRONMENTS {
+  const { name } = project.environment
+  if (request.mode === 'run' || Object.hasOwn(ENVIRONMENTS, name)) return ENVIRONMENTS
+  return { ...ENVIRONMENTS, [name]: ENVIRONMENTS.node as (typeof ENVIRONMENTS)[string] }
 }
 
 /** A diagnostic as a line (or lines) for the user. Jest's own texts keep their form. */
@@ -98,15 +108,15 @@ async function listFiles(
   request: RunRequest,
   cwd: string,
 ): Promise<readonly string[]> {
-  const found = new Set<string>()
-  for (const project of projects) {
-    const files = selectFiles(await discoverProject(project), request.fileFilters, {
-      rootDir: project.rootDir,
-      cwd,
-    })
-    for (const file of files) found.add(file.path)
-  }
-  return [...found].sort()
+  const perProject = await Promise.all(
+    projects.map(async (project) =>
+      selectFiles(await discoverProject(project), request.fileFilters, {
+        rootDir: project.rootDir,
+        cwd,
+      }),
+    ),
+  )
+  return [...new Set(perProject.flatMap((files) => files.map((file) => file.path)))].sort()
 }
 
 /**
@@ -138,7 +148,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       projects.push(
         await resolveNeutralProject(neutral, {
           dialect: jestNodeDialect,
-          environments: ENVIRONMENTS,
+          environments: environmentsFor(request, neutral),
           ci: read.globalConfig.ci,
         }),
       )
@@ -189,7 +199,6 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       ...(request.cache === false || !read.cache ? { cache: false } : {}),
       testNamePattern: read.globalConfig.testNamePattern,
       fileFilters: request.fileFilters,
-      signal: io.signal,
     })
     return result.exitCode
   } catch (error) {

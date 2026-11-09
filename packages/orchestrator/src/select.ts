@@ -64,16 +64,15 @@ export function selectFiles(
     return files.filter((file) => wanted.has(file.path))
   }
   const patterns = filters.map((filter) => ({
-    pattern: filter.value,
     regex: toRegex(filter.value),
+    absolute: isAbsolute(filter.value),
   }))
   return files.filter((file) => {
     const relativePath = relative(options.rootDir, file.path)
-    return patterns.some(({ pattern, regex }) => {
-      // An absolute pattern is tried on the absolute path first; either way the absolute path is
-      // the fallback.
-      const tested = isAbsolute(pattern) ? file.path : relativePath
-      return regex.test(tested) || regex.test(file.path)
-    })
+    // The absolute path always counts; the path from the root only for a pattern that is not
+    // itself absolute.
+    return patterns.some(
+      ({ regex, absolute }) => regex.test(file.path) || (!absolute && regex.test(relativePath)),
+    )
   })
 }

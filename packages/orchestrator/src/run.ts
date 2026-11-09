@@ -104,8 +104,8 @@ export interface RunProjectOptions {
 
 /**
  * What the results cache keys a project's history by: its name and a short hash of what makes
- * the config different (root, include, exclude), so two configs without a name in one root don't
- * prune each other's history.
+ * the config different (root, include, exclude, and a dialect reader's discovery rules), so two
+ * configs without a name in one root don't prune each other's history.
  * @public
  */
 export function projectCacheKey(project: ResolvedProject): string {

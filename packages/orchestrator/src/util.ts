@@ -9,3 +9,19 @@ export function byText(a: string, b: string): number {
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
+
+/** How many files are `stat`ed (or resolved) at once: a project can have thousands. */
+export const BATCH = 256
+
+/** `fn` over `items`, a bounded number at a time; the results are in the items' order. */
+export async function mapInBatches<Item, Result>(
+  items: readonly Item[],
+  size: number,
+  fn: (item: Item) => Promise<Result>,
+): Promise<Result[]> {
+  const results: Result[] = []
+  for (let from = 0; from < items.length; from += size) {
+    results.push(...(await Promise.all(items.slice(from, from + size).map((item) => fn(item)))))
+  }
+  return results
+}

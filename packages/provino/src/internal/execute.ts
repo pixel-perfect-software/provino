@@ -1,5 +1,5 @@
 import type { ResolvedProject } from '@provino/config'
-import { ExitCode, exitCodeFor, type RunProjectOptions, runProject } from '@provino/orchestrator'
+import { exitCodeFor, type RunProjectOptions, runProject } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { FileFilter } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
@@ -65,9 +65,4 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
     }),
     summary,
   }
-}
-
-/** A run that never started because its input was refused. */
-export function refused(exitCode: number = ExitCode.UsageError): RunResult {
-  return { exitCode, summary: null }
 }

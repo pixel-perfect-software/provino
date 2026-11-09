@@ -22,10 +22,10 @@
 import type { CliDialect, Diagnostic, FileFilter, FlagSpec, RunRequest } from '@provino/types'
 import { JEST_CLI_OPTIONS, type JestCliOption } from './cli-table.ts'
 import { JestCliError } from './errors.ts'
-import { JEST_CONFIG_EXT_ORDER } from './find.ts'
+import { isJSONString, JEST_CONFIG_EXT_ORDER } from './find.ts'
 import { camelcase } from './internal/camelcase.ts'
 import { type Bag, looksLikeNumber, type YargsOption, yargsParse } from './internal/yargs-parse.ts'
-import { didYouMean, formatValue, validationText } from './text.ts'
+import { didYouMean, formatValue, VALIDATE_BULLET, validationText } from './text.ts'
 import type { JestArgv } from './types.ts'
 import { DEPRECATED_CONFIG } from './validate.ts'
 
@@ -121,11 +121,6 @@ const CONFIG_EXTENSION = new RegExp(
   'i',
 )
 
-/** `jest-config` `utils.ts` L115-L119. */
-function isJSONString(value: unknown): boolean {
-  return typeof value === 'string' && value.startsWith('{') && value.endsWith('}')
-}
-
 function lengthOf(value: unknown): unknown {
   return typeof value === 'object' && value !== null ? Reflect.get(value, 'length') : undefined
 }
@@ -178,7 +173,11 @@ function check(argv: Bag): void {
         'Example usage: jest --ignoreProjects my-first-project my-second-project',
     )
   }
-  if (argv.config && !isJSONString(argv.config) && !CONFIG_EXTENSION.test(String(argv.config))) {
+  if (
+    argv.config &&
+    !(typeof argv.config === 'string' && isJSONString(argv.config)) &&
+    !CONFIG_EXTENSION.test(String(argv.config))
+  ) {
     fail(
       `The --config option requires a JSON string literal, or a file path with one of these extensions: ${JEST_CONFIG_EXT_ORDER.join(
         ', ',
@@ -193,9 +192,6 @@ function check(argv: Bag): void {
 const CLI_DOCUMENTATION_NOTE = `  CLI Options Documentation:
   https://jestjs.io/docs/cli
 `
-
-/** `validateCLIOptions.ts` L26, with chalk's bold dropped. */
-const BULLET = '●'
 
 /** `validateCLIOptions`'s `yargsSpecialOptions` and the table's keys and aliases, in that order. */
 const ALLOWED_OPTIONS: ReadonlySet<string> = new Set([
@@ -212,9 +208,9 @@ const ALLOWED_OPTIONS: ReadonlySet<string> = new Set([
 
 /** `validateCLIOptions.ts` L28-L60 (`createCLIValidationError`). */
 function unrecognizedError(unrecognized: readonly string[]): JestCliError {
-  let title = `${BULLET} Unrecognized CLI Parameter`
+  let title = `${VALIDATE_BULLET} Unrecognized CLI Parameter`
   let message: string
-  const comment = `  CLI Options Documentation:\n  https://jestjs.io/docs/cli\n`
+  const comment = CLI_DOCUMENTATION_NOTE
   const [only] = unrecognized
   if (unrecognized.length === 1 && only !== undefined) {
     const suggestion = only.length > 1 ? didYouMean(only, [...ALLOWED_OPTIONS]) : ''
