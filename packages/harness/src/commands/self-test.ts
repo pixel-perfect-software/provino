@@ -34,7 +34,7 @@ import {
   writeSampleCopy,
 } from '../internal/sample.ts'
 import { lineDiff } from '../internal/text-diff.ts'
-import { parseNormalizedRun } from '../parse-normalized-run.ts'
+import { countTests, parseNormalizedRun } from '../parse-normalized-run.ts'
 import {
   PACKAGE_DIR,
   type RecordPaths,
@@ -359,7 +359,7 @@ function calibrationProblems(
     problems.push(`the sample has ${ruleIds.length} rules, not ${SAMPLE_RULES}`)
   }
   for (const [runner, run] of Object.entries(runs)) {
-    const tests = run.files.reduce((sum, f) => sum + f.tests.length, 0)
+    const tests = countTests(run)
     if (tests < MIN_TESTS) problems.push(`${runner} ran ${tests} tests, fewer than ${MIN_TESTS}`)
     if (run.files.length < MIN_FILES) {
       problems.push(`${runner} reported ${run.files.length} files, fewer than ${MIN_FILES}`)

@@ -1,16 +1,31 @@
 // `provino-harness diff` (Track 12 T12.5): two NormalizedRun files, compared and judged.
 import type { NormalizedRun } from '@provino/types'
+import { readSubjectInputs } from '../corpus/files.ts'
+import { readCorpusManifest } from '../corpus/manifest.ts'
 import { DIFF_KINDS, diffRuns, type ExclusionRule, type ParityReport } from '../diff.ts'
 import { HarnessError } from '../errors.ts'
 import { parseExclusions, parseFlaky } from '../exclusions.ts'
 import type { DiffCommand } from '../internal/cli-args.ts'
+import { diffFailures, ruleExcluded } from '../internal/diff-bars.ts'
+import { today as dateOf } from '../internal/guards.ts'
 import { parseNormalizedRun } from '../parse-normalized-run.ts'
 import { type CommandIo, failureText, readText } from './io.ts'
+
+/**
+ * Where `--suite` finds the corpus: the manifest and the committed per-subject files. Tests give
+ * their own.
+ * @internal
+ */
+export interface DiffCommandOptions {
+  readonly manifestPath?: string
+  readonly corpusDir?: string
+}
 
 /** Both runs, the exclusions with R2's limits and the flaky list. A bad input is a `HarnessError`. */
 async function readInputs(
   command: DiffCommand,
   today: string,
+  options: DiffCommandOptions,
 ): Promise<{
   readonly ref: NormalizedRun
   readonly cand: NormalizedRun
@@ -19,6 +34,20 @@ async function readInputs(
 }> {
   const ref = parseNormalizedRun(await readText(command.ref, 'reference run'), command.ref)
   const cand = parseNormalizedRun(await readText(command.cand, 'candidate run'), command.cand)
+  if (command.suite !== undefined) {
+    const manifest = await readCorpusManifest(options.manifestPath)
+    const subject = manifest.repos
+      .flatMap((repo) => repo.subjects)
+      .find((candidate) => candidate.id === command.suite)
+    if (subject === undefined) {
+      throw new HarnessError(
+        'HARNESS_USAGE',
+        `--suite ${command.suite} is not a subject in the corpus manifest`,
+      )
+    }
+    // As `corpus self-diff` and `gate` do: a missing flaky list is an error, not an empty list.
+    return { ref, cand, ...(await readSubjectInputs(subject, today, options.corpusDir)) }
+  }
   const exclusions =
     command.exclusions === undefined
       ? []
@@ -31,43 +60,6 @@ async function readInputs(
       ? []
       : parseFlaky(await readText(command.flaky, 'flaky list'), command.flaky)
   return { ref, cand, exclusions, flaky }
-}
-
-/** The reference tests exclusion rules removed from T (R2's cap counts these, not flaky ones). */
-function ruleExcluded(counts: ParityReport['counts']): number {
-  return counts.excluded - counts.flaky
-}
-
-/** The reasons a report fails the command's bars; empty when it passes. */
-function failures(report: ParityReport, command: DiffCommand): string[] {
-  const reasons: string[] = []
-  const { counts } = report
-  if (counts.comparedTests === 0) {
-    reasons.push(
-      'HARNESS_EMPTY_COMPARISON: no reference test was compared, so every parity would be a vacuous 1',
-    )
-  }
-  if (report.statusParity < command.min) {
-    reasons.push(
-      `status parity ${counts.statusMatched}/${counts.comparedTests} is below --min ${command.min}`,
-    )
-  }
-  if (command.maxDiffs !== undefined && report.diffs.length > command.maxDiffs) {
-    reasons.push(
-      `${report.diffs.length} diffs no rule explains, more than --max-diffs ${command.maxDiffs}`,
-    )
-  }
-  const removed = ruleExcluded(counts)
-  if (
-    !command.calibration &&
-    counts.referenceTests > 0 &&
-    removed / counts.referenceTests > command.maxExcluded
-  ) {
-    reasons.push(
-      `exclusion rules remove ${removed} of ${counts.referenceTests} reference tests, more than --max-excluded ${command.maxExcluded} (Track 12 R2)`,
-    )
-  }
-  return reasons
 }
 
 function percent(matched: number, total: number): string {
@@ -141,11 +133,15 @@ function summaryTable(report: ParityReport, reasons: readonly string[]): string 
  * can't be read.
  * @internal
  */
-export async function diffCommand(command: DiffCommand, io: CommandIo): Promise<number> {
-  const today = command.today ?? new Date().toISOString().slice(0, 10)
+export async function diffCommand(
+  command: DiffCommand,
+  io: CommandIo,
+  options: DiffCommandOptions = {},
+): Promise<number> {
+  const today = dateOf(command)
   let inputs: Awaited<ReturnType<typeof readInputs>>
   try {
-    inputs = await readInputs(command, today)
+    inputs = await readInputs(command, today, options)
   } catch (error) {
     if (!(error instanceof HarnessError)) throw error
     io.err(`${failureText(error)}\n`)
@@ -163,7 +159,7 @@ export async function diffCommand(command: DiffCommand, io: CommandIo): Promise<
     },
     today,
   )
-  const reasons = failures(report, command)
+  const reasons = diffFailures(report, command)
   io.out(`${JSON.stringify(report, null, 2)}\n`)
   io.err(summaryTable(report, reasons))
   return reasons.length === 0 ? 0 : 1

@@ -14,6 +14,10 @@
       "provino-source": "./src/site.ts",
       "types": "./dist/site.d.ts"
     },
+    "./corpus": {
+      "provino-source": "./src/corpus/index.ts",
+      "types": "./dist/corpus/index.d.ts"
+    },
     "./reporters/jest": {
       "provino-source": "./src/reporters/jest.ts",
       "types": "./dist/reporters/jest.d.ts"

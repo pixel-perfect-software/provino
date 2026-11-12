@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path'
 import { convertCommand } from './commands/convert.ts'
+import { corpusCommand } from './commands/corpus.ts'
 import { diffCommand } from './commands/diff.ts'
 import { processIo } from './commands/io.ts'
 import { selfTestCommand } from './commands/self-test.ts'
@@ -93,6 +94,8 @@ async function main(argv: readonly string[]): Promise<number> {
       return selfTestCommand(command, processIo)
     case 'policy-diff':
       return policyDiff(command)
+    case 'corpus':
+      return corpusCommand(command, processIo)
     default: {
       const unexpected: never = command
       throw new Error(`unhandled command ${JSON.stringify(unexpected)}`)
