@@ -76,6 +76,11 @@ describe('forks isolate the coordinator from the test file', () => {
     assert.deepEqual(exit, { type: 'oom', limitMb: 48 })
   })
 
+  it('a heap OOM whose fatal error is followed by more than 8 KB of stderr is still `oom`', async () => {
+    const { exit } = await crash('forks', 'oom-then-noise', { memoryLimitMb: 48 })
+    assert.deepEqual(exit, { type: 'oom', limitMb: 48 })
+  })
+
   it('a SIGABRT that is not out of memory stays a signal, likely OOM (no last words to read)', async () => {
     const { exit } = await crash('forks', 'abort')
     assert.deepEqual(exit, { type: 'signal', signal: 'SIGABRT', likelyOom: true })

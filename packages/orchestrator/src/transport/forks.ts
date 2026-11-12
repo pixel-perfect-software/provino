@@ -13,15 +13,10 @@ import type {
   WorkerToCoordinator,
 } from '@provino/types'
 import { createTransport, forwardStdio, printError, type TransportOptions } from './shared.ts'
+import { createStderrWatch } from './stderr-watch.ts'
 
 /** How long after a child's exit its IPC channel may take to disconnect. */
 const DISCONNECT_GRACE_MS = 1000
-
-/** How much of the end of a child's stderr is kept to read V8's last words from. */
-const STDERR_TAIL_BYTES = 8192
-
-/** What V8 prints before it aborts a process that ran out of heap. */
-const HEAP_OOM = /JavaScript heap out of memory|Reached heap limit|Ineffective mark-compacts/
 
 /**
  * Options for `forksTransport`.
@@ -61,11 +56,12 @@ function execArgvOf(options: ForksTransportOptions): string[] {
 
 /**
  * How a child that was killed by `signal` ended. V8 aborts (SIGABRT) a process that is out of heap
- * after printing a fatal error, and so does a `process.abort()`; its stderr says which. A SIGABRT
- * without that line is `likelyOom`, as before.
+ * after printing a fatal error, and so does a `process.abort()`; its stderr says which (`sawHeapOom`:
+ * the fatal error went by, wherever in the stream). A SIGABRT without that line is `likelyOom`,
+ * as before.
  */
-function signalExit(signal: NodeJS.Signals, stderrTail: string, limitMb: number): WorkerExit {
-  if (signal === 'SIGABRT' && HEAP_OOM.test(stderrTail)) return { type: 'oom', limitMb }
+function signalExit(signal: NodeJS.Signals, sawHeapOom: boolean, limitMb: number): WorkerExit {
+  if (signal === 'SIGABRT' && sawHeapOom) return { type: 'oom', limitMb }
   return { type: 'signal', signal, likelyOom: signal === 'SIGABRT' }
 }
 
@@ -84,9 +80,9 @@ export function forksTransport(options: ForksTransportOptions): TransportFactory
       env: options.env ?? process.env,
     })
     const stderr = forwardStdio(child, options)
-    let stderrTail = ''
+    const watch = createStderrWatch()
     child.stderr?.on('data', (chunk: Buffer) => {
-      stderrTail = (stderrTail + chunk.toString()).slice(-STDERR_TAIL_BYTES)
+      watch.push(chunk.toString())
     })
     const link = childProcessLink<CoordinatorToWorker, WorkerToCoordinator>(child)
     return {
@@ -111,7 +107,7 @@ export function forksTransport(options: ForksTransportOptions): TransportFactory
             failed
               ? { type: 'exit', code: 1 }
               : ended.signal !== null
-                ? signalExit(ended.signal, stderrTail, heapLimitMb(execArgv))
+                ? signalExit(ended.signal, watch.sawHeapOom, heapLimitMb(execArgv))
                 : { type: 'exit', code: ended.code ?? 0 },
           )
         }
