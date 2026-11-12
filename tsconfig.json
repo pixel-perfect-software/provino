@@ -59,6 +59,9 @@
       "path": "packages/dialect-vitest"
     },
     {
+      "path": "packages/env-jsdom"
+    },
+    {
       "path": "packages/env-node"
     },
     {

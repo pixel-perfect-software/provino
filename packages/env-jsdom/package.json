@@ -1,0 +1,43 @@
+{
+  "name": "@provino/env-jsdom",
+  "version": "0.0.0",
+  "description": "Provino's own jsdom test environment: a fresh window per file, put on the worker's global and removed exactly afterwards.",
+  "homepage": "https://github.com/pixel-perfect-software/provino#readme",
+  "bugs": {
+    "url": "https://github.com/pixel-perfect-software/provino/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pixel-perfect-software/provino.git",
+    "directory": "packages/env-jsdom"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@provino/env-shared": "workspace:*",
+    "@provino/types": "workspace:*"
+  },
+  "peerDependencies": {
+    "jsdom": ">=26 <31"
+  },
+  "devDependencies": {
+    "@types/jsdom": "catalog:",
+    "jsdom": "catalog:"
+  }
+}

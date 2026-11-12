@@ -15,4 +15,15 @@ export const ENVIRONMENTS: Readonly<
   Record<string, { readonly module: string; readonly export: string }>
 > = {
   node: { module: import.meta.resolve('@provino/env-node'), export: 'nodeEnvironment' },
+  jsdom: { module: import.meta.resolve('@provino/env-jsdom'), export: 'jsdomEnvironment' },
 }
+
+/**
+ * The environments a Jest project may name without the adapter: `node` only. A Jest project's
+ * `jsdom` is its own `jest-environment-jsdom` through the adapter (D44); `@provino/env-jsdom`
+ * serves `provino.config` and neutral projects.
+ * @internal
+ */
+export const JEST_BUILT_INS: Readonly<
+  Record<string, { readonly module: string; readonly export: string }>
+> = { node: ENVIRONMENTS.node as { readonly module: string; readonly export: string } }

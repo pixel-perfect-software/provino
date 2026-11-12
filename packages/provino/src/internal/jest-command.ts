@@ -24,7 +24,7 @@ import {
 import type { TextSink } from '@provino/reporters'
 import type { ConfigSource, Diagnostic, NeutralProject, RunRequest } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
-import { ENVIRONMENTS, JEST_ENVIRONMENT } from './built-ins.ts'
+import { JEST_BUILT_INS, JEST_ENVIRONMENT } from './built-ins.ts'
 import { usageMessage } from './describe.ts'
 import { executeProject } from './execute.ts'
 import {
@@ -69,14 +69,14 @@ function jestExitCode(key: 'usage' | 'noTests', fallback: number): number {
  * environment isn't (jsdom, a custom one) is refused before anything starts. Listing the files and
  * clearing the cache start no worker, so they accept any name, as Jest's `--listTests` does.
  */
-function environmentsFor(request: RunRequest, project: NeutralProject): typeof ENVIRONMENTS {
+function environmentsFor(request: RunRequest, project: NeutralProject): typeof JEST_BUILT_INS {
   const { name } = project.environment
-  if (Object.hasOwn(ENVIRONMENTS, name)) return ENVIRONMENTS
+  if (Object.hasOwn(JEST_BUILT_INS, name)) return JEST_BUILT_INS
   // Any other environment is the project's own Jest class (D44), run through the adapter.
   if (typeof project.environment.options.module === 'string')
-    return { ...ENVIRONMENTS, [name]: JEST_ENVIRONMENT }
-  if (request.mode === 'run') return ENVIRONMENTS
-  return { ...ENVIRONMENTS, [name]: ENVIRONMENTS.node as (typeof ENVIRONMENTS)[string] }
+    return { ...JEST_BUILT_INS, [name]: JEST_ENVIRONMENT }
+  if (request.mode === 'run') return JEST_BUILT_INS
+  return { ...JEST_BUILT_INS, [name]: JEST_BUILT_INS.node as (typeof JEST_BUILT_INS)[string] }
 }
 
 /** A diagnostic as a line (or lines) for the user. Jest's own texts keep their form. */
