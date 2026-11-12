@@ -4,8 +4,9 @@
 // `babel.config.*` in that directory only, and a file-relative config (`.babelrc*`, a `babel` key in
 // `package.json`) applies to the files of the root's own package (`babelrcRoots` defaults to the
 // root). The check is made once per project, by name, with no `@babel/core`.
-import { type Dirent, existsSync, readdirSync, readFileSync } from 'node:fs'
+import { type Dirent, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { packageJsonKey } from './find.ts'
 
 /** Babel's root config file names (`@babel/core` `config/files/configuration.ts`). */
 const ROOT_CONFIGS: readonly string[] = [
@@ -26,26 +27,6 @@ const RELATIVE_CONFIGS: readonly string[] = [
   '.babelrc.json',
   '.babelrc.cts',
 ]
-
-function hasBabelKey(packageJson: string): boolean {
-  let text: string
-  try {
-    text = readFileSync(packageJson, 'utf8')
-  } catch {
-    return false
-  }
-  try {
-    const parsed: unknown = JSON.parse(text)
-    return (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      !Array.isArray(parsed) &&
-      Reflect.get(parsed, 'babel') != null
-    )
-  } catch {
-    return false
-  }
-}
 
 /** Directories the walk below the root never enters: dependencies, and git's own. */
 const SKIPPED_DIRECTORIES: ReadonlySet<string> = new Set(['node_modules', '.git'])
@@ -89,6 +70,6 @@ export function hasBabelConfig(rootDir: string): boolean {
   for (const name of ROOT_CONFIGS) if (existsSync(join(rootDir, name))) return true
   for (const name of RELATIVE_CONFIGS) if (existsSync(join(rootDir, name))) return true
   const packageJson = join(rootDir, 'package.json')
-  if (hasBabelKey(packageJson)) return true
+  if (packageJsonKey(packageJson, 'babel') != null) return true
   return existsSync(packageJson) && hasRelativeConfigBelow(rootDir)
 }
