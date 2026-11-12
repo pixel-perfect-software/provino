@@ -178,6 +178,15 @@
       "phase": 4,
       "note": "A CLI codemod; shares detection logic with the lint rules (T6.12)."
     },
+    "@provino/loader/graph": {
+      "dir": "packages/loader/src/graph",
+      "layer": 2,
+      "runsIn": "both",
+      "deps": ["@provino/types", "@provino/resolver"],
+      "slices": ["module"],
+      "neutral": true,
+      "note": "The node_modules graph (T2.6, D52): the worker inlines from it, and Track 9's affected-test selection can use it in the coordinator. Never imports the loader's root."
+    },
     "@provino/loader": {
       "dir": "packages/loader",
       "layer": 3,
@@ -187,7 +196,8 @@
         "@provino/policy",
         "@provino/resolver",
         "@provino/transform",
-        "@provino/mock"
+        "@provino/mock",
+        "@provino/loader/graph"
       ],
       "slices": ["module"],
       "neutral": true

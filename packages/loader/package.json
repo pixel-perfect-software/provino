@@ -18,6 +18,10 @@
     ".": {
       "provino-source": "./src/index.ts",
       "types": "./dist/index.d.ts"
+    },
+    "./graph": {
+      "provino-source": "./src/graph/index.ts",
+      "types": "./dist/graph/index.d.ts"
     }
   },
   "files": [
@@ -33,7 +37,8 @@
     "@provino/policy": "workspace:*",
     "@provino/resolver": "workspace:*",
     "@provino/transform": "workspace:*",
-    "@provino/types": "workspace:*"
+    "@provino/types": "workspace:*",
+    "es-module-lexer": "catalog:"
   },
   "devDependencies": {
     "@provino/mock": "workspace:*"
