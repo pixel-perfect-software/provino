@@ -68,6 +68,16 @@ export interface ExecutorConfig {
   readonly tryTask: TryTaskListeners
   /** Whether to capture locations (`ctx.annotate` records where it was called). */
   readonly locations: boolean
+  /** The timeout a test or hook with none of its own gets, when the file set one (`jest.setTimeout`). */
+  readonly defaults: TimeoutDefaults
+}
+
+/**
+ * A default timeout set while a file runs, in place of the policy's (`jest.setTimeout`). It covers
+ * the tests declared before the call too, because it is read when a test runs.
+ */
+export interface TimeoutDefaults {
+  ms: number | undefined
 }
 
 /** What a try-task listener is told about the attempt it brackets. */
@@ -665,13 +675,25 @@ export class Executor {
     return found
   }
 
+  /** A test's timeout: its own, else the file's default (`jest.setTimeout`), else the policy's. */
+  #testTimeout(test: TestNode): number {
+    const { ms } = this.#config.defaults
+    return test.defaultTimeout && ms !== undefined ? ms : test.timeoutMs
+  }
+
+  /** A hook's timeout when it names none: the file's default, else the policy's. */
+  #hookTimeout(): number {
+    return this.#config.defaults.ms ?? this.#policy.timeouts.hook
+  }
+
   /**
    * With `hooks.timeoutCountsTestTimeout`, when the attempt's each-hooks and body must be done
    * (`Infinity` for a test with no timeout); otherwise `undefined`, each call having its own.
    */
   #attemptDeadline(test: TestNode): number | undefined {
     if (!this.#policy.hooks.timeoutCountsTestTimeout) return undefined
-    return isBounded(test.timeoutMs) ? this.#now() + test.timeoutMs : Number.POSITIVE_INFINITY
+    const timeoutMs = this.#testTimeout(test)
+    return isBounded(timeoutMs) ? this.#now() + timeoutMs : Number.POSITIVE_INFINITY
   }
 
   /**
@@ -726,7 +748,8 @@ export class Executor {
         ? [attempt.ctx]
         : []
     // Taken before the limiter: time spent waiting for a slot counts against the attempt.
-    const timeoutMs = this.#timeoutFor(attempt, test.timeoutMs)
+    const ownMs = this.#testTimeout(test)
+    const timeoutMs = this.#timeoutFor(attempt, ownMs)
     const failures: unknown[] = []
     try {
       await this.#calls.run(() =>
@@ -740,7 +763,7 @@ export class Executor {
               contextArgs,
               isTest: true,
             }),
-          { what: 'test', timeoutMs, namedMs: test.timeoutMs, attempt },
+          { what: 'test', timeoutMs, namedMs: ownMs, attempt },
         ),
       )
     } catch (error) {
@@ -882,7 +905,7 @@ export class Executor {
         location: hook.location,
         attempt,
       },
-      this.#timeoutFor(attempt, hook.timeoutMs ?? policy.timeouts.hook),
+      this.#timeoutFor(attempt, hook.timeoutMs ?? this.#hookTimeout()),
       () =>
         invoke(this.#invokeEnv(attempt), {
           fn: hook.fn,
@@ -1010,7 +1033,7 @@ export class Executor {
       const result = await this.#callUser(
         run,
         { kind, owner: attempt.test.parent, ordinal, location: null, attempt },
-        resolveTimeout(timeouts, callback.timeoutMs) ?? timeouts.hook,
+        resolveTimeout(timeouts, callback.timeoutMs) ?? this.#hookTimeout(),
         () => Reflect.apply(callback.fn, undefined, [attempt.ctx]),
       )
       if (!result.ok) attempt.errors.push(result.error)
@@ -1027,7 +1050,7 @@ export class Executor {
     }
     const store = this.#hookScope(run, hook.kind, hook.owner, attempt)
     return {
-      timeoutMs: hook.timeoutMs ?? this.#policy.timeouts.hook,
+      timeoutMs: hook.timeoutMs ?? this.#hookTimeout(),
       invoke: async (inner) => {
         this.#emitHook(spec)
         try {

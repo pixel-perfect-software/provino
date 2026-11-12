@@ -12,8 +12,6 @@
 //   were here; B14a recorded Jest's and sets them. `module.missingFactoryExport` and
 //   `module.messages` were too; B13b sets them. `timers.facadeReturns` and `timers.fakeTemporal`
 //   were; B17a records them as `mocking/timers-facade` and `policy/timers-temporal`.)
-// - A behaviour whose Jest implementation is not built yet, so the key stays the neutral one:
-//   orchestrator.environmentConditions (the environment's own `exportConditions()`, T8.7).
 // - The same as the neutral value, so there is nothing to override:
 //   core.orderHooks (`null`: `hookOrder` decides), snapshot.key (`${name} ${n}`, the neutral
 //   `snapshotKey` function), snapshot.resolvePath (`null`: the default layout; Jest's is the
@@ -22,6 +20,8 @@
 import { defineDialect, moduleRef } from '@provino/policy'
 import type {
   Dialect,
+  EnvironmentConditions,
+  EnvironmentResolver,
   FormatEachTitle,
   FormatValue,
   GlobalsFactory,
@@ -230,6 +230,11 @@ export const jestPolicy: PolicyOverrides = {
       // `resolver.ts` L523 (`_throwModNotFoundError`), `{from}` relative to the root. Recorded:
       // `mod-root-package-uninstalled` ("load after dontMock").
       'module-not-found': "Cannot find module '{specifier}' from '{from}'",
+      // jest-resolve `resolver.ts` L1024-L1052 (`createNoMappedModuleFoundError`): a
+      // `moduleNameMapper` rule matched and none of its targets resolved. Recorded:
+      // `resolve/mapper-miss`.
+      'mapper-miss':
+        'Configuration error:\n\nCould not locate module {specifier} mapped as:\n{target}.\n\nPlease check your configuration for these entries:\n{\n  "moduleNameMapper": {\n    "{rule}": "{declared}"\n  },\n  "resolver": {resolver}\n}',
     },
   },
   snapshot: {
@@ -274,6 +279,12 @@ export const jestPolicy: PolicyOverrides = {
     watchDefault: 'never',
     // research: track-09 L560 (`all` with `--watchAll`)
     watch: { initialRun: 'changed' },
+    // jest-runtime reads the environment's `exportConditions()`; the coordinator can't build the
+    // class, so the behaviour answers for the packages Jest ships and `customExportConditions`.
+    environmentConditions: moduleRef<EnvironmentConditions>(
+      import.meta.resolve('@provino/dialect-jest/runtime'),
+      'jestEnvironmentConditions',
+    ),
     // Ours: Jest's `testMatch` is picomatch on the absolute path (`policy/orchestrator-match-path`).
     globMatchesOn: 'absolute-path',
     // research: track-01 L227
@@ -336,6 +347,24 @@ export const jestPolicy: PolicyOverrides = {
  * these keys.
  * research: jest-circus 30.5.2 `jestAdapterInit` (`globalsObject`), read from source, not recorded
  */
+/** The specifiers the Jest dialect serves from its facades (U9). */
+const JEST_SERVED_MODULES: readonly string[] = [
+  '@jest/globals',
+  '@jest/expect',
+  'expect',
+  'jest-mock',
+]
+
+/**
+ * The served specifiers a `moduleNameMapper` rule takes over. `@jest/globals` is answered before
+ * the mapper (jest-runtime `requireModuleOrMock`), but `expect`, `@jest/expect` and `jest-mock` go
+ * through it as any bare specifier does. Recorded: `resolve/alias-order`, `resolve/alias-jest-mock`.
+ * Jest's own runner takes a mapped `expect` too, which crashes every file (`resolve/alias-expect`,
+ * `resolve/alias-jest-expect`); Provino's runner keeps its own and only the project's requires see
+ * the mapped module (a proposed DIVERGENCE).
+ */
+const JEST_MAPPABLE_MODULES: readonly string[] = ['@jest/expect', 'expect', 'jest-mock']
+
 const JEST_GLOBAL_NAMES: readonly string[] = [
   'afterAll',
   'afterEach',
@@ -389,11 +418,21 @@ export const jestDialect: Dialect<'jest'> = defineDialect({
   },
   // `createProjectLoader` hoists with it; `config` copies it to the worker by value (B13c).
   loader: { hoist: jestHoistPolicy },
+  // A test file's `@jest-environment` docblock is resolved in the worker, from the project's root.
+  environmentResolver: moduleRef<EnvironmentResolver>(
+    import.meta.resolve('@provino/dialect-jest/runtime'),
+    'jestEnvironmentFor',
+  ),
   // Each module gets its own `jest`, as jest-runtime's `_createJestObjectFor(from)` does: a
   // `jest.mock` resolves from the module that calls it. Recorded: every Jest `mod-*` fixture whose
   // helper registers a mock (`mod-require-esm-helper`, `mod-adjacent`).
   moduleScope: {
     names: ['jest'],
+    // jest-runtime answers `@jest/globals` itself (`requireModuleOrMock`), and `@jest/expect` and
+    // `expect` from the framework's own registry (`FRAMEWORK_SINGLETON_MODULES`); U9 also serves
+    // `jest-mock` from Provino's facade. `@jest/globals` never goes through `moduleNameMapper` or the resolver; the others yield to a rule.
+    modules: JEST_SERVED_MODULES,
+    mappable: JEST_MAPPABLE_MODULES,
     factory: moduleRef<ModuleScopeFactory>(
       import.meta.resolve('@provino/dialect-jest/runtime'),
       'jestModuleScope',

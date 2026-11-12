@@ -1,0 +1,8 @@
+{
+  "description": "fakeTimers.enableGlobally with `now` and `timerLimit` (T4.9, T11.10): the clock is installed before the test file runs, starts at `now`, and runAllTimers gives up after `timerLimit` timers.",
+  "runners": ["jest"],
+  "config": {
+    "jest": { "fakeTimers": { "enableGlobally": true, "now": 123456, "timerLimit": 50 } }
+  },
+  "jestEsm": true
+}

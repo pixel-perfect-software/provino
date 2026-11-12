@@ -125,7 +125,7 @@ test('a transformer that throws fails the file with its message', async () => {
   await assert.rejects(registry.import(join(root, 'entry.test.ts')), /cannot parse it/)
 })
 
-test('a require of the runner module gets the per-module bindings', async () => {
+test('a require of a served runner module gets the per-module value', async () => {
   const hoist = {
     id: 'test',
     objects: [],
@@ -136,7 +136,7 @@ test('a require of the runner module gets the per-module bindings', async () => 
     placement: 'enclosing-block',
     topLevelGuards: [],
     factoryReferences: 'allow',
-    runnerModules: ['@runner/globals'],
+    runnerModules: [],
     reExports: 'in-order',
     rewrittenCalls: 'detached',
     messages: {},
@@ -149,6 +149,7 @@ test('a require of the runner module gets the per-module bindings', async () => 
     {
       hoist,
       moduleScope: ['jest'],
+      scopeModules: ['@runner/globals'],
       extensions: ['.js', '.cjs'],
       conditions: ['node'],
       tsconfig: false,
@@ -160,7 +161,7 @@ test('a require of the runner module gets the per-module bindings', async () => 
   const mine = { name: 'mine' }
   const registry = loader.createFileRegistry(join(root, 'entry.test.cjs'), {
     tier: 'registry',
-    moduleScope: () => ({ jest: mine }),
+    moduleScope: () => ({ jest: mine, '@runner/globals': { jest: mine } }),
   })
   assert.equal(registry.require<{ same: boolean }>(join(root, 'entry.test.cjs')).same, true)
 })

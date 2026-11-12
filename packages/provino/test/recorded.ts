@@ -15,6 +15,8 @@ export interface RecordedManifest {
   readonly description: string
   readonly config?: { readonly jest?: Readonly<Record<string, unknown>> }
   readonly files?: { readonly jest?: Readonly<Record<string, string>> }
+  /** Installed into `node_modules/<name>/` before the run. */
+  readonly packages?: Readonly<Record<string, Readonly<Record<string, string>>>>
   readonly run?: {
     readonly argv?: { readonly jest?: readonly string[] }
     readonly capture: readonly string[]
@@ -23,7 +25,14 @@ export interface RecordedManifest {
 
 /** The part of a Jest golden these tests read. */
 export interface RecordedGolden {
-  readonly files: readonly { readonly file: string; readonly status: string }[]
+  readonly files: readonly {
+    readonly file: string
+    readonly status: string
+    readonly tests?: readonly {
+      readonly id: { readonly path: readonly string[] }
+      readonly status: string
+    }[]
+  }[]
   readonly observed?: {
     readonly exitCode?: number | null
     readonly stderr?: string
@@ -77,6 +86,13 @@ export async function materialize(fixture: RecordedFixture): Promise<Materialize
   for (const [path, text] of Object.entries(fixture.manifest.files?.jest ?? {})) {
     await mkdir(dirname(join(root, path)), { recursive: true })
     await writeFile(join(root, path), text)
+  }
+  for (const [name, files] of Object.entries(fixture.manifest.packages ?? {})) {
+    for (const [path, text] of Object.entries(files)) {
+      const target = join(root, 'node_modules', name, path)
+      await mkdir(dirname(target), { recursive: true })
+      await writeFile(target, text)
+    }
   }
   const config = { rootDir: root, ...RECORDER_BASE, ...fixture.manifest.config?.jest }
   await writeFile(join(root, 'jest.config.json'), JSON.stringify(config, null, 2))

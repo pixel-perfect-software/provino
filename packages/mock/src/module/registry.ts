@@ -130,6 +130,10 @@ class Registry implements ModuleMockRegistry {
   readonly #manual = new Map<string, ManualMock | null>()
   /** The root mocks by name: the worker's list, or one of this registry's own. */
   readonly #rootMocks: RootMockIndex
+  /** The ids `deepUnmock` named, and what they import under automock-all, and what those import. */
+  readonly #deep = new Set<string>()
+  /** `onGenerateMock`'s callbacks, in the order registered. */
+  readonly #onGenerate: Array<(moduleId: string, moduleMock: unknown) => unknown> = []
   #automock: boolean
   #disposed = false
 
@@ -153,6 +157,8 @@ class Registry implements ModuleMockRegistry {
     for (const id of targets) {
       this.#entries.set(id, entry)
       this.#canonical.set(id, primary)
+      if (spec.kind === 'unmock' && spec.deep === true) this.#deep.add(id)
+      else this.#deep.delete(id)
       this.#manual.delete(id)
       // A second registration drops the value already built only if the registration owns it.
       if (this.#policy.mockValueOwner === 'registration') {
@@ -164,7 +170,7 @@ class Registry implements ModuleMockRegistry {
 
   decide(
     resolvedId: string,
-    _importer: string, // Jest's transitive `node_modules` rule would need it (not built).
+    importer: string,
     kind: 'esm' | 'cjs' | 'builtin',
     specifier?: string,
   ): MockDecision {
@@ -187,6 +193,12 @@ class Registry implements ModuleMockRegistry {
     // Core modules are mocked only by an explicit call: never by automock-all or a root mock.
     if (kind === 'builtin') return NOT_MOCKED
     if (this.#automock && !this.#unmockedByPattern(resolvedId)) {
+      // jest-runtime `_shouldMock`: what a deep-unmocked module imports is real, and so is what
+      // those import in turn.
+      if (this.#deep.has(importer)) {
+        this.#deep.add(resolvedId)
+        return NOT_MOCKED
+      }
       this.#noteSpecifier(resolvedId, specifier)
       return { mocked: true, id: resolvedId }
     }
@@ -299,6 +311,11 @@ class Registry implements ModuleMockRegistry {
     }
   }
 
+  onGenerateMock(callback: (moduleId: string, moduleMock: unknown) => unknown): void {
+    this.#live()
+    this.#onGenerate.push(callback)
+  }
+
   setAutomock(enabled: boolean): void {
     this.#live()
     this.#automock = enabled
@@ -324,6 +341,8 @@ class Registry implements ModuleMockRegistry {
     this.#specifiers.clear()
     this.#building.clear()
     this.#automocking.clear()
+    this.#deep.clear()
+    this.#onGenerate.length = 0
     this.#values.clear()
     this.#manual.clear()
     this.#overlay = null
@@ -470,9 +489,11 @@ class Registry implements ModuleMockRegistry {
     const options = this.#options
     const build = (actual: unknown): unknown => {
       try {
-        return automock(actual, this.#policy.automockShape, spy ? 'autospy' : 'automock', (o) =>
+        let mock = automock(actual, this.#policy.automockShape, spy ? 'autospy' : 'automock', (o) =>
           createMockFn(options.mockPolicy, options.mocks, o),
         )
+        for (const callback of this.#onGenerate) mock = callback(id, mock)
+        return mock
       } catch (error) {
         if (error instanceof MockError && error.code === 'automock-no-metadata') {
           throw new MockError(error.code, this.#text('automock-no-metadata', { id }))

@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "resolve/mapper-miss",
+  "files": [
+    {
+      "file": "mapper-miss.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "mapper-miss.jest.test.ts",
+            "path": [
+              "a single target that does not resolve"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 17,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "mapper-miss.jest.test.ts",
+            "path": [
+              "an array of targets, none resolving"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 18,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "mapper-miss.jest.test.ts",
+            "path": [
+              "the first matching rule decides, even when a later one would resolve"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 19,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "mapper-miss.jest.test.ts",
+            "path": [
+              "a hit on the real file still works"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"single\",\"value\":{\"threw\":{\"name\":\"\",\"message\":\"Configuration error:\\n\\nCould not locate module @app/missing mapped as:\\n<root>/src/$1.\\n\\nPlease check your configuration for these entries:\\n{\\n  \\\"moduleNameMapper\\\": {\\n    \\\"/^@app\\\\/(.*)$/\\\": \\\"<root>/src/$1\\\"\\n  },\\n  \\\"resolver\\\": undefined\\n}\",\"code\":{\"$\":\"undefined\"}}}}",
+    "{\"id\":\"array\",\"value\":{\"threw\":{\"name\":\"\",\"message\":\"Configuration error:\\n\\nCould not locate module @multi/missing mapped as:\\n[\\n  \\\"<root>/src/missing\\\",\\n  \\\"<root>/lib/missing\\\"\\n].\\n\\nPlease check your configuration for these entries:\\n{\\n  \\\"moduleNameMapper\\\": {\\n    \\\"/^@multi\\\\/(.*)$/\\\": \\\"[\\n      \\\"<root>/src/$1\\\",\\n      \\\"<root>/lib/$1\\\"\\n    ]\\\"\\n  },\\n  \\\"resolver\\\": undefined\\n}\",\"code\":{\"$\":\"undefined\"}}}}",
+    "{\"id\":\"first\",\"value\":{\"threw\":{\"name\":\"\",\"message\":\"Configuration error:\\n\\nCould not locate module @first/special mapped as:\\n<root>/nowhere/$1.\\n\\nPlease check your configuration for these entries:\\n{\\n  \\\"moduleNameMapper\\\": {\\n    \\\"/^@first\\\\/(.*)$/\\\": \\\"<root>/nowhere/$1\\\"\\n  },\\n  \\\"resolver\\\": undefined\\n}\",\"code\":{\"$\":\"undefined\"}}}}",
+    "{\"id\":\"hit\",\"value\":{\"threw\":false}}"
+  ]
+}

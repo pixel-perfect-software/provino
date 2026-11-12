@@ -8,8 +8,9 @@ import type {
   DialectRegistry,
   GlobalsFactory,
   ModuleScopeFactory,
+  NeutralAlias,
 } from './dialect.ts'
-import type { EnvironmentRef } from './environment.ts'
+import type { EnvironmentRef, EnvironmentResolver } from './environment.ts'
 import type { PluginRegistry, ProvinoPlugin } from './extensions.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { IsolationTier } from './isolation.ts'
@@ -148,6 +149,10 @@ export interface SerializedLoaderConfig {
   readonly hoist: HoistPolicy | null
   /** The dialect's per-module binding names (`Dialect.moduleScope.names`); `[]` for none. */
   readonly moduleScope: readonly string[]
+  /** The dialect's served module specifiers (`Dialect.moduleScope.modules`); absent means none. */
+  readonly scopeModules?: readonly string[]
+  /** The part of `scopeModules` a matching name-mapper rule takes over (`Dialect.moduleScope.mappable`). */
+  readonly scopeMappable?: readonly string[]
   /** Extensions tried for a specifier without one, in order (`.ts`, `.js`, …). */
   readonly extensions: readonly string[]
   /** Environment export conditions for resolution; the call kind adds its own. */
@@ -166,6 +171,17 @@ export interface SerializedLoaderConfig {
    * entries.
    */
   readonly cacheDir?: string
+  /**
+   * The dialect's name-mapping rules (Jest's `moduleNameMapper`; T3.3), regex sources in order. They
+   * run before `mappers`. Absent means none.
+   */
+  readonly aliases?: readonly NeutralAlias[]
+  /** Replaces `node_modules` as the directories searched up the tree (Jest `moduleDirectories`). */
+  readonly moduleDirectories?: readonly string[]
+  /** Absolute directories searched after a miss (Jest `modulePaths`). */
+  readonly modulePaths?: readonly string[]
+  /** A custom resolver module (Jest `resolver`), its `module` absolute; the export is `default`. */
+  readonly resolver?: ModuleRef | null
 }
 
 /**
@@ -197,6 +213,17 @@ export interface SerializedProjectConfig {
    * for a dialect with none. Its names are `loader.moduleScope`.
    */
   readonly moduleScope: ModuleRef<ModuleScopeFactory> | null
+  /** The dialect's resolver for a docblock's environment (`Dialect.environmentResolver`); absent or `null` for none. */
+  readonly environmentResolver?: ModuleRef<EnvironmentResolver> | null
+  /**
+   * Values defined on the environment's global for each file, before anything else runs (Jest's
+   * `globals`: jest-environment-node's `installCommonGlobals`). Absent means none.
+   */
+  readonly globalValues?: Readonly<Record<string, JsonValue>>
+  /** The project's fake-timer defaults (`NeutralProject.fakeTimers`). Absent means none. */
+  readonly fakeTimers?: Readonly<Record<string, JsonValue>>
+  /** The run's random seed (`NeutralProject.seed`). Absent: the worker draws its own. */
+  readonly seed?: number
   /** Absolute paths, imported before each test file, first (Jest `setupFiles`). */
   readonly setupFiles: readonly string[]
   /** Absolute paths, imported after `setupFiles` and before each test file (Jest `setupFilesAfterEnv`, Vitest `setupFiles`). */

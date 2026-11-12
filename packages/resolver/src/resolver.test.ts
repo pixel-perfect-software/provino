@@ -187,15 +187,3 @@ test('the fingerprint changes with the options', () => {
   assert.notEqual(a.fingerprint, c.fingerprint)
   assert.match(a.fingerprint, /^[0-9a-f]{64}$/)
 })
-
-test('options T3.3 adds are rejected, not ignored', () => {
-  const root = writeTree({ 'main.ts': '' })
-  assert.throws(
-    () => createResolver({ root, mappers: [], extensions: EXTENSIONS, modulePaths: ['/x'] }),
-    { code: 'RESOLVER_OPTION_UNSUPPORTED' },
-  )
-  assert.throws(
-    () => createResolver({ root, mappers: [], extensions: EXTENSIONS, custom: () => '/x' }),
-    { code: 'RESOLVER_OPTION_UNSUPPORTED' },
-  )
-})

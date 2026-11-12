@@ -1,0 +1,5 @@
+{
+  "description": "A jest.mock whose second argument is not a function: Jest's hoist plugin refuses the file with its own message, before any test runs.",
+  "runners": ["jest"],
+  "expectCrash": { "jest": "must be an inline function" }
+}

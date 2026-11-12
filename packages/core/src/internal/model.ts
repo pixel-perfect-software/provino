@@ -122,6 +122,8 @@ export interface TestNode extends NodeBase {
   readonly concurrent: boolean
   readonly expectFail: boolean
   readonly timeoutMs: number
+  /** `true` when `timeoutMs` is the policy's default, so a runtime default (`jest.setTimeout`) replaces it. */
+  readonly defaultTimeout: boolean
   readonly retry: number
   readonly repeats: number
   readonly tags: readonly string[]

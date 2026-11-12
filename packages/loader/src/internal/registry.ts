@@ -27,6 +27,7 @@ import {
   linkAsync,
   linkSync,
   type ModuleRecord,
+  mapperTakes,
   preloadAsync,
   type Records,
   recordFor,
@@ -36,7 +37,6 @@ import {
   setResolved,
   type Target,
   targetOfId,
-  toModuleId,
 } from './records.ts'
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
@@ -281,16 +281,6 @@ export class Registry {
 
   /** A `require` from `importer` (from `record`, whose linked targets it reuses), through the mock decision. */
   requireFrom(specifier: string, importer: string, record?: ModuleRecord): unknown {
-    const scope = this.#state.options.moduleScope
-    if (scope?.runnerModules?.includes(specifier) === true) {
-      const values = this.context.scope?.(toModuleId(record?.path ?? importer)) ?? {}
-      return Object.fromEntries(
-        scope.names.map((name) => [
-          name,
-          Object.hasOwn(values, name) ? values[name] : Reflect.get(globalThis, name),
-        ]),
-      )
-    }
     const target =
       record === undefined
         ? resolveOrMissing(this.#state, specifier, importer, 'require')
@@ -348,6 +338,8 @@ export class Registry {
   #mockOf(target: Target, specifier: string, importer: string, style: Style): unknown {
     const mocks = this.context.mocks
     if (target.kind === 'missing') {
+      const served = this.#served(specifier, importer, style)
+      if (served !== REAL) return served
       const found = mocks?.decideUnresolved(specifier, importer)
       if (mocks !== null && found?.mocked === true) return this.#mocked(mocks, found.id, style)
       throw new ModuleNotFoundError(target.error.code, target.error.message)
@@ -366,6 +358,23 @@ export class Registry {
     if (decision.mocked) return this.#mocked(mocks, decision.id, style)
     if (target.kind === 'failed') throw target.error
     return REAL
+  }
+
+  /** The value of a module the dialect serves (`ModuleScope.modules`) for `importer`, or `REAL`. */
+  #served(specifier: string, importer: string, style: Style): unknown {
+    if (this.#state.options.moduleScope?.modules?.includes(specifier) !== true) return REAL
+    // A name-mapper rule for a mappable module decides it, whether or not its target resolves.
+    if (mapperTakes(this.#state, specifier, importer, style === 'esm' ? 'import' : 'require')) {
+      return REAL
+    }
+    const scope = this.context.scope
+    const values = scope?.(importer as ModuleId)
+    if (values === undefined || !Object.hasOwn(values, specifier)) return REAL
+    const value = values[specifier]
+    const policy = this.#state.options.policy
+    return style === 'esm' && policy.factoryShape === 'module-value'
+      ? cjsNamespace(value, policy.interopDefault, this.#cache)
+      : value
   }
 
   /**

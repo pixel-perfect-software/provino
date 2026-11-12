@@ -1,12 +1,14 @@
 // T3.2: the resolver core over oxc-resolver (Track 3 R3). Dialect mappers run first, then one
-// shared-cache `ResolverFactory` clone per condition list. Jest's `modulePaths` retry and custom
-// `resolver` module are T3.3's, so they are rejected here rather than ignored.
+// shared-cache `ResolverFactory` clone per condition list. T3.3 adds Jest's `modulePaths` retry
+// (absolute directories searched after the `node_modules` walk-up misses) and the custom
+// `resolver` module, called with Jest's `(path, { basedir, ... })` shape.
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { findPackageJSON } from 'node:module'
-import { dirname } from 'node:path'
+import { builtinModules, findPackageJSON } from 'node:module'
+import { dirname, extname, join } from 'node:path'
 import type {
   CreateResolver,
+  JestResolverOptions,
   ResolveContext,
   ResolveKind,
   ResolveResult,
@@ -14,7 +16,6 @@ import type {
   ResolverOptions,
 } from '@provino/types'
 import { type NapiResolveOptions, ResolverFactory } from 'oxc-resolver'
-import { ResolverError } from './errors.ts'
 
 /** R3's default: `.js` imports find `.ts`/`.tsx` sources first. */
 const DEFAULT_EXTENSION_ALIAS: Readonly<Record<string, readonly string[]>> = {
@@ -87,41 +88,51 @@ function baseOptions(options: ResolverOptions): NapiResolveOptions {
  * @public
  */
 export const createResolver: CreateResolver = (options) => {
-  if (options.modulePaths !== undefined) {
-    throw new ResolverError(
-      'RESOLVER_OPTION_UNSUPPORTED',
-      '`modulePaths` is not supported yet (T3.3 adds the retry).',
-    )
-  }
-  if (options.custom !== undefined) {
-    throw new ResolverError(
-      'RESOLVER_OPTION_UNSUPPORTED',
-      'A custom Jest `resolver` module is not supported yet (T3.3 adds the adapter).',
-    )
-  }
-
   const base = baseOptions(options)
   const useResolveFile = base.tsconfig !== undefined
   const root = new ResolverFactory(base)
+  // Jest's `modulePaths` are searched after the walk-up: a retry whose lookup directories add them.
+  const modulePaths = options.modulePaths ?? []
+  const retryBase: NapiResolveOptions | null =
+    modulePaths.length === 0
+      ? null
+      : { ...base, modules: [...(base.modules ?? []), ...modulePaths] }
+  const retryRoot = retryBase === null ? null : root.cloneWithOptions(retryBase)
   // One clone per condition list; clones share the root's file-system cache.
   const byConditions = new Map<string, ResolverFactory>()
+  const retryByConditions = new Map<string, ResolverFactory>()
 
-  function factoryFor(conditions: readonly string[]): ResolverFactory {
+  function factoryFor(conditions: readonly string[], retry = false): ResolverFactory {
     const key = conditions.join('\0')
-    let factory = byConditions.get(key)
+    const cache = retry ? retryByConditions : byConditions
+    let factory = cache.get(key)
     if (factory === undefined) {
-      factory = root.cloneWithOptions({ ...base, conditionNames: [...conditions] })
-      byConditions.set(key, factory)
+      const from = retry && retryRoot !== null ? retryRoot : root
+      factory = from.cloneWithOptions({
+        ...(retry ? retryBase : base),
+        conditionNames: [...conditions],
+      })
+      cache.set(key, factory)
     }
     return factory
   }
 
-  function resolveDirect(specifier: string, context: ResolveContext): ResolveResult {
-    const conditions = [...new Set([...context.conditions, kindCondition(context.kind)])]
-    const factory = factoryFor(conditions)
-    const result = useResolveFile
+  function resolveWith(
+    factory: ResolverFactory,
+    specifier: string,
+    context: ResolveContext,
+  ): ReturnType<ResolverFactory['sync']> {
+    return useResolveFile
       ? factory.resolveFileSync(context.importer, specifier)
       : factory.sync(dirname(context.importer), specifier)
+  }
+
+  function resolveDirect(specifier: string, context: ResolveContext): ResolveResult {
+    const conditions = [...new Set([...context.conditions, kindCondition(context.kind)])]
+    let result = resolveWith(factoryFor(conditions), specifier, context)
+    if (result.path === undefined && result.builtin === undefined && retryRoot !== null) {
+      result = resolveWith(factoryFor(conditions, true), specifier, context)
+    }
     if (result.builtin !== undefined && isNodeId(result.builtin.resolved)) {
       return { type: 'builtin', id: result.builtin.resolved }
     }
@@ -144,12 +155,68 @@ export const createResolver: CreateResolver = (options) => {
     }
   }
 
+  /** `custom` as a sync function: Jest's `toSyncResolver` (a function, or the object's `sync`). */
+  const custom = options.custom
+  const customSync =
+    custom === undefined ? null : typeof custom === 'function' ? custom : (custom.sync ?? null)
+
+  function fileResult(path: string): ResolveResult {
+    const ext = extname(path)
+    const format: FileFormat =
+      ext === '.json' ? 'json' : ext === '.mjs' ? 'esm' : ext === '.cjs' ? 'cjs' : 'unknown'
+    return { type: 'file', path, format, packageJson: null, mappedBy: null }
+  }
+
+  /**
+   * Jest's custom `resolver`, called as `findNodeModule` calls it (`resolver.ts`): a throw is a
+   * miss, a string is the answer. `defaultResolver` is our own resolution from `basedir`.
+   */
+  function resolveCustom(
+    run: NonNullable<typeof customSync>,
+    specifier: string,
+    context: ResolveContext,
+  ): ResolveResult {
+    const conditions = [...new Set([...context.conditions, kindCondition(context.kind)])]
+    const defaultResolver = (path: string, callOptions: JestResolverOptions): string => {
+      const result = resolveDirect(path, {
+        importer: join(callOptions.basedir, '__provino_resolve__.js'),
+        kind: context.kind,
+        conditions: callOptions.conditions ?? conditions,
+      })
+      if (result.type === 'file') return result.path
+      if (result.type === 'builtin') return path
+      throw new Error(`Cannot find module '${path}' from '${callOptions.basedir}'`)
+    }
+    let found: unknown
+    try {
+      found = run(specifier, {
+        basedir: dirname(context.importer),
+        conditions,
+        defaultResolver,
+        extensions: options.extensions,
+        moduleDirectory: options.moduleDirectories ?? ['node_modules'],
+        ...(options.modulePaths === undefined ? {} : { paths: options.modulePaths }),
+        rootDir: options.root,
+      })
+    } catch {
+      found = undefined
+    }
+    if (typeof found !== 'string' || found === '') {
+      return { type: 'not-found', specifier, importer: context.importer, tried: [], mappedBy: null }
+    }
+    const bare = found.startsWith('node:') ? found.slice(5) : found
+    if (builtinModules.includes(bare)) return { type: 'builtin', id: `node:${bare}` }
+    return fileResult(found)
+  }
+
   const fingerprint = createHash('sha256')
     .update(
       JSON.stringify({
         resolver: oxcResolverVersion(),
         base,
         mappers: options.mappers.map((mapper) => mapper.id),
+        modulePaths,
+        custom: custom === undefined ? null : String(customSync ?? custom),
       }),
     )
     .digest('hex')
@@ -171,11 +238,13 @@ export const createResolver: CreateResolver = (options) => {
             importer: context.importer,
             tried: [...hit.candidates],
             mappedBy: hit.rule,
+            ...(hit.declared === undefined ? {} : { declared: hit.declared }),
           }
         }
         // `continue`: the first hit still wins, so later mappers are skipped.
         break
       }
+      if (customSync !== null) return resolveCustom(customSync, specifier, context)
       return resolveDirect(specifier, context)
     },
     invalidate() {

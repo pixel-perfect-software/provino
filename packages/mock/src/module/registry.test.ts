@@ -36,6 +36,42 @@ describe('decide: precedence', () => {
     assert.equal(registry.decide('/proj/src/other.ts', FROM, 'esm').mocked, false)
   })
 
+  test('deepUnmock: under automock-all what the module imports is real, and what those import', () => {
+    const { registry } = build({
+      policy: { ...jestLike, automock: true },
+      files: { './dep': '/proj/src/dep.ts' },
+    })
+    registry.register('./dep', { kind: 'unmock', deep: true }, { from: FROM })
+    // `dep` is real, and so is what it imports (`/proj/src/inner.ts`), and what that imports.
+    assert.equal(registry.decide('/proj/src/inner.ts', '/proj/src/dep.ts', 'esm').mocked, false)
+    assert.equal(registry.decide('/proj/src/leaf.ts', '/proj/src/inner.ts', 'esm').mocked, false)
+    // Another importer still gets automocks.
+    assert.equal(registry.decide('/proj/src/other.ts', '/proj/src/x.ts', 'esm').mocked, true)
+  })
+
+  test('a plain unmock leaves what the module imports automocked', () => {
+    const { registry } = build({
+      policy: { ...jestLike, automock: true },
+      files: { './dep': '/proj/src/dep.ts' },
+    })
+    registry.register('./dep', { kind: 'unmock' }, { from: FROM })
+    assert.equal(registry.decide('/proj/src/inner.ts', '/proj/src/dep.ts', 'esm').mocked, true)
+  })
+
+  test('onGenerateMock: each callback gets the resolved id and the previous result', () => {
+    const { registry } = build({ policy: jestLike, files: FILES })
+    registry.register('./dep', { kind: 'automock', spy: false }, { from: FROM })
+    const seen: string[] = []
+    registry.onGenerateMock((id, mock) => {
+      seen.push(id)
+      return { first: mock }
+    })
+    registry.onGenerateMock((_id, mock) => ({ second: mock }))
+    const made = registry.materialize('/proj/src/dep.ts') as { second: { first: unknown } }
+    assert.deepEqual(seen, ['/proj/src/dep.ts'])
+    assert.ok('first' in made.second)
+  })
+
   test('automock-all leaves core modules and unmockedPathPatterns alone', () => {
     const policy = { ...jestLike, automock: true, unmockedPathPatterns: [/\/keep\//g] }
     const { registry } = build({ policy })

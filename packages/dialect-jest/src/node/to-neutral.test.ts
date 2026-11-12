@@ -208,16 +208,40 @@ test('keys read but not applied yet warn, naming the task (gap 9)', async () => 
   const messages = neutral.diagnostics.map((d) => d.message)
   // T3.8 applies `transform`: it is no longer a warning.
   assert.ok(!messages.some((m) => m.startsWith('Jest config key "transform"')))
-  assert.ok(
-    messages.some((m) => m.startsWith('Jest config key "moduleNameMapper"') && m.includes('T3.3')),
-  )
-  assert.ok(
-    messages.some((m) => m.startsWith('Jest config key "testEnvironment"') && m.includes('T8.3')),
-  )
-  assert.ok(
-    messages.some((m) => m.startsWith('Jest config key "fakeTimers"') && m.includes('T4.9')),
-  )
-  assert.equal(neutral.value[0]?.environment.name, 'jsdom')
+  // T3.3 applies the mapper, so it no longer warns, and the resolver keys reach the neutral project.
+  assert.ok(!messages.some((m) => m.startsWith('Jest config key "moduleNameMapper"')))
+  assert.deepEqual(neutral.value[0]?.aliases, [{ pattern: '^a$', targets: ['b'] }])
+  assert.deepEqual(neutral.value[0]?.resolution?.moduleDirectories, ['node_modules'])
+  // D44: jsdom is the project's own environment class, run through the adapter, so it no longer warns.
+  assert.ok(!messages.some((m) => m.startsWith('Jest config key "testEnvironment"')))
+  // `fakeTimers` applies through @provino/timers, so it no longer warns (T4.9).
+  assert.ok(!messages.some((m) => m.startsWith('Jest config key "fakeTimers"')))
+  const environment = neutral.value[0]?.environment
+  assert.match(environment?.name ?? '', /jest-environment-jsdom/)
+  assert.equal(environment?.options.module, environment?.name)
+})
+
+test('fakeTimers: enableGlobally is the timers policy, the rest are the defaults of every install', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = {
+  fakeTimers: { enableGlobally: true, doNotFake: ['nextTick'], timerLimit: 500, now: 1000 },
+}
+`,
+  })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.equal(project?.policy.timers?.enableGlobally, true)
+  assert.deepEqual(project?.fakeTimers, { doNotFake: ['nextTick'], timerLimit: 500, now: 1000 })
+  assert.equal(typeof project?.seed, 'number')
+  assert.ok(!neutral.diagnostics.some((d) => d.message.includes('fakeTimers')))
+})
+
+test('no fakeTimers key: the timers policy is left to the dialect and no defaults cross', async () => {
+  const root = tree({ 'jest.config.js': 'module.exports = {}\n' })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.equal(project?.policy.timers, undefined)
+  assert.deepEqual(project?.fakeTimers, {})
 })
 
 test('projects: one neutral project each', async () => {

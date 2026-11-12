@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { JsonValue } from './clone-safe.ts'
+import type { EnvironmentResolver } from './environment.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { FileRegistry, ModuleMockRegistry } from './loader.ts'
 import type { MockPolicy, ModuleRef, PolicyOverrides, TimersPolicy } from './policy/index.ts'
@@ -73,6 +74,18 @@ export interface NeutralAlias {
 }
 
 /**
+ * The resolver keys of a project (T3.3). Absent keys keep the resolver's defaults.
+ * @public
+ */
+export interface NeutralResolution {
+  readonly moduleDirectories?: readonly string[]
+  /** Absolute directories. */
+  readonly modulePaths?: readonly string[]
+  /** An absolute path to a custom resolver module (Jest's `resolver`). */
+  readonly resolver?: string
+}
+
+/**
  * One transform rule (Jest's `transform` entry): a file whose path matches `pattern` (a regular
  * expression's source) goes through `module` (an absolute path, or the bare name of a package the
  * runner itself ships) with `options`.
@@ -127,6 +140,18 @@ export interface NeutralProject {
     readonly options: Readonly<Record<string, JsonValue>>
   }
   readonly aliases: readonly NeutralAlias[]
+  /** How specifiers resolve beyond `aliases` (Jest's `moduleDirectories`, `modulePaths`, `resolver`). */
+  readonly resolution?: NeutralResolution
+  /** Values put on the environment's global before `setupFiles` (Jest's `globals`), as data. */
+  readonly globalValues?: Readonly<Record<string, JsonValue>>
+  /**
+   * The project's fake-timer defaults (Jest's `fakeTimers`: `now`, `doNotFake`, `timerLimit`,
+   * `advanceTimers`, `legacyFakeTimers`): what every `useFakeTimers` call, and the global install
+   * `policy.timers.enableGlobally` asks for, is layered over.
+   */
+  readonly fakeTimers?: Readonly<Record<string, JsonValue>>
+  /** The run's random seed (Jest's `seed`, `jest.getSeed()`); one for every worker of a run. */
+  readonly seed?: number
   readonly transforms: readonly NeutralTransform[]
   /** Regular expressions' sources: files they match are not transformed. */
   readonly transformIgnorePatterns: readonly string[]
@@ -262,6 +287,18 @@ export interface GlobalsHost {
   timers(): object
   /** The timers slice of the resolved policy: what a timer member built here follows. */
   readonly timersPolicy: TimersPolicy
+  /** The run's random seed (`SerializedProjectConfig.seed`, else one drawn when the worker booted). */
+  readonly seed: number
+  /**
+   * Whether the file's environment is gone: true once its teardown has run, for code that outlives
+   * the file (a late callback). Read it when the global is called.
+   */
+  environmentTornDown(): boolean
+  /**
+   * Sets the timeout a test or hook with none of its own gets, until the file that is running
+   * ends (`Runtime.setDefaultTimeout`).
+   */
+  setDefaultTimeout(ms: number): void
 }
 
 /**
@@ -282,6 +319,18 @@ export type ModuleScopeFactory = {
  */
 export interface ModuleScope {
   readonly names: readonly string[]
+  /**
+   * Module specifiers the runner itself serves (Jest's `@jest/globals`; U9's `expect`,
+   * `@jest/expect` and `jest-mock`). An import of one never reaches the resolver, the mapper
+   * rules or a mock: the value is the factory's result under that key, for the importing module.
+   */
+  readonly modules?: readonly string[]
+  /**
+   * The part of `modules` that yields to the project's name mapper: a rule that matches the
+   * specifier takes it over, and the scope serves it only when none does. The rest of `modules`
+   * is answered before the mapper (Jest's `@jest/globals`).
+   */
+  readonly mappable?: readonly string[]
   readonly factory: ModuleRef<ModuleScopeFactory>
 }
 
@@ -325,6 +374,8 @@ export interface Dialect<Name extends string = string, Options = unknown> {
   readonly loader?: LoaderPolicies
   /** Bindings each module gets its own value of, whether or not globals are injected. */
   readonly moduleScope?: ModuleScope
+  /** Resolves the environment a test file's docblock names (Jest's `@jest-environment`), in the worker. */
+  readonly environmentResolver?: ModuleRef<EnvironmentResolver>
   readonly reporterAdapters?: readonly ReporterAdapter[]
   /** Type entry points, e.g. `'@provino/dialect-jest/globals'`. */
   readonly typeEntries?: readonly string[]

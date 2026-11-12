@@ -1,0 +1,40 @@
+{
+  "name": "@provino/env-shared",
+  "version": "0.0.0",
+  "description": "What DOM environments share: populating a window onto the worker's global and putting the global back exactly as it was.",
+  "homepage": "https://github.com/pixel-perfect-software/provino#readme",
+  "bugs": {
+    "url": "https://github.com/pixel-perfect-software/provino/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pixel-perfect-software/provino.git",
+    "directory": "packages/env-shared"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@provino/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/jsdom": "catalog:",
+    "happy-dom": "catalog:",
+    "jsdom": "catalog:"
+  }
+}

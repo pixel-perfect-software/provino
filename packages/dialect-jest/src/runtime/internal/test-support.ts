@@ -190,8 +190,20 @@ export function standInGlobal(warnings: string[] = []): typeof globalThis {
 export function timerHost(
   global: typeof globalThis = standInGlobal(),
   options: FakeClockOptions = {},
-): { timers: () => FakeClock; timersPolicy: TimersPolicy } {
+): {
+  timers: () => FakeClock
+  timersPolicy: TimersPolicy
+  seed: number
+  environmentTornDown: () => boolean
+  setDefaultTimeout: (ms: number) => void
+} {
   const timersPolicy = resolvePolicy(jestPolicy).timers
   const clock = createFakeClock(global, timersPolicy, options)
-  return { timers: () => clock, timersPolicy }
+  return {
+    timers: () => clock,
+    timersPolicy,
+    seed: 0,
+    environmentTornDown: () => false,
+    setDefaultTimeout: () => {},
+  }
 }

@@ -46,7 +46,7 @@ The test runtime (Track 5): collector, executor, hooks, the test context and the
 
 - `ctx.task.result`: not built (T5.8's remaining part). `ctx.task` is the clone-safe `TestTask`.
 - `waitForUnhandledRejections` (Jest's one-turn wait after each test) isn't an option: a rejection is held to the end of the body instead.
-- `retry.timing: 'deferred'`, retry `delay`/`condition`, `jest.retryTimes`: T5.10. Immediate `retry`/`repeats` work.
+- `retry.timing: 'deferred'`, retry `delay`/`condition`, `jest.retryTimes` (refused by name in the dialect): T5.10. Immediate `retry`/`repeats` work. `Runtime.setDefaultTimeout(ms)` (B17c, `jest.setTimeout`) replaces the policy's test and hook default for tests and hooks with no timeout of their own (`TestNode.defaultTimeout`), read when they run, until the file ends.
 - Bail and cancel: T5.12. `describe.shuffle`: T5.13. The overhead gate: T5.14. The definition table: T5.9. Tag filters.
 - Messages are neutral, not the dialects' text (timeouts, `.only` on CI, empty describes); the dialects own exact text (B14). The exceptions are Jest's `done` errors and its non-promise-return error: Jest's words in `invoke.ts`, because only Jest's policy reaches them.
 - `aroundEach`/`aroundAll` don't take a `limitHooks` slot (Vitest holds one through each phase).

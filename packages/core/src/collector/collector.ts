@@ -184,6 +184,7 @@ export class Collector {
       concurrent: spec.flags.concurrent ?? spec.options.concurrent ?? inherited.concurrent ?? false,
       expectFail: spec.flags.fails === true || spec.options.fails === true,
       timeoutMs: timeout ?? policy.timeouts.test,
+      defaultTimeout: timeout === undefined,
       retry: spec.options.retry ?? inherited.retry ?? 0,
       repeats: spec.options.repeats ?? inherited.repeats ?? 0,
       tags: mergeTags(inherited.tags, spec.options.tags),

@@ -6,8 +6,10 @@ import { isAbsolute } from 'node:path'
 import { forEachModuleRef, isImportableLocation, isModuleRef, neutralPolicy } from '@provino/policy'
 import type {
   EnvironmentRef,
+  EnvironmentResolver,
   GlobalsFactory,
   HoistPolicy,
+  JsonValue,
   ModuleRef,
   ModuleScopeFactory,
   SerializedLoaderConfig,
@@ -30,6 +32,12 @@ function invalid(path: string, expected: string): never {
 
 function record(value: unknown, path: string): Readonly<Record<string, unknown>> {
   return isRecord(value) ? value : invalid(path, 'an object')
+}
+
+function seedOf(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value)
+    ? value
+    : invalid('seed', 'an integer')
 }
 
 function text(value: unknown, path: string): string {
@@ -137,6 +145,15 @@ function hoistPolicy(value: unknown): HoistPolicy | null {
   return value as HoistPolicy
 }
 
+/** The dialect's environment resolver ref: absolute, like the globals one. */
+function environmentResolverRef(value: unknown): ModuleRef<EnvironmentResolver> {
+  if (!isModuleRef(value)) return invalid('environmentResolver', 'null or a { module, export } ref')
+  return {
+    module: moduleLocation(value.module, 'environmentResolver.module'),
+    export: value.export,
+  }
+}
+
 /** The module-scope factory's ref, or `null` for a dialect with none. */
 function moduleScopeRef(value: unknown): ModuleRef<ModuleScopeFactory> | null {
   if (value === null) return null
@@ -172,6 +189,42 @@ function transformConfig(value: unknown): SerializedTransformConfig {
   }
 }
 
+/** The optional resolver keys (T3.3); an absent one stays absent. */
+function resolverKeys(loader: Record<string, unknown>): Partial<SerializedLoaderConfig> {
+  const keys: { -readonly [K in keyof SerializedLoaderConfig]?: SerializedLoaderConfig[K] } = {}
+  if (loader.scopeMappable !== undefined) {
+    keys.scopeMappable = texts(loader.scopeMappable, 'loader.scopeMappable')
+  }
+  if (loader.scopeModules !== undefined) {
+    keys.scopeModules = texts(loader.scopeModules, 'loader.scopeModules')
+  }
+  if (loader.aliases !== undefined) {
+    if (!Array.isArray(loader.aliases)) invalid('loader.aliases', 'an array')
+    keys.aliases = loader.aliases.map((item: unknown, index) => {
+      const alias = record(item, `loader.aliases[${index}]`)
+      return {
+        pattern: text(alias.pattern, `loader.aliases[${index}].pattern`),
+        targets: texts(alias.targets, `loader.aliases[${index}].targets`),
+      }
+    })
+  }
+  if (loader.moduleDirectories !== undefined) {
+    keys.moduleDirectories = texts(loader.moduleDirectories, 'loader.moduleDirectories')
+  }
+  if (loader.modulePaths !== undefined) {
+    keys.modulePaths = absolutePaths(loader.modulePaths, 'loader.modulePaths')
+  }
+  if (loader.resolver !== undefined && loader.resolver !== null) {
+    if (!isModuleRef(loader.resolver))
+      invalid('loader.resolver', 'null or a { module, export } ref')
+    keys.resolver = {
+      module: moduleLocation(loader.resolver.module, 'loader.resolver.module'),
+      export: loader.resolver.export,
+    }
+  }
+  return keys
+}
+
 function loaderConfig(value: unknown): SerializedLoaderConfig {
   const loader = record(value, 'loader')
   const { tsconfig, typescript } = loader
@@ -184,6 +237,7 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
     invalid('loader.typescript', "'oxc', 'node-strip' or 'off'")
   }
   return {
+    ...resolverKeys(loader),
     hoist: hoistPolicy(loader.hoist),
     moduleScope: texts(loader.moduleScope, 'loader.moduleScope'),
     extensions: texts(loader.extensions, 'loader.extensions'),
@@ -214,6 +268,18 @@ export function parseProjectConfig(value: unknown): SerializedProjectConfig {
     environment: environmentRef(config.environment),
     globals: globalsRef(config.globals),
     moduleScope: moduleScopeRef(config.moduleScope),
+    ...(config.environmentResolver === undefined || config.environmentResolver === null
+      ? {}
+      : {
+          environmentResolver: environmentResolverRef(config.environmentResolver),
+        }),
+    ...(config.globalValues === undefined
+      ? {}
+      : { globalValues: record(config.globalValues, 'globalValues') as Record<string, JsonValue> }),
+    ...(config.fakeTimers === undefined
+      ? {}
+      : { fakeTimers: record(config.fakeTimers, 'fakeTimers') as Record<string, JsonValue> }),
+    ...(config.seed === undefined ? {} : { seed: seedOf(config.seed) }),
     setupFiles: absolutePaths(config.setupFiles, 'setupFiles'),
     setupFilesAfterEnv: absolutePaths(config.setupFilesAfterEnv, 'setupFilesAfterEnv'),
     loader: loaderConfig(config.loader),

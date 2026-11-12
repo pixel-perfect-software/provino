@@ -16,4 +16,12 @@ export {
   jestGlobals,
   jestModuleScope,
 } from './globals.ts'
+export {
+  fromJestEnvironment,
+  type JestEnvironmentClass,
+  type JestEnvironmentOptions,
+  jestEnvironment,
+  jestEnvironmentConditions,
+  jestEnvironmentFor,
+} from './jest-environment.ts'
 export { jestSnapshotPrinter } from './snapshot-printer.ts'

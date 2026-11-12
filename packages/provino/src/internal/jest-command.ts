@@ -2,7 +2,7 @@
 // own parser, layered over the project Jest's config reader finds, run by the same coordinator
 // as `provino run`, and ended with Jest's exit codes.
 import { mkdir, rm, writeFile } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { dirname, isAbsolute, resolve } from 'node:path'
 import { type ResolvedProject, resolveNeutralProject } from '@provino/config'
 import {
   createJestConfigReader,
@@ -17,7 +17,7 @@ import { defaultCacheDir, discoverProject, ExitCode, selectFiles } from '@provin
 import type { TextSink } from '@provino/reporters'
 import type { ConfigSource, Diagnostic, NeutralProject, RunRequest } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
-import { ENVIRONMENTS } from './built-ins.ts'
+import { ENVIRONMENTS, JEST_ENVIRONMENT } from './built-ins.ts'
 import { usageMessage } from './describe.ts'
 import { executeProject } from './execute.ts'
 import {
@@ -70,7 +70,10 @@ function noTestsExitCode(): number {
  */
 function environmentsFor(request: RunRequest, project: NeutralProject): typeof ENVIRONMENTS {
   const { name } = project.environment
-  if (request.mode === 'run' || Object.hasOwn(ENVIRONMENTS, name)) return ENVIRONMENTS
+  if (Object.hasOwn(ENVIRONMENTS, name)) return ENVIRONMENTS
+  // Any other environment is the project's own Jest class (D44), run through the adapter.
+  if (isAbsolute(name)) return { ...ENVIRONMENTS, [name]: JEST_ENVIRONMENT }
+  if (request.mode === 'run') return ENVIRONMENTS
   return { ...ENVIRONMENTS, [name]: ENVIRONMENTS.node as (typeof ENVIRONMENTS)[string] }
 }
 

@@ -112,20 +112,11 @@ export function jestProjectToNeutral(
   globalConfig: JestGlobalConfig,
 ): { readonly project: NeutralProject; readonly diagnostics: readonly Diagnostic[] } {
   const diagnostics: Diagnostic[] = []
-  const environment = neutralEnvironmentName(project.testEnvironment)
-  if (environment !== 'node') {
-    notApplied(
-      diagnostics,
-      'testEnvironment',
-      environment === 'jsdom' || environment === 'happy-dom' ? 'T8.3' : 'T8.5',
-      `; "${environment}" is not a built-in environment yet`,
-    )
-  }
-  if (project.moduleNameMapper.length > 0) notApplied(diagnostics, 'moduleNameMapper', 'T3.3')
-  if (project.resolver !== undefined) notApplied(diagnostics, 'resolver', 'T3.3')
-  if (project.modulePaths !== undefined && project.modulePaths.length > 0) {
-    notApplied(diagnostics, 'modulePaths', 'T3.3')
-  }
+  // Decision D44: `jest-environment-node` is the built-in `node`; every other environment, jsdom
+  // included, is the project's own Jest environment class, named by its path and run through the
+  // adapter (`jestEnvironment`), so the DOM is the one Jest would build.
+  const isNode = neutralEnvironmentName(project.testEnvironment) === 'node'
+  const environment = isNode ? 'node' : project.testEnvironment
   if (project.snapshotResolver !== undefined) {
     notApplied(
       diagnostics,
@@ -134,7 +125,6 @@ export function jestProjectToNeutral(
       '; snapshots stay beside the test file',
     )
   }
-  if (project.fakeTimers.enableGlobally === true) notApplied(diagnostics, 'fakeTimers', 'T4.9')
   if (project.globalSetup !== undefined) notApplied(diagnostics, 'globalSetup', 'Track 9')
   if (project.globalTeardown !== undefined) notApplied(diagnostics, 'globalTeardown', 'Track 9')
   if (globalConfig.collectCoverage) notApplied(diagnostics, 'collectCoverage', 'T8.8')
@@ -173,6 +163,8 @@ export function jestProjectToNeutral(
       ...(project.testTimeout === undefined ? {} : { timeouts: { test: project.testTimeout } }),
     },
     mock,
+    // jest-circus installs the fake clock for every file when `fakeTimers.enableGlobally` is set.
+    ...(project.fakeTimers.enableGlobally === true ? { timers: { enableGlobally: true } } : {}),
     orchestrator: {
       passWithNoTests: globalConfig.passWithNoTests,
       slowTestThresholdMs: project.slowTestThreshold * 1000,
@@ -218,9 +210,42 @@ export function jestProjectToNeutral(
     globalTeardown: project.globalTeardown === undefined ? [] : [project.globalTeardown],
     environment: {
       name: environment,
-      options: jsonObject(project.testEnvironmentOptions, 'testEnvironmentOptions', diagnostics),
+      options: isNode
+        ? jsonObject(project.testEnvironmentOptions, 'testEnvironmentOptions', diagnostics)
+        : {
+            module: project.testEnvironment,
+            // What a Jest environment class reads of `projectConfig`.
+            projectConfig: {
+              rootDir: project.rootDir,
+              cwd: project.cwd,
+              testEnvironment: project.testEnvironment,
+              testEnvironmentOptions: jsonObject(
+                project.testEnvironmentOptions,
+                'testEnvironmentOptions',
+                diagnostics,
+              ),
+              globals: jsonObject(project.globals, 'globals', diagnostics),
+              fakeTimers: jsonObject(project.fakeTimers, 'fakeTimers', diagnostics),
+              injectGlobals: project.injectGlobals,
+            },
+          },
     },
     aliases,
+    globalValues: jsonObject(project.globals, 'globals', diagnostics),
+    // What every install is layered over (jest-runtime `useFakeTimers`: `{...config.fakeTimers, ...own}`).
+    fakeTimers: jsonObject(
+      Object.fromEntries(
+        Object.entries(project.fakeTimers).filter(([key]) => key !== 'enableGlobally'),
+      ),
+      'fakeTimers',
+      diagnostics,
+    ),
+    seed: globalConfig.seed,
+    resolution: {
+      moduleDirectories: [...project.moduleDirectories],
+      modulePaths: [...(project.modulePaths ?? [])],
+      ...(project.resolver === undefined ? {} : { resolver: project.resolver }),
+    },
     transforms,
     transformIgnorePatterns: [...project.transformIgnorePatterns],
     // What a transformer reads as `config`: the project config as JSON (ts-jest reads `rootDir`,

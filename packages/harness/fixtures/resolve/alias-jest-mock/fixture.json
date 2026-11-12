@@ -1,0 +1,12 @@
+{
+  "description": "A moduleNameMapper rule for `jest-mock` (T3.3, U9, B17c gap 4): whether Jest's own copy or the stub is what a test file's require of it gets.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "moduleNameMapper": {
+        "^jest-mock$": "<rootDir>/src/stub.ts"
+      }
+    }
+  },
+  "jestEsm": true
+}
