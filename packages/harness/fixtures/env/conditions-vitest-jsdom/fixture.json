@@ -1,0 +1,21 @@
+{
+  "description": "T8.7, the Vitest half: under Vitest with `environment: 'jsdom'`, a package with `browser`, `node`, `import`, `require` and `default` variants, imported from an ES module, resolves the variant Vitest 5.0.5 picks. The test title names it.",
+  "runners": ["vitest"],
+  "config": {
+    "vitest": {
+      "test": {
+        "environment": "jsdom"
+      }
+    }
+  },
+  "packages": {
+    "dual": {
+      "package.json": "{\"name\": \"dual\", \"version\": \"1.0.0\", \"type\": \"module\", \"exports\": {\".\": {\"browser\": \"./browser.js\", \"node\": \"./node.js\", \"import\": \"./import.js\", \"require\": \"./require.js\", \"default\": \"./default.js\"}}}\n",
+      "browser.js": "export default 'browser'\n",
+      "node.js": "export default 'node'\n",
+      "import.js": "export default 'import'\n",
+      "require.js": "export default 'require'\n",
+      "default.js": "export default 'default'\n"
+    }
+  }
+}
