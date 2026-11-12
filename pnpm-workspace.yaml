@@ -99,6 +99,8 @@ catalog:
   jest-util: 30.5.1
   # jsdom (Track 8's version): the propagation test's DOM rows, later the jsdom environment.
   jsdom: 30.1.3
+  # The bottom of the `jsdom` peer range (>=26 <31): env-jsdom's userAgent test runs against it too.
+  jsdom-26: npm:jsdom@26.1.0
   # T8.2's second window: happy-dom's `GlobalWindow`, populated and restored by env-shared.
   happy-dom: 21.0.4
   lodash: 4.18.1

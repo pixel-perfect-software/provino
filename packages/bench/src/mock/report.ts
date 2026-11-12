@@ -3,7 +3,7 @@
 import { parseArgs } from 'node:util'
 import { BenchError } from '../errors.ts'
 import { errorMessage } from '../internal/guards.ts'
-import { parseLimit, pastLimit } from '../internal/limits.ts'
+import { overBar, parseLimit, pastLimit } from '../internal/limits.ts'
 
 /** The engines, in the order they print. The first two are Provino under each dialect's policy. */
 export const ENGINES = ['provino-jest', 'provino-vitest', 'vitest-spy', 'jest-mock'] as const
@@ -73,7 +73,7 @@ export function failures(medians: Readonly<Record<Engine, Sample>>, bars: Bars):
     if (bars.maxCreateUs !== undefined) {
       for (const cell of CREATE_CELLS) {
         const us = sample[cell] / 1000
-        if (!(us <= bars.maxCreateUs)) {
+        if (overBar(us, bars.maxCreateUs)) {
           out.push(
             `FAIL ${engine} ${CELL_LABELS[cell]} creation is ${pastLimit(us, bars.maxCreateUs, 3)} µs; the bar is ≤ ${bars.maxCreateUs} µs`,
           )
@@ -82,7 +82,7 @@ export function failures(medians: Readonly<Record<Engine, Sample>>, bars: Bars):
     }
     if (bars.maxCallRatio !== undefined) {
       const ratio = callRatio(sample, medians['vitest-spy'])
-      if (!(ratio <= bars.maxCallRatio)) {
+      if (overBar(ratio, bars.maxCallRatio)) {
         out.push(
           `FAIL ${engine} call is ${pastLimit(ratio, bars.maxCallRatio, 2)}× @vitest/spy; the bar is ≤ ${bars.maxCallRatio}×`,
         )

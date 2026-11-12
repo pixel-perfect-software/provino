@@ -39,6 +39,7 @@
   "dependencies": {
     "@provino/config": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
+    "@provino/env-jsdom": "workspace:*",
     "@provino/env-node": "workspace:*",
     "@provino/orchestrator": "workspace:*",
     "@provino/reporters": "workspace:*",

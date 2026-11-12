@@ -163,6 +163,8 @@ export interface EnvironmentOptionsMap {
     readonly url?: string
     readonly userAgent?: string
     readonly pretendToBeVisual?: boolean
+    /** The export conditions the resolver uses for this project's imports (replaces `browser`). */
+    readonly customExportConditions?: readonly string[]
     readonly jsdom?: Readonly<Record<string, unknown>>
   }
   readonly 'happy-dom': {

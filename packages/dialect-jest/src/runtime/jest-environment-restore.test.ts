@@ -3,6 +3,7 @@
 // fresh vm context, so none of these can reach the next file there; here the worker's global is
 // shared, so the adapter does the restoring. In process, with a stand-in environment class.
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { test } from 'node:test'
 import type { EnvironmentSetupContext } from '@provino/types'
 import { fromJestEnvironment, type JestEnvironmentClass } from './jest-environment.ts'
@@ -101,4 +102,38 @@ test('an assignment to a closure-backed accessor (`performance`) does not reach 
   } finally {
     global.performance = original
   }
+})
+
+test('a populated key the test made non-configurable is reported, and the rest is restored (D22)', () => {
+  // A non-configurable key can never be removed from the real global, so this runs in a child.
+  const adapter = new URL('./jest-environment.ts', import.meta.url).href
+  const script = `
+    import { fromJestEnvironment } from ${JSON.stringify(adapter)}
+    class Fake {
+      global = { document: { title: 'fake' }, __fromFakeEnvironment: 1 }
+      async setup() {}
+      async teardown() {}
+    }
+    const instance = await fromJestEnvironment(Fake).setup(
+      { options: {}, realm: 'worker', scope: 'file', testPath: process.cwd() + '/a.test.js', pragmas: {}, console, signal: new AbortController().signal },
+      undefined,
+    )
+    Object.defineProperty(globalThis, 'document', { value: 1, configurable: false })
+    const report = await instance.teardown()
+    const left = ['window', 'self', 'top', 'parent', '__fromFakeEnvironment'].filter((key) => Reflect.has(globalThis, key))
+    console.log('RESULT ' + JSON.stringify({ report, left }))
+  `
+  const output = execFileSync(
+    process.execPath,
+    ['--conditions=provino-source', '--input-type=module', '--eval', script],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+  )
+  const line = output.split('\n').find((text) => text.startsWith('RESULT '))
+  assert.ok(line !== undefined, output)
+  const result = JSON.parse(line.slice('RESULT '.length)) as {
+    report: { leakedGlobals: string[] } | undefined
+    left: string[]
+  }
+  assert.deepEqual(result.report?.leakedGlobals, ['document'])
+  assert.deepEqual(result.left, [], 'window, self, top and parent are gone')
 })

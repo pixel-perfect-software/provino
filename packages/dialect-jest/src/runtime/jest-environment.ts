@@ -8,7 +8,7 @@
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { populateGlobal, snapshotProperties } from '@provino/env-shared'
+import { leakReport, populateGlobal, snapshotProperties } from '@provino/env-shared'
 import type {
   Environment,
   EnvironmentConditions,
@@ -97,16 +97,14 @@ async function setUpJest(
     { globalConfig: {}, projectConfig },
     { console: context.console, docblockPragmas: context.pragmas, testPath: context.testPath },
   )
-  let populated: ReturnType<typeof populateGlobal> | undefined
   try {
     await environment.setup()
     // Only a window stands in for the global: a Node or edge environment's code must not see one.
     const isWindow = 'document' in environment.global
-    populated = populateGlobal(globalThis, environment.global, { selfReferences: isWindow })
+    populateGlobal(globalThis, environment.global, { selfReferences: isWindow })
   } catch (error) {
     // Jest tears the environment down even when its setup threw: its window, timers and
     // half-defined accessors must not outlive the failed file.
-    populated?.restore()
     try {
       await environment.teardown()
     } catch {
@@ -115,7 +113,6 @@ async function setUpJest(
     snapshot.restore()
     throw error
   }
-  const installed = populated
   return {
     global: globalThis,
     async teardown(): Promise<EnvironmentTeardownReport | undefined> {
@@ -127,11 +124,12 @@ async function setUpJest(
       }
       // Whatever the class threw, the global goes back: the next file's baseline would otherwise
       // hold this one's accessors. Anything the class or the test left that differs from the
-      // snapshot is put right too; a key that can't be is a warning (D22).
-      installed.restore()
-      const leaked = snapshot.restore().map(String)
+      // snapshot is put right too, the populated keys included (the snapshot alone does it; a
+      // populated key the test made non-configurable is reported, not thrown on); a key that can't
+      // be restored is a warning (D22).
+      const leaked = snapshot.restore()
       if (failure !== undefined) throw failure.error
-      return leaked.length === 0 ? undefined : { leakedGlobals: leaked }
+      return leakReport(leaked)
     },
   }
 }
@@ -175,8 +173,8 @@ function customConditions(options: EnvironmentRequest['options']): readonly stri
   const config = options?.projectConfig
   const own = isRecord(config) ? config.testEnvironmentOptions : undefined
   const custom = isRecord(own) ? own.customExportConditions : undefined
-  return Array.isArray(custom) && custom.every((item) => typeof item === 'string')
-    ? (custom as readonly string[])
+  return Array.isArray(custom) && custom.every((item): item is string => typeof item === 'string')
+    ? custom
     : undefined
 }
 

@@ -3,7 +3,7 @@
 import { parseArgs } from 'node:util'
 import { BenchError } from '../errors.ts'
 import { errorMessage } from '../internal/guards.ts'
-import { parseLimit, pastLimit } from '../internal/limits.ts'
+import { overBar, parseLimit, pastLimit } from '../internal/limits.ts'
 
 /** The two inputs: the same size, with mock calls (and so the import rewrite) and without. */
 export const CELLS = ['mocked', 'unmocked'] as const
@@ -58,7 +58,7 @@ export function failures(medians: Sample, bars: Bars): readonly string[] {
   for (const cell of CELLS) {
     const limit = limits[cell]
     if (limit === undefined) continue
-    if (!(medians[cell] <= limit)) {
+    if (overBar(medians[cell], limit)) {
       out.push(
         `FAIL ${cell} (${CELL_LABELS[cell]}) is ${pastLimit(medians[cell], limit, 3)} ms; the bar is ≤ ${limit} ms`,
       )
