@@ -24,7 +24,7 @@ import {
 import type { TextSink } from '@provino/reporters'
 import type { ConfigSource, Diagnostic, NeutralProject, RunRequest } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
-import { JEST_BUILT_INS, JEST_ENVIRONMENT } from './built-ins.ts'
+import { JEST_BUILT_INS, JEST_ENVIRONMENT, NODE_ENVIRONMENT } from './built-ins.ts'
 import { usageMessage } from './describe.ts'
 import { executeProject } from './execute.ts'
 import {
@@ -76,7 +76,7 @@ function environmentsFor(request: RunRequest, project: NeutralProject): typeof J
   if (typeof project.environment.options.module === 'string')
     return { ...JEST_BUILT_INS, [name]: JEST_ENVIRONMENT }
   if (request.mode === 'run') return JEST_BUILT_INS
-  return { ...JEST_BUILT_INS, [name]: JEST_BUILT_INS.node as (typeof JEST_BUILT_INS)[string] }
+  return { ...JEST_BUILT_INS, [name]: NODE_ENVIRONMENT }
 }
 
 /** A diagnostic as a line (or lines) for the user. Jest's own texts keep their form. */
