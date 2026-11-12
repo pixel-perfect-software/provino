@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/done-hooks",
+  "files": [
+    {
+      "file": "hooks.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "hooks.test.ts",
+            "path": [
+              "first"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 21,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "hooks.test.ts",
+            "path": [
+              "second"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "hooks.test.ts",
+            "path": [
+              "a hook that never calls done",
+              "inside"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: thrown: \"Exceeded timeout of 100 ms for a hook while waiting for `done()` to be called.\nAdd a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout.\"\n\n[cause]: Error: thrown: \"Exceeded timeout of 100 ms for a hook while waiting for `done()` to be called.\nAdd a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout.\"",
+              "userFrame": "<root>/hooks.test.ts:25:3"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 28,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "hooks.test.ts",
+            "path": [
+              "a hook that calls done with an error",
+              "inside"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: hook failed through done",
+              "userFrame": "<root>/hooks.test.ts:33:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 35,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "beforeAll",
+    "beforeEach",
+    "test first",
+    "afterEach",
+    "beforeEach",
+    "test second",
+    "afterEach",
+    "beforeEach",
+    "beforeEach that never calls done",
+    "afterEach",
+    "beforeEach",
+    "test inside, afterEach fails",
+    "afterEach",
+    "afterAll"
+  ]
+}

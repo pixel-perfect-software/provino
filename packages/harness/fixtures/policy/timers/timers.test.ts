@@ -109,9 +109,4 @@ c('timers.advanceToNextTimerHonorsSteps', () => {
   return fired
 })
 
-c('timers.facadeReturns', () => {
-  const returned = M.useFakeTimers()
-  if (returned === M) return 'facade'
-  if (returned === undefined) return 'void'
-  return typeof returned
-})
+// `timers.facadeReturns` (what each member returns) is recorded by `mocking/timers-facade` (B17a).

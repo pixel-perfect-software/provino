@@ -32,10 +32,16 @@
       "path": "packages/core/test"
     },
     {
+      "path": "packages/snapshot/test"
+    },
+    {
       "path": "packages/expect/test"
     },
     {
       "path": "packages/mock/test"
+    },
+    {
+      "path": "packages/timers/test"
     },
     {
       "path": "packages/dialect-jest/test"

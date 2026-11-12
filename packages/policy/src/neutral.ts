@@ -1,4 +1,10 @@
-import type { EnvironmentConditions, FormatEachTitle, Policy, SnapshotKey } from '@provino/types'
+import type {
+  EnvironmentConditions,
+  FormatEachTitle,
+  FormatValue,
+  Policy,
+  SnapshotKey,
+} from '@provino/types'
 import { deepFreeze } from './internal/objects.ts'
 import { moduleRef } from './module-ref.ts'
 
@@ -40,6 +46,7 @@ export const neutralPolicy: Policy = deepFreeze({
     asyncDescribe: 'throw',
     nonPromiseReturn: 'fail',
     formatEachTitle: moduleRef<FormatEachTitle>(BEHAVIOURS, 'formatEachTitle'),
+    formatValue: moduleRef<FormatValue>(BEHAVIOURS, 'formatValue'),
     eachTitleTruncate: null,
     retry: { timing: 'immediate', logErrorsBeforeRetry: true, keepEarlierErrors: true },
     // A `.only` committed by mistake must not shrink a CI run.
@@ -127,7 +134,11 @@ export const neutralPolicy: Policy = deepFreeze({
     notFaked: 'throw',
     setSystemTimeWithoutFakes: 'fake-date-only',
     advanceToNextTimerHonorsSteps: true,
-    facadeReturns: 'facade',
+    facadeReturns: 'all',
+    messages: {
+      notFaked:
+        'A function to advance timers was called but the timers APIs are not replaced with fake timers. Call `useFakeTimers()` first.',
+    },
   },
   module: {
     factoryShape: 'namespace',
@@ -156,13 +167,14 @@ export const neutralPolicy: Policy = deepFreeze({
     hintJoin: ': ',
     dirName: '__snapshots__',
     extension: '.snap',
-    format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null },
+    format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
     serializers: [],
     obsolete: { failLocal: false, failCI: true },
     ciUpdate: 'none',
     updateEnvVar: null,
     throwErrorBody: 'message',
     inline: { indent: 'call', formatter: 'none' },
+    printer: null,
     resolvePath: null,
   },
   expect: {

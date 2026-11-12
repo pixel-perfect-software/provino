@@ -103,9 +103,9 @@ expectTypeOf<Extract<WorkerToCoordinator, { t: 'call' }>>().toEqualTypeOf<
 >()
 expectTypeOf<Extract<CoordinatorToWorker, { t: 'call' }>>().toEqualTypeOf<RpcCall<WorkerMethods>>()
 type CoordinatorReplyValue = Extract<RpcReply<CoordinatorMethods>, { ok: true }>['value']
-// The union of the three results: string, void, and number | undefined.
-expectTypeOf<string | number | undefined>().toExtend<CoordinatorReplyValue>()
-expectTypeOf<Exclude<CoordinatorReplyValue, string | number | undefined>>().toEqualTypeOf<void>()
+// The worker asks the coordinator for one thing, a file's last duration. Snapshots are not an
+// RPC: the worker writes the .snap itself (build-plan section 6).
+expectTypeOf<CoordinatorReplyValue>().toEqualTypeOf<number | undefined>()
 // @ts-expect-error a call names one of the methods
 const unknownCall: RpcCall<CoordinatorMethods> = { t: 'call', id: 1, method: 'nope', args: [] }
 const wrongArgs: RpcCall<CoordinatorMethods> = {

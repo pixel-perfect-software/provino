@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/names",
+  "files": [
+    {
+      "file": "names.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "names.test.ts",
+            "path": [
+              "outer",
+              "inner",
+              "counts"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "location": {
+            "line": 3,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "names.test.ts",
+            "path": [
+              "outer",
+              "inner",
+              "hints"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 4,
+          "location": {
+            "line": 9,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "names.test.ts",
+            "path": [
+              "outer",
+              "same name"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 17,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "names.test.ts",
+            "path": [
+              "outer",
+              "same name"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "names.test.ts",
+            "path": [
+              "each row"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 26,
+            "column": 18
+          }
+        },
+        {
+          "id": {
+            "file": "names.test.ts",
+            "path": [
+              "each row"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 26,
+            "column": 18
+          }
+        },
+        {
+          "id": {
+            "file": "names.test.ts",
+            "path": [
+              "numbers 10"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 30,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "names.test.ts",
+            "path": [
+              "numbers 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 33,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "names.test.ts",
+            "path": [
+              "numbers 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 36,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "names.test.ts",
+            "path": [
+              "Numbers upper"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 39,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "names.test.ts",
+            "path": [
+              "a lower"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 42,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "names.test.ts",
+            "path": [
+              "escapes `a back tick` and ${a dollar brace}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 46,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 17,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 17,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/names.test.ts.snap",
+        "sha256": "74ce1be1350bb208daab27648f646e731687c8ddc1652fecb4d4f941f29f1de1"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      "__snapshots__/names.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`Numbers upper 1`] = `\"U\"`;\n\nexports[`a lower 1`] = `\"l\"`;\n\nexports[`each row 1`] = `1`;\n\nexports[`each row 2`] = `2`;\n\nexports[`escapes \\`a back tick\\` and \\${a dollar brace} 1`] = `\"escaped\"`;\n\nexports[`numbers 1 1`] = `1`;\n\nexports[`numbers 2 1`] = `2`;\n\nexports[`numbers 10 1`] = `10`;\n\nexports[`outer inner counts 1`] = `1`;\n\nexports[`outer inner counts 2`] = `2`;\n\nexports[`outer inner counts 3`] = `3`;\n\nexports[`outer inner hints 1`] = `\"d\"`;\n\nexports[`outer inner hints: first 1`] = `\"a\"`;\n\nexports[`outer inner hints: first 2`] = `\"b\"`;\n\nexports[`outer inner hints: with: a colon 1`] = `\"c\"`;\n\nexports[`outer same name 1`] = `\"first of two\"`;\n\nexports[`outer same name 2`] = `\"second of two\"`;\n"
+    }
+  }
+}

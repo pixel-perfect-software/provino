@@ -9,8 +9,10 @@ import {
   installMatchersSlot,
   type StateSource,
 } from '@provino/expect'
-import { createBehaviourLoader, neutralPolicy } from '@provino/policy'
-import type { ExpectStatic, RuntimeEvent } from '@provino/types'
+import { createBehaviourLoader, neutralPolicy, resolvePolicy } from '@provino/policy'
+import { createFakeClock, type FakeClock, type FakeClockOptions } from '@provino/timers'
+import type { ExpectStatic, RuntimeEvent, TimersPolicy } from '@provino/types'
+import { jestPolicy } from '../../dialect.ts'
 import { jestExpectPolicy } from '../../expect-policy.ts'
 import { jestExpectTable } from '../expect-table.ts'
 
@@ -161,4 +163,35 @@ export function setUpJestExpect(t: TestContext): JestExpectSetup {
     registry,
   })
   return { expect, source }
+}
+
+/** A stand-in for an environment global: the real timers on an object a clock can fake. */
+export function standInGlobal(warnings: string[] = []): typeof globalThis {
+  return {
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+    setImmediate,
+    clearImmediate,
+    queueMicrotask,
+    Date,
+    performance,
+    Promise,
+    process: { nextTick: process.nextTick.bind(process), hrtime: process.hrtime },
+    console: { warn: (text: string): void => void warnings.push(text) },
+  } as unknown as typeof globalThis
+}
+
+/**
+ * The two host members the timer members read: a clock on a stand-in global (so a test never
+ * fakes the timers the test runner runs on) and the Jest timers policy.
+ */
+export function timerHost(
+  global: typeof globalThis = standInGlobal(),
+  options: FakeClockOptions = {},
+): { timers: () => FakeClock; timersPolicy: TimersPolicy } {
+  const timersPolicy = resolvePolicy(jestPolicy).timers
+  const clock = createFakeClock(global, timersPolicy, options)
+  return { timers: () => clock, timersPolicy }
 }

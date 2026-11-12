@@ -130,6 +130,25 @@ test('testRegex becomes regex include patterns', async () => {
   assert.deepEqual(project?.discovery.includePatterns, { kind: 'regex', patterns: ['\\.t\\.js$'] })
 })
 
+test('snapshotSerializers and snapshotFormat go to the snapshot policy, and warn about nothing', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = {
+  snapshotSerializers: ['<rootDir>/first.js', '<rootDir>/second.js'],
+  snapshotFormat: { escapeString: true, indent: 4, maxDepth: 3 },
+}
+`,
+    'first.js': '',
+    'second.js': '',
+  })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.deepEqual(project?.policy.snapshot, {
+    serializers: [join(root, 'first.js'), join(root, 'second.js')],
+    format: { escapeString: true, printBasicPrototype: false, extra: { indent: 4, maxDepth: 3 } },
+  })
+  assert.deepEqual(neutral.diagnostics, [])
+})
+
 test('no RegExp or function, and every path absolute', async () => {
   const root = tree({
     'jest.config.js': `module.exports = {

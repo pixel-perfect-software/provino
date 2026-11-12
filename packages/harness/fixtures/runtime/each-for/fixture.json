@@ -1,0 +1,4 @@
+{
+  "description": "Vitest's test.for and describe.for (Jest has neither) title their rows as .each does, but pass the row to the test unspread: an array row, an object row, bare primitives, a tagged template, and the same row used for tokens and $variables.",
+  "runners": ["vitest"]
+}

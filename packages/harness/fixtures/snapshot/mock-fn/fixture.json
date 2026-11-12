@@ -1,0 +1,17 @@
+{
+  "description": "How a mock function prints in a snapshot: [MockFunction] with no calls, with calls and results, with a name, and with an implementation. Each runner has its own file, since the mock is jest.fn or vi.fn. A black-box run in write mode capturing both .snap files.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": [
+      "exitCode",
+      "file:__snapshots__/mock.jest.test.ts.snap",
+      "file:__snapshots__/mock.vitest.test.ts.snap"
+    ]
+  }
+}

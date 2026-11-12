@@ -20,6 +20,7 @@ const TRACK_1_DIVERGENCES: readonly string[] = [
   'core.missingTestFn',
   'core.asyncDescribe',
   'core.nonPromiseReturn',
+  'core.formatEachTitle',
   'core.eachTitleTruncate',
   'core.retry.timing',
   'core.allowOnly',
@@ -56,7 +57,6 @@ const TRACK_1_DIVERGENCES: readonly string[] = [
 
 /** Track 1's divergence rows the dialects don't differ on today, each with its reason. */
 const NOT_DIFFERING: Readonly<Record<string, string>> = {
-  'core.formatEachTitle': 'both are the neutral formatter until T5.4 (B17a) builds each runner`s',
   'timers.fakeTemporal': 'Jest`s "via sinon 15.4" is pending for T4.9 (B17a)',
   'expect.pollFailsOnTimeout': 'Jest has no expect.poll, so its value is inert (T1.7)',
   'orchestrator.isolationDefault': 'D6 gives Jest registry, Track 1`s realm notwithstanding',

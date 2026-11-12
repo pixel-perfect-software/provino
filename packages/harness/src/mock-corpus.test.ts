@@ -21,11 +21,13 @@ import {
   compareObservations,
   declaredProblems,
   isModFixture,
+  isTimerFixture,
   sameOrder,
   unseenDeclared,
 } from './mock-corpus/compare.ts'
 import { MOCK_DECLARED as DECLARED } from './mock-corpus/declared.ts'
 import { mockPolicyFor } from './mock-corpus/profiles.ts'
+import { runConfigEndToEnd } from './mock-corpus/run-config-e2e.ts'
 import { runMockFile } from './mock-corpus/run-mock.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
 import { pairLabel } from './test-support.ts'
@@ -49,7 +51,8 @@ const EXPECTED_COUNTED: Readonly<Partial<Record<FixtureProfile, number>>> = {
 const root = path.join(defaultFixturesRoot(), 'mocking')
 const dirs = await findFixtures(root)
 const fixtures = (await Promise.all(dirs.map((dir) => readFixture(dir)))).filter(
-  (fixture) => !UNCOUNTED.has(fixture.id) && !isModFixture(fixture.id),
+  (fixture) =>
+    !UNCOUNTED.has(fixture.id) && !isModFixture(fixture.id) && !isTimerFixture(fixture.id),
 )
 
 const counted: Partial<Record<FixtureProfile, number>> = {}
@@ -114,4 +117,55 @@ test('the corpus is counted: api-surface is not, and the totals are the corpus',
   )
   assert.ok(!fixtures.some((fixture) => UNCOUNTED.has(fixture.id)))
   assert.deepEqual(counted, EXPECTED_COUNTED)
+})
+
+// T4.10: the cleanup between tests is wired in the worker (core's `onBeforeTryTask` calls the mock
+// registry's `beforeEach`), not in a root hook of the corpus runner. Each Jest `config-*` fixture
+// runs through a Jest config that sets `clearMocks`/`resetMocks`/`restoreMocks`, the Jest dialect's
+// config reader, `resolveNeutralProject` and a forked worker, and must observe what the golden
+// recorded. The Vitest ones need `vi`, whose runtime is T11.16's; they run in-process above.
+describe('e2e: each Jest config-* fixture through a Jest config and a forked worker (T4.10)', () => {
+  const configFixtures = fixtures.filter(
+    (fixture) =>
+      path.posix.basename(fixture.id).startsWith('config-') &&
+      fixture.manifest.runners.includes('jest'),
+  )
+
+  test('the Jest config-* goldens are all there', () => {
+    assert.deepEqual(configFixtures.map((fixture) => path.posix.basename(fixture.id)).sort(), [
+      'config-all',
+      'config-clear',
+      'config-default',
+      'config-reset',
+      'config-restore',
+    ])
+  })
+
+  for (const fixture of configFixtures) {
+    test(fixture.id, { timeout: 90_000 }, async () => {
+      const golden = await readGolden(fixture.dir, 'jest')
+      const [testFile] = testFilesFor(fixture.files, 'jest')
+      assert.ok(testFile !== undefined)
+      const [goldenFile] = golden.files
+      assert.ok(goldenFile !== undefined)
+      const deadline = AbortSignal.timeout(80_000)
+      const run = await runConfigEndToEnd(fixture, testFile, deadline)
+      const wanted = golden.trace ?? []
+      const results = compareObservations(wanted, run.trace)
+      assert.ok(results.length > 0, 'the fixture observed at least one case')
+      assert.deepEqual(
+        results.filter((result) => !result.matches),
+        [],
+        'cases that differ from the golden',
+      )
+      assert.ok(sameOrder(wanted, run.trace), 'the cases were observed in the golden order')
+      const [file] = run.normalized.files
+      assert.ok(file !== undefined)
+      assert.deepEqual(
+        file.tests.map((t) => ({ path: t.id.path, status: t.status })),
+        goldenFile.tests.map((t) => ({ path: t.id.path, status: t.status })),
+        'tests: title path and status',
+      )
+    })
+  }
 })

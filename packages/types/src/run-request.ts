@@ -38,6 +38,8 @@ export interface RunRequest {
   readonly workerThreads?: boolean
   /** `--ci` / `--no-ci`; absent when not given (the environment decides). */
   readonly ci?: boolean
+  /** `-u`, `--updateSnapshot`: rewrite the snapshots that differ; absent when not given. */
+  readonly update?: boolean
   /** `--passWithNoTests`; absent when not given (the project's setting stands). */
   readonly passWithNoTests?: boolean
   /** `--cache` / `--no-cache`; absent when not given. */

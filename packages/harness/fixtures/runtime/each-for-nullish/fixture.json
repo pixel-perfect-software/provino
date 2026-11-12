@@ -1,0 +1,4 @@
+{
+  "description": "A null or undefined row in Vitest's test.for. .for titles a row with toArray(row), which turns null and undefined into an empty list, so every token prints undefined; .each titles them as [null] and [undefined], so %s prints null. (Jest has no .for.)",
+  "runners": ["vitest"]
+}

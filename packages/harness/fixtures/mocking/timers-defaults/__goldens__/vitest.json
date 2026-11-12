@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "mocking/timers-defaults",
+  "files": [
+    {
+      "file": "defaults.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "defaults.test.ts",
+            "path": [
+              "useFakeTimers() with no options: which globals are faked"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "defaults.test.ts",
+            "path": [
+              "the fake clock starts at the real time and moves only when told"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "defaults.test.ts",
+            "path": [
+              "timers fire in due order, and a timer set by a callback joins the queue"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "defaults.test.ts",
+            "path": [
+              "an interval fires once per period and stops when cleared"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "defaults.test.ts",
+            "path": [
+              "setTimeout with no delay and setImmediate fire on the next advance, in order"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "{\"id\":\"useFakeTimers() with no options: which globals are faked\",\"value\":{\"setTimeout\":true,\"clearTimeout\":true,\"setInterval\":true,\"clearInterval\":true,\"setImmediate\":true,\"clearImmediate\":true,\"Date\":true,\"nextTick\":false,\"queueMicrotask\":false,\"hrtime\":true,\"performance\":true,\"Intl\":true}}",
+    "{\"id\":\"the fake clock starts at the real time and moves only when told\",\"value\":{\"startsNearReal\":true,\"frozenBetweenReads\":true,\"advancedBy\":25}}",
+    "{\"id\":\"timers fire in due order, and a timer set by a callback joins the queue\",\"value\":{\"afterFourteen\":[\"t5\",\"t10\",\"t12\"],\"afterAll\":[\"t5\",\"t10\",\"t12\",\"t10+5\",\"t20\"]}}",
+    "{\"id\":\"an interval fires once per period and stops when cleared\",\"value\":{\"beforeClear\":3,\"afterClear\":3}}",
+    "{\"id\":\"setTimeout with no delay and setImmediate fire on the next advance, in order\",\"value\":{\"atZero\":[\"immediate\",\"timeout 0\"],\"afterOne\":[\"immediate\",\"timeout 0\",\"timeout 1\"]}}"
+  ]
+}

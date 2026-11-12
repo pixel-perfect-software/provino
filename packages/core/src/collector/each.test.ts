@@ -16,7 +16,30 @@ const strictTable = (strings: TemplateStringsArray, ...values: unknown[]) =>
 describe('eachRows with a list of rows', () => {
   test('an array row spreads into arguments and is passed to .for unspread', () => {
     const [row] = eachRows([[1, 2]], [], false)
-    assert.deepEqual(row, { row: [1, 2], args: [1, 2], item: [1, 2] })
+    assert.deepEqual(row, { row: [1, 2], args: [1, 2], item: [1, 2], kind: 'rows' })
+  })
+
+  test('the kind of table is rows (all arrays, or all objects), mixed (anything else) or template', () => {
+    assert.deepEqual(
+      eachRows([[1], [2]], [], false).map((row) => row.kind),
+      ['rows', 'rows'],
+    )
+    assert.deepEqual(
+      eachRows([{ a: 1 }, { a: 2 }], [], false).map((row) => row.kind),
+      ['rows', 'rows'],
+    )
+    assert.deepEqual(
+      eachRows([[1], { a: 2 }, 3], [], false).map((row) => [row.kind, row.row]),
+      [
+        ['mixed', [[1]]],
+        ['mixed', [{ a: 2 }]],
+        ['mixed', [3]],
+      ],
+    )
+    const template = Object.assign(['a | b\n'], {
+      raw: ['a | b\n'],
+    }) as unknown as TemplateStringsArray
+    assert.equal(eachRows(template, [1, 2], false)[0]?.kind, 'template')
   })
 
   test('in a table that mixes arrays and other rows, no row spreads', () => {
@@ -38,7 +61,7 @@ describe('eachRows with a list of rows', () => {
 
   test('a primitive row is one argument, titled as a one-item row', () => {
     const [row] = eachRows([7], [], false)
-    assert.deepEqual(row, { row: [7], args: [7], item: 7 })
+    assert.deepEqual(row, { row: [7], args: [7], item: 7, kind: 'mixed' })
   })
 
   test('null and undefined rows are primitives too', () => {

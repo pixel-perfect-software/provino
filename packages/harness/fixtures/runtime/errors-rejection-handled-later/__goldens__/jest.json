@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/errors-rejection-handled-later",
+  "files": [
+    {
+      "file": "handled.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "handled.test.ts",
+            "path": [
+              "handles its rejection after the first turn"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "handled.test.ts",
+            "path": [
+              "runs after it"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 12,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "test body",
+    "handler attached",
+    "test ends",
+    "second test"
+  ],
+  "observed": {
+    "exitCode": 0
+  }
+}

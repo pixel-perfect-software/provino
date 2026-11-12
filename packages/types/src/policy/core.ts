@@ -13,14 +13,32 @@ export type HookKind = 'beforeAll' | 'beforeEach' | 'afterEach' | 'afterAll'
 export type HookOrder = 'declaration' | 'reverse' | 'parallel'
 
 /**
- * Formats a `test.each`/`describe.each` title from its template and row.
+ * What kind of table a `.each` row came from, which both runners read the whole table to know:
+ * `rows` (every row an array, or every row an object), `template` (a tagged template, whose rows
+ * are objects keyed by its headings) or `mixed` (anything else: each row is then one value,
+ * handed over as `[item]`).
+ * @public
+ */
+export type EachTableKind = 'rows' | 'template' | 'mixed'
+
+/**
+ * Formats a `test.each`/`describe.each` title from its template and row. `kind` says what table
+ * the row came from; without it the row is read as one of an array table.
  * @public
  */
 export type FormatEachTitle = (
   template: string,
   row: readonly unknown[] | Readonly<Record<string, unknown>>,
   index: number,
+  kind?: EachTableKind,
 ) => string
+
+/**
+ * Prints a value inside a message the runtime builds: a `done(reason)` failure, a test function's
+ * non-promise return.
+ * @public
+ */
+export type FormatValue = (value: unknown) => string
 
 /**
  * The escape hatch for an ordering no `HookOrder` describes: returns the hooks of one kind in
@@ -105,6 +123,13 @@ export interface CorePolicy {
    * research: track-01 L190, track-05 L441
    */
   readonly formatEachTitle: Behaviour<FormatEachTitle>
+  /**
+   * Prints a value inside a message the runtime builds (`Failed: <reason>` from `done(reason)`,
+   * `Returned value: <value>` for a test that returns a non-promise). Jest: pretty-format with
+   * `maxDepth: 3`. Vitest: unread (it has no `done` and ignores a returned value), so the neutral
+   * printer. research: track-05 L92 (the words), jest-circus 30.5 `utils.ts` (the formatting)
+   */
+  readonly formatValue: Behaviour<FormatValue>
   /** Maximum length of an interpolated `.each` value, or `null` for none. Jest: `null`. Vitest: 40. research: track-01 L191 */
   readonly eachTitleTruncate: number | null
   /**
@@ -146,7 +171,12 @@ export interface CorePolicy {
    * setup file, run after its globals). Recorded: `fixtures/policy/core-globals-at-setup` (B14a).
    */
   readonly globalsBeforeSetupFiles: 'all' | readonly string[]
-  /** Warning printed when a test uses a `done` callback, or `null` for none. Values: not in the research; B14 records them. */
+  /**
+   * Under `firstArg: 'context'` the context is a function: calling it (a stray `done()`) throws an
+   * `Error` with this text. `null` makes the context a plain object, with nothing to call.
+   * Jest: `null` (it passes `done`, not a context). Vitest: `done() callback is deprecated, use
+   * promise instead`. Recorded: `runtime/done-callback`, `runtime/context-shape` (B17a).
+   */
   readonly doneDeprecatedMessage: string | null
   /** Collection (Track 5 `collect.*`). */
   readonly collect: {
@@ -208,7 +238,13 @@ export interface CorePolicy {
   readonly errors: {
     /** An error after its test ended. Jest: `fail-owner`. Vitest: `report-run`. research: track-05 L320 */
     readonly lateErrors: 'fail-owner' | 'report-run'
-    /** Whether `expect.hasAssertions` is checked on a test that already failed. Jest: `skip`. Vitest: `check`. research: track-05 L320 */
+    /**
+     * Whether `expect.hasAssertions` is checked on a test that already failed. Jest: `skip`. Vitest:
+     * `skip` too (B14a's `policy/core-outcomes` overruled the research's `check`). The two differ
+     * on `expect.assertions(n)`, which Jest checks on a failed test and Vitest doesn't (B17a's
+     * `expect/policies/assertions-count`): one key can't say so, and Vitest's policy adds the
+     * count error Vitest wouldn't (a divergence draft). research: track-05 L320
+     */
     readonly hasAssertionsWhenFailed: 'skip' | 'check'
   }
   /** `.only` scoping (Track 12 `focus.*`). */

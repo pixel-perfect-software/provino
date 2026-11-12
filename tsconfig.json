@@ -41,10 +41,16 @@
       "path": "packages/loader"
     },
     {
+      "path": "packages/snapshot"
+    },
+    {
       "path": "packages/expect"
     },
     {
       "path": "packages/mock"
+    },
+    {
+      "path": "packages/timers"
     },
     {
       "path": "packages/dialect-jest"

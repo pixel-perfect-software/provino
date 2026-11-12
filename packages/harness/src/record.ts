@@ -375,7 +375,7 @@ async function runUnderRunner(
 
   let result: Awaited<ReturnType<typeof runProcess>>
   try {
-    result = await runProcess(process.execPath, args, {
+    result = await runProcess(process.execPath, [...(fixture.manifest.nodeFlags ?? []), ...args], {
       cwd: workDir,
       env: runnerEnv(process.env, { ...fixture.manifest.env, [TRACE_ENV]: traceFile }),
       timeoutMs: TIMEOUT_MS,

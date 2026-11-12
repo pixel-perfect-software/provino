@@ -12,6 +12,7 @@ import { after, before, describe, test } from 'node:test'
 import { isDeepStrictEqual } from 'node:util'
 import type { HoistPolicy } from '@provino/types'
 import {
+  checkedOnNode,
   defaultFixturesRoot,
   FIXTURE_RUNNERS,
   type FixtureRunner,
@@ -44,11 +45,7 @@ const CLAIM_KEYS: ReadonlySet<string> = new Set(Object.keys(CLAIMS))
  */
 const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   // Behaviour another bundle builds; its first fixture records the value.
-  'jest core.doneDeprecatedMessage': 'B17a',
-  'jest core.formatEachTitle': 'B17a',
-  'jest timers.fakeTemporal': 'B17a',
-  'jest snapshot.inline.formatter': 'B17b',
-  'jest snapshot.inline.indent': 'B17b',
+  'jest snapshot.inline.formatter': 'T7.11',
   'jest orchestrator.environmentConditions': 'B17c',
   'jest hoist.messages.HOIST_FACTORY_NOT_FUNCTION': 'B17c',
   'jest module.messages.automock-no-metadata': 'B17c',
@@ -60,12 +57,7 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'jest coverage.includeUntestedByDefault': 'T8.9',
   'jest coverage.thresholdGrouping': 'T8.9',
   'jest lazy.readInBeforeAll': 'T6.5',
-  'vitest core.doneDeprecatedMessage': 'B17a',
-  'vitest core.formatEachTitle': 'B17a',
-  'vitest timers.fakeTemporal': 'B17a',
-  'vitest snapshot.format.maxOutputLength': 'B17b',
-  'vitest snapshot.inline.formatter': 'B17b',
-  'vitest snapshot.inline.indent': 'B17b',
+  'vitest snapshot.inline.formatter': 'T7.11',
   'vitest orchestrator.environmentConditions': 'B17c',
   'vitest hoist.messages.HOIST_EXPORTED': 'T11.16',
   'vitest hoist.messages.HOIST_EXPORTED_VALUE': 'T11.16',
@@ -169,7 +161,7 @@ let strayDuringBaselines: readonly string[] = []
 before(async () => {
   stray = captureStrayErrors()
   for (const run of corpusRuns()) {
-    if (!(await fixtureById(run.fixture)).manifest.runners.includes(run.runner)) continue
+    if (!checkedOnNode((await fixtureById(run.fixture)).manifest, run.runner)) continue
     const subject = SUBJECTS[run.runner]
     baselines.set(
       runKey(run),
@@ -205,7 +197,7 @@ async function recordedFixtures(
   const out: string[] = []
   for (const fixture of evidence.fixtures) {
     // A fixture recorded for the other runner only says nothing about this one.
-    if (!(await fixtureById(fixture)).manifest.runners.includes(subject.runner)) continue
+    if (!checkedOnNode((await fixtureById(fixture)).manifest, subject.runner)) continue
     // The dialect's own subject has its baselines from `before`; another (the checks that prove
     // the checks, below) runs its own.
     const baseline: readonly string[] | undefined =
@@ -461,6 +453,19 @@ describe('the checks catch a wrong value', () => {
     const leaf = 'hoist.factoryReferences.allowGlobals'
     assert.equal(backedWithoutFlips(leaf, [corpus('mod', 'mocking/mod-hoist-order')]), false)
     assert.equal(backedWithoutFlips(leaf, [corpus('hoist')]), true)
+  })
+
+  test('a formatter claim needs a fixture that titles tests, or the neutral formatter passes', async () => {
+    // `.each` titles: the neutral formatter is the only flip, and only a corpus that titles `.each`
+    // tests tells it from the runner's (hook order never reaches the formatter).
+    const leaf = 'core.formatEachTitle'
+    const value = jestLeaves.get(leaf)
+    const flips = flipsOf(leaf, value)
+    assert.equal(flips.length, 1)
+    const rejects = async (fixture: string): Promise<number> =>
+      (await check(corpus('runtime', fixture), leaf, leaf, value, flips, jest, jestLeaves)).size
+    assert.equal(await rejects('runtime/hook-order'), 0)
+    assert.equal(await rejects('runtime/each-tokens'), 1)
   })
 
   test('an own claim fails when it names another value than the dialect`s', async () => {

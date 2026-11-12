@@ -177,7 +177,10 @@ describe('firstArg: done-if-arity', () => {
     assert.deepEqual(run.errors.t, ['threw first'])
   })
 
-  test('a function that takes done and returns a promise fails with CORE_INVALID_ARGUMENT', async () => {
+  const BOTH =
+    "Test functions cannot both take a 'done' callback and return something. Either use a 'done' callback, or return a promise."
+
+  test('a function that takes done and returns a promise fails, naming the returned value', async () => {
     const run = await runScript(({ test }) => {
       test(
         't',
@@ -188,23 +191,23 @@ describe('firstArg: done-if-arity', () => {
       )
     }, policy)
     assert.equal(run.states.t, 'fail')
-    assert.equal(run.results.t?.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
+    assert.match(firstError(run, 't') ?? '', new RegExp(`^${BOTH}\\nReturned value: Promise`))
   })
 
-  test('an async function that takes done and throws fails with CORE_INVALID_ARGUMENT, its error the cause', async () => {
+  test('a function that calls done and also returns a value fails the same way', async () => {
     const run = await runScript(({ test }) => {
       test(
         't',
-        withDone(async (_done) => {
-          throw new Error('async boom')
+        withDone((done) => {
+          done()
+          return 1
         }),
       )
     }, policy)
-    assert.equal(run.results.t?.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
-    assert.equal(run.results.t?.errors[0]?.cause?.message, 'async boom')
+    assert.equal(firstError(run, 't'), `${BOTH}\nReturned value: 1`)
   })
 
-  test('a function that calls done and also returns a promise fails with CORE_INVALID_ARGUMENT', async () => {
+  test('a function that calls done and also returns a promise fails', async () => {
     const run = await runScript(({ test }) => {
       test(
         't',
@@ -213,7 +216,7 @@ describe('firstArg: done-if-arity', () => {
         }),
       )
     }, policy)
-    assert.equal(run.results.t?.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
+    assert.match(firstError(run, 't') ?? '', new RegExp(`^${BOTH}`))
   })
 
   test('beforeEach, the body and afterEach share one `this` per attempt, with no prototype', async () => {

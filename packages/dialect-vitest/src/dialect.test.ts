@@ -40,6 +40,19 @@ test('the values that are Provino`s own: the isolation tier, the hoisting id, th
   assert.equal(resolved.expect.valueFormatter, 'pretty-format')
 })
 
+test('core.formatValue is the neutral printer: Vitest has no done and ignores a returned value', () => {
+  assert.deepEqual(resolved.core.formatValue, neutralPolicy.core.formatValue)
+  assert.equal(resolved.core.firstArg, 'context')
+  assert.equal(resolved.core.nonPromiseReturn, 'ignore')
+})
+
+test('the context a test receives is a function that throws done`s deprecation', () => {
+  assert.equal(
+    resolved.core.doneDeprecatedMessage,
+    'done() callback is deprecated, use promise instead',
+  )
+})
+
 test('the mock and module slices are whole, so none of their keys is left at the neutral value', () => {
   assert.deepEqual(Object.keys(vitestMockPolicy).sort(), Object.keys(neutralPolicy.mock).sort())
   assert.deepEqual(Object.keys(vitestModulePolicy).sort(), Object.keys(neutralPolicy.module).sort())

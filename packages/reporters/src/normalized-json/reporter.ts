@@ -12,6 +12,7 @@ import {
   type UnhandledErrors,
 } from './build.ts'
 import { readRunEnvironment } from './environment.ts'
+import { normalizeSnapshots } from './snapshots.ts'
 
 /**
  * Options for `normalizedJsonReporter`.
@@ -87,6 +88,7 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
   let files = new Map<TaskId, FileRecord>()
   let runErrors: RunError[] = []
   let startedAt: string | undefined
+  let root = process.cwd()
 
   function record(fileId: TaskId): FileRecord {
     let existing = files.get(fileId)
@@ -100,7 +102,8 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
   return {
     name: 'normalized-json',
 
-    'run:start'() {
+    'run:start'(info) {
+      root = info.root
       files = new Map()
       runErrors = []
       startedAt = new Date(now()).toISOString()
@@ -135,8 +138,17 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
     },
 
     unhandled(file, event) {
-      if (file === null) runErrors.push({ error: event.error, unhandled: true })
-      else record(file.fileId).unhandled.push(event.error)
+      if (file === null) {
+        runErrors.push({ error: event.error, unhandled: true })
+        return
+      }
+      const entry = record(file.fileId)
+      // An error charged to one of the file's tests is that test's failure.
+      if (event.ownerId !== null && entry.tests.has(event.ownerId)) {
+        entry.late.set(event.ownerId, [...(entry.late.get(event.ownerId) ?? []), event.error])
+      } else {
+        entry.unhandled.push(event.error)
+      }
     },
 
     'file:end'(result) {
@@ -158,6 +170,9 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
         runErrors,
         reason: summary.reason,
         unhandledErrors: options.unhandledErrors ?? 'fail-run',
+        ...(summary.snapshots === undefined
+          ? {}
+          : { snapshots: await normalizeSnapshots(summary.snapshots, root) }),
       })
       const text = `${JSON.stringify(run, null, 2)}\n`
       if (options.outputFile !== undefined) {

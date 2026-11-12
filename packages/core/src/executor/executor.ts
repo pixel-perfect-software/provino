@@ -12,6 +12,7 @@ import type {
   CorePolicy,
   EventSink,
   FileTask,
+  FormatValue,
   Frame,
   HookKind,
   OrderHooks,
@@ -23,10 +24,13 @@ import type {
   TaskId,
   TaskResult,
   TaskState,
+  TestContext,
   TestRunHandle,
   TestTask,
 } from '@provino/types'
+import { CALLER_FRAMES, captureSite, parseSite, TEST_FILE_FRAMES } from '../collector/location.ts'
 import { newStore, runInStore, setRunningFrame } from '../current/current-test.ts'
+import type { ProcessErrors } from '../errors/process-errors.ts'
 import { CoreError, serializeError } from '../errors.ts'
 import type {
   AttemptState,
@@ -39,9 +43,9 @@ import type {
   UserFn,
 } from '../internal/model.ts'
 import { type AroundCall, runAround } from './around.ts'
-import { createTestContext } from './context.ts'
+import { type ContextEnv, createTestContext, SkipSignal } from './context.ts'
 import { type Deadlines, isBounded, type RealTimers, resolveTimeout } from './deadline.ts'
-import { invoke } from './invoke.ts'
+import { type InvokeEnv, invoke } from './invoke.ts'
 import { createLimiter, type Limiter, unlimited } from './limiter.ts'
 
 /** What the executor needs from the runtime. */
@@ -56,6 +60,38 @@ export interface ExecutorConfig {
   readonly now: () => number
   /** Each test context's run, for `LazyHost.runOf`. */
   readonly runs: WeakMap<object, TestRunHandle>
+  /** `CorePolicy.formatValue`, loaded: prints a value inside a message the runtime builds. */
+  readonly formatValue: FormatValue
+  /** Who an error the code did not handle is charged to (T5.11). */
+  readonly processErrors: ProcessErrors
+  /** The listeners `onBeforeTryTask`/`onAfterTryTask` registered: the runtime's own arrays. */
+  readonly tryTask: TryTaskListeners
+  /** Whether to capture locations (`ctx.annotate` records where it was called). */
+  readonly locations: boolean
+}
+
+/** What a try-task listener is told about the attempt it brackets. */
+export interface TryTaskInfo {
+  readonly test: TestTask
+  readonly ctx: TestContext
+  readonly attempt: number
+  readonly repeat: number
+  /** `false` in `onBeforeTryTask`; in `onAfterTryTask`, whether the attempt has failed so far. */
+  readonly failed: boolean
+  /**
+   * Adds an error to the attempt, as one of its own: a listener with several (two soft failures)
+   * reports each, where a thrown value is one error.
+   */
+  fail(error: unknown): void
+}
+
+/** Called around an attempt's hooks and body, in the attempt's own async context. */
+export type TryTaskListener = (info: TryTaskInfo) => void | Promise<void>
+
+/** The two lists of listeners. */
+export interface TryTaskListeners {
+  readonly before: TryTaskListener[]
+  readonly after: TryTaskListener[]
 }
 
 /** The outcome of one task. */
@@ -126,10 +162,24 @@ export class Executor {
   readonly #tests: Limiter
   /** Each suite's `EachHooks`, built for its first test. */
   readonly #eachHooks: WeakMap<SuiteNode, EachHooks> = new WeakMap()
+  /** The attempt each test is running now (T5.11 charges an error to it). */
+  readonly #running = new Map<TaskId, AttemptState>()
+  /** What every test context is built from. */
+  readonly #contextEnv: ContextEnv
+  /** The test that started last. */
+  #lastTestId: TaskId | null = null
+  /** The path of the file running now, for the location of a `ctx.annotate` call. */
+  #filePath: string | undefined
 
   constructor(config: ExecutorConfig) {
     this.#config = config
     this.#policy = config.policy
+    this.#contextEnv = {
+      doneDeprecatedMessage: config.policy.doneDeprecatedMessage,
+      emit: (event) => config.sink.emit(event),
+      now: config.now,
+      callerLocation: (entry) => this.#callerLocation(entry),
+    }
     this.#deadlines = config.deadlines
     const shared = config.policy.concurrency.limitHooks
     this.#calls = shared ? createLimiter(config.policy.maxConcurrency) : unlimited
@@ -142,7 +192,36 @@ export class Executor {
    */
   async runFile(file: FileState): Promise<Outcome> {
     const run: FileRun = { file, fileId: file.root.id }
+    this.#filePath = file.path
     return this.#runSuite(run, file.root, { attached: [], skipHooks: false, concurrent: false })
+  }
+
+  /** The attempt a frame belongs to while it runs, or `undefined` once it is over. */
+  attemptFor(frame: Frame): AttemptState | undefined {
+    if (frame.test === null) return undefined
+    const attempt = this.#running.get(frame.test.id)
+    return attempt !== undefined &&
+      attempt.state !== 'done' &&
+      attempt.frame.attempt === frame.attempt &&
+      attempt.frame.repeat === frame.repeat
+      ? attempt
+      : undefined
+  }
+
+  /** The test that started last. */
+  get lastTestId(): TaskId | null {
+    return this.#lastTestId
+  }
+
+  /** Where `entry` was called from, as a task's location is captured. */
+  #callerLocation(entry: (...args: never[]) => unknown): SourceLocation | null {
+    const inFile = this.#policy.locationFrame === 'test-file'
+    const site = captureSite(
+      entry,
+      this.#config.locations,
+      inFile ? TEST_FILE_FRAMES : CALLER_FRAMES,
+    )
+    return parseSite(site, inFile ? this.#filePath : undefined)
   }
 
   // ---- suites -------------------------------------------------------------------------------
@@ -338,6 +417,7 @@ export class Executor {
 
   async #runTest(run: FileRun, test: TestNode, scope: Scope): Promise<Outcome> {
     const start = this.#now()
+    this.#lastTestId = test.id
     this.#emit({ type: 'test-start', id: test.id, t: start })
     if (test.mode === 'skip' || test.mode === 'todo') {
       const extra: ResultExtra | undefined =
@@ -359,18 +439,22 @@ export class Executor {
     const failures: unknown[] = []
     let attempts = 0
     let repeatIndex = 0
-    for (let repeat = 0; repeat <= test.repeats; repeat++) {
+    let skipped: AttemptState['skipped']
+    for (let repeat = 0; repeat <= test.repeats && skipped === undefined; repeat++) {
       repeatIndex = repeat
       for (let attempt = 0; attempt <= test.retry; attempt++) {
         attempts++
-        const errors = await this.#runAttempt(run, test, attempt, repeat, scope)
+        const result = await this.#runAttempt(run, test, attempt, repeat, scope)
+        const errors = result.errors
+        // A skip that nothing failed after ends the test; a failure outranks it.
+        skipped = errors.length === 0 ? result.skipped : undefined
         const willRetry = errors.length > 0 && attempt < test.retry
         this.#emit({
           type: 'test-attempt-end',
           id: test.id,
           attempt,
           repeat,
-          state: errors.length > 0 ? 'fail' : 'pass',
+          state: errors.length > 0 ? 'fail' : skipped === undefined ? 'pass' : 'skip',
           errors: errors.map(serializeError),
           willRetry,
           t: this.#now(),
@@ -382,6 +466,15 @@ export class Executor {
           failures.push(...errors)
         }
       }
+    }
+    if (skipped !== undefined && failures.length === 0) {
+      this.#endTask('test-end', test.id, 'skip', start, [], {
+        skipReason: 'dynamic',
+        ...(skipped.note === undefined ? {} : { note: skipped.note }),
+        attempts,
+        repeatIndex,
+      })
+      return 'skip'
     }
     const outcome: Outcome = failures.length > 0 ? 'fail' : 'pass'
     this.#endTask('test-end', test.id, outcome, start, failures, {
@@ -398,7 +491,7 @@ export class Executor {
     attempt: number,
     repeat: number,
     scope: Scope,
-  ): Promise<unknown[]> {
+  ): Promise<{ readonly errors: unknown[]; readonly skipped: AttemptState['skipped'] }> {
     // Set by `finalize` for every node of a collected file.
     const task = test.task as TestTask
     const controller = new AbortController()
@@ -427,7 +520,7 @@ export class Executor {
     const frame: Frame = { test: task, hook: null, fileId: run.fileId, attempt, repeat }
     const state: AttemptState = {
       test,
-      ctx: createTestContext(task, () => state),
+      ctx: createTestContext(task, () => state, this.#contextEnv),
       thisArg: this.#policy.firstArg === 'context' ? undefined : Object.create(null),
       run: handle,
       lazy: { kind: 'test', run: handle, suite: test.parent.handle, file: run.file.handle },
@@ -439,9 +532,11 @@ export class Executor {
       onFailed: [],
       teardowns,
       inCallbacks: false,
+      skipped: undefined,
       deadline: undefined,
     }
     this.#config.runs.set(state.ctx, handle)
+    this.#running.set(test.id, state)
     const store = newStore({ frame, lazy: state.lazy, attempt: state })
     this.#emit({ type: 'test-attempt-start', id: test.id, attempt, repeat, t: this.#now() })
     setRunningFrame(scope.concurrent ? undefined : frame)
@@ -449,9 +544,10 @@ export class Executor {
       await runInStore(store, () => this.#attemptBody(run, test, state, store, scope))
     } finally {
       state.state = 'done'
+      this.#running.delete(test.id)
       setRunningFrame(undefined)
     }
-    return state.errors
+    return { errors: state.errors, skipped: state.skipped }
   }
 
   /** The attempt, in its store: the around chain, or the attempt's steps on their own. */
@@ -504,11 +600,12 @@ export class Executor {
     // them (Vitest's fixture checkpoint).
     const checkpoint = attempt.teardowns.length
     errors.push(...scope.attached)
+    await this.#tryTask('before', test, attempt)
     const teardowns: Teardown[] = []
     if (errors.length === 0 && eachHooks.beforeEach.length > 0) {
       await this.#runBeforeEach(run, eachHooks.beforeEach, attempt, teardowns)
     }
-    if (errors.length === 0) await this.#runBody(test, attempt)
+    if (errors.length === 0 && attempt.skipped === undefined) await this.#runBody(test, attempt)
     if (eachHooks.afterEach.length > 0 || teardowns.length > 0) {
       await this.#runAfterEach(run, eachHooks.afterEach, attempt, teardowns)
     }
@@ -516,6 +613,8 @@ export class Executor {
     if (attempt.teardowns.length > checkpoint) {
       errors.push(...(await this.#runLazyTeardowns(attempt, checkpoint)))
     }
+    errors.push(...this.#config.processErrors.take(attempt.frame))
+    await this.#tryTask('after', test, attempt)
     attempt.inCallbacks = true
     if (attempt.onFinished.length > 0) {
       await this.#runCallbacks(run, attempt, attempt.onFinished.toReversed(), 'onTestFinished')
@@ -523,6 +622,31 @@ export class Executor {
     if (errors.length > 0) {
       const failed = this.#order(attempt.onFailed, 'afterEach')
       if (failed.length > 0) await this.#runCallbacks(run, attempt, failed, 'onTestFailed')
+    }
+  }
+
+  /**
+   * Calls the listeners registered for the start (`before`, ahead of the first `beforeEach`) or the
+   * end (`after`, behind the last `afterEach` and the teardowns, ahead of `onTestFinished`) of an
+   * attempt, in the attempt's store. A listener that throws fails the attempt.
+   */
+  async #tryTask(kind: 'before' | 'after', test: TestNode, attempt: AttemptState): Promise<void> {
+    const listeners = this.#config.tryTask[kind]
+    if (listeners.length === 0) return
+    const info: TryTaskInfo = {
+      test: test.task as TestTask,
+      ctx: attempt.ctx,
+      attempt: attempt.frame.attempt,
+      repeat: attempt.frame.repeat,
+      failed: kind === 'after' && attempt.errors.length > 0,
+      fail: (error) => void attempt.errors.push(error),
+    }
+    for (const listener of [...listeners]) {
+      try {
+        await listener(info)
+      } catch (error) {
+        attempt.errors.push(error)
+      }
     }
   }
 
@@ -572,6 +696,7 @@ export class Executor {
         attempt.errors.push(...failures)
         return
       }
+      if (attempt.skipped !== undefined) return
     }
   }
 
@@ -607,8 +732,9 @@ export class Executor {
       await this.#calls.run(() =>
         this.#deadlines.call(
           () =>
-            invoke(policy, {
+            invoke(this.#invokeEnv(attempt), {
               fn,
+              arity: test.arity,
               thisArg: attempt.thisArg,
               args: test.rowArgs ?? [],
               contextArgs,
@@ -618,10 +744,24 @@ export class Executor {
         ),
       )
     } catch (error) {
-      failures.push(error)
+      // `ctx.skip()` ends the test as skipped, not failed.
+      if (error instanceof SkipSignal) attempt.skipped = { note: error.note }
+      else failures.push(error)
     }
     if (test.expectFail && policy.status.expectFail === 'body') reverseExpectFail(failures)
     attempt.errors.push(...failures)
+    // A rejection nobody handled by now is the test's own (jest-circus `test_fn_success`).
+    attempt.errors.push(...this.#config.processErrors.take(attempt.frame))
+  }
+
+  /** What a user call needs besides the policy: the printer, and what a late `done` does. */
+  #invokeEnv(attempt: AttemptState | undefined): InvokeEnv {
+    return {
+      policy: this.#policy,
+      format: this.#config.formatValue,
+      over: () => attempt !== undefined && attempt.state !== 'running',
+      late: (error) => this.#config.processErrors.report('late-done', error),
+    }
   }
 
   /** Runs the attempt's `LazyHost` teardowns down to `keep`, last added first. */
@@ -656,6 +796,10 @@ export class Executor {
               keep.push({ fn: value as UserFn, owner: suite, ordinal: hook.ordinal })
             }
           },
+      // A skip in a `beforeEach` ends the chain, as a failure does.
+      kind === 'beforeEach' && attempt !== undefined
+        ? () => attempt.skipped !== undefined
+        : undefined,
     )
   }
 
@@ -694,6 +838,7 @@ export class Executor {
     stop: boolean,
     call: (item: T) => Promise<CallResult>,
     onValue?: (item: T, value: unknown) => void,
+    halted?: () => boolean,
   ): Promise<unknown[]> {
     const failures: unknown[] = []
     if (items.length === 0) return failures
@@ -708,7 +853,7 @@ export class Executor {
     }
     for (const item of this.#order(items, kind)) {
       await one(item)
-      if (stop && failures.length > 0) break
+      if ((stop && failures.length > 0) || halted?.() === true) break
     }
     return failures
   }
@@ -738,7 +883,15 @@ export class Executor {
         attempt,
       },
       this.#timeoutFor(attempt, hook.timeoutMs ?? policy.timeouts.hook),
-      () => invoke(policy, { fn: hook.fn, thisArg, args: [], contextArgs, isTest: false }),
+      () =>
+        invoke(this.#invokeEnv(attempt), {
+          fn: hook.fn,
+          arity: hook.arity,
+          thisArg,
+          args: [],
+          contextArgs,
+          isTest: false,
+        }),
     )
   }
 
@@ -759,7 +912,13 @@ export class Executor {
       )
       result = { ok: true, value }
     } catch (error) {
-      result = { ok: false, error }
+      // `ctx.skip()` in an each-hook ends the test as skipped.
+      if (error instanceof SkipSignal && attempt !== undefined) {
+        attempt.skipped = { note: error.note }
+        result = PASSED
+      } else {
+        result = { ok: false, error }
+      }
     }
     this.#emitHook(spec, result)
     return result
@@ -923,6 +1082,7 @@ export class Executor {
 /** A result's optional parts; each defaults to none. */
 export interface ResultExtra {
   readonly skipReason?: SkipReason
+  readonly note?: string
   readonly retryErrors?: readonly unknown[]
   readonly attempts?: number
   readonly repeatIndex?: number
@@ -947,6 +1107,7 @@ export function taskResult(
     assertions: 0,
     passingAssertions: 0,
     ...(extra.skipReason === undefined ? {} : { skipReason: extra.skipReason }),
+    ...(extra.note === undefined ? {} : { note: extra.note }),
   }
 }
 

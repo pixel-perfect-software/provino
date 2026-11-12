@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "snapshot/inline-missing-ci",
+  "files": [
+    {
+      "file": "inline-missing.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "inline-missing.test.ts",
+            "path": [
+              "inline missing"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Snapshot `inline missing 1` mismatched",
+              "userFrame": "<root>/inline-missing.test.ts:2:13"
+            }
+          ],
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 1,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 1,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 1,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "files": {
+      "inline-missing.test.ts": "test('inline missing', () => {\n  expect(1).toMatchInlineSnapshot()\n})\n"
+    }
+  }
+}

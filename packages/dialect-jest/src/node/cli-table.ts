@@ -690,8 +690,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     alias: 'u',
     description:
       'Use this flag to re-record snapshots. Can be used together with a test suite pattern or with `--testNamePattern` to re-record snapshot for test matching the pattern',
-    support: 'refuse',
-    owner: 'T7.9',
+    support: 'request',
   },
   useStderr: { type: 'boolean', description: 'Divert all output to stderr.', support: 'accepted' },
   verbose: {

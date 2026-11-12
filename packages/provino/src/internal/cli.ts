@@ -37,6 +37,7 @@ Options of provino run:
       --reporter <name>             default or normalized-json; repeat for several
       --outputFile <path>           Write the normalized-json reporter's JSON here
   -t, --testNamePattern <pattern>   Run only the tests whose full name matches
+  -u, --updateSnapshot              Rewrite the snapshots that differ (default: write new ones)
       --ci                          Treat this as a CI run (default: from the CI variable)
       --passWithNoTests             Pass when no test files are found
       --no-cache                    Neither read nor write the results cache
@@ -118,6 +119,7 @@ export function parseRunArgs(
     ...(values.pool === undefined ? {} : { pool: values.pool }),
     ...(names.length === 0 ? {} : { reporters }),
     ...(values.ci === true ? { ci: true } : {}),
+    ...(values.updateSnapshot === true ? { updateSnapshot: true } : {}),
     ...(values.passWithNoTests === true ? { passWithNoTests: true } : {}),
     ...(values.testNamePattern === undefined ? {} : { testNamePattern: values.testNamePattern }),
     ...(values['no-cache'] === true ? { cache: false } : {}),
@@ -133,6 +135,7 @@ const OPTIONS = {
   outputFile: { type: 'string' },
   testNamePattern: { type: 'string', short: 't' },
   ci: { type: 'boolean' },
+  updateSnapshot: { type: 'boolean', short: 'u' },
   passWithNoTests: { type: 'boolean' },
   'no-cache': { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },

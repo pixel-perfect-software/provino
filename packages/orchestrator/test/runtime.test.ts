@@ -10,6 +10,7 @@ import type {
   FileJob,
   GlobalsFactory,
   ModuleMapperFactory,
+  PolicyOverrides,
   RuntimeEventOf,
   TaskId,
   WorkerEvent,
@@ -20,6 +21,7 @@ import {
   runJobs,
   runtimeConfig,
   runtimeJob,
+  runtimePolicy,
   trackedProjects,
 } from './support.ts'
 
@@ -118,6 +120,42 @@ describe('setup order', () => {
         'setupFiles: test is undefined, expect is function',
         'setupFilesAfterEnv: test is function',
         'file: test is function',
+      ],
+    )
+    assert.deepEqual(states(run.events), { one: 'pass' })
+  })
+
+  // Jest adds the config's `snapshotSerializers` when the test framework starts (jestAdapterInit):
+  // after `setupFiles` and the globals the framework installs, before `setupFilesAfterEnv`.
+  it('imports the project`s snapshot serializers after setupFiles and the late globals, before setupFilesAfterEnv', async () => {
+    const p = await project({
+      'setup.js': "__trace.push('setupFiles: test is ' + typeof test)",
+      'serializer.js': [
+        "__trace.push('snapshotSerializers: test is ' + typeof test)",
+        'module.exports = { test: () => false, serialize: () => "" }',
+      ].join('\n'),
+      'after-env.js': "__trace.push('setupFilesAfterEnv: test is ' + typeof test)",
+      'a.test.js': "test('one', () => {})",
+    })
+    const base = runtimeConfig(p.dir)
+    const config = runtimeConfig(p.dir, {
+      setupFiles: [p.path('setup.js')],
+      setupFilesAfterEnv: [p.path('after-env.js')],
+      policy: {
+        ...base.policy,
+        core: { ...base.policy.core, globalsBeforeSetupFiles: ['expect'] },
+        snapshot: { ...base.policy.snapshot, serializers: [p.path('serializer.js')] },
+      },
+    })
+    const trace: string[] = []
+    const run = await runJobs({ config, trace, jobs: [runtimeJob(config, p.path('a.test.js'))] })
+    assert.deepEqual(run.exit, { type: 'exit', code: 0 })
+    assert.deepEqual(
+      trace.filter((line) => line.includes(' is ')),
+      [
+        'setupFiles: test is undefined',
+        'snapshotSerializers: test is function',
+        'setupFilesAfterEnv: test is function',
       ],
     )
     assert.deepEqual(states(run.events), { one: 'pass' })
@@ -440,6 +478,63 @@ describe('assertion counts', () => {
       'one fails': ['fail', 2, 1],
       none: ['pass', 0, 0],
       skipped: ['skip', 0, 0],
+    })
+  })
+})
+
+describe('the end of a test (T7.8)', () => {
+  const file = [
+    "test('assertions(2) missed', () => { expect.assertions(2); expect(1).toBe(1) })",
+    "test('assertions(1) met', () => { expect.assertions(1); expect(1).toBe(1) })",
+    "test('hasAssertions none', () => { expect.hasAssertions() })",
+    "test('soft failure', () => { if (expect.soft) expect.soft(1).toBe(2); expect(1).toBe(1) })",
+    "test('unawaited', () => { expect(Promise.resolve(1)).resolves.toBe(1) })",
+    "test('awaited', async () => { await expect(Promise.resolve(1)).resolves.toBe(1) })",
+    "test('no assertion', () => {})",
+  ].join('\n')
+
+  /** Each test's state and error messages. */
+  async function outcomes(policy: PolicyOverrides): Promise<Record<string, unknown>> {
+    const p = await project({ 'a.test.js': file })
+    const config = runtimeConfig(p.dir, { policy: runtimePolicy(policy) })
+    const run = await runJobs({ config, jobs: [runtimeJob(config, p.path('a.test.js'))] })
+    return Object.fromEntries(
+      [...resultsByName(run.events)].map(([name, event]) => [
+        name,
+        [event.result.state, ...event.result.errors.map((error) => error.message)],
+      ]),
+    )
+  }
+
+  it('fails a test on a missed count, a soft failure, an unawaited assertion and a missing one', async () => {
+    const results = await outcomes({
+      core: { unawaitedAsyncAssertion: 'fail' },
+      expect: { soft: true, requireAssertions: true },
+    })
+    assert.deepEqual(results, {
+      'assertions(2) missed': ['fail', 'expected 2 assertions, made 1'],
+      'assertions(1) met': ['pass'],
+      'hasAssertions none': ['fail', 'expected an assertion, made none'],
+      'soft failure': ['fail', 'expected 1 to be 2'],
+      unawaited: ['fail', 'toBe was not awaited'],
+      awaited: ['pass'],
+      'no assertion': ['fail', 'every test must make an assertion'],
+    })
+  })
+
+  it('with the policies off, only the counts apply: no soft, and an unawaited assertion passes', async () => {
+    const results = await outcomes({
+      core: { unawaitedAsyncAssertion: 'ignore' },
+      expect: { soft: false, requireAssertions: false },
+    })
+    assert.deepEqual(results, {
+      'assertions(2) missed': ['fail', 'expected 2 assertions, made 1'],
+      'assertions(1) met': ['pass'],
+      'hasAssertions none': ['fail', 'expected an assertion, made none'],
+      'soft failure': ['pass'],
+      unawaited: ['pass'],
+      awaited: ['pass'],
+      'no assertion': ['pass'],
     })
   })
 })

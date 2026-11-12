@@ -1,0 +1,4 @@
+{
+  "description": "What a test function receives and what `this` is. Vitest passes a context: a function (calling it throws the done-deprecated error) with task, signal, skip, annotate, onTestFinished and onTestFailed, the same object to beforeEach, the test and afterEach. Jest passes no context and `this` is one empty object shared by beforeEach, the test and afterEach of a test, and a new one for the next test.",
+  "runners": ["jest", "vitest"]
+}

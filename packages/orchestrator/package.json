@@ -49,6 +49,8 @@
     "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/rpc": "workspace:*",
+    "@provino/snapshot": "workspace:*",
+    "@provino/timers": "workspace:*",
     "@provino/types": "workspace:*",
     "picomatch": "catalog:",
     "tinyglobby": "catalog:"

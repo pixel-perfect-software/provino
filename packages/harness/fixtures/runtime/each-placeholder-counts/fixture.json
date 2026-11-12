@@ -1,0 +1,4 @@
+{
+  "description": "How a .each title fills its placeholders when the counts or the text don't line up: fewer values than placeholders (an empty row too), more values than placeholders, a repeated %# or %$ (Jest replaces the first only, Vitest all), the %% escape beside other tokens, a literal % that is no token, a value that holds a % token itself, %c eating a value, placeholders of different kinds in one title, and tables of bare primitives.",
+  "runners": ["jest", "vitest"]
+}

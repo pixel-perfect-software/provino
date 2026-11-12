@@ -44,6 +44,8 @@ export interface RunOptions {
   readonly passWithNoTests?: boolean
   /** Run only the tests whose full name matches this regular expression (`-t`). */
   readonly testNamePattern?: string
+  /** Rewrite the snapshots that differ (`-u`). Default: write new ones, and none in a CI run. */
+  readonly updateSnapshot?: boolean
   /** Order the run by, and record it in, the results cache. Default `true`. */
   readonly cache?: boolean
   /** Where the `normalized-json` reporter writes without an `outputFile`. Default: `process.stdout`. */

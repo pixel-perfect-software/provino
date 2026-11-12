@@ -5,6 +5,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { HarnessError, type HarnessErrorCode } from './errors.ts'
 import {
+  checkedOnNode,
   FIXTURE_PROFILES,
   findFixtures,
   parseFixtureManifest,
@@ -210,6 +211,61 @@ test('env must be an object of strings', () => {
     assert.throws(
       () => parseFixtureManifest(JSON.stringify({ ...VALID, env })),
       rejects('HARNESS_FIXTURE_BAD_ENV'),
+    )
+  }
+})
+
+test('nodeMajors names runners of the fixture and positive integer majors, and limits where a golden is checked', () => {
+  const manifest = parseFixtureManifest(
+    JSON.stringify({ ...VALID, runners: ['jest', 'vitest'], nodeMajors: { jest: [24] } }),
+  )
+  assert.deepEqual(manifest.nodeMajors, { jest: [24] })
+  assert.equal(checkedOnNode(manifest, 'jest', 24), true)
+  assert.equal(checkedOnNode(manifest, 'jest', 22), false)
+  assert.equal(checkedOnNode(manifest, 'jest', 26), false)
+  // A profile with no entry is checked on every major, and a profile the fixture lacks on none.
+  assert.equal(checkedOnNode(manifest, 'vitest', 22), true)
+  assert.equal(checkedOnNode({ ...manifest, runners: ['vitest'] }, 'jest', 24), false)
+  assert.equal(parseFixtureManifest(JSON.stringify(VALID)).nodeMajors, undefined)
+  for (const nodeMajors of [
+    [],
+    {},
+    { jest: [] },
+    { jest: ['24'] },
+    { jest: [24.5] },
+    { jest: [0] },
+    { vitest: [24] },
+    { 'vitest-list': [24] },
+    { bun: [24] },
+  ]) {
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, runners: ['jest'], nodeMajors })),
+      rejects('HARNESS_FIXTURE_BAD_NODE_MAJORS'),
+      JSON.stringify(nodeMajors),
+    )
+  }
+})
+
+test('nodeFlags is a non-empty array of node flags, and is kept', () => {
+  const kept = parseFixtureManifest(
+    JSON.stringify({ ...VALID, nodeFlags: ['--harmony-temporal', '--stack-trace-limit=50'] }),
+  )
+  assert.deepEqual(kept.nodeFlags, ['--harmony-temporal', '--stack-trace-limit=50'])
+  assert.equal(parseFixtureManifest(JSON.stringify(VALID)).nodeFlags, undefined)
+  for (const nodeFlags of [
+    '--harmony-temporal',
+    [],
+    ['harmony-temporal'],
+    ['--require=./x.js'],
+    ['--import', 'x'],
+    ['--eval=1'],
+    ['-e'],
+    [1],
+  ]) {
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, nodeFlags })),
+      rejects('HARNESS_FIXTURE_BAD_NODE_FLAGS'),
+      JSON.stringify(nodeFlags),
     )
   }
 })

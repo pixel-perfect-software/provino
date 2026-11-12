@@ -401,6 +401,7 @@ export function jestArgvToRunRequest(argv: JestArgv): RunRequest {
     inBand: argv.runInBand === true,
     ...(flag(argv.workerThreads) ? { workerThreads: argv.workerThreads } : {}),
     ...(flag(argv.ci) ? { ci: argv.ci } : {}),
+    ...(flag(argv.updateSnapshot) ? { update: argv.updateSnapshot } : {}),
     ...(flag(argv.passWithNoTests) ? { passWithNoTests: argv.passWithNoTests } : {}),
     ...(flag(argv.cache) ? { cache: argv.cache } : {}),
     ...(configPath === undefined ? {} : { configPath: String(configPath) }),

@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["src"],
-  "exclude": ["src/runtime/vendor"],
+  "exclude": ["src/runtime/vendor", "src/each/vendor"],
   "references": [
     {
       "path": "../types"
@@ -22,10 +22,16 @@
       "path": "../mock"
     },
     {
+      "path": "../timers"
+    },
+    {
       "path": "../core"
     },
     {
       "path": "src/runtime/vendor"
+    },
+    {
+      "path": "src/each/vendor"
     }
   ]
 }

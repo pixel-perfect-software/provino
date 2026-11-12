@@ -1,0 +1,4 @@
+{
+  "description": "Every .each placeholder (%p %s %d %i %f %j %o %O %c %# %$ %%) over one value list of primitives, specials (-0, NaN, Infinity, bigint, symbols, undefined, null) and small objects, each value as a one-cell row of an array-of-arrays table. The title is the observation: Jest's jest-each (util.format, pretty-format for %p) and Vitest's formatTitle (its own format and inspect, %p left literal) print the same value differently, and neither spells every token the same way.",
+  "runners": ["jest", "vitest"]
+}

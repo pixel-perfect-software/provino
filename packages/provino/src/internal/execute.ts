@@ -20,6 +20,8 @@ export interface ExecuteOptions {
   /** `false`: neither read nor write the results cache. */
   readonly cache?: false
   readonly testNamePattern?: string | undefined
+  /** Rewrite the snapshots that differ (`-u`). */
+  readonly update?: boolean | undefined
   readonly fileFilters?: readonly FileFilter[]
   readonly passWithNoTests?: boolean | undefined
   readonly signal?: AbortSignal | undefined
@@ -45,6 +47,7 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
     // Omitted, `runProject` keeps the cache in the project's `node_modules/.cache/provino`.
     ...(options.cache === false ? { cache: false } : {}),
     ...(options.testNamePattern === undefined ? {} : { testNamePattern: options.testNamePattern }),
+    ...(options.update === true ? { update: true } : {}),
     ...(options.fileFilters === undefined ? {} : { fileFilters: options.fileFilters }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
   })

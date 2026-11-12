@@ -1,0 +1,4 @@
+{
+  "description": "Reading the clock: Date, performance.now and process.hrtime follow the fake clock, getRealSystemTime stays real, and each runner's own read API (Jest now(); Vitest isFakeTimers() and getMockedSystemTime()). Each case is one observation.",
+  "runners": ["jest", "vitest"]
+}

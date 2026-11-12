@@ -7,6 +7,7 @@ type Counters = Pick<
   | 'expectedAssertionsNumber'
   | 'isExpectingAssertions'
   | 'numPassingAsserts'
+  | 'pendingAsync'
   | 'suppressedErrors'
 >
 
@@ -20,6 +21,7 @@ export function freshCounters(): Counters {
     expectedAssertionsNumber: null,
     isExpectingAssertions: false,
     numPassingAsserts: 0,
+    pendingAsync: new Set(),
     suppressedErrors: [],
   }
 }

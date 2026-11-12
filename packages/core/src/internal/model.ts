@@ -42,6 +42,8 @@ export type NodeSkipReason = Extract<
 export interface HookNode {
   readonly kind: DeclaredHookKind
   readonly fn: UserFn
+  /** `fn.length`, read once at registration (`firstArg: 'done-if-arity'`). */
+  readonly arity: number
   readonly ordinal: number
   readonly owner: SuiteNode
   readonly timeoutMs: number | undefined
@@ -111,6 +113,8 @@ export interface TestNode extends NodeBase {
   readonly type: 'test'
   readonly parent: SuiteNode
   readonly fn: UserFn | undefined
+  /** `fn.length`, read once at registration (`firstArg: 'done-if-arity'`); 0 without a function. */
+  readonly arity: number
   /** Arguments a `.each`/`.for` row passes before the context or `done`. */
   readonly rowArgs: readonly unknown[] | undefined
   /** `.for` passes the context after the row; `.each` never passes one. */
@@ -191,6 +195,8 @@ export interface AttemptState {
   readonly teardowns: Array<() => unknown>
   /** `true` while `onTestFinished`/`onTestFailed` callbacks run (they may not add more). */
   inCallbacks: boolean
+  /** Set by `ctx.skip()`: the test ends as skipped, with this note, unless something failed. */
+  skipped: { readonly note: string | undefined } | undefined
   /**
    * When the each-hooks and body must be done (`hooks.timeoutCountsTestTimeout`; `Infinity` for a
    * test with no timeout), set as the attempt starts; `undefined` when each call has its own.

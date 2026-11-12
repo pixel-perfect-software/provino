@@ -1,0 +1,10 @@
+{
+  "description": "toMatchFileSnapshot, which only Vitest has: a value compared with a file beside the test, written on the first run. The captured files are the result.",
+  "runners": ["vitest"],
+  "env": {
+    "CI": ""
+  },
+  "run": {
+    "capture": ["exitCode", "file:out/first.txt", "file:out/second.txt"]
+  }
+}

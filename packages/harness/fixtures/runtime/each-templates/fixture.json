@@ -1,0 +1,4 @@
+{
+  "description": "Tagged-template .each tables: $a, $a.b, $# (Jest only), values of every kind in a cell, a % token or %% in the title (Jest reads a template's title for $variables only, so a % token stays as written and %% stays doubled; Vitest formats both), overlapping heading names, one column, and cells holding a % or a $.",
+  "runners": ["jest", "vitest"]
+}

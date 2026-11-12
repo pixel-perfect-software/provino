@@ -1,6 +1,6 @@
 // The default reporter's text, all in one place. It is Jest-like, not a golden: T9.7 records the
 // real format and decides what to match.
-import type { ReportPolicy, SerializedError } from '@provino/types'
+import type { ReportPolicy, SerializedError, SnapshotRunSummary } from '@provino/types'
 
 /** How deep a `cause` or an aggregate's `errors` are shown. */
 const MAX_NESTING = 3
@@ -99,8 +99,79 @@ function part(count: number, label: string): string {
   return `${count} ${label}`
 }
 
+/** `1 file`, `2 files`. */
+function counted(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`
+}
+
+/**
+ * The obsolete snapshots by test file, as Jest lists them above its summary, or, when the run
+ * rewrote snapshots (`-u`), that they were removed; `''` when there are none.
+ */
+export function obsoleteBlock(snapshots: SnapshotRunSummary | undefined): string {
+  if (snapshots === undefined) return ''
+  const { counters, uncheckedKeysByFile, update } = snapshots
+  const removed = update === 'all'
+  const remove =
+    update === 'none' ? 'Run without --ci and with -u to remove' : 'Run with -u to remove'
+  const lines: string[] = []
+  if (counters.filesRemoved > 0) {
+    const files = counted(counters.filesRemoved, 'snapshot file')
+    const suites = counted(counters.filesRemoved, 'test suite')
+    lines.push(
+      removed
+        ? `${files} removed from ${suites}.`
+        : `${files} obsolete from ${suites}. ${remove} ${counters.filesRemoved === 1 ? 'it' : 'them all'}.`,
+    )
+  }
+  if (counters.unchecked > 0) {
+    const noun = counted(counters.unchecked, 'snapshot')
+    const suites = counted(uncheckedKeysByFile.length, 'test suite')
+    lines.push(
+      removed
+        ? `${noun} removed from ${suites}.`
+        : `${noun} obsolete from ${suites}. ${remove} ${counters.unchecked === 1 ? 'it' : 'them'}.`,
+    )
+    for (const { file, keys } of uncheckedKeysByFile) {
+      lines.push(`  ↳ ${file}`, ...keys.map((key) => `      • ${key}`))
+    }
+  }
+  return lines.length === 0 ? '' : `${lines.join('\n')}\n`
+}
+
+/**
+ * Jest's `Snapshots:` line; zero parts are left out except `total`. `undefined` when no snapshot
+ * was checked, written or is obsolete. A run that rewrote snapshots (`-u`) says "removed" where
+ * the others say "obsolete".
+ */
+export function snapshotLine(snapshots: SnapshotRunSummary | undefined): string | undefined {
+  if (snapshots === undefined) return undefined
+  const { counters } = snapshots
+  if (counters.total === 0 && counters.unchecked === 0 && counters.filesRemoved === 0) {
+    return undefined
+  }
+  const gone = snapshots.update === 'all' ? 'removed' : 'obsolete'
+  const parts = [
+    ...(counters.unmatched > 0 ? [part(counters.unmatched, 'failed')] : []),
+    ...(counters.unchecked > 0 ? [part(counters.unchecked, gone)] : []),
+    ...(counters.filesRemoved > 0
+      ? [part(counters.filesRemoved, `${counters.filesRemoved === 1 ? 'file' : 'files'} ${gone}`)]
+      : []),
+    ...(counters.updated > 0 ? [part(counters.updated, 'updated')] : []),
+    ...(counters.added > 0 ? [part(counters.added, 'written')] : []),
+    ...(counters.matched > 0 ? [part(counters.matched, 'passed')] : []),
+    part(counters.total, 'total'),
+  ]
+  return `Snapshots:   ${parts.join(', ')}`
+}
+
 /** Jest's summary: zero parts are left out except `passed` and `total`. */
-export function summaryLines(files: FileCounts, tests: TestCounts, durationMs: number): string {
+export function summaryLines(
+  files: FileCounts,
+  tests: TestCounts,
+  durationMs: number,
+  snapshots?: string,
+): string {
   const suites = [
     ...(files.failed > 0 ? [part(files.failed, 'failed')] : []),
     ...(files.skipped > 0 ? [part(files.skipped, 'skipped')] : []),
@@ -117,6 +188,7 @@ export function summaryLines(files: FileCounts, tests: TestCounts, durationMs: n
   return [
     `Test Suites: ${suites.join(', ')}`,
     `Tests:       ${counted.join(', ')}`,
+    ...(snapshots === undefined ? [] : [snapshots]),
     `Time:        ${(durationMs / 1000).toFixed(3)} s`,
   ].join('\n')
 }

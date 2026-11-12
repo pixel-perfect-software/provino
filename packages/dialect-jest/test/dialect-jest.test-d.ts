@@ -115,7 +115,7 @@ useRef(moduleRef<() => number>('file:///x.ts', 'count'))
 
 declare const host: JestGlobalsHost
 const globals = jestGlobals(host)
-// The mock functions are here; the rest of the `jest` object (`mock`, timers, ...) is not.
+// The mock functions and the timer members are here; the rest of the `jest` object (`mock`, ...) is not.
 expectTypeOf(globals.jest.fn).toBeFunction()
 expectTypeOf(globals.jest.clearAllMocks).returns.toEqualTypeOf<JestObject>()
 expectTypeOf(globals.jest.isMockFunction).parameter(0).toBeUnknown()
@@ -123,8 +123,17 @@ const spied = globals.jest.spyOn({ run: (n: number) => n }, 'run')
 expectTypeOf(spied.mock.calls).toEqualTypeOf<[n: number][]>()
 // @ts-expect-error `jest.mock` is B13c's
 globals.jest.mock('./module')
-// @ts-expect-error `jest.useFakeTimers` is T4.9's
-globals.jest.useFakeTimers()
+expectTypeOf(globals.jest.useFakeTimers()).toEqualTypeOf<JestObject>()
+expectTypeOf(globals.jest.advanceTimersByTime).returns.toBeVoid()
+expectTypeOf(globals.jest.advanceTimersByTimeAsync).returns.toEqualTypeOf<Promise<void>>()
+expectTypeOf(globals.jest.getTimerCount).returns.toBeNumber()
+expectTypeOf(globals.jest.now).returns.toBeNumber()
+// @ts-expect-error a Vitest option name: Jest's `useFakeTimers` takes `doNotFake`
+globals.jest.useFakeTimers({ toFake: ['setTimeout'] })
+// @ts-expect-error `advanceTimersByTime` takes milliseconds
+globals.jest.advanceTimersByTime('10')
+// @ts-expect-error `isFakeTimers` is Vitest's, not Jest's
+globals.jest.isFakeTimers()
 // @ts-expect-error a key that is not on the object can't be spied on
 globals.jest.spyOn({ run: () => 1 }, 'nope')
 // @ts-expect-error `replaceProperty` takes a value of the property's type

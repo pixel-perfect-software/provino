@@ -135,22 +135,6 @@
             "line": 14,
             "column": 3
           }
-        },
-        {
-          "id": {
-            "file": "timers.test.ts",
-            "path": [
-              "timers.facadeReturns"
-            ],
-            "dupIndex": 0
-          },
-          "status": "passed",
-          "errors": [],
-          "passingAssertions": 0,
-          "location": {
-            "line": 14,
-            "column": 3
-          }
         }
       ]
     }
@@ -180,7 +164,6 @@
     "{\"id\":\"timers.optionNames\",\"value\":\"do-not-fake\"}",
     "{\"id\":\"timers.notFaked\",\"value\":\"warn\"}",
     "{\"id\":\"timers.setSystemTimeWithoutFakes\",\"value\":\"warn-noop\"}",
-    "{\"id\":\"timers.advanceToNextTimerHonorsSteps\",\"value\":true}",
-    "{\"id\":\"timers.facadeReturns\",\"value\":\"facade\"}"
+    "{\"id\":\"timers.advanceToNextTimerHonorsSteps\",\"value\":true}"
   ]
 }

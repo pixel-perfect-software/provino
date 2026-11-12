@@ -223,11 +223,7 @@ test('the keys the dialect leaves to the neutral policy are the ones listed in d
   assert.deepEqual(
     all.filter((path) => !set.has(path)).sort(),
     [
-      'core.doneDeprecatedMessage',
-      'core.formatEachTitle',
       'core.orderHooks',
-      'timers.fakeTemporal',
-      'timers.facadeReturns',
       'snapshot.key',
       'snapshot.serializers',
       'snapshot.resolvePath',

@@ -9,6 +9,7 @@ expectTypeOf<RunRequest['mode']>().toEqualTypeOf<
 >()
 expectTypeOf<RunRequest['fileFilters']>().toEqualTypeOf<readonly FileFilter[]>()
 expectTypeOf<RunRequest['ci']>().toEqualTypeOf<boolean | undefined>()
+expectTypeOf<RunRequest['update']>().toEqualTypeOf<boolean | undefined>()
 expectTypeOf<RunRequest['maxWorkers']>().toEqualTypeOf<number | `${number}%` | undefined>()
 
 const minimal: RunRequest = { mode: 'run', json: false, fileFilters: [], inBand: false }

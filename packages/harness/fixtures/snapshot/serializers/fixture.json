@@ -1,0 +1,23 @@
+{
+  "description": "Snapshot serializers: jest-serializer-vue from the config (a print-style plugin that matches HTML strings and wrappers with an html() method), a plugin a test adds with expect.addSnapshotSerializer, and the rule that the one added last is tried first. A black-box run in write mode capturing the .snap.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "snapshotSerializers": ["jest-serializer-vue"]
+    },
+    "vitest": {
+      "test": {
+        "snapshotSerializers": ["jest-serializer-vue"]
+      }
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/serializers.test.ts.snap"]
+  }
+}

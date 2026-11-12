@@ -18,7 +18,8 @@ import type {
 } from '@provino/types'
 import { AsymmetricMatcher } from '../asymmetric.ts'
 import type { MatcherContext } from '../context.ts'
-import { createExpect } from '../expect.ts'
+import { createExpect, type UnawaitedAssertion } from '../expect.ts'
+import type { PollTimers } from '../poll.ts'
 import { createMatcherRegistry, type MatcherRegistry } from '../slot.ts'
 import { createStateSource, type StateSource } from '../state.ts'
 
@@ -134,6 +135,15 @@ export function testTable(): ExpectTable {
       ensureNoExpected: (expected, name) => {
         if (expected !== undefined) throw new Error(`${name} takes no argument`)
       },
+      assertionCount: (expected, actual) => `expected ${expected} assertions, made ${actual}`,
+      noAssertions: () => 'expected an assertion, made none',
+      requiredAssertions: () => 'every test must make an assertion',
+      unawaited: ({ kind, call }) =>
+        `${kind === 'poll' ? 'poll' : 'settled'} ${describeCall(call)} was not awaited`,
+      pollTimeout: (stage) => `poll ${stage} timed out`,
+      pollUnsupported: (name) => `poll cannot use ${name}`,
+      outsideTest: (name) => `${name} needs a running test`,
+      unreachable: (message) => `unreachable${message === undefined ? '' : `: ${message}`}`,
     },
     customAsymmetric: (name, matcher) => (inverse, sample) =>
       new TestCustom(name, matcher, inverse, sample),
@@ -196,12 +206,29 @@ export interface TestEngine {
   readonly current: ManualCurrentTest
 }
 
+/** What a test changes about `testEngine`'s defaults. */
+export interface TestEngineOptions {
+  /** Replaces keys of `testPolicy`. */
+  readonly policy?: Partial<ExpectPolicy>
+  readonly unawaited?: UnawaitedAssertion
+  readonly pollTimers?: PollTimers
+  readonly table?: ExpectTable
+}
+
 /** Builds an engine over `testTable()`. */
-export function testEngine(): TestEngine {
+export function testEngine(options: TestEngineOptions = {}): TestEngine {
   const current = manualCurrentTest()
   const source = createStateSource(current, { nameSeparator: ' > ', expand: false })
   const registry = createMatcherRegistry()
-  const expect = createExpect({ policy: testPolicy, table: testTable(), source, registry })
+  const policy: ExpectPolicy = { ...testPolicy, ...options.policy }
+  const expect = createExpect({
+    policy,
+    table: options.table ?? testTable(),
+    source,
+    registry,
+    ...(options.unawaited === undefined ? {} : { unawaited: options.unawaited }),
+    ...(options.pollTimers === undefined ? {} : { pollTimers: options.pollTimers }),
+  })
   return { expect, source, registry, current }
 }
 

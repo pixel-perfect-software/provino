@@ -17,6 +17,7 @@ test('outside a test the file state is current, with expand and fresh counters',
     expectedAssertionsNumber: null,
     isExpectingAssertions: false,
     numPassingAsserts: 0,
+    pendingAsync: new Set(),
     suppressedErrors: [],
     expand: true,
   })

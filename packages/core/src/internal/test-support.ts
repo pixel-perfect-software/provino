@@ -98,10 +98,19 @@ export async function runScript(
     ...runtimeOptions,
   })
   api = runtime.api
-  const file = await runtime.runFile('/project/script.test.ts', {
-    ...(lines === undefined ? {} : { lines }),
-    ...(fileId === undefined ? {} : { fileId }),
-  })
+  // A deadline's timer never holds the process open (the worker's port does, in a run), so
+  // without a handle of its own a test that waits out a real deadline lets the event loop drain
+  // under `node --test` on Node 22 ("Promise resolution is still pending").
+  const keepAlive = setInterval(() => {}, 60_000)
+  let file: Awaited<ReturnType<Runtime['runFile']>>
+  try {
+    file = await runtime.runFile('/project/script.test.ts', {
+      ...(lines === undefined ? {} : { lines }),
+      ...(fileId === undefined ? {} : { fileId }),
+    })
+  } finally {
+    clearInterval(keepAlive)
+  }
   const collected = events.find((event) => event.type === 'file-collect-end')
   const tasks = collected?.type === 'file-collect-end' ? collected.tasks : []
   const byId = new Map(

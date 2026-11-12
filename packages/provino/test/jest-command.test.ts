@@ -36,7 +36,7 @@ describe('what provino jest does not run is said, not ignored', () => {
       ['--coverage', 'T8.8'],
       ['--bail', 'T9.10'],
       ['--shard=1/2', 'T9.6'],
-      ['-u', 'T7.9', '--updateSnapshot'],
+      ['-b', 'T9.10', '--bail'],
       ['--forceExit', 'T9.10'],
     ] as readonly (readonly [string, string, string?])[]) {
       const ended = await provino([flag], dir)

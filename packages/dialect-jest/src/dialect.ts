@@ -8,22 +8,27 @@
 //
 // Keys left out, so the neutral value stands. Setting one would be inventing a Jest value.
 //
-// - Recorded equal to the neutral value: timers.facadeReturns (`policy/timers`: `facade`).
-//   (`timers.notFaked` and `setSystemTimeWithoutFakes` were here; B14a recorded Jest's and sets
-//   them. `module.missingFactoryExport` and `module.messages` were too; B13b sets them.)
-// - Not recorded yet, so the neutral value stands until its owner does: core.doneDeprecatedMessage
-//   (T5.7, B17a), timers.fakeTemporal ("via sinon 15.4": T4.9, B17a records it where the Node
-//   running the fixture has a Temporal).
+// - Recorded equal to the neutral value: none now. (`timers.notFaked` and `setSystemTimeWithoutFakes`
+//   were here; B14a recorded Jest's and sets them. `module.missingFactoryExport` and
+//   `module.messages` were too; B13b sets them. `timers.facadeReturns` and `timers.fakeTemporal`
+//   were; B17a records them as `mocking/timers-facade` and `policy/timers-temporal`.)
 // - A behaviour whose Jest implementation is not built yet, so the key stays the neutral one:
-//   core.formatEachTitle (jest-each's titles, T5.4), orchestrator.environmentConditions (the
-//   environment's own `exportConditions()`, T8.7).
+//   orchestrator.environmentConditions (the environment's own `exportConditions()`, T8.7).
 // - The same as the neutral value, so there is nothing to override:
 //   core.orderHooks (`null`: `hookOrder` decides), snapshot.key (`${name} ${n}`, the neutral
 //   `snapshotKey` function), snapshot.resolvePath (`null`: the default layout; Jest's is the
 //   user's `snapshotResolver`), snapshot.serializers (`[]`: Jest's is the user's list),
 //   orchestrator.isolationDefault.byEnvironment (see there).
 import { defineDialect, moduleRef } from '@provino/policy'
-import type { Dialect, GlobalsFactory, ModuleScopeFactory, PolicyOverrides } from '@provino/types'
+import type {
+  Dialect,
+  FormatEachTitle,
+  FormatValue,
+  GlobalsFactory,
+  ModuleScopeFactory,
+  PolicyOverrides,
+  SnapshotPrinterFactory,
+} from '@provino/types'
 import { jestExpectPolicy } from './expect-policy.ts'
 import { jestHoistPolicy } from './hoist-policy.ts'
 import { jestMockPolicy } from './mock-policy.ts'
@@ -62,6 +67,19 @@ export const jestPolicy: PolicyOverrides = {
     asyncDescribe: 'throw',
     // research: track-01 L189
     nonPromiseReturn: 'fail',
+    // jest-each 30.5.2's `formatTitle` and `interpolateVariables` (`src/each/`), exported by `/runtime`.
+    formatEachTitle: moduleRef<FormatEachTitle>(
+      import.meta.resolve('@provino/dialect-jest/runtime'),
+      'formatEachTitle',
+    ),
+    // jest-circus 30.5's `prettyFormat(value, { maxDepth: 3 })` (`src/runtime/format-value.ts`) in the
+    // messages `done` and a non-promise return build (runtime corpus `done-callback` agrees).
+    formatValue: moduleRef<FormatValue>(
+      import.meta.resolve('@provino/dialect-jest/runtime'),
+      'formatValue',
+    ),
+    // Jest passes `done`, not a context: nothing to call (runtime corpus `done-callback` agrees).
+    doneDeprecatedMessage: null,
     // research: track-01 L191 (`none`)
     eachTitleTruncate: null,
     // research: track-05 L319
@@ -146,6 +164,15 @@ export const jestPolicy: PolicyOverrides = {
     // (`policy/timers`); the neutral value throws.
     notFaked: 'warn',
     setSystemTimeWithoutFakes: 'warn-noop',
+    // Faked when the environment has a `Temporal` (@sinonjs/fake-timers 15.4 puts it in `timers`).
+    fakeTemporal: true,
+    // `useFakeTimers`, `useRealTimers` and `setTimerTickMode` return `jest`; the rest return nothing.
+    facadeReturns: 'lifecycle',
+    // @jest/fake-timers 30.5.2 `modernFakeTimers.ts` `_checkFakeTimers`; the frames follow `{stack}`.
+    messages: {
+      notFaked:
+        "A function to advance timers was called but the timers APIs are not replaced with fake timers. Call `jest.useFakeTimers()` in this test file or enable fake timers for all tests by setting 'fakeTimers': {'enableGlobally': true} in Jest configuration file.\nStack Trace:\n{stack}",
+    },
   },
   module: {
     // research: track-01 L207, track-04 L308 (a factory returns `module.exports`)
@@ -217,7 +244,7 @@ export const jestPolicy: PolicyOverrides = {
     // research: track-01 L217
     extension: '.snap',
     // research: track-01 L218, track-07 L474 (no `maxOutputLength`: unlimited)
-    format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null },
+    format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
     // research: track-07 L472 (track-01 L220 says `report` for both; Track 7's detail is used)
     obsolete: { failLocal: true, failCI: true },
     // research: track-01 L220, track-07 L473
@@ -228,6 +255,12 @@ export const jestPolicy: PolicyOverrides = {
     throwErrorBody: 'message',
     // research: track-07 L471
     inline: { indent: 'column0', formatter: 'prettier' },
+    // Provino's own key (T7.10): Jest's `pretty-format` 30.5 with its plugin order, and its words.
+    // Resolved here, so the worker's loader finds it from any package.
+    printer: moduleRef<SnapshotPrinterFactory>(
+      import.meta.resolve('@provino/dialect-jest/runtime'),
+      'jestSnapshotPrinter',
+    ),
   },
   expect: jestExpectPolicy,
   orchestrator: {

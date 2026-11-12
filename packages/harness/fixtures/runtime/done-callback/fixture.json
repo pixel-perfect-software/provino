@@ -1,0 +1,4 @@
+{
+  "description": "The first argument of a test function. Jest hands it `done` when it declares a parameter (fn.length > 0, a default or rest parameter does not count): done() passes, done(error) and done(reason) fail with the error or `Failed: <reason>`, a second done() throws and fails, done plus a returned value fails, a done that never comes times out. Vitest hands every test its context, a function that throws \"done() callback is deprecated, use promise instead\", so each of these fails with that error.",
+  "runners": ["jest", "vitest"]
+}

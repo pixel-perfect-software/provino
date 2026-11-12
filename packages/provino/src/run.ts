@@ -50,6 +50,7 @@ async function execute(
     pool,
     ...(options.cache === false ? { cache: false } : {}),
     testNamePattern: options.testNamePattern,
+    update: options.updateSnapshot,
     passWithNoTests: options.passWithNoTests,
     signal: options.signal,
   })

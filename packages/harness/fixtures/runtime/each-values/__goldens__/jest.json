@@ -1,0 +1,6047 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/each-values",
+  "files": [
+    {
+      "file": "values.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=Base { a: 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=Child { a: 1, b: 'child' }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=Empty {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=custom toString"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s={}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=own toString"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s={ toJSON: [Function: toJSON] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=custom inspect"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s={ getter: [Getter], plain: 2 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s={ regular: 2, Symbol(key): 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s={ '3': 'numeric', 'quoted-key': 1, 'two words': 2, valid_id: 4 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s={ nested: [Object] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[ [Array] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[ [Object] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=<ref *1> { name: 'cyclic', self: [Circular *1] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=<ref *1> [ 1, [Circular *1] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=<ref *1> Map(1) { 'self' => [Circular *1] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=1,2,3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=1.5,0"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=ArrayBuffer { [Uint8Contents]: <00 00 00 00>, [byteLength]: 4 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=DataView { [byteLength]: 2, [byteOffset]: 0, [buffer]: [ArrayBuffer] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[ [Number: 1], [String: 's'], [Boolean: false] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[ 1, <1 empty item>, 3 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[ <3 empty items> ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[Error: boom]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[TypeError: bad type]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s={ proxied: true }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=WeakMap { <items unknown> }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=WeakSet { <items unknown> }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[Object: null prototype] { a: 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=withProps() {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[Arguments] { '0': 1, '1': 2 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s={ fn: [Function: fn], arrow: [Function: arrow], nested: [Object] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[ undefined, null ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s={ inObject: Symbol(in object) }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s={ undef: undefined, nul: null, nan: NaN, negZero: -0, inf: Infinity }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=Map(1) { [Object] => [Set] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=Set(1) { [Set] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=Map(1) { 'a' => [Object] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[ 1970-01-01T00:00:00.000Z, [Object] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s={ re: /x/g, date: 1970-01-01T00:00:00.000Z, fn: [Function: fn] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[ 1, 2, extra: 'prop' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=a string"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[ '' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[ ' ' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s=[ \"it's\", 'say \"hi\"', 'back`tick', 'back\\\\slash', 'tab\\there' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "s={ \"it's\": 'say \"hi\"' }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 104,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=Base { a: 1, [computed]: [Getter] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=Child { a: 1, b: 'child', [computed]: [Getter] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=Empty {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=WithToString {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o={}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o={ toString: [Function: toString] { [length]: 0, [name]: 'toString' } }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o={ toJSON: [Function: toJSON] { [length]: 0, [name]: 'toJSON' } }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=custom inspect"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o={ getter: [Getter], plain: 2 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o={ regular: 2, Symbol(key): 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o={ '3': 'numeric', 'quoted-key': 1, 'two words': 2, valid_id: 4 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o={\n  nested: {\n    level2: { level3: { level4: { level5: 'deep' } } }\n  }\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[\n  [\n    [ [ [ [Array], [length]: 1 ], [length]: 1 ], [length]: 1 ],\n    [length]: 1\n  ],\n  [length]: 1\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[\n  {\n    a: [ { b: [ [Object], [length]: 1 ] }, [length]: 1 ]\n  },\n  [length]: 1\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=<ref *1> { name: 'cyclic', self: [Circular *1] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=<ref *1> [ 1, [Circular *1], [length]: 2 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=<ref *1> Map(1) { 'self' => [Circular *1] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=Uint8Array(3) [\n  1,\n  2,\n  3,\n  [BYTES_PER_ELEMENT]: 1,\n  [length]: 3,\n  [byteLength]: 3,\n  [byteOffset]: 0,\n  [buffer]: ArrayBuffer { [byteLength]: 3 }\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=Float64Array(2) [\n  1.5,\n  -0,\n  [BYTES_PER_ELEMENT]: 8,\n  [length]: 2,\n  [byteLength]: 16,\n  [byteOffset]: 0,\n  [buffer]: ArrayBuffer { [byteLength]: 16 }\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=ArrayBuffer { [Uint8Contents]: <00 00 00 00>, [byteLength]: 4 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=DataView {\n  [byteLength]: 2,\n  [byteOffset]: 0,\n  [buffer]: ArrayBuffer { [Uint8Contents]: <00 00>, [byteLength]: 2 }\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[\n  [Number: 1],\n  [String: 's'] { [length]: 1 },\n  [Boolean: false],\n  [length]: 3\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[ 1, <1 empty item>, 3, [length]: 3 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[ <3 empty items>, [length]: 3 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[Error: boom] { [message]: 'boom' }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[TypeError: bad type] { [message]: 'bad type' }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=Proxy [ { proxied: true }, {} ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=WeakMap {  }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=WeakSet {  }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[Object: null prototype] { a: 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[Function: withProps] { [length]: 0, [name]: 'withProps', extra: 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[Arguments] {\n  '0': 1,\n  '1': 2,\n  [length]: 2,\n  [callee]: [Getter/Setter],\n  [Symbol(Symbol.iterator)]: [Function: values] { [length]: 0, [name]: 'values' }\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o={\n  fn: [Function: fn] { [length]: 0, [name]: 'fn' },\n  arrow: [Function: arrow] { [length]: 0, [name]: 'arrow' },\n  nested: { named: [Function: named] { [length]: 0, [name]: 'named' } }\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[ undefined, null, [length]: 2 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o={ inObject: Symbol(in object) }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o={ undef: undefined, nul: null, nan: NaN, negZero: -0, inf: Infinity }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=Map(1) { { key: 1 } => Set(1) { [ 1, 2, [length]: 2 ] } }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=Set(1) {\n  Set(1) { Set(1) { Set(1) { 1 } } }\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=Map(1) {\n  'a' => {\n    b: Map(1) { 'c' => [ 1, 2, { d: 3 }, [length]: 3 ] }\n  }\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[\n  1970-01-01T00:00:00.000Z,\n  { when: 1970-01-02T00:00:00.000Z },\n  [length]: 2\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o={\n  re: /x/g { [lastIndex]: 0 },\n  date: 1970-01-01T00:00:00.000Z,\n  fn: [Function: fn] { [length]: 0, [name]: 'fn' }\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[ 1, 2, [length]: 2, extra: 'prop' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o='a string'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[ '', [length]: 1 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[ ' ', [length]: 1 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o=[\n  \"it's\",\n  'say \"hi\"',\n  'back`tick',\n  'back\\\\slash',\n  'tab\\there',\n  [length]: 5\n]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "o={ \"it's\": 'say \"hi\"' }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 105,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=Base { a: 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=Child { a: 1, b: 'child' }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=Empty {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=WithToString {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={ toString: [Function: toString] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={ toJSON: [Function: toJSON] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=custom inspect"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={ getter: [Getter], plain: 2 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={ regular: 2, Symbol(key): 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={ '3': 'numeric', 'quoted-key': 1, 'two words': 2, valid_id: 4 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={ nested: { level2: { level3: [Object] } } }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[ [ [ [Array] ] ] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[ { a: [ [Object] ] } ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=<ref *1> { name: 'cyclic', self: [Circular *1] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=<ref *1> [ 1, [Circular *1] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=<ref *1> Map(1) { 'self' => [Circular *1] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=Uint8Array(3) [ 1, 2, 3 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=Float64Array(2) [ 1.5, -0 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=ArrayBuffer { [Uint8Contents]: <00 00 00 00>, [byteLength]: 4 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=DataView {\n  [byteLength]: 2,\n  [byteOffset]: 0,\n  [buffer]: ArrayBuffer { [Uint8Contents]: <00 00>, [byteLength]: 2 }\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[ [Number: 1], [String: 's'], [Boolean: false] ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[ 1, <1 empty item>, 3 ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[ <3 empty items> ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[Error: boom]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[TypeError: bad type]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={ proxied: true }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=WeakMap { <items unknown> }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=WeakSet { <items unknown> }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[Object: null prototype] { a: 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[Function: withProps] { extra: 1 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[Arguments] { '0': 1, '1': 2 }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={\n  fn: [Function: fn],\n  arrow: [Function: arrow],\n  nested: { named: [Function: named] }\n}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[ undefined, null ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={ inObject: Symbol(in object) }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={ undef: undefined, nul: null, nan: NaN, negZero: -0, inf: Infinity }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=Map(1) { { key: 1 } => Set(1) { [ 1, 2 ] } }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=Set(1) { Set(1) { Set(1) { [Set] } } }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=Map(1) { 'a' => { b: Map(1) { 'c' => [Array] } } }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[ 1970-01-01T00:00:00.000Z, { when: 1970-01-02T00:00:00.000Z } ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={ re: /x/g, date: 1970-01-01T00:00:00.000Z, fn: [Function: fn] }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[ 1, 2, extra: 'prop' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O='a string'"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[ '' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[ ' ' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O=[ \"it's\", 'say \"hi\"', 'back`tick', 'back\\\\slash', 'tab\\there' ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "O={ \"it's\": 'say \"hi\"' }"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 106,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"a\": 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"a\": 1, \"b\": \"child\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={}"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={}"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"toString\": [Function toString]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=\"own toJSON\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={Symbol(nodejs.util.inspect.custom): [Function [nodejs.util.inspect.custom]]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"getter\": 1, \"plain\": 2}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"regular\": 2, Symbol(key): 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"3\": \"numeric\", \"quoted-key\": 1, \"two words\": 2, \"valid_id\": 4}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[[Array]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[[Object]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"name\": \"cyclic\", \"self\": [Circular]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[1, [Circular]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=Map {\"self\" => [Circular]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[1, 2, 3]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[1.5, -0]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[0, 0, 0, 0]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[0, 0]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[[Number], [String], [Boolean]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[1, , 3]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[, , ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[Error: boom]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[TypeError: bad type]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"proxied\": true}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=WeakMap {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=WeakSet {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"a\": 1}"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[Function withProps]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[1, 2]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"arrow\": [Function arrow], \"fn\": [Function fn], \"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[undefined, null]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"inObject\": Symbol(in object)}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"inf\": Infinity, \"nan\": NaN, \"negZero\": -0, \"nul\": null, \"undef\": undefined}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=Map {[Object] => [Set]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=Set {[Set]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=Map {\"a\" => [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[1970-01-01T00:00:00.000Z, [Object]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"date\": 1970-01-01T00:00:00.000Z, \"fn\": [Function fn], \"re\": /x/g}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[1, 2]"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=\"a string\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[\"\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[\" \"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p=[\"it's\", \"say \\\"hi\\\"\", \"back`tick\", \"back\\\\slash\", \"tab\there\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "p={\"it's\": \"say \\\"hi\\\"\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 107,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"a\":1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"a\":1,\"b\":\"child\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 3
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=\"own toJSON\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 4
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"getter\":1,\"plain\":2}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"regular\":2}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"3\":\"numeric\",\"quoted-key\":1,\"two words\":2,\"valid_id\":4}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"nested\":{\"level2\":{\"level3\":{\"level4\":{\"level5\":\"deep\"}}}}}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[[[[[[\"deep\"]]]]]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[{\"a\":[{\"b\":[{\"c\":1}]}]}]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[Circular]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[Circular]"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 5
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"0\":1,\"1\":2,\"2\":3}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"0\":1.5,\"1\":0}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 6
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 7
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[1,\"s\",false]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[1,null,3]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[null,null,null]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 8
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 9
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"proxied\":true}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 10
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 11
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"a\":1}"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=undefined"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"0\":1,\"1\":2}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"nested\":{}}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[null,null]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 12
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"nul\":null,\"nan\":null,\"negZero\":0,\"inf\":null}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 13
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 14
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={}"
+            ],
+            "dupIndex": 15
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[\"1970-01-01T00:00:00.000Z\",{\"when\":\"1970-01-02T00:00:00.000Z\"}]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"re\":{},\"date\":\"1970-01-01T00:00:00.000Z\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[1,2]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=\"a string\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[\"\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[\" \"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j=[\"it's\",\"say \\\"hi\\\"\",\"back`tick\",\"back\\\\slash\",\"tab\\there\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "j={\"it's\":\"say \\\"hi\\\"\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 108,
+            "column": 42
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"a\": 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"a\": 1, \"b\": \"child\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={}"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={}"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"toString\": [Function toString]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=\"own toJSON\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={Symbol(nodejs.util.inspect.custom): [Function [nodejs.util.inspect.custom]]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"getter\": 1, \"plain\": 2}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"regular\": 2, Symbol(key): 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"3\": \"numeric\", \"quoted-key\": 1, \"two words\": 2, \"valid_id\": 4}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[[Array]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[[Object]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"name\": \"cyclic\", \"self\": [Circular]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[1, [Circular]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=Map {\"self\" => [Circular]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[1, 2, 3]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[1.5, -0]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[0, 0, 0, 0]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[0, 0]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[[Number], [String], [Boolean]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[1, , 3]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[, , ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[Error: boom]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[TypeError: bad type]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"proxied\": true}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=WeakMap {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=WeakSet {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"a\": 1}"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[Function withProps]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[1, 2]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"arrow\": [Function arrow], \"fn\": [Function fn], \"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[undefined, null]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"inObject\": Symbol(in object)}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"inf\": Infinity, \"nan\": NaN, \"negZero\": -0, \"nul\": null, \"undef\": undefined}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=Map {[Object] => [Set]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=Set {[Set]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=Map {\"a\" => [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[1970-01-01T00:00:00.000Z, [Object]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"date\": 1970-01-01T00:00:00.000Z, \"fn\": [Function fn], \"re\": /x/g}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[1, 2]"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=a string"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[\"\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[\" \"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v=[\"it's\", \"say \\\"hi\\\"\", \"back`tick\", \"back\\\\slash\", \"tab\there\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v={\"it's\": \"say \\\"hi\\\"\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"a\": 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"a\": 1, \"b\": \"child\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={}"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={}"
+            ],
+            "dupIndex": 2
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"toString\": [Function toString]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=\"own toJSON\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={Symbol(nodejs.util.inspect.custom): [Function [nodejs.util.inspect.custom]]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"getter\": 1, \"plain\": 2}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"regular\": 2, Symbol(key): 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"3\": \"numeric\", \"quoted-key\": 1, \"two words\": 2, \"valid_id\": 4}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[[Array]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[[Object]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"name\": \"cyclic\", \"self\": [Circular]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[1, [Circular]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=Map {\"self\" => [Circular]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[1, 2, 3]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[1.5, -0]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[0, 0, 0, 0]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[0, 0]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[[Number], [String], [Boolean]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[1, , 3]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[, , ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[Error: boom]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[TypeError: bad type]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"proxied\": true}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=WeakMap {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=WeakSet {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"a\": 1}"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[Function withProps]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[1, 2]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"arrow\": [Function arrow], \"fn\": [Function fn], \"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[undefined, null]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"inObject\": Symbol(in object)}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"inf\": Infinity, \"nan\": NaN, \"negZero\": -0, \"nul\": null, \"undef\": undefined}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=Map {[Object] => [Set]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=Set {[Set]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=Map {\"a\" => [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[1970-01-01T00:00:00.000Z, [Object]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"date\": 1970-01-01T00:00:00.000Z, \"fn\": [Function fn], \"re\": /x/g}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[1, 2]"
+            ],
+            "dupIndex": 1
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=a string"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[\"\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[\" \"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w=[\"it's\", \"say \\\"hi\\\"\", \"back`tick\", \"back\\\\slash\", \"tab\there\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "v.w={\"it's\": \"say \\\"hi\\\"\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 110,
+            "column": 56
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "Base { a: 1 } ~ {\"a\": 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "Child { a: 1, b: 'child' } ~ {\"a\": 1, \"b\": \"child\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "Empty {} ~ {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "custom toString ~ {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "{} ~ {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "own toString ~ {\"toString\": [Function toString]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "{ toJSON: [Function: toJSON] } ~ \"own toJSON\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "custom inspect ~ {Symbol(nodejs.util.inspect.custom): [Function [nodejs.util.inspect.custom]]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "{ getter: [Getter], plain: 2 } ~ {\"getter\": 1, \"plain\": 2}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "{ regular: 2, Symbol(key): 1 } ~ {\"regular\": 2, Symbol(key): 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "{ '3': 'numeric', 'quoted-key': 1, 'two words': 2, valid_id: 4 } ~ {\"3\": \"numeric\", \"quoted-key\": 1, \"two words\": 2, \"valid_id\": 4}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "{ nested: [Object] } ~ {\"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[ [Array] ] ~ [[Array]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[ [Object] ] ~ [[Object]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "<ref *1> { name: 'cyclic', self: [Circular *1] } ~ {\"name\": \"cyclic\", \"self\": [Circular]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "<ref *1> [ 1, [Circular *1] ] ~ [1, [Circular]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "<ref *1> Map(1) { 'self' => [Circular *1] } ~ Map {\"self\" => [Circular]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "1,2,3 ~ [1, 2, 3]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "1.5,0 ~ [1.5, -0]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "ArrayBuffer { [Uint8Contents]: <00 00 00 00>, [byteLength]: 4 } ~ [0, 0, 0, 0]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "DataView { [byteLength]: 2, [byteOffset]: 0, [buffer]: [ArrayBuffer] } ~ [0, 0]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[ [Number: 1], [String: 's'], [Boolean: false] ] ~ [[Number], [String], [Boolean]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[ 1, <1 empty item>, 3 ] ~ [1, , 3]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[ <3 empty items> ] ~ [, , ]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[Error: boom] ~ [Error: boom]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[TypeError: bad type] ~ [TypeError: bad type]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "{ proxied: true } ~ {\"proxied\": true}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "WeakMap { <items unknown> } ~ WeakMap {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "WeakSet { <items unknown> } ~ WeakSet {}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[Object: null prototype] { a: 1 } ~ {\"a\": 1}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "withProps() {} ~ [Function withProps]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[Arguments] { '0': 1, '1': 2 } ~ [1, 2]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "{ fn: [Function: fn], arrow: [Function: arrow], nested: [Object] } ~ {\"arrow\": [Function arrow], \"fn\": [Function fn], \"nested\": [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[ undefined, null ] ~ [undefined, null]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "{ inObject: Symbol(in object) } ~ {\"inObject\": Symbol(in object)}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "{ undef: undefined, nul: null, nan: NaN, negZero: -0, inf: Infinity } ~ {\"inf\": Infinity, \"nan\": NaN, \"negZero\": -0, \"nul\": null, \"undef\": undefined}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "Map(1) { [Object] => [Set] } ~ Map {[Object] => [Set]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "Set(1) { [Set] } ~ Set {[Set]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "Map(1) { 'a' => [Object] } ~ Map {\"a\" => [Object]}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[ 1970-01-01T00:00:00.000Z, [Object] ] ~ [1970-01-01T00:00:00.000Z, [Object]]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "{ re: /x/g, date: 1970-01-01T00:00:00.000Z, fn: [Function: fn] } ~ {\"date\": 1970-01-01T00:00:00.000Z, \"fn\": [Function fn], \"re\": /x/g}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[ 1, 2, extra: 'prop' ] ~ [1, 2]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "a string ~ \"a string\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[ '' ] ~ [\"\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[ ' ' ] ~ [\" \"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "[ \"it's\", 'say \"hi\"', 'back`tick', 'back\\\\slash', 'tab\\there' ] ~ [\"it's\", \"say \\\"hi\\\"\", \"back`tick\", \"back\\\\slash\", \"tab\there\"]"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "{ \"it's\": 'say \"hi\"' } ~ {\"it's\": \"say \\\"hi\\\"\"}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 111,
+            "column": 49
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

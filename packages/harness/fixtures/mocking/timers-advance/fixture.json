@@ -1,0 +1,4 @@
+{
+  "description": "Moving the fake clock: advanceTimersToNextTimer with steps (Jest honours them, Vitest's vi takes none), advanceTimersToNextFrame, the async forms flushing promise jobs between timers where the sync ones do not, runAllTicks (faked nextTick under Jest only), runAllTimers against runOnlyPendingTimers, clearAllTimers and getTimerCount, setSystemTime under fake timers, and a second useFakeTimers() dropping the pending timers. Each case is one observation.",
+  "runners": ["jest", "vitest"]
+}

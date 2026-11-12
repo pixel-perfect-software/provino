@@ -85,8 +85,6 @@ export function initFor(pool: PoolKind, workerId = 1): WorkerInit {
 
 /** Coordinator methods for tests that never call them. */
 export const methods: RpcHandlers<CoordinatorMethods> = {
-  resolveSnapshotPath: async (file) => file,
-  writeSnapshot: async () => {},
   readTimings: async () => undefined,
 }
 
@@ -178,9 +176,9 @@ function runtimePolicyOverrides(): PolicyOverrides {
   }
 }
 
-/** The test policy, serialized for a worker's config. */
-export function runtimePolicy(): SerializedPolicy {
-  return serializePolicy(resolvePolicy(runtimePolicyOverrides()))
+/** The test policy, serialized for a worker's config; `extra` is a layer over it. */
+export function runtimePolicy(extra: PolicyOverrides = {}): SerializedPolicy {
+  return serializePolicy(resolvePolicy(runtimePolicyOverrides(), extra))
 }
 
 /**

@@ -61,7 +61,15 @@ export type {
   ModuleRef,
   PolicyAtom,
 } from './behaviour.ts'
-export type { CorePolicy, FormatEachTitle, HookKind, HookOrder, OrderHooks } from './core.ts'
+export type {
+  CorePolicy,
+  EachTableKind,
+  FormatEachTitle,
+  FormatValue,
+  HookKind,
+  HookOrder,
+  OrderHooks,
+} from './core.ts'
 export type { CoveragePolicy } from './coverage.ts'
 export type { ExpectPolicy, MatcherTableFactory } from './expect.ts'
 export type { LazyPolicy } from './lazy.ts'
@@ -74,5 +82,16 @@ export type {
   PoolKind,
 } from './orchestrator.ts'
 export type { ReportPolicy } from './report.ts'
-export type { ResolveSnapshotPath, SnapshotKey, SnapshotPolicy } from './snapshot.ts'
+export type {
+  LegacySnapshotSerializer,
+  ResolveSnapshotPath,
+  SnapshotKey,
+  SnapshotMessageInfo,
+  SnapshotMessages,
+  SnapshotPlugin,
+  SnapshotPolicy,
+  SnapshotPrinter,
+  SnapshotPrinterFactory,
+  SnapshotSerializeOptions,
+} from './snapshot.ts'
 export type { TimersPolicy } from './timers.ts'

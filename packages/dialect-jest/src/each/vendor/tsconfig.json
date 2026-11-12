@@ -1,0 +1,10 @@
+{
+  "extends": "../../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false,
+    "rootDir": ".",
+    "outDir": "../../../.tsc/src/each/vendor"
+  },
+  "include": ["."]
+}

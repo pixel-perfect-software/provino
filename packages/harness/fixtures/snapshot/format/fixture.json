@@ -1,0 +1,33 @@
+{
+  "description": "The snapshotFormat option merged over the defaults: escapeString and printBasicPrototype on, a wider indent and a depth limit. A black-box run in write mode capturing the .snap.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "snapshotFormat": {
+        "escapeString": true,
+        "printBasicPrototype": true,
+        "indent": 4,
+        "maxDepth": 3
+      }
+    },
+    "vitest": {
+      "test": {
+        "snapshotFormat": {
+          "escapeString": true,
+          "printBasicPrototype": true,
+          "indent": 4,
+          "maxDepth": 3
+        }
+      }
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/format.test.ts.snap"]
+  }
+}

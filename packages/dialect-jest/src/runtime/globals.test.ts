@@ -5,7 +5,7 @@ import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
 import type { FileRegistry, LeakReport, RuntimeEvent, TaskNode, TestTask } from '@provino/types'
 import { jestDialect, jestPolicy } from '../dialect.ts'
 import { type JestGlobals, jestGlobals } from './globals.ts'
-import { runRegistered, setUpJestExpect } from './internal/test-support.ts'
+import { runRegistered, setUpJestExpect, timerHost } from './internal/test-support.ts'
 
 const jestCore = resolvePolicy(jestPolicy).core
 const jestMock = resolvePolicy(jestPolicy).mock
@@ -19,6 +19,7 @@ function mockHost(mocks?: () => MockRegistry) {
       throw new Error('this test does not use the module-mock registry')
     },
     mockPolicy: jestMock,
+    ...timerHost(),
   }
 }
 
@@ -402,19 +403,38 @@ test('a second jestGlobals call has its own record of what is isolating', async 
   await pending
 })
 
-test('the jest object has the registry methods, the mock functions and nothing else', async (t) => {
+test('the jest object has the registry methods, the mock functions, the timers and nothing else', async (t) => {
   const { jest } = await globalsFor(t)
   assert.deepEqual(Object.keys(jest).sort(), [
+    'advanceTimersByTime',
+    'advanceTimersByTimeAsync',
+    'advanceTimersToNextFrame',
+    'advanceTimersToNextTimer',
+    'advanceTimersToNextTimerAsync',
     'clearAllMocks',
+    'clearAllTimers',
     'fn',
+    'getRealSystemTime',
+    'getTimerCount',
     'isMockFunction',
     'isolateModules',
     'isolateModulesAsync',
+    'now',
     'replaceProperty',
     'resetAllMocks',
     'resetModules',
     'restoreAllMocks',
+    'runAllImmediates',
+    'runAllTicks',
+    'runAllTimers',
+    'runAllTimersAsync',
+    'runOnlyPendingTimers',
+    'runOnlyPendingTimersAsync',
+    'setSystemTime',
+    'setTimerTickMode',
     'spyOn',
+    'useFakeTimers',
+    'useRealTimers',
   ])
 })
 

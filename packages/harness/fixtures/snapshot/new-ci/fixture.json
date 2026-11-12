@@ -1,0 +1,7 @@
+{
+  "description": "A new snapshot in a CI run: neither runner writes it and the test fails, so the run does.",
+  "runners": ["jest", "vitest"],
+  "run": {
+    "capture": ["exitCode", "file:__snapshots__/new.test.ts.snap"]
+  }
+}

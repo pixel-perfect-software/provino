@@ -7,12 +7,15 @@ import {
   createRuntime,
   currentTest,
   type HookSuite,
+  type ProcessLike,
   type RunFileOptions,
   type Runtime,
   type RuntimeApi,
   type RuntimeOptions,
   serializeError,
   type TestApi,
+  type TryTaskInfo,
+  type TryTaskListener,
 } from '@provino/core'
 import type {
   CurrentTest,
@@ -22,6 +25,7 @@ import type {
   TaskId,
   TaskResult,
   TestContext,
+  TestTask,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -165,3 +169,41 @@ onTestFinished((ctx) => {
 beforeEach('not a function')
 // @ts-expect-error the hook timeout is a number of ms
 beforeAll(() => undefined, '5s')
+
+// The hook points around a test attempt (T5.8), and the process listeners (T5.11).
+expectTypeOf(runtime.onBeforeTryTask).parameters.toEqualTypeOf<[listener: TryTaskListener]>()
+expectTypeOf(runtime.onAfterTryTask).returns.toEqualTypeOf<() => void>()
+expectTypeOf(runtime.captureProcessErrors).returns.toEqualTypeOf<() => void>()
+expectTypeOf(runtime.captureProcessErrors).parameters.toEqualTypeOf<
+  [target?: ProcessLike | undefined]
+>()
+expectTypeOf<TryTaskInfo>().toEqualTypeOf<{
+  readonly test: TestTask
+  readonly ctx: TestContext
+  readonly attempt: number
+  readonly repeat: number
+  readonly failed: boolean
+  fail(error: unknown): void
+}>()
+runtime.onBeforeTryTask((info) => {
+  expectTypeOf(info).toEqualTypeOf<TryTaskInfo>()
+})
+runtime.onAfterTryTask(async (info) => {
+  if (info.failed) await Promise.resolve()
+})
+// @ts-expect-error a listener is a function
+runtime.onBeforeTryTask('not a function')
+// @ts-expect-error a listener takes the attempt's info, not a number
+runtime.onAfterTryTask((_info: number) => undefined)
+// @ts-expect-error the process stand-in needs `on` and `removeListener`
+runtime.captureProcessErrors({})
+
+// The context: `skip` has both of Vitest's forms, `annotate` takes a message and a kind.
+declare const ctx: TestContext
+expectTypeOf(ctx.skip('note')).toBeNever()
+expectTypeOf(ctx.skip(true, 'note')).toBeVoid()
+expectTypeOf(ctx.annotate).returns.toEqualTypeOf<Promise<void>>()
+// @ts-expect-error the condition is a boolean
+ctx.skip(1, 'note')
+// @ts-expect-error the message is a string
+void ctx.annotate(1)
