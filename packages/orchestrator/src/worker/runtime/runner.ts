@@ -524,10 +524,8 @@ export function createRuntimeRunner(): WorkerRunner {
       environmentTornDown: () => (fileScope.getStore() ?? fallback)?.tornDown ?? true,
       setDefaultTimeout: (ms) => coreRuntime.setDefaultTimeout(ms),
     }
-    // A module's own bindings (Jest's `jest`) are part of what `injectGlobals` injects: off, the
-    // wrapper's parameter is left out in jest-runtime, so `typeof jest` is 'undefined' in a module
-    // (feature detection such as Testing Library's). The values the scope serves for imports
-    // (`@jest/globals`) are not bindings and stay.
+    // The scope also serves the imports (`@jest/globals`); the bindings a module's wrapper declares
+    // are `config.loader.moduleScope`, which is empty when `injectGlobals` is off.
     if (config.moduleScope !== null) {
       const scopeFactory = await behaviours.load(config.moduleScope)
       const values: unknown = scopeFactory(host)
@@ -537,20 +535,7 @@ export function createRuntimeRunner(): WorkerRunner {
           `The module-scope factory ${config.moduleScope.module}#${config.moduleScope.export} did not return a function`,
         )
       }
-      const scopeOf = values as ModuleScopeValues
-      parts.moduleScope = policy.core.injectGlobals
-        ? scopeOf
-        : (from) => {
-            const served = scopeOf(from)
-            const unbound: Record<string, unknown> = Object.defineProperties(
-              {},
-              Object.getOwnPropertyDescriptors(served),
-            )
-            for (const name of config.loader.moduleScope) {
-              Object.defineProperty(unbound, name, { value: undefined, enumerable: false })
-            }
-            return unbound
-          }
+      parts.moduleScope = values as ModuleScopeValues
     }
 
     if (policy.core.injectGlobals && config.globals !== null) {

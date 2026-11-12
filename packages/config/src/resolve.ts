@@ -414,7 +414,7 @@ async function finishProject(
       options: input.environmentOptions,
     },
     globals: globalsFactory,
-    // A module's own bindings exist whether or not globals are injected (Jest's `jest`).
+    // The factory stays whether or not globals are injected: it also serves the imports (`@jest/globals`).
     moduleScope: dialect?.moduleScope?.factory ?? null,
     ...(dialect?.environmentResolver === undefined
       ? {}
@@ -431,7 +431,10 @@ async function finishProject(
     loader: {
       // The dialect's hoist policy crosses by value: data, with `RegExp` and `Set` leaves (B13c Gap 12).
       hoist: dialect?.loader?.hoist ?? null,
-      moduleScope: dialect?.moduleScope?.names ?? [],
+      // A module's own bindings (Jest's `jest`) are part of what `injectGlobals` injects: off, the
+      // wrapper declares none, so a module that names one gets a `ReferenceError` as in jest-runtime
+      // (and `typeof jest` is 'undefined').
+      moduleScope: policy.core.injectGlobals ? (dialect?.moduleScope?.names ?? []) : [],
       ...(dialect?.moduleScope?.modules === undefined
         ? {}
         : { scopeModules: dialect.moduleScope.modules }),
