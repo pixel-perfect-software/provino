@@ -316,6 +316,7 @@
         "@provino/expect",
         "@provino/mock",
         "@provino/timers",
+        "@provino/env-shared",
         "@provino/dialect-jest"
       ],
       "slices": "all"

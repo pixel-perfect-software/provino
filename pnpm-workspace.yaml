@@ -31,6 +31,7 @@ catalog:
   "@jest/expect-utils": 30.5.2
   "@jest/get-type": 30.5.0
   # Jest 30.5 and Vitest 5.0: subjects of the dev packages (harness, bench), never our runner.
+  "@edge-runtime/jest-environment": 4.0.0
   "@jest/globals": 30.5.2
   "@jest/test-result": 30.5.2
   # The Spike A loader fixture's Jest baseline uses @swc/jest (Track 2, bench-e2e).
@@ -86,6 +87,12 @@ catalog:
   # The mock bench's second baseline (T4.3), and the Jest dialect's upstream expect tests.
   jest-mock: 30.5.2
   # A real `print`-style snapshot serializer: the snapshot corpus runs it under both runners (T7.10).
+  # T8.5's smoke: the Jest environment packages the adapter runs with no source change. Two jsdom
+  # lines (jest 30's, and 29.7 through an alias), the fixed-globals subclass, and the edge runtime.
+  jest-environment-jsdom: 30.5.2
+  jest-environment-jsdom-29: npm:jest-environment-jsdom@29.7.0
+  jest-environment-node: 30.5.2
+  jest-fixed-jsdom: 0.0.11
   jest-serializer-vue: 3.1.0
   jest-util: 30.5.1
   # jsdom (Track 8's version): the propagation test's DOM rows, later the jsdom environment.
