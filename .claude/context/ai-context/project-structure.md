@@ -32,12 +32,13 @@ provino/
 │   ├── harness/                  # @provino/harness (dev): result converters, golden-fixture recorder, parity diffs
 │   └── bench/                    # @provino/bench (dev): synthetic suites, provino-bench (run, check, kill-check), and the loader benches (src/loader/)
 ├── tooling/                      # private workspace tools, never published (pnpm-workspace `tooling/*`)
-│   └── boundaries/               # provino-boundaries: packages.json manifest, generator, GritQL plugins
+│   ├── boundaries/               # provino-boundaries: packages.json manifest, generator, GritQL plugins
+│   └── packaging/                # provino-packaging: the tsdown preset and the `provino` bundle, `pnpm hygiene`, the install smoke (B21e)
 ├── .refs/                        # gitignored upstream sources at pinned commits (DECISIONS S3); excalidraw/ is GitHub's tarball (the sandbox blocks nested git)
 └── .github/workflows/ci.yml      # Node 22.15/24/26 typecheck + test; type tests on TS 7.0.2 and 5.9.3; lint; recorded goldens on every push, bench suites when their inputs change; resolver/transform corpora
 ```
 
-Gitignored build output: `packages/*/.tsc/` (declarations from `tsc -b`; project references need emit) and `.turbo/`.
+Gitignored build output: `packages/*/.tsc/` (declarations from `tsc -b`; project references need emit), `packages/*/dist/` (tsdown, `pnpm build`) and `.turbo/`. Committed beside the sources: `packages/*/etc/*.api.md` (API Extractor reports of the semver packages), `.changeset/`, `knip.jsonc`.
 
 Planned, not yet created: the other `packages/*` (see `monorepo-architecture.md`), the `provino-site` app (T12.18 places it), `compat/*.snap.md` (T12.20), `crates/provino_native` (Phase 3).
 
@@ -45,7 +46,7 @@ Planned, not yet created: the other `packages/*` (see `monorepo-architecture.md`
 
 ```
 packages/<name>/
-├── package.json        # exports: "provino-source" → ./src/…ts first, then types/import → ./dist/…
+├── package.json        # exports: "provino-source" → ./src/…ts first, then types, then import → ./dist/…; "build" script; "files": ["dist"]
 ├── tsconfig.json       # extends ../../tsconfig.base.json; include ["src"] (unit tests included)
 ├── src/                # source, plus *.test.ts unit tests next to it
 ├── bench/              # optional: corpus and benchmark scripts, their own tsconfig project (referenced from the root tsconfig.json)

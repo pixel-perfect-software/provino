@@ -41,6 +41,7 @@ When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (und
 - `packages/snapshot/CLAUDE.md`: the snapshot engine's three entries (the `.snap` format, the per-file `SnapshotState` and its lifecycle, the coordinator's update mode and totals), what a dialect supplies (policy values, the printer, the key function), the differences it reproduces and the ones it doesn't, and what is still stubbed (with owning tasks).
 - `packages/transform/CLAUDE.md`: how the hoister is laid out, the import rewrite (D36) and its output shape, how the pipeline runs it, and what is still stubbed (with owning tasks).
 - `tooling/boundaries/CLAUDE.md`: the package manifest, what is generated from it, and how to add a package or rule.
+- `tooling/packaging/CLAUDE.md`: the shared tsdown preset, the `provino` bundle (what is inlined, how worker modules are found by file, the shared chunk), `pnpm hygiene` and each check's planted case, the API reports and changesets, the release workflow lint and the install smoke.
 
 ## Reference (read when named)
 
