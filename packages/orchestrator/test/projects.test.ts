@@ -215,6 +215,30 @@ describe('runProjects over forks', () => {
     assert.equal(new Set(ids).size, ids.length)
   })
 
+  it('every worker of a run shares one seed when the config gives none', async () => {
+    const probe = (name: string): string =>
+      [
+        "const { appendFileSync } = require('node:fs')",
+        "const { join } = require('node:path')",
+        `test('${name}', () => {`,
+        "  appendFileSync(join(__dirname, 'seeds.txt'), `${globalThis.getSeed()}\\n`)",
+        '})',
+      ].join('\n')
+    const dir = await makeProject(
+      Object.fromEntries(['a', 'b', 'c', 'd'].map((n) => [`${n}.test.js`, probe(n)])),
+    )
+    const summary = await runProjects([runtimeProject(dir.dir, { name: 'seeded' })], {
+      cache: false,
+      stderr: new Collect(),
+      bus: createReporterBus([]),
+      pool: { kind: 'forks', maxWorkers: 4 },
+    })
+    assert.equal(summary.reason, 'passed')
+    const seeds = readFileSync(join(dir.dir, 'seeds.txt'), 'utf8').trim().split('\n')
+    assert.equal(seeds.length, 4)
+    assert.equal(new Set(seeds).size, 1, `one seed for the run: ${seeds.join(', ')}`)
+  })
+
   it('no project is ORCH_NO_PROJECTS, before the bus hears of anything', async () => {
     const { reporter, seen } = recorder()
     await assert.rejects(

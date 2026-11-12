@@ -222,7 +222,7 @@ export interface SerializedProjectConfig {
   readonly globalValues?: Readonly<Record<string, JsonValue>>
   /** The project's fake-timer defaults (`NeutralProject.fakeTimers`). Absent means none. */
   readonly fakeTimers?: Readonly<Record<string, JsonValue>>
-  /** The run's random seed (`NeutralProject.seed`). Absent: the worker draws its own. */
+  /** The run's random seed (`NeutralProject.seed`). Absent: the coordinator gives every worker of the run one it draws. */
   readonly seed?: number
   /** Absolute paths, imported before each test file, first (Jest `setupFiles`). */
   readonly setupFiles: readonly string[]

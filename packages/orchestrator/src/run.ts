@@ -320,13 +320,20 @@ export async function runProjects(
     takenIdentities.add(identity)
     return identity
   }
+  // One seed for the run (`jest.getSeed()`): a project that gives none takes this one, so every
+  // worker of every such project reports the same value, as Jest's single `globalConfig.seed`.
+  const runSeed = Math.floor(0x1_0000_0000 * Math.random()) - 0x8000_0000
   const members: Member[] = projects.map((resolved, index) => {
     // The transform cache (T3.6) is on unless the run has no cache (`--no-cache`): the directory is
     // wiped here if the lockfile changed, and handed to the project's workers.
-    const project =
+    const cached =
       options.cache === false
         ? resolved
         : withTransformCache(resolved, transformCacheDir(resolved.rootDir, resolved.cacheDirectory))
+    const project =
+      cached.config.seed === undefined
+        ? { ...cached, config: { ...cached.config, seed: runSeed } }
+        : cached
     const wanted = nameCounts.get(project.name) === 1 ? project.name : projectCacheKey(project)
     const identity = uniqueIdentity(wanted, index)
     const cacheProject = identity === wanted ? projectCacheKey(project) : identity
