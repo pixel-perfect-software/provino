@@ -3,6 +3,7 @@
 // Code's sandbox cannot nest `sandbox-exec`, and the real probe is Tyler's `corpus probe`.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { fakeDeps, finished, tempDir } from './test-support.ts'
 import { HarnessError } from '../errors.ts'
 import {
   assertSandboxPlatform,
@@ -10,6 +11,7 @@ import {
   evaluateProbe,
   type ProbeAttempt,
   parseProbeOutput,
+  runProbe,
   sandboxEnv,
   sandboxed,
   seatbeltProfile,
@@ -213,4 +215,81 @@ test('loopback must work: a profile that cuts it off would break every test serv
   assert.equal(verdict.ok, false)
   assert.match(verdict.problems.join('\n'), /loopback/)
   assert.equal(evaluateProbe(without(BLOCKED, 'loopback'), CONTROL).ok, false)
+})
+
+/** What `probe-child.ts` prints: one JSON object per attempt. */
+function childOutput(attempts: readonly ProbeAttempt[]): string {
+  return `${attempts.map((attempt) => JSON.stringify(attempt)).join('\n')}\n`
+}
+
+test('runProbe refuses a platform with no sandbox before it starts anything', async () => {
+  const deps = fakeDeps(() => finished(0))
+  await assert.rejects(
+    runProbe({ workRoot: await tempDir('probe-linux'), platform: 'linux', deps }),
+    (error: unknown) => error instanceof HarnessError && error.code === 'HARNESS_CORPUS_NO_SANDBOX',
+  )
+  assert.equal(deps.calls.length, 0)
+})
+
+test('runProbe runs the child inside the profile, then outside as a control, and returns the verdict', async () => {
+  const workRoot = await tempDir('probe-ok')
+  const home = await tempDir('probe-home')
+  const deps = fakeDeps((call) =>
+    finished(0, childOutput(call.command === '/usr/bin/sandbox-exec' ? BLOCKED : CONTROL)),
+  )
+  const verdict = await runProbe({ workRoot, platform: 'darwin', home, deps })
+  assert.equal(verdict.ok, true)
+  assert.equal(deps.calls.length, 2)
+  const [inside, outside] = deps.calls
+  assert.equal(inside?.command, '/usr/bin/sandbox-exec')
+  assert.equal(inside?.args[0], '-f')
+  assert.equal(inside?.args[2], process.execPath)
+  assert.equal(outside?.command, process.execPath)
+  assert.ok(outside?.args.some((arg) => arg.endsWith('probe-child.ts')))
+  assert.ok(
+    outside?.args.includes(`${home}/.ssh/provino-probe-canary`),
+    'the ssh attempt targets the real home',
+  )
+  assert.deepEqual(Object.keys(outside?.options.env ?? {}).toSorted(), ['HOME', 'PATH'])
+})
+
+test('a profile that lets an attempt through is HARNESS_CORPUS_SANDBOX_LEAK, so no run can start', async () => {
+  const leaking = BLOCKED.map(
+    (attempt): ProbeAttempt =>
+      attempt.name === 'https' ? { name: 'https', outcome: 'ok' } : attempt,
+  )
+  const deps = fakeDeps((call) =>
+    finished(0, childOutput(call.command === '/usr/bin/sandbox-exec' ? leaking : CONTROL)),
+  )
+  await assert.rejects(
+    runProbe({
+      workRoot: await tempDir('probe-leak'),
+      platform: 'darwin',
+      home: await tempDir('probe-home2'),
+      deps,
+    }),
+    (error: unknown) =>
+      error instanceof HarnessError &&
+      error.code === 'HARNESS_CORPUS_SANDBOX_LEAK' &&
+      error.message.includes('https') &&
+      error.message.includes('LEAK'),
+  )
+})
+
+test('a probe that prints nothing inside the profile cannot be trusted (a profile that does not compile)', async () => {
+  const deps = fakeDeps(() => finished(65, '', 'sandbox-exec: syntax error in profile'))
+  await assert.rejects(
+    runProbe({
+      workRoot: await tempDir('probe-silent'),
+      platform: 'darwin',
+      home: await tempDir('probe-home3'),
+      deps,
+    }),
+    (error: unknown) =>
+      error instanceof HarnessError &&
+      error.code === 'HARNESS_CORPUS_SANDBOX_LEAK' &&
+      error.message.includes('printed nothing') &&
+      error.message.includes('syntax error'),
+  )
+  assert.equal(deps.calls.length, 1, 'the control run is not attempted')
 })

@@ -356,6 +356,8 @@ export interface ProbeOptions {
   readonly deps?: CorpusDeps
   /** The real home; the probe tries to read a file under its `.ssh`. Default: the user's. */
   readonly home?: string
+  /** The platform to judge (tests only). Default: this one. */
+  readonly platform?: NodeJS.Platform
 }
 
 /**
@@ -374,7 +376,7 @@ export function probeChildPath(): string {
  * @public
  */
 export async function runProbe(options: ProbeOptions): Promise<ProbeVerdict> {
-  assertSandboxPlatform()
+  assertSandboxPlatform(options.platform)
   const deps = options.deps ?? defaultDeps
   const probeDir = path.join(options.workRoot, '_probe')
   await mkdir(probeDir, { recursive: true })
