@@ -35,6 +35,12 @@ signals.dispose()
 // interrupt: Ctrl+C while the workers were still stopping is still a Ctrl+C.
 const finalCode = signals.exitCode() ?? code
 process.exitCode = finalCode
+// The run is over. If something a test left open keeps the process alive (an inline pool), a signal
+// now means "stop waiting": the process ends at once, with the signal's code rather than by the
+// signal, so a Ctrl+C that lands just after the run is the same as one during it. Handlers do not
+// keep the event loop alive.
+process.once('SIGINT', () => process.exit(130))
+process.once('SIGTERM', () => process.exit(143))
 
 // `--forceExit`: end the process now, as Jest does, once what the run printed has been written. A
 // run that wasn't asked to leaves the exit to the event loop: with forks or threads the pool has
