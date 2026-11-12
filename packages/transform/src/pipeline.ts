@@ -2,7 +2,6 @@
 // `oxc-transform.transformSync` with tsconfig-derived options, the hoist hook point, map
 // composition, then the record's import facts from one oxc-parser parse. Sync only: the async oxc
 // API would use libuv threads inside our own worker pool.
-import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { findPackageJSON } from 'node:module'
 import { dirname } from 'node:path'
@@ -16,6 +15,8 @@ import type {
   TransformRequest,
 } from '@provino/types'
 import { type JsxOptions, type OxcError, type TransformOptions, transformSync } from 'oxc-transform'
+import { hashParts, pipelineFingerprint, stableJson } from './cache/fingerprint.ts'
+import { createTransformCache } from './cache/store.ts'
 import { TransformError } from './errors.ts'
 import { hoistMocks } from './hoist/index.ts'
 import { moduleFacts } from './internal/imports.ts'
@@ -41,8 +42,8 @@ export interface PipelineJsxOptions {
 }
 
 /**
- * Options for `createPipeline`. Later tasks add the Jest transformer host (T3.8), the Vite plugin
- * host (T3.9), barrel trimming (T3.11), the decorator fallback (T3.10) and the cache (T3.6).
+ * Options for `createPipeline`. Later tasks add the Vite plugin host (T3.9), barrel trimming
+ * (T3.11) and the decorator fallback (T3.10).
  * @public
  */
 export interface PipelineOptions {
@@ -56,8 +57,11 @@ export interface PipelineOptions {
   readonly define?: Readonly<Record<string, string>>
   /** The dialect's hoist policy, or `null` to skip hoisting. */
   readonly hoist: HoistPolicy | null
-  /** The transform cache arrives with T3.6. */
-  readonly cache: false
+  /**
+   * The transform cache (T3.6): a record is read from `dir` before any work and written after it.
+   * `false`: none (`--no-cache`).
+   */
+  readonly cache: false | { readonly dir: string }
   /**
    * The project's user transformers (T3.8, `createJestHost`). A file one of its rules matches goes
    * through the transformer instead of Oxc; every other file takes the Oxc path.
@@ -115,15 +119,6 @@ function ownVersion(): string {
     readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
   )
   return typeof pkg.version === 'string' ? pkg.version : 'unknown'
-}
-
-/** A stable serialization for fingerprints: regexps as their source, sets sorted. */
-function stableJson(value: unknown): string {
-  return JSON.stringify(value, (_key, v: unknown) => {
-    if (v instanceof RegExp) return v.toString()
-    if (v instanceof Set) return [...v].map(String).sort()
-    return v
-  })
 }
 
 const PRE_ES2022 = /^es(?:3|5|201[5-9]|202[01])$/i
@@ -218,21 +213,56 @@ export const createPipeline: CreatePipeline = (options) => {
     }
   }
 
-  const fingerprint = createHash('sha256')
-    .update(
-      stableJson({
-        transform: ownVersion(),
-        oxcTransform: packageVersion('oxc-transform'),
-        oxcParser: packageVersion('oxc-parser'),
-        typescript: options.typescript,
-        tsconfig: options.tsconfig,
-        jsx: options.jsx ?? null,
-        define: options.define ?? null,
-        hoist: options.hoist,
-        transformers: options.transformers?.fingerprint ?? null,
-      }),
-    )
-    .digest('hex')
+  // The options for a route and a config, and their text for the key: both are the same for every
+  // file that shares them, and a warm run pays for the text on every file.
+  const oxcMemo = new Map<LoadedConfig, Map<string, { oxc: TransformOptions; text: string }>>()
+  function oxcFor(found: Route, config: LoadedConfig): { oxc: TransformOptions; text: string } {
+    let byRoute = oxcMemo.get(config)
+    if (byRoute === undefined) {
+      byRoute = new Map()
+      oxcMemo.set(config, byRoute)
+    }
+    const routeKey = `${found.lang}:${found.sourceType}`
+    let entry = byRoute.get(routeKey)
+    if (entry === undefined) {
+      const oxc = oxcOptions(found, config.emit)
+      // A tsconfig `extends` that can't be found changes what the options are once it can.
+      entry = { oxc, text: stableJson([oxc, config.missing]) }
+      byRoute.set(routeKey, entry)
+    }
+    return entry
+  }
+
+  const fingerprint = pipelineFingerprint({
+    versions: {
+      transform: ownVersion(),
+      oxcTransform: packageVersion('oxc-transform'),
+      oxcParser: packageVersion('oxc-parser'),
+    },
+    typescript: options.typescript,
+    nodeVersion: process.version,
+    tsconfig: options.tsconfig,
+    jsx: options.jsx,
+    define: options.define,
+    hoist: options.hoist,
+    transformers: options.transformers?.fingerprint ?? null,
+  })
+  const cache = options.cache === false ? undefined : createTransformCache(options.cache.dir)
+
+  /**
+   * The entry key of a hosted file: the pipeline, the file, its role and the transformer's own key
+   * (without one, as in Jest, the content).
+   */
+  function hostedKey(request: TransformRequest, transformerKey: string | null): string {
+    return hashParts([
+      fingerprint,
+      request.filename,
+      request.role,
+      request.instrument ? 'instrument' : 'plain',
+      transformerKey === null ? 'content' : 'transformer',
+      transformerKey ?? request.source,
+    ])
+  }
 
   /**
    * The record for a file a user transformer produced (T3.8). The output is what Jest would run
@@ -240,7 +270,12 @@ export const createPipeline: CreatePipeline = (options) => {
    * runs on it unless the output carries one of the host's markers: a transformer that hoisted
    * leaves nothing to move, so the calls stay once, in the order it wrote them.
    */
-  function hostedRecord(request: TransformRequest, host: JestHost, source: HostedSource) {
+  function hostedRecord(
+    request: TransformRequest,
+    host: JestHost,
+    source: HostedSource,
+    cacheKey: string,
+  ) {
     const { filename } = request
     let code = source.code
     const maps: (SourceMapV3 | null)[] = [source.map]
@@ -259,17 +294,6 @@ export const createPipeline: CreatePipeline = (options) => {
     const lang = /\.[cm]?[jt]sx$/.test(filename) ? 'jsx' : 'js'
     const facts = moduleFacts(filename, code, lang, 'unambiguous')
     const format = facts.hasModuleSyntax ? 'esm' : facts.hasCommonJsSyntax ? 'cjs' : 'unknown'
-    const cacheKey = createHash('sha256')
-      .update(fingerprint)
-      .update('\0')
-      .update(filename)
-      .update('\0')
-      .update(request.role)
-      .update('\0')
-      // The transformer's own key covers what its output depends on; without one, as in Jest, the
-      // content does.
-      .update(source.transformerCacheKey ?? request.source)
-      .digest('hex')
     return {
       code,
       // Maps compose to the original source only when the transformer gave one.
@@ -307,11 +331,22 @@ export const createPipeline: CreatePipeline = (options) => {
     }
   }
 
+  /** Stores a record that came from work, and returns it. */
+  function stored(key: string, record: TransformRecord): TransformRecord {
+    cache?.set(key, record)
+    return record
+  }
+
   function transform(request: TransformRequest): TransformRecord {
     const host = options.transformers
     if (host?.handles(request.filename) === true) {
       try {
-        return hostedRecord(request, host, host.transform(request))
+        const transformerKey = host.cacheKey(request)
+        const key = hostedKey(request, transformerKey)
+        const hit = cache?.get(key)
+        if (hit !== undefined) return hit
+        const source = host.transform(request, transformerKey)
+        return stored(key, hostedRecord(request, host, source, key))
       } catch (error) {
         return failedRecord(error)
       }
@@ -335,9 +370,18 @@ export const createPipeline: CreatePipeline = (options) => {
     }
     const { filename, source } = request
     const config = found.lang === 'js' ? NO_CONFIG : configFor(filename)
-    const emit = config.emit
-    const oxc = oxcOptions(found, emit)
+    const { oxc, text: oxcText } = oxcFor(found, config)
     const runOxc = found.lang !== 'js' || options.define !== undefined
+    const cacheKey = hashParts([
+      fingerprint,
+      filename,
+      oxcText,
+      request.role,
+      request.instrument ? 'instrument' : 'plain',
+      source,
+    ])
+    const hit = cache?.get(cacheKey)
+    if (hit !== undefined) return hit
 
     let code = source
     const maps: (SourceMapV3 | null)[] = []
@@ -377,19 +421,7 @@ export const createPipeline: CreatePipeline = (options) => {
           : facts.hasCommonJsSyntax
             ? 'cjs'
             : 'unknown'
-    const cacheKey = createHash('sha256')
-      .update(fingerprint)
-      .update('\0')
-      .update(filename)
-      .update('\0')
-      .update(stableJson(oxc))
-      .update('\0')
-      .update(request.role)
-      .update(request.instrument ? '\0i\0' : '\0-\0')
-      .update(source)
-      .digest('hex')
-
-    return {
+    return stored(cacheKey, {
       code,
       map: composeMaps(maps),
       format,
@@ -402,7 +434,7 @@ export const createPipeline: CreatePipeline = (options) => {
       diagnostics,
       cacheKey,
       fromCache: false,
-    }
+    })
   }
 
   return {
@@ -411,7 +443,12 @@ export const createPipeline: CreatePipeline = (options) => {
       const host = options.transformers
       if (host?.handles(request.filename) === true) {
         try {
-          return hostedRecord(request, host, await host.transformAsync(request))
+          const transformerKey = await host.cacheKeyAsync(request)
+          const key = hostedKey(request, transformerKey)
+          const hit = cache?.get(key)
+          if (hit !== undefined) return hit
+          const source = await host.transformAsync(request, transformerKey)
+          return stored(key, hostedRecord(request, host, source, key))
         } catch (error) {
           return failedRecord(error)
         }

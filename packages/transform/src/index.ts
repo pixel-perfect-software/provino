@@ -1,5 +1,14 @@
 // @provino/transform: the transform pipeline (Track 3). The shared records (`TransformRecord`,
 // `TransformRequest`, `Pipeline`) live in @provino/types.
+
+export type { PruneResult, TransformCache } from './cache/index.ts'
+export {
+  createTransformCache,
+  DEFAULT_CACHE_MAX_BYTES,
+  lockfileHash,
+  prepareCache,
+  pruneCache,
+} from './cache/index.ts'
 export type { TransformErrorCode } from './errors.ts'
 export { TransformError } from './errors.ts'
 export { LATE_IMPORT } from './hoist/apply.ts'

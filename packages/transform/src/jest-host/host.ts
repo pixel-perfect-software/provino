@@ -42,10 +42,14 @@ export interface HostedSource {
 export interface JestHost {
   /** Whether a rule matches `filename` and no ignore pattern does: the file goes to a transformer. */
   handles(filename: string): boolean
-  /** Jest's sync `transformSource`: `process`; a transformer with only `processAsync` throws. */
-  transform(request: TransformRequest): HostedSource
+  /**
+   * Jest's sync `transformSource`: `process`; a transformer with only `processAsync` throws.
+   * `cacheKey` is the result of `cacheKey(request)` when the caller already asked (a pipeline with
+   * a cache does, before it looks an entry up), so `getCacheKey` runs once per file.
+   */
+  transform(request: TransformRequest, cacheKey?: string | null): HostedSource
   /** Jest's `transformSourceAsync`: `processAsync` when there is one, else `process`. */
-  transformAsync(request: TransformRequest): Promise<HostedSource>
+  transformAsync(request: TransformRequest, cacheKey?: string | null): Promise<HostedSource>
   /** The transformer's `getCacheKey` for `request`, or `null` (none, or no rule matches). */
   cacheKey(request: TransformRequest): string | null
   /** `getCacheKeyAsync` when the transformer has it, else `getCacheKey`. */
@@ -309,7 +313,7 @@ export async function createJestHost(config: SerializedTransformConfig): Promise
     hoistedMarkers: config.hoistedMarkers,
     cacheKey,
     cacheKeyAsync,
-    transform(request) {
+    transform(request, knownKey) {
       const { rule, filename } = pick(request)
       const { transformer } = rule
       if (typeof transformer.process !== 'function') {
@@ -319,16 +323,16 @@ export async function createJestHost(config: SerializedTransformConfig): Promise
         )
       }
       const options = optionsFor(rule, request.instrument)
-      const key = cacheKey(request)
+      const key = knownKey === undefined ? cacheKey(request) : knownKey
       return finish(rule, transformer.process(request.source, filename, options), key)
     },
-    async transformAsync(request) {
+    async transformAsync(request, knownKey) {
       const { rule, filename } = pick(request)
       const { transformer } = rule
       const process = transformer.processAsync ?? transformer.process
       if (typeof process !== 'function') throw invalidTransformer(rule.path)
       const options = optionsFor(rule, request.instrument)
-      const key = await cacheKeyAsync(request)
+      const key = knownKey === undefined ? await cacheKeyAsync(request) : knownKey
       return finish(rule, await process(request.source, filename, options), key)
     },
   }

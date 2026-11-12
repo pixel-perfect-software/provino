@@ -35,6 +35,7 @@
     "record:mocking": "node --conditions=provino-source packages/harness/src/cli.ts record packages/harness/fixtures/mocking",
     "bench:resolve": "node --conditions=provino-source packages/resolver/bench/resolve-corpus.ts",
     "bench:excalidraw": "node --conditions=provino-source packages/transform/bench/excalidraw.ts",
+    "bench:transform-cache": "node --conditions=provino-source packages/transform/bench/transform-cache.ts",
     "bench:runner-fuzz": "node --conditions=provino-source packages/transform/bench/runner-fuzz.ts",
     "bench:loader": "node --conditions=provino-source packages/bench/src/loader/cli.ts",
     "bench:worker": "node --conditions=provino-source packages/bench/src/worker/cli.ts",

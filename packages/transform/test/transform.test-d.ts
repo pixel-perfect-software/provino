@@ -3,9 +3,15 @@ import {
   type CreatePipeline,
   createJestHost,
   createPipeline,
+  createTransformCache,
   type HostedSource,
   type JestHost,
+  lockfileHash,
   type PipelineOptions,
+  type PruneResult,
+  prepareCache,
+  pruneCache,
+  type TransformCache,
   type TransformError,
   type TransformErrorCode,
 } from '@provino/transform'
@@ -45,8 +51,11 @@ expectTypeOf<TransformError['code']>().toEqualTypeOf<TransformErrorCode>()
 createPipeline({ root: '/', typescript: 'oxc', tsconfig: 'auto', cache: false })
 // @ts-expect-error not a TypeScript mode
 createPipeline({ ...options, typescript: 'babel' })
-// @ts-expect-error the transform cache arrives with T3.6
 createPipeline({ ...options, cache: { dir: '/tmp' } })
+// @ts-expect-error `true` names no directory
+createPipeline({ ...options, cache: true })
+// @ts-expect-error the cache option takes a `dir`
+createPipeline({ ...options, cache: {} })
 // @ts-expect-error not a JSX runtime
 createPipeline({ ...options, jsx: { runtime: 'preserve' } })
 
@@ -67,3 +76,21 @@ createPipeline({ ...options, transformers: host })
 createPipeline({ ...options, transformers: transformConfig })
 // @ts-expect-error a host is built from a config, not from rules alone
 createJestHost({ rules: [] })
+
+// T3.6: the cache's own API.
+const cache = createTransformCache('/tmp/provino-cache')
+expectTypeOf(cache).toEqualTypeOf<TransformCache>()
+expectTypeOf(cache.get('k')).toEqualTypeOf<TransformRecord | undefined>()
+expectTypeOf(cache.set).parameters.toEqualTypeOf<[string, TransformRecord]>()
+expectTypeOf(lockfileHash('/')).toEqualTypeOf<string | null>()
+expectTypeOf(prepareCache('/tmp/x', null)).toEqualTypeOf<void>()
+expectTypeOf(pruneCache('/tmp/x')).toEqualTypeOf<PruneResult>()
+expectTypeOf(pruneCache('/tmp/x', 1024)).toEqualTypeOf<PruneResult>()
+// @ts-expect-error the directory is a string
+createTransformCache(undefined)
+// @ts-expect-error the cap is a number
+pruneCache('/tmp/x', '1 MB')
+// The host takes the cache key the caller already asked for.
+expectTypeOf<Parameters<JestHost['transform']>>().toEqualTypeOf<
+  [request: TransformRequest, cacheKey?: string | null | undefined]
+>()
