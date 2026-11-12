@@ -7,6 +7,13 @@ minimumReleaseAge: 10080
 # autd is our own package, so all its versions skip the wait (DECISIONS D14).
 minimumReleaseAgeExclude:
   - "@pixel-perfect-software/always-up-to-date"
+  - "@turbo/darwin-64@2.11.11"
+  - "@turbo/darwin-arm64@2.11.11"
+  - "@turbo/linux-64@2.11.11"
+  - "@turbo/linux-arm64@2.11.11"
+  - "@turbo/windows-64@2.11.11"
+  - "@turbo/windows-arm64@2.11.11"
+  - turbo@2.11.11
 
 # Jest 30's haste map and resolver ship prebuilt native bindings; their install scripts only
 # rebuild from source when a prebuilt binary is missing, so they never run here.
@@ -27,7 +34,7 @@ catalog:
   "@babel/preset-react": 7.29.7
   # T3.8's fixture: babel-jest needs a TypeScript preset to read the test.
   "@babel/preset-typescript": 7.29.7
-  "@biomejs/biome": 2.6.3
+  "@biomejs/biome": 2.6.5
   # The Jest dialect's expect (B08): the leaves the vendored matchers import, at exactly the
   # versions expect@30.5.2 depends on (DECISIONS D18).
   "@jest/expect-utils": 30.5.2
@@ -37,7 +44,7 @@ catalog:
   "@jest/globals": 30.5.2
   "@jest/test-result": 30.5.2
   # The Spike A loader fixture's Jest baseline uses @swc/jest (Track 2, bench-e2e).
-  "@swc/core": 1.16.20
+  "@swc/core": 1.16.22
   "@swc/jest": 0.2.39
   # Type tests only: real Jest transformers must assign to JestTransformer (Track 3, T3.1).
   "@jest/transform": 30.5.2
@@ -46,7 +53,7 @@ catalog:
   # The hoister's map probes: every moved statement traces back to its line and column (T3.4).
   "@jridgewell/trace-mapping": 0.3.31
   # autd: dependency updates (DECISIONS D14); config in .always-up-to-date.json.
-  "@pixel-perfect-software/always-up-to-date": 3.3.0
+  "@pixel-perfect-software/always-up-to-date": 4.1.1
   # The current-test propagation test (Track 5 Spikes B): fake-timer callbacks, as Jest 30.5 installs.
   "@sinonjs/fake-timers": 15.4.0
   "@standard-schema/spec": 1.1.0
@@ -54,14 +61,14 @@ catalog:
   # Node 22.15 is the floor, so type against the 22.x API.
   "@types/node": 22.20.5
   # picomatch ships no types (D26).
-  "@types/picomatch": 4.0.2
+  "@types/picomatch": 4.0.3
   "@types/sinonjs__fake-timers": 15.0.1
   # Interop tests only: our asymmetric matchers inside Vitest's expect, and its inside ours (T7.4).
-  "@vitest/expect": 5.0.5
+  "@vitest/expect": 5.1.0
   # The hoist corpus's Vitest reference: its real hoister at the pinned version (T3.4).
-  "@vitest/mocker": 5.0.5
+  "@vitest/mocker": 5.1.0
   # The mock bench's bar: calls within 1.5x of @vitest/spy (T4.3).
-  "@vitest/spy": 5.0.5
+  "@vitest/spy": 5.1.0
   # The TypeScript 6 API, as tsc6, for tools that need it (dependency-cruiser, API Extractor).
   "@typescript/typescript6": 6.0.2
   # The recorder's Jest transform runs after type stripping (Jest's default transform).
@@ -70,7 +77,7 @@ catalog:
   babel-plugin-jest-hoist: 30.5.0
   # date-fns, lodash and zod: libraries the generated bench suites import (Track 12 R5).
   date-fns: 4.4.0
-  dependency-cruiser: 18.7.0
+  dependency-cruiser: 18.7.2
   # The Spike A loader fixture's shared node_modules (Track 2): ESM, CJS, ESM + wasm, and expect.
   es-module-lexer: 3.0.4
   expect: 30.5.2
@@ -109,9 +116,9 @@ catalog:
   # The oracle for the vendored key order in @provino/snapshot (T7.9): same pairs, same order.
   natural-compare: 1.4.0
   # Oxc (Track 3): the resolver, and the transform pipeline with its parser.
-  oxc-parser: 0.156.0
+  oxc-parser: 0.157.0
   oxc-resolver: 11.24.2
-  oxc-transform: 0.156.0
+  oxc-transform: 0.157.0
   # The hoister's AST walk and scope tracking (Track 3 R2).
   oxc-walker: 1.1.1
   # Discovery matches `testMatch` on absolute paths with ordered negation, as Jest's
@@ -122,12 +129,12 @@ catalog:
   tinyglobby: 0.2.17
   # T3.8's rebuilt fixture runs the real ts-jest 29 (on TypeScript 5.9.3) beside babel-jest and @swc/jest.
   ts-jest: 29.4.15
-  tsdown: 0.23.2
-  turbo: 2.11.10
+  tsdown: 0.23.5
+  turbo: 2.11.11
   typescript: 7.0.2
   # The type-test job also runs on TypeScript 5.9.
   typescript-5.9: npm:typescript@5.9.3
-  vitest: 5.0.5
+  vitest: 5.1.0
   zod: 4.6.7
 
 # dependency-cruiser loads `typescript` at runtime to parse .ts files, and 18.7 can't use the
