@@ -3,6 +3,8 @@
 // reference runs left on disk, as JSON and as text. It holds no Provino number: every timing is
 // the reference runner's and `local` (DECISIONS D37, non-negotiable 7).
 import type { ExclusionRule } from '../diff.ts'
+import { ruleExcluded } from '../internal/diff-bars.ts'
+import { countList, seconds } from './format.ts'
 import type { InstallRecord } from './install.ts'
 import type { CorpusRepo, CorpusSubject } from './manifest.ts'
 import type { RunMeta } from './run.ts'
@@ -13,9 +15,6 @@ export const G0_MAX_EXCLUSION_RULES = 30
 
 /** The reference runs G0 needs of each subject (`corpus run --runs` refuses fewer). */
 export const MIN_REFERENCE_RUNS = 3
-
-/** R2's cap on the tests a subject may leave out of T. */
-export const G0_MAX_EXCLUDED_SHARE = 0.02
 
 /** The normalization rules the harness shipped with (B15's nine); a rule beyond them was added by the corpus. */
 export const BASELINE_NORMALIZATION_RULES: readonly string[] = [
@@ -111,9 +110,11 @@ export interface GateSubject {
  */
 export interface GateReport {
   readonly today: string
+  /** The corpus the report is about: every repository in the manifest, and the pilot's share of them. */
+  readonly corpus: { readonly repositories: number; readonly pilot: number }
   readonly subjects: readonly GateSubject[]
   readonly totals: {
-    /** Exclusion rules defined over the subjects (G0: at most 30 for all 33 repositories). */
+    /** Exclusion rules defined over the subjects (G0: at most 30 for the whole corpus). */
     readonly exclusionRules: number
     readonly exclusionRulesUnused: readonly string[]
     readonly largestFlakyShare: { readonly subject: string; readonly share: number } | undefined
@@ -138,20 +139,18 @@ export function gateSubject(input: GateInput): GateSubject {
   const referenceTests = first?.report.counts.referenceTests ?? 0
   const used = new Map<string, number>()
   let ruleTests = 0
-  let flakyTests = 0
-  let excludedTests = 0
   for (const { report } of selfDiff.pairs) {
     for (const excluded of report.excluded)
       used.set(excluded.ruleId, (used.get(excluded.ruleId) ?? 0) + 1)
-    ruleTests = Math.max(ruleTests, report.counts.excluded - report.counts.flaky)
-    flakyTests = Math.max(flakyTests, report.counts.flaky)
-    excludedTests = Math.max(excludedTests, report.counts.excluded)
+    ruleTests = Math.max(ruleTests, ruleExcluded(report.counts))
   }
   const fired: Record<string, number> = {}
   for (const meta of metas) for (const id of meta.fired) fired[id] = (fired[id] ?? 0) + 1
   const missing = [...new Set(metas.flatMap((meta) => meta.sidecar.missing))].toSorted()
   const sidecarFiles = metas.reduce((most, meta) => Math.max(most, meta.sidecar.files), 0)
   const versions = new Set(metas.map((meta) => meta.runnerVersion))
+  const offlineReinstall =
+    install?.offline === undefined ? 'not run' : install.offline.ok ? 'ok' : 'failed'
 
   if (metas.length < MIN_REFERENCE_RUNS) {
     problems.push(`${metas.length} reference runs, ${MIN_REFERENCE_RUNS} needed`)
@@ -159,14 +158,8 @@ export function gateSubject(input: GateInput): GateSubject {
   if (versions.size > 1)
     problems.push(`runs used different runner versions: ${[...versions].join(', ')}`)
   if (install === undefined) problems.push('no install record')
-  // D65, as the self-diff's bar reads it: the reference tests left out of T, by a rule or as
-  // flaky (a test that is both counts once; a flaky key the reference lacks counts not at all).
-  const combined = share(excludedTests, referenceTests)
-  if (combined > G0_MAX_EXCLUDED_SHARE) {
-    problems.push(
-      `flaky (${flakyTests}) plus rule-excluded (${ruleTests}) tests are ${(combined * 100).toFixed(2)}% of ${referenceTests}, over R2's ${G0_MAX_EXCLUDED_SHARE * 100}%`,
-    )
-  }
+  // R2's cap on the excluded share (D65) is the self-diff's own bar, so a breach is in `selfDiff`'s
+  // pair reasons and the subject fails here once, not again with the same share.
   if (missing.length > 0)
     problems.push(`the sidecar saw console output the run lacks for ${missing.length} file(s)`)
   if (!selfDiff.pass) problems.push('a self-diff fails')
@@ -175,12 +168,11 @@ export function gateSubject(input: GateInput): GateSubject {
     repo: repo.id,
     subject: subject.id,
     sha: repo.sha,
-    packageManager: `${repo.install.name}${repo.install.version === undefined ? '' : `@${repo.install.version}`}`,
+    packageManager: `${repo.install.name}@${repo.install.version}`,
     runner: subject.runner,
     runnerVersion: metas[0]?.runnerVersion ?? subject.runnerVersion,
     installMs: install?.wallMs,
-    offlineReinstall:
-      install?.offline === undefined ? 'not run' : install.offline.ok ? 'ok' : 'failed',
+    offlineReinstall,
     runs: metas.map((meta) => ({
       n: meta.n,
       tests: meta.tests,
@@ -212,12 +204,8 @@ export function gateSubject(input: GateInput): GateSubject {
     normalizationFired: fired,
     sidecar: { ok: missing.length === 0, filesWithOutput: sidecarFiles, missing },
     problems,
-    pass: problems.length === 0 && selfDiff.pass && offlineOk(install),
+    pass: problems.length === 0 && selfDiff.pass && offlineReinstall === 'ok',
   }
-}
-
-function offlineOk(install: InstallRecord | undefined): boolean {
-  return install?.offline?.ok === true
 }
 
 /**
@@ -227,7 +215,11 @@ function offlineOk(install: InstallRecord | undefined): boolean {
  */
 export function buildGateReport(
   subjects: readonly GateSubject[],
-  options: { readonly today: string; readonly normalizationRules: readonly string[] },
+  options: {
+    readonly today: string
+    readonly normalizationRules: readonly string[]
+    readonly corpus: GateReport['corpus']
+  },
 ): GateReport {
   const defined = subjects.flatMap((row) =>
     row.excluded.rules.map((rule) => ({ ...rule, subject: row.subject })),
@@ -248,6 +240,7 @@ export function buildGateReport(
     if (!row.pass) problems.push(`${row.subject}: ${row.problems.join('; ') || 'a check fails'}`)
   return {
     today: options.today,
+    corpus: options.corpus,
     subjects,
     totals: {
       exclusionRules: defined.length,
@@ -261,14 +254,14 @@ export function buildGateReport(
     },
     notCovered: [
       'Jest baselines on the pinned machine (DECISIONS D37; B18)',
-      'the 25 repositories outside the pilot (B22)',
+      `the ${options.corpus.repositories - options.corpus.pilot} repositories outside the pilot (B22)`,
     ],
     pass: problems.length === 0,
   }
 }
 
-function seconds(ms: number | undefined): string {
-  return ms === undefined ? 'n/a' : `${(ms / 1000).toFixed(1)} s`
+function duration(ms: number | undefined): string {
+  return ms === undefined ? 'n/a' : seconds(ms)
 }
 
 function percent(value: number): string {
@@ -289,14 +282,12 @@ export function formatGateReport(report: GateReport): string {
     lines.push(
       `${row.subject}: ${row.pass ? 'PASS' : 'FAIL'}`,
       `  ${row.repo} @ ${row.sha.slice(0, 7)}, ${row.packageManager}, ${row.runner} ${row.runnerVersion}`,
-      `  install ${seconds(row.installMs)}; offline re-install ${row.offlineReinstall}`,
+      `  install ${duration(row.installMs)}; offline re-install ${row.offlineReinstall}`,
     )
     for (const run of row.runs) {
-      const statuses = Object.entries(run.statuses)
-        .map(([status, n]) => `${status} ${n}`)
-        .join(', ')
+      const statuses = countList(run.statuses)
       lines.push(
-        `  run ${run.n}: T ${run.tests} (${statuses}); ${seconds(run.runMs)}, prepare ${seconds(run.prepareMs)}`,
+        `  run ${run.n}: T ${run.tests} (${statuses}); ${duration(run.runMs)}, prepare ${duration(run.prepareMs)}`,
       )
     }
     lines.push(
@@ -309,9 +300,7 @@ export function formatGateReport(report: GateReport): string {
         `  self-diff ${pair.pair}: status ${percent(pair.statusParity)}, message ${percent(pair.messageParity)}, snapshot ${percent(pair.snapshotParity)}, suite pass ${pair.suitePass ? 'yes' : 'no'}, unexplained diffs ${pair.unexplainedDiffs} ${pair.pass ? '' : `FAIL: ${pair.reasons.join('; ')}`}`.trimEnd(),
       )
     }
-    const fired = Object.entries(row.normalizationFired)
-      .map(([id, n]) => `${id} ${n}`)
-      .join(', ')
+    const fired = countList(row.normalizationFired)
     lines.push(`  normalization fired (runs): ${fired === '' ? '(none)' : fired}`)
     lines.push(
       `  sidecar: ${row.sidecar.ok ? 'ok' : `missing console for ${row.sidecar.missing.join(', ')}`} (${row.sidecar.filesWithOutput} files with output)`,
@@ -322,7 +311,7 @@ export function formatGateReport(report: GateReport): string {
   const { totals } = report
   lines.push(
     'Totals',
-    `  exclusion rules in the pilot: ${totals.exclusionRules} of G0's ${G0_MAX_EXCLUSION_RULES} for all 33 repositories`,
+    `  exclusion rules in the pilot: ${totals.exclusionRules} of G0's ${G0_MAX_EXCLUSION_RULES} for all ${report.corpus.repositories} repositories`,
     `  largest flaky share: ${totals.largestFlakyShare === undefined ? 'n/a' : `${percent(totals.largestFlakyShare.share)} (${totals.largestFlakyShare.subject})`}`,
     `  normalization rules added: ${totals.normalizationRulesAdded.length === 0 ? '(none)' : totals.normalizationRulesAdded.join(', ')}`,
     '',

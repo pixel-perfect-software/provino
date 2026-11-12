@@ -1,5 +1,5 @@
 // The sandbox probe's child (T12.10; `sandbox.ts`). It runs once inside the Seatbelt profile and
-// once outside it as a control, makes seven attempts and prints one JSON line for each:
+// once outside it as a control, makes seven attempts at once and prints one JSON line for each:
 //
 //   tcp       a TCP connect to 1.1.1.1:443
 //   dns       a lookup of registry.npmjs.org, by the system resolver and by DNS queries
@@ -47,13 +47,6 @@ async function attempt(name: string, action: () => Promise<void>): Promise<void>
   }
 }
 
-function connectPath(socketPath: string | undefined): Promise<void> {
-  if (socketPath === undefined) {
-    return Promise.reject(Object.assign(new Error('no path given'), { code: 'EUSAGE' }))
-  }
-  return connect({ path: socketPath })
-}
-
 function connect(target: net.NetConnectOpts): Promise<void> {
   return new Promise((resolve, reject) => {
     const socket = net.connect(target)
@@ -93,13 +86,6 @@ async function httpsAttempt(): Promise<void> {
   await response.body?.cancel()
 }
 
-function readAttempt(file: string | undefined): () => Promise<void> {
-  return async () => {
-    if (file === undefined) throw Object.assign(new Error('no path given'), { code: 'EUSAGE' })
-    readFileSync(file)
-  }
-}
-
 async function loopbackAttempt(): Promise<void> {
   const server = net.createServer((socket) => socket.end('x'))
   await new Promise<void>((resolve, reject) => {
@@ -115,15 +101,24 @@ async function loopbackAttempt(): Promise<void> {
   }
 }
 
-function argument(flag: string): string | undefined {
-  const index = process.argv.indexOf(flag)
-  return index < 0 ? undefined : process.argv[index + 1]
+/** The value after `flag` on the command line; a flag not given fails the attempt that needs it. */
+function requiredArgument(flag: string): string {
+  const value = process.argv[process.argv.indexOf(flag) + 1]
+  if (!process.argv.includes(flag) || value === undefined) {
+    throw Object.assign(new Error(`no ${flag} given`), { code: 'EUSAGE' })
+  }
+  return value
 }
 
-await attempt('tcp', () => connect({ host: '1.1.1.1', port: 443 }))
-await attempt('dns', dnsAttempt)
-await attempt('https', httpsAttempt)
-await attempt('socket', () => connectPath(argument('--socket')))
-await attempt('canary', readAttempt(argument('--canary')))
-await attempt('ssh', readAttempt(argument('--ssh')))
-await attempt('loopback', loopbackAttempt)
+// The attempts are independent, so they run at once: the probe takes as long as its slowest
+// (the 6 s timeout of an attempt the profile swallows), not their sum. The parent matches the
+// lines by name, so their order does not matter.
+await Promise.all([
+  attempt('tcp', () => connect({ host: '1.1.1.1', port: 443 })),
+  attempt('dns', dnsAttempt),
+  attempt('https', httpsAttempt),
+  attempt('socket', () => connect({ path: requiredArgument('--socket') })),
+  attempt('canary', async () => void readFileSync(requiredArgument('--canary'))),
+  attempt('ssh', async () => void readFileSync(requiredArgument('--ssh'))),
+  attempt('loopback', loopbackAttempt),
+])

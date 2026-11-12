@@ -15,7 +15,7 @@ import { parseCommandLine } from '../internal/cli-args.ts'
 import { runProcess } from '../run-process.ts'
 import type { SubjectResult } from '../run-subject.ts'
 import { makeFile, makeRun, makeTest } from '../test-support.ts'
-import { type CorpusEnvironment, corpusCommand } from './corpus.ts'
+import { type CorpusEnvironment, corpusCommand, each } from './corpus.ts'
 
 const REPO = 'jest-extended'
 const SUBJECT = 'jest-extended'
@@ -53,6 +53,7 @@ async function setup(
   options: {
     plan?: Plan
     probe?: CorpusEnvironment['probe']
+    cloneReason?: string
     deps?: CorpusEnvironment['deps']
     manifestPath?: string
   } = {},
@@ -72,6 +73,7 @@ async function setup(
     now: () => new Date(`${TODAY}T10:00:00Z`),
     deps: options.deps ?? real,
     probe: options.probe ?? (async () => ({ ok: true, lines: ['  tcp blocked'], problems: [] })),
+    cloneUnsupportedReason: async () => options.cloneReason,
     runReference: (r, subject, n, runOptions) => {
       started.push(n)
       return runReference(r, subject, n, {
@@ -119,15 +121,22 @@ async function setup(
 }
 
 /** The install record `corpus install` leaves, with the offline re-install verified. */
-async function recordInstall(h: Harness, offlineOk = true): Promise<void> {
-  await mkdir(h.paths.dir, { recursive: true })
+async function recordInstall(
+  h: Harness,
+  offlineOk = true,
+  target: CorpusRepo = repo,
+): Promise<void> {
+  const paths = repoPaths(h.work, target)
+  await mkdir(paths.dir, { recursive: true })
+  await writeTree(paths.src, { 'package.json': '{}' })
+  await writeFile(paths.srcMarker, `${target.sha}\n`)
   await writeFile(
-    h.paths.installRecord,
+    paths.installRecord,
     JSON.stringify({
-      id: repo.id,
-      sha: repo.sha,
-      packageManager: { name: 'npm', version: 'bundled with Node' },
-      command: ['npm', 'ci'],
+      id: target.id,
+      sha: target.sha,
+      packageManager: { name: 'npm', version: '11.19.1' },
+      command: ['corepack', 'npm@11.19.1', 'ci'],
       wallMs: 4000,
       installedAt: '2026-11-12T09:00:00.000Z',
       fingerprint: 'f'.repeat(64),
@@ -178,7 +187,7 @@ test('run refuses when the probe throws, and starts nothing', async () => {
   assert.match(text(h.err), /leak/)
 })
 
-test('run probes before every repository, and refuses one that is not installed', async () => {
+test('run probes once for the command, however many repositories, and refuses one that is not installed', async () => {
   let probes = 0
   const h = await setup({
     probe: async () => {
@@ -190,6 +199,132 @@ test('run probes before every repository, and refuses one that is not installed'
   assert.equal(probes, 1)
   assert.deepEqual(h.started, [])
   assert.match(text(h.err), /not installed at \w+ .*run "corpus install jest-extended" first/)
+})
+
+test('run probes once for a pilot of several repositories, and the clone check runs once too', async () => {
+  let probes = 0
+  let clones = 0
+  const h = await setup({
+    probe: async () => {
+      probes++
+      return { ok: true, lines: [], problems: [] }
+    },
+  })
+  h.env.cloneUnsupportedReason = async () => {
+    clones++
+    return undefined
+  }
+  assert.equal(await h.run('run', '--pilot'), 1, 'none is installed')
+  assert.equal(probes, 1)
+  assert.equal(clones, 1)
+  assert.equal(text(h.err).match(/not installed at/g)?.length, 8)
+})
+
+test('a work directory that cannot clone gets one loud warning with the reason and the cost, and the runs go on', async () => {
+  const h = await setup({ cloneReason: 'cp -cR exited 1: Operation not supported' })
+  await recordInstall(h)
+  assert.equal(await h.run('run', REPO), 0)
+  const warnings = h.err.filter((line) => line.startsWith('WARNING'))
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0] ?? '', /Operation not supported/)
+  assert.match(warnings[0] ?? '', /10 to 50 times slower/)
+  assert.deepEqual(h.started, [1, 2, 3])
+})
+
+test('a work directory that clones prints no warning', async () => {
+  const h = await setup()
+  await recordInstall(h)
+  assert.equal(await h.run('run', REPO), 0)
+  assert.doesNotMatch(text(h.err), /WARNING/)
+})
+
+test('run on one subject runs only that subject, even with --force, and not its siblings', async () => {
+  const sibling = manifest.repos.find((candidate) => candidate.id === 'styled-components')
+  if (sibling === undefined) throw new Error('no styled-components in the manifest')
+  const h = await setup()
+  await recordInstall(h, true, sibling)
+  const ran: string[] = []
+  h.env.runReference = async (r, subject, n) => {
+    ran.push(`${subject.id}#${n}`)
+    return {
+      repo: r.id,
+      subject: subject.id,
+      n,
+      startedAt: '2026-11-12T10:00:00.000Z',
+      runner: subject.runner,
+      runnerVersion: subject.runnerVersion,
+      cloneMs: 1,
+      prepareMs: 1,
+      runMs: 1,
+      exitCode: 0,
+      tests: 1,
+      files: 1,
+      statuses: { passed: 1 },
+      fired: [],
+      sidecar: { files: 0, withConsole: 0, missing: [] },
+    }
+  }
+  assert.equal(await h.run('run', 'styled-components-native', '--force'), 0)
+  assert.deepEqual(ran, [
+    'styled-components-native#1',
+    'styled-components-native#2',
+    'styled-components-native#3',
+  ])
+  ran.length = 0
+  assert.equal(await h.run('run', 'styled-components'), 0)
+  assert.deepEqual(
+    [...new Set(ran.map((entry) => entry.split('#')[0]))],
+    ['styled-components', 'styled-components-native'],
+    'a repository id takes all its subjects',
+  )
+})
+
+test('each works on 3 repositories at once and prints in order, naming the ones that failed', async () => {
+  const repos = manifest.repos.slice(0, 7)
+  let active = 0
+  let most = 0
+  const out: string[] = []
+  const err: string[] = []
+  // The first finishes last, so output in order proves the printing waits for its turn.
+  const delays = [40, 5, 5, 5, 5, 5, 5]
+  const code = await each(
+    repos,
+    { out: (line) => out.push(line), err: (line) => err.push(line) },
+    async (r) => {
+      active++
+      most = Math.max(most, active)
+      await new Promise((resolve) => setTimeout(resolve, delays[repos.indexOf(r)]))
+      active--
+      if (r.id === repos[3]?.id) throw new HarnessError('HARNESS_CORPUS_FETCH_FAILED', 'no')
+      return `ok ${r.id}`
+    },
+    3,
+  )
+  assert.equal(code, 1)
+  assert.equal(most, 3)
+  assert.deepEqual(
+    out.map((line) => line.trim()),
+    repos.map((r, i) => (i === 3 ? `FAIL ${r.id}` : `ok ${r.id}`)),
+  )
+  assert.match(text(err), /HARNESS_CORPUS_FETCH_FAILED/)
+})
+
+test('each is sequential unless told otherwise, and a bug is not a failed repository', async () => {
+  const repos = manifest.repos.slice(0, 3)
+  let active = 0
+  let most = 0
+  await each(repos, { out: () => {}, err: () => {} }, async (r) => {
+    active++
+    most = Math.max(most, active)
+    await new Promise((resolve) => setTimeout(resolve, 2))
+    active--
+    return r.id
+  })
+  assert.equal(most, 1)
+  await assert.rejects(
+    each(repos, { out: () => {}, err: () => {} }, () => Promise.reject(new TypeError('a bug')), 3),
+    TypeError,
+  )
 })
 
 test('run makes the runs per subject, skips finished ones and redoes them with --force', async () => {

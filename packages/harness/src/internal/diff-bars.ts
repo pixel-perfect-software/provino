@@ -3,6 +3,14 @@
 import type { ParityReport } from '../diff.ts'
 
 /**
+ * R2's cap: the largest share of a reference's tests that exclusion rules and the flaky list may
+ * remove (Track 12 R2; DECISIONS D65). `--max-excluded`'s default, the corpus self-diff's bar and
+ * G0's all read it from here.
+ * @internal
+ */
+export const R2_MAX_EXCLUDED_SHARE = 0.02
+
+/**
  * The bars. `maxDiffs` absent means no limit on the diffs no rule explains.
  * @internal
  */
@@ -13,7 +21,7 @@ export interface DiffBars {
   readonly maxDiffs?: number
   /**
    * The largest share of the reference's tests that exclusion rules and the flaky list together
-   * may remove (R2: 2%; DECISIONS D65).
+   * may remove (`R2_MAX_EXCLUDED_SHARE`).
    */
   readonly maxExcluded: number
   /** Lifts R2's excluded-share cap (DECISIONS D30). */

@@ -1,7 +1,17 @@
 // T12.10's reference runs with a fake `runSubject` and fake `cp`: the clone, the prepare steps, what
 // a run leaves on disk, the sidecar check and the listing of finished runs. No runner starts.
 import assert from 'node:assert/strict'
-import { mkdir, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  readdir,
+  readFile,
+  readlink,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import path from 'node:path'
 import { test } from 'node:test'
 import { HarnessError } from '../errors.ts'
@@ -13,6 +23,7 @@ import { repoPaths } from './paths.ts'
 import {
   checkSidecar,
   cloneTree,
+  cloneUnsupportedReason,
   hasRun,
   listRuns,
   readRunMeta,
@@ -63,22 +74,121 @@ function subjectResult(overrides: Partial<SubjectResult> = {}): SubjectResult {
   }
 }
 
-test('cloneTree copies the tree, falling back to a plain copy when the clone fails', async () => {
+/** The tools a clone is tried with, in the order `cloneTree` tries them. */
+const toolOf = (call: Call) => (call.command === 'cp' ? `cp ${call.args[0]}` : call.command)
+
+test('cloneTree clones the whole tree with one clonefile call through python3, and tries nothing else', async () => {
   const dir = await tempDir('clone')
+  const deps = fakeDeps(() => finished(0))
+  const result = await cloneTree(path.join(dir, 'src'), path.join(dir, 'out/one'), deps)
+  assert.deepEqual(result, { method: 'clonefile' })
+  assert.equal(deps.calls.length, 1)
+  const [call] = deps.calls
+  assert.equal(call?.command, '/usr/bin/python3')
+  // An argv array, no shell: the paths are arguments, never part of the program text.
+  assert.deepEqual(call?.args.slice(0, 1), ['-c'])
+  assert.match(call?.args[1] ?? '', /clonefile/)
+  assert.deepEqual(call?.args.slice(2), [path.join(dir, 'src'), path.join(dir, 'out/one')])
+})
+
+test('each way the python clone can fail falls back to cp -cR, then to a plain copy', async () => {
+  const dir = await tempDir('clone-fallback')
   await writeTree(path.join(dir, 'src'), { 'a/b.txt': 'x' })
-  const cloned = fakeDeps(() => undefined, REAL)
-  await cloneTree(path.join(dir, 'src'), path.join(dir, 'out/one'), cloned)
-  assert.equal(await readFile(path.join(dir, 'out/one/a/b.txt'), 'utf8'), 'x')
-  const fallback = fakeDeps(
-    (call: Call) => (call.args.includes('-cR') ? finished(1) : undefined),
+  const failures: [string, (call: Call) => Promise<never> | ReturnType<typeof finished>][] = [
+    ['python3 is missing', () => Promise.reject(new Error('spawn /usr/bin/python3 ENOENT'))],
+    ['not APFS (ENOTSUP, 45)', () => finished(45)],
+    ['another volume (EXDEV, 18)', () => finished(18)],
+    ['the destination exists (EEXIST, 17)', () => finished(17)],
+    ['python3 fails some other way', () => finished(1, '', 'Traceback')],
+  ]
+  for (const [name, fail] of failures) {
+    const out = path.join(dir, `out-${name.length}`)
+    const deps = fakeDeps(
+      (call: Call) => (call.command === '/usr/bin/python3' ? fail(call) : undefined),
+      REAL,
+    )
+    const result = await cloneTree(path.join(dir, 'src'), out, deps)
+    assert.equal(result.method, 'cp-c', name)
+    assert.deepEqual(deps.calls.map(toolOf), ['/usr/bin/python3', 'cp -cR'], name)
+    assert.equal(await readFile(path.join(out, 'a/b.txt'), 'utf8'), 'x', name)
+  }
+  // The clone fails too: every byte is copied, and the result says why.
+  const out = path.join(dir, 'out-copy')
+  const deps = fakeDeps(
+    (call: Call) =>
+      call.command === '/usr/bin/python3'
+        ? finished(45)
+        : call.args[0] === '-cR'
+          ? finished(1, '', 'clonefile failed: Operation not supported')
+          : undefined,
     REAL,
   )
-  await cloneTree(path.join(dir, 'src'), path.join(dir, 'out/two'), fallback)
-  assert.equal(await readFile(path.join(dir, 'out/two/a/b.txt'), 'utf8'), 'x')
-  assert.deepEqual(
-    fallback.calls.map((call) => call.args[0]),
-    ['-cR', '-R'],
+  const copied = await cloneTree(path.join(dir, 'src'), out, deps)
+  assert.equal(copied.method, 'copy')
+  assert.match(copied.why ?? '', /cp -cR exited 1: clonefile failed: Operation not supported/)
+  assert.deepEqual(deps.calls.map(toolOf), ['/usr/bin/python3', 'cp -cR', 'cp -R'])
+  assert.equal(await readFile(path.join(out, 'a/b.txt'), 'utf8'), 'x')
+})
+
+/** Every file and directory under `dir`, with each file's text, by relative path. */
+async function snapshotOf(dir: string): Promise<Record<string, string>> {
+  const found: Record<string, string> = {}
+  const walk = async (current: string): Promise<void> => {
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name)
+      const relative = path.relative(dir, full)
+      if (entry.isDirectory()) {
+        found[`${relative}/`] = ''
+        await walk(full)
+      } else if (entry.isSymbolicLink()) found[relative] = `-> ${await readlink(full)}`
+      else found[relative] = await readFile(full, 'utf8')
+    }
+  }
+  await walk(dir)
+  return found
+}
+
+test('a real clone gives a tree equal to the source (skipped where this volume cannot clone)', async (t) => {
+  const dir = await tempDir('clone-real')
+  const src = path.join(dir, 'src')
+  await writeTree(src, {
+    'a/b.txt': 'x',
+    'node_modules/p/index.js': 'module.exports = 1',
+    'empty.txt': '',
+  })
+  await symlink('b.txt', path.join(src, 'a/link'))
+  const result = await cloneTree(src, path.join(dir, 'out/tree'))
+  if (result.method !== 'clonefile') {
+    t.skip(
+      `clonefile did not work here (${result.method}${result.why === undefined ? '' : `: ${result.why}`}); the tree was copied instead`,
+    )
+  }
+  assert.deepEqual(await snapshotOf(path.join(dir, 'out/tree')), await snapshotOf(src))
+})
+
+test('cloneUnsupportedReason is undefined when a clone works and says why when only a full copy does', async () => {
+  const work = await tempDir('clone-check')
+  assert.equal(
+    await cloneUnsupportedReason(
+      work,
+      fakeDeps(() => finished(0)),
+    ),
+    undefined,
   )
+  const copyOnly = fakeDeps(
+    (call: Call) =>
+      call.command === 'cp' && call.args[0] === '-cR'
+        ? finished(1, '', 'not supported')
+        : call.command === 'cp'
+          ? undefined
+          : finished(45),
+    REAL,
+  )
+  assert.match(
+    (await cloneUnsupportedReason(work, copyOnly)) ?? '',
+    /cp -cR exited 1: not supported/,
+  )
+  await assert.rejects(stat(path.join(work, '_clone-probe')), { code: 'ENOENT' })
 })
 
 test('cloneTree that cannot copy at all is HARNESS_CORPUS_RUN_FAILED', async () => {

@@ -15,6 +15,7 @@ export {
   defaultCorpusDir,
   readSubjectExclusions,
   readSubjectFlaky,
+  readSubjectInputs,
   subjectFiles,
   writeSubjectFlaky,
 } from './files.ts'
@@ -24,7 +25,6 @@ export {
   BASELINE_NORMALIZATION_RULES,
   buildGateReport,
   formatGateReport,
-  G0_MAX_EXCLUDED_SHARE,
   G0_MAX_EXCLUSION_RULES,
   gateSubject,
   MIN_REFERENCE_RUNS,
@@ -54,9 +54,7 @@ export type {
 export {
   DEFAULT_SUBJECT_TIMEOUT_MS,
   defaultManifestPath,
-  PROVINO_REFUSED_FLAGS,
   parseCorpusManifest,
-  R6_REPO_IDS,
   readCorpusManifest,
   selectRepos,
   selectSubjects,
@@ -65,8 +63,8 @@ export type { RepoPaths } from './paths.ts'
 export { CORPUS_DIR_ENV, corpusWorkRoot, repoPaths, runDir } from './paths.ts'
 export type { PinChange, PinFailure, ResolvedCommit } from './pin.ts'
 export { pinManifest, resolveCommit } from './pin.ts'
-export type { RunMeta, RunReferenceOptions, SidecarCheck } from './run.ts'
-export { checkSidecar, cloneTree, listRuns, runReference } from './run.ts'
+export type { CloneMethod, RunMeta, RunReferenceOptions, SidecarCheck } from './run.ts'
+export { checkSidecar, cloneTree, cloneUnsupportedReason, listRuns, runReference } from './run.ts'
 export type { ProbeAttempt, ProbeName, ProbeVerdict, SandboxPolicy } from './sandbox.ts'
 export {
   assertSandboxPlatform,

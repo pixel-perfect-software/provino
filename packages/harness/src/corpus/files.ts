@@ -5,9 +5,11 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { ExclusionRule } from '../diff.ts'
+import { HarnessError } from '../errors.ts'
 import { parseExclusions, parseFlaky } from '../exclusions.ts'
 import { readIfExists } from '../internal/guards.ts'
 import { assertNoPathLeak } from '../internal/recording.ts'
+import type { CorpusSubject } from './manifest.ts'
 import { harnessPackageDir, repoRoot } from './paths.ts'
 
 /**
@@ -56,6 +58,27 @@ export async function readSubjectFlaky(
   const file = subjectFiles(subjectId, corpusDir).flaky
   const text = await readIfExists(file)
   return text === undefined ? undefined : parseFlaky(text, file)
+}
+
+/**
+ * What a comparison under a subject's own rules needs: its exclusion rules (under R2's limits,
+ * as of `today`) and its flaky keys. A subject with no `flaky.json` is an error, not an empty
+ * list, or flaky tests would read as differences and the list's absence would go unnoticed.
+ * @public
+ */
+export async function readSubjectInputs(
+  subject: Pick<CorpusSubject, 'id'>,
+  today: string,
+  corpusDir?: string,
+): Promise<{ readonly exclusions: ExclusionRule[]; readonly flaky: string[] }> {
+  const flaky = await readSubjectFlaky(subject.id, corpusDir)
+  if (flaky === undefined) {
+    throw new HarnessError(
+      'HARNESS_CORPUS_GATE_INPUT',
+      `${subject.id}: no flaky.json; run "corpus flaky ${subject.id}" first`,
+    )
+  }
+  return { exclusions: await readSubjectExclusions(subject.id, today, corpusDir), flaky }
 }
 
 /**

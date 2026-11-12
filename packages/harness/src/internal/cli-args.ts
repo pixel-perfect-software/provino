@@ -4,6 +4,7 @@ import type { CorpusSelection } from '../corpus/manifest.ts'
 import type { DiffOptions } from '../diff.ts'
 import { HarnessError } from '../errors.ts'
 import type { SubjectRunner } from '../run-subject.ts'
+import { R2_MAX_EXCLUDED_SHARE } from './diff-bars.ts'
 import { ISO_DATE } from './guards.ts'
 
 /**
@@ -145,7 +146,7 @@ export type HarnessCommand =
  * The usage text.
  * @internal
  */
-export const USAGE = `Usage: provino-harness <command> [options]
+export const USAGE: string = `Usage: provino-harness <command> [options]
 
   record [--check] [--keep] [<fixture dir>...]
            Run Jest and Vitest over each fixture and write __goldens__/<profile>.json.
@@ -160,7 +161,7 @@ export const USAGE = `Usage: provino-harness <command> [options]
            Compare two NormalizedRun files (Track 12 R1, R2). The ParityReport goes to stdout
            as JSON and a summary table to stderr. Exit 0 on a pass; 1 when status parity is
            below --min (default 1), there are more than --max-diffs unexplained diffs,
-           exclusions remove more than --max-excluded of the reference's tests (default 0.02),
+           exclusions remove more than --max-excluded of the reference's tests (default ${R2_MAX_EXCLUDED_SHARE}),
            or nothing was compared; 2 on bad usage or an unreadable file. Every exclusion must
            expire within 90 days of --today; --calibration lifts that and the cap.
 
@@ -304,7 +305,7 @@ function parseDiff(argv: readonly string[]): DiffCommand {
     console: values.console,
     min: share(values.min, '--min', 1),
     ...(maxDiffs === undefined ? {} : { maxDiffs }),
-    maxExcluded: share(values['max-excluded'], '--max-excluded', 0.02),
+    maxExcluded: share(values['max-excluded'], '--max-excluded', R2_MAX_EXCLUDED_SHARE),
     calibration: values.calibration,
     ...date(values.today),
   }

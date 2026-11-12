@@ -7,6 +7,7 @@ import { makeFile, makeRun, makeTest } from '../test-support.ts'
 import { flakyKeys } from './flaky.ts'
 import { isLeftOut, LEFT_OUT_PATTERNS } from './left-out.ts'
 import { selfDiff } from './self-diff.ts'
+import { numbersFor } from './test-support.ts'
 
 const TODAY = '2026-11-08'
 
@@ -42,7 +43,12 @@ test('three identical runs self-diff clean, in both pairs', () => {
     run({ a: 'passed', b: 'failed' }),
     run({ a: 'passed', b: 'failed' }),
   ]
-  const result = selfDiff(runs, { exclusions: [], flaky: [], today: TODAY })
+  const result = selfDiff(runs, {
+    exclusions: [],
+    flaky: [],
+    today: TODAY,
+    numbers: numbersFor(runs),
+  })
   assert.equal(result.pass, true)
   assert.deepEqual(
     result.pairs.map((pair) => pair.pair),
@@ -70,19 +76,34 @@ test('a status change fails the self-diff until the flaky list names the test', 
     run({ ...steady, b: 'failed' }),
     run({ ...steady, b: 'passed' }),
   ]
-  const bare = selfDiff(runs, { exclusions: [], flaky: [], today: TODAY })
+  const bare = selfDiff(runs, {
+    exclusions: [],
+    flaky: [],
+    today: TODAY,
+    numbers: numbersFor(runs),
+  })
   assert.equal(bare.pass, false)
   assert.equal(bare.pairs[0]?.pass, false)
   assert.match(bare.pairs[0]?.reasons.join('\n') ?? '', /status parity|diffs no rule explains/)
   assert.equal(bare.pairs[1]?.pass, true)
-  const listed = selfDiff(runs, { exclusions: [], flaky: flakyKeys(runs), today: TODAY })
+  const listed = selfDiff(runs, {
+    exclusions: [],
+    flaky: flakyKeys(runs),
+    today: TODAY,
+    numbers: numbersFor(runs),
+  })
   assert.equal(listed.pass, true)
   assert.equal(listed.pairs[0]?.report.counts.flaky, 1)
 })
 
 test('D65: a flaky list over 2% of the reference fails the self-diff', () => {
   const runs = [run({ a: 'passed', b: 'passed' }), run({ a: 'passed', b: 'failed' })]
-  const result = selfDiff(runs, { exclusions: [], flaky: flakyKeys(runs), today: TODAY })
+  const result = selfDiff(runs, {
+    exclusions: [],
+    flaky: flakyKeys(runs),
+    today: TODAY,
+    numbers: numbersFor(runs),
+  })
   assert.equal(result.pass, false)
   assert.match(result.pairs[0]?.reasons.join('\n') ?? '', /exclude 1 of 2 reference tests/)
 })
@@ -92,7 +113,12 @@ test('a flaky test that flips its file keeps a file-status diff: flaky leaves T,
     run({ a: 'passed', b: 'passed' }),
     run({ a: 'passed', b: 'failed' }, 'failed' as never),
   ]
-  const result = selfDiff(runs, { exclusions: [], flaky: flakyKeys(runs), today: TODAY })
+  const result = selfDiff(runs, {
+    exclusions: [],
+    flaky: flakyKeys(runs),
+    today: TODAY,
+    numbers: numbersFor(runs),
+  })
   assert.equal(result.pass, false)
   assert.equal(result.pairs[0]?.report.suitePass, false)
   assert.deepEqual(
@@ -110,16 +136,26 @@ test('R2 caps the tests an exclusion rule may remove, with no calibration to lif
     expires: '2026-12-01',
   }
   const runs = [run({ a: 'passed', b: 'passed' }), run({ a: 'failed', b: 'passed' })]
-  const result = selfDiff(runs, { exclusions: [rule], flaky: [], today: TODAY })
+  const result = selfDiff(runs, {
+    exclusions: [rule],
+    flaky: [],
+    today: TODAY,
+    numbers: numbersFor(runs),
+  })
   // One of two tests removed is 50% of T, over R2's 2%.
   assert.equal(result.pass, false)
   assert.match(result.pairs[0]?.reasons.join('\n') ?? '', /--max-excluded/)
 })
 
 test('a self-diff needs at least two runs', () => {
-  assert.equal(selfDiff([], { exclusions: [], flaky: [], today: TODAY }).pass, false)
+  assert.equal(selfDiff([], { exclusions: [], flaky: [], today: TODAY, numbers: [] }).pass, false)
   assert.equal(
-    selfDiff([run({ a: 'passed' })], { exclusions: [], flaky: [], today: TODAY }).pass,
+    selfDiff([run({ a: 'passed' })], {
+      exclusions: [],
+      flaky: [],
+      today: TODAY,
+      numbers: [1],
+    }).pass,
     false,
   )
 })

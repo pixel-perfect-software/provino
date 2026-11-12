@@ -4,10 +4,15 @@
 // normalizer is being calibrated against itself).
 import type { NormalizedRun } from '@provino/types'
 import { diffRuns, type ExclusionRule, type ParityReport } from '../diff.ts'
-import { diffFailures } from '../internal/diff-bars.ts'
+import { diffFailures, R2_MAX_EXCLUDED_SHARE } from '../internal/diff-bars.ts'
 
 /** The bars a self-diff must meet; R2's exclusion cap and expiry always apply (DECISIONS D30). */
-const BARS = { min: 1, maxDiffs: 0, maxExcluded: 0.02, calibration: false } as const
+const BARS = {
+  min: 1,
+  maxDiffs: 0,
+  maxExcluded: R2_MAX_EXCLUDED_SHARE,
+  calibration: false,
+} as const
 
 /**
  * One comparison of two runs of a subject.
@@ -43,15 +48,23 @@ export function selfDiff(
     readonly exclusions: readonly ExclusionRule[]
     readonly flaky: readonly string[]
     readonly today: string
-    /** The number of each run in `runs` (`listRuns`'s); default: 1, 2, 3, ... */
-    readonly numbers?: readonly number[]
+    /** The number of each run in `runs`, in order (`listRuns`'s). */
+    readonly numbers: readonly number[]
   },
 ): SelfDiff {
   const [first, ...rest] = runs
-  if (first === undefined || rest.length === 0) {
+  const [firstNumber, ...restNumbers] = options.numbers
+  if (first === undefined || firstNumber === undefined || rest.length === 0) {
     return { pairs: [], pass: false }
   }
-  const numbers = options.numbers ?? runs.map((_, index) => index + 1)
+  if (restNumbers.length !== rest.length) {
+    throw new Error(`${runs.length} runs but ${options.numbers.length} run numbers`)
+  }
+  const later = (index: number): number => {
+    const n = restNumbers[index]
+    if (n === undefined) throw new Error(`no run number for run ${index + 2}`)
+    return n
+  }
   const pairs = rest.map((candidate, index): SelfDiffPair => {
     const report = diffRuns(
       first,
@@ -79,7 +92,7 @@ export function selfDiff(
         `suite pass: the runs disagree on ${report.counts.files - report.counts.filesMatched} file status(es)`,
       )
     return {
-      pair: [numbers[0] ?? 1, numbers[index + 1] ?? index + 2],
+      pair: [firstNumber, later(index)],
       report,
       reasons,
       pass: reasons.length === 0,

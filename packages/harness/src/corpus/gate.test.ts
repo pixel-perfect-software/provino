@@ -17,7 +17,7 @@ import {
 import type { InstallRecord } from './install.ts'
 import type { RunMeta } from './run.ts'
 import { selfDiff } from './self-diff.ts'
-import { makeRepo, makeSubject } from './test-support.ts'
+import { CORPUS, makeRepo, makeSubject, numbersFor } from './test-support.ts'
 
 const TODAY = '2026-11-12'
 
@@ -64,8 +64,8 @@ const OFFLINE = {
 const INSTALL: InstallRecord = {
   id: 'demo',
   sha: 'a'.repeat(40),
-  packageManager: { name: 'npm', version: 'bundled with Node' },
-  command: ['npm', 'ci'],
+  packageManager: { name: 'npm', version: '11.19.1' },
+  command: ['corepack', 'npm@11.19.1', 'ci'],
   wallMs: 4000,
   installedAt: '2026-11-12T09:00:00.000Z',
   fingerprint: 'f'.repeat(64),
@@ -81,7 +81,12 @@ function input(overrides: Partial<GateInput> = {}): GateInput {
     subject: makeSubject(),
     install: INSTALL,
     metas: [meta(1), meta(2), meta(3)],
-    selfDiff: selfDiff(runs, { exclusions: [], flaky: [], today: TODAY }),
+    selfDiff: selfDiff(runs, {
+      exclusions: [],
+      flaky: [],
+      today: TODAY,
+      numbers: numbersFor(runs),
+    }),
     flaky: [],
     exclusions: [],
     ...overrides,
@@ -95,7 +100,7 @@ test('three identical runs, an offline re-install and a clean sidecar pass', () 
   assert.equal(row.comparedTests, 100)
   assert.equal(row.installMs, 4000)
   assert.equal(row.offlineReinstall, 'ok')
-  assert.equal(row.packageManager, 'npm')
+  assert.equal(row.packageManager, 'npm@11.19.1')
   assert.deepEqual(
     row.selfDiffs.map((pair) => pair.pair),
     ['1-2', '1-3'],
@@ -108,7 +113,12 @@ test('fewer than 3 runs, a changed runner version and a missing install record a
     input({
       install: undefined,
       metas: [meta(1), meta(2, { runnerVersion: '30.5.3' })],
-      selfDiff: selfDiff([run(100), run(100)], { exclusions: [], flaky: [], today: TODAY }),
+      selfDiff: selfDiff([run(100), run(100)], {
+        exclusions: [],
+        flaky: [],
+        today: TODAY,
+        numbers: [1, 2],
+      }),
     }),
   )
   assert.equal(row.pass, false)
@@ -141,18 +151,20 @@ test('flaky tests and rule-excluded tests together may be at most 2% of the refe
     input({
       flaky,
       metas: [meta(1), meta(2), meta(3)],
-      selfDiff: selfDiff(runs, { exclusions: [], flaky, today: TODAY }),
+      selfDiff: selfDiff(runs, { exclusions: [], flaky, today: TODAY, numbers: numbersFor(runs) }),
     }),
   )
   assert.equal(row.pass, false)
   assert.equal(row.flaky.count, 3)
   assert.equal(row.flaky.share, 0.03)
-  assert.ok(
-    row.problems.some((problem) =>
-      /flaky \(3\) plus rule-excluded \(0\) tests are 3.00% of 100/.test(problem),
-    ),
-    row.problems.join('\n'),
+  // The cap is the self-diff's bar: each failing pair says so once, and the subject's own
+  // problems do not say it again.
+  const share = /exclude 3 of 100 reference tests, more than --max-excluded 0\.02/
+  assert.deepEqual(
+    row.selfDiffs.map((pair) => pair.reasons.filter((reason) => share.test(reason)).length),
+    [1, 1],
   )
+  assert.deepEqual(row.problems, ['a self-diff fails'])
 })
 
 test('a flaky key the reference run lacks is not an excluded test (D65 reads counts.excluded)', () => {
@@ -160,7 +172,10 @@ test('a flaky key the reference run lacks is not an excluded test (D65 reads cou
   // 1 real flaky test and 2 keys from tests that are not in run 1: 1% of the reference, not 3%.
   const flaky = ['src/a.test.js::t0#0', 'src/gone.test.js::x#0', 'src/gone.test.js::y#0']
   const row = gateSubject(
-    input({ flaky, selfDiff: selfDiff(runs, { exclusions: [], flaky, today: TODAY }) }),
+    input({
+      flaky,
+      selfDiff: selfDiff(runs, { exclusions: [], flaky, today: TODAY, numbers: numbersFor(runs) }),
+    }),
   )
   assert.deepEqual(
     row.selfDiffs.flatMap((pair) => pair.reasons),
@@ -206,7 +221,12 @@ test('rule exclusions are counted with the rules each self-diff used', () => {
   const row = gateSubject(
     input({
       exclusions: [rule, unused],
-      selfDiff: selfDiff(runs, { exclusions: [rule, unused], flaky: [], today: TODAY }),
+      selfDiff: selfDiff(runs, {
+        exclusions: [rule, unused],
+        flaky: [],
+        today: TODAY,
+        numbers: numbersFor(runs),
+      }),
     }),
   )
   assert.equal(row.excluded.tests, 1)
@@ -234,6 +254,7 @@ test('console output the sidecar saw and the run lacks is a problem, and a faili
         exclusions: [],
         flaky: [],
         today: TODAY,
+        numbers: [1, 2, 3],
       }),
     }),
   )
@@ -266,6 +287,7 @@ test('the report passes when rules are within 30, all used, and every subject pa
   const report = buildGateReport([rowWithRules('a', [{ id: 'r1', used: 1 }])], {
     today: TODAY,
     normalizationRules: [...BASELINE_NORMALIZATION_RULES],
+    corpus: CORPUS,
   })
   assert.equal(report.pass, true)
   assert.equal(report.totals.exclusionRules, 1)
@@ -281,12 +303,14 @@ test('more than 30 rules, an unused rule and a failing subject fail the report',
   const tooMany = buildGateReport([rowWithRules('a', many)], {
     today: TODAY,
     normalizationRules: [],
+    corpus: CORPUS,
   })
   assert.equal(tooMany.pass, false)
   assert.match(tooMany.totals.problems.join('\n'), /31 exclusion rules, more than G0's 30/)
   const unused = buildGateReport([rowWithRules('a', [{ id: 'r1', used: 0 }])], {
     today: TODAY,
     normalizationRules: [],
+    corpus: CORPUS,
   })
   assert.deepEqual(unused.totals.exclusionRulesUnused, ['a: r1'])
   assert.equal(unused.pass, false)
@@ -295,6 +319,7 @@ test('more than 30 rules, an unused rule and a failing subject fail the report',
     {
       today: TODAY,
       normalizationRules: [],
+      corpus: CORPUS,
     },
   )
   assert.match(failing.totals.problems.join('\n'), /a: x broke/)
@@ -304,6 +329,7 @@ test('a normalization rule beyond the nine B15 shipped is listed as added', () =
   const report = buildGateReport([rowWithRules('a', [])], {
     today: TODAY,
     normalizationRules: [...BASELINE_NORMALIZATION_RULES, 'pid'],
+    corpus: CORPUS,
   })
   assert.deepEqual(report.totals.normalizationRulesAdded, ['pid'])
 })
@@ -311,10 +337,11 @@ test('a normalization rule beyond the nine B15 shipped is listed as added', () =
 test('the largest flaky share names its subject', () => {
   const a = rowWithRules('a', [])
   const b = { ...rowWithRules('b', []), flaky: { count: 2, share: 0.015 } }
-  const report = buildGateReport([a, b], { today: TODAY, normalizationRules: [] })
+  const report = buildGateReport([a, b], { today: TODAY, normalizationRules: [], corpus: CORPUS })
   assert.deepEqual(report.totals.largestFlakyShare, { subject: 'b', share: 0.015 })
   assert.equal(
-    buildGateReport([], { today: TODAY, normalizationRules: [] }).totals.largestFlakyShare,
+    buildGateReport([], { today: TODAY, normalizationRules: [], corpus: CORPUS }).totals
+      .largestFlakyShare,
     undefined,
   )
 })
@@ -323,6 +350,7 @@ test('the text report says PASS or FAIL per subject and overall, with every time
   const pass = buildGateReport([rowWithRules('a', [{ id: 'r1', used: 2 }])], {
     today: TODAY,
     normalizationRules: [],
+    corpus: CORPUS,
   })
   const text = formatGateReport(pass)
   assert.match(text, /^G0 gate report \(2026-11-12\); all timings are `local`/)
@@ -340,6 +368,7 @@ test('the text report says PASS or FAIL per subject and overall, with every time
     {
       today: TODAY,
       normalizationRules: [],
+      corpus: CORPUS,
     },
   )
   const failText = formatGateReport(failing)

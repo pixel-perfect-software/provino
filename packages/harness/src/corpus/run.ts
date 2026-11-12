@@ -2,23 +2,25 @@
 // installed tree, inside the network-off sandbox. Each run leaves `run.json` (the `NormalizedRun`),
 // `meta.json` (times, counts, the sidecar check) and the runner's raw output under
 // `<work>/<repo>/runs/<subject>/<n>/`. The tree itself is deleted afterwards.
-import { accessSync } from 'node:fs'
-import { access, mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { NormalizedRun, TestStatus } from '@provino/types'
 import { HarnessError } from '../errors.ts'
-import { isNotFound, isRecord } from '../internal/guards.ts'
+import { isNotFound, isRecord, readIfExists } from '../internal/guards.ts'
+import { countTests } from '../parse-normalized-run.ts'
+import type { CommandWrap } from '../run-process.ts'
 import { runSubject, type SubjectOptions, type SubjectResult } from '../run-subject.ts'
 import { parseSidecar } from '../sidecar.ts'
-import { type CorpusDeps, defaultDeps } from './deps.ts'
+import { type CorpusDeps, defaultDeps, exitText, tailOf } from './deps.ts'
 import {
   type CorpusRepo,
   type CorpusSubject,
   DEFAULT_SUBJECT_TIMEOUT_MS,
   type PrepareStep,
 } from './manifest.ts'
-import { type RepoPaths, repoPaths, runDir } from './paths.ts'
-import { sandboxEnv, sandboxed, writeProfile } from './sandbox.ts'
+import { homeDir, type RepoPaths, repoPaths, runDir, tmpDir } from './paths.ts'
+import { sandboxEnv, sandboxWrap, writeProfile } from './sandbox.ts'
 
 /** The most one `prepare` step may take. */
 const PREPARE_TIMEOUT_MS = 20 * 60_000
@@ -77,24 +79,97 @@ export interface RunReferenceOptions {
   readonly now?: () => Date
 }
 
-/** `cp -cR` (an APFS clone, copy-on-write) and, if that fails, a plain recursive copy. */
+/** The system Python, which macOS ships; `clonefile(2)` has no `cp` flag that gives its one-call form. */
+const PYTHON = '/usr/bin/python3'
+
+/**
+ * `clonefile(src, dst, 0)` through ctypes: one system call clones the whole tree, where `cp -cR`
+ * makes one per file (which is most of a `node_modules` clone's time). Its exit status is the
+ * errno, so a failure says why (45 `ENOTSUP`: not APFS; 18 `EXDEV`: another volume; 17 `EEXIST`).
+ */
+const CLONEFILE_PROGRAM =
+  'import ctypes,sys; l=ctypes.CDLL(None,use_errno=True); r=l.clonefile(sys.argv[1].encode(),sys.argv[2].encode(),0); sys.exit(0 if r==0 else ctypes.get_errno() or 1)'
+
+/**
+ * How a tree was copied: `clonefile` (one call, copy-on-write), `cp-c` (a clone per file) or
+ * `copy` (every byte: 10 to 50 times slower, on a file system that cannot clone).
+ * @public
+ */
+export type CloneMethod = 'clonefile' | 'cp-c' | 'copy'
+
+/**
+ * Runs a command that may not even start (no `python3`): not starting is a failure like any other.
+ * @returns the result, or `undefined` when the command could not be started
+ */
+async function attempt(
+  deps: CorpusDeps,
+  command: string,
+  args: readonly string[],
+  options: Parameters<CorpusDeps['run']>[2],
+) {
+  try {
+    const result = await deps.run(command, args, options)
+    return result.exitCode === 0 ? { ok: true as const } : { ok: false as const, result }
+  } catch {
+    return { ok: false as const, result: undefined }
+  }
+}
+
+/**
+ * Copies `src` to `dest` as cheaply as the file system allows: a single `clonefile(2)` of the
+ * whole tree through `python3`, else `cp -cR`, else a plain `cp -R`. Says which one worked, and
+ * for a plain copy why the clone did not (`why`).
+ * @public
+ */
 export async function cloneTree(
   src: string,
   dest: string,
   deps: CorpusDeps = defaultDeps,
   env: NodeJS.ProcessEnv = process.env,
-): Promise<void> {
+): Promise<{ readonly method: CloneMethod; readonly why?: string }> {
   await mkdir(path.dirname(dest), { recursive: true })
   const options = { cwd: path.dirname(dest), env, timeoutMs: 20 * 60_000 }
-  const cloned = await deps.run('cp', ['-cR', src, dest], options)
-  if (cloned.exitCode === 0) return
+  const whole = await attempt(deps, PYTHON, ['-c', CLONEFILE_PROGRAM, src, dest], options)
+  if (whole.ok) return { method: 'clonefile' }
+  // A failed clone leaves nothing, but the next attempt must find no `dest` either way.
+  await rm(dest, { recursive: true, force: true })
+  const cloned = await attempt(deps, 'cp', ['-cR', src, dest], options)
+  if (cloned.ok) return { method: 'cp-c' }
   await rm(dest, { recursive: true, force: true })
   const copied = await deps.run('cp', ['-R', src, dest], options)
   if (copied.exitCode !== 0) {
     throw new HarnessError(
       'HARNESS_CORPUS_RUN_FAILED',
-      `could not copy ${src} to ${dest}: ${copied.output.trim().slice(-300)}`,
+      `could not copy ${src} to ${dest}: ${tailOf(copied, 300)}`,
     )
+  }
+  return {
+    method: 'copy',
+    why:
+      cloned.result === undefined
+        ? 'cp could not be started'
+        : `cp -cR ${exitText(cloned.result)}: ${tailOf(cloned.result, 200)}`,
+  }
+}
+
+/**
+ * Whether a tree under `workRoot` can be cloned, tested once with a small tree: `undefined` when
+ * it can, else the reason it cannot (`cloneTree` then copies every byte, for every run).
+ * @public
+ */
+export async function cloneUnsupportedReason(
+  workRoot: string,
+  deps: CorpusDeps = defaultDeps,
+): Promise<string | undefined> {
+  const probe = path.join(workRoot, '_clone-probe')
+  await rm(probe, { recursive: true, force: true })
+  await mkdir(path.join(probe, 'src'), { recursive: true })
+  await writeFile(path.join(probe, 'src', 'file'), 'x')
+  try {
+    const { method, why } = await cloneTree(path.join(probe, 'src'), path.join(probe, 'dest'), deps)
+    return method === 'copy' ? (why ?? 'unknown') : undefined
+  } finally {
+    await rm(probe, { recursive: true, force: true }).catch(() => undefined)
   }
 }
 
@@ -165,15 +240,6 @@ function statusCounts(run: NormalizedRun): Partial<Record<TestStatus, number>> {
   return counts
 }
 
-async function pathExists(file: string): Promise<boolean> {
-  try {
-    await access(file)
-    return true
-  } catch {
-    return false
-  }
-}
-
 /**
  * One reference run: a fresh clone of the installed tree, `prepare` steps, then the subject
  * through `runSubject`, both inside the sandbox. A `HARNESS_*` error from the conversion fails the
@@ -192,8 +258,8 @@ export async function runReference(
   const dir = runDir(paths, subject.id, n)
   const tree = path.join(dir, 'tree')
   await rm(dir, { recursive: true, force: true })
-  await mkdir(path.join(dir, 'home'), { recursive: true })
-  await mkdir(path.join(dir, 'tmp'), { recursive: true })
+  await mkdir(homeDir(dir), { recursive: true })
+  await mkdir(tmpDir(dir), { recursive: true })
   const startedAt = (options.now ?? (() => new Date()))()
 
   try {
@@ -209,18 +275,14 @@ export async function runReference(
       ],
       extra: subject.env,
     })
-    const profile =
+    const wrap: CommandWrap | undefined =
       options.unsandboxed === true
         ? undefined
-        : await writeProfile({ runDir: dir, workRoot: options.workRoot })
-    const wrap =
-      profile === undefined
-        ? undefined
-        : (command: string, args: readonly string[]) => sandboxed(profile, command, args)
+        : sandboxWrap(await writeProfile({ runDir: dir, workRoot: options.workRoot }))
 
     const prepareStart = performance.now()
     for (const step of subject.prepare ?? []) {
-      const command = resolvePrepareCommand(step, tree, (file) => pathExistsSync(file))
+      const command = resolvePrepareCommand(step, tree, existsSync)
       const target = wrap === undefined ? { command, args: step.args } : wrap(command, step.args)
       const result = await deps.run(target.command, target.args, {
         cwd: path.join(tree, step.cwd ?? '.'),
@@ -231,20 +293,22 @@ export async function runReference(
       if (result.exitCode !== 0 || result.timedOut) {
         throw new HarnessError(
           'HARNESS_CORPUS_RUN_FAILED',
-          `${subject.id} run ${n}: prepare "${step.command} ${step.args.join(' ')}" ${result.timedOut ? 'timed out' : `exited ${result.exitCode ?? 'by signal'}`}:\n${result.output.trim().slice(-1500)}`,
+          `${subject.id} run ${n}: prepare "${step.command} ${step.args.join(' ')}" ${exitText(result)}:\n${tailOf(result, 1500)}`,
         )
       }
     }
     const prepareMs = Math.round(performance.now() - prepareStart)
 
     const real = await realpath(tree)
+    // The runners print real paths, so a root with a symlink in it is known by both names.
+    const extraRoots = real === tree ? [] : [real]
     const fired = new Set<string>()
     const outDir = path.join(dir, 'out')
     const result = await run({
       runner: subject.runner,
       cwd: path.join(tree, subject.cwd),
       rootDir: tree,
-      ...(real === tree ? {} : { extraRoots: [real] }),
+      extraRoots,
       argv: subject.argv,
       env,
       suite: subject.id,
@@ -254,12 +318,7 @@ export async function runReference(
       ...(wrap === undefined ? {} : { wrap }),
     })
 
-    const sidecar = checkSidecar(
-      result.sidecar ?? '',
-      result.run,
-      tree,
-      real === tree ? [] : [real],
-    )
+    const sidecar = checkSidecar(result.sidecar ?? '', result.run, tree, extraRoots)
     const meta: RunMeta = {
       repo: repo.id,
       subject: subject.id,
@@ -271,7 +330,7 @@ export async function runReference(
       prepareMs,
       runMs: Math.round(result.process.wallMs),
       exitCode: result.exitCode,
-      tests: result.run.files.reduce((total, file) => total + file.tests.length, 0),
+      tests: countTests(result.run),
       files: result.run.files.length,
       statuses: statusCounts(result.run),
       fired: [...fired].toSorted(),
@@ -288,15 +347,6 @@ export async function runReference(
   }
 }
 
-function pathExistsSync(file: string): boolean {
-  try {
-    accessSync(file)
-    return true
-  } catch {
-    return false
-  }
-}
-
 /**
  * Reads a finished run's `meta.json`, or `undefined` when the run is not there or not finished.
  * @public
@@ -306,13 +356,8 @@ export async function readRunMeta(
   subjectId: string,
   n: number,
 ): Promise<RunMeta | undefined> {
-  let text: string
-  try {
-    text = await readFile(path.join(runDir(paths, subjectId, n), 'meta.json'), 'utf8')
-  } catch (cause) {
-    if (isNotFound(cause)) return undefined
-    throw cause
-  }
+  const text = await readIfExists(path.join(runDir(paths, subjectId, n), 'meta.json'))
+  if (text === undefined) return undefined
   const value: unknown = JSON.parse(text)
   return isRecord(value) && typeof value.subject === 'string' ? asRunMeta(value) : undefined
 }
@@ -385,7 +430,7 @@ export function runFile(paths: RepoPaths, subjectId: string, n: number): string 
  * @public
  */
 export async function hasRun(paths: RepoPaths, subjectId: string, n: number): Promise<boolean> {
-  return pathExists(path.join(runDir(paths, subjectId, n), 'meta.json'))
+  return existsSync(path.join(runDir(paths, subjectId, n), 'meta.json'))
 }
 
 /**
