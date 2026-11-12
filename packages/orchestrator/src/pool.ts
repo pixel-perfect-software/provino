@@ -229,17 +229,26 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   /** Every stop under way, so `close` waits for workers that exited before it was called too. */
   const stops = new Set<Promise<void>>()
   let spawning = 0
+  /** The keys of the workers still starting, one entry each. */
+  const spawningKeys: WorkerKey[] = []
   let nextWorkerId = 1
-  /** The latest failed start and how many in a row; cleared by a start that works. */
-  let failures: StartFailure | undefined
+  /** The latest failed start of each worker key and how many in a row; cleared by a start of that key that works. */
+  const failures: { readonly key: WorkerKey; failure: StartFailure }[] = []
   let draining = false
   /** Aborted with the pool: kills the workers that have not said `ready` yet. */
   const controller = new AbortController()
   let closing: Promise<void> | undefined
 
-  /** The failure that ended the starting, once `MAX_START_FAILURES` in a row have happened. */
-  function exhausted(): StartFailure | undefined {
-    return failures !== undefined && failures.count >= MAX_START_FAILURES ? failures : undefined
+  /**
+   * The failure that ended the starting of `workerKey`'s workers, once `MAX_START_FAILURES` in a
+   * row have happened. Another key's workers are unaffected: a project that cannot start must not
+   * fail the files of one that can.
+   */
+  function exhausted(workerKey: WorkerKey): StartFailure | undefined {
+    const entry = failures.find((item) => sameWorkerKey(item.key, workerKey))
+    return entry !== undefined && entry.failure.count >= MAX_START_FAILURES
+      ? entry.failure
+      : undefined
   }
 
   /** Reports an error no caller waits on: to `onError`, else thrown uncaught, as `connectWorker` does. */
@@ -314,33 +323,41 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     )
   }
 
-  /** Whether a worker is alive (and not being stopped) or still starting: one that may take a file. */
-  function canServe(): boolean {
-    if (spawning > 0) return true
-    for (const slot of slots) if (usable(slot)) return true
+  /** Whether a worker of `workerKey` is alive (and not being stopped) or still starting: one that may take its file. */
+  function canServe(workerKey: WorkerKey): boolean {
+    if (spawningKeys.some((item) => sameWorkerKey(item, workerKey))) return true
+    for (const slot of slots) if (usable(slot) && sameWorkerKey(slot.key, workerKey)) return true
     return false
   }
 
   /** Gives waiting files to idle workers, starts workers for the rest while there is room. */
   function pump(): void {
     if (controller.signal.aborted) return
-    // Too many starts failed in a row. The files left fail only once no worker is left that could
-    // run them; while one is alive or starting, they wait for it.
-    const gaveUp = exhausted()
-    if (gaveUp !== undefined && !canServe()) {
-      settleWaiters(startFailed(gaveUp))
-      return
+    // Too many starts of a key failed in a row. Its files left fail only once no worker of that key
+    // is left that could run them; while one is alive or starting, they wait for it. Other keys'
+    // files are never touched.
+    for (const waiter of [...waiters]) {
+      const gaveUp = exhausted(waiter.request.key)
+      if (gaveUp !== undefined && !canServe(waiter.request.key)) {
+        waiters.splice(waiters.indexOf(waiter), 1)
+        waiter.resolve(startFailed(gaveUp))
+      }
     }
-    for (let waiter = waiters[0]; waiter !== undefined; waiter = waiters[0]) {
+    for (let at = 0; at < waiters.length; ) {
+      const waiter = waiters[at]
+      if (waiter === undefined) break
+      const waiterKey = waiter.request.key
       const idle = [...slots].find(
-        (slot) =>
-          slot.state === 'idle' && usable(slot) && sameWorkerKey(slot.key, waiter.request.key),
+        (slot) => slot.state === 'idle' && usable(slot) && sameWorkerKey(slot.key, waiterKey),
       )
       if (idle !== undefined) {
-        waiters.shift()
+        waiters.splice(at, 1)
         void execute(idle, waiter)
-      } else if (gaveUp === undefined && slots.size + spawning < maxWorkers) {
-        waiters.shift()
+      } else if (exhausted(waiterKey) !== undefined) {
+        // Waits for its own key's worker that is still alive; the files behind it go on.
+        at++
+      } else if (slots.size + spawning < maxWorkers) {
+        waiters.splice(at, 1)
         const spawn = spawnFor(waiter)
         spawns.add(spawn)
         void spawn.finally(() => spawns.delete(spawn))
@@ -361,6 +378,11 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     spawning++
     const workerId = nextWorkerId++
     const { key } = waiter.request
+    spawningKeys.push(key)
+    const doneStarting = (): void => {
+      spawning--
+      spawningKeys.splice(spawningKeys.indexOf(key), 1)
+    }
     const route: Slot['route'] = { handler: undefined }
     let slot: Slot
     try {
@@ -392,19 +414,23 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         slot.diedBusy = slot.state === 'busy'
       })
     } catch (error) {
-      spawning--
+      doneStarting()
       // A worker that was killed because the pool closed is not a start failure to count.
       if (controller.signal.aborted) {
         waiter.resolve({ type: 'aborted' })
         return
       }
-      failures = { count: (failures?.count ?? 0) + 1, workerId, error }
-      waiter.resolve(startFailed(failures))
+      const entry = failures.find((item) => sameWorkerKey(item.key, key))
+      const failure: StartFailure = { count: (entry?.failure.count ?? 0) + 1, workerId, error }
+      if (entry === undefined) failures.push({ key, failure })
+      else entry.failure = failure
+      waiter.resolve(startFailed(failure))
       pump()
       return
     }
-    spawning--
-    failures = undefined
+    doneStarting()
+    const worked = failures.findIndex((item) => sameWorkerKey(item.key, key))
+    if (worked >= 0) failures.splice(worked, 1)
     slots.add(slot)
     void slot.connection.exited.then(() => {
       reportExit(slot)
