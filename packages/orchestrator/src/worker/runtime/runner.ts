@@ -133,8 +133,18 @@ interface Booted {
    * the environment, the globals and the registry last as long as the worker), `file` otherwise.
    */
   scope: EnvironmentScope
-  /** The instance of a worker-scoped environment, set up for the first file; `stop` tears it down. */
-  workerEnvironment: { readonly instance: EnvironmentInstance; readonly name: string } | undefined
+  /**
+   * The instance of a worker-scoped environment and the kind it was prepared from. It is kept for
+   * as long as the files that follow want the same kind, and torn down when one wants another (a
+   * docblock); `stop` tears the last one down.
+   */
+  workerEnvironment:
+    | {
+        readonly instance: EnvironmentInstance
+        readonly name: string
+        readonly prepared: PreparedEnvironment
+      }
+    | undefined
   /** The mock registry of a worker-scoped run (isolation `none`); `stop` disposes it. */
   workerMocks: MockRegistry | undefined
   /** What each file's module-mock registry is built from (B13c). */
@@ -545,20 +555,29 @@ export function createRuntimeRunner(): WorkerRunner {
 
   /**
    * The environment instance for a file: a new one for scope `file` (given the file's `signal`),
-   * and for scope `worker` the one made for the first file (given the worker's lifetime signal,
-   * because it outlives that file; its `testPath` stays the first file's, the only file it was set
-   * up for).
+   * and for scope `worker` the worker's one while the files want the same kind of environment
+   * (given the worker's lifetime signal, because it outlives the file it was made for; its
+   * `testPath` stays that file's). A file whose docblock names another kind tears the current one
+   * down first, so the global is restored before the next populates it: each environment is on the
+   * global only while its own files run.
    */
   async function setUpEnvironment(
     worker: Booted,
     context: FileContext,
   ): Promise<{ readonly instance: EnvironmentInstance; readonly name: string }> {
     const { scope } = worker
-    if (worker.workerEnvironment !== undefined) return worker.workerEnvironment
     const pragmas = await readPragmas(context.job.file)
-    // A pragma picks the environment for this file. Under `none` there is one environment for the
-    // worker, set up for the first file, so a pragma there picks it only for that file (a limit).
+    // A pragma picks the environment for this file.
     const environment = await environmentFor(worker, pragmas, context.job.file)
+    const current = worker.workerEnvironment
+    if (current !== undefined) {
+      if (current.prepared === environment) return current
+      // Another kind: this one goes (the global is restored) before the next is set up. A global it
+      // could not remove is the worker's to report, as at `stop`.
+      worker.workerEnvironment = undefined
+      const leaked = leakedGlobalsOf(await current.instance.teardown(), current.name)
+      if (leaked.length > 0) context.sink.emit(workerLeakEvent(leaked))
+    }
     const instance = await setupEnvironment(environment, {
       scope,
       testPath: context.job.file,
@@ -566,7 +585,7 @@ export function createRuntimeRunner(): WorkerRunner {
       console: context.console,
       signal: scope === 'worker' ? workerLifetime.signal : context.signal,
     })
-    const set = { instance, name: environment.environment.name }
+    const set = { instance, name: environment.environment.name, prepared: environment }
     if (scope === 'worker') worker.workerEnvironment = set
     return set
   }
