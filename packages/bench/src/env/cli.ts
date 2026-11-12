@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 // `pnpm bench:env [--max-ratio N] [--max-heap-mb N] [--files N] [--rounds N]`: T8.3's jsdom bar.
-// The per-file cost of `@provino/env-jsdom` (a fresh window, populated onto the global, the
-// workload, torn down and restored exactly) against a raw-jsdom loop doing the same work (a fresh
-// `JSDOM`, `populateGlobal`, the workload, `populated.restore()` and `window.close()`), in this one
-// process, file by file interleaved (which goes first alternates). The baseline has to undo what it
-// populated, or its next file would populate over the last one; what the environment adds is the
-// descriptor-exact restore. Then the heap: growth after GC over `--files` files of the environment.
+// The per-file cost of `@provino/env-jsdom` (`setup`, the workload, `teardown`) against a raw-jsdom
+// loop in this one process, file by file interleaved (which goes first alternates). The baseline
+// (`rawFile`) is a fresh `JSDOM`, `populateGlobal`, the workload, `populated.restore()` and
+// `window.close()`. It does LESS work than the environment, on purpose (a strict baseline): it
+// omits the environment's fills of Node's globals on the window (`Buffer`, the fetch family,
+// `structuredClone`, the encoders, the channels), the window `error` event bridge, the virtual
+// console forwarding, and the descriptor snapshot and exact restore of the whole global (it keeps
+// only `populateGlobal`'s own restore, since without one its next file would populate over the
+// last). So the ratio is the environment's cost over bare jsdom plus `populateGlobal`, not over
+// an equivalent. Then the heap: growth after GC over `--files` files of the environment.
 // T8.3: median within 10% of the baseline and growth at most 10 MB over 100 files
 // (`--max-ratio 1.10 --max-heap-mb 10`). Needs `--expose-gc` (the root script passes it). Every
 // number is `local`. Exit 0 when no bar is missed (or none is on), 1 when one is, 2 on bad usage.
@@ -18,17 +22,20 @@ import { jsdomEnvironment } from '@provino/env-jsdom'
 import { populateGlobal } from '@provino/env-shared'
 import type { EnvironmentSetupContext } from '@provino/types'
 import { JSDOM } from 'jsdom'
+import { BenchError } from '../errors.ts'
 import { exitCodeFor, parseOrExitUsage } from '../internal/limits.ts'
 import { median, ratioCi } from '../stats.ts'
-import { failures, heapGrowthMb, parseBars, ratioOf } from './report.ts'
+import { failures, heapGrowthMb, parseBars } from './report.ts'
 
-const bars = parseOrExitUsage('bench:env', () => parseBars(process.argv.slice(2)))
-
-const gc = (globalThis as { gc?: () => void }).gc
-if (gc === undefined) {
-  process.stderr.write('bench:env: run with --expose-gc (use `pnpm bench:env`)\n')
-  process.exit(2)
-}
+const { bars, collect } = parseOrExitUsage('bench:env', () => {
+  const parsed = parseBars(process.argv.slice(2))
+  const gc = (globalThis as { gc?: () => void }).gc
+  if (gc === undefined) {
+    throw new BenchError('BENCH_USAGE', 'run with --expose-gc (use `pnpm bench:env`)')
+  }
+  const collect: () => void = gc
+  return { bars: parsed, collect }
+})
 
 const URL_OPTION = 'http://localhost:3000'
 const HTML = '<!DOCTYPE html><html><body><div id="root"></div></body></html>'
@@ -94,7 +101,7 @@ async function environmentFile(): Promise<number> {
 
 async function settledHeap(): Promise<number> {
   for (let i = 0; i < 3; i++) {
-    gc?.()
+    collect()
     await nextMacrotask()
   }
   return process.memoryUsage().heapUsed
@@ -107,17 +114,19 @@ for (let i = 0; i < bars.files; i++) await environmentFile()
 const heapAfter = await settledHeap()
 const heapMb = heapGrowthMb(heapBefore, heapAfter)
 
+/** The wall time of one file under `which`. */
+async function measure(which: 'raw' | 'environment'): Promise<number> {
+  const start = performance.now()
+  if (which === 'raw') rawFile()
+  else await environmentFile()
+  return performance.now() - start
+}
+
 // Timing: `rounds + 1` rounds of `files` files each, the first thrown away.
 const baseline: number[] = []
 const ours: number[] = []
 for (let round = 0; round <= bars.rounds; round++) {
   for (let file = 0; file < bars.files; file++) {
-    const measure = async (which: 'raw' | 'environment'): Promise<number> => {
-      const start = performance.now()
-      if (which === 'raw') rawFile()
-      else await environmentFile()
-      return performance.now() - start
-    }
     // Alternate who goes first, so neither always runs on the other's warmed state.
     const first = (round + file) % 2 === 0 ? 'raw' : 'environment'
     const second = first === 'raw' ? 'environment' : 'raw'
@@ -131,15 +140,15 @@ for (let round = 0; round <= bars.rounds; round++) {
 
 const baselineMedian = median(baseline)
 const oursMedian = median(ours)
-const ratio = ratioOf({ ours: oursMedian, baseline: baselineMedian })
 const interval = ratioCi(ours, baseline)
+const ratio = interval.ratio
 const lines = [
   `env bench (local, Node ${process.version}, ${process.platform} ${process.arch}, ${bars.rounds} rounds of ${bars.files} files after 1 discarded, file by file interleaved in one process)`,
   `  raw jsdom (fresh-global): ${baselineMedian.toFixed(2)} ms per file (median of ${baseline.length})`,
   `  @provino/env-jsdom:       ${oursMedian.toFixed(2)} ms per file (median of ${ours.length})`,
   `  ratio: ${ratio.toFixed(3)}× (bootstrap 95% CI ${interval.low.toFixed(3)} to ${interval.high.toFixed(3)})`,
   `  heap growth after GC over ${bars.files} files: ${heapMb.toFixed(2)} MB (${WARMUP_FILES} warm-up files first)`,
-  "  the baseline includes populateGlobal's own restore: without one its next file would populate over the last",
+  "  the baseline is bare jsdom + populateGlobal and its restore: it omits the environment's Node-global fills, error bridge, console forwarding and descriptor snapshot/restore, so the ratio is what those cost over it",
 ]
 const missed = failures({ ratio, heapMb }, bars)
 lines.push(...missed)

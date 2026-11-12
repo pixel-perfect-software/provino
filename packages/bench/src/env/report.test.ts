@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { BenchError } from '../errors.ts'
-import { failures, heapGrowthMb, parseBars, ratioOf } from './report.ts'
+import { failures, heapGrowthMb, parseBars } from './report.ts'
 
 test('parseBars reads both bars, and none when absent', () => {
   assert.deepEqual(parseBars([]), {
@@ -32,10 +32,6 @@ test('parseBars refuses a non-number, an unknown flag and a bad count', () => {
       argv.join(' '),
     )
   }
-})
-
-test('ratioOf is ours over the baseline', () => {
-  assert.equal(ratioOf({ ours: 11, baseline: 10 }), 1.1)
 })
 
 test('heapGrowthMb is the after-GC growth in megabytes', () => {

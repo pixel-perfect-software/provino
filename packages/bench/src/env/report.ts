@@ -1,7 +1,8 @@
 // The pure side of `bench:env` (T8.3's jsdom bar): the flags, the two numbers and the bars.
 import { parseArgs } from 'node:util'
 import { BenchError } from '../errors.ts'
-import { parseLimit, pastLimit } from '../internal/limits.ts'
+import { errorMessage } from '../internal/guards.ts'
+import { overBar, parseLimit, pastLimit } from '../internal/limits.ts'
 
 /** The bars and the sizes of a run. A bar that is `undefined` is not checked. */
 export interface Bars {
@@ -42,7 +43,7 @@ export function parseBars(argv: readonly string[]): Bars {
       },
     }).values
   } catch (error) {
-    throw new BenchError('BENCH_USAGE', error instanceof Error ? error.message : String(error))
+    throw new BenchError('BENCH_USAGE', errorMessage(error))
   }
   return {
     maxRatio: parseLimit('max-ratio', values['max-ratio']),
@@ -50,11 +51,6 @@ export function parseBars(argv: readonly string[]): Bars {
     files: count('files', values.files, DEFAULT_FILES),
     rounds: count('rounds', values.rounds, DEFAULT_ROUNDS),
   }
-}
-
-/** Our per-file median over the raw-jsdom baseline's. */
-export function ratioOf(medians: { readonly ours: number; readonly baseline: number }): number {
-  return medians.ours / medians.baseline
 }
 
 /** Heap growth in megabytes between two after-GC readings, in bytes. */
@@ -71,12 +67,12 @@ export interface Measured {
 /** Every bar missed, one line each. Written `!(x <= bar)` so a NaN misses. */
 export function failures(measured: Measured, bars: Bars): readonly string[] {
   const out: string[] = []
-  if (bars.maxRatio !== undefined && !(measured.ratio <= bars.maxRatio)) {
+  if (bars.maxRatio !== undefined && overBar(measured.ratio, bars.maxRatio)) {
     out.push(
       `FAIL per-file median is ${pastLimit(measured.ratio, bars.maxRatio, 3)}× the raw-jsdom baseline; the bar is ≤ ${bars.maxRatio}×`,
     )
   }
-  if (bars.maxHeapMb !== undefined && !(measured.heapMb <= bars.maxHeapMb)) {
+  if (bars.maxHeapMb !== undefined && overBar(measured.heapMb, bars.maxHeapMb)) {
     out.push(
       `FAIL heap growth after GC is ${pastLimit(measured.heapMb, bars.maxHeapMb, 2)} MB; the bar is ≤ ${bars.maxHeapMb} MB`,
     )

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { parseLimit, readSample, SAMPLE_PREFIX } from './limits.ts'
+import { overBar, parseLimit, readSample, SAMPLE_PREFIX } from './limits.ts'
 
 test('a bar flag must be a finite number, or the check could never fail', () => {
   assert.equal(parseLimit('max-tobe-us', undefined), undefined)
@@ -26,4 +26,12 @@ test('a sample is the prefixed output line with every named key a finite number'
   assert.equal(readSample(`${SAMPLE_PREFIX}{"toBe":1,"toEqual":null}`, keys), undefined)
   assert.equal(readSample(`${SAMPLE_PREFIX}{"toBe":1,`, keys), undefined)
   assert.equal(readSample('', keys), undefined)
+})
+
+test('overBar is a miss when the value is above the bar, or is not a number', () => {
+  assert.equal(overBar(1, 1), false)
+  assert.equal(overBar(0.99, 1), false)
+  assert.equal(overBar(1.01, 1), true)
+  // A NaN measurement must fail the bar, not pass it: `NaN > bar` is false.
+  assert.equal(overBar(Number.NaN, 1), true)
 })
