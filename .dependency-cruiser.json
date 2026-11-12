@@ -1167,6 +1167,20 @@
       }
     },
     {
+      "name": "boundary-provino-packaging",
+      "comment": "provino-packaging (tooling, runs in dev) may import only: no workspace package.",
+      "severity": "error",
+      "from": {
+        "path": "^tooling/packaging/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^tooling/packaging/"
+        ]
+      }
+    },
+    {
       "name": "boundary-snapshot-test",
       "comment": "@provino/snapshot/test (layer 2, runs in dev) may import only: @provino/policy, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/types.",
       "severity": "error",
@@ -1399,6 +1413,66 @@
       }
     },
     {
+      "name": "banned-packages-snapshot",
+      "comment": "@provino/snapshot never imports expect, @vitest/expect, jest-snapshot, @vitest/snapshot, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
+        "pathNot": "\\.test\\.ts$|\\.test-d\\.ts$|(?:^|/)test-support\\.ts$"
+      },
+      "to": {
+        "path": "(?:^|/)node_modules/(?:expect|@vitest/expect|jest-snapshot|@vitest/snapshot|@babel/[^/]+)/",
+        "dependencyTypesNot": [
+          "type-only"
+        ]
+      }
+    },
+    {
+      "name": "banned-packages-snapshot-runtime",
+      "comment": "@provino/snapshot/runtime never imports expect, @vitest/expect, jest-snapshot, @vitest/snapshot, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/snapshot/src/runtime/",
+        "pathNot": "\\.test\\.ts$|\\.test-d\\.ts$|(?:^|/)test-support\\.ts$"
+      },
+      "to": {
+        "path": "(?:^|/)node_modules/(?:expect|@vitest/expect|jest-snapshot|@vitest/snapshot|@babel/[^/]+)/",
+        "dependencyTypesNot": [
+          "type-only"
+        ]
+      }
+    },
+    {
+      "name": "banned-packages-snapshot-node",
+      "comment": "@provino/snapshot/node never imports expect, @vitest/expect, jest-snapshot, @vitest/snapshot, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/snapshot/src/node/",
+        "pathNot": "\\.test\\.ts$|\\.test-d\\.ts$|(?:^|/)test-support\\.ts$"
+      },
+      "to": {
+        "path": "(?:^|/)node_modules/(?:expect|@vitest/expect|jest-snapshot|@vitest/snapshot|@babel/[^/]+)/",
+        "dependencyTypesNot": [
+          "type-only"
+        ]
+      }
+    },
+    {
+      "name": "banned-packages-expect",
+      "comment": "@provino/expect never imports expect, @vitest/expect, jest-snapshot, @vitest/snapshot, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/expect/",
+        "pathNot": "\\.test\\.ts$|\\.test-d\\.ts$|(?:^|/)test-support\\.ts$"
+      },
+      "to": {
+        "path": "(?:^|/)node_modules/(?:expect|@vitest/expect|jest-snapshot|@vitest/snapshot|@babel/[^/]+)/",
+        "dependencyTypesNot": [
+          "type-only"
+        ]
+      }
+    },
+    {
       "name": "test-support-only-in-tests",
       "comment": "A test-support module is exempt from the boundary lints because only tests use it, so production code never imports one.",
       "severity": "error",
@@ -1457,7 +1531,7 @@
       "path": "node_modules"
     },
     "exclude": {
-      "path": "(^|/)(?:node_modules|dist|\\.tsc|\\.turbo|\\.suites|\\.results|\\.record)/"
+      "path": "(^|/)(?:dist|\\.tsc|\\.turbo|\\.suites|\\.results|\\.record)/"
     },
     "tsPreCompilationDeps": true,
     "combinedDependencies": false,

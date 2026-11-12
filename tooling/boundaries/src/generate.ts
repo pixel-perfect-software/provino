@@ -166,6 +166,21 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
           to: { path: workspaceTarget, pathNot: [...new Set(spec.allowed)] },
         }
       }),
+      ...placed
+        .filter((node) => node.bannedPackages.length > 0 && !node.name.endsWith('/test'))
+        .map((node) => ({
+          name: `banned-packages-${node.name
+            .replace(/^@provino\//, '')
+            .replaceAll('/', '-')
+            .replaceAll('*', 'x')}`,
+          comment: `${node.name} never imports ${node.bannedPackages.join(', ')} at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.`,
+          severity: 'error',
+          from: { path: owned(manifest, node), pathNot: TEST_FILE },
+          to: {
+            path: `(?:^|/)node_modules/(?:${node.bannedPackages.map(wildcardSource).join('|')})/`,
+            dependencyTypesNot: ['type-only'],
+          },
+        })),
       {
         name: 'test-support-only-in-tests',
         comment:
@@ -205,8 +220,13 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
       doNotFollow: { path: 'node_modules' },
       // Build output isn't cruised. Every exports entry resolves to src/ through provino-source
       // first (`workspace-exports` checks), so no edge lands in dist/. Neither is generated or
-      // scratch output (SKIPPED_DIRS, shared with the workspace walk).
-      exclude: { path: `(^|/)(?:${SKIPPED_DIRS.map(escapeRegex).join('|')})/` },
+      // scratch output (SKIPPED_DIRS, shared with the workspace walk). node_modules stays in the
+      // graph, as edge targets only (`doNotFollow`): `banned-packages-*` (T7.12) needs to see them.
+      exclude: {
+        path: `(^|/)(?:${SKIPPED_DIRS.filter((dir) => dir !== 'node_modules')
+          .map(escapeRegex)
+          .join('|')})/`,
+      },
       tsPreCompilationDeps: true,
       combinedDependencies: false,
       enhancedResolveOptions: {

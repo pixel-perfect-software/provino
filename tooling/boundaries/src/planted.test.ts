@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { cp, mkdir, symlink, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, test } from 'node:test'
 import { BIOME_BIN, DEPCRUISE_BIN, ROOT } from './paths.ts'
 import { scratchDir, writeFiles } from './test-support.ts'
@@ -57,6 +57,27 @@ async function linkPackages(dir: string, names: readonly string[]): Promise<void
     await writeFile(join(pkgDir, 'src/index.ts'), 'export const value = 1\n')
     await mkdir(join(dir, 'node_modules/@provino'), { recursive: true })
     await symlink(pkgDir, join(dir, 'node_modules/@provino', name), 'dir')
+  }
+}
+
+/**
+ * A package in the scratch dir's node_modules, flat (`node_modules/<name>`) or the way pnpm lays it
+ * out (a real copy under `node_modules/.pnpm/<name>@1.0.0/node_modules` and a symlink to it).
+ */
+async function installModule(dir: string, name: string, layout: 'flat' | 'pnpm'): Promise<void> {
+  const real =
+    layout === 'flat'
+      ? join(dir, 'node_modules', name)
+      : join(dir, 'node_modules/.pnpm', `${name.replace('/', '+')}@1.0.0`, 'node_modules', name)
+  await mkdir(real, { recursive: true })
+  await writeFile(
+    join(real, 'package.json'),
+    JSON.stringify({ name, version: '1.0.0', main: 'index.js' }),
+  )
+  await writeFile(join(real, 'index.js'), 'module.exports = {}\n')
+  if (layout === 'pnpm') {
+    await mkdir(dirname(join(dir, 'node_modules', name)), { recursive: true })
+    await symlink(real, join(dir, 'node_modules', name), 'dir')
   }
 }
 
@@ -281,6 +302,83 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
     })
     const { code, output } = await depcruise(typeOnly)
     assert.equal(code, 0, output)
+  })
+
+  test('T7.12: a runtime import of a banned package in @provino/expect or @provino/snapshot fails banned-packages', async () => {
+    for (const layout of ['flat', 'pnpm'] as const) {
+      const dir = await workspace({
+        'packages/expect/src/planted.ts': [
+          "import 'jest-snapshot'",
+          "import { equals } from 'expect'",
+          "import '@vitest/expect'",
+          "import '@vitest/snapshot'",
+          "import '@babel/core'",
+          'export const x = equals',
+          '',
+        ].join('\n'),
+        'packages/snapshot/src/runtime/planted.ts': "import 'jest-snapshot'\n",
+        'packages/snapshot/src/node/planted.ts': "export * from '@babel/parser'\n",
+      })
+      for (const name of [
+        'jest-snapshot',
+        'expect',
+        '@vitest/expect',
+        '@vitest/snapshot',
+        '@babel/core',
+        '@babel/parser',
+      ]) {
+        await installModule(dir, name, layout)
+      }
+      const { code, output } = await depcruise(dir)
+      assert.notEqual(code, 0, output)
+      for (const name of [
+        'jest-snapshot',
+        'expect',
+        '@vitest/expect',
+        '@vitest/snapshot',
+        '@babel/core',
+      ]) {
+        assert.match(
+          output,
+          new RegExp(
+            `error banned-packages-expect: packages/expect/src/planted\\.ts → .*${name.replace('/', '\\/')}`,
+          ),
+          `${layout}: ${name}\n${output}`,
+        )
+      }
+      assert.match(
+        output,
+        /error banned-packages-snapshot-runtime: packages\/snapshot\/src\/runtime\/planted\.ts/,
+      )
+      assert.match(
+        output,
+        /error banned-packages-snapshot-node: packages\/snapshot\/src\/node\/planted\.ts/,
+      )
+    }
+  })
+
+  test('the ban list spares tests, type imports, allowed packages and other packages', async () => {
+    for (const layout of ['flat', 'pnpm'] as const) {
+      const dir = await workspace({
+        // A test may run the real engines as oracles.
+        'packages/expect/src/interop.test.ts':
+          "import 'expect'\nimport '@vitest/expect'\nimport 'jest-snapshot'\n",
+        'packages/expect/src/ok.ts': [
+          "import type { Matchers } from 'expect'",
+          "import { equals } from '@jest/expect-utils'",
+          'export type M = Matchers',
+          'export const e = equals',
+          '',
+        ].join('\n'),
+        // A package without a ban list may import them.
+        'packages/dialect-jest/src/ok.ts': "import 'expect'\n",
+      })
+      for (const name of ['jest-snapshot', 'expect', '@vitest/expect', '@jest/expect-utils']) {
+        await installModule(dir, name, layout)
+      }
+      const { output } = await depcruise(dir)
+      assert.doesNotMatch(output, /banned-packages/, `${layout}: ${output}`)
+    }
   })
 
   test('allowed imports pass', async () => {

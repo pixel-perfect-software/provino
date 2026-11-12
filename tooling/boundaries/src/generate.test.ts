@@ -13,7 +13,10 @@ const files = generate(manifest, roots)
 
 interface Rule {
   readonly name: string
-  readonly from: { readonly path?: string | readonly string[] }
+  readonly from: {
+    readonly path?: string | readonly string[]
+    readonly pathNot?: string | readonly string[]
+  }
   readonly to: { readonly pathNot?: string | readonly string[] }
 }
 const config = JSON.parse(files.get(DEPCRUISE_CONFIG) ?? '{}') as {
@@ -71,4 +74,40 @@ test('the boundary lints skip test files and test-support modules', () => {
       '!**/src/internal/test-support.ts',
     ])
   }
+})
+
+test('T7.12: a ban list becomes a rule that skips tests and type imports, and matches pnpm and flat paths', () => {
+  const rule = config.forbidden.find((r) => r.name === 'banned-packages-expect') as
+    | (Rule & {
+        readonly to: { readonly path: string; readonly dependencyTypesNot: readonly string[] }
+      })
+    | undefined
+  assert.ok(rule, 'no banned-packages-expect rule')
+  assert.ok(from('banned-packages-expect').test('packages/expect/src/expect.ts'))
+  assert.ok(!new RegExp(String(rule.from.pathNot)).test('packages/expect/src/expect.ts'))
+  assert.ok(new RegExp(String(rule.from.pathNot)).test('packages/expect/src/interop.test.ts'))
+  const to = new RegExp(rule.to.path)
+  for (const banned of [
+    'node_modules/expect/build/index.js',
+    'node_modules/.pnpm/expect@30.5.2/node_modules/expect/build/index.js',
+    'node_modules/@vitest/expect/dist/index.js',
+    'node_modules/jest-snapshot/build/index.js',
+    'node_modules/@vitest/snapshot/dist/index.js',
+    'node_modules/@babel/core/lib/index.js',
+  ]) {
+    assert.ok(to.test(banned), banned)
+  }
+  for (const fine of [
+    'node_modules/@jest/expect-utils/build/index.js',
+    'node_modules/expect-type/dist/index.js',
+    'node_modules/jest-snapshot-serializer/index.js',
+    'packages/expect/src/expect.ts',
+  ]) {
+    assert.ok(!to.test(fine), fine)
+  }
+  assert.deepEqual(rule.to.dependencyTypesNot, ['type-only'])
+  // The package's tests node has none: it would only say again what tests are exempt from.
+  assert.ok(
+    !config.forbidden.some((r) => r.name.startsWith('banned-packages') && r.name.endsWith('-test')),
+  )
 })

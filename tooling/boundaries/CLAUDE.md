@@ -4,7 +4,7 @@ Package boundaries for the whole repo, generated from one manifest. Private; nev
 
 ## Files
 
-- `packages.json`: **the manifest**, and the only file to edit by hand. One node per package or subpath entry: `dir`, `layer`, `runsIn`, `deps`, `slices`, `neutral`, `compositionRoot`. Its `$comment` explains the fields.
+- `packages.json`: **the manifest**, and the only file to edit by hand. One node per package or subpath entry: `dir`, `layer`, `runsIn`, `deps`, `slices`, `neutral`, `bannedPackages`, `compositionRoot`. Its `$comment` explains the fields.
 - `generated/` and the root `.dependency-cruiser.json`: written by `pnpm boundaries:write`. Never edit them; `pnpm boundaries` fails when they drift from the manifest. Biome skips them (`biome.json` → `files.includes`), and `.gitattributes` marks them `linguist-generated`, so GitHub collapses them in PR diffs.
 - `grit/neutral-no-dialect-name.grit`: hand-written. Which packages it covers comes from the manifest's `neutral` flags.
 - `src/manifest.ts` (parse, validate, expand), `src/workspace.ts` (workspace vs manifest and repo conventions), `src/generate.ts` (the generated files), `src/cli.ts` (`check` | `write`), `src/text.ts` and `src/paths.ts` (shared helpers), `src/test-support.ts` (test helpers; not a test file).
@@ -26,7 +26,11 @@ Every check runs, then dependency-cruiser does, so one run reports everything.
 - **New rule:** generate it in `src/generate.ts` (or add a check to `src/workspace.ts`), and add a planted case to `src/planted.test.ts` or `src/workspace.test.ts` that fails without it.
 - **Tests of a subpath entry** go in the package's `test/`: the manifest gives that dir its own `<package>/test` node (`withTestNodes`), which may import every entry.
 
+- **A ban list** (`bannedPackages`, T7.12) is a list of package names (`@scope/*` allowed) that a node's non-test files may not import at run time. It becomes `banned-packages-<node>` in the dependency-cruiser config: `to.path` matches `(^|/)node_modules/<name>/`, so it holds for flat and pnpm layouts, and `dependencyTypesNot: ['type-only']` lets `import type` through. A subpath entry must carry its package's list (`manifest-subpath`). Today: `@provino/expect`, `@provino/snapshot` and its two entries ban `expect`, `@vitest/expect`, `jest-snapshot`, `@vitest/snapshot` and `@babel/*`.
+
 ## Gotchas
+
+- **`node_modules` is in the cruise graph,** as edge targets only (`doNotFollow`; the `exclude` list leaves it out of `SKIPPED_DIRS`' regex): the ban rule needs to see an import of a package. Everything else in `SKIPPED_DIRS` is still excluded.
 
 - Biome's `--stdin-file-path` mode doesn't report plugin diagnostics, so `planted.test.ts` copies the config into a scratch dir under the OS temp dir and lints real files. Turbo passes `TMPDIR` through so sandboxes that block `/tmp` work. A scratch dir inside a folder with its own root `biome.json` fails with "nested root configuration".
 - `planted.test.ts` drops `FORCE_COLOR`: it overrides `NO_COLOR` for dependency-cruiser and would colour the output it matches.

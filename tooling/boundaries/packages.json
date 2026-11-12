@@ -98,7 +98,14 @@
       "runsIn": "both",
       "deps": ["@provino/types", "@provino/policy"],
       "slices": ["snapshot"],
-      "neutral": true
+      "neutral": true,
+      "bannedPackages": [
+        "expect",
+        "@vitest/expect",
+        "jest-snapshot",
+        "@vitest/snapshot",
+        "@babel/*"
+      ]
     },
     "@provino/snapshot/runtime": {
       "dir": "packages/snapshot/src/runtime",
@@ -106,7 +113,14 @@
       "runsIn": "worker",
       "deps": ["@provino/types", "@provino/policy", "@provino/snapshot"],
       "slices": ["snapshot"],
-      "neutral": true
+      "neutral": true,
+      "bannedPackages": [
+        "expect",
+        "@vitest/expect",
+        "jest-snapshot",
+        "@vitest/snapshot",
+        "@babel/*"
+      ]
     },
     "@provino/snapshot/node": {
       "dir": "packages/snapshot/src/node",
@@ -114,7 +128,14 @@
       "runsIn": "coordinator",
       "deps": ["@provino/types", "@provino/policy", "@provino/snapshot"],
       "slices": ["snapshot"],
-      "neutral": true
+      "neutral": true,
+      "bannedPackages": [
+        "expect",
+        "@vitest/expect",
+        "jest-snapshot",
+        "@vitest/snapshot",
+        "@babel/*"
+      ]
     },
     "@provino/coverage": {
       "dir": "packages/coverage",
@@ -159,7 +180,14 @@
       "runsIn": "worker",
       "deps": ["@provino/types", "@provino/policy", "@provino/snapshot/runtime"],
       "slices": ["expect"],
-      "neutral": true
+      "neutral": true,
+      "bannedPackages": [
+        "expect",
+        "@vitest/expect",
+        "jest-snapshot",
+        "@vitest/snapshot",
+        "@babel/*"
+      ]
     },
     "@provino/env-shared": {
       "dir": "packages/env-shared",
@@ -455,6 +483,13 @@
       "runsIn": "dev",
       "deps": ["@provino/types", "@provino/policy"],
       "slices": "all"
+    },
+    "provino-packaging": {
+      "dir": "tooling/packaging",
+      "layer": "tooling",
+      "runsIn": "dev",
+      "deps": [],
+      "slices": []
     }
   }
 }
