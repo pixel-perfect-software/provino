@@ -9,18 +9,22 @@ import type {
   FileResult,
   GlobalSetupContext,
   Inject,
+  OpenHandle,
+  PoolOptions,
   ReporterBus,
   ReporterEvents,
   RpcCall,
   RpcClient,
   RpcReply,
   RpcSchema,
+  RunEndReason,
   RuntimeEvent,
   RuntimeEventOf,
   SuiteTask,
   TaskState,
   TestTask,
   WorkerEvent,
+  WorkerExit,
   WorkerInit,
   WorkerMethods,
   WorkerPort,
@@ -53,7 +57,8 @@ const r = defineReporter({
     expectTypeOf(event.ordinal).toEqualTypeOf<number>()
   },
   'run:end'(summary) {
-    expectTypeOf(summary.reason).toEqualTypeOf<'passed' | 'failed' | 'interrupted'>()
+    expectTypeOf(summary.reason).toEqualTypeOf<'passed' | 'failed' | 'interrupted' | 'terminated'>()
+    expectTypeOf(summary.openHandles).toEqualTypeOf<readonly OpenHandle[] | undefined>()
   },
 })
 expectTypeOf(r.name).toEqualTypeOf<'mine'>()
@@ -181,4 +186,33 @@ export function busEventFor(event: WorkerEvent): keyof ReporterEvents | null {
   }
 }
 
-export { bad, fileDoneClean, fileDoneSymbols, fileDoneWithout, unknownCall, wrongArgs }
+// T9.5 and T9.10: a file's deadline, the memory a worker may hold, how a worker ends, how a run ends.
+expectTypeOf<PoolOptions['fileTimeoutMs']>().toEqualTypeOf<number | undefined>()
+expectTypeOf<PoolOptions['recycle']['memoryLimitBytes']>().toEqualTypeOf<number | undefined>()
+expectTypeOf<PoolOptions['recycle']['maxFilesPerWorker']>().toEqualTypeOf<number | undefined>()
+expectTypeOf<{ type: 'timeout'; phase: 'file' }>().toExtend<WorkerExit>()
+expectTypeOf<{ type: 'oom'; limitMb: number }>().toExtend<WorkerExit>()
+// @ts-expect-error a timeout has a phase, and `run` is not one
+const badPhase: WorkerExit = { type: 'timeout', phase: 'run' }
+expectTypeOf<'terminated'>().toExtend<RunEndReason>()
+// @ts-expect-error a run does not end `killed`
+const badReason: RunEndReason = 'killed'
+expectTypeOf<OpenHandle>().toEqualTypeOf<{
+  readonly type: string
+  readonly frames: readonly string[]
+  readonly codeFrame?: string
+}>()
+// @ts-expect-error an open handle names the stack that made it
+const noFrames: OpenHandle = { type: 'Timeout' }
+
+export {
+  bad,
+  badPhase,
+  badReason,
+  fileDoneClean,
+  fileDoneSymbols,
+  fileDoneWithout,
+  noFrames,
+  unknownCall,
+  wrongArgs,
+}

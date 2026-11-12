@@ -164,6 +164,7 @@ export type {
   Inject,
   LinkClosed,
   MessageLink,
+  OpenHandle,
   PoolOptions,
   ProvidedContext,
   RecyclePolicy,

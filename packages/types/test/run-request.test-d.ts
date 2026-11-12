@@ -24,6 +24,14 @@ void badMode
 const badWorkers: RunRequest = { ...minimal, maxWorkers: 'all' }
 void badWorkers
 
+// T9.10: the lifecycle flags. A bail is a count in an object; the other two are switches.
+expectTypeOf<RunRequest['bail']>().toEqualTypeOf<{ readonly count: number } | undefined>()
+expectTypeOf<RunRequest['forceExit']>().toEqualTypeOf<boolean | undefined>()
+expectTypeOf<RunRequest['detectOpenHandles']>().toEqualTypeOf<boolean | undefined>()
+// @ts-expect-error a bail is `{ count }`, not a bare number
+const badBail: RunRequest = { ...minimal, bail: 2 }
+void badBail
+
 // A filter is a kind and a value; a `file.ts:12` filter carries its line.
 expectTypeOf<{ kind: 'regex'; value: string }>().toExtend<FileFilter>()
 expectTypeOf<{ kind: 'pathLine'; value: string; line: number }>().toExtend<FileFilter>()

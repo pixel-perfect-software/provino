@@ -29,8 +29,14 @@ export interface WorkerKey {
  * @public
  */
 export interface RecyclePolicy {
-  /** RSS (forks) or heapUsed + external (threads), checked after each file. */
+  /**
+   * RSS (forks) or heapUsed + external (threads, inline), checked after each file with the
+   * `fileDone.memoryBytes` the worker measured: a worker over it is stopped and a new one serves
+   * the next file. `0` replaces the worker after every file (Jest's `workerIdleMemoryLimit: 0`).
+   * Absent: no check.
+   */
   readonly memoryLimitBytes?: number
+  /** A worker is replaced after this many files. Absent: never. */
   readonly maxFilesPerWorker?: number
   /**
    * Recycle after a file whose teardown reported leaked handles (Track 2), or globals its
@@ -54,6 +60,12 @@ export interface PoolOptions {
   /** Then SIGTERM, then SIGKILL after 500 ms. */
   readonly teardownTimeoutMs: number
   readonly startTimeoutMs: number
+  /**
+   * The longest one file may run. A worker still on a file after this is killed (SIGKILL), and
+   * the file fails with `WorkerExit` `{ type: 'timeout', phase: 'file' }`. Absent: no deadline
+   * (a test's own timeout cannot stop a synchronous loop).
+   */
+  readonly fileTimeoutMs?: number
 }
 
 /**
@@ -64,7 +76,7 @@ export type WorkerExit =
   | { readonly type: 'signal'; readonly signal: NodeJS.Signals; readonly likelyOom: boolean }
   | { readonly type: 'exit'; readonly code: number }
   | { readonly type: 'oom'; readonly limitMb: number }
-  | { readonly type: 'timeout'; readonly phase: 'start' | 'stop' | 'idle' }
+  | { readonly type: 'timeout'; readonly phase: 'start' | 'stop' | 'idle' | 'file' }
 
 /**
  * Data too big to structured-clone: a JSON string, a temp file, or transferred bytes.
@@ -427,10 +439,11 @@ export interface FileResult {
 }
 
 /**
- * Why a run ended.
+ * Why a run ended: every file passed, a file failed (or `bail` ended the run), the run was
+ * interrupted (SIGINT: exit code 130), or it was terminated (SIGTERM: 143).
  * @public
  */
-export type RunEndReason = 'passed' | 'failed' | 'interrupted'
+export type RunEndReason = 'passed' | 'failed' | 'interrupted' | 'terminated'
 
 /**
  * What a worker reports about one test file's snapshots when the file ends.
@@ -468,6 +481,23 @@ export interface SnapshotRunSummary {
 }
 
 /**
+ * A resource that was still open, and keeping the process from exiting, after the run's last file
+ * (`detectOpenHandles`): what kind it is and the stack that created it.
+ * @public
+ */
+export interface OpenHandle {
+  /** What kind of resource: `Timeout`, `Immediate`, `TCPSERVERWRAP`... (the async resource's type). */
+  readonly type: string
+  /**
+   * The creating stack, innermost frame first, as `at ...` lines: the frames of the user's code
+   * (Node's own and Provino's are left out).
+   */
+  readonly frames: readonly string[]
+  /** A few lines of source around the innermost frame, with a caret under the column; absent if it can't be read. */
+  readonly codeFrame?: string
+}
+
+/**
  * A finished run.
  * @public
  */
@@ -485,6 +515,8 @@ export interface RunSummary {
    * `snapshots` by one policy.
    */
   readonly snapshotsFail?: boolean
+  /** What `detectOpenHandles` found still open after the last file; absent when it was off or found none. */
+  readonly openHandles?: readonly OpenHandle[]
 }
 
 /**
@@ -498,7 +530,9 @@ export interface ReporterEvents {
   'file:queued': [file: FileInfo]
   /**
    * A worker took the file. Every `file:start` is followed by exactly one `file:end`, and a
-   * `file:end` never comes without its `file:start`. A file whose worker failed to start gets
+   * `file:end` never comes without its `file:start`, with one exception: a run that ends by `bail`
+   * kills the files still running and, as Jest does, reports them no further (they get no
+   * `file:end` and are not in the summary). A file whose worker failed to start gets
    * `file:start` just before its `file:end`, with the id of the worker whose failed start its
    * error is (for the files left when the pool gave up, the last one). A file that was never
    * started (the run was aborted before) gets neither event.

@@ -18,7 +18,7 @@ export interface FileFilter {
  * project's own setting.
  *
  * A flag the dialect understands but the coordinator has no backend for yet (`--watch`,
- * `--coverage`, `--bail`) is not here: the parser reports it as an `error` diagnostic naming the
+ * `--coverage`, `--shard`) is not here: the parser reports it as an `error` diagnostic naming the
  * flag and the task that will build it, so nothing is silently ignored.
  * @public
  */
@@ -46,6 +46,16 @@ export interface RunRequest {
   readonly cache?: boolean
   /** `-c`, `--config`: a path, or a JSON text where the dialect accepts one. */
   readonly configPath?: string
+  /**
+   * `--bail`: the run ends once this many tests have failed (when it is checked, after each file
+   * or after each test, is the dialect's `orchestrator.bail.checkAfter`). Absent when not given;
+   * a count of 0 (`--bail=0`, `--no-bail`) is also absent here.
+   */
+  readonly bail?: { readonly count: number }
+  /** `--forceExit`: the process exits when the run is over, whatever a test left open. */
+  readonly forceExit?: boolean
+  /** `--detectOpenHandles`: run in band and report what is still open at the end (and where it was created). */
+  readonly detectOpenHandles?: boolean
 }
 
 /**
