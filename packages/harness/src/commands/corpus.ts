@@ -184,7 +184,9 @@ async function run(
     const paths = repoPaths(env.workRoot, repo)
     const record = await readInstallRecord(repo, env.workRoot)
     if (record === undefined) {
-      io.err(`${repo.id}: not installed at ${repo.sha.slice(0, 12)} (no install record for this commit); run "corpus install ${repo.id}" first\n`)
+      io.err(
+        `${repo.id}: not installed at ${repo.sha.slice(0, 12)} (no install record for this commit); run "corpus install ${repo.id}" first\n`,
+      )
       failures++
       continue
     }

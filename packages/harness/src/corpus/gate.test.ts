@@ -9,10 +9,10 @@ import {
   buildGateReport,
   formatGateReport,
   G0_MAX_EXCLUSION_RULES,
-  MIN_REFERENCE_RUNS,
   type GateInput,
   type GateSubject,
   gateSubject,
+  MIN_REFERENCE_RUNS,
 } from './gate.ts'
 import type { InstallRecord } from './install.ts'
 import type { RunMeta } from './run.ts'
@@ -162,7 +162,10 @@ test('a flaky key the reference run lacks is not an excluded test (D65 reads cou
   const row = gateSubject(
     input({ flaky, selfDiff: selfDiff(runs, { exclusions: [], flaky, today: TODAY }) }),
   )
-  assert.deepEqual(row.selfDiffs.flatMap((pair) => pair.reasons), [])
+  assert.deepEqual(
+    row.selfDiffs.flatMap((pair) => pair.reasons),
+    [],
+  )
   assert.deepEqual(row.problems, [])
   assert.equal(row.pass, true)
 })

@@ -238,7 +238,9 @@ test('an id that names no repository, or only a subject, is HARNESS_USAGE and pi
     await assert.rejects(
       pinManifest(text, 'm.json', { selection: only(A, id), workRoot: work, deps: fake }),
       (error: unknown) =>
-        error instanceof HarnessError && error.code === 'HARNESS_USAGE' && error.message.includes(id),
+        error instanceof HarnessError &&
+        error.code === 'HARNESS_USAGE' &&
+        error.message.includes(id),
     )
   }
   assert.deepEqual(fake.calls, [], 'nothing was asked of gh or curl')

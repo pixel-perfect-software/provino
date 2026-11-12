@@ -78,7 +78,12 @@ export function selfDiff(
       reasons.push(
         `suite pass: the runs disagree on ${report.counts.files - report.counts.filesMatched} file status(es)`,
       )
-    return { pair: [numbers[0] ?? 1, numbers[index + 1] ?? index + 2], report, reasons, pass: reasons.length === 0 }
+    return {
+      pair: [numbers[0] ?? 1, numbers[index + 1] ?? index + 2],
+      report,
+      reasons,
+      pass: reasons.length === 0,
+    }
   })
   return { pairs, pass: pairs.every((pair) => pair.pass) }
 }

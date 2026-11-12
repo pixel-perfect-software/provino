@@ -420,4 +420,3 @@ test('a probe that prints nothing inside the profile cannot be trusted (a profil
   )
   assert.equal(deps.calls.length, 1, 'the control run is not attempted')
 })
-

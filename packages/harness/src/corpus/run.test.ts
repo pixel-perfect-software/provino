@@ -158,7 +158,11 @@ test('the sidecar check reads the real paths a runner prints under a symlinked r
       console: [{ stream: 'stdout', text: 'x' }],
     },
   ])
-  const sidecar = JSON.stringify({ file: '/private/tmp/clone/src/a.test.js', stream: 'stdout', text: 'x' })
+  const sidecar = JSON.stringify({
+    file: '/private/tmp/clone/src/a.test.js',
+    stream: 'stdout',
+    text: 'x',
+  })
   assert.deepEqual(checkSidecar(sidecar, run, '/tmp/clone', ['/private/tmp/clone']), {
     files: 1,
     withConsole: 1,
@@ -203,7 +207,10 @@ test('a run that fails after the clone removes the clone unless keepTree is set'
       throw new HarnessError('HARNESS_RUNNER_FAILED', 'boom')
     },
   }
-  await assert.rejects(runReference(repo, makeSubject(), 1, common), hasCode('HARNESS_RUNNER_FAILED'))
+  await assert.rejects(
+    runReference(repo, makeSubject(), 1, common),
+    hasCode('HARNESS_RUNNER_FAILED'),
+  )
   await assert.rejects(stat(tree), 'the clone is gone')
   await assert.rejects(
     runReference(repo, makeSubject(), 1, { ...common, keepTree: true }),

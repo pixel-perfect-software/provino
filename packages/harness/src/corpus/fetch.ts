@@ -238,7 +238,9 @@ export interface FetchOptions {
  * The commit the extracted tree came from (`src.sha`), or `undefined` when there is no marker.
  * @internal
  */
-export async function readSrcMarker(paths: Pick<RepoPaths, 'srcMarker'>): Promise<string | undefined> {
+export async function readSrcMarker(
+  paths: Pick<RepoPaths, 'srcMarker'>,
+): Promise<string | undefined> {
   try {
     return (await readFile(paths.srcMarker, 'utf8')).trim()
   } catch (cause) {

@@ -70,11 +70,7 @@ export async function writeSubjectFlaky(
 ): Promise<string> {
   const files = subjectFiles(subjectId, options.corpusDir)
   const text = `${JSON.stringify({ keys: [...keys] }, null, 2)}\n`
-  assertNoPathLeak(
-    text,
-    [options.workRoot, repoRoot(), os.homedir()],
-    files.flaky,
-  )
+  assertNoPathLeak(text, [options.workRoot, repoRoot(), os.homedir()], files.flaky)
   await mkdir(files.dir, { recursive: true })
   await writeFile(files.flaky, text)
   return files.flaky

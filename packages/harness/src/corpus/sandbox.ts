@@ -15,7 +15,7 @@ import { isRecord } from '../internal/guards.ts'
 import { type CorpusDeps, defaultDeps } from './deps.ts'
 
 /** The system's `sandbox-exec`. */
-export const SANDBOX_EXEC = '/usr/bin/sandbox-exec'
+const SANDBOX_EXEC = '/usr/bin/sandbox-exec'
 
 /**
  * Paths under the real home directory the profile denies reading (B16 gap 2). The run's own `HOME`
@@ -177,7 +177,7 @@ export function assertSandboxPlatform(platform: NodeJS.Platform = process.platfo
 }
 
 /** The real paths a run's profile may write to: `mkdir -p` first, then `realpath` (Seatbelt matches real paths). */
-export async function realWritable(dirs: readonly string[]): Promise<string[]> {
+async function realWritable(dirs: readonly string[]): Promise<string[]> {
   const real: string[] = []
   for (const dir of dirs) {
     await mkdir(dir, { recursive: true })
@@ -373,11 +373,8 @@ export interface ProbeOptions {
   readonly listen?: () => Promise<OutsideSocket>
 }
 
-/**
- * The probe's script: this repository's `probe-child.ts`, which runs under the profile.
- * @internal
- */
-export function probeChildPath(): string {
+/** The probe's script: this repository's `probe-child.ts`, which runs under the profile. */
+function probeChildPath(): string {
   return fileURLToPath(new URL('./probe-child.ts', import.meta.url))
 }
 

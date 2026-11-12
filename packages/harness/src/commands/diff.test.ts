@@ -315,7 +315,10 @@ test("--suite reads the subject's committed exclusions and flaky list, as the sp
 
 test('--suite refuses a subject with no flaky.json, as self-diff and gate do', async () => {
   const run = path.join(dir, 'suite-bare.json')
-  await writeFile(run, JSON.stringify(makeRun([makeFile('a.test.ts', [makeTest('a.test.ts', ['t'])])])))
+  await writeFile(
+    run,
+    JSON.stringify(makeRun([makeFile('a.test.ts', [makeTest('a.test.ts', ['t'])])])),
+  )
   const outcome = await inProcessWith(
     { corpusDir: path.join(dir, 'no-such-corpus') },
     '--ref',
@@ -327,7 +330,10 @@ test('--suite refuses a subject with no flaky.json, as self-diff and gate do', a
   )
   assert.equal(outcome.code, 2)
   assert.equal(outcome.report, undefined)
-  assert.match(outcome.stderr, /jest-extended: no flaky\.json; run "corpus flaky jest-extended" first/)
+  assert.match(
+    outcome.stderr,
+    /jest-extended: no flaky\.json; run "corpus flaky jest-extended" first/,
+  )
 })
 
 test('--suite names a subject in the corpus manifest, or the command exits 2', async () => {

@@ -151,7 +151,9 @@ export function checkSidecar(
 /** `file` relative to the first root that holds it (the first root's spelling if none does). */
 function relativeToRoots(file: string, roots: readonly string[]): string {
   const relatives = roots.map((root) => path.relative(root, file))
-  const inside = relatives.find((relative) => !relative.startsWith('..') && !path.isAbsolute(relative))
+  const inside = relatives.find(
+    (relative) => !relative.startsWith('..') && !path.isAbsolute(relative),
+  )
   return (inside ?? relatives[0] ?? file).split(path.sep).join('/')
 }
 
@@ -252,7 +254,12 @@ export async function runReference(
       ...(wrap === undefined ? {} : { wrap }),
     })
 
-    const sidecar = checkSidecar(result.sidecar ?? '', result.run, tree, real === tree ? [] : [real])
+    const sidecar = checkSidecar(
+      result.sidecar ?? '',
+      result.run,
+      tree,
+      real === tree ? [] : [real],
+    )
     const meta: RunMeta = {
       repo: repo.id,
       subject: subject.id,
@@ -276,7 +283,8 @@ export async function runReference(
   } finally {
     // A failed run leaves no clone (with its node_modules) behind either; a failed cleanup must
     // not replace the run's own error.
-    if (options.keepTree !== true) await rm(tree, { recursive: true, force: true }).catch(() => undefined)
+    if (options.keepTree !== true)
+      await rm(tree, { recursive: true, force: true }).catch(() => undefined)
   }
 }
 
