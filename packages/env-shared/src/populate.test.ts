@@ -100,11 +100,16 @@ for (const [name, make] of windows()) {
 
     it('never reads a native lazy getter it replaces or restores', () => {
       const global = freshGlobal()
+      const original = Object.getOwnPropertyDescriptor(global, 'localStorage')?.get
+      assert.equal(typeof original, 'function')
       const { win, close } = make()
+      // The getter throws when called, so a read here fails the test. From Node 26 a read of a vm
+      // global's accessor from outside the context no longer calls the getter, so only Node 22
+      // and 24 (CI) catch a read; the identity check below holds on every version.
       const populated = populateGlobal(global, win)
       populated.restore()
       close()
-      assert.throws(() => global.localStorage, /must not be read/)
+      assert.equal(Object.getOwnPropertyDescriptor(global, 'localStorage')?.get, original)
     })
   })
 }
