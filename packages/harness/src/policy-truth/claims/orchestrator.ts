@@ -2,6 +2,7 @@
 // names (T1.7). Black-box runs show exit codes, where files run and what the default reporter
 // prints; `policy/defaults` holds the config defaults no run shows (D27).
 import { jestEnvironmentConditions } from '@provino/dialect-jest/runtime'
+import { vitestEnvironmentConditions } from '@provino/dialect-vitest/runtime'
 import type { EnvironmentRequest } from '@provino/types'
 import type { Golden } from '../../golden.ts'
 import { type Claims, each, golden, own, pending } from '../evidence.ts'
@@ -43,6 +44,7 @@ const CONDITION_ENVIRONMENTS: Readonly<Record<string, EnvironmentRequest>> = {
     options: { projectConfig: { testEnvironmentOptions: { customExportConditions: [''] } } },
   },
   'env/conditions-node': { name: 'node' },
+  'env/conditions-vitest-jsdom': { name: 'jsdom' },
 }
 
 /** The keys of the fixtures' `dual` package `exports`, in the order a resolver tries them. */
@@ -53,12 +55,33 @@ const DUAL_EXPORTS_ORDER = ['browser', 'node', 'import', 'require', 'default'] a
  * real Jest resolved: the first key of the `dual` package that is among the conditions, plus
  * `require` (the fixtures `require` it from CommonJS).
  */
+const CONDITIONS_BY_RUNNER: Readonly<
+  Record<
+    string,
+    {
+      readonly export: string
+      readonly fn: (env: EnvironmentRequest) => readonly string[]
+      /** The fixtures `require` the package under Jest (CommonJS) and `import` it under Vitest. */
+      readonly token: string
+    }
+  >
+> = {
+  jest: { export: 'jestEnvironmentConditions', fn: jestEnvironmentConditions, token: 'require' },
+  vitest: {
+    export: 'vitestEnvironmentConditions',
+    fn: vitestEnvironmentConditions,
+    token: 'import',
+  },
+}
+
 const conditionsMatch = (g: Golden, value: unknown): boolean => {
+  const runner = CONDITIONS_BY_RUNNER[g.runner]
+  if (runner === undefined) throw new Error(`no conditions are known for the runner ${g.runner}`)
   const ref = value as { readonly export?: unknown } | null
-  if (ref?.export !== 'jestEnvironmentConditions') return false
+  if (ref?.export !== runner.export) return false
   const environment = CONDITION_ENVIRONMENTS[g.suite]
   if (environment === undefined) throw new Error(`no environment is known for ${g.suite}`)
-  const conditions = new Set([...jestEnvironmentConditions(environment), 'require'])
+  const conditions = new Set([...runner.fn(environment), runner.token])
   const predicted = DUAL_EXPORTS_ORDER.find((key) => key === 'default' || conditions.has(key))
   const test = g.files.flatMap((file) => file.tests)[0]
   if (test === undefined || test.status !== 'passed') {
@@ -151,15 +174,15 @@ export const orchestratorClaims: Claims = {
   // `browser`, node `node`, a project's `customExportConditions`), which three recorded Jest runs
   // show (`env/conditions-jsdom`, `-custom`, `-node`): each golden says which variant of a package
   // with `browser`, `node`, `import`, `require` and `default` conditions Jest resolved, and the
-  // value's own function must predict the same one for that fixture's environment. Vitest's half
-  // (its jsdom environment) is part 3 of B17c.
+  // value's own function must predict the same one for that fixture's environment. Vitest's half is
+  // `env/conditions-vitest-jsdom`: under `environment: 'jsdom'` its resolver picks `node`, not `browser`.
   'orchestrator.environmentConditions': each(
     [
       golden('env/conditions-jsdom', { matches: conditionsMatch }),
       golden('env/conditions-custom', { matches: conditionsMatch }),
       golden('env/conditions-node', { matches: conditionsMatch }),
     ],
-    pending('B17c', "Vitest's jsdom environment (T8.3, part 3) records its conditions"),
+    golden('env/conditions-vitest-jsdom', { matches: conditionsMatch }),
   ),
   'orchestrator.pool.default': each(
     [

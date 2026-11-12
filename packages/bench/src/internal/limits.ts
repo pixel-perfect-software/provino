@@ -83,6 +83,15 @@ export function parseLimit(flag: string, value: string | undefined): number | un
 }
 
 /**
+ * Whether a measured value misses its bar. Written `!(value <= bar)` so a NaN measurement misses
+ * instead of passing (`NaN > bar` is false). Callers check the bar is set.
+ * @internal
+ */
+export function overBar(value: number, bar: number): boolean {
+  return !(value <= bar)
+}
+
+/**
  * A failed value printed beside its limit must never read as equal to it: `toFixed` can round 3599
  * of 4000 up to "90.0", 0.500004 down to "0.500" and 3.0004 to "3.000", which would call a miss a
  * tie. This raises the decimals from `base` until the printed number differs from the limit.

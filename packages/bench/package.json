@@ -24,7 +24,9 @@
   "dependencies": {
     "@provino/core": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
+    "@provino/env-jsdom": "workspace:*",
     "@provino/env-node": "workspace:*",
+    "@provino/env-shared": "workspace:*",
     "@provino/expect": "workspace:*",
     "@provino/harness": "workspace:*",
     "@provino/loader": "workspace:*",
@@ -40,6 +42,7 @@
   "devDependencies": {
     "@swc/core": "catalog:",
     "@swc/jest": "catalog:",
+    "@types/jsdom": "catalog:",
     "@vitest/spy": "catalog:",
     "date-fns": "catalog:",
     "es-module-lexer": "catalog:",
@@ -47,6 +50,7 @@
     "jest": "catalog:",
     "jest-config": "catalog:",
     "jest-mock": "catalog:",
+    "jsdom": "catalog:",
     "lodash": "catalog:",
     "magic-string": "catalog:",
     "oxc-parser": "catalog:",

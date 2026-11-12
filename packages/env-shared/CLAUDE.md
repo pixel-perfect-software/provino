@@ -16,4 +16,4 @@ The descriptor-exact global restore, moved from `@provino/env-node`: `@provino/e
 
 ## Not here
 
-Environment classes, jsdom or happy-dom setup, the error-event bridge: Part 2 (`@provino/env-jsdom`).
+The jsdom environment, its setup and its error-event bridge: `@provino/env-jsdom`. happy-dom's environment is not built.

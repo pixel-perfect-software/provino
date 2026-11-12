@@ -381,3 +381,11 @@ export function parseNormalizedRun(text: string, source: string): NormalizedRun 
     )
   }
 }
+
+/**
+ * How many tests a run holds, over all its files.
+ * @internal
+ */
+export function countTests(run: NormalizedRun): number {
+  return run.files.reduce((total, file) => total + file.tests.length, 0)
+}

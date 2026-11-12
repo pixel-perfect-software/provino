@@ -11,6 +11,7 @@
 import { defineDialect, moduleRef } from '@provino/policy'
 import type {
   Dialect,
+  EnvironmentConditions,
   FormatEachTitle,
   GlobalsFactory,
   PolicyOverrides,
@@ -148,6 +149,12 @@ export const vitestPolicy: PolicyOverrides = {
     bail: { checkAfter: 'test' },
     watchDefault: 'tty-not-ci',
     watch: { initialRun: 'all' },
+    // Vitest resolves server side whatever the environment: `node`, jsdom included
+    // (`env/conditions-vitest-jsdom`).
+    environmentConditions: moduleRef<EnvironmentConditions>(
+      import.meta.resolve('@provino/dialect-vitest/runtime'),
+      'vitestEnvironmentConditions',
+    ),
     // Vitest's `include` is relative to the root (`policy/orchestrator-match-path`).
     globMatchesOn: 'root-relative-path',
     passWithNoTests: false,

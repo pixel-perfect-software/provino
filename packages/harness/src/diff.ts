@@ -8,7 +8,7 @@ import type {
   TraceEntry,
 } from '@provino/types'
 import { HarnessError } from './errors.ts'
-import { compareStrings, escapeRegExp, ISO_DATE } from './internal/guards.ts'
+import { compareStrings, today as currentDate, escapeRegExp, ISO_DATE } from './internal/guards.ts'
 import { testKey } from './normalize.ts'
 
 /**
@@ -499,7 +499,7 @@ export function diffRuns(
   ref: NormalizedRun,
   cand: NormalizedRun,
   options: DiffOptions,
-  today: string = new Date().toISOString().slice(0, 10),
+  today: string = currentDate({}),
 ): ParityReport {
   const { active, expired } = compileRules(options.exclusions, checkDate(today, 'today'))
   const found: ParityDiff[] = []

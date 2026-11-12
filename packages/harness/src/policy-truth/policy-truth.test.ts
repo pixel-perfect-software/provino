@@ -55,7 +55,6 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'jest coverage.thresholdGrouping': 'T8.9',
   'jest lazy.readInBeforeAll': 'T6.5',
   'vitest snapshot.inline.formatter': 'T7.11',
-  'vitest orchestrator.environmentConditions': 'B17c',
   'vitest hoist.messages.HOIST_EXPORTED': 'T11.16',
   'vitest hoist.messages.HOIST_EXPORTED_VALUE': 'T11.16',
   'vitest hoist.messages.HOIST_NESTED': 'T11.16',

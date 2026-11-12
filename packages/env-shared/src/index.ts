@@ -2,4 +2,4 @@
 export type { Populated, PopulateOptions } from './populate.ts'
 export { populateGlobal } from './populate.ts'
 export type { PropertySnapshot } from './restore.ts'
-export { snapshotProperties } from './restore.ts'
+export { leakReport, snapshotProperties } from './restore.ts'

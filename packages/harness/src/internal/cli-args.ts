@@ -1,7 +1,10 @@
 import { type ParseArgsConfig, parseArgs } from 'node:util'
+import { MIN_REFERENCE_RUNS } from '../corpus/gate.ts'
+import type { CorpusSelection } from '../corpus/manifest.ts'
 import type { DiffOptions } from '../diff.ts'
 import { HarnessError } from '../errors.ts'
 import type { SubjectRunner } from '../run-subject.ts'
+import { R2_MAX_EXCLUDED_SHARE } from './diff-bars.ts'
 import { ISO_DATE } from './guards.ts'
 
 /**
@@ -28,6 +31,11 @@ export interface DiffCommand {
   readonly mode: DiffOptions['messageMode']
   readonly exclusions?: string
   readonly flaky?: string
+  /**
+   * A corpus subject (T12.10): fills `exclusions` and `flaky` from `corpus/<subject>/`, and never
+   * allows `--calibration` (DECISIONS D30).
+   */
+  readonly suite?: string
   readonly console: boolean
   /** The lowest status parity that passes. */
   readonly min: number
@@ -80,6 +88,49 @@ export interface PolicyDiffCommand {
 }
 
 /**
+ * The corpus actions (T12.9, T12.10). `probe`, `run` and `install --offline` run third-party code
+ * and belong in Tyler's own terminal (DECISIONS D40).
+ * @internal
+ */
+export type CorpusAction =
+  | 'pin'
+  | 'fetch'
+  | 'install'
+  | 'probe'
+  | 'run'
+  | 'flaky'
+  | 'self-diff'
+  | 'gate'
+  | 'clean'
+
+/**
+ * `corpus <action>`: what to do, to which repositories.
+ * @internal
+ */
+export interface CorpusCommand {
+  readonly command: 'corpus'
+  readonly action: CorpusAction
+  /** Which repositories (`probe` takes none). */
+  readonly selection: CorpusSelection
+  /** `fetch`: check the tarball and its contents; extract nothing. */
+  readonly verifyOnly: boolean
+  /** `install`: the offline re-install inside the sandbox. */
+  readonly offline: boolean
+  /** `run`: reference runs per subject. */
+  readonly runs: number
+  /** `run`: redo runs that are already on disk. */
+  readonly force: boolean
+  /** `run`: keep each run's clone. */
+  readonly keepTree: boolean
+  /** `gate`: also write the report here. */
+  readonly out?: string
+  /** `self-diff`, `gate`: the day R2's expiry is measured from. */
+  readonly today?: string
+  /** `clean`: also delete the tarballs and package manager caches. */
+  readonly everything: boolean
+}
+
+/**
  * What the command line asked for.
  * @internal
  */
@@ -89,12 +140,13 @@ export type HarnessCommand =
   | ConvertCommand
   | SelfTestCommand
   | PolicyDiffCommand
+  | CorpusCommand
 
 /**
  * The usage text.
  * @internal
  */
-export const USAGE = `Usage: provino-harness <command> [options]
+export const USAGE: string = `Usage: provino-harness <command> [options]
 
   record [--check] [--keep] [<fixture dir>...]
            Run Jest and Vitest over each fixture and write __goldens__/<profile>.json.
@@ -104,12 +156,12 @@ export const USAGE = `Usage: provino-harness <command> [options]
            --keep   Keep the work directories under packages/harness/.record/.
 
   diff --ref <run> --cand <run> [--mode exact|matcher|none] [--exclusions <file>]
-       [--flaky <file>] [--console] [--min <share>] [--max-diffs <n>]
+       [--flaky <file>] [--suite <corpus subject>] [--console] [--min <share>] [--max-diffs <n>]
        [--max-excluded <share>] [--calibration] [--today <YYYY-MM-DD>]
            Compare two NormalizedRun files (Track 12 R1, R2). The ParityReport goes to stdout
            as JSON and a summary table to stderr. Exit 0 on a pass; 1 when status parity is
            below --min (default 1), there are more than --max-diffs unexplained diffs,
-           exclusions remove more than --max-excluded of the reference's tests (default 0.02),
+           exclusions remove more than --max-excluded of the reference's tests (default ${R2_MAX_EXCLUDED_SHARE}),
            or nothing was compared; 2 on bad usage or an unreadable file. Every exclusion must
            expire within 90 days of --today; --calibration lifts that and the cap.
 
@@ -127,6 +179,26 @@ export const USAGE = `Usage: provino-harness <command> [options]
   policy-diff <jest|vitest> <jest|vitest>
            Print every policy key, hoisting rule and global name where the two dialects
            differ (T1.8).
+
+  corpus <action> [<id>... | --pilot | --all] (B16; the corpus is packages/harness/corpus/)
+           pin [--pilot|--all|<id>...]  Resolve F5's short SHAs through gh, record each commit's
+                date and tarball sha256, and verify an existing pin; never re-pins silently.
+           fetch [--verify-only]       Download each tarball, check its sha256, lockfile, runner
+                configs and licence; without --verify-only also extract it to .refs/corpus/<id>/src.
+           install [--offline]         The repository's own frozen install, scripts off, caches in
+                the work directory. --offline (Tyler's terminal): delete node_modules, install
+                again inside the sandbox with the network off, and require the same tree.
+           probe                       (Tyler's terminal) Prove the sandbox: a TCP connect, a DNS
+                lookup, an HTTPS fetch and a read under ~/.ssh must all fail; loopback must work.
+           run [--runs 3] [--force] [--keep-tree]
+                                       (Tyler's terminal) Reference runs of each subject in fresh
+                clones inside the sandbox; the probe runs first, before every repository.
+           flaky                       Write corpus/<subject>/flaky.json from the runs.
+           self-diff [--today <date>]  Run 1 against runs 2 and 3, exact, console on, R2's limits.
+           gate [--out <file>] [--today <date>]
+                                       G0's report on the selected repositories.
+           clean [--everything]        Delete the extracted trees and runs (and with --everything
+                the tarballs and caches) of the selected repositories.
 `
 
 function usage(message: string, cause?: unknown): HarnessError {
@@ -197,6 +269,7 @@ function parseDiff(argv: readonly string[]): DiffCommand {
       mode: { type: 'string', default: 'exact' },
       exclusions: { type: 'string' },
       flaky: { type: 'string' },
+      suite: { type: 'string' },
       console: { type: 'boolean', default: false },
       min: { type: 'string' },
       'max-diffs': { type: 'string' },
@@ -209,6 +282,18 @@ function parseDiff(argv: readonly string[]): DiffCommand {
   const mode = MODES.find((m) => m === values.mode)
   if (mode === undefined) throw usage(`--mode must be exact, matcher or none, got "${values.mode}"`)
   const maxDiffs = count(values['max-diffs'], '--max-diffs')
+  if (values.suite !== undefined) {
+    if (values.exclusions !== undefined || values.flaky !== undefined) {
+      throw usage(
+        '--suite supplies the exclusions and the flaky list: drop --exclusions and --flaky',
+      )
+    }
+    if (values.calibration) {
+      throw usage(
+        '--calibration is for the self-test sample only; corpus runs never use it (DECISIONS D30)',
+      )
+    }
+  }
   return {
     command: 'diff',
     ref: required(values.ref, '--ref'),
@@ -216,10 +301,11 @@ function parseDiff(argv: readonly string[]): DiffCommand {
     mode,
     ...(values.exclusions === undefined ? {} : { exclusions: values.exclusions }),
     ...(values.flaky === undefined ? {} : { flaky: values.flaky }),
+    ...(values.suite === undefined ? {} : { suite: values.suite }),
     console: values.console,
     min: share(values.min, '--min', 1),
     ...(maxDiffs === undefined ? {} : { maxDiffs }),
-    maxExcluded: share(values['max-excluded'], '--max-excluded', 0.02),
+    maxExcluded: share(values['max-excluded'], '--max-excluded', R2_MAX_EXCLUDED_SHARE),
     calibration: values.calibration,
     ...date(values.today),
   }
@@ -298,6 +384,83 @@ function parsePolicyDiff(argv: readonly string[]): PolicyDiffCommand {
   return { command: 'policy-diff', a, b }
 }
 
+const CORPUS_ACTIONS: readonly CorpusAction[] = [
+  'pin',
+  'fetch',
+  'install',
+  'probe',
+  'run',
+  'flaky',
+  'self-diff',
+  'gate',
+  'clean',
+]
+
+function parseCorpus(argv: readonly string[]): CorpusCommand {
+  const { values, positionals } = readArguments(
+    argv,
+    {
+      pilot: { type: 'boolean', default: false },
+      all: { type: 'boolean', default: false },
+      'verify-only': { type: 'boolean', default: false },
+      offline: { type: 'boolean', default: false },
+      runs: { type: 'string' },
+      force: { type: 'boolean', default: false },
+      'keep-tree': { type: 'boolean', default: false },
+      out: { type: 'string' },
+      today: { type: 'string' },
+      everything: { type: 'boolean', default: false },
+    },
+    true,
+  )
+  const [name, ...ids] = positionals
+  const action = CORPUS_ACTIONS.find((candidate) => candidate === name)
+  if (action === undefined) {
+    throw usage(`corpus needs an action: ${CORPUS_ACTIONS.join(', ')}; got "${name ?? ''}"`)
+  }
+  const chosen = [values.pilot, values.all, ids.length > 0].filter(Boolean).length
+  if (chosen > 1) throw usage('name repositories, or --pilot, or --all: not a mix')
+  if (action !== 'probe' && chosen === 0) {
+    throw usage(`corpus ${action} needs repository ids, --pilot or --all`)
+  }
+  if (action === 'probe' && chosen > 0) throw usage('corpus probe takes no repositories')
+  const selection: CorpusSelection = values.all
+    ? { kind: 'all' }
+    : values.pilot
+      ? { kind: 'pilot' }
+      : { kind: 'ids', ids }
+  const flagFor = (flag: string, set: boolean, actions: readonly CorpusAction[]): void => {
+    if (set && !actions.includes(action)) {
+      throw usage(`--${flag} is for corpus ${actions.join(' and ')}, not ${action}`)
+    }
+  }
+  flagFor('verify-only', values['verify-only'], ['fetch'])
+  flagFor('offline', values.offline, ['install'])
+  flagFor('runs', values.runs !== undefined, ['run'])
+  flagFor('force', values.force, ['run'])
+  flagFor('keep-tree', values['keep-tree'], ['run'])
+  flagFor('out', values.out !== undefined, ['gate'])
+  flagFor('today', values.today !== undefined, ['self-diff', 'gate'])
+  flagFor('everything', values.everything, ['clean'])
+  const runs = count(values.runs, '--runs') ?? 3
+  if (runs < MIN_REFERENCE_RUNS) {
+    throw usage(`--runs must be at least ${MIN_REFERENCE_RUNS}: G0 needs that many reference runs`)
+  }
+  return {
+    command: 'corpus',
+    action,
+    selection,
+    verifyOnly: values['verify-only'],
+    offline: values.offline,
+    runs,
+    force: values.force,
+    keepTree: values['keep-tree'],
+    ...(values.out === undefined ? {} : { out: values.out }),
+    ...date(values.today),
+    everything: values.everything,
+  }
+}
+
 /**
  * Parses `provino-harness` arguments: the command first, then its options. Throws a
  * `HARNESS_USAGE` error on anything else.
@@ -316,6 +479,8 @@ export function parseCommandLine(argv: readonly string[]): HarnessCommand {
       return parseSelfTest(rest)
     case 'policy-diff':
       return parsePolicyDiff(rest)
+    case 'corpus':
+      return parseCorpus(rest)
     case undefined:
       throw usage('missing command')
     default:

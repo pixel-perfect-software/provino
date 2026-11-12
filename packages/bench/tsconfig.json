@@ -33,6 +33,12 @@
       "path": "../dialect-jest"
     },
     {
+      "path": "../env-jsdom"
+    },
+    {
+      "path": "../env-shared"
+    },
+    {
       "path": "../env-node"
     },
     {

@@ -24,11 +24,11 @@ The neutral fake clock (Track 4, T4.9): one `FakeClock` per environment global o
 ## Testing
 
 - `src/clock.test.ts`, `src/members.test.ts`: every policy value on a stand-in global (the Temporal cases use a stub `Temporal`), the async-context binding, the facade returns.
+- `src/dom-raf.test.ts` (T4.9's last Done-when clause, B17c): a jsdom window and a happy-dom `GlobalWindow` are each the clock's own global (`createFakeClock(window, policy)`, so no real timer is faked and no environment package is needed), and `window.requestAnimationFrame` is faked, advanced a frame at a time, cancelled and put back. The same through the real environment is `provino`'s `test/env-jsdom.test.ts` (`jest.useFakeTimers()` in a worker).
 - `test/timers.test-d.ts`: the public types and misuse (a wrong option name, a string for milliseconds, a tick mode outside the three).
 - Against the real runners: `@provino/harness`'s `timer-corpus.test.ts` runs the 8 `fixtures/mocking/timers-*` fixtures (48 cases per runner) in a child process, because the clock fakes that process's own timers; and `@provino/dialect-jest`'s `runtime/timers.test.ts` and `provino`'s `test/runtime.test.ts` (through `run()`).
 
 ## Not built yet
 
 - Legacy fake timers (not planned in v1). `jest.runAllImmediates` always throws the modern timers' TypeError.
-- The jsdom/happy-dom `requestAnimationFrame` smoke (T4.9's last Done-when clause): B17c, with the DOM environments.
 - The project's `fakeTimers` config reaches `FakeClockOptions.defaults` (B17c): the worker passes `SerializedProjectConfig.fakeTimers`, which the Jest reader fills from the key less `enableGlobally` (that one is `policy.timers.enableGlobally`). `legacyFakeTimers: true` in it makes the install throw `TIMERS_LEGACY_UNSUPPORTED`, so a project that sets it with `enableGlobally` fails every file by name.
