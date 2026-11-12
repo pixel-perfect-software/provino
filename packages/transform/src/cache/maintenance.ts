@@ -13,16 +13,15 @@ import {
   renameSync,
   rmSync,
   statSync,
-  utimesSync,
   writeFileSync,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { writeCacheTag } from './store.ts'
+import { WRITTEN_NAME, writeCacheTag } from './store.ts'
 
 /** The file that holds the lockfile hash the directory was filled under. */
 const STAMP_NAME = 'lockfile-hash'
 
-/** Touched after each `pruneCacheIfWritten`: a shard changed since then holds a new entry. */
+/** Created after each `pruneCacheIfWritten`; with it and no `.written` sentinel, nothing was written since. */
 const PRUNE_STAMP_NAME = 'pruned'
 
 /** A temporary file this much older than now is a writer that died. */
@@ -189,9 +188,10 @@ export function pruneCache(dir: string, maxBytes: number = DEFAULT_CACHE_MAX_BYT
 }
 
 /**
- * `pruneCache`, unless no entry was written since the last time this ran: a shard directory
- * changes when an entry is added to it, so one `stat` per shard against a stamp file replaces
- * reading every entry's size. Returns `undefined` when it skipped. Never throws.
+ * `pruneCache`, unless no entry was written since the last time this ran: the first `set` of a
+ * process leaves a `.written` sentinel in the directory, which this removes, so one `stat` replaces
+ * reading every entry's size (directory timestamps can't say: on Linux a write in the same clock
+ * tick leaves them unchanged). Returns `undefined` when it skipped. Never throws.
  * @public
  */
 export function pruneCacheIfWritten(
@@ -199,21 +199,13 @@ export function pruneCacheIfWritten(
   maxBytes: number = DEFAULT_CACHE_MAX_BYTES,
 ): PruneResult | undefined {
   const stamp = join(dir, PRUNE_STAMP_NAME)
-  try {
-    const since = statSync(stamp).mtimeMs
-    const changed = readdirSync(dir, { withFileTypes: true }).some(
-      (shard) => shard.isDirectory() && statSync(join(dir, shard.name)).mtimeMs >= since,
-    )
-    if (!changed) return undefined
-  } catch {
-    // No stamp yet, or the directory is gone: prune as if never done.
-  }
+  // No stamp: never pruned, so prune. A stamp and no sentinel: nothing was written since.
+  if (existsSync(stamp) && !existsSync(join(dir, WRITTEN_NAME))) return undefined
+  // Removed before pruning, so a write during the prune leaves the next run one to find.
+  rmSync(join(dir, WRITTEN_NAME), { force: true })
   const result = pruneCache(dir, maxBytes)
   try {
     closeSync(openSync(stamp, 'a'))
-    // Seconds with a fraction: a whole millisecond could land before the shards' newest write.
-    const now = (performance.timeOrigin + performance.now()) / 1000
-    utimesSync(stamp, now, now)
   } catch {
     // Without a stamp the next run prunes in full, as before.
   }

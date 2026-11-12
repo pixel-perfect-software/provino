@@ -3,8 +3,10 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs'
@@ -137,6 +139,22 @@ test('pruneCacheIfWritten skips until an entry is written, then prunes', () => {
   assert.equal(pruneCacheIfWritten(dir), undefined)
   put(dir, 3)
   assert.equal(pruneCacheIfWritten(dir, 1)?.removed, 3)
+  assert.equal(pruneCacheIfWritten(dir), undefined)
+})
+
+test('pruneCacheIfWritten sees a write in the same clock tick as the stamp', () => {
+  const dir = tempDir()
+  put(dir, 1)
+  assert.equal(pruneCacheIfWritten(dir)?.removed, 0)
+  assert.equal(pruneCacheIfWritten(dir), undefined)
+  put(dir, 2)
+  // A coarse file-timestamp clock (Linux, about 4 ms) leaves the shard no newer than the stamp.
+  const stamp = statSync(join(dir, 'pruned')).mtime
+  const older = new Date(stamp.getTime() - 5)
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) utimesSync(join(dir, entry.name), older, older)
+  }
+  assert.equal(pruneCacheIfWritten(dir, 1)?.removed, 2)
   assert.equal(pruneCacheIfWritten(dir), undefined)
 })
 
