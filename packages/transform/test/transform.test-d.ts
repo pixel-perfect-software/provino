@@ -83,7 +83,10 @@ expectTypeOf(cache).toEqualTypeOf<TransformCache>()
 expectTypeOf(cache.get('k')).toEqualTypeOf<TransformRecord | undefined>()
 expectTypeOf(cache.set).parameters.toEqualTypeOf<[string, TransformRecord]>()
 expectTypeOf(lockfileHash('/')).toEqualTypeOf<string | null>()
-expectTypeOf(prepareCache('/tmp/x', null)).toEqualTypeOf<void>()
+expectTypeOf(prepareCache('/tmp/x', null)).toEqualTypeOf<boolean>()
+expectTypeOf(prepareCache('/tmp/x', 'h', { rm: () => {} })).toEqualTypeOf<boolean>()
+// @ts-expect-error the wipe takes a path and the two options
+prepareCache('/tmp/x', 'h', { rm: (_path: number) => {} })
 expectTypeOf(pruneCache('/tmp/x')).toEqualTypeOf<PruneResult>()
 expectTypeOf(pruneCache('/tmp/x', 1024)).toEqualTypeOf<PruneResult>()
 // @ts-expect-error the directory is a string

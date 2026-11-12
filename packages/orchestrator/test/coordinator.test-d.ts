@@ -17,6 +17,7 @@ import {
   exitCodeFor,
   type FileDispatch,
   fileIdOf,
+  isProvinoCacheDir,
   OrchestratorError,
   type OrchestratorErrorCode,
   type Pool,
@@ -169,6 +170,10 @@ void selectFiles([], [], { rootDir: '/p' })
 // ---- The results cache.
 expectTypeOf(createResultsCache).parameters.toEqualTypeOf<[dir: string]>()
 expectTypeOf(createResultsCache).returns.toEqualTypeOf<ResultsCache>()
+expectTypeOf(isProvinoCacheDir).returns.toEqualTypeOf<boolean>()
+expectTypeOf(isProvinoCacheDir).toBeCallableWith('/root/.cache/provino')
+// @ts-expect-error the directory is a path
+isProvinoCacheDir(1)
 expectTypeOf(defaultCacheDir).returns.toEqualTypeOf<string>()
 expectTypeOf(defaultCacheDir).toBeCallableWith('/root', '/ci/cache')
 expectTypeOf(defaultCacheDir).toBeCallableWith('/root')
