@@ -1,0 +1,41 @@
+{
+  "description": "A factory mock of a package, and the packages in node_modules that require it: does the importer see the mock (an importer, an importer's importer, requireActual's view, a mocked builtin, a doMock after the importer loaded, a nested copy of the package at another path, and for Vitest an ES module package)?",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true,
+  "packages": {
+    "pkg-b": {
+      "package.json": "{ \"name\": \"pkg-b\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.who = 'real-b'\n"
+    },
+    "pkg-a": {
+      "package.json": "{ \"name\": \"pkg-a\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.bWho = require('pkg-b').who\n"
+    },
+    "pkg-c": {
+      "package.json": "{ \"name\": \"pkg-c\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.aSeesB = require('pkg-a').bWho\n"
+    },
+    "pkg-os": {
+      "package.json": "{ \"name\": \"pkg-os\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.platform = require('os').platform()\n"
+    },
+    "pkg-d": {
+      "package.json": "{ \"name\": \"pkg-d\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.who = 'real-d'\n"
+    },
+    "pkg-e": {
+      "package.json": "{ \"name\": \"pkg-e\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.dWho = require('pkg-d').who\n"
+    },
+    "pkg-f": {
+      "package.json": "{ \"name\": \"pkg-f\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.bWho = require('pkg-b').who\n",
+      "node_modules/pkg-b/package.json": "{ \"name\": \"pkg-b\", \"version\": \"2.0.0\", \"main\": \"index.js\" }\n",
+      "node_modules/pkg-b/index.js": "exports.who = 'nested-b'\n"
+    },
+    "pkg-esm": {
+      "package.json": "{ \"name\": \"pkg-esm\", \"version\": \"1.0.0\", \"type\": \"module\", \"exports\": \"./index.js\" }\n",
+      "index.js": "import { who } from 'pkg-b'\nexport const bWho = who\n"
+    }
+  }
+}

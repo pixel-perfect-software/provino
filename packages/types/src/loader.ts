@@ -86,6 +86,19 @@ export interface ModuleScopeNames {
 }
 
 /**
+ * A warning the loader raises while it inlines modules for mocks (T2.6). `PROVINO_INLINE_BUDGET`:
+ * one mocked module made more than `inlineBudget` modules load per file. `PROVINO_INLINE_DYNAMIC`:
+ * a shared module that mocks may need to reach calls `require` with a computed specifier, which
+ * the graph can't see (`level` `debug`).
+ * @public
+ */
+export interface LoaderWarning {
+  readonly code: 'PROVINO_INLINE_BUDGET' | 'PROVINO_INLINE_DYNAMIC'
+  readonly level: 'warn' | 'debug'
+  readonly message: string
+}
+
+/**
  * Options for one worker's loader.
  * @public
  */
@@ -109,8 +122,18 @@ export interface LoaderOptions {
   readonly formatMapperMiss?: FormatMapperMiss
   /** Modules always loaded per file (Vitest `server.deps.inline`). */
   readonly inline?: readonly (string | RegExp)[]
-  /** Default 400. */
+  /**
+   * How many modules inlined for one mocked module before the loader warns (`PROVINO_INLINE_BUDGET`,
+   * once per mocked id per worker); it still inlines. Default 400.
+   */
   readonly inlineBudget?: number
+  /**
+   * Where the node_modules graph is cached (T2.6): a directory, written as
+   * `<dir>/graph/<key>.json`. `null` or absent keeps the graph in memory.
+   */
+  readonly graphCache?: string | null
+  /** Where the loader's warnings go. Default `process.emitWarning` with the warning's code. */
+  readonly onWarning?: (warning: LoaderWarning) => void
   readonly leaks?: LeakOptions
   /** The dialect's per-module bindings (B13c Gap 2). None by default. */
   readonly moduleScope?: ModuleScopeNames
@@ -205,6 +228,11 @@ export interface ModuleMockRegistry {
   /** Opens `isolateModules`'s overlay; throws the dialect's `nested-isolation` text if one is open. */
   enterIsolation(caller?: string, other?: string): void
   exitIsolation(): void
+  /**
+   * Whether anything can be mocked now: a registration, automock-all, or root mocks to apply
+   * (`decide`'s fast path, inverted). The loader scans no module graph while it is `false`.
+   */
+  active(): boolean
   /** Forgets everything; further calls throw. Calling it again does nothing. */
   dispose(): void
 }
@@ -260,8 +288,9 @@ export interface RegisterMockOptions {
   /** The module need not exist (Jest's `{ virtual: true }`). */
   readonly virtual?: boolean
   /**
-   * Whether the call is a hoisted form (`jest.mock`, `vi.mock`), not a `do` form. The loader
-   * doesn't act on it yet; mock-aware inlining (T2.6) reads the hoisted set.
+   * Whether the call is a hoisted form (`jest.mock`, `vi.mock`), not a `do` form. Only a warm-up:
+   * a file whose hoisted mocks ran starts the node_modules graph before its first edge needs it
+   * (T2.6, B13d Gap 4). Correctness never depends on it, since a `do` form registers later.
    */
   readonly hoisted?: boolean
 }

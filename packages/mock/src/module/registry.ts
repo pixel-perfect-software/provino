@@ -177,11 +177,7 @@ class Registry implements ModuleMockRegistry {
     this.#live()
     // The fast path (B13c Gap 8): nothing registered, automock off and no root mock to apply, so
     // the answer is known before any lookup. A suite that mocks nothing pays this per edge.
-    if (
-      this.#entries.size === 0 &&
-      !this.#automock &&
-      (!this.#policy.rootMocksAutoApply || this.#rootMocks.isEmpty())
-    ) {
+    if (!this.active()) {
       return NOT_MOCKED
     }
     const entry = this.#entries.get(resolvedId)
@@ -217,6 +213,15 @@ class Registry implements ModuleMockRegistry {
       }
     }
     return NOT_MOCKED
+  }
+
+  active(): boolean {
+    this.#live()
+    return (
+      this.#entries.size > 0 ||
+      this.#automock ||
+      (this.#policy.rootMocksAutoApply && !this.#rootMocks.isEmpty())
+    )
   }
 
   decideUnresolved(specifier: string, importer: string): MockDecision {

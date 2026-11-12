@@ -57,6 +57,7 @@ export const moduleClaims: Claims = {
   'module.virtualRelative': mod('mod-virtual', 'mod-missing', 'mod-virtual-static'),
   'module.mockValueOwner': mod('mod-reregister', 'mod-reset-modules'),
   'module.mockResolveKind': mod('mod-conditions'),
+  'module.mocksReachShared': mod('mod-shared-dep', 'mod-shared-dep-root'),
   'module.automockShape': mod('mod-automock-shape', 'mod-automock-inherited'),
   'module.unmockedPathPatterns': each(
     mod('mod-automock-all', 'mod-unmocked-patterns'),
