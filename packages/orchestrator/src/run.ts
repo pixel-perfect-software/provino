@@ -92,14 +92,6 @@ export interface RunProjectOptions {
   /** Where an exact-path filter that is relative starts. Default: this process's directory. */
   readonly cwd?: string
   /**
-   * Run only the files these filters keep (`selectFiles`). A filtered run still discovers every
-   * file, so the results cache is pruned against the whole set and keeps the history of the
-   * files it did not run.
-   */
-  readonly fileFilters?: readonly FileFilter[]
-  /** Where an exact-path filter that is relative starts. Default: this process's directory. */
-  readonly cwd?: string
-  /**
    * Where the workers' own stdout goes (a fork's or thread's direct write to fd 1; not the
    * tests' `console`, which is an event). Default: this process's. A caller that prints
    * machine-readable output on its own stdout passes its stderr here. An inline worker shares
