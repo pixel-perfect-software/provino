@@ -96,3 +96,37 @@ test('a project naming no transform keeps the default babel-jest entry only with
   assert.deepEqual(on?.transformHoistedMarkers, ['_getJestObj'])
   assert.deepEqual((await read(without))?.transforms, [])
 })
+
+test('a Babel config with no resolvable babel-jest falls back to Oxc with a warning; a named one that does not resolve still fails', async () => {
+  const root = tree({
+    'jest.config.js': 'module.exports = {}\n',
+    'babel.config.json': '{}\n',
+  })
+  const reader = createJestConfigReader({ cwd: root, requireResolve: () => undefined, seed: 0 })
+  const source = await reader.find(root)
+  assert.ok(source !== undefined)
+  const resolved = await reader.resolve(await reader.load(source), source)
+  const neutral = reader.toNeutral(resolved.value)
+  assert.deepEqual(neutral.value[0]?.transforms, [])
+  assert.ok(
+    neutral.diagnostics.some(
+      (d) => d.key === 'transform' && d.message.includes('babel-jest is not installed'),
+    ),
+  )
+  // A transformer the config names itself that does not resolve is still an error.
+  const named = tree({
+    'jest.config.js': "module.exports = { transform: { '\\\\.js$': 'some-transformer' } }\n",
+    'babel.config.json': '{}\n',
+  })
+  const namedReader = createJestConfigReader({
+    cwd: named,
+    requireResolve: () => undefined,
+    seed: 0,
+  })
+  const namedSource = await namedReader.find(named)
+  assert.ok(namedSource !== undefined)
+  await assert.rejects(
+    async () => namedReader.resolve(await namedReader.load(namedSource), namedSource),
+    /Validation Error/,
+  )
+})

@@ -4,6 +4,8 @@
 // that can't cross to a worker is dropped with a warning naming it). Keys Provino reads but doesn't
 // apply yet warn, naming the task that builds them (gap 9 of `bundles/B14.md`: nothing is ignored
 // silently).
+
+import { isAbsolute } from 'node:path'
 import type {
   Diagnostic,
   JsonValue,
@@ -138,14 +140,28 @@ export function jestProjectToNeutral(
   // project has no Babel config: babel-jest then only hoists, which our hoister matches (D7). With
   // a Babel config (D68) it runs as Jest runs it, plugins and presets included, as does any
   // transform the config names itself (T3.8).
-  const transforms: NeutralTransform[] =
-    isDefaultTransform(project.transform) && !hasBabelConfig(project.rootDir)
-      ? []
-      : project.transform.map(([pattern, module, options]) => ({
-          pattern,
-          module,
-          options: jsonObject(options, `transform["${pattern}"]`, diagnostics),
-        }))
+  const implicit = isDefaultTransform(project.transform)
+  const babelJestResolved = isAbsolute(project.transform[0]?.[1] ?? '')
+  const withBabel = implicit && hasBabelConfig(project.rootDir)
+  // A project that dropped Jest for Provino may keep a Babel config for its app build while no
+  // `babel-jest` resolves: the implicit entry is not worth failing the run, the Oxc path runs.
+  if (withBabel && !babelJestResolved) {
+    diagnostics.push({
+      level: 'warning',
+      code: 'JEST_CONFIG_NOT_APPLIED',
+      key: 'transform',
+      message:
+        "The project's Babel config was not applied: babel-jest is not installed, so Provino's own transform runs instead.",
+    })
+  }
+  const skipImplicit = implicit && !(withBabel && babelJestResolved)
+  const transforms: NeutralTransform[] = skipImplicit
+    ? []
+    : project.transform.map(([pattern, module, options]) => ({
+        pattern,
+        module,
+        options: jsonObject(options, `transform["${pattern}"]`, diagnostics),
+      }))
   const mock = {
     between: {
       clear: project.clearMocks,
