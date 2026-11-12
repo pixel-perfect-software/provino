@@ -160,7 +160,7 @@ describe('runProjects over forks', () => {
         "const { appendFileSync } = require('node:fs')",
         "const { join } = require('node:path')",
         "test('probe', () => {",
-        "  appendFileSync(join(__dirname, 'seen.txt'), `${globalThis.__which ?? 'none'}\\n`)",
+        "  appendFileSync(join(__dirname, 'seen.txt'), (globalThis.__which ?? 'none') + '\\n')",
         '})',
       ].join('\n'),
     })
@@ -221,7 +221,7 @@ describe('runProjects over forks', () => {
         "const { appendFileSync } = require('node:fs')",
         "const { join } = require('node:path')",
         `test('${name}', () => {`,
-        "  appendFileSync(join(__dirname, 'seeds.txt'), `${globalThis.getSeed()}\\n`)",
+        "  appendFileSync(join(__dirname, 'seeds.txt'), globalThis.getSeed() + '\\n')",
         '})',
       ].join('\n')
     const dir = await makeProject(
