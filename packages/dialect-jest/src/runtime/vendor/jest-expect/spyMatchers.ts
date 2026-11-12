@@ -9,10 +9,10 @@
 
 import {equals, iterableEquality} from '@jest/expect-utils';
 import {getType, isPrimitive} from '@jest/get-type';
+import type {MatcherHintOptions} from 'jest-matcher-utils';
 import {
   DIM_COLOR,
   EXPECTED_COLOR,
-  type MatcherHintOptions,
   RECEIVED_COLOR,
   diff,
   ensureExpectedIsNonNegativeInteger,
@@ -23,7 +23,7 @@ import {
   printReceived,
   printWithType,
   stringify,
-} from 'jest-matcher-utils';
+} from './lazy-jest-packages.ts'; // provino: loaded on first use (T7.12), same package and version: see ./lazy-jest-packages.ts
 import {getCustomEqualityTesters} from './jestMatchersObject.ts'; // provino: .ts extension (Node ESM)
 import type {
   MatcherFunction,

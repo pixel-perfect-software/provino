@@ -13,8 +13,7 @@ import {
   iterableEquality,
   subsetEquality,
 } from '@jest/expect-utils';
-import * as matcherUtils from 'jest-matcher-utils';
-import {pluralize} from 'jest-util';
+import {lazyUtils, pluralize} from './lazy-jest-packages.ts'; // provino: loaded on first use (T7.12), same package and version: see ./lazy-jest-packages.ts
 import {getCustomEqualityTesters, getState} from './jestMatchersObject.ts'; // provino: .ts extension (Node ESM)
 import type {
   AsymmetricMatcher as AsymmetricMatcherInterface,
@@ -35,11 +34,8 @@ function fnNameFor(func: () => unknown) {
   return matches ? matches[1] : '<anonymous>';
 }
 
-const utils = Object.freeze({
-  ...matcherUtils,
-  iterableEquality,
-  subsetEquality,
-});
+// provino: `jest-matcher-utils` is read when `utils` is first used, not when this module loads.
+const utils = lazyUtils({iterableEquality, subsetEquality}, true);
 
 export function hasProperty(
   obj: object | null,

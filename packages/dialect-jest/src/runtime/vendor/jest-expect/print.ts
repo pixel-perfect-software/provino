@@ -12,7 +12,7 @@ import {
   RECEIVED_COLOR,
   printReceived,
   stringify,
-} from 'jest-matcher-utils';
+} from './lazy-jest-packages.ts'; // provino: loaded on first use (T7.12), same package and version: see ./lazy-jest-packages.ts
 
 // Format substring but do not enclose in double quote marks.
 // The replacement is compatible with pretty-format package.

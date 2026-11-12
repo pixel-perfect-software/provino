@@ -7,9 +7,9 @@
  */
 
 import {isError} from '@jest/expect-utils';
+import type {MatcherHintOptions} from 'jest-matcher-utils';
 import {
   EXPECTED_COLOR,
-  type MatcherHintOptions,
   RECEIVED_COLOR,
   matcherErrorMessage,
   matcherHint,
@@ -17,12 +17,10 @@ import {
   printExpected,
   printReceived,
   printWithType,
-} from 'jest-matcher-utils';
-import {
   formatExecError,
   formatStackTrace,
   separateMessageFromStack,
-} from 'jest-message-util';
+} from './lazy-jest-packages.ts'; // provino: loaded on first use (T7.12), same package and version: see ./lazy-jest-packages.ts
 import {
   printExpectedConstructorName,
   printExpectedConstructorNameNot,
