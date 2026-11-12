@@ -27,7 +27,7 @@ import {
 } from './pool.ts'
 
 /** How a fake worker treats a file, by its name. */
-type Plan = 'ok' | 'leak' | 'crash' | 'hang' | 'late-console' | 'idle-console'
+type Plan = 'ok' | 'leak' | 'crash' | 'hang' | 'big' | 'late-console' | 'idle-console'
 
 interface Fake {
   readonly factory: TransportFactory
@@ -49,6 +49,8 @@ function fake(
     readonly createMs?: number
     /** How a worker ends when told to stop. */
     readonly stopExit?: WorkerExit
+    /** A worker that never finishes a graceful stop: only a kill ends it. */
+    readonly slowStop?: boolean
   } = {},
 ): Fake {
   const started: number[] = []
@@ -90,7 +92,7 @@ function fake(
         kind: 'inline',
         pid: undefined,
         send(message: CoordinatorToWorker) {
-          if (message.t === 'stop') {
+          if (message.t === 'stop' && extra.slowStop !== true) {
             setImmediate(() => finish(extra.stopExit ?? { type: 'exit', code: 0 }))
           }
           if (message.t !== 'run') return
@@ -117,7 +119,7 @@ function fake(
             emit({
               t: 'fileDone',
               seq,
-              memoryBytes: 1,
+              memoryBytes: behaviour === 'big' ? 10_000 : 1,
               leakedHandles: 0,
               leakedGlobals: behaviour === 'leak' ? ['leaked'] : [],
             })
@@ -135,7 +137,9 @@ function fake(
         async terminate(force) {
           if (exit !== undefined) return
           if (force) finish({ type: 'signal', signal: 'SIGKILL', likelyOom: false })
-          else {
+          else if (extra.slowStop === true) {
+            await new Promise<void>((resolve) => exits.push(() => resolve()))
+          } else {
             await new Promise((resolve) => setImmediate(resolve))
             finish(extra.stopExit ?? { type: 'exit', code: 0 })
           }
@@ -167,12 +171,17 @@ const key = workerKeyOf({
 
 const otherKey: WorkerKey = { ...key, environment: 'jsdom' }
 
-const options = (maxWorkers: number, onLeak?: boolean): PoolOptions => ({
+const options = (
+  maxWorkers: number,
+  onLeak?: boolean,
+  extra: Partial<PoolOptions> = {},
+): PoolOptions => ({
   kind: 'inline',
   maxWorkers,
   recycle: onLeak === undefined ? {} : { onLeak },
   teardownTimeoutMs: 1000,
   startTimeoutMs: 1000,
+  ...extra,
 })
 
 function deps(f: Fake, extra: Partial<PoolDeps> = {}): PoolDeps {
@@ -730,13 +739,179 @@ describe('createPool', () => {
     assert.deepEqual([...f.exited], [1])
   })
 
-  it('refuses recycling by memory or file count, which are not built', () => {
+  it('refuses a recycle limit or a deadline that makes no sense, with ORCH_BAD_OPTION', () => {
     const f = fake(() => 'ok')
-    for (const recycle of [{ memoryLimitBytes: 1 }, { maxFilesPerWorker: 1 }]) {
-      assert.throws(() => createPool({ ...options(1), recycle }, deps(f)), {
-        code: 'ORCH_NOT_IMPLEMENTED',
-        message: /T9\.5/,
+    const bad: readonly Partial<PoolOptions>[] = [
+      { recycle: { maxFilesPerWorker: 0 } },
+      { recycle: { maxFilesPerWorker: 1.5 } },
+      { recycle: { memoryLimitBytes: -1 } },
+      { recycle: { memoryLimitBytes: Number.NaN } },
+      { fileTimeoutMs: 0 },
+      { fileTimeoutMs: Number.POSITIVE_INFINITY },
+    ]
+    for (const extra of bad) {
+      assert.throws(() => createPool({ ...options(1), ...extra }, deps(f)), {
+        code: 'ORCH_BAD_OPTION',
       })
     }
+    // Infinity switches the memory check off; 0 is "after every file".
+    createPool({ ...options(1), recycle: { memoryLimitBytes: Number.POSITIVE_INFINITY } }, deps(f))
+    createPool({ ...options(1), recycle: { memoryLimitBytes: 0 } }, deps(f))
+  })
+})
+
+describe('recycling (T9.5)', () => {
+  it('replaces a worker every maxFilesPerWorker files', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(1, undefined, { recycle: { maxFilesPerWorker: 3 } }), deps(f))
+    const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
+    const outcomes = await runAll(pool, files)
+    assert.ok(outcomes.every((o) => o.type === 'done'))
+    assert.deepEqual(
+      outcomes.map((o) => o.type === 'done' && o.workerId),
+      [1, 1, 1, 2, 2, 2, 3],
+      'a fresh worker every 3 files',
+    )
+    assert.deepEqual(f.ran.get(1), ['a', 'b', 'c'])
+    assert.deepEqual(f.ran.get(2), ['d', 'e', 'f'])
+    assert.deepEqual([...f.exited].sort(), [1, 2, 3], 'each retired worker has exited')
+  })
+
+  it('counts files per worker, not per pool', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(2, undefined, { recycle: { maxFilesPerWorker: 2 } }), deps(f))
+    const outcomes = await runAll(pool, ['a', 'b', 'c', 'd', 'e', 'f'])
+    assert.ok(outcomes.every((o) => o.type === 'done'))
+    for (const files of f.ran.values()) assert.ok(files.length <= 2, files.join())
+  })
+
+  it('replaces a worker whose file left it over memoryLimitBytes, and keeps one under it', async () => {
+    const f = fake((file) => (file.startsWith('big') ? 'big' : 'ok'))
+    const pool = createPool(options(1, undefined, { recycle: { memoryLimitBytes: 5000 } }), deps(f))
+    const outcomes = await runAll(pool, ['a', 'big-1', 'b', 'c', 'big-2', 'd'])
+    assert.deepEqual(
+      outcomes.map((o) => o.type === 'done' && o.workerId),
+      [1, 1, 2, 2, 2, 3],
+      'a worker is replaced after the file that took it over the limit, not before',
+    )
+    assert.deepEqual(f.ran.get(1), ['a', 'big-1'])
+    assert.deepEqual(f.ran.get(2), ['b', 'c', 'big-2'])
+  })
+
+  it('replaces the worker after every file when the limit is 0 (Jest: workerIdleMemoryLimit 0)', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(1, undefined, { recycle: { memoryLimitBytes: 0 } }), deps(f))
+    const outcomes = await runAll(pool, ['a', 'b', 'c'])
+    assert.deepEqual(
+      outcomes.map((o) => o.type === 'done' && o.workerId),
+      [1, 2, 3],
+    )
+  })
+
+  it('does no memory check when the limit is Infinity, and keeps its worker', async () => {
+    const f = fake(() => 'big')
+    const pool = createPool(
+      options(1, undefined, { recycle: { memoryLimitBytes: Number.POSITIVE_INFINITY } }),
+      deps(f),
+    )
+    await runAll(pool, ['a', 'b', 'c'])
+    assert.deepEqual(f.started, [1])
+  })
+})
+
+describe('the file deadline (T9.5)', () => {
+  it('kills the worker of a file that runs past it: crashed, with a file timeout, and goes on', async () => {
+    const f = fake((file) => (file === 'stuck' ? 'hang' : 'ok'))
+    const pool = createPool(options(1, undefined, { fileTimeoutMs: 40 }), deps(f))
+    const started = performance.now()
+    const stuck = await pool.run(request('stuck'))
+    assert.ok(performance.now() - started >= 35, 'it waited for the deadline')
+    assert.deepEqual(stuck, {
+      type: 'crashed',
+      workerId: 1,
+      exit: { type: 'timeout', phase: 'file' },
+    })
+    const next = await pool.run(request('after'))
+    await pool.close()
+    assert.equal(next.type === 'done' && next.workerId, 2, 'a replacement serves the next file')
+    assert.ok(f.exited.has(1))
+  })
+
+  it('does not fire for a file that ends in time, and does not leave a timer behind', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(1, undefined, { fileTimeoutMs: 50 }), deps(f))
+    const outcomes = await runAll(pool, ['a', 'b', 'c'])
+    assert.ok(outcomes.every((o) => o.type === 'done'))
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    assert.deepEqual(f.started, [1], 'no worker was killed after its file ended')
+  })
+
+  it('counts from when the job is sent, so a slow onStart does not eat the deadline', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(1, undefined, { fileTimeoutMs: 40 }), deps(f))
+    const outcome = await pool.run(
+      request('a', { onStart: () => new Promise((resolve) => setTimeout(resolve, 80)) }),
+    )
+    await pool.close()
+    assert.equal(outcome.type, 'done')
+  })
+
+  it('is not a timeout for a file the run aborted', async () => {
+    const f = fake((file) => (file === 'stuck' ? 'hang' : 'ok'))
+    const controller = new AbortController()
+    const pool = createPool(
+      options(1, undefined, { fileTimeoutMs: 5000 }),
+      deps(f, { signal: controller.signal }),
+    )
+    const stuck = pool.run(request('stuck'))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    controller.abort()
+    assert.deepEqual(await stuck, { type: 'aborted' })
+    await pool.close()
+  })
+})
+
+describe('cancelling and forcing', () => {
+  it('cancelQueued gives up the waiting files and lets the running one finish', async () => {
+    const f = fake((file) => (file === 'slow' ? 'hang' : 'ok'))
+    const pool = createPool(options(1), deps(f))
+    const slow = pool.run(request('slow'))
+    const waiting = [pool.run(request('b')), pool.run(request('c'))]
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    pool.cancelQueued()
+    assert.deepEqual(await Promise.all(waiting), [{ type: 'aborted' }, { type: 'aborted' }])
+    assert.deepEqual(await pool.run(request('d')), { type: 'aborted' }, 'nothing starts after it')
+    assert.deepEqual(f.ran.get(1), ['slow'], 'the running file was not touched')
+    assert.equal(f.exited.size, 0, 'and neither was its worker')
+    const closed = pool.close()
+    assert.deepEqual(await slow, { type: 'aborted' })
+    await closed
+  })
+
+  it('a force signal kills every worker at once, even one that is stopping slowly', async () => {
+    // Workers whose graceful stop never ends: only a kill does.
+    const f = fake(() => 'ok', undefined, { slowStop: true })
+    const force = new AbortController()
+    const pool = createPool(options(2), deps(f, { forceSignal: force.signal }))
+    await Promise.all([pool.run(request('a')), pool.run(request('b'))])
+    pool.drain()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.equal(f.exited.size, 0, 'the graceful stops are hanging')
+    const closing = pool.close()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.equal(f.exited.size, 0, 'and close is waiting for them')
+    force.abort()
+    await closing
+    assert.deepEqual([...f.exited].sort(), [1, 2], 'the force kill ended both at once')
+  })
+
+  it('a force signal already aborted starts no worker', async () => {
+    const f = fake(() => 'ok')
+    const force = new AbortController()
+    force.abort()
+    const pool = createPool(options(1), deps(f, { forceSignal: force.signal }))
+    assert.deepEqual(await pool.run(request('a')), { type: 'aborted' })
+    await pool.close()
+    assert.deepEqual(f.started, [])
   })
 })

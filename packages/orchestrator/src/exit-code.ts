@@ -32,8 +32,7 @@ export interface ExitCodeOptions {
 /**
  * The exit code of a finished run, the first of these that applies:
  *
- * 1. an interrupted run: `ExitCode.Sigint` (the summary doesn't say which signal; SIGTERM
- *    handling is T9.10's);
+ * 1. an interrupted run: `ExitCode.Sigint` (130); a terminated one: `ExitCode.Sigterm` (143);
  * 2. no files ran, and `passWithNoTests` is off: `exitCodes.noTests`;
  * 3. a file failed: `exitCodes.failure`;
  * 4. the run's snapshots fail it: obsolete snapshots that the policy's `snapshot.obsolete` says
@@ -46,6 +45,7 @@ export interface ExitCodeOptions {
 export function exitCodeFor(summary: RunSummary, options: ExitCodeOptions): number {
   const { orchestrator } = options.policy
   if (summary.reason === 'interrupted') return ExitCode.Sigint
+  if (summary.reason === 'terminated') return ExitCode.Sigterm
   const passWithNoTests = options.passWithNoTests ?? orchestrator.passWithNoTests
   if (summary.files.length === 0 && !passWithNoTests) return orchestrator.exitCodes.noTests
   if (summary.files.some((file) => file.state === 'fail')) return orchestrator.exitCodes.failure

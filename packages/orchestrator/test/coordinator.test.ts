@@ -492,18 +492,26 @@ describe('runProject over inline workers', () => {
     )
   })
 
-  it('rejects a recycle option that is not built before run:start: reporters never see a run that cannot happen', async () => {
+  it('rejects a bad recycle, deadline or bail option before run:start: reporters never see a run that cannot happen', async () => {
     const p = await makeProject({ 'a.test.js': passing() })
-    for (const recycle of [{ maxFilesPerWorker: 2 }, { memoryLimitBytes: 1_000_000 }]) {
+    const bad: readonly Partial<Parameters<typeof runProject>[1]>[] = [
+      { pool: { kind: 'inline', recycle: { maxFilesPerWorker: 0 } } },
+      { pool: { kind: 'inline', recycle: { memoryLimitBytes: -1 } } },
+      { pool: { kind: 'inline', fileTimeoutMs: 0 } },
+      { bail: { count: 0 } },
+      { bail: { count: 1.5 } },
+    ]
+    for (const extra of bad) {
       const { reporter, seen } = recorder()
       await assert.rejects(
         runProject(runtimeProject(p.dir), {
           bus: createReporterBus([reporter]),
           cache: false,
           stderr: new Collect(),
-          pool: { kind: 'inline', recycle },
+          pool: { kind: 'inline' },
+          ...extra,
         }),
-        { code: 'ORCH_NOT_IMPLEMENTED' },
+        { code: 'ORCH_BAD_OPTION' },
       )
       assert.deepEqual(seen, [], 'not even run:start')
     }

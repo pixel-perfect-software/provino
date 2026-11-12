@@ -1,7 +1,8 @@
-// T9.5, minimal (Track 9 §Pool): lazy spawn up to `maxWorkers`, warm reuse by `WorkerKey`, one
-// file in flight per worker, a crash charged to the one file that was running, and a worker that
-// leaked globals replaced (D22). Recycling on memory or file count, and the per-file hang
-// timeout, are B21's.
+// T9.5 (Track 9 §Pool): lazy spawn up to `maxWorkers`, warm reuse by `WorkerKey`, one file in
+// flight per worker, a crash charged to the one file that was running, and a worker replaced
+// after a file that leaked globals (D22), after `maxFilesPerWorker` files, or once it holds more
+// than `memoryLimitBytes`. A file still running after `fileTimeoutMs` has its worker killed. A
+// run that bails closes the pool; a second Ctrl+C is its `forceSignal`.
 import { availableParallelism } from 'node:os'
 import type { RpcHandlers } from '@provino/rpc'
 import type {
@@ -62,6 +63,12 @@ export interface PoolDeps {
   readonly onError?: (error: unknown, kind: PoolErrorKind) => void
   /** Aborting it behaves like `close`, and files that were running or waiting are `aborted`. */
   readonly signal?: AbortSignal
+  /**
+   * Aborting it kills every worker that is still alive at once (SIGKILL), the ones in the middle
+   * of a graceful stop included, so `close` returns without waiting out the teardown timeout. It
+   * also aborts the pool, as `signal` does: a second Ctrl+C is this.
+   */
+  readonly forceSignal?: AbortSignal
 }
 
 /**
@@ -76,6 +83,13 @@ export interface FileRequest {
   readonly onStart?: (workerId: number) => void | Promise<void>
   /** Receives each pack of the file's events, in order; the worker waits for it to settle. */
   readonly onEvents: (events: readonly WorkerEvent[]) => void | Promise<void>
+  /**
+   * Called when the worker has finished the file, with every one of its events handled, and
+   * before the pool gives that worker (or its replacement) the next file: a decision that must
+   * come before the next file starts (`--bail`) is made here. It must not throw; if it does, the
+   * error goes to `PoolDeps.onError` and the file is `done` all the same.
+   */
+  readonly onDone?: (done: FileDone) => void
 }
 
 /**
@@ -118,6 +132,12 @@ export interface Pool {
    */
   drain(): void
   /**
+   * Gives up the files still waiting for a worker (they resolve `aborted`) and leaves the ones
+   * already running alone: no file starts from now on. A run that bails by test count uses it,
+   * since a running file can't be cancelled before T5.12.
+   */
+  cancelQueued(): void
+  /**
    * Aborts what is waiting or running (a running file's worker is killed at once), stops every
    * worker (`stop`, the teardown timeout, SIGTERM, SIGKILL) and resolves once all have exited.
    * Calling it again returns the same promise.
@@ -145,6 +165,10 @@ interface Slot {
   diedBusy: boolean
   /** Whether the pool itself killed it (an abort), so its exit is no news. */
   killed: boolean
+  /** How many files it has run, for `maxFilesPerWorker`. */
+  files: number
+  /** Whether the pool killed it for running one file past `fileTimeoutMs`. */
+  timedOut: boolean
 }
 
 interface Waiter {
@@ -155,6 +179,41 @@ interface Waiter {
 /** A worker that is alive and not being stopped: one that may take a file. */
 function usable(slot: Slot): boolean {
   return slot.exit === undefined && slot.stopped === undefined
+}
+
+/** How a worker killed for running a file past its deadline ended, as the file's outcome says. */
+const FILE_TIMEOUT: WorkerExit = { type: 'timeout', phase: 'file' }
+
+/** The limits of `options`, each checked: a number that makes no sense is `ORCH_BAD_OPTION`. */
+function checkedLimits(options: PoolOptions): {
+  readonly maxFilesPerWorker: number | undefined
+  readonly memoryLimitBytes: number | undefined
+  readonly fileTimeoutMs: number | undefined
+} {
+  const { maxFilesPerWorker, memoryLimitBytes } = options.recycle
+  const { fileTimeoutMs } = options
+  if (
+    maxFilesPerWorker !== undefined &&
+    !(Number.isSafeInteger(maxFilesPerWorker) && maxFilesPerWorker >= 1)
+  ) {
+    throw new OrchestratorError(
+      'ORCH_BAD_OPTION',
+      `recycle.maxFilesPerWorker must be a whole number of at least 1 (got ${String(maxFilesPerWorker)})`,
+    )
+  }
+  if (memoryLimitBytes !== undefined && !(memoryLimitBytes >= 0)) {
+    throw new OrchestratorError(
+      'ORCH_BAD_OPTION',
+      `recycle.memoryLimitBytes must be a number of bytes, 0 or more (got ${String(memoryLimitBytes)})`,
+    )
+  }
+  if (fileTimeoutMs !== undefined && !(fileTimeoutMs > 0 && Number.isFinite(fileTimeoutMs))) {
+    throw new OrchestratorError(
+      'ORCH_BAD_OPTION',
+      `fileTimeoutMs must be a number of milliseconds above 0 (got ${String(fileTimeoutMs)})`,
+    )
+  }
+  return { maxFilesPerWorker, memoryLimitBytes, fileTimeoutMs }
 }
 
 /** A worker that failed to start; the pool stops starting after `MAX_START_FAILURES` in a row. */
@@ -204,18 +263,19 @@ export function workerExitOf(error: unknown): WorkerExit | undefined {
  * files left wait for the workers that are, and the pool never fails a file a healthy worker could
  * run.
  *
- * `recycle.memoryLimitBytes` and `recycle.maxFilesPerWorker` are not built (T9.5, B21); setting
- * either throws `ORCH_NOT_IMPLEMENTED`.
+ * A worker is also replaced after `recycle.maxFilesPerWorker` files, and after a file whose
+ * `fileDone.memoryBytes` is over `recycle.memoryLimitBytes` (`0` replaces it after every file).
+ * Both are decided once the file's outcome is known, so the worker is stopped in the background
+ * and the next file goes to another one.
+ *
+ * A file still running `fileTimeoutMs` after it was sent has its worker killed; its outcome is
+ * `crashed` with `{ type: 'timeout', phase: 'file' }`. A bad `recycle` or `fileTimeoutMs` throws
+ * `ORCH_BAD_OPTION`.
  * @public
  */
 export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   const { recycle } = options
-  if (recycle.memoryLimitBytes !== undefined || recycle.maxFilesPerWorker !== undefined) {
-    throw new OrchestratorError(
-      'ORCH_NOT_IMPLEMENTED',
-      'Recycling a worker on memory or file count is not built yet; it arrives with T9.5 (B21)',
-    )
-  }
+  const { maxFilesPerWorker, memoryLimitBytes, fileTimeoutMs } = checkedLimits(options)
   const recycleOnLeak = recycle.onLeak !== false
   const factory = deps.transport(options.kind)
   const maxWorkers = Math.min(
@@ -240,6 +300,8 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   /** How many entries of `keyStates` hold a failure: `pump` scans the waiters only when some do. */
   let failedKeys = 0
   let draining = false
+  /** `cancelQueued` was called: a file asked for after it is not run. */
+  let cancelled = false
   /** Aborted with the pool: kills the workers that have not said `ready` yet. */
   const controller = new AbortController()
   let closing: Promise<void> | undefined
@@ -292,6 +354,16 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
 
   function settleWaiters(outcome: PoolOutcome): void {
     for (const waiter of waiters.splice(0)) waiter.resolve(outcome)
+  }
+
+  /** Kills every worker that is still alive, whatever it is doing, and aborts the pool. */
+  function forceKill(): void {
+    abort()
+    for (const slot of slots) {
+      if (slot.exit !== undefined) continue
+      slot.killed = true
+      void slot.transport.terminate(true)
+    }
   }
 
   function abort(): void {
@@ -417,6 +489,8 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         exit: undefined,
         diedBusy: false,
         killed: false,
+        files: 0,
+        timedOut: false,
       }
       transport.onExit((exit) => {
         slot.exit = exit
@@ -452,22 +526,44 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     else await execute(slot, waiter)
   }
 
+  /** Whether the worker must not take another file: it ran its share, or holds too much memory. */
+  function worn(slot: Slot, done: FileDone): boolean {
+    if (maxFilesPerWorker !== undefined && slot.files >= maxFilesPerWorker) return true
+    return memoryLimitBytes !== undefined && done.memoryBytes > memoryLimitBytes
+  }
+
   /** Runs the waiter's file on `slot` and resolves the waiter with how it ended. */
   async function execute(slot: Slot, waiter: Waiter): Promise<void> {
     const { request } = waiter
     slot.state = 'busy'
     slot.route.handler = request.onEvents
+    let deadline: NodeJS.Timeout | undefined
     try {
       await request.onStart?.(slot.id)
+      if (fileTimeoutMs !== undefined) {
+        // From when the job is sent: `onStart` is the run's own hook and may take a while.
+        deadline = setTimeout(() => {
+          slot.timedOut = true
+          void slot.transport.terminate(true)
+        }, fileTimeoutMs)
+      }
       const done = await slot.connection.run(request.job)
+      clearTimeout(deadline)
       slot.route.handler = undefined
       slot.state = 'idle'
-      if (done.leakedGlobals.length > 0 && recycleOnLeak) retire(slot)
+      slot.files++
+      try {
+        request.onDone?.(done)
+      } catch (error) {
+        report(error)
+      }
+      if ((done.leakedGlobals.length > 0 && recycleOnLeak) || worn(slot, done)) retire(slot)
       else pump()
       waiter.resolve({ type: 'done', workerId: slot.id, done })
     } catch (error) {
+      clearTimeout(deadline)
       slot.route.handler = undefined
-      const exit = workerExitOf(error)
+      const exit = slot.timedOut ? FILE_TIMEOUT : workerExitOf(error)
       if (controller.signal.aborted) waiter.resolve({ type: 'aborted' })
       else if (exit !== undefined) {
         forget(slot)
@@ -483,10 +579,12 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
 
   if (deps.signal?.aborted === true) abort()
   else deps.signal?.addEventListener('abort', abort, { once: true })
+  if (deps.forceSignal?.aborted === true) forceKill()
+  else deps.forceSignal?.addEventListener('abort', forceKill, { once: true })
 
   return {
     run(request) {
-      if (controller.signal.aborted) return Promise.resolve({ type: 'aborted' })
+      if (controller.signal.aborted || cancelled) return Promise.resolve({ type: 'aborted' })
       return new Promise<PoolOutcome>((resolve) => {
         waiters.push({ request, resolve })
         pump()
@@ -496,13 +594,25 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       draining = true
       pump()
     },
+    cancelQueued() {
+      cancelled = true
+      settleWaiters({ type: 'aborted' })
+      // Nothing more will come, and what is left is running: idle workers have no next file.
+      draining = true
+      pump()
+    },
     close() {
       closing ??= (async () => {
         deps.signal?.removeEventListener('abort', abort)
         abort()
         await Promise.allSettled([...spawns])
         for (const slot of slots) retire(slot)
-        await Promise.all([...stops])
+        try {
+          // A force signal that comes while workers are still stopping must still reach them.
+          await Promise.all([...stops])
+        } finally {
+          deps.forceSignal?.removeEventListener('abort', forceKill)
+        }
       })()
       return closing
     },

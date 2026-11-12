@@ -6,7 +6,7 @@ import { type ThreadsTransportOptions, threadsTransport } from './threads.ts'
 
 /**
  * Options for `transportFor`: the union of every kind's. A kind ignores what it has no use for
- * (`memoryLimitMb` is for threads, `execArgv` and `env` for forks and threads).
+ * (`memoryLimitMb`, `execArgv` and `env` are for forks and threads).
  * @public
  */
 export type TransportForOptions = ForksTransportOptions & ThreadsTransportOptions

@@ -2,6 +2,7 @@
 // sequencer, the pool, the worker key and the exit codes.
 import type { ResolvedProject } from '@provino/config'
 import {
+  collectOpenHandles,
   createFileDispatch,
   createHistorySequencer,
   createPool,
@@ -9,6 +10,7 @@ import {
   type DiscoveredFile,
   defaultCacheDir,
   defaultMaxWorkers,
+  defaultWorkerMemoryLimit,
   discoverByRules,
   discoverFiles,
   discoverProject,
@@ -16,8 +18,11 @@ import {
   type ExitCodeOptions,
   exitCodeFor,
   type FileDispatch,
+  type FileDone,
+  type FileRequest,
   fileIdOf,
   isProvinoCacheDir,
+  type OpenHandleOptions,
   OrchestratorError,
   type OrchestratorErrorCode,
   type Pool,
@@ -39,6 +44,7 @@ import {
 import type {
   FileFilter,
   FileHistory,
+  OpenHandle,
   PoolKind,
   PoolOptions,
   ReporterBus,
@@ -94,6 +100,26 @@ void runProject(project, { bus, pool: { kind: 'processes' } })
 void runProject(project, { bus, testNamePattern: /works/ })
 // @ts-expect-error recycle policies take numbers
 void runProject(project, { bus, pool: { recycle: { maxFilesPerWorker: '10' } } })
+// @ts-expect-error the file deadline is a number of milliseconds
+void runProject(project, { bus, pool: { fileTimeoutMs: '5s' } })
+// @ts-expect-error the heap limit is a number of MB
+void runProject(project, { bus, pool: { heapLimitMb: '256' } })
+// @ts-expect-error bail takes a count, in an object (`RunRequest.bail`'s shape)
+void runProject(project, { bus, bail: 2 })
+// @ts-expect-error the signals are AbortSignals
+void runProject(project, { bus, forceSignal: true })
+void runProject(project, {
+  bus,
+  bail: { count: 2 },
+  detectOpenHandles: true,
+  signal: new AbortController().signal,
+  forceSignal: new AbortController().signal,
+  pool: {
+    fileTimeoutMs: 5000,
+    heapLimitMb: 256,
+    recycle: { memoryLimitBytes: 0, maxFilesPerWorker: 3 },
+  },
+})
 
 // ---- Errors carry a code from a closed set.
 expectTypeOf<OrchestratorError['code']>().toEqualTypeOf<OrchestratorErrorCode>()
@@ -213,6 +239,15 @@ expectTypeOf(defaultMaxWorkers).returns.toEqualTypeOf<number>()
 expectTypeOf<Pool['run']>().returns.toEqualTypeOf<Promise<PoolOutcome>>()
 expectTypeOf<Pool['close']>().returns.toEqualTypeOf<Promise<void>>()
 expectTypeOf<Pool['drain']>().toEqualTypeOf<() => void>()
+expectTypeOf<Pool['cancelQueued']>().toEqualTypeOf<() => void>()
+// T9.5, T9.10: a worker's memory limit has a default; a second Ctrl+C is a force signal; a file's
+// end can be acted on before the worker takes another.
+expectTypeOf(defaultWorkerMemoryLimit).toEqualTypeOf<(maxWorkers: number) => number>()
+expectTypeOf<PoolDeps['forceSignal']>().toEqualTypeOf<AbortSignal | undefined>()
+expectTypeOf<FileRequest['onDone']>().toEqualTypeOf<((done: FileDone) => void) | undefined>()
+// @ts-expect-error `onDone` takes the file's `fileDone` message
+const wrongDone: FileRequest['onDone'] = (done: string) => void done
+void wrongDone
 // The pool's error callback is told whether a worker was lost.
 expectTypeOf<PoolErrorKind>().toEqualTypeOf<'worker-lost' | 'other'>()
 expectTypeOf<NonNullable<PoolDeps['onError']>>().toEqualTypeOf<
@@ -236,6 +271,17 @@ transportFor('inline', {})
 transportFor('processes', { entry: '/w.ts' })
 // @ts-expect-error the thread's heap limit is a number of megabytes
 transportFor('threads', { entry: '/w.ts', memoryLimitMb: '64' })
+// A fork has the same limit (T9.5): `--max-old-space-size`.
+transportFor('forks', { entry: '/w.ts', memoryLimitMb: 64 })
+
+// ---- Open handles (T9.10).
+expectTypeOf(collectOpenHandles).parameters.toEqualTypeOf<[OpenHandleOptions]>()
+expectTypeOf(collectOpenHandles).returns.toEqualTypeOf<() => Promise<OpenHandle[]>>()
+collectOpenHandles({ roots: ['/project'] })
+// @ts-expect-error the roots are required: without them nothing is the user's
+collectOpenHandles({})
+// @ts-expect-error roots are paths
+collectOpenHandles({ roots: [1] })
 // @ts-expect-error a pool is made with its options and what it needs from the run
 createPool(poolOptions)
 // @ts-expect-error `PoolDeps.transport` takes the kind and returns a factory

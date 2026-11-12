@@ -30,6 +30,7 @@ export { OrchestratorError, type OrchestratorErrorCode } from './errors.ts'
 export { ExitCode, type ExitCodeOptions, exitCodeFor } from './exit-code.ts'
 export { fileIdOf, relativePosix } from './file-id.ts'
 export { sameWorkerKey, type WorkerKeyInput, workerKeyOf } from './key.ts'
+export { collectOpenHandles, type OpenHandleOptions } from './open-handles.ts'
 export {
   createPool,
   defaultMaxWorkers,
@@ -40,6 +41,7 @@ export {
   type PoolOutcome,
 } from './pool.ts'
 export {
+  defaultWorkerMemoryLimit,
   discoverProject,
   projectCacheKey,
   type RunPoolOptions,

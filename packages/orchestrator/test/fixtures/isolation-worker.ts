@@ -21,6 +21,10 @@ const main: WorkerMain = (port) =>
           // What a crashing native addon delivers.
           process.kill(process.pid, 'SIGSEGV')
           return await new Promise(() => {})
+        case 'abort':
+          // An abort that is not a heap OOM: no fatal error line from V8.
+          process.kill(process.pid, 'SIGABRT')
+          return await new Promise(() => {})
         case 'oom': {
           const hold: unknown[] = []
           for (;;) hold.push(new Array(100_000).fill({ hold }))

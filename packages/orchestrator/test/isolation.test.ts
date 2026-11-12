@@ -63,12 +63,22 @@ describe('forks isolate the coordinator from the test file', () => {
     assert.deepEqual(exit, { type: 'signal', signal: 'SIGSEGV', likelyOom: false })
   })
 
-  it('a heap OOM aborts the child: signal SIGABRT, likely OOM', async () => {
+  it("a heap OOM aborts the child, and V8's last words make it `oom` with the limit (T9.5)", async () => {
     const { exit, stderr } = await crash('forks', 'oom', {
       execArgv: [...process.execArgv, '--max-old-space-size=64'],
     })
-    assert.deepEqual(exit, { type: 'signal', signal: 'SIGABRT', likelyOom: true })
+    assert.deepEqual(exit, { type: 'oom', limitMb: 64 })
     assert.match(stderr, /heap out of memory/)
+  })
+
+  it('memoryLimitMb is the same limit, set by the transport', async () => {
+    const { exit } = await crash('forks', 'oom', { memoryLimitMb: 48 })
+    assert.deepEqual(exit, { type: 'oom', limitMb: 48 })
+  })
+
+  it('a SIGABRT that is not out of memory stays a signal, likely OOM (no last words to read)', async () => {
+    const { exit } = await crash('forks', 'abort')
+    assert.deepEqual(exit, { type: 'signal', signal: 'SIGABRT', likelyOom: true })
   })
 
   it('process.exit(3) is exit code 3', async () => {

@@ -274,7 +274,9 @@ export function describeExit(exit: WorkerExit): string {
     case 'oom':
       return `out of memory at its ${exit.limitMb} MB limit`
     case 'timeout':
-      return `timed out during ${exit.phase}`
+      return exit.phase === 'file'
+        ? 'killed for running a file too long'
+        : `timed out during ${exit.phase}`
     default:
       return exit satisfies never
   }
