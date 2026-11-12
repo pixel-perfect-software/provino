@@ -1,6 +1,7 @@
 export {
   createResultsCache,
   defaultCacheDir,
+  isProvinoCacheDir,
   type ResultsCache,
   transformCacheDir,
 } from './cache.ts'

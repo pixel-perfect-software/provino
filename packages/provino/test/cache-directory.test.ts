@@ -127,6 +127,27 @@ describe('where the caches live (D70)', () => {
     assert.equal(await exists(cache), false)
   })
 
+  it('--clearCache names each directory once, however many projects share it', async () => {
+    const dir = await project({ projects: [{ displayName: 'a' }, { displayName: 'b' }] })
+    await command(dir, [])
+    const cache = join(dir, 'node_modules', '.cache', 'provino')
+    assert.ok(await exists(cache))
+    const cleared = await command(dir, ['--clearCache'])
+    assert.equal(cleared.stdout, `Cleared ${cache}\n`)
+  })
+
+  it('--clearCache leaves a directory named provino that Provino did not make', async () => {
+    const dir = await project({ cacheDirectory: '<rootDir>/.ci-cache' })
+    const theirs = join(dir, '.ci-cache', 'provino')
+    await mkdir(theirs, { recursive: true })
+    await writeFile(join(theirs, 'notes.txt'), 'not a cache')
+    const cleared = await command(dir, ['--clearCache'])
+    assert.equal(cleared.code, 0, cleared.stderr)
+    assert.ok(await exists(join(theirs, 'notes.txt')), 'a user directory survives')
+    assert.doesNotMatch(cleared.stdout, /Cleared/)
+    assert.match(cleared.stderr + cleared.stdout, /not a Provino cache/)
+  })
+
   it('--no-cache writes nothing to the explicit directory', async () => {
     const dir = await project({ cacheDirectory: '<rootDir>/.ci-cache' })
     const ran = await command(dir, ['--no-cache'])

@@ -1,6 +1,7 @@
 // `provino jest <jest arguments>` (T11.13, U3): the Jest command line, parsed by the Jest dialect's
 // own parser, layered over the project Jest's config reader finds, run by the same coordinator
 // as `provino run`, and ended with Jest's exit codes.
+import { existsSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { type ResolvedProject, resolveNeutralProject } from '@provino/config'
@@ -13,7 +14,13 @@ import {
   jestCli,
   jestNodeDialect,
 } from '@provino/dialect-jest/node'
-import { defaultCacheDir, discoverProject, ExitCode, selectFiles } from '@provino/orchestrator'
+import {
+  defaultCacheDir,
+  discoverProject,
+  ExitCode,
+  isProvinoCacheDir,
+  selectFiles,
+} from '@provino/orchestrator'
 import type { TextSink } from '@provino/reporters'
 import type { ConfigSource, Diagnostic, NeutralProject, RunRequest } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
@@ -191,10 +198,22 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     }
 
     if (request.mode === 'clear-cache') {
-      for (const project of projects) {
-        const directory = defaultCacheDir(project.rootDir, project.cacheDirectory)
-        await rm(directory, { recursive: true, force: true })
-        await stdout.write(`Cleared ${directory}\n`)
+      // Projects often share a directory; Jest names each once.
+      const directories = new Set(
+        projects.map((project) => defaultCacheDir(project.rootDir, project.cacheDirectory)),
+      )
+      for (const directory of directories) {
+        if (!existsSync(directory)) {
+          await stdout.write(`Cleared ${directory}\n`)
+        } else if (isProvinoCacheDir(directory)) {
+          await rm(directory, { recursive: true, force: true })
+          await stdout.write(`Cleared ${directory}\n`)
+        } else {
+          // `<cacheDirectory>/provino` can be a directory the user had before Provino.
+          await stderr.write(
+            `Provino: left ${directory}: it is not a Provino cache (no CACHEDIR.TAG, results.json or t/lockfile-hash).\n`,
+          )
+        }
       }
       return ExitCode.Pass
     }

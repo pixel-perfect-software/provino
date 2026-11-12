@@ -3,7 +3,7 @@
 // write reads the file again and puts this run's entries on top, so runs that overlap keep each
 // other's history.
 import { randomBytes } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { FileHistory } from '@provino/types'
@@ -26,6 +26,33 @@ const VERSION = 2
 export function defaultCacheDir(rootDir: string, cacheDirectory?: string): string {
   if (cacheDirectory !== undefined) return join(cacheDirectory, 'provino')
   return join(rootDir, 'node_modules', '.cache', 'provino')
+}
+
+/**
+ * Whether `directory` is a Provino cache directory: it holds the `CACHEDIR.TAG` Provino writes
+ * (the transform package's signature text), the results cache's `results.json`, or the transform
+ * cache's `t/lockfile-hash`. `--clearCache` removes only such a directory: `<cacheDirectory>/provino`
+ * can be a directory the user already had.
+ * @public
+ */
+export function isProvinoCacheDir(directory: string): boolean {
+  if (existsSync(join(directory, FILE_NAME))) return true
+  if (existsSync(join(directory, 't', 'lockfile-hash'))) return true
+  for (const base of [directory, join(directory, 't')]) {
+    try {
+      const tag = readFileSync(join(base, 'CACHEDIR.TAG'), 'utf8')
+      // The signature `@provino/transform` writes into every cache directory it makes.
+      if (
+        tag.startsWith('Signature: 8a477f597d28d172789f06886806bc55') &&
+        tag.includes('Provino')
+      ) {
+        return true
+      }
+    } catch {
+      // No tag here.
+    }
+  }
+  return false
 }
 
 /**
