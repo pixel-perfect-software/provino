@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { HarnessError } from '../errors.ts'
 import { parseCommandLine } from '../internal/cli-args.ts'
-import { type SampleRunner, selfTestCommand } from './self-test.ts'
+import { provinoParityProblems, type SampleRunner, selfTestCommand } from './self-test.ts'
 
 async function selfTest(
   args: readonly string[],
@@ -39,7 +39,7 @@ test("a runner that fails is its check's FAIL line; the other checks still print
     'FAIL jest ran the whole sample',
     'FAIL vitest ran the whole sample',
     'FAIL calibrated parity is 100% with exactly the 4 sample rules',
-    'FAIL provino:jest ran the sample and wrote a valid normalized-json',
+    'FAIL provino:jest ran the sample, wrote a valid normalized-json and met the status parity bar',
   ])
   assert.match(out, /HARNESS_RUNNER_FAILED: jest timed out after 120000 ms/)
   assert.match(out, /HARNESS_RUNNER_FAILED: vitest timed out after 120000 ms/)
@@ -50,4 +50,13 @@ test('an error that is not a harness error is a bug, and is thrown', async () =>
     throw new TypeError('a bug')
   }
   await assert.rejects(selfTest([], buggy), TypeError)
+})
+
+test('the Provino status parity bar is the share measured on B17d: 84 of 88, and no number in the text', () => {
+  assert.deepEqual(provinoParityProblems(84 / 88), [])
+  assert.deepEqual(provinoParityProblems(1), [])
+  const [problem] = provinoParityProblems(83 / 88)
+  assert.match(problem ?? '', /below the bar/)
+  assert.doesNotMatch(problem ?? '', /\d+%|\b84\b|\b88\b|0\.\d/)
+  assert.equal(provinoParityProblems(0).length, 1)
 })

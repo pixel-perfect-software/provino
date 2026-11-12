@@ -394,7 +394,7 @@
     },
     {
       "name": "boundary-env-node",
-      "comment": "@provino/env-node (layer 3, runs in worker) may import only: @provino/types.",
+      "comment": "@provino/env-node (layer 3, runs in worker) may import only: @provino/env-shared, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/env-node/"
@@ -404,7 +404,9 @@
         "pathNot": [
           "^packages/env-node/",
           "^packages/types/",
-          "^@provino/types$"
+          "^@provino/types$",
+          "^packages/env-shared/",
+          "^@provino/env-shared$"
         ]
       }
     },
@@ -610,7 +612,7 @@
     },
     {
       "name": "boundary-dialect-jest-runtime",
-      "comment": "@provino/dialect-jest/runtime (layer 5, runs in worker) may import only: @provino/core, @provino/dialect-jest, @provino/expect, @provino/lazy, @provino/mock, @provino/policy, @provino/timers, @provino/types.",
+      "comment": "@provino/dialect-jest/runtime (layer 5, runs in worker) may import only: @provino/core, @provino/dialect-jest, @provino/env-shared, @provino/expect, @provino/lazy, @provino/mock, @provino/policy, @provino/timers, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/dialect-jest/src/runtime/"
@@ -633,6 +635,8 @@
           "^@provino/mock$",
           "^packages/timers/",
           "^@provino/timers$",
+          "^packages/env-shared/",
+          "^@provino/env-shared$",
           "^packages/dialect-jest/(?!(?:src/node|src/runtime|test)/)",
           "^@provino/dialect-jest$"
         ]
@@ -1226,7 +1230,7 @@
     },
     {
       "name": "boundary-dialect-jest-test",
-      "comment": "@provino/dialect-jest/test (layer 5, runs in dev) may import only: @provino/config, @provino/core, @provino/dialect-jest, @provino/dialect-jest/node, @provino/dialect-jest/runtime, @provino/expect, @provino/lazy, @provino/mock, @provino/policy, @provino/resolver, @provino/timers, @provino/transform, @provino/types.",
+      "comment": "@provino/dialect-jest/test (layer 5, runs in dev) may import only: @provino/config, @provino/core, @provino/dialect-jest, @provino/dialect-jest/node, @provino/dialect-jest/runtime, @provino/env-shared, @provino/expect, @provino/lazy, @provino/mock, @provino/policy, @provino/resolver, @provino/timers, @provino/transform, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/dialect-jest/test/"
@@ -1260,7 +1264,9 @@
           "^packages/mock/",
           "^@provino/mock$",
           "^packages/timers/",
-          "^@provino/timers$"
+          "^@provino/timers$",
+          "^packages/env-shared/",
+          "^@provino/env-shared$"
         ]
       }
     },

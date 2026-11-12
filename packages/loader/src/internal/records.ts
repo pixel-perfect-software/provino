@@ -11,6 +11,7 @@ import type {
   LoaderOptions,
   ModuleId,
   ResolveKind,
+  ResolveResult,
   SourceMapV3,
 } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
@@ -27,6 +28,12 @@ export type Target =
   | { readonly kind: 'external'; readonly path: string }
   | { readonly kind: 'builtin'; readonly id: string }
   | { readonly kind: 'missing'; readonly error: ModuleNotFoundError }
+  /**
+   * A module the dialect serves (`ModuleScope.modules`, Jest's `@jest/globals`): never resolved or
+   * loaded, its edge reads the scope's value first (`FileRegistry.#served`). Its `error`, what the
+   * edge throws when the scope has no value for it, is made only when read.
+   */
+  | { readonly kind: 'served'; readonly error: ModuleNotFoundError }
   | { readonly kind: 'failed'; readonly id: ModuleId; readonly error: unknown }
 
 /** A target that leads somewhere loadable. */
@@ -44,6 +51,7 @@ export interface ModuleRecord {
   readonly format: UserFormat
   /** The wrapper source, or the JSON text. */
   readonly source: string
+  /** Read on demand: composing it is not free, and nothing asks on a warm run. */
   readonly map: SourceMapV3 | null
   /** Static deps: import specifiers (ESM) or literal `require` specifiers (CJS). */
   readonly deps: readonly string[]
@@ -145,9 +153,11 @@ function notFound(
   specifier: string,
   importer: string,
   kind: ResolveKind,
+  miss?: Extract<ResolveResult, { readonly type: 'not-found' }>,
 ): ModuleNotFoundError {
   const from = relative(state.options.root, importer).split(sep).join('/')
   const message =
+    (miss === undefined ? undefined : mapperMissMessage(state, specifier, miss)) ??
     loaderMessage(state.options.policy, 'module-not-found', { specifier, from, importer }) ??
     `Cannot find module '${specifier}' imported from ${importer}`
   return new ModuleNotFoundError(
@@ -156,13 +166,69 @@ function notFound(
   )
 }
 
+/**
+ * The text for a name-mapper rule that matched with no target resolving, or `undefined` when the
+ * miss isn't one, or the dialect has no text for it.
+ */
+function mapperMissMessage(
+  state: Records,
+  specifier: string,
+  miss: Extract<ResolveResult, { readonly type: 'not-found' }>,
+): string | undefined {
+  const { mappedBy, declared, tried } = miss
+  const { formatMapperMiss } = state.options
+  if (formatMapperMiss === undefined || mappedBy === null || declared === undefined) {
+    return undefined
+  }
+  return formatMapperMiss({
+    specifier,
+    rule: mappedBy,
+    declared,
+    tried,
+    resolver: state.options.resolverName,
+  })
+}
+
+/**
+ * Whether a name-mapper rule takes over a served module (`ModuleScope.mappable`): the rule matches,
+ * whether or not its target resolves.
+ */
+export function mapperTakes(
+  state: Records,
+  specifier: string,
+  importer: string,
+  kind: ResolveKind,
+): boolean {
+  if (state.options.moduleScope?.mappable?.includes(specifier) !== true) return false
+  const result = state.options.resolver.resolve(specifier, {
+    importer,
+    kind,
+    conditions: state.options.conditions ?? ['node'],
+  })
+  return (result.type === 'file' || result.type === 'not-found') && result.mappedBy !== null
+}
+
 /** Resolves `specifier` from `importer` to a target; one that doesn't resolve is `missing`. */
 export function resolveOrMissing(
   state: Records,
   specifier: string,
   importer: string,
   kind: ResolveKind,
-): Found | Extract<Target, { readonly kind: 'missing' }> {
+): Found | Extract<Target, { readonly kind: 'missing' | 'served' }> {
+  // A module the dialect serves (`@jest/globals`) is never resolved or loaded: its edge reads the
+  // scope's value first (`FileRegistry.#mockOf`), as Jest answers `@jest/globals` before the
+  // mapper, the resolver and the mocks.
+  if (
+    state.options.moduleScope?.modules?.includes(specifier) === true &&
+    !mapperTakes(state, specifier, importer, kind)
+  ) {
+    return {
+      kind: 'served',
+      get error() {
+        return notFound(state, specifier, importer, kind)
+      },
+    }
+  }
   const result = state.options.resolver.resolve(specifier, {
     importer,
     kind,
@@ -175,7 +241,16 @@ export function resolveOrMissing(
     }
     return { kind: 'user', id: toModuleId(result.path) }
   }
-  return { kind: 'missing', error: notFound(state, specifier, importer, kind) }
+  return {
+    kind: 'missing',
+    error: notFound(
+      state,
+      specifier,
+      importer,
+      kind,
+      result.type === 'not-found' ? result : undefined,
+    ),
+  }
 }
 
 /** Resolves `specifier` from `importer` to a target, or throws `ERR_MODULE_NOT_FOUND` (`MODULE_NOT_FOUND` for `require`). */
@@ -186,7 +261,7 @@ export function resolveTarget(
   kind: ResolveKind,
 ): Found {
   const target = resolveOrMissing(state, specifier, importer, kind)
-  if (target.kind === 'missing') throw target.error
+  if (target.kind === 'missing' || target.kind === 'served') throw target.error
   return target
 }
 
@@ -218,7 +293,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   const text = readFileSync(path, 'utf8')
   let record: ModuleRecord
   if (path.endsWith('.json')) {
-    record = makeRecord(id, 'json', text, null, [], [], false)
+    record = makeRecord(id, 'json', text, () => null, [], [], false)
   } else if (/\.(?:wasm|node)$/.test(path)) {
     throw new LoaderError('LOADER_UNSUPPORTED_MODULE', `cannot load ${path} as a user module`)
   } else {
@@ -255,7 +330,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
         id,
         'esm',
         runner.code,
-        runner.map,
+        () => runner.map,
         runner.deps,
         transformed.lateDeps,
         transformed.hasTopLevelAwait,
@@ -264,7 +339,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       const requires = transformed.imports
         .filter((entry) => entry.kind === 'require')
         .map((entry) => entry.specifier)
-      record = makeRecord(id, 'cjs', transformed.code, transformed.map, requires, [], false)
+      record = makeRecord(id, 'cjs', transformed.code, () => transformed.map, requires, [], false)
     }
   }
   state.records.set(id, record)
@@ -276,7 +351,7 @@ function makeRecord(
   id: ModuleId,
   format: UserFormat,
   source: string,
-  map: SourceMapV3 | null,
+  mapOf: () => SourceMapV3 | null,
   deps: readonly string[],
   lateDeps: readonly string[],
   hasTopLevelAwait: boolean,
@@ -286,7 +361,9 @@ function makeRecord(
     path: id,
     format,
     source,
-    map,
+    get map() {
+      return mapOf()
+    },
     deps,
     lateDeps,
     hasTopLevelAwait,
@@ -468,7 +545,9 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
       id: record.id,
       scriptUrl: record.path,
       wrapperColumnOffset: prefix.length,
-      map: record.map,
+      get map() {
+        return record.map
+      },
       thirdParty: false,
     })
   }

@@ -5,13 +5,15 @@
 // jest-config's own install for the packages Jest ships (`babel-jest`, `jest-environment-node`,
 // `jest-circus/runner`, `jest-runner`, `@jest/test-sequencer`). Ours resolves through
 // `@provino/resolver` (oxc-resolver) with the same options.
-import { realpathSync } from 'node:fs'
-import { createRequire, isBuiltin } from 'node:module'
+import { isBuiltin } from 'node:module'
 import { join } from 'node:path'
 import { ConfigError, importConfigModule } from '@provino/config'
 import { createResolver } from '@provino/resolver'
 import type { Resolver } from '@provino/types'
+import { type JestRequireResolve, projectJestRequireResolve } from '../jest-require.ts'
 import { JestConfigError, messageOf } from './errors.ts'
+
+export { type JestRequireResolve, projectJestRequireResolve }
 
 /** What Jest passes a custom resolver (`jest-resolve` `defaultResolver.ts` L22-L50). */
 interface JestResolverCallOptions {
@@ -51,67 +53,12 @@ export interface JestResolution {
   preloadResolver(path: string): Promise<void>
 }
 
-/**
- * Where Jest's built-in packages resolve from: a function like `require.resolve` from jest-config's
- * directory. The default finds the project's own Jest (`jest-config`, else `jest` → `jest-cli` →
- * `jest-config`, each from the one before, which also works under pnpm) from `rootDir`.
- * @public
- */
-export type JestRequireResolve = (specifier: string) => string | undefined
-
 const DEFAULT_EXTENSIONS: readonly string[] = ['.js', '.json', '.node']
 /** Neutralises `@provino/resolver`'s `.js` → `.ts` aliasing, which Jest's resolver doesn't do. */
 const NO_EXTENSION_ALIAS: Readonly<Record<string, readonly string[]>> = {
   '.js': ['.js'],
   '.mjs': ['.mjs'],
   '.cjs': ['.cjs'],
-}
-
-function tryRequireResolve(from: string, specifier: string): string | undefined {
-  try {
-    return createRequire(from).resolve(specifier)
-  } catch {
-    return undefined
-  }
-}
-
-/**
- * Finds the `jest-config` a project would run with, from its root: `jest-config` itself, else
- * through `jest`, `jest-cli` (and `@jest/core`). Returns a `require.resolve` from there.
- * @public
- */
-export function projectJestRequireResolve(rootDir: string): JestRequireResolve {
-  let located: string | null | undefined
-  const locate = (): string | null => {
-    if (located !== undefined) return located
-    const start = join(rootDir, '__provino_jest_config__.js')
-    const direct = tryRequireResolve(start, 'jest-config/package.json')
-    if (direct !== undefined) {
-      located = direct
-      return located
-    }
-    const jest = tryRequireResolve(start, 'jest/package.json')
-    const real = (path: string | undefined) => (path === undefined ? undefined : realpathSync(path))
-    const cli =
-      jest === undefined
-        ? undefined
-        : real(tryRequireResolve(real(jest) ?? jest, 'jest-cli/package.json'))
-    const viaCli =
-      cli === undefined ? undefined : tryRequireResolve(cli, 'jest-config/package.json')
-    const core =
-      viaCli === undefined && cli !== undefined
-        ? real(tryRequireResolve(cli, '@jest/core/package.json'))
-        : undefined
-    located =
-      viaCli ??
-      (core === undefined ? undefined : tryRequireResolve(core, 'jest-config/package.json')) ??
-      null
-    return located
-  }
-  return (specifier) => {
-    const from = locate()
-    return from === null ? undefined : tryRequireResolve(realpathSync(from), specifier)
-  }
 }
 
 /** A custom resolver module as `asResolver`/`toResolver` (L1065-L1113) accept it. */

@@ -1,0 +1,19 @@
+{
+  "description": "The order of the names Jest answers itself against moduleNameMapper (T3.3, U9, B17c gap 4): @jest/globals mapped to a stub, and a rule for an installed bare package name. One assertion per test, so the golden holds Jest's verdict on each.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "moduleNameMapper": {
+        "^@jest/globals$": "<rootDir>/src/stub.ts",
+        "^bare-pkg$": "<rootDir>/src/stub.ts"
+      }
+    }
+  },
+  "packages": {
+    "bare-pkg": {
+      "package.json": "{ \"name\": \"bare-pkg\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.which = 'installed'\n"
+    }
+  },
+  "jestEsm": true
+}

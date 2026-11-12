@@ -1,13 +1,9 @@
 // The coordinator's run (U3, minimal): discover the project's files, order them, push them
 // through the pool, and report to the bus. The CLI, `run()` and config loading are `provino`'s.
-import { resolve } from 'node:path'
-import type { ResolvedProject } from '@provino/config'
+import { join, resolve } from 'node:path'
+import { pruneTransformCache, type ResolvedProject, withTransformCache } from '@provino/config'
 import { serializeError } from '@provino/rpc'
-import {
-  createSnapshotAggregate,
-  resolveUpdateMode,
-  snapshotRunFails,
-} from '@provino/snapshot/node'
+import { resolveUpdateMode } from '@provino/snapshot/node'
 import type {
   FileFilter,
   FileInfo,
@@ -21,21 +17,29 @@ import type {
   RunSummary,
   ScheduleInput,
   SerializedError,
+  SerializedProjectConfig,
   TaskResult,
   TaskState,
   WorkerEvent,
   WorkerExit,
+  WorkerKey,
 } from '@provino/types'
-import { createResultsCache, defaultCacheDir, type ResultsCache } from './cache.ts'
+import { cacheDirectories, createResultsCache, type ResultsCache } from './cache.ts'
 import { type DiscoveredFile, discoverFiles } from './discover.ts'
 import { discoverByRules } from './discover-rules.ts'
 import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
 import { OrchestratorError } from './errors.ts'
 import { fileIdOf, relativePosix } from './file-id.ts'
-import { hashOf, workerKeyOf } from './key.ts'
+import { configHash, hashOf, workerKeyOf } from './key.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
 import { selectFiles } from './select.ts'
 import { createHistorySequencer } from './sequencer.ts'
+import {
+  mergedSnapshots,
+  type SnapshotMember,
+  snapshotMember,
+  snapshotsFailRun,
+} from './snapshot-members.ts'
 import { type TransportForOptions, transportFor } from './transport/for-kind.ts'
 import { describeExit } from './transport/shared.ts'
 import { messageOf } from './util.ts'
@@ -109,6 +113,8 @@ export interface RunProjectOptions {
    * run ends with `reason: 'interrupted'`.
    */
   readonly signal?: AbortSignal
+  /** `RunInfo.root` of a run over several projects (Jest's config `rootDir`). Default: the first project's root. */
+  readonly root?: string
 }
 
 /**
@@ -135,6 +141,24 @@ export function projectCacheKey(project: ResolvedProject): string {
         ],
   ])
   return `${project.name}#${identity.slice(0, 8)}`
+}
+
+/**
+ * Gives each file that more than one project of the run runs (two projects sharing a root and
+ * matching the same file) a `runPath` that names its project, so a reporter keyed by path (the
+ * normalized-json ids) keeps one entry per run of it.
+ */
+function qualifyDuplicatePaths(queue: readonly QueuedFile[]): QueuedFile[] {
+  const counts = new Map<string, number>()
+  for (const { info } of queue) {
+    const key = info.runPath ?? info.path
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return queue.map((entry) => {
+    const key = entry.info.runPath ?? entry.info.path
+    if ((counts.get(key) ?? 0) < 2) return entry
+    return { ...entry, info: { ...entry.info, runPath: `${key}#${entry.member.identity}` } }
+  })
 }
 
 /**
@@ -173,6 +197,7 @@ function checkPattern(pattern: string | undefined, flags: string): void {
 
 /** A discovered file with the identity the bus knows it by. */
 interface QueuedFile {
+  readonly member: Member
   readonly info: FileInfo
   readonly file: DiscoveredFile
 }
@@ -202,8 +227,29 @@ function crashError(file: FileInfo, exit: WorkerExit): SerializedError {
   }
 }
 
+/** A project with the run's seed in its worker config. */
+type SeededProject = Omit<ResolvedProject, 'config'> & { readonly config: SerializedProjectConfig }
+
+/** One project of a run, with what the run decided for it once. */
+interface Member {
+  readonly project: SeededProject
+  /** The results cache's key for the project's history. */
+  readonly cacheProject: string
+  /**
+   * What names the project inside this run (the worker key, the file ids): its `name`, or
+   * `name#hash` of its finished config when another project has the same name, and `@index` after
+   * that when another one's config is byte-identical.
+   */
+  readonly identity: string
+  /** What the project's files reported, its update mode and its policy. */
+  readonly snapshots: SnapshotMember
+  readonly cache: ResultsCache | undefined
+  readonly key: WorkerKey
+}
+
 /**
- * Runs a project's test files and reports to the bus, and resolves with the summary.
+ * Runs a project's test files and reports to the bus, and resolves with the summary: `runProjects`
+ * over one project.
  *
  * A bad option rejects (`ORCH_BAD_PATTERN`, `ORCH_NOT_IMPLEMENTED`, a bad worker entry) before the
  * bus hears of the run. A run that finds no files emits `run:start` and `run:end` and nothing
@@ -220,38 +266,114 @@ function crashError(file: FileInfo, exit: WorkerExit): SerializedError {
  * and a `run:end` with `reason: 'failed'`, and the error propagates.
  * @public
  */
-export async function runProject(
+export function runProject(
   project: ResolvedProject,
   options: RunProjectOptions,
 ): Promise<RunSummary> {
+  return runProjects([project], options)
+}
+
+/**
+ * Runs several projects through one pool (D29, as Jest's `projects` do): one bus, one `maxWorkers`
+ * for the whole run, one `run:start` and one `run:end`. Each worker is bound to one project at
+ * `WorkerInit` (its config, environment and isolation), so a file goes to a worker of its own
+ * project. The files are queued project by project in the config's order, each project's by the
+ * sequencer, so workers change project only at a boundary; a worker whose project has no file left
+ * is stopped as soon as it is idle (the pool's `drain`), or when a file of another project needs
+ * its slot. Everything else is `runProject`'s: the pattern, the results cache (one history per
+ * project), the snapshot mode, the file filters, abort, the pairing of `file:start` and `file:end`.
+ *
+ * What is run-wide takes the first project's value: the pool kind, `unhandledErrors`, the exit
+ * policy and the snapshot summary's mode.
+ * @public
+ */
+export async function runProjects(
+  projects: readonly ResolvedProject[],
+  options: RunProjectOptions,
+): Promise<RunSummary> {
   const { bus, signal } = options
-  const { orchestrator, core } = project.policy
-  const cacheProject = projectCacheKey(project)
-  checkPattern(options.testNamePattern, core.testNamePatternFlags)
-  // What every file does with its snapshots (build-plan §6: the worker writes the `.snap` files).
-  const updateSnapshots = resolveUpdateMode({
-    update: options.update ?? false,
-    ci: project.config.ci,
-    env: options.env ?? process.env,
-    policy: project.policy.snapshot,
+  const [first] = projects
+  if (first === undefined) {
+    throw new OrchestratorError('ORCH_NO_PROJECTS', 'A run needs at least one project.')
+  }
+  const { orchestrator } = first.policy
+  for (const project of projects) {
+    checkPattern(options.testNamePattern, project.policy.core.testNamePatternFlags)
+  }
+  const kind = options.pool?.kind ?? orchestrator.pool.default
+  const execArgv = options.pool?.execArgv
+
+  const caches = new Map<string, ResultsCache>()
+  const cacheFor = (project: ResolvedProject): ResultsCache | undefined => {
+    if (options.cache === false) return undefined
+    if (options.cache !== undefined) return options.cache
+    const directory = cacheDirectories(project).results
+    let cache = caches.get(directory)
+    if (cache === undefined) {
+      cache = createResultsCache(directory)
+      caches.set(directory, cache)
+    }
+    return cache
+  }
+  // One seed for the run (`jest.getSeed()`): a project that gives none takes this one, so every
+  // worker of every such project reports the same value, as Jest's single `globalConfig.seed`.
+  const runSeed = Math.floor(0x1_0000_0000 * Math.random()) - 0x8000_0000
+  /** Each lockfile's hash by path, so projects that share a lockfile read it once. */
+  const lockfileHashes = new Map<string, string>()
+  // Two projects can share a name, yet differ in discovery, environment, transform or setup files;
+  // each still needs a worker key, a file-id namespace and a results history of its own.
+  const takenIdentities = new Set<string>()
+  const nameCounts = Map.groupBy(projects, (project) => project.name)
+  const cacheKeyCounts = Map.groupBy(projects, projectCacheKey)
+  const members: Member[] = projects.map((resolved, index) => {
+    // The transform cache (T3.6) is on unless the run has no cache (`--no-cache`): the directory is
+    // wiped here if the lockfile changed, and handed to the project's workers.
+    const cached =
+      options.cache === false
+        ? resolved
+        : withTransformCache(resolved, cacheDirectories(resolved).transform, lockfileHashes)
+    const project: SeededProject = {
+      ...cached,
+      config: { ...cached.config, seed: cached.config.seed ?? runSeed },
+    }
+    const base =
+      nameCounts.get(project.name)?.length === 1
+        ? project.name
+        : `${project.name}#${configHash(project.config).slice(0, 8)}`
+    const identity = takenIdentities.has(base) ? `${base}@${index}` : base
+    takenIdentities.add(identity)
+    const cacheKey = projectCacheKey(project)
+    return {
+      project,
+      // The results history keeps its stable key, so editing a config doesn't lose it, unless
+      // another project of the run has the same one.
+      cacheProject: cacheKeyCounts.get(cacheKey)?.length === 1 ? cacheKey : identity,
+      identity,
+      // What every file does with its snapshots (build-plan §6: the worker writes the `.snap` files).
+      snapshots: snapshotMember(
+        resolveUpdateMode({
+          update: options.update ?? false,
+          ci: project.config.ci,
+          env: options.env ?? process.env,
+          policy: project.policy.snapshot,
+        }),
+        project.policy.snapshot,
+      ),
+      cache: cacheFor(project),
+      key: workerKeyOf({
+        project: identity,
+        pool: kind,
+        environment: project.environment,
+        environmentOptions: project.config.environment.options,
+        execArgv: execArgv ?? process.execArgv,
+      }),
+    }
   })
-  const snapshots = createSnapshotAggregate()
+  const byIdentity = new Map(members.map((member) => [member.identity, member]))
+  const snapshotMembers = members.map((member) => member.snapshots)
 
   const startedAt = performance.now()
   const stderr = options.stderr ?? process.stderr
-  const cache =
-    options.cache === false
-      ? undefined
-      : (options.cache ?? createResultsCache(defaultCacheDir(project.rootDir)))
-  const kind = options.pool?.kind ?? orchestrator.pool.default
-  const execArgv = options.pool?.execArgv
-  const key = workerKeyOf({
-    project: project.name,
-    pool: kind,
-    environment: project.environment,
-    environmentOptions: project.config.environment.options,
-    execArgv: execArgv ?? process.execArgv,
-  })
   const poolOptions: PoolOptions = {
     kind,
     maxWorkers: options.pool?.maxWorkers ?? defaultMaxWorkers(),
@@ -275,17 +397,31 @@ export async function runProject(
   // transport's own entry), so it comes before `run:start`.
   const pool = createPool(poolOptions, {
     transport: (poolKind) => transportFor(poolKind, transportOptions),
-    init: (workerKey, workerId) => ({
-      key: workerKey,
-      workerId,
-      isolation: project.isolation,
-      provided: {},
-      config: project.config,
-    }),
+    init: (workerKey, workerId) => {
+      // A worker is bound to the project its key names, for its whole life.
+      const member = byIdentity.get(workerKey.project)
+      if (member === undefined) {
+        throw new Error(`no project of this run is called ${JSON.stringify(workerKey.project)}`)
+      }
+      return {
+        key: workerKey,
+        workerId,
+        isolation: member.project.isolation,
+        provided: {},
+        config: member.project.config,
+      }
+    },
     methods: {
-      readTimings: (file) =>
-        cache?.get(cacheProject, relativePosix(project.rootDir, resolve(project.rootDir, file)))
-          ?.durationMs,
+      readTimings: (file) => {
+        for (const member of members) {
+          const duration = member.cache?.get(
+            member.cacheProject,
+            relativePosix(member.project.rootDir, resolve(member.project.rootDir, file)),
+          )?.durationMs
+          if (duration !== undefined) return duration
+        }
+        return undefined
+      },
     },
     onIdleEvents: idleEvents(),
     onError: (error, errorKind) => {
@@ -314,29 +450,31 @@ export async function runProject(
     }
   }
 
-  /** The result of each file that has one, by path. */
-  const results = new Map<string, FileResult>()
+  /** The result of each queued file that has one. */
+  const results = new Map<QueuedFile, FileResult>()
   let queue: readonly QueuedFile[] = []
   let interrupted = false
   let announced = false
 
   /** The files that have a result, in queue order. */
-  const finishedFiles = (): FileResult[] =>
-    queue.flatMap((entry) => results.get(entry.info.path) ?? [])
+  const finishedFiles = (): FileResult[] => queue.flatMap((entry) => results.get(entry) ?? [])
 
   const summarize = (reason: RunSummary['reason']): RunSummary => {
-    const run = snapshots.summary(updateSnapshots)
+    const run = mergedSnapshots(snapshotMembers)
     return {
       reason,
       files: finishedFiles(),
       unhandled,
       durationMs: performance.now() - startedAt,
-      ...(run === undefined ? {} : { snapshots: run }),
+      ...(run === undefined
+        ? {}
+        : { snapshots: run, snapshotsFail: snapshotsFailRun(snapshotMembers) }),
     }
   }
 
   /** One file, from its turn in the queue to its `file:end`. */
   async function runFile(entry: QueuedFile): Promise<void> {
+    const { member } = entry
     const dispatch = createFileDispatch({
       bus,
       file: entry.info,
@@ -345,7 +483,7 @@ export async function runProject(
     const job: FileJob = {
       file: entry.file.path,
       fileId: entry.info.fileId,
-      updateSnapshots,
+      updateSnapshots: member.snapshots.update,
       ...(options.testNamePattern === undefined
         ? {}
         : { testNamePattern: options.testNamePattern }),
@@ -354,7 +492,7 @@ export async function runProject(
     const ended = Promise.withResolvers<void>()
     try {
       const outcome = await pool.run({
-        key,
+        key: member.key,
         job,
         onStart: async (workerId) => {
           takenAt = performance.now()
@@ -374,7 +512,7 @@ export async function runProject(
         await bus.emit('file:start', entry.info, outcome.workerId)
       }
       if (outcome.type === 'done' && outcome.done.snapshot !== undefined) {
-        snapshots.add(outcome.done.snapshot, entry.file.path)
+        entry.member.snapshots.aggregate.add(outcome.done.snapshot, entry.file.path)
       }
       const elapsedMs = takenAt === undefined ? 0 : performance.now() - takenAt
       const result = resultOf(entry.info, outcome, dispatch.result, elapsedMs)
@@ -385,14 +523,14 @@ export async function runProject(
         outcome.type !== 'aborted' &&
         result.state !== 'skip'
       ) {
-        cache?.record(cacheProject, entry.info.path, {
+        member.cache?.record(member.cacheProject, entry.info.path, {
           durationMs: result.durationMs,
           failed: result.state === 'fail',
           tests: dispatch.tests,
           at: Date.now(),
         })
       }
-      results.set(entry.info.path, result)
+      results.set(entry, result)
       await bus.emit('file:end', result)
     } finally {
       ended.resolve()
@@ -402,26 +540,45 @@ export async function runProject(
   /** Writes the history; it is a convenience, so a failure is a line on `stderr`, never a rejection. */
   async function writeCache(): Promise<void> {
     try {
-      await cache?.write()
+      const written = new Set(members.flatMap((member) => member.cache ?? []))
+      await Promise.all([...written].map((cache) => cache.write()))
     } catch (error) {
       // A read-only directory must not fail a run that passed.
       stderr.write(`Provino: could not write the results cache: ${messageOf(error)}\n`)
     }
   }
 
+  /**
+   * Eviction by size is the coordinator's, after the run (Track 3 R5). It runs once the reporters
+   * have the summary, so nothing waits on it, and it skips a directory no worker wrote to.
+   */
+  function pruneTransformCaches(): void {
+    const directories = new Set(
+      members.flatMap((member) => member.project.config.loader.cacheDir ?? []),
+    )
+    for (const directory of directories) pruneTransformCache(directory)
+  }
+
   try {
-    const everything = await discoverProject(project)
-    const discovered = selectFiles(everything, options.fileFilters ?? [], {
-      rootDir: project.rootDir,
-      cwd: resolve(options.cwd ?? process.cwd()),
-    })
+    const cwd = resolve(options.cwd ?? process.cwd())
+    const found = await Promise.all(
+      members.map(async (member) => {
+        const everything = await discoverProject(member.project)
+        const discovered = selectFiles(everything, options.fileFilters ?? [], {
+          rootDir: member.project.rootDir,
+          cwd,
+        })
+        return { member, everything, discovered }
+      }),
+    )
+    const runRoot = options.root ?? first.rootDir
     const info: RunInfo = {
-      root: project.rootDir,
-      projects: [project.name],
+      root: runRoot,
+      projects: projects.map((project) => project.name),
       startTime: startedAt,
       watch: false,
     }
-    if (discovered.length === 0) {
+    if (found.every((entry) => entry.discovered.length === 0)) {
       announced = true
       await bus.emit('run:start', info, [])
       await pool.close()
@@ -430,13 +587,11 @@ export async function runProject(
       return summary
     }
 
-    queue = planQueue(
-      project,
-      everything,
-      discovered,
-      cache,
-      cacheProject,
-      orchestrator.sequence.unknownFirst,
+    // Project by project, in the config's order: workers change project only at a boundary.
+    queue = qualifyDuplicatePaths(
+      found.flatMap(({ member, everything, discovered }) =>
+        planQueue(member, everything, discovered, runRoot),
+      ),
     )
 
     announced = true
@@ -457,10 +612,11 @@ export async function runProject(
 
     const failed =
       finishedFiles().some((file) => file.state === 'fail') ||
-      snapshotRunFails(snapshots.summary(updateSnapshots), project.policy.snapshot) ||
+      snapshotsFailRun(snapshotMembers) ||
       (orchestrator.unhandledErrors === 'fail-run' && unhandled.length > 0)
     const summary = summarize(interrupted ? 'interrupted' : failed ? 'failed' : 'passed')
     await bus.emit('run:end', summary)
+    pruneTransformCaches()
     return summary
   } catch (error) {
     await pool.close()
@@ -487,22 +643,24 @@ export async function runProject(
  * left out.
  */
 function planQueue(
-  project: ResolvedProject,
+  member: Member,
   everything: readonly DiscoveredFile[],
   discovered: readonly DiscoveredFile[],
-  cache: ResultsCache | undefined,
-  cacheProject: string,
-  unknownFirst: boolean,
+  runRoot: string,
 ): QueuedFile[] {
+  const { project, cache, cacheProject } = member
   cache?.prune(cacheProject, new Set(everything.map((file) => file.relativePath)))
   const entries = new Map<string, QueuedFile>()
   const inputs: ScheduleInput[] = discovered.map((file) => {
+    const runPath = relativePosix(runRoot, join(project.rootDir, file.relativePath))
     entries.set(file.relativePath, {
+      member,
       file,
       info: {
-        fileId: fileIdOf(project.name, file.relativePath),
+        fileId: fileIdOf(member.identity, file.relativePath),
         path: file.relativePath,
         project: project.name,
+        ...(runPath === file.relativePath ? {} : { runPath }),
       },
     })
     const history = cache?.get(cacheProject, file.relativePath)
@@ -513,7 +671,9 @@ function planQueue(
       ...(history === undefined ? {} : { history }),
     }
   })
-  const ordered = createHistorySequencer({ unknownFirst }).sort(inputs)
+  const ordered = createHistorySequencer({
+    unknownFirst: project.policy.orchestrator.sequence.unknownFirst,
+  }).sort(inputs)
   return ordered.flatMap((input) => entries.get(input.path) ?? [])
 }
 

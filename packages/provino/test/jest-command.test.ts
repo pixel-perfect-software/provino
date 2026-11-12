@@ -61,7 +61,7 @@ describe('what provino jest does not run is said, not ignored', () => {
   it('warns, naming the task, for a config key it reads and does not apply', async () => {
     const config = JSON.stringify({
       testMatch: ['<rootDir>/tests/**/*.test.js'],
-      moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' },
+      collectCoverage: true,
     })
     const dir = await tree({
       'jest.config.json': config,
@@ -70,11 +70,11 @@ describe('what provino jest does not run is said, not ignored', () => {
     })
     const ended = await provino([], dir)
     assert.equal(ended.code, 0, ended.stderr)
-    assert.match(ended.stderr, /moduleNameMapper/)
-    assert.match(ended.stderr, /T3\.3/)
+    assert.match(ended.stderr, /collectCoverage/)
+    assert.match(ended.stderr, /T8\.8/)
   })
 
-  it('refuses several projects for a run (D29), and lists the files of all of them', async () => {
+  it('runs several projects (D29), and lists the files of all of them', async () => {
     const dir = await tree({
       'jest.config.json': JSON.stringify({ projects: ['<rootDir>/one', '<rootDir>/two'] }),
       'one/jest.config.json': JSON.stringify({ testMatch: ['<rootDir>/**/*.test.js'] }),
@@ -83,11 +83,9 @@ describe('what provino jest does not run is said, not ignored', () => {
       'two/b.test.js': passing('b'),
     })
     const run = await provino([], dir)
-    assert.equal(run.code, 1, run.stderr)
-    assert.match(
-      run.stderr,
-      /running several projects is not supported yet \(2 found; DECISIONS D29/,
-    )
+    assert.equal(run.code, 0, run.stderr)
+    assert.match(run.stderr, /PASS one\/a\.test\.js|PASS a\.test\.js/)
+    assert.match(run.stderr, /Test Suites: 2 passed, 2 total/)
 
     const listed = await provino(['--listTests'], dir)
     assert.equal(listed.code, 0, listed.stderr)
@@ -147,10 +145,10 @@ describe('the other modes', () => {
     assert.ok(!existsSync(cache))
   })
 
-  it('--listTests and --clearCache work for a project whose environment Provino cannot run yet', async () => {
-    // A custom environment: not built in (T8.5), so a run is refused, but listing the files and
+  it('--listTests and --clearCache work for a project whose environment class is not a working one', async () => {
+    // A custom environment class (run through the Jest adapter, T8.5): listing the files and
     // clearing the cache start no worker and must not depend on it (jsdom projects are most of
-    // the R6 corpus, and U2's check is their `--listTests`).
+    // the R6 corpus, and U2's check is their `--listTests`). This one has no `setup`, so a run fails.
     const dir = await tree({
       'jest.config.json': JSON.stringify({
         testMatch: ['<rootDir>/tests/**/*.test.js'],
@@ -167,8 +165,8 @@ describe('the other modes', () => {
     assert.equal(cleared.code, 0, cleared.stderr)
 
     const run = await provino([], dir)
-    assert.equal(run.code, 1, 'a run is refused')
-    assert.match(run.stderr, /unknown environment/)
+    assert.equal(run.code, 1, 'a run fails: the class has no setup()')
+    assert.doesNotMatch(run.stderr, /unknown environment/)
   })
 
   it('--no-cache neither reads nor writes the results history', async () => {

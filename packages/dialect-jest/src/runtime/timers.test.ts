@@ -42,6 +42,9 @@ async function jestOver(t: Parameters<typeof setUpJestExpect>[0]): Promise<{
       mockPolicy: policy.mock as MockPolicy,
       timers: () => clock,
       timersPolicy: policy.timers,
+      seed: 0,
+      environmentTornDown: () => false,
+      setDefaultTimeout: () => {},
     }
     jest = jestGlobals(host).jest
   }, policy.core)

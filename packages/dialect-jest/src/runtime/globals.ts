@@ -109,12 +109,23 @@ export interface JestTimerMembers<J> {
 }
 
 /**
+ * What `jest.retryTimes` takes.
+ * @public
+ */
+export interface JestRetryOptions {
+  readonly logErrorsBeforeRetry?: boolean
+  readonly retryImmediately?: boolean
+  readonly waitBeforeRetry?: number
+  readonly entireDescribe?: boolean
+}
+
+/**
  * The `jest` global, as far as the worker runtime goes: the module registry methods, which act on
  * the registry of the file running when they are called. `isolateModules` and
  * `isolateModulesAsync` refuse to nest or overlap (on one registry), as Jest does. The mock
  * functions (`fn`, `spyOn`, `replaceProperty`, the three `*AllMocks`) act on the mock registry of
- * the file running. `jest.mock` and friends (B13c), timers (T4.9), `setTimeout`, `retryTimes` and
- * the rest of Jest's `jest` object are not here yet (T11.10).
+ * the file running. `jest.mock` and friends (B13c) are on each module's own `jest`
+ * (`JestModuleObject`); `retryTimes` is refused until deferred retries exist (T5.10).
  * @public
  */
 export interface JestObject extends JestTimerMembers<JestObject> {
@@ -124,6 +135,22 @@ export interface JestObject extends JestTimerMembers<JestObject> {
   isolateModulesAsync(fn: () => Promise<void>): Promise<void>
   /** Forgets every module loaded so far in the file, then returns `jest`. */
   resetModules(): JestObject
+  /**
+   * Sets the timeout a test or hook with none of its own gets, until this file ends: the tests
+   * already declared included (jest-circus reads it when a test runs). `0` leaves the default.
+   */
+  setTimeout(timeout: number): JestObject
+  /**
+   * Refused: Jest retries after the file's other tests (deferred retries, T5.10), which the core
+   * does not run yet. Throws, naming the task.
+   */
+  retryTimes(numRetries: number, options?: JestRetryOptions): JestObject
+  /** The run's random seed (`--seed`, else one drawn per run), the same on every call. */
+  getSeed(): number
+  /** Whether the file's environment has been torn down: true for a callback that outlives its file. */
+  isEnvironmentTornDown(): boolean
+  /** The argument, typed as mocked (jest-mock's `mocked` is the identity). */
+  mocked<T>(item: T): T
   /** A mock function, running `impl` when it has one. */
   fn<T extends MockTarget = UnknownFunction>(impl?: T): Mock<T>
   /** Replaces a method with a spy that calls through. */
@@ -176,6 +203,10 @@ export interface JestModuleObject extends JestObject {
   unmock(moduleName: string): JestModuleObject
   /** `unmock`, not hoisted. */
   dontMock(moduleName: string): JestModuleObject
+  /** Replaces `moduleName` for this file with `moduleExports`, as an explicit mock (jest-runtime `setMock`). */
+  setMock(moduleName: string, moduleExports: unknown): JestModuleObject
+  /** `unmock`: the module and what it imports are real again (Provino unmocks the module itself). */
+  deepUnmock(moduleName: string): JestModuleObject
   /** The real module, whatever is mocked: its own imports still see the mocks. */
   requireActual<T = unknown>(moduleName: string): T
   /** The mocked module, whether or not it is registered: a manual mock, else an automock. */
@@ -187,6 +218,25 @@ export interface JestModuleObject extends JestObject {
   disableAutomock(): JestModuleObject
   isolateModules(fn: () => void): JestModuleObject
   resetModules(): JestModuleObject
+  setTimeout(timeout: number): JestModuleObject
+  retryTimes(numRetries: number, options?: JestRetryOptions): JestModuleObject
+  /** `enableAutomock`. */
+  autoMockOn(): JestModuleObject
+  /** `disableAutomock`. */
+  autoMockOff(): JestModuleObject
+  /**
+   * Runs `callback` on every automock built from now on, with the module's resolved path and the
+   * mock; what it returns is the mock (each callback gets the one before's result).
+   */
+  onGenerateMock<T>(callback: (moduleName: string, moduleMock: T) => T): JestModuleObject
+  /** `doMock` for a module the file imports natively: the factory is required. */
+  unstable_mockModule(
+    moduleName: string,
+    factory: () => unknown,
+    options?: JestMockOptions,
+  ): JestModuleObject
+  /** `dontMock`, for `unstable_mockModule`. */
+  unstable_unmockModule(moduleName: string): JestModuleObject
   clearAllMocks(): JestModuleObject
   resetAllMocks(): JestModuleObject
   restoreAllMocks(): JestModuleObject
@@ -249,6 +299,11 @@ interface SharedMembers<J> extends JestTimerMembers<J> {
   readonly spyOn: JestObject['spyOn']
   readonly isMockFunction: JestObject['isMockFunction']
   readonly replaceProperty: JestObject['replaceProperty']
+  setTimeout(timeout: number): J
+  retryTimes(numRetries: number, options?: JestRetryOptions): J
+  getSeed(): number
+  isEnvironmentTornDown(): boolean
+  mocked<T>(item: T): T
   clearAllMocks(): J
   resetAllMocks(): J
   restoreAllMocks(): J
@@ -354,6 +409,26 @@ function sharedMembers<J>(
     ): Replaced<T[K]> {
       return replaceProperty(host.mockPolicy, host.mocks(), object, key, value)
     },
+    setTimeout(timeout) {
+      // Jest's own reading of the number: `0` and `NaN` give none, so the config's stays; a
+      // negative number is a timer of -1 ms, which fires at once, as a 1 ms deadline does (its
+      // message names 1 ms, not the negative value).
+      host.setDefaultTimeout(
+        Number.isFinite(timeout) && timeout !== 0 ? Math.max(timeout, 1) : undefined,
+      )
+      return self()
+    },
+    retryTimes() {
+      // jest-circus retries a failed test after the file's other tests; the core runs retries at
+      // once only (`retry.timing: 'deferred'` is T5.10), so a call that would run them in another
+      // order is refused by name instead.
+      throw new Error(
+        "jest.retryTimes is not supported yet: Jest retries a failed test after the file's other tests, which Provino does not run (T5.10)",
+      )
+    },
+    getSeed: () => host.seed,
+    isEnvironmentTornDown: () => host.environmentTornDown(),
+    mocked: <T>(item: T): T => item,
     clearAllMocks() {
       host.mocks().clearAll()
       return self()
@@ -399,27 +474,54 @@ function moduleJest(host: JestGlobalsHost, isolating: Isolating, from: string): 
     host.registry().unregisterMock(name, parent)
     return jest
   }
-  const jest: JestModuleObject = {
+  const setAutomock = (on: boolean): JestModuleObject => {
+    host.moduleMocks().setAutomock(on)
+    return jest
+  }
+  // Jest's own object lists its keys alphabetically (recorded: `mocking/api-surface`), so this one does too.
+  const jest: JestModuleObject = withSortedKeys({
     ...sharedMembers<JestModuleObject>(host, isolating, () => jest),
     mock: (name, factory, options) => register(name, factory, options, true),
     doMock: (name, factory, options) => register(name, factory, options, false),
     unmock: unregister,
     // Jest's non-hoisted unmock is `dontMock`; there is no `doUnmock` (mod-unmock, B13b).
     dontMock: unregister,
+    setMock: (name, moduleExports) => register(name, () => moduleExports, undefined, false),
+    deepUnmock(name) {
+      // jest-runtime `deepUnmock`: unmocked, and so is everything it imports under automock-all.
+      host.registry().registerMock(name, parent, { kind: 'unmock', deep: true }, { hoisted: true })
+      return jest
+    },
+    autoMockOn: () => setAutomock(true),
+    autoMockOff: () => setAutomock(false),
+    onGenerateMock<T>(callback: (moduleName: string, moduleMock: T) => T) {
+      host
+        .moduleMocks()
+        .onGenerateMock(callback as (moduleId: string, moduleMock: unknown) => unknown)
+      return jest
+    },
+    unstable_mockModule: (name, factory, options) => {
+      // jest-runtime `unstable_mockModule`: the factory is required.
+      if (typeof factory !== 'function') {
+        throw new TypeError('`unstable_mockModule` must be passed a mock factory')
+      }
+      return register(name, factory, options, false)
+    },
+    unstable_unmockModule: unregister,
     requireActual: <T>(name: string): T => host.registry().requireActual<T>(name, parent),
     requireMock: <T>(name: string): T => host.moduleMocks().mockFor(name, from) as T,
     createMockFromModule: <T>(name: string): T =>
       host.moduleMocks().createMockFromModule(name, from) as T,
-    enableAutomock() {
-      host.moduleMocks().setAutomock(true)
-      return jest
-    },
-    disableAutomock() {
-      host.moduleMocks().setAutomock(false)
-      return jest
-    },
-  }
+    enableAutomock: () => setAutomock(true),
+    disableAutomock: () => setAutomock(false),
+  })
   return jest
+}
+
+/** `value` with its own keys in code-unit order, as Jest's `jest` object lists them. */
+function withSortedKeys<T extends object>(value: T): T {
+  const keys = Object.keys(value).sort()
+  return Object.fromEntries(keys.map((key) => [key, Reflect.get(value, key)])) as T
 }
 
 /**
@@ -436,6 +538,20 @@ function moduleJest(host: JestGlobalsHost, isolating: Isolating, from: string): 
  * @public
  */
 export function jestGlobals(host: JestGlobalsHost): JestGlobals {
+  const known = globalsByHost.get(host)
+  if (known !== undefined) return known
+  const built = buildGlobals(host)
+  globalsByHost.set(host, built)
+  return built
+}
+
+/**
+ * One set per host: the worker's injected globals and `@jest/globals` (which `jestModuleScope`
+ * serves, with `injectGlobals: false` too) are the same objects, as in jest-runtime.
+ */
+const globalsByHost = new WeakMap<JestGlobalsHost, JestGlobals>()
+
+function buildGlobals(host: JestGlobalsHost): JestGlobals {
   const { api, expect } = host
   // The registries with an isolation running now. Jest keeps this on each file's module registries
   // (one set per file's runtime); a `FileRegistry` is the same scope here, so a `WeakSet` keyed by
@@ -462,6 +578,11 @@ export function jestGlobals(host: JestGlobalsHost): JestGlobals {
   }
 }
 
+/** What `require('expect')` is: `expect`'s own exports (`expect`, `default`). */
+function expectModule(expect: JestGlobals['expect']): Readonly<Record<string, unknown>> {
+  return { __esModule: true, expect, default: expect }
+}
+
 /**
  * The Jest dialect's per-module bindings (`jestDialect.moduleScope`, a `ModuleScopeFactory`): the
  * loader calls the function this returns for each module whose source names `jest`, and that
@@ -476,5 +597,31 @@ export function jestModuleScope(
   // One record of isolating registries for every module's `jest`, apart from the global's: the
   // file's module-mock registry refuses a nested isolation between the two (`nested-isolation`).
   const isolating: Isolating = new WeakSet()
-  return (from) => ({ jest: moduleJest(host, isolating, from) })
+  // jest-runtime keeps one `jest` object per module (`jestObjectCaches`): the `jest` a module's
+  // wrapper binds and the one `@jest/globals` hands it are the same object.
+  const objects = new Map<string, JestModuleObject>()
+  return (from) => {
+    let jest = objects.get(from)
+    if (jest === undefined) {
+      jest = moduleJest(host, isolating, from)
+      objects.set(from, jest)
+    }
+    // Lazy and not enumerable: a module that names none builds nothing, and the keys of the
+    // result stay the binding names (`jestDialect.moduleScope.names`).
+    const scope: Record<string, unknown> = { jest }
+    const served = (name: string, get: () => unknown): void => {
+      Object.defineProperty(scope, name, { get, enumerable: false })
+    }
+    // jest-runtime `cjsGlobals(from)`: the injected globals, with this module's own `jest`.
+    served('@jest/globals', () => ({ ...jestGlobals(host), jest }))
+    // U9: `expect` and `@jest/expect` are the runner's own, never a second copy from the project.
+    served('expect', () => expectModule(jestGlobals(host).expect))
+    served('@jest/expect', () => ({ jestExpect: jestGlobals(host).expect }))
+    served('jest-mock', () => ({
+      fn: jest.fn,
+      spyOn: jest.spyOn,
+      replaceProperty: jest.replaceProperty,
+    }))
+    return scope
+  }
 }

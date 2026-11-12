@@ -121,7 +121,8 @@ export interface TestNode extends NodeBase {
   readonly passContext: boolean
   readonly concurrent: boolean
   readonly expectFail: boolean
-  readonly timeoutMs: number
+  /** The test's own timeout; `undefined` takes the file's default, else the policy's, when it runs. */
+  readonly timeoutMs: number | undefined
   readonly retry: number
   readonly repeats: number
   readonly tags: readonly string[]

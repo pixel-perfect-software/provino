@@ -1,5 +1,5 @@
 import type { ResolvedProject } from '@provino/config'
-import { exitCodeFor, type RunProjectOptions, runProject } from '@provino/orchestrator'
+import { exitCodeFor, type RunProjectOptions, runProjects } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { FileFilter } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
@@ -11,7 +11,12 @@ import { reportersFor } from './reporters.ts'
  * @internal
  */
 export interface ExecuteOptions {
+  /** The project, or the first of several (it decides the reporters, the exit policy and the pool kind). */
   readonly project: ResolvedProject
+  /** The other projects of a multi-project run (Jest's `projects`, D29), after `project`. */
+  readonly others?: readonly ResolvedProject[]
+  /** The run's own root, when it isn't `project`'s (a multi-project config's `rootDir`). */
+  readonly root?: string
   readonly cwd: string
   readonly stdout: NonNullable<RunOptions['stdout']>
   readonly stderr: NonNullable<RunOptions['stderr']>
@@ -28,7 +33,7 @@ export interface ExecuteOptions {
 }
 
 /**
- * Runs a resolved project: the reporters and their bus, `runProject`, and the exit code the
+ * Runs a resolved project, or several through one pool: the reporters and their bus, `runProject`, and the exit code the
  * summary and the reporters' failures call for.
  * @internal
  */
@@ -36,7 +41,8 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
   const { project, cwd, stdout, stderr } = options
   const bus = createReporterBus(reportersFor(options.reporters, { project, cwd, stdout, stderr }))
 
-  const summary = await runProject(project, {
+  const summary = await runProjects([project, ...(options.others ?? [])], {
+    ...(options.root === undefined ? {} : { root: options.root }),
     bus,
     pool: options.pool,
     // Jest writes all test output to stderr and keeps stdout for `--json`: a worker's own stdout

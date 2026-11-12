@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "resolve/alias-order",
+  "files": [
+    {
+      "file": "alias-order.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "alias-order.jest.test.ts",
+            "path": [
+              "@jest/globals is answered before the mapper"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 4,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "alias-order.jest.test.ts",
+            "path": [
+              "a mapper rule for an installed bare package name is used"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 8,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

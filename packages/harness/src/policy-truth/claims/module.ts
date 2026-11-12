@@ -56,6 +56,7 @@ export const moduleClaims: Claims = {
   'module.requireVirtualFlag': mod('mod-missing', 'mod-virtual'),
   'module.virtualRelative': mod('mod-virtual', 'mod-missing', 'mod-virtual-static'),
   'module.mockValueOwner': mod('mod-reregister', 'mod-reset-modules'),
+  'module.mockResolveKind': mod('mod-conditions'),
   'module.automockShape': mod('mod-automock-shape', 'mod-automock-inherited'),
   'module.unmockedPathPatterns': each(
     mod('mod-automock-all', 'mod-unmocked-patterns'),
@@ -74,10 +75,13 @@ export const moduleClaims: Claims = {
     }),
   ],
   'module.messages.unmock-module-missing': mod('mod-unmock-missing'),
-  'module.messages.automock-no-metadata': noCaseYet(
-    'B17c',
-    'no mod-* case automocks a value with no metadata',
-  ),
+  'module.messages.automock-no-metadata': [
+    mod('mod-automock-no-metadata'),
+    golden('mocking/mod-automock-no-metadata', {
+      matches: (g, value) =>
+        templateIn(value, observedMessage(g, 'requiring an automocked module with no metadata')),
+    }),
+  ],
   // The shipped `jest` refuses a nested isolation with its own copy of this text before the file's
   // module-mock registry is asked, so no mod-* run reaches the registry's (this value); it is
   // reached only when the global `jest` and a module's own nest. The golden records Jest's text.
@@ -99,6 +103,26 @@ export const moduleClaims: Claims = {
       matches: (g, value) => templateIn(value, observedMessage(g, 'load after dontMock')),
     }),
   ],
+  // Jest's error for a `moduleNameMapper` rule that matched and resolved to nothing, for a single
+  // target and for a list (`resolve/mapper-miss`): the ref names the formatter, and its tests hold
+  // the text to the recorded one. Vitest has no name mapper.
+  'module.mapperMiss': each(
+    own(
+      'packages/dialect-jest/src/runtime/format-mapper-miss.test.ts',
+      'a single target prints as itself',
+      {
+        module: import.meta.resolve('@provino/dialect-jest/runtime'),
+        export: 'formatMapperMiss',
+      },
+      "jest-resolve's configuration error: `resolve/mapper-miss` records the text, and the provino end-to-end test holds the formatter to it",
+    ),
+    own(
+      'packages/dialect-vitest/src/dialect.test.ts',
+      'mapperMiss',
+      null,
+      'Vitest has no moduleNameMapper, so a miss is a not-found',
+    ),
+  ),
   // Vitest's texts.
   'module.messages.factory-not-object': mod('mod-factory-function'),
   'module.messages.missing-factory-export': mod('mod-factory-async-missing-export'),
@@ -198,7 +222,13 @@ export const hoistClaims: Claims = {
     ),
   ),
   'hoist.messages.HOIST_FACTORY_NOT_FUNCTION': each(
-    noCaseYet('B17c', 'no mod-* case passes jest.mock a factory that is not a function'),
+    [
+      mod('mod-factory-not-function'),
+      // The plugin's text has a trailing newline the crash message does not keep.
+      golden('mocking/mod-factory-not-function', {
+        matches: (g, value) => typeof value === 'string' && fileErrorOf(g).includes(value.trim()),
+      }),
+    ],
     inert(
       'hoist.hoistCalls',
       noFactoryRule,

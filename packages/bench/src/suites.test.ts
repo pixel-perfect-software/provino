@@ -5,6 +5,7 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
+import { transformCacheDir } from '@provino/orchestrator'
 import { buildGraph, GRAPH, GRAPH_SIZE, simulate } from './generators/graph.ts'
 import { BIG_RECORD_COUNT } from './generators/isolate-heavy.ts'
 import type { Flavour, GeneratedFile } from './generators/render.ts'
@@ -446,6 +447,11 @@ test('the provino plan runs the bin from source on the Jest tree, with its resul
       ['node-compile', '.cache/node-provino'],
     ],
   )
+  // T3.6: the transform cache is under the results cache's directory, which is in `caches`, so a
+  // cold run deletes it and cold runs stay cold.
+  const provinoCache = plan.caches.find((cache) => cache.kind === 'provino')
+  assert.ok(provinoCache !== undefined)
+  assert.equal(transformCacheDir(plan.cwd), join(provinoCache.path, 't'))
   assert.equal(
     plan.command,
     'cd packages/bench/.suites/app-5/jest && NODE_COMPILE_CACHE=../.cache/node-provino node --conditions=provino-source ../../../node_modules/provino/src/cli.ts run --config provino.config.mjs --reporter normalized-json --no-cache',

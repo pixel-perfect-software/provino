@@ -55,11 +55,12 @@ export function isJSONString(text: string | undefined): text is string {
   return text?.startsWith('{') === true && text.endsWith('}')
 }
 
-function packageJsonJestKey(path: string): unknown {
+/** `package.json`'s `key`, or `undefined` for a file that is missing, not JSON or lacks it. */
+export function packageJsonKey(path: string, key: string): unknown {
   try {
     const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
-    if (typeof parsed === 'object' && parsed !== null && 'jest' in parsed) {
-      return Reflect.get(parsed, 'jest')
+    if (typeof parsed === 'object' && parsed !== null && key in parsed) {
+      return Reflect.get(parsed, key)
     }
   } catch {
     // `resolveConfigPath.ts` L141-L153 swallows a package.json it can't read or parse.
@@ -111,7 +112,7 @@ function traverse(
   const packagePath = resolve(directory, PACKAGE_JSON)
   const packageJson = isFile(packagePath) ? packagePath : undefined
   if (packageJson !== undefined) {
-    const jestKey = packageJsonJestKey(packageJson)
+    const jestKey = packageJsonKey(packageJson, 'jest')
     if (jestKey) {
       if (typeof jestKey === 'string') {
         const target = isAbsolute(jestKey) ? jestKey : resolve(directory, jestKey)

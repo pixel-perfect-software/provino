@@ -766,11 +766,19 @@ describe('resolveProject', () => {
       assert.deepEqual(structuredClone(project.config).loader.hoist, hoist)
     })
 
-    test('the per-module names and factory cross, with globals off', async () => {
+    test('the factory crosses with globals off, but no binding is declared (injectGlobals)', async () => {
       const project = await resolveWith({ dialect: 'hoisting' as never }, { dialects: [hoisting] })
       assert.equal(project.config.globals, null)
-      assert.deepEqual(project.config.loader.moduleScope, ['mocker'])
+      assert.deepEqual(project.config.loader.moduleScope, [])
       assert.deepEqual(project.config.moduleScope, scopeFactory)
+    })
+
+    test('the per-module names cross with globals on', async () => {
+      const project = await resolveWith(
+        { dialect: 'hoisting' as never, globals: true },
+        { dialects: [hoisting] },
+      )
+      assert.deepEqual(project.config.loader.moduleScope, ['mocker'])
     })
 
     test('a dialect with neither gives no hoisting and no bindings', async () => {

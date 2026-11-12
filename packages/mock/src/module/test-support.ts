@@ -21,6 +21,7 @@ export const jestLike: ModulePolicy = {
   missingFactoryExport: 'undefined',
   requireVirtualFlag: true,
   mockValueOwner: 'module-registry',
+  mockResolveKind: 'require',
   automockShape: 'metadata',
   messages: {
     'module-missing': "Cannot find module '{specifier}' from '{from}' (hint)",

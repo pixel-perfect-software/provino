@@ -62,9 +62,11 @@ const PROFILES: Readonly<Partial<Record<FixtureProfile, ModProfile>>> = {
 /** The counted cases the corpus has under each profile, exactly. */
 const EXPECTED_COUNTED: Readonly<Partial<Record<FixtureProfile, number>>> = {
   // B13b's 114 and 102, plus B13c's fixtures: `mod-require-esm-helper` 3, `mod-automock-scratch` 4,
-  // `mod-cjs-lazy` 4 and `mod-dynamic-only` 2 under Jest, and `mod-dynamic-only` 2 under Vitest.
-  jest: 127,
-  vitest: 104,
+  // `mod-cjs-lazy` 4 and `mod-dynamic-only` 2 under Jest, and `mod-dynamic-only` 2 under Vitest,
+  // B17c's `mod-automock-no-metadata` 1 under Jest (`mod-factory-not-function` is a crash), and
+  // `mod-conditions` 2 under each.
+  jest: 130,
+  vitest: 106,
 }
 
 /**
@@ -78,8 +80,10 @@ const EXPECTED_DISAGREEING: Readonly<
   // B13b's counts plus what B13c's fixtures add under Jest (no new Vitest case mocks anything):
   // inert +10 (the helper's mock 3, the automock 3, the virtual mock 2, and the 2 declared
   // `import()` cases, which differ from the golden under any engine), wrong-values +8 (3, 1, 2, 2).
-  inert: { jest: 92, vitest: 73 },
-  'wrong-values': { jest: 80, vitest: 72 },
+  // B17c's `mod-automock-no-metadata` adds 1 to the Jest inert count (a wrong value changes nothing in it).
+  // `mod-conditions` adds 2 to Jest's inert count and 1 to its wrong-values (Vitest's cases mock nothing).
+  inert: { jest: 95, vitest: 73 },
+  'wrong-values': { jest: 81, vitest: 72 },
 }
 
 /** Per-file deadline: a hang is a real flaw, not something to retry. */

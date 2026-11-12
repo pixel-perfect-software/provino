@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@provino/policy": "workspace:*",
+    "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*"
   }
 }

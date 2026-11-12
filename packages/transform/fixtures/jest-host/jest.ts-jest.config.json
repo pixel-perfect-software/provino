@@ -1,0 +1,4 @@
+{
+  "rootDir": ".",
+  "transform": { "^.+\\.tsx?$": ["ts-jest", { "tsconfig": "tsconfig.json", "diagnostics": false }] }
+}

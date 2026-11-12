@@ -23,6 +23,8 @@ export function testGlobals(host: GlobalsHost): Probe {
     beforeEach: api.beforeEach,
     afterEach: api.afterEach,
     expect: host.expect,
+    /** The run's seed, as the host has it (`jest.getSeed()` in the Jest dialect). */
+    getSeed: () => host.seed,
     /** The path of the file whose registry the host serves now. */
     currentRegistryFile: () => host.registry().file,
     /**

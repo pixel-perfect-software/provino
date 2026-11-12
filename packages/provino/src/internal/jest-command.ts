@@ -1,6 +1,7 @@
 // `provino jest <jest arguments>` (T11.13, U3): the Jest command line, parsed by the Jest dialect's
 // own parser, layered over the project Jest's config reader finds, run by the same coordinator
 // as `provino run`, and ended with Jest's exit codes.
+import { existsSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { type ResolvedProject, resolveNeutralProject } from '@provino/config'
@@ -13,12 +14,25 @@ import {
   jestCli,
   jestNodeDialect,
 } from '@provino/dialect-jest/node'
-import { defaultCacheDir, discoverProject, ExitCode, selectFiles } from '@provino/orchestrator'
+import {
+  defaultCacheDir,
+  discoverProject,
+  ExitCode,
+  isProvinoCacheDir,
+  selectFiles,
+} from '@provino/orchestrator'
 import type { TextSink } from '@provino/reporters'
 import type { ConfigSource, Diagnostic, NeutralProject, RunRequest } from '@provino/types'
-import { ENVIRONMENTS } from './built-ins.ts'
+import type { ReporterChoice } from '../types.ts'
+import { ENVIRONMENTS, JEST_ENVIRONMENT } from './built-ins.ts'
 import { usageMessage } from './describe.ts'
 import { executeProject } from './execute.ts'
+import {
+  chooseProjects,
+  noProjectsMessage,
+  selectionFromArgv,
+  selectionMessage,
+} from './select-projects.ts'
 import { UsageError } from './usage-error.ts'
 
 /**
@@ -29,19 +43,25 @@ export interface JestCommandIo {
   readonly stdout: TextSink
   readonly stderr: NodeJS.WritableStream
   readonly cwd: string
+  /**
+   * Reporters in place of the policy's defaults. `provino jest` has no flag for them yet (T11.9),
+   * so only a caller of this module sets it (the tests that read each test's status).
+   */
+  readonly reporters?: readonly ReporterChoice[]
 }
 
 /** The version of Jest the dialect mirrors, for `--showConfig`. */
 const JEST_VERSION = '30.5.2'
 
 /**
- * The exit code for a command line or config Jest refuses: the Jest dialect's own
- * `orchestrator.exitCodes.usage` (`cli/unknown-flag`, `cli/bad-config`).
+ * One of the Jest dialect's own `orchestrator.exitCodes` (`usage` for a command line or config
+ * Jest refuses, `cli/unknown-flag` and `cli/bad-config`; `noTests` for a run that found none),
+ * else the neutral `fallback`.
  */
-function usageExitCode(): number {
+function jestExitCode(key: 'usage' | 'noTests', fallback: number): number {
   const { policy } = jestNodeDialect
-  if (typeof policy === 'function') return ExitCode.UsageError
-  return policy.orchestrator?.exitCodes?.usage ?? ExitCode.UsageError
+  if (typeof policy === 'function') return fallback
+  return policy.orchestrator?.exitCodes?.[key] ?? fallback
 }
 
 /**
@@ -51,7 +71,11 @@ function usageExitCode(): number {
  */
 function environmentsFor(request: RunRequest, project: NeutralProject): typeof ENVIRONMENTS {
   const { name } = project.environment
-  if (request.mode === 'run' || Object.hasOwn(ENVIRONMENTS, name)) return ENVIRONMENTS
+  if (Object.hasOwn(ENVIRONMENTS, name)) return ENVIRONMENTS
+  // Any other environment is the project's own Jest class (D44), run through the adapter.
+  if (typeof project.environment.options.module === 'string')
+    return { ...ENVIRONMENTS, [name]: JEST_ENVIRONMENT }
+  if (request.mode === 'run') return ENVIRONMENTS
   return { ...ENVIRONMENTS, [name]: ENVIRONMENTS.node as (typeof ENVIRONMENTS)[string] }
 }
 
@@ -97,7 +121,7 @@ async function readProjects(
     neutral: neutral.value,
     globalConfig: resolved.value.globalConfig,
     cache: resolved.value.configs.every((config) => config.cache),
-    showable: resolved.value,
+    showable: { globalConfig: resolved.value.globalConfig, configs: resolved.value.configs },
     diagnostics: [...resolved.diagnostics, ...neutral.diagnostics],
   }
 }
@@ -128,7 +152,7 @@ async function listFiles(
  */
 export async function runJestCommand(args: readonly string[], io: JestCommandIo): Promise<number> {
   const { stdout, stderr, cwd } = io
-  const usage = usageExitCode()
+  const usage = jestExitCode('usage', ExitCode.UsageError)
   try {
     const parsed = jestCli.parse(args)
     if (report(parsed.diagnostics, stderr)) return usage
@@ -143,8 +167,21 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       return ExitCode.Pass
     }
 
+    // `--selectProjects` / `--ignoreProjects` (D69): Jest clears the cache of every project, and
+    // says what it selected, on the output stream, before it lists or runs the chosen ones.
+    const selection = selectionFromArgv(parsed.argv)
+    // Under `--json` or `--useStderr` the output stream is stderr, so stdout stays parseable.
+    const writeOut = async (message: string): Promise<void> => {
+      if (parsed.argv.json === true || parsed.argv.useStderr === true) stderr.write(message)
+      else await stdout.write(message)
+    }
+    const selecting = selection !== undefined && request.mode !== 'clear-cache'
+    const neutrals = selecting ? chooseProjects(read.neutral, selection) : read.neutral
+    const noneSelected = selecting && neutrals.length === 0
+    if (selecting) await writeOut(selectionMessage(read.neutral, neutrals, selection))
+
     const projects: ResolvedProject[] = []
-    for (const neutral of read.neutral) {
+    for (const neutral of neutrals) {
       projects.push(
         await resolveNeutralProject(neutral, {
           dialect: jestNodeDialect,
@@ -155,8 +192,18 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     }
 
     if (request.mode === 'clear-cache') {
-      for (const project of projects) {
-        const directory = defaultCacheDir(project.rootDir)
+      // Projects often share a directory; Jest names each once.
+      const directories = new Set(
+        projects.map((project) => defaultCacheDir(project.rootDir, project.cacheDirectory)),
+      )
+      for (const directory of directories) {
+        if (existsSync(directory) && !isProvinoCacheDir(directory)) {
+          // `<cacheDirectory>/provino` can be a directory the user had before Provino.
+          await stderr.write(
+            `Provino: left ${directory}: it is not a Provino cache (no CACHEDIR.TAG, results.json or t/lockfile-hash).\n`,
+          )
+          continue
+        }
         await rm(directory, { recursive: true, force: true })
         await stdout.write(`Cleared ${directory}\n`)
       }
@@ -180,18 +227,27 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     }
 
     const [project, ...others] = projects
-    if (project === undefined) throw new UsageError('the config has no project to run')
-    if (others.length > 0) {
-      // D29: reading `projects` is B14; running several is B17's.
-      throw new UsageError(
-        `running several projects is not supported yet (${projects.length} found; DECISIONS D29, B17)`,
-      )
+    if (project === undefined) {
+      if (!noneSelected) throw new UsageError('the config has no project to run')
+      // A selection that left no project: Jest runs nothing and says there are no tests.
+      const passWithNoTests = read.globalConfig.passWithNoTests
+      const message = noProjectsMessage({
+        rootDir: read.globalConfig.rootDir,
+        passWithNoTests,
+        byPath: parsed.argv.runTestsByPath === true,
+        filters: request.fileFilters,
+      })
+      await writeOut(message)
+      return passWithNoTests ? ExitCode.Pass : jestExitCode('noTests', ExitCode.TestFailure)
     }
     const result = await executeProject({
       project,
+      others,
+      root: read.globalConfig.rootDir,
       cwd,
       stdout,
       stderr,
+      ...(io.reporters === undefined ? {} : { reporters: io.reporters }),
       pool: {
         ...(request.workerThreads === true ? { kind: 'threads' as const } : {}),
         maxWorkers: read.globalConfig.maxWorkers,

@@ -336,7 +336,9 @@ export class Registry {
    */
   #mockOf(target: Target, specifier: string, importer: string, style: Style): unknown {
     const mocks = this.context.mocks
-    if (target.kind === 'missing') {
+    if (target.kind === 'missing' || target.kind === 'served') {
+      const served = target.kind === 'served' ? this.#served(specifier, importer, style) : REAL
+      if (served !== REAL) return served
       const found = mocks?.decideUnresolved(specifier, importer)
       if (mocks !== null && found?.mocked === true) return this.#mocked(mocks, found.id, style)
       throw new ModuleNotFoundError(target.error.code, target.error.message)
@@ -355,6 +357,21 @@ export class Registry {
     if (decision.mocked) return this.#mocked(mocks, decision.id, style)
     if (target.kind === 'failed') throw target.error
     return REAL
+  }
+
+  /**
+   * The value of a module the dialect serves (`ModuleScope.modules`) for `importer`, or `REAL`.
+   * Only a `served` target gets here: no name-mapper rule took it over.
+   */
+  #served(specifier: string, importer: string, style: Style): unknown {
+    const scope = this.context.scope
+    const values = scope?.(importer as ModuleId)
+    if (values === undefined || !Object.hasOwn(values, specifier)) return REAL
+    const value = values[specifier]
+    const policy = this.#state.options.policy
+    return style === 'esm' && policy.factoryShape === 'module-value'
+      ? cjsNamespace(value, policy.interopDefault, this.#cache)
+      : value
   }
 
   /**

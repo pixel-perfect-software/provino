@@ -9,6 +9,7 @@ const valid: SerializedProjectConfig = {
   name: 'p',
   rootDir: '/root',
   ci: false,
+  seed: 0,
   policy: serializePolicy(neutralPolicy),
   environment: { module: '/env.ts', export: 'env', options: { a: 1 } },
   globals: moduleRef('/globals.ts', 'factory'),

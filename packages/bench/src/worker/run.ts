@@ -54,6 +54,7 @@ function benchProjectConfig(
     name: PROJECT_NAME,
     rootDir,
     ci: false,
+    seed: 0,
     policy: serializePolicy(resolvePolicy(jestPolicy)),
     environment,
     globals: globals.factory,

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import type { FileHistory } from '@provino/types'
-import { createResultsCache, defaultCacheDir } from './cache.ts'
+import { createResultsCache, defaultCacheDir, transformCacheDir } from './cache.ts'
 
 const made: string[] = []
 after(async () => {
@@ -259,4 +259,19 @@ describe('createResultsCache', () => {
     await assert.rejects(cache.write())
     assert.deepEqual(await readdir(dir), ['file'])
   })
+})
+
+it('an explicit cacheDirectory moves both caches to <cacheDirectory>/provino (D70)', () => {
+  assert.equal(
+    defaultCacheDir(join('root', 'app'), join('ci', 'cache')),
+    join('ci', 'cache', 'provino'),
+  )
+  assert.equal(
+    transformCacheDir(join('root', 'app'), join('ci', 'cache')),
+    join('ci', 'cache', 'provino', 't'),
+  )
+  assert.equal(
+    transformCacheDir(join('root', 'app')),
+    join('root', 'app', 'node_modules', '.cache', 'provino', 't'),
+  )
 })

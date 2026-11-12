@@ -1,3 +1,4 @@
+import type { JsonValue } from '../clone-safe.ts'
 import type { IsolationTier } from '../isolation.ts'
 import type { Behaviour } from './behaviour.ts'
 
@@ -14,6 +15,8 @@ export type PoolKind = 'forks' | 'threads' | 'inline'
  */
 export interface EnvironmentRequest {
   readonly name: string
+  /** The project's options for the environment (Jest's `testEnvironmentOptions`, wrapped by the adapter). */
+  readonly options?: { readonly [key: string]: JsonValue }
   readonly conditions?: readonly string[]
 }
 

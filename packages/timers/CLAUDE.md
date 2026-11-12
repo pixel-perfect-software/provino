@@ -31,4 +31,4 @@ The neutral fake clock (Track 4, T4.9): one `FakeClock` per environment global o
 
 - Legacy fake timers (not planned in v1). `jest.runAllImmediates` always throws the modern timers' TypeError.
 - The jsdom/happy-dom `requestAnimationFrame` smoke (T4.9's last Done-when clause): B17c, with the DOM environments.
-- The project's `fakeTimers` config reaching `FakeClockOptions.defaults` (`enableGlobally`, `legacyFakeTimers`, `timerLimit`, ...): the option exists; the Jest config reader still warns (`to-neutral.ts`) that `fakeTimers` is read and not applied.
+- The project's `fakeTimers` config reaches `FakeClockOptions.defaults` (B17c): the worker passes `SerializedProjectConfig.fakeTimers`, which the Jest reader fills from the key less `enableGlobally` (that one is `policy.timers.enableGlobally`). `legacyFakeTimers: true` in it makes the install throw `TIMERS_LEGACY_UNSUPPORTED`, so a project that sets it with `enableGlobally` fails every file by name.

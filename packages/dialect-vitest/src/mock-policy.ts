@@ -75,6 +75,8 @@ export const vitestModulePolicy: ModulePolicy = {
   virtualRelative: false,
   // `mod-reregister` and `mod-reset-modules`: the value is on the registered mock.
   mockValueOwner: 'registration',
+  // Recorded, Vitest 5.0.5: `mod-conditions` (an `import`-only package mocks, a `require`-only one is not exported).
+  mockResolveKind: 'import',
   automockShape: 'deep',
   unmockedPathPatterns: [],
   messages: {
@@ -95,4 +97,6 @@ export const vitestModulePolicy: ModulePolicy = {
     'factory-error':
       '[vitest] There was an error when mocking a module. If you are using "vi.mock" factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock',
   },
+  // Vitest has no name mapper: a miss is a not-found.
+  mapperMiss: null,
 }

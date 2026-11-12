@@ -1,0 +1,15 @@
+{
+  "description": "A moduleNameMapper rule that matches but whose target does not resolve (T3.3): the error Jest's jest-resolve throws (its name, its text listing the rule and the target), for a single target and for an array of them, and that a later rule is not tried after the first match.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "moduleNameMapper": {
+        "^@app/(.*)$": "<rootDir>/src/$1",
+        "^@multi/(.*)$": ["<rootDir>/src/$1", "<rootDir>/lib/$1"],
+        "^@first/(.*)$": "<rootDir>/nowhere/$1",
+        "^@first/special$": "<rootDir>/src/real.ts"
+      }
+    }
+  },
+  "jestEsm": true
+}

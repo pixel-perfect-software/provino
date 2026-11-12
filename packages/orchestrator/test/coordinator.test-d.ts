@@ -17,6 +17,7 @@ import {
   exitCodeFor,
   type FileDispatch,
   fileIdOf,
+  isProvinoCacheDir,
   OrchestratorError,
   type OrchestratorErrorCode,
   type Pool,
@@ -27,6 +28,7 @@ import {
   type RunProjectOptions,
   relativePosix,
   runProject,
+  runProjects,
   sameWorkerKey,
   selectFiles,
   type TransportForOptions,
@@ -168,7 +170,15 @@ void selectFiles([], [], { rootDir: '/p' })
 // ---- The results cache.
 expectTypeOf(createResultsCache).parameters.toEqualTypeOf<[dir: string]>()
 expectTypeOf(createResultsCache).returns.toEqualTypeOf<ResultsCache>()
+expectTypeOf(isProvinoCacheDir).returns.toEqualTypeOf<boolean>()
+expectTypeOf(isProvinoCacheDir).toBeCallableWith('/root/.cache/provino')
+// @ts-expect-error the directory is a path
+isProvinoCacheDir(1)
 expectTypeOf(defaultCacheDir).returns.toEqualTypeOf<string>()
+expectTypeOf(defaultCacheDir).toBeCallableWith('/root', '/ci/cache')
+expectTypeOf(defaultCacheDir).toBeCallableWith('/root')
+// @ts-expect-error the cache directory is a path
+expectTypeOf(defaultCacheDir).toBeCallableWith('/root', 1)
 expectTypeOf<ResultsCache['get']>().toEqualTypeOf<
   (project: string, path: string) => FileHistory | undefined
 >()
@@ -292,3 +302,15 @@ expectTypeOf(createFileDispatch).returns.toEqualTypeOf<FileDispatch>()
 expectTypeOf<FileDispatch['handle']>().returns.toEqualTypeOf<Promise<void>>()
 // @ts-expect-error a dispatch is made for one file, with the bus and a handler for unhandled errors
 createFileDispatch({ bus })
+
+// ---- runProjects (D29): several resolved projects through one pool.
+expectTypeOf(runProjects).parameters.toEqualTypeOf<
+  [readonly ResolvedProject[], RunProjectOptions]
+>()
+expectTypeOf(runProjects).returns.toEqualTypeOf<Promise<RunSummary>>()
+void runProjects([project, project], { bus, root: '/repo' })
+// @ts-expect-error a list of projects, not one
+void runProjects(project, { bus })
+// @ts-expect-error the run's root is a path
+void runProjects([project], { bus, root: 3 })
+expectTypeOf<OrchestratorErrorCode>().toExtend<string>()

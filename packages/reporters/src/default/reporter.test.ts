@@ -97,6 +97,17 @@ describe('the default reporter', () => {
     )
   })
 
+  test('shows a project’s display name before its file, as Jest’s header does', async () => {
+    const text = await report([
+      { path: 'a.test.ts', project: 'server', tests: [{ path: ['one'] }] },
+      { path: 'b.test.ts', project: 'client', tests: [{ path: ['two'], state: 'fail' }] },
+      { path: 'c.test.ts', tests: [{ path: ['three'], state: 'skip' }] },
+    ])
+    assert.match(text, /^PASS server a\.test\.ts \(/m)
+    assert.match(text, /^FAIL client b\.test\.ts$/m)
+    assert.match(text, /^PASS c\.test\.ts \(/m)
+  })
+
   test('prints a failed test under the policy’s bullet, with its message and stack', async () => {
     const text = await report([
       {

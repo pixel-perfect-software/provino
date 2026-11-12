@@ -24,6 +24,7 @@ import { capturedTimers, createDeadlines, type RealTimers } from './executor/dea
 import {
   Executor,
   type Outcome,
+  type TimeoutDefaults,
   type TryTaskListener,
   type TryTaskListeners,
   taskResult,
@@ -121,6 +122,15 @@ export interface Runtime {
    * returns the function that removes the listeners.
    */
   captureProcessErrors(target?: ProcessLike): () => void
+  /**
+   * Sets the timeout that a test or hook with none of its own gets, in place of the policy's, until
+   * the file that is running ends (Jest's `jest.setTimeout`). It covers the tests declared before
+   * the call too, and is read once when the run starts, after collection (circus copies it into
+   * its state at `run_start`): a call during collection or in `setupFilesAfterEnv` takes effect, one
+   * made inside a hook or a test body does not. `undefined` leaves the policy's in place. A dialect
+   * maps its own odd values (Jest's `0`, `NaN` and negative numbers) before it calls.
+   */
+  setDefaultTimeout(ms: number | undefined): void
   /** Runs the worker teardowns (last first); rejects with an `AggregateError` if any failed. */
   dispose(): Promise<void>
 }
@@ -159,6 +169,9 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     },
   })
   const tryTask: TryTaskListeners = { before: [], after: [] }
+  const defaults: TimeoutDefaults = { ms: undefined }
+  /** What `setDefaultTimeout` last asked for; `defaults.ms` takes it when the run starts. */
+  let requestedTimeout: number | undefined
   const processErrors: ProcessErrors = new ProcessErrors({
     lateErrors: policy.errors.lateErrors,
     emit: (event) => sink.emit(event),
@@ -179,6 +192,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     processErrors,
     tryTask,
     locations: options.locations ?? true,
+    defaults,
   })
   const pattern = options.testNamePattern
   const finalizeOptions: Omit<FinalizeOptions, 'lines'> = {
@@ -309,7 +323,11 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       }
       const errors = file.errors.map(serializeError)
       sink.emit({ type: 'file-collect-end', fileId, tasks, errors, t: now() })
-      if (collected) outcome = await executor.runFile(file)
+      if (collected) {
+        // circus's `run_start`: from here a call to `setDefaultTimeout` changes nothing.
+        defaults.ms = requestedTimeout
+        outcome = await executor.runFile(file)
+      }
     } catch (error) {
       file.errors.push(error)
     } finally {
@@ -317,6 +335,8 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       // listener, a root `aroundAll` that never ran the suite.
       file.errors.push(...(await deadlines.drain(file.handle.teardowns)))
       collector.release(file)
+      defaults.ms = undefined
+      requestedTimeout = undefined
       // A rejection still held belongs to the task that made it; this is where it is charged.
       processErrors.flush()
     }
@@ -335,6 +355,9 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     onBeforeTryTask: (listener) => addListener(tryTask.before, listener),
     onAfterTryTask: (listener) => addListener(tryTask.after, listener),
     captureProcessErrors: (target = process) => listenForProcessErrors(processErrors, target),
+    setDefaultTimeout(ms) {
+      requestedTimeout = ms
+    },
     async dispose(): Promise<void> {
       const errors = await deadlines.drain(workerTeardowns)
       if (errors.length > 0) {

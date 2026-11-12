@@ -43,7 +43,7 @@ interface Fake {
 
 function fake(
   plan: (file: string) => Plan,
-  createFails: (attempt: number) => boolean = () => false,
+  createFails: (attempt: number, init: WorkerInit) => boolean = () => false,
   extra: {
     /** How long `create` takes; aborting its signal ends it early, as a transport would. */
     readonly createMs?: number
@@ -70,7 +70,7 @@ function fake(
           })
         })
       }
-      if (createFails(attempts)) throw new Error(`worker ${init.workerId} would not start`)
+      if (createFails(attempts, init)) throw new Error(`worker ${init.workerId} would not start`)
       started.push(init.workerId)
       const messages: ((message: WorkerToCoordinator) => void)[] = []
       const exits: ((exit: WorkerExit) => void)[] = []
@@ -379,6 +379,25 @@ describe('createPool', () => {
     )
     const ran = [...f.ran.values()].flat().sort()
     assert.deepEqual(ran, ['d', 'e', 'f', 'g', 'h'])
+  })
+
+  it('counts start failures per worker key: a project that cannot start does not fail another project', async () => {
+    const badKey: WorkerKey = { ...key, project: 'bad' }
+    const f = fake(
+      () => 'ok',
+      (_attempt, init) => init.key.project === 'bad',
+    )
+    const pool = createPool(options(1), deps(f))
+    const outcomes = await Promise.all([
+      ...['b1', 'b2', 'b3', 'b4'].map((file) => pool.run(request(file, { key: badKey }))),
+      ...['g1', 'g2', 'g3'].map((file) => pool.run(request(file))),
+    ])
+    await pool.close()
+    assert.deepEqual(
+      outcomes.map((o) => o.type),
+      [...Array(4).fill('start-failed'), ...Array(3).fill('done')],
+    )
+    assert.deepEqual([...f.ran.values()].flat().sort(), ['g1', 'g2', 'g3'])
   })
 
   it('does not give up while a worker is alive: files wait for it even after three failed starts in a row', async () => {
