@@ -17,19 +17,23 @@
   "exports": {
     ".": {
       "provino-source": "./src/index.ts",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./worker": {
       "provino-source": "./src/worker/index.ts",
-      "types": "./dist/worker/index.d.ts"
+      "types": "./dist/worker/index.d.ts",
+      "import": "./dist/worker/index.js"
     },
     "./worker/bootstrap": {
       "provino-source": "./src/worker/bootstrap.ts",
-      "types": "./dist/worker/bootstrap.d.ts"
+      "types": "./dist/worker/bootstrap.d.ts",
+      "import": "./dist/worker/bootstrap.js"
     },
     "./worker/main": {
       "provino-source": "./src/worker/main.ts",
-      "types": "./dist/worker/main.d.ts"
+      "types": "./dist/worker/main.d.ts",
+      "import": "./dist/worker/main.js"
     }
   },
   "files": [
@@ -39,6 +43,7 @@
     "node": "^22.15.0 || >=24"
   },
   "scripts": {
+    "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },
   "dependencies": {

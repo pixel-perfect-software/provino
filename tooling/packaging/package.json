@@ -1,0 +1,21 @@
+{
+  "name": "provino-packaging",
+  "version": "0.0.0",
+  "private": true,
+  "description": "How Provino's packages are built, packed and checked: the shared tsdown preset, the umbrella's bundle, `pnpm hygiene` and the install smoke (T1.6, T1.10, T10.2, T10.4).",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@microsoft/api-extractor": "catalog:",
+    "knip": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:"
+  }
+}

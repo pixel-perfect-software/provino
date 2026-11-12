@@ -1,0 +1,34 @@
+# DRAFT of .github/workflows/release.yml (B21e, T10.4). B21h puts it there once Tyler has approved
+# the permissions below; `pnpm hygiene` lints this file now and that one once it exists. It never
+# publishes as written: every publish carries --dry-run, and the first real release is Tyler's.
+#
+# Publishing is npm trusted publishing: the run's OIDC token is exchanged for a short-lived npm
+# credential, so no NPM_TOKEN secret exists and none may be added. The packages are packed with
+# `pnpm pack` (only pnpm rewrites `workspace:` and `catalog:` versions) and published as tarballs.
+name: Release (draft)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm hygiene
+      - run: pnpm pack:all --out release-tarballs
+      - run: for tarball in release-tarballs/*.tgz; do npm stage publish "$tarball" --access public --provenance --dry-run; done
