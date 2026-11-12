@@ -11,14 +11,18 @@ export interface DiffBars {
   readonly min: number
   /** The most diffs no rule explains that pass. */
   readonly maxDiffs?: number
-  /** The largest share of the reference's tests that exclusion rules may remove (R2: 2%). */
+  /**
+   * The largest share of the reference's tests that exclusion rules and the flaky list together
+   * may remove (R2: 2%; DECISIONS D65).
+   */
   readonly maxExcluded: number
   /** Lifts R2's excluded-share cap (DECISIONS D30). */
   readonly calibration: boolean
 }
 
 /**
- * The reference tests exclusion rules removed from T (R2's cap counts these, not flaky ones).
+ * The reference tests exclusion rules removed from T, without the flaky ones (the summary lists
+ * the two apart; R2's cap counts both, D65).
  * @internal
  */
 export function ruleExcluded(counts: ParityReport['counts']): number {
@@ -47,14 +51,15 @@ export function diffFailures(report: ParityReport, bars: DiffBars): string[] {
       `${report.diffs.length} diffs no rule explains, more than --max-diffs ${bars.maxDiffs}`,
     )
   }
-  const removed = ruleExcluded(counts)
+  // D65: every reference test left out of T, by a rule or as flaky.
+  const removed = counts.excluded
   if (
     !bars.calibration &&
     counts.referenceTests > 0 &&
     removed / counts.referenceTests > bars.maxExcluded
   ) {
     reasons.push(
-      `exclusion rules remove ${removed} of ${counts.referenceTests} reference tests, more than --max-excluded ${bars.maxExcluded} (Track 12 R2)`,
+      `exclusion rules and the flaky list exclude ${removed} of ${counts.referenceTests} reference tests, more than --max-excluded ${bars.maxExcluded} (Track 12 R2)`,
     )
   }
   return reasons

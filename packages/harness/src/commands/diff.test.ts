@@ -160,7 +160,7 @@ test('R2: exclusions must expire within 90 days, and may remove at most --max-ex
   await writeFile(rules, JSON.stringify({ rules: [{ ...rule, expires: '2026-12-01' }] }))
   const capped = await inProcess(...base)
   assert.equal(capped.code, 1, '1 of 10 is over the 2% cap')
-  assert.match(capped.stderr, /remove 1 of 10 reference tests, more than --max-excluded 0.02/)
+  assert.match(capped.stderr, /exclude 1 of 10 reference tests, more than --max-excluded 0.02/)
   assert.equal((await inProcess(...base, '--max-excluded', '0.1')).code, 0)
   await writeFile(rules, JSON.stringify({ rules: [rule] }))
   const undated = await inProcess(...base)
@@ -181,8 +181,63 @@ test('a flaky list leaves its tests out of T', async () => {
   await writeFile(cand, JSON.stringify(makeRun([file('skipped')])))
   const flaky = path.join(dir, 'flaky.json')
   await writeFile(flaky, JSON.stringify({ keys: ['a.test.ts::x#0'] }))
-  const outcome = await inProcess('--ref', ref, '--cand', cand, '--flaky', flaky)
+  // D65: the flaky list counts toward R2's 2% cap, so 1 of 2 needs a looser --max-excluded.
+  const outcome = await inProcess(
+    '--ref',
+    ref,
+    '--cand',
+    cand,
+    '--flaky',
+    flaky,
+    '--max-excluded',
+    '0.5',
+  )
   assert.equal(outcome.code, 0)
   assert.equal(outcome.report?.counts.flaky, 1)
   assert.equal(outcome.report?.counts.comparedTests, 1)
+})
+
+test('D65: flaky-list tests alone count toward --max-excluded, over the reference tests', async () => {
+  const tests = Array.from({ length: 10 }, (_, i) => makeTest('a.test.ts', [`t${i}`]))
+  const ref = path.join(dir, 'flaky-only-ref.json')
+  await writeFile(ref, JSON.stringify(makeRun([makeFile('a.test.ts', tests)])))
+  const flaky = path.join(dir, 'flaky-only.json')
+  await writeFile(flaky, JSON.stringify({ keys: ['a.test.ts::t0#0'] }))
+  const base = ['--ref', ref, '--cand', ref, '--flaky', flaky]
+  const over = await inProcess(...base)
+  assert.equal(over.code, 1, '1 flaky of 10 is over the 2% cap with no rule at all')
+  assert.match(over.stderr, /exclude 1 of 10 reference tests, more than --max-excluded 0.02/)
+  assert.equal((await inProcess(...base, '--max-excluded', '0.1')).code, 0)
+  assert.equal((await inProcess(...base, '--calibration')).code, 0, '--calibration lifts the cap')
+})
+
+test('D65: rule exclusions and flaky tests are summed against the cap', async () => {
+  const tests = Array.from({ length: 100 }, (_, i) => makeTest('a.test.ts', [`t${i}`]))
+  const ref = path.join(dir, 'sum-ref.json')
+  const cand = path.join(dir, 'sum-cand.json')
+  await writeFile(ref, JSON.stringify(makeRun([makeFile('a.test.ts', tests)])))
+  const changed = tests.map((t, i) => (i === 0 ? { ...t, status: 'skipped' as const } : t))
+  await writeFile(cand, JSON.stringify(makeRun([makeFile('a.test.ts', changed)])))
+  const rules = path.join(dir, 'sum-rules.json')
+  await writeFile(
+    rules,
+    JSON.stringify({
+      rules: [
+        {
+          id: 'div/t0',
+          reason: 'r',
+          kinds: ['status'],
+          keyGlob: 'a.test.ts::t0#0',
+          expires: '2026-12-01',
+        },
+      ],
+    }),
+  )
+  const flaky = path.join(dir, 'sum-flaky.json')
+  await writeFile(flaky, JSON.stringify({ keys: ['a.test.ts::t1#0', 'a.test.ts::t2#0'] }))
+  const base = ['--ref', ref, '--cand', cand, '--exclusions', rules, '--today', TODAY]
+  assert.equal((await inProcess(...base)).code, 0, '1 rule exclusion of 100 is under 2%')
+  const both = await inProcess(...base, '--flaky', flaky)
+  assert.equal(both.code, 1, '1 rule + 2 flaky = 3 of 100 is over 2%')
+  assert.match(both.stderr, /exclude 3 of 100 reference tests/)
 })

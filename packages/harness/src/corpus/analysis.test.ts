@@ -61,10 +61,14 @@ test('three identical runs self-diff clean, in both pairs', () => {
 })
 
 test('a status change fails the self-diff until the flaky list names the test', () => {
+  // 100 steady tests, so the one flaky test is 1% of the reference: under R2's 2% cap (D65).
+  const steady = Object.fromEntries(
+    Array.from({ length: 99 }, (_, i) => [`steady${i}`, 'passed' as const]),
+  )
   const runs = [
-    run({ a: 'passed', b: 'passed' }),
-    run({ a: 'passed', b: 'failed' }),
-    run({ a: 'passed', b: 'passed' }),
+    run({ ...steady, b: 'passed' }),
+    run({ ...steady, b: 'failed' }),
+    run({ ...steady, b: 'passed' }),
   ]
   const bare = selfDiff(runs, { exclusions: [], flaky: [], today: TODAY })
   assert.equal(bare.pass, false)
@@ -74,6 +78,13 @@ test('a status change fails the self-diff until the flaky list names the test', 
   const listed = selfDiff(runs, { exclusions: [], flaky: flakyKeys(runs), today: TODAY })
   assert.equal(listed.pass, true)
   assert.equal(listed.pairs[0]?.report.counts.flaky, 1)
+})
+
+test('D65: a flaky list over 2% of the reference fails the self-diff', () => {
+  const runs = [run({ a: 'passed', b: 'passed' }), run({ a: 'passed', b: 'failed' })]
+  const result = selfDiff(runs, { exclusions: [], flaky: flakyKeys(runs), today: TODAY })
+  assert.equal(result.pass, false)
+  assert.match(result.pairs[0]?.reasons.join('\n') ?? '', /exclude 1 of 2 reference tests/)
 })
 
 test('a flaky test that flips its file keeps a file-status diff: flaky leaves T, never the file', () => {
