@@ -472,6 +472,9 @@ importers:
       magic-string:
         specifier: 'catalog:'
         version: 1.4.5
+      oxc-parser:
+        specifier: 'catalog:'
+        version: 0.156.0
       pretty-format:
         specifier: 'catalog:'
         version: 30.5.1

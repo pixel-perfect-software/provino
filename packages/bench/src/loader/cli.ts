@@ -4,6 +4,8 @@
 //              violations under `registry` (`--tier none` shows the check can fail)
 //   isolation  bench-registry: total ms for 200 files under `none` and `registry`, and the
 //              per-file overhead (bar ≤1 ms/file on Node 24 with --max-overhead-ms 1)
+//   graph      T2.6's node_modules graph: the corpus, its edges against oxc-parser, and the cold and
+//              warm medians (`--max-cold-ms 300 --max-warm-ms 20`)
 //   e2e        bench-e2e: process start to exit for 200 files and 1 file, Provino's loader vs
 //              Jest 30.5 with @swc/jest; a first per-file signal, not a gate
 // Every number is labelled `local`. These are in-process micro-benchmarks from the spike, not
@@ -17,6 +19,7 @@ import { resolveRunnerPackage, runProcess } from '@provino/harness'
 import { parseLimit } from '../internal/limits.ts'
 import { median } from '../stats.ts'
 import { FIXTURE_FILES, TESTS_PER_FILE, writeLoaderFixture } from './fixture.ts'
+import { graphChild, graphCommand } from './graph-cli.ts'
 import { createFixtureLoader, type LoaderTier, runFixture } from './run.ts'
 
 const RUNS = 3
@@ -26,12 +29,27 @@ const { positionals, values: args } = parseArgs({
     tier: { type: 'string', default: 'registry' },
     heavy: { type: 'boolean', default: false },
     'max-overhead-ms': { type: 'string' },
+    'max-cold-ms': { type: 'string' },
+    'max-warm-ms': { type: 'string' },
   },
 })
 const command = positionals[0]
 
 // Parsed before any run, so a mistyped bar fails at once.
 const maxOverheadMs = parseLimit('max-overhead-ms', args['max-overhead-ms'])
+const maxColdMs = parseLimit('max-cold-ms', args['max-cold-ms'])
+const maxWarmMs = parseLimit('max-warm-ms', args['max-warm-ms'])
+
+// The graph commands need no fixture tree.
+if (command === 'graph-child') {
+  await graphChild(positionals[1], positionals[2])
+  process.exit(0)
+}
+if (command === 'graph') {
+  const { lines: graphLines, ok: graphOk } = await graphCommand({ maxColdMs, maxWarmMs })
+  process.stdout.write(`${graphLines.join('\n')}\n`)
+  process.exit(graphOk ? 0 : 1)
+}
 
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'provino-loader-fixture-')))
 const lines: string[] = []
@@ -150,7 +168,7 @@ try {
   } else {
     ok = false
     lines.push(
-      'usage: bench:loader <check|isolation|e2e> [--tier registry|none] [--heavy] [--max-overhead-ms N]',
+      'usage: bench:loader <check|isolation|graph|e2e> [--tier registry|none] [--heavy] [--max-overhead-ms N] [--max-cold-ms N --max-warm-ms N]',
     )
   }
 } finally {

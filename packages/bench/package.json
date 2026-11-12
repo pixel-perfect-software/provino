@@ -49,6 +49,7 @@
     "jest-mock": "catalog:",
     "lodash": "catalog:",
     "magic-string": "catalog:",
+    "oxc-parser": "catalog:",
     "pretty-format": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
