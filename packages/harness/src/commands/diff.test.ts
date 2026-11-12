@@ -2,7 +2,7 @@
 // checked on the CLI as a child process; what goes to which stream, in process with a collector,
 // because `runProcess` merges the two.
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { after, before, test } from 'node:test'
@@ -10,7 +10,7 @@ import type { ParityReport } from '../diff.ts'
 import { parseCommandLine } from '../internal/cli-args.ts'
 import { runProcess } from '../run-process.ts'
 import { makeFile, makeRun, makeTest } from '../test-support.ts'
-import { diffCommand } from './diff.ts'
+import { type DiffCommandOptions, diffCommand } from './diff.ts'
 
 const PACKAGE_DIR = path.resolve(import.meta.dirname, '..', '..')
 const CLI = path.join(PACKAGE_DIR, 'src', 'cli.ts')
@@ -42,19 +42,30 @@ async function cli(...args: string[]): Promise<{ code: number | null; output: st
 async function inProcess(
   ...args: string[]
 ): Promise<{ code: number; report: ParityReport | undefined; stderr: string }> {
+  return inProcessWith({}, ...args)
+}
+
+async function inProcessWith(
+  options: DiffCommandOptions,
+  ...args: string[]
+): Promise<{ code: number; report: ParityReport | undefined; stderr: string }> {
   const command = parseCommandLine(['diff', ...args])
   assert.equal(command.command, 'diff')
   if (command.command !== 'diff') throw new Error('unreachable')
   let stdout = ''
   let stderr = ''
-  const code = await diffCommand(command, {
-    out: (text) => {
-      stdout += text
+  const code = await diffCommand(
+    command,
+    {
+      out: (text) => {
+        stdout += text
+      },
+      err: (text) => {
+        stderr += text
+      },
     },
-    err: (text) => {
-      stderr += text
-    },
-  })
+    options,
+  )
   const report = stdout === '' ? undefined : (JSON.parse(stdout) as ParityReport)
   return { code, report, stderr }
 }
@@ -240,4 +251,88 @@ test('D65: rule exclusions and flaky tests are summed against the cap', async ()
   const both = await inProcess(...base, '--flaky', flaky)
   assert.equal(both.code, 1, '1 rule + 2 flaky = 3 of 100 is over 2%')
   assert.match(both.stderr, /exclude 3 of 100 reference tests/)
+})
+
+test("--suite reads the subject's committed exclusions and flaky list, as the spelled-out flags do", async () => {
+  const tests = Array.from({ length: 100 }, (_, i) => makeTest('a.test.ts', [`t${i}`]))
+  const ref = path.join(dir, 'suite-ref.json')
+  const cand = path.join(dir, 'suite-cand.json')
+  await writeFile(ref, JSON.stringify(makeRun([makeFile('a.test.ts', tests)])))
+  const changed = tests.map((t, i) =>
+    i === 0 || i === 1 ? { ...t, status: 'skipped' as const } : t,
+  )
+  await writeFile(cand, JSON.stringify(makeRun([makeFile('a.test.ts', changed)])))
+  // The committed files, in a corpus directory of their own.
+  const corpusDir = path.join(dir, 'corpus')
+  const subjectDir = path.join(corpusDir, 'jest-extended')
+  await mkdir(subjectDir, { recursive: true })
+  const rules = path.join(subjectDir, 'exclusions.json')
+  const flaky = path.join(subjectDir, 'flaky.json')
+  await writeFile(
+    rules,
+    JSON.stringify({
+      rules: [
+        {
+          id: 'div/t0',
+          reason: 'r',
+          kinds: ['status'],
+          keyGlob: 'a.test.ts::t0#0',
+          expires: '2026-12-01',
+        },
+      ],
+    }),
+  )
+  await writeFile(flaky, JSON.stringify({ keys: ['a.test.ts::t1#0'] }))
+  const bars = ['--today', TODAY, '--max-excluded', '0.02']
+  const bySuite = await inProcessWith(
+    { corpusDir },
+    '--ref',
+    ref,
+    '--cand',
+    cand,
+    '--suite',
+    'jest-extended',
+    ...bars,
+  )
+  const spelled = await inProcess(
+    '--ref',
+    ref,
+    '--cand',
+    cand,
+    '--exclusions',
+    rules,
+    '--flaky',
+    flaky,
+    ...bars,
+  )
+  assert.equal(bySuite.code, 0, bySuite.stderr)
+  assert.equal(spelled.code, bySuite.code)
+  assert.deepEqual(bySuite.report, spelled.report)
+  assert.equal(bySuite.report?.counts.flaky, 1)
+  assert.equal(bySuite.report?.counts.excluded, 2, 'one rule and one flaky test')
+  assert.equal(bySuite.stderr, spelled.stderr)
+  // Without the committed files the same diffs are unexplained.
+  const bare = await inProcessWith(
+    { corpusDir: path.join(dir, 'no-such-corpus') },
+    '--ref',
+    ref,
+    '--cand',
+    cand,
+    '--suite',
+    'jest-extended',
+    ...bars,
+  )
+  assert.equal(bare.code, 1)
+  assert.equal(bare.report?.diffs.length, 2)
+})
+
+test('--suite names a subject in the corpus manifest, or the command exits 2', async () => {
+  const run = path.join(dir, 'suite-run.json')
+  await writeFile(
+    run,
+    JSON.stringify(makeRun([makeFile('a.test.ts', [makeTest('a.test.ts', ['x'])])])),
+  )
+  const outcome = await inProcess('--ref', run, '--cand', run, '--suite', 'no-such-subject')
+  assert.equal(outcome.code, 2)
+  assert.match(outcome.stderr, /--suite no-such-subject is not a subject in the corpus manifest/)
 })
