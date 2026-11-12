@@ -1,7 +1,7 @@
 // T12.10's reference runs with a fake `runSubject` and fake `cp`: the clone, the prepare steps, what
 // a run leaves on disk, the sidecar check and the listing of finished runs. No runner starts.
 import assert from 'node:assert/strict'
-import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { test } from 'node:test'
 import { HarnessError } from '../errors.ts'
@@ -149,6 +149,67 @@ test('a console entry on the file counts as console for it', () => {
   ])
   const sidecar = JSON.stringify({ file: '/clone/src/a.test.js', stream: 'stdout', text: 'x' })
   assert.equal(checkSidecar(sidecar, run, '/clone').withConsole, 1)
+})
+
+test('the sidecar check reads the real paths a runner prints under a symlinked root', () => {
+  const run = makeRun([
+    {
+      ...makeFile('src/a.test.js', [makeTest('src/a.test.js', ['t'])]),
+      console: [{ stream: 'stdout', text: 'x' }],
+    },
+  ])
+  const sidecar = JSON.stringify({ file: '/private/tmp/clone/src/a.test.js', stream: 'stdout', text: 'x' })
+  assert.deepEqual(checkSidecar(sidecar, run, '/tmp/clone', ['/private/tmp/clone']), {
+    files: 1,
+    withConsole: 1,
+    missing: [],
+  })
+})
+
+test('runReference does not fail the sidecar check when the work root has a symlink in it', async () => {
+  const { repo, work } = await workWithTree()
+  const link = `${work}-link`
+  await symlink(work, link)
+  const meta = await runReference(repo, makeSubject(), 1, {
+    workRoot: link,
+    deps: fakeDeps(() => undefined, REAL),
+    unsandboxed: true,
+    runSubject: async (options) => {
+      const real = await realpath(options.cwd)
+      const entry = { file: path.join(real, 'src/a.test.js'), stream: 'stdout', text: 'x' }
+      return subjectResult({
+        run: makeRun([
+          {
+            ...makeFile('src/a.test.js', [makeTest('src/a.test.js', ['a'])]),
+            console: [{ stream: 'stdout', text: 'x' }],
+          },
+        ]),
+        sidecar: `${JSON.stringify(entry)}\n`,
+      })
+    },
+  })
+  assert.deepEqual(meta.sidecar, { files: 1, withConsole: 1, missing: [] })
+})
+
+test('a run that fails after the clone removes the clone unless keepTree is set', async () => {
+  const { repo, work, paths } = await workWithTree()
+  const tree = path.join(paths.runs, 'demo', '1', 'tree')
+  const common = {
+    workRoot: work,
+    deps: fakeDeps(() => undefined, REAL),
+    unsandboxed: true,
+    runSubject: async () => {
+      assert.ok((await stat(tree)).isDirectory())
+      throw new HarnessError('HARNESS_RUNNER_FAILED', 'boom')
+    },
+  }
+  await assert.rejects(runReference(repo, makeSubject(), 1, common), hasCode('HARNESS_RUNNER_FAILED'))
+  await assert.rejects(stat(tree), 'the clone is gone')
+  await assert.rejects(
+    runReference(repo, makeSubject(), 1, { ...common, keepTree: true }),
+    hasCode('HARNESS_RUNNER_FAILED'),
+  )
+  assert.ok((await stat(tree)).isDirectory(), 'keepTree keeps it')
 })
 
 test('runReference clones the tree, runs the subject in it and writes run.json and meta.json', async () => {

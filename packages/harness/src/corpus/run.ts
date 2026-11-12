@@ -118,18 +118,21 @@ export function resolvePrepareCommand(
 
 /**
  * Which files the sidecar saw output for, and whether the converted run has console entries for
- * each of them (A3). `rootDir` makes the sidecar's absolute paths relative, as the run's are.
+ * each of them (A3). `rootDir` makes the sidecar's absolute paths relative, as the run's are; the
+ * runners print real paths, so `extraRoots` (the realpath of a root that has a symlink in it) is
+ * tried too, as the conversion does.
  * @public
  */
 export function checkSidecar(
   sidecarText: string,
   run: NormalizedRun,
   rootDir: string,
+  extraRoots: readonly string[] = [],
 ): SidecarCheck {
   const withOutput = new Set<string>()
   for (const entry of parseSidecar(sidecarText, 'sidecar')) {
     if (entry.file === undefined) continue
-    withOutput.add(path.relative(rootDir, entry.file).split(path.sep).join('/'))
+    withOutput.add(relativeToRoots(entry.file, [rootDir, ...extraRoots]))
   }
   const missing: string[] = []
   let withConsole = 0
@@ -143,6 +146,13 @@ export function checkSidecar(
     else missing.push(file)
   }
   return { files: withOutput.size, withConsole, missing }
+}
+
+/** `file` relative to the first root that holds it (the first root's spelling if none does). */
+function relativeToRoots(file: string, roots: readonly string[]): string {
+  const relatives = roots.map((root) => path.relative(root, file))
+  const inside = relatives.find((relative) => !relative.startsWith('..') && !path.isAbsolute(relative))
+  return (inside ?? relatives[0] ?? file).split(path.sep).join('/')
 }
 
 function statusCounts(run: NormalizedRun): Partial<Record<TestStatus, number>> {
@@ -184,85 +194,90 @@ export async function runReference(
   await mkdir(path.join(dir, 'tmp'), { recursive: true })
   const startedAt = (options.now ?? (() => new Date()))()
 
-  const cloneStart = performance.now()
-  await cloneTree(paths.src, tree, deps)
-  const cloneMs = Math.round(performance.now() - cloneStart)
+  try {
+    const cloneStart = performance.now()
+    await cloneTree(paths.src, tree, deps)
+    const cloneMs = Math.round(performance.now() - cloneStart)
 
-  const env = sandboxEnv({
-    runDir: dir,
-    pathPrefix: [
-      path.join(tree, subject.cwd, 'node_modules', '.bin'),
-      path.join(tree, 'node_modules', '.bin'),
-    ],
-    extra: subject.env,
-  })
-  const profile =
-    options.unsandboxed === true
-      ? undefined
-      : await writeProfile({ runDir: dir, workRoot: options.workRoot })
-  const wrap =
-    profile === undefined
-      ? undefined
-      : (command: string, args: readonly string[]) => sandboxed(profile, command, args)
-
-  const prepareStart = performance.now()
-  for (const step of subject.prepare ?? []) {
-    const command = resolvePrepareCommand(step, tree, (file) => pathExistsSync(file))
-    const target = wrap === undefined ? { command, args: step.args } : wrap(command, step.args)
-    const result = await deps.run(target.command, target.args, {
-      cwd: path.join(tree, step.cwd ?? '.'),
-      env,
-      timeoutMs: PREPARE_TIMEOUT_MS,
-      tailChars: 3_000,
+    const env = sandboxEnv({
+      runDir: dir,
+      pathPrefix: [
+        path.join(tree, subject.cwd, 'node_modules', '.bin'),
+        path.join(tree, 'node_modules', '.bin'),
+      ],
+      extra: subject.env,
     })
-    if (result.exitCode !== 0 || result.timedOut) {
-      throw new HarnessError(
-        'HARNESS_CORPUS_RUN_FAILED',
-        `${subject.id} run ${n}: prepare "${step.command} ${step.args.join(' ')}" ${result.timedOut ? 'timed out' : `exited ${result.exitCode ?? 'by signal'}`}:\n${result.output.trim().slice(-1500)}`,
-      )
+    const profile =
+      options.unsandboxed === true
+        ? undefined
+        : await writeProfile({ runDir: dir, workRoot: options.workRoot })
+    const wrap =
+      profile === undefined
+        ? undefined
+        : (command: string, args: readonly string[]) => sandboxed(profile, command, args)
+
+    const prepareStart = performance.now()
+    for (const step of subject.prepare ?? []) {
+      const command = resolvePrepareCommand(step, tree, (file) => pathExistsSync(file))
+      const target = wrap === undefined ? { command, args: step.args } : wrap(command, step.args)
+      const result = await deps.run(target.command, target.args, {
+        cwd: path.join(tree, step.cwd ?? '.'),
+        env,
+        timeoutMs: PREPARE_TIMEOUT_MS,
+        tailChars: 3_000,
+      })
+      if (result.exitCode !== 0 || result.timedOut) {
+        throw new HarnessError(
+          'HARNESS_CORPUS_RUN_FAILED',
+          `${subject.id} run ${n}: prepare "${step.command} ${step.args.join(' ')}" ${result.timedOut ? 'timed out' : `exited ${result.exitCode ?? 'by signal'}`}:\n${result.output.trim().slice(-1500)}`,
+        )
+      }
     }
-  }
-  const prepareMs = Math.round(performance.now() - prepareStart)
+    const prepareMs = Math.round(performance.now() - prepareStart)
 
-  const real = await realpath(tree)
-  const fired = new Set<string>()
-  const outDir = path.join(dir, 'out')
-  const result = await run({
-    runner: subject.runner,
-    cwd: path.join(tree, subject.cwd),
-    rootDir: tree,
-    ...(real === tree ? {} : { extraRoots: [real] }),
-    argv: subject.argv,
-    env,
-    suite: subject.id,
-    outDir,
-    timeoutMs: subject.timeoutMs ?? DEFAULT_SUBJECT_TIMEOUT_MS,
-    fired,
-    ...(wrap === undefined ? {} : { wrap }),
-  })
+    const real = await realpath(tree)
+    const fired = new Set<string>()
+    const outDir = path.join(dir, 'out')
+    const result = await run({
+      runner: subject.runner,
+      cwd: path.join(tree, subject.cwd),
+      rootDir: tree,
+      ...(real === tree ? {} : { extraRoots: [real] }),
+      argv: subject.argv,
+      env,
+      suite: subject.id,
+      outDir,
+      timeoutMs: subject.timeoutMs ?? DEFAULT_SUBJECT_TIMEOUT_MS,
+      fired,
+      ...(wrap === undefined ? {} : { wrap }),
+    })
 
-  const sidecar = checkSidecar(result.sidecar ?? '', result.run, tree)
-  const meta: RunMeta = {
-    repo: repo.id,
-    subject: subject.id,
-    n,
-    startedAt: startedAt.toISOString(),
-    runner: subject.runner,
-    runnerVersion: result.runnerVersion,
-    cloneMs,
-    prepareMs,
-    runMs: Math.round(result.process.wallMs),
-    exitCode: result.exitCode,
-    tests: result.run.files.reduce((total, file) => total + file.tests.length, 0),
-    files: result.run.files.length,
-    statuses: statusCounts(result.run),
-    fired: [...fired].toSorted(),
-    sidecar,
+    const sidecar = checkSidecar(result.sidecar ?? '', result.run, tree, real === tree ? [] : [real])
+    const meta: RunMeta = {
+      repo: repo.id,
+      subject: subject.id,
+      n,
+      startedAt: startedAt.toISOString(),
+      runner: subject.runner,
+      runnerVersion: result.runnerVersion,
+      cloneMs,
+      prepareMs,
+      runMs: Math.round(result.process.wallMs),
+      exitCode: result.exitCode,
+      tests: result.run.files.reduce((total, file) => total + file.tests.length, 0),
+      files: result.run.files.length,
+      statuses: statusCounts(result.run),
+      fired: [...fired].toSorted(),
+      sidecar,
+    }
+    await writeFile(path.join(dir, 'run.json'), `${JSON.stringify(result.run)}\n`)
+    await writeFile(path.join(dir, 'meta.json'), `${JSON.stringify(meta, null, 2)}\n`)
+    return meta
+  } finally {
+    // A failed run leaves no clone (with its node_modules) behind either; a failed cleanup must
+    // not replace the run's own error.
+    if (options.keepTree !== true) await rm(tree, { recursive: true, force: true }).catch(() => undefined)
   }
-  await writeFile(path.join(dir, 'run.json'), `${JSON.stringify(result.run)}\n`)
-  await writeFile(path.join(dir, 'meta.json'), `${JSON.stringify(meta, null, 2)}\n`)
-  if (options.keepTree !== true) await rm(tree, { recursive: true, force: true })
-  return meta
 }
 
 function pathExistsSync(file: string): boolean {
