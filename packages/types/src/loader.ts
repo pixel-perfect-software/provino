@@ -75,6 +75,14 @@ export interface LeakOptions {
  */
 export interface ModuleScopeNames {
   readonly names: readonly string[]
+  /**
+   * Specifiers that name the runner itself (the hoist policy's `runnerModules`: `@jest/globals`).
+   * A CommonJS `require` of one gets an object holding the per-module bindings, so the output of a
+   * transformer that hoists (Babel's `_getJestObj` requires `@jest/globals` for the file's own
+   * `jest`) reaches the same object the file's `jest` global is. A stopgap until the runner's
+   * facade modules exist (T11.10, B17c); `import` edges are not covered.
+   */
+  readonly runnerModules?: readonly string[]
 }
 
 /**

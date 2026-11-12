@@ -27,6 +27,7 @@ import {
   type LoadedConfig,
   loadEmitOptions,
 } from './internal/tsconfig.ts'
+import type { HostedSource, JestHost } from './jest-host/index.ts'
 
 /**
  * JSX settings that override the tsconfig's.
@@ -57,6 +58,11 @@ export interface PipelineOptions {
   readonly hoist: HoistPolicy | null
   /** The transform cache arrives with T3.6. */
   readonly cache: false
+  /**
+   * The project's user transformers (T3.8, `createJestHost`). A file one of its rules matches goes
+   * through the transformer instead of Oxc; every other file takes the Oxc path.
+   */
+  readonly transformers?: JestHost
 }
 
 /**
@@ -223,11 +229,97 @@ export const createPipeline: CreatePipeline = (options) => {
         jsx: options.jsx ?? null,
         define: options.define ?? null,
         hoist: options.hoist,
+        transformers: options.transformers?.fingerprint ?? null,
       }),
     )
     .digest('hex')
 
+  /**
+   * The record for a file a user transformer produced (T3.8). The output is what Jest would run
+   * (CommonJS: `supportsStaticESM` is false), so the format comes from its own syntax. Our hoister
+   * runs on it unless the output carries one of the host's markers: a transformer that hoisted
+   * leaves nothing to move, so the calls stay once, in the order it wrote them.
+   */
+  function hostedRecord(request: TransformRequest, host: JestHost, source: HostedSource) {
+    const { filename } = request
+    let code = source.code
+    const maps: (SourceMapV3 | null)[] = [source.map]
+    const diagnostics: TransformDiagnostic[] = []
+    let staticMocks: readonly StaticMockCall[] = []
+    let lateDeps: readonly string[] = []
+    const alreadyHoisted = host.hoistedMarkers.some((marker) => code.includes(marker))
+    if (options.hoist !== null && request.role !== 'dependency' && !alreadyHoisted) {
+      const hoisted = hoistMocks(code, options.hoist, { filename, original: request.source })
+      code = hoisted.code
+      maps.push(hoisted.map)
+      staticMocks = hoisted.staticMocks
+      lateDeps = hoisted.lateDeps
+      diagnostics.push(...hoisted.diagnostics)
+    }
+    const lang = /\.[cm]?[jt]sx$/.test(filename) ? 'jsx' : 'js'
+    const facts = moduleFacts(filename, code, lang, 'unambiguous')
+    const format = facts.hasModuleSyntax ? 'esm' : facts.hasCommonJsSyntax ? 'cjs' : 'unknown'
+    const cacheKey = createHash('sha256')
+      .update(fingerprint)
+      .update('\0')
+      .update(filename)
+      .update('\0')
+      .update(request.role)
+      .update('\0')
+      // The transformer's own key covers what its output depends on; without one, as in Jest, the
+      // content does.
+      .update(source.transformerCacheKey ?? request.source)
+      .digest('hex')
+    return {
+      code,
+      // Maps compose to the original source only when the transformer gave one.
+      map: source.map === null ? null : composeMaps(maps),
+      format,
+      imports: facts.imports,
+      staticMocks,
+      hasTopLevelAwait: facts.hasTopLevelAwait,
+      lateDeps,
+      diagnostics,
+      cacheKey,
+      fromCache: false,
+    } satisfies TransformRecord
+  }
+
+  /** A transformer that throws is a `TRANSFORMER_FAILED` error on the record, as for a parse error. */
+  function failedRecord(error: unknown): TransformRecord {
+    return {
+      code: '',
+      map: null,
+      format: 'unknown',
+      imports: [],
+      staticMocks: [],
+      hasTopLevelAwait: false,
+      lateDeps: [],
+      diagnostics: [
+        {
+          severity: 'error',
+          code: 'TRANSFORMER_FAILED',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      ],
+      cacheKey: '',
+      fromCache: false,
+    }
+  }
+
   function transform(request: TransformRequest): TransformRecord {
+    const host = options.transformers
+    if (host?.handles(request.filename) === true) {
+      try {
+        return hostedRecord(request, host, host.transform(request))
+      } catch (error) {
+        return failedRecord(error)
+      }
+    }
+    return transformOxc(request)
+  }
+
+  function transformOxc(request: TransformRequest): TransformRecord {
     const found = route(request.filename)
     if (found === null) {
       throw new TransformError(
@@ -315,7 +407,17 @@ export const createPipeline: CreatePipeline = (options) => {
 
   return {
     transform,
-    transformAsync: async (request) => transform(request),
+    transformAsync: async (request) => {
+      const host = options.transformers
+      if (host?.handles(request.filename) === true) {
+        try {
+          return hostedRecord(request, host, await host.transformAsync(request))
+        } catch (error) {
+          return failedRecord(error)
+        }
+      }
+      return transformOxc(request)
+    },
     fingerprint,
   }
 }

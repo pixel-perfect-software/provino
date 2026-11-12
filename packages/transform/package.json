@@ -38,6 +38,16 @@
     "oxc-walker": "catalog:"
   },
   "devDependencies": {
-    "@jridgewell/trace-mapping": "catalog:"
+    "@babel/core": "catalog:",
+    "@babel/plugin-transform-modules-commonjs": "catalog:",
+    "@babel/preset-typescript": "catalog:",
+    "@jest/transform": "catalog:",
+    "@jridgewell/trace-mapping": "catalog:",
+    "@swc/core": "catalog:",
+    "@swc/jest": "catalog:",
+    "babel-jest": "catalog:",
+    "jest": "catalog:",
+    "ts-jest": "catalog:",
+    "typescript": "npm:typescript@5.9.3"
   }
 }

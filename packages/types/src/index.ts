@@ -19,6 +19,8 @@ export type {
   ReservedConfigKey,
   SerializedLoaderConfig,
   SerializedProjectConfig,
+  SerializedTransform,
+  SerializedTransformConfig,
 } from './config.ts'
 export type {
   CoverageCollector,

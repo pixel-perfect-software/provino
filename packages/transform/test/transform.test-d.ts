@@ -1,12 +1,21 @@
 // The public API of @provino/transform.
 import {
   type CreatePipeline,
+  createJestHost,
   createPipeline,
+  type HostedSource,
+  type JestHost,
   type PipelineOptions,
   type TransformError,
   type TransformErrorCode,
 } from '@provino/transform'
-import type { ModuleTransformer, Pipeline, TransformRecord } from '@provino/types'
+import type {
+  ModuleTransformer,
+  Pipeline,
+  SerializedTransformConfig,
+  TransformRecord,
+  TransformRequest,
+} from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
 expectTypeOf(createPipeline).toEqualTypeOf<CreatePipeline>()
@@ -40,3 +49,21 @@ createPipeline({ ...options, typescript: 'babel' })
 createPipeline({ ...options, cache: { dir: '/tmp' } })
 // @ts-expect-error not a JSX runtime
 createPipeline({ ...options, jsx: { runtime: 'preserve' } })
+
+// T3.8: the Jest transformer host. It is created from the serialized config, in the worker.
+declare const transformConfig: SerializedTransformConfig
+declare const request: TransformRequest
+expectTypeOf(createJestHost).parameters.toEqualTypeOf<[SerializedTransformConfig]>()
+expectTypeOf(createJestHost).returns.toEqualTypeOf<Promise<JestHost>>()
+declare const host: JestHost
+expectTypeOf(host.handles).returns.toEqualTypeOf<boolean>()
+expectTypeOf(host.transform(request)).toEqualTypeOf<HostedSource>()
+expectTypeOf(host.transformAsync(request)).toEqualTypeOf<Promise<HostedSource>>()
+// The seam for T3.6's fingerprint: the transformer's own cache key, when it has one.
+expectTypeOf(host.cacheKey(request)).toEqualTypeOf<string | null>()
+expectTypeOf<HostedSource['transformerCacheKey']>().toEqualTypeOf<string | null>()
+createPipeline({ ...options, transformers: host })
+// @ts-expect-error the pipeline takes a host, not the serialized config
+createPipeline({ ...options, transformers: transformConfig })
+// @ts-expect-error a host is built from a config, not from rules alone
+createJestHost({ rules: [] })

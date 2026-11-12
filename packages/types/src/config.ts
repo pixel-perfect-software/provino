@@ -1,5 +1,7 @@
 // Track 1 §Config at v0. T1.4 (@provino/config) adds defineConfig, loading and validation, and
 // the keys each feature needs.
+
+import type { JsonValue } from './clone-safe.ts'
 import type {
   Dialect,
   DialectName,
@@ -95,6 +97,46 @@ export interface ConfigEnv {
 }
 
 /**
+ * One transform rule as it crosses coordinator → worker: a file whose absolute path matches
+ * `pattern` (a regular expression's source) goes through the transformer `transformer` names,
+ * created with `options`. `transformer.module` is an absolute path or URL (D21) and its `export`
+ * is always `'default'`: the worker loads the module the way Jest's `requireOrImportModule` does
+ * (its `default` when it is an ES module, else `module.exports`) and calls its `createTransformer`
+ * when it has one, so the ref names a module, not a function.
+ * @public
+ */
+export interface SerializedTransform {
+  readonly pattern: string
+  readonly transformer: ModuleRef
+  readonly options: JsonValue
+}
+
+/**
+ * The user transformers of a project (Track 3, T3.8), in config order: the first rule whose
+ * `pattern` matches a file wins, as Jest's `transform` does.
+ * @public
+ */
+export interface SerializedTransformConfig {
+  readonly rules: readonly SerializedTransform[]
+  /** Regular expressions' sources, joined with `|`: a file one matches isn't transformed. */
+  readonly ignorePatterns: readonly string[]
+  /**
+   * What a transformer reads as `options.config`: the project's own config, as JSON (Jest's
+   * `ProjectConfig`), with its stable JSON text as `configString`. It holds data only, so it
+   * crosses; what a transformer needs from it (`rootDir`, `cwd`, `globals`, `testMatch`, …) is
+   * the dialect's to supply.
+   */
+  readonly config: Readonly<Record<string, JsonValue>>
+  /**
+   * Identifiers whose presence in a transformer's output means the transformer already hoisted the
+   * file's mock calls (Babel's Jest plugin writes `_getJestObj`); the host's own hoister then
+   * leaves the file alone. A transformer that hoists without one of these (ts-jest, `@swc/jest`)
+   * meets the hoister, which finds every call already at the top of its block and moves nothing.
+   */
+  readonly hoistedMarkers: readonly string[]
+}
+
+/**
  * The clone-safe resolver and transform settings a worker builds its loader from
  * (`createProjectLoader` in `@provino/loader`). Everything else a resolver or pipeline can take
  * (a Jest `custom` resolver, the transform cache) either has a closure in it or is not wired yet.
@@ -116,6 +158,8 @@ export interface SerializedLoaderConfig {
   readonly mappers: readonly SerializedModuleMapper[]
   /** How TypeScript is stripped. */
   readonly typescript: 'oxc' | 'node-strip' | 'off'
+  /** User transformers (T3.8); absent for none, where every file takes the Oxc pipeline. */
+  readonly transform?: SerializedTransformConfig
 }
 
 /**

@@ -24,6 +24,7 @@ import type {
   SerializedModuleMapper,
   SerializedPolicy,
   SerializedProjectConfig,
+  SerializedTransformConfig,
   WorkerInit,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
@@ -245,4 +246,28 @@ export {
   wholeResult,
   wide,
   withGlobals,
+}
+
+// T3.8: user transformers cross as refs plus JSON options.
+declare const transformerRef: ModuleRef
+const withTransform: SerializedLoaderConfig = {
+  ...loader,
+  transform: {
+    rules: [{ pattern: '\\.tsx?$', transformer: transformerRef, options: { tsconfig: 'a.json' } }],
+    ignorePatterns: ['/node_modules/'],
+    config: { rootDir: '/repo', globals: {} },
+    hoistedMarkers: ['_getJestObj'],
+  },
+}
+expectTypeOf(withTransform).toExtend<CloneSafe<SerializedLoaderConfig>>()
+expectTypeOf(loader.transform).toEqualTypeOf<SerializedTransformConfig | undefined>()
+export const fnTransformer: SerializedLoaderConfig = {
+  ...loader,
+  transform: {
+    // @ts-expect-error a transformer is a ref, not a function (D21)
+    rules: [{ pattern: 'a', transformer: () => ({}), options: {} }],
+    ignorePatterns: [],
+    config: {},
+    hoistedMarkers: [],
+  },
 }

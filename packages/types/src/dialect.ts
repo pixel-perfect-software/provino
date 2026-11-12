@@ -130,6 +130,13 @@ export interface NeutralProject {
   readonly transforms: readonly NeutralTransform[]
   /** Regular expressions' sources: files they match are not transformed. */
   readonly transformIgnorePatterns: readonly string[]
+  /**
+   * What a transformer reads as its `config` option (Jest's `ProjectConfig`), as JSON. Absent
+   * when no transform is configured.
+   */
+  readonly transformConfig?: Readonly<Record<string, JsonValue>>
+  /** Identifiers in a transformer's output that show it hoisted mocks itself; `[]` or absent for none. */
+  readonly transformHoistedMarkers?: readonly string[]
   /** Absolute paths. */
   readonly snapshotSerializers: readonly string[]
   /** The config's keys that map onto the policy, as overrides over the dialect's own. */
