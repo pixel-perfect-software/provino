@@ -54,20 +54,14 @@ export interface JestCommandIo {
 const JEST_VERSION = '30.5.2'
 
 /**
- * The exit code for a command line or config Jest refuses: the Jest dialect's own
- * `orchestrator.exitCodes.usage` (`cli/unknown-flag`, `cli/bad-config`).
+ * One of the Jest dialect's own `orchestrator.exitCodes` (`usage` for a command line or config
+ * Jest refuses, `cli/unknown-flag` and `cli/bad-config`; `noTests` for a run that found none),
+ * else the neutral `fallback`.
  */
-function usageExitCode(): number {
+function jestExitCode(key: 'usage' | 'noTests', fallback: number): number {
   const { policy } = jestNodeDialect
-  if (typeof policy === 'function') return ExitCode.UsageError
-  return policy.orchestrator?.exitCodes?.usage ?? ExitCode.UsageError
-}
-
-/** The Jest dialect's exit code for a run that found no tests. */
-function noTestsExitCode(): number {
-  const { policy } = jestNodeDialect
-  if (typeof policy === 'function') return ExitCode.TestFailure
-  return policy.orchestrator?.exitCodes?.noTests ?? ExitCode.TestFailure
+  if (typeof policy === 'function') return fallback
+  return policy.orchestrator?.exitCodes?.[key] ?? fallback
 }
 
 /**
@@ -158,7 +152,7 @@ async function listFiles(
  */
 export async function runJestCommand(args: readonly string[], io: JestCommandIo): Promise<number> {
   const { stdout, stderr, cwd } = io
-  const usage = usageExitCode()
+  const usage = jestExitCode('usage', ExitCode.UsageError)
   try {
     const parsed = jestCli.parse(args)
     if (report(parsed.diagnostics, stderr)) return usage
@@ -176,16 +170,15 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     // `--selectProjects` / `--ignoreProjects` (D69): Jest clears the cache of every project, and
     // says what it selected, on the output stream, before it lists or runs the chosen ones.
     const selection = selectionFromArgv(parsed.argv)
-    let neutrals = read.neutral
-    let noneSelected = false
-    if (selection !== undefined && request.mode !== 'clear-cache') {
-      neutrals = chooseProjects(read.neutral, selection)
-      noneSelected = neutrals.length === 0
-      const message = selectionMessage(read.neutral, neutrals, selection)
-      // Under `--json` or `--useStderr` the output stream is stderr, so stdout stays parseable.
+    // Under `--json` or `--useStderr` the output stream is stderr, so stdout stays parseable.
+    const writeOut = async (message: string): Promise<void> => {
       if (parsed.argv.json === true || parsed.argv.useStderr === true) stderr.write(message)
       else await stdout.write(message)
     }
+    const selecting = selection !== undefined && request.mode !== 'clear-cache'
+    const neutrals = selecting ? chooseProjects(read.neutral, selection) : read.neutral
+    const noneSelected = selecting && neutrals.length === 0
+    if (selecting) await writeOut(selectionMessage(read.neutral, neutrals, selection))
 
     const projects: ResolvedProject[] = []
     for (const neutral of neutrals) {
@@ -204,17 +197,15 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
         projects.map((project) => defaultCacheDir(project.rootDir, project.cacheDirectory)),
       )
       for (const directory of directories) {
-        if (!existsSync(directory)) {
-          await stdout.write(`Cleared ${directory}\n`)
-        } else if (isProvinoCacheDir(directory)) {
-          await rm(directory, { recursive: true, force: true })
-          await stdout.write(`Cleared ${directory}\n`)
-        } else {
+        if (existsSync(directory) && !isProvinoCacheDir(directory)) {
           // `<cacheDirectory>/provino` can be a directory the user had before Provino.
           await stderr.write(
             `Provino: left ${directory}: it is not a Provino cache (no CACHEDIR.TAG, results.json or t/lockfile-hash).\n`,
           )
+          continue
         }
+        await rm(directory, { recursive: true, force: true })
+        await stdout.write(`Cleared ${directory}\n`)
       }
       return ExitCode.Pass
     }
@@ -246,9 +237,8 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
         byPath: parsed.argv.runTestsByPath === true,
         filters: request.fileFilters,
       })
-      if (parsed.argv.json === true || parsed.argv.useStderr === true) stderr.write(message)
-      else await stdout.write(message)
-      return passWithNoTests ? ExitCode.Pass : noTestsExitCode()
+      await writeOut(message)
+      return passWithNoTests ? ExitCode.Pass : jestExitCode('noTests', ExitCode.TestFailure)
     }
     const result = await executeProject({
       project,

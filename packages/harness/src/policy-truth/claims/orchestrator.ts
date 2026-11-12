@@ -37,7 +37,11 @@ const pragmasRead = (g: Golden): readonly string[] => {
 /** What each `env/conditions-*` fixture configures: the environment the request names. */
 const CONDITION_ENVIRONMENTS: Readonly<Record<string, EnvironmentRequest>> = {
   'env/conditions-jsdom': { name: 'jsdom' },
-  'env/conditions-custom': { name: 'jsdom', options: { customExportConditions: [''] } },
+  // The one options shape every Jest environment has: `testEnvironmentOptions` under `projectConfig`.
+  'env/conditions-custom': {
+    name: 'jsdom',
+    options: { projectConfig: { testEnvironmentOptions: { customExportConditions: [''] } } },
+  },
   'env/conditions-node': { name: 'node' },
 }
 

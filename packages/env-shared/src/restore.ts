@@ -83,7 +83,8 @@ export function snapshotProperties(target: object): PropertySnapshot {
     restore(): readonly (string | symbol)[] {
       const leaked = new Set<string | symbol>()
       for (const key of Reflect.ownKeys(target)) {
-        if (!originals.has(key) && !deleted(target, key) && !isProcessSingleton(key)) leaked.add(key)
+        if (!originals.has(key) && !deleted(target, key) && !isProcessSingleton(key))
+          leaked.add(key)
       }
       // Before the descriptors go back: a setter that ran changed state the descriptor does not
       // show, whether or not the test later redefined or deleted the key. Emptied, so a second

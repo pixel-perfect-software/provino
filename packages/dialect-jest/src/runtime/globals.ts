@@ -469,6 +469,10 @@ function moduleJest(host: JestGlobalsHost, isolating: Isolating, from: string): 
     host.registry().unregisterMock(name, parent)
     return jest
   }
+  const setAutomock = (on: boolean): JestModuleObject => {
+    host.moduleMocks().setAutomock(on)
+    return jest
+  }
   // Jest's own object lists its keys alphabetically (recorded: `mocking/api-surface`), so this one does too.
   const jest: JestModuleObject = withSortedKeys({
     ...sharedMembers<JestModuleObject>(host, isolating, () => jest),
@@ -483,14 +487,8 @@ function moduleJest(host: JestGlobalsHost, isolating: Isolating, from: string): 
       host.registry().registerMock(name, parent, { kind: 'unmock', deep: true }, { hoisted: true })
       return jest
     },
-    autoMockOn() {
-      host.moduleMocks().setAutomock(true)
-      return jest
-    },
-    autoMockOff() {
-      host.moduleMocks().setAutomock(false)
-      return jest
-    },
+    autoMockOn: () => setAutomock(true),
+    autoMockOff: () => setAutomock(false),
     onGenerateMock<T>(callback: (moduleName: string, moduleMock: T) => T) {
       host
         .moduleMocks()
@@ -509,14 +507,8 @@ function moduleJest(host: JestGlobalsHost, isolating: Isolating, from: string): 
     requireMock: <T>(name: string): T => host.moduleMocks().mockFor(name, from) as T,
     createMockFromModule: <T>(name: string): T =>
       host.moduleMocks().createMockFromModule(name, from) as T,
-    enableAutomock() {
-      host.moduleMocks().setAutomock(true)
-      return jest
-    },
-    disableAutomock() {
-      host.moduleMocks().setAutomock(false)
-      return jest
-    },
+    enableAutomock: () => setAutomock(true),
+    disableAutomock: () => setAutomock(false),
   })
   return jest
 }
