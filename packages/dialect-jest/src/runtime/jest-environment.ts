@@ -19,6 +19,7 @@ import type {
   EnvironmentTeardownReport,
   JsonValue,
 } from '@provino/types'
+import { projectJestRequireResolve } from '../jest-require.ts'
 
 /**
  * What the adapter is given (JSON, so it crosses to a worker): where the class is and the parts of
@@ -205,21 +206,11 @@ function environmentOwnConditions(env: EnvironmentRequest): readonly string[] {
   return env.conditions ?? []
 }
 
-/**
- * A `require.resolve` from where Jest's own packages live: the project's `jest`, then `jest-cli`,
- * then `jest-config` (each found from the one before, which works under pnpm). `undefined` when
- * the project has no Jest.
- */
-function jestRequire(from: NodeRequire): (name: string) => string | undefined {
-  return (name) => {
-    try {
-      const jest = createRequire(from.resolve('jest/package.json'))
-      const cli = createRequire(jest.resolve('jest-cli/package.json'))
-      const config = createRequire(cli.resolve('jest-config/package.json'))
-      return config.resolve(name)
-    } catch {
-      return undefined
-    }
+function tryResolve(from: NodeRequire, name: string): string | undefined {
+  try {
+    return from.resolve(name)
+  } catch {
+    return undefined
   }
 }
 
@@ -239,27 +230,24 @@ function notFound(name: string): Error {
  * @public
  */
 export const jestEnvironmentFor: EnvironmentResolver = (request) => {
-  const from = createRequire(join(request.rootDir, '__provino_environment__.js'))
-  const fromJest = jestRequire(from)
   const alias =
     request.name === 'jsdom'
       ? 'jest-environment-jsdom'
       : request.name === 'node'
         ? 'jest-environment-node'
         : request.name
+  const candidates = [alias, `jest-environment-${request.name}`]
+  // From the project's root first. `jest-environment-node` and `-jsdom` belong to Jest's own
+  // install, which pnpm doesn't hoist, so then from jest-config's place, as its `requireResolve` does.
+  const fromRoot = createRequire(join(request.rootDir, '__provino_environment__.js'))
+  const fromJest = projectJestRequireResolve(request.rootDir)
   let found: string | undefined
-  for (const candidate of [alias, `jest-environment-${request.name}`]) {
-    try {
-      found = from.resolve(candidate)
-      break
-    } catch {
-      // try the next one
+  for (const resolveFrom of [(name: string) => tryResolve(fromRoot, name), fromJest]) {
+    for (const candidate of candidates) {
+      found = resolveFrom(candidate)
+      if (found !== undefined) break
     }
-  }
-  // `jest-environment-node` and `-jsdom` belong to Jest's own install, which pnpm doesn't hoist:
-  // look from jest-config's place, as jest-config's `requireResolve` does.
-  for (const candidate of found === undefined ? [alias, `jest-environment-${request.name}`] : []) {
-    found ??= fromJest(candidate)
+    if (found !== undefined) break
   }
   if (found === undefined) throw notFound(request.name)
   const base = request.base.options
