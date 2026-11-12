@@ -30,9 +30,11 @@ export function hashParts(parts: readonly string[]): string {
  * @internal
  */
 export interface FingerprintInputs {
-  /** This package's version, and the two Oxc packages' versions. */
+  /** This package's version and code identity, and the two Oxc packages' versions. */
   readonly versions: {
     readonly transform: string
+    /** A hash of this package's own code (`code-identity.ts`): an edit to it misses the cache. */
+    readonly code: string
     readonly oxcTransform: string
     readonly oxcParser: string
   }
@@ -57,6 +59,7 @@ export function pipelineFingerprint(inputs: FingerprintInputs): string {
   return hashParts([
     stableJson({
       transform: inputs.versions.transform,
+      code: inputs.versions.code,
       oxcTransform: inputs.versions.oxcTransform,
       oxcParser: inputs.versions.oxcParser,
       typescript: inputs.typescript,

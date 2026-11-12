@@ -5,7 +5,7 @@ import { blockPolicy } from '../hoist/test-policies.ts'
 import { type FingerprintInputs, pipelineFingerprint } from './fingerprint.ts'
 
 const base: FingerprintInputs = {
-  versions: { transform: '0.0.0', oxcTransform: '0.1.0', oxcParser: '0.1.0' },
+  versions: { transform: '0.0.0', code: 'a', oxcTransform: '0.1.0', oxcParser: '0.1.0' },
   typescript: 'oxc',
   nodeVersion: 'v24.0.0',
   tsconfig: 'auto',
@@ -24,6 +24,7 @@ test('the fingerprint is stable, and each input moves it', () => {
   assert.ok(differs({ versions: { ...base.versions, oxcTransform: '0.2.0' } }), 'oxc-transform')
   assert.ok(differs({ versions: { ...base.versions, oxcParser: '0.2.0' } }), 'oxc-parser')
   assert.ok(differs({ versions: { ...base.versions, transform: '0.0.1' } }), 'this package')
+  assert.ok(differs({ versions: { ...base.versions, code: 'b' } }), 'this package’s code')
   assert.ok(differs({ jsx: { runtime: 'classic' } }), 'jsx options')
   assert.ok(differs({ define: { 'process.env.NODE_ENV': '"test"' } }), 'define')
   assert.ok(differs({ tsconfig: false }), 'tsconfig mode')

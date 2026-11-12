@@ -15,6 +15,7 @@ import type {
   TransformRequest,
 } from '@provino/types'
 import { type JsxOptions, type OxcError, type TransformOptions, transformSync } from 'oxc-transform'
+import { ownCodeIdentity } from './cache/code-identity.ts'
 import { hashParts, pipelineFingerprint, stableJson } from './cache/fingerprint.ts'
 import { createTransformCache } from './cache/store.ts'
 import { TransformError } from './errors.ts'
@@ -236,6 +237,7 @@ export const createPipeline: CreatePipeline = (options) => {
   const fingerprint = pipelineFingerprint({
     versions: {
       transform: ownVersion(),
+      code: ownCodeIdentity(new URL('./', import.meta.url)),
       oxcTransform: packageVersion('oxc-transform'),
       oxcParser: packageVersion('oxc-parser'),
     },
