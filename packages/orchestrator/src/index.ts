@@ -42,6 +42,7 @@ export {
   type RunPoolOptions,
   type RunProjectOptions,
   runProject,
+  runProjects,
 } from './run.ts'
 export { type SelectOptions, selectFiles } from './select.ts'
 export { createHistorySequencer, type HistorySequencerOptions } from './sequencer.ts'

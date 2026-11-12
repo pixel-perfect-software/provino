@@ -11,6 +11,8 @@ export type OrchestratorErrorCode =
   | 'ORCH_NOT_IMPLEMENTED'
   /** The test name pattern isn't a valid regular expression. */
   | 'ORCH_BAD_PATTERN'
+  /** `runProjects` was given no project. */
+  | 'ORCH_NO_PROJECTS'
   /** A worker sent an event the coordinator can't place (a task id it never announced). */
   | 'ORCH_BAD_EVENT'
 
