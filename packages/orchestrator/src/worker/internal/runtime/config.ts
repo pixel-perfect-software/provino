@@ -163,6 +163,9 @@ function moduleScopeRef(value: unknown): ModuleRef<ModuleScopeFactory> | null {
 /** The optional resolver keys (T3.3); an absent one stays absent. */
 function resolverKeys(loader: Record<string, unknown>): Partial<SerializedLoaderConfig> {
   const keys: { -readonly [K in keyof SerializedLoaderConfig]?: SerializedLoaderConfig[K] } = {}
+  if (loader.scopeMappable !== undefined) {
+    keys.scopeMappable = texts(loader.scopeMappable, 'loader.scopeMappable')
+  }
   if (loader.scopeModules !== undefined) {
     keys.scopeModules = texts(loader.scopeModules, 'loader.scopeModules')
   }

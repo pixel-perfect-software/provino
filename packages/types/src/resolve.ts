@@ -43,6 +43,8 @@ export type ResolveResult =
       readonly importer: string
       readonly tried: readonly string[]
       readonly mappedBy: string | null
+      /** The mapping rule's targets as configured (`$1` not yet replaced), when a rule matched. */
+      readonly declared?: readonly string[]
     }
 
 /**
@@ -55,6 +57,8 @@ export interface MapperHit {
   readonly onMiss: 'error' | 'continue'
   /** Shown in errors: the regex or alias key. */
   readonly rule: string
+  /** The rule's targets as configured, before `$n` is replaced (Jest prints them in its miss error). */
+  readonly declared?: readonly string[]
 }
 
 /**

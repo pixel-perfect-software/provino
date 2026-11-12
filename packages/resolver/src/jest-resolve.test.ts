@@ -196,6 +196,8 @@ test('moduleNameMapper: the first match must resolve, and the miss names the rul
   assert.ok(miss.type === 'not-found')
   assert.equal(miss.mappedBy, '/^#(.*)$/')
   assert.deepEqual(miss.tried, [`${root}/nope/x`, `${root}/nada/x`])
+  // The targets as configured, `$1` not replaced, for the dialect's error text.
+  assert.deepEqual(miss.declared, [`${root}/nope/$1`, `${root}/nada/$1`])
 })
 
 test('moduleNameMapper: it matches the specifier as written (fs and node:fs are separate)', () => {

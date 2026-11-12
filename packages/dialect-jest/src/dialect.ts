@@ -230,6 +230,11 @@ export const jestPolicy: PolicyOverrides = {
       // `resolver.ts` L523 (`_throwModNotFoundError`), `{from}` relative to the root. Recorded:
       // `mod-root-package-uninstalled` ("load after dontMock").
       'module-not-found': "Cannot find module '{specifier}' from '{from}'",
+      // jest-resolve `resolver.ts` L1024-L1052 (`createNoMappedModuleFoundError`): a
+      // `moduleNameMapper` rule matched and none of its targets resolved. Recorded:
+      // `resolve/mapper-miss`.
+      'mapper-miss':
+        'Configuration error:\n\nCould not locate module {specifier} mapped as:\n{target}.\n\nPlease check your configuration for these entries:\n{\n  "moduleNameMapper": {\n    "{rule}": "{declared}"\n  },\n  "resolver": {resolver}\n}',
     },
   },
   snapshot: {
@@ -350,6 +355,16 @@ const JEST_SERVED_MODULES: readonly string[] = [
   'jest-mock',
 ]
 
+/**
+ * The served specifiers a `moduleNameMapper` rule takes over. `@jest/globals` is answered before
+ * the mapper (jest-runtime `requireModuleOrMock`), but `expect`, `@jest/expect` and `jest-mock` go
+ * through it as any bare specifier does. Recorded: `resolve/alias-order`, `resolve/alias-jest-mock`.
+ * Jest's own runner takes a mapped `expect` too, which crashes every file (`resolve/alias-expect`,
+ * `resolve/alias-jest-expect`); Provino's runner keeps its own and only the project's requires see
+ * the mapped module (a proposed DIVERGENCE).
+ */
+const JEST_MAPPABLE_MODULES: readonly string[] = ['@jest/expect', 'expect', 'jest-mock']
+
 const JEST_GLOBAL_NAMES: readonly string[] = [
   'afterAll',
   'afterEach',
@@ -415,8 +430,9 @@ export const jestDialect: Dialect<'jest'> = defineDialect({
     names: ['jest'],
     // jest-runtime answers `@jest/globals` itself (`requireModuleOrMock`), and `@jest/expect` and
     // `expect` from the framework's own registry (`FRAMEWORK_SINGLETON_MODULES`); U9 also serves
-    // `jest-mock` from Provino's facade. None goes through `moduleNameMapper` or the resolver.
+    // `jest-mock` from Provino's facade. `@jest/globals` never goes through `moduleNameMapper` or the resolver; the others yield to a rule.
     modules: JEST_SERVED_MODULES,
+    mappable: JEST_MAPPABLE_MODULES,
     factory: moduleRef<ModuleScopeFactory>(
       import.meta.resolve('@provino/dialect-jest/runtime'),
       'jestModuleScope',

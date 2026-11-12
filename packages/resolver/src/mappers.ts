@@ -94,6 +94,7 @@ export function createNameMapper(options: NameMapperOptions): ModuleMapper {
           ),
           onMiss: 'error',
           rule: regex.toString(),
+          declared: targets,
         }
       }
       return null

@@ -111,6 +111,8 @@ export interface SerializedLoaderConfig {
   readonly moduleScope: readonly string[]
   /** The dialect's served module specifiers (`Dialect.moduleScope.modules`); absent means none. */
   readonly scopeModules?: readonly string[]
+  /** The part of `scopeModules` a matching name-mapper rule takes over (`Dialect.moduleScope.mappable`). */
+  readonly scopeMappable?: readonly string[]
   /** Extensions tried for a specifier without one, in order (`.ts`, `.js`, …). */
   readonly extensions: readonly string[]
   /** Environment export conditions for resolution; the call kind adds its own. */

@@ -151,8 +151,17 @@ export async function createProjectLoader(
     }),
     policy,
     conditions: config.conditions,
+    ...(config.resolver === undefined || config.resolver === null
+      ? {}
+      : { resolverName: config.resolver.module }),
     ...(config.moduleScope.length === 0 && (config.scopeModules ?? []).length === 0
       ? {}
-      : { moduleScope: { names: config.moduleScope, modules: config.scopeModules ?? [] } }),
+      : {
+          moduleScope: {
+            names: config.moduleScope,
+            modules: config.scopeModules ?? [],
+            ...(config.scopeMappable === undefined ? {} : { mappable: config.scopeMappable }),
+          },
+        }),
   })
 }

@@ -81,6 +81,8 @@ export interface ModuleScopeNames {
   readonly names: readonly string[]
   /** Specifiers served by the scope's values, by key, before resolution (`ModuleScope.modules`). */
   readonly modules?: readonly string[]
+  /** The part of `modules` a matching name-mapper rule takes over (`ModuleScope.mappable`). */
+  readonly mappable?: readonly string[]
 }
 
 /**
@@ -95,6 +97,11 @@ export interface LoaderOptions {
   readonly policy: ModulePolicy
   /** Environment export conditions for resolution (Track 8); the call kind adds its own. Default `['node']`. */
   readonly conditions?: readonly string[]
+  /**
+   * What a name-mapper miss prints as the project's custom resolver (Jest prints the config
+   * value, `undefined` when there is none). Default `'undefined'`.
+   */
+  readonly resolverName?: string
   /** Modules always loaded per file (Vitest `server.deps.inline`). */
   readonly inline?: readonly (string | RegExp)[]
   /** Default 400. */

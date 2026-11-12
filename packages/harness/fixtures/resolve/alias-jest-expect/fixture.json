@@ -1,0 +1,15 @@
+{
+  "description": "A moduleNameMapper rule for `@jest/expect` (T3.3, U9, B17c gap 4): whether Jest's own copy or the stub is what a test file's require of it gets. Jest's own runner takes the mapped module for its `expect`, so every test file of such a project crashes before its tests run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "moduleNameMapper": {
+        "^@jest/expect$": "<rootDir>/src/stub.ts"
+      }
+    }
+  },
+  "jestEsm": true,
+  "expectCrash": {
+    "jest": "reading 'setState'"
+  }
+}

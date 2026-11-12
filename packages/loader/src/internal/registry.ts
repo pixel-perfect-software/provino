@@ -27,6 +27,7 @@ import {
   linkAsync,
   linkSync,
   type ModuleRecord,
+  mapperTakes,
   preloadAsync,
   type Records,
   recordFor,
@@ -362,6 +363,10 @@ export class Registry {
   /** The value of a module the dialect serves (`ModuleScope.modules`) for `importer`, or `REAL`. */
   #served(specifier: string, importer: string, style: Style): unknown {
     if (this.#state.options.moduleScope?.modules?.includes(specifier) !== true) return REAL
+    // A name-mapper rule for a mappable module decides it, whether or not its target resolves.
+    if (mapperTakes(this.#state, specifier, importer, style === 'esm' ? 'import' : 'require')) {
+      return REAL
+    }
     const scope = this.context.scope
     const values = scope?.(importer as ModuleId)
     if (values === undefined || !Object.hasOwn(values, specifier)) return REAL

@@ -11,6 +11,7 @@ import type {
   LoaderOptions,
   ModuleId,
   ResolveKind,
+  ResolveResult,
   SourceMapV3,
 } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
@@ -145,15 +146,58 @@ function notFound(
   specifier: string,
   importer: string,
   kind: ResolveKind,
+  miss?: Extract<ResolveResult, { readonly type: 'not-found' }>,
 ): ModuleNotFoundError {
   const from = relative(state.options.root, importer).split(sep).join('/')
   const message =
+    (miss === undefined ? undefined : mapperMissMessage(state, specifier, miss)) ??
     loaderMessage(state.options.policy, 'module-not-found', { specifier, from, importer }) ??
     `Cannot find module '${specifier}' imported from ${importer}`
   return new ModuleNotFoundError(
     kind === 'require' ? 'MODULE_NOT_FOUND' : 'ERR_MODULE_NOT_FOUND',
     message,
   )
+}
+
+/**
+ * The text for a name-mapper rule that matched with no target resolving, or `undefined` when the
+ * miss isn't one, or the dialect has no text for it.
+ */
+function mapperMissMessage(
+  state: Records,
+  specifier: string,
+  miss: Extract<ResolveResult, { readonly type: 'not-found' }>,
+): string | undefined {
+  const { mappedBy, declared, tried } = miss
+  if (mappedBy === null || declared === undefined) return undefined
+  const single = declared.length === 1 ? declared[0] : undefined
+  return loaderMessage(state.options.policy, 'mapper-miss', {
+    specifier,
+    rule: mappedBy,
+    target: single ?? JSON.stringify(tried, null, 2),
+    // Nested one level below a config object's key, so the list's brackets line up there.
+    declared: single ?? `${JSON.stringify(declared, null, 6).slice(0, -1)}    ]`,
+    resolver: state.options.resolverName ?? 'undefined',
+  })
+}
+
+/**
+ * Whether a name-mapper rule takes over a served module (`ModuleScope.mappable`): the rule matches,
+ * whether or not its target resolves.
+ */
+export function mapperTakes(
+  state: Records,
+  specifier: string,
+  importer: string,
+  kind: ResolveKind,
+): boolean {
+  if (state.options.moduleScope?.mappable?.includes(specifier) !== true) return false
+  const result = state.options.resolver.resolve(specifier, {
+    importer,
+    kind,
+    conditions: state.options.conditions ?? ['node'],
+  })
+  return (result.type === 'file' || result.type === 'not-found') && result.mappedBy !== null
 }
 
 /** Resolves `specifier` from `importer` to a target; one that doesn't resolve is `missing`. */
@@ -166,7 +210,10 @@ export function resolveOrMissing(
   // A module the dialect serves (`@jest/globals`) is never resolved or loaded: it is a `missing`
   // target whose edge reads the scope's value first (`FileRegistry.#mockOf`), as Jest answers
   // `@jest/globals` before the mapper, the resolver and the mocks.
-  if (state.options.moduleScope?.modules?.includes(specifier) === true) {
+  if (
+    state.options.moduleScope?.modules?.includes(specifier) === true &&
+    !mapperTakes(state, specifier, importer, kind)
+  ) {
     return { kind: 'missing', error: notFound(state, specifier, importer, kind) }
   }
   const result = state.options.resolver.resolve(specifier, {
@@ -181,7 +228,16 @@ export function resolveOrMissing(
     }
     return { kind: 'user', id: toModuleId(result.path) }
   }
-  return { kind: 'missing', error: notFound(state, specifier, importer, kind) }
+  return {
+    kind: 'missing',
+    error: notFound(
+      state,
+      specifier,
+      importer,
+      kind,
+      result.type === 'not-found' ? result : undefined,
+    ),
+  }
 }
 
 /** Resolves `specifier` from `importer` to a target, or throws `ERR_MODULE_NOT_FOUND` (`MODULE_NOT_FOUND` for `require`). */

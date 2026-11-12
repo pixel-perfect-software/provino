@@ -74,10 +74,13 @@ export const moduleClaims: Claims = {
     }),
   ],
   'module.messages.unmock-module-missing': mod('mod-unmock-missing'),
-  'module.messages.automock-no-metadata': noCaseYet(
-    'B17c',
-    'no mod-* case automocks a value with no metadata',
-  ),
+  'module.messages.automock-no-metadata': [
+    mod('mod-automock-no-metadata'),
+    golden('mocking/mod-automock-no-metadata', {
+      matches: (g, value) =>
+        templateIn(value, observedMessage(g, 'requiring an automocked module with no metadata')),
+    }),
+  ],
   // The shipped `jest` refuses a nested isolation with its own copy of this text before the file's
   // module-mock registry is asked, so no mod-* run reaches the registry's (this value); it is
   // reached only when the global `jest` and a module's own nest. The golden records Jest's text.
@@ -99,6 +102,12 @@ export const moduleClaims: Claims = {
       matches: (g, value) => templateIn(value, observedMessage(g, 'load after dontMock')),
     }),
   ],
+  // jest-resolve's error for a `moduleNameMapper` rule that matched and resolved to nothing, for a
+  // single target and for a list (`resolve/mapper-miss`; the placeholders stand for the paths).
+  'module.messages.mapper-miss': golden('resolve/mapper-miss', {
+    matches: (g, value) =>
+      ['single', 'array', 'first'].every((id) => templateIn(value, observedMessage(g, id))),
+  }),
   // Vitest's texts.
   'module.messages.factory-not-object': mod('mod-factory-function'),
   'module.messages.missing-factory-export': mod('mod-factory-async-missing-export'),
@@ -198,7 +207,13 @@ export const hoistClaims: Claims = {
     ),
   ),
   'hoist.messages.HOIST_FACTORY_NOT_FUNCTION': each(
-    noCaseYet('B17c', 'no mod-* case passes jest.mock a factory that is not a function'),
+    [
+      mod('mod-factory-not-function'),
+      // The plugin's text has a trailing newline the crash message does not keep.
+      golden('mocking/mod-factory-not-function', {
+        matches: (g, value) => typeof value === 'string' && fileErrorOf(g).includes(value.trim()),
+      }),
+    ],
     inert(
       'hoist.hoistCalls',
       noFactoryRule,

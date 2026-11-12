@@ -46,9 +46,6 @@ const CLAIM_KEYS: ReadonlySet<string> = new Set(Object.keys(CLAIMS))
 const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   // Behaviour another bundle builds; its first fixture records the value.
   'jest snapshot.inline.formatter': 'T7.11',
-  'jest orchestrator.environmentConditions': 'B17c',
-  'jest hoist.messages.HOIST_FACTORY_NOT_FUNCTION': 'B17c',
-  'jest module.messages.automock-no-metadata': 'B17c',
   'jest orchestrator.sequence.unknownFirst': 'B21',
   'jest orchestrator.shard.fallback': 'B21',
   'jest orchestrator.watch.initialRun': 'T9.11',

@@ -312,6 +312,12 @@ export interface ModuleScope {
    * rules or a mock: the value is the factory's result under that key, for the importing module.
    */
   readonly modules?: readonly string[]
+  /**
+   * The part of `modules` that yields to the project's name mapper: a rule that matches the
+   * specifier takes it over, and the scope serves it only when none does. The rest of `modules`
+   * is answered before the mapper (Jest's `@jest/globals`).
+   */
+  readonly mappable?: readonly string[]
   readonly factory: ModuleRef<ModuleScopeFactory>
 }
 

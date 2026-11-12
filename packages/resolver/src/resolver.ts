@@ -238,6 +238,7 @@ export const createResolver: CreateResolver = (options) => {
             importer: context.importer,
             tried: [...hit.candidates],
             mappedBy: hit.rule,
+            ...(hit.declared === undefined ? {} : { declared: hit.declared }),
           }
         }
         // `continue`: the first hit still wins, so later mappers are skipped.

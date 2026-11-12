@@ -112,9 +112,21 @@ export const orchestratorClaims: Claims = {
   ),
   'orchestrator.envDefault': golden('defaults'),
   'orchestrator.environmentPragmas': golden('orchestrator-pragmas', { read: pragmasRead }),
-  'orchestrator.environmentConditions': pending(
-    'B17c',
-    "the environment's export conditions are T8.7's",
+  // A behaviour, so the value is the ref. Jest's conditions come from the environment class (jsdom
+  // `browser`, node `node`, a project's `customExportConditions`), which three recorded Jest runs
+  // show (`env/conditions-jsdom`, `-custom`, `-node`) and the end-to-end test holds Provino to, test
+  // by test. Vitest's half (its jsdom environment) is part 3 of B17c.
+  'orchestrator.environmentConditions': each(
+    own(
+      'packages/provino/test/jest-dom.test.ts',
+      'env/conditions-jsdom',
+      {
+        module: import.meta.resolve('@provino/dialect-jest/runtime'),
+        export: 'jestEnvironmentConditions',
+      },
+      "Jest's own conditions: the three env/conditions-* goldens, read test by test against Provino's run",
+    ),
+    pending('B17c', "Vitest's jsdom environment (T8.3, part 3) records its conditions"),
   ),
   'orchestrator.pool.default': each(
     [

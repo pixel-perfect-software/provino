@@ -140,6 +140,9 @@ test('the module slice: a missing export reads undefined, and the registry texts
     'transform-failed': '{file}: {message}',
     // The loader's: jest-resolve's not-found text (mod-root-package-uninstalled).
     'module-not-found': "Cannot find module '{specifier}' from '{from}'",
+    // The loader's: jest-resolve's `createNoMappedModuleFoundError` text (resolve/mapper-miss).
+    'mapper-miss':
+      'Configuration error:\n\nCould not locate module {specifier} mapped as:\n{target}.\n\nPlease check your configuration for these entries:\n{\n  "moduleNameMapper": {\n    "{rule}": "{declared}"\n  },\n  "resolver": {resolver}\n}',
   })
 })
 

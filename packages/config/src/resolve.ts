@@ -425,6 +425,9 @@ async function finishProject(
       ...(dialect?.moduleScope?.modules === undefined
         ? {}
         : { scopeModules: dialect.moduleScope.modules }),
+      ...(dialect?.moduleScope?.mappable === undefined
+        ? {}
+        : { scopeMappable: dialect.moduleScope.mappable }),
       extensions: Object.freeze([...LOADER_EXTENSIONS]),
       conditions,
       tsconfig: 'auto',
