@@ -124,6 +124,15 @@ function commonJsSignals(program: unknown): boolean {
   return found
 }
 
+/**
+ * The module format `facts` show. A file with no module syntax that calls `require` or uses
+ * `module`/`exports` is CommonJS, even when it also has an `import()`; `unknown` is left for a file
+ * that shows neither. `esmByName` is a name or option that makes a file ESM without syntax (`.mts`).
+ */
+export function formatOf(facts: ModuleFacts, esmByName: boolean): 'esm' | 'cjs' | 'unknown' {
+  return facts.hasModuleSyntax || esmByName ? 'esm' : facts.hasCommonJsSyntax ? 'cjs' : 'unknown'
+}
+
 /** Parses `source` once and reads its imports, module syntax and top-level await. */
 export function moduleFacts(
   filename: string,

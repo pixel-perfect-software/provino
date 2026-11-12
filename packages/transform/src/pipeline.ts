@@ -20,7 +20,7 @@ import { hashParts, pipelineFingerprint, stableJson } from './cache/fingerprint.
 import { createTransformCache } from './cache/store.ts'
 import { TransformError } from './errors.ts'
 import { hoistMocks } from './hoist/index.ts'
-import { moduleFacts } from './internal/imports.ts'
+import { formatOf, moduleFacts } from './internal/imports.ts'
 import { composeMaps, toSourceMapV3 } from './internal/maps.ts'
 import { positionOf } from './internal/position.ts'
 import {
@@ -282,6 +282,28 @@ export const createPipeline: CreatePipeline = (options) => {
   }
 
   /**
+   * Hoists the `mock` calls of `code` (when the policy hoists and the file is not a dependency),
+   * adding the hoister's map and diagnostics to the step lists. Real Jest hoists in every file its
+   * transformer touches, and Vitest's plugin does the same, so the gate is "not a dependency", not
+   * "a test or setup file" (B13b Gap 3).
+   */
+  function applyHoist(
+    code: string,
+    request: TransformRequest,
+    original: string,
+    maps: (SourceMapV3 | null)[],
+    diagnostics: TransformDiagnostic[],
+  ): { code: string; staticMocks: readonly StaticMockCall[]; lateDeps: readonly string[] } {
+    if (options.hoist === null || request.role === 'dependency') {
+      return { code, staticMocks: [], lateDeps: [] }
+    }
+    const hoisted = hoistMocks(code, options.hoist, { filename: request.filename, original })
+    maps.push(hoisted.map)
+    diagnostics.push(...hoisted.diagnostics)
+    return { code: hoisted.code, staticMocks: hoisted.staticMocks, lateDeps: hoisted.lateDeps }
+  }
+
+  /**
    * The record for a file a user transformer produced (T3.8). The output is what Jest would run
    * (CommonJS: `supportsStaticESM` is false), so the format comes from its own syntax. Our hoister
    * runs on it unless the output carries one of the host's markers: a transformer that hoisted
@@ -294,23 +316,15 @@ export const createPipeline: CreatePipeline = (options) => {
     cacheKey: string,
   ) {
     const { filename } = request
-    let code = source.code
     const maps: (SourceMapV3 | null)[] = [source.map]
     const diagnostics: TransformDiagnostic[] = []
-    let staticMocks: readonly StaticMockCall[] = []
-    let lateDeps: readonly string[] = []
-    const alreadyHoisted = host.hoistedMarkers.some((marker) => code.includes(marker))
-    if (options.hoist !== null && request.role !== 'dependency' && !alreadyHoisted) {
-      const hoisted = hoistMocks(code, options.hoist, { filename, original: request.source })
-      code = hoisted.code
-      maps.push(hoisted.map)
-      staticMocks = hoisted.staticMocks
-      lateDeps = hoisted.lateDeps
-      diagnostics.push(...hoisted.diagnostics)
-    }
+    const alreadyHoisted = host.hoistedMarkers.some((marker) => source.code.includes(marker))
+    const { code, staticMocks, lateDeps } = alreadyHoisted
+      ? { code: source.code, staticMocks: [], lateDeps: [] }
+      : applyHoist(source.code, request, request.source, maps, diagnostics)
     const lang = /\.[cm]?[jt]sx$/.test(filename) ? 'jsx' : 'js'
     const facts = moduleFacts(filename, code, lang, 'unambiguous')
-    const format = facts.hasModuleSyntax ? 'esm' : facts.hasCommonJsSyntax ? 'cjs' : 'unknown'
+    const format = formatOf(facts, false)
     return {
       code,
       // Maps compose to the original source only when the transformer gave one.
@@ -414,30 +428,13 @@ export const createPipeline: CreatePipeline = (options) => {
       for (const error of result.errors) diagnostics.push(diagnostic(source, error))
     }
 
-    let staticMocks: readonly StaticMockCall[] = []
-    // Real Jest hoists in every file its transformer touches, and Vitest's plugin does the same, so
-    // the gate is "not a dependency", not "a test or setup file" (B13b Gap 3).
-    let lateDeps: readonly string[] = []
-    if (options.hoist !== null && request.role !== 'dependency') {
-      const hoisted = hoistMocks(code, options.hoist, { filename, original: source })
-      code = hoisted.code
-      maps.push(hoisted.map)
-      staticMocks = hoisted.staticMocks
-      lateDeps = hoisted.lateDeps
-      diagnostics.push(...hoisted.diagnostics)
-    }
+    const hoisted = applyHoist(code, request, source, maps, diagnostics)
+    code = hoisted.code
+    const { staticMocks, lateDeps } = hoisted
 
     const facts = moduleFacts(filename, source, found.lang, found.sourceType)
-    // A file with no module syntax that calls `require` or uses `module`/`exports` is CommonJS,
-    // even when it also has an `import()`; `unknown` is left for a file that shows neither.
     const format =
-      found.sourceType === 'commonjs'
-        ? 'cjs'
-        : facts.hasModuleSyntax || /\.m[jt]s$/.test(filename)
-          ? 'esm'
-          : facts.hasCommonJsSyntax
-            ? 'cjs'
-            : 'unknown'
+      found.sourceType === 'commonjs' ? 'cjs' : formatOf(facts, /\.m[jt]s$/.test(filename))
     return stored(cacheKey, {
       code,
       map: composeMaps(maps),
