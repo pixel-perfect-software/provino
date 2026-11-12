@@ -6,6 +6,9 @@ The umbrella package (layer 6, composition root). B11 built its first part: `pro
 
 | Path | Role |
 |---|---|
+| `src/index.ts` | The `provino` entry (T1.10): `describe`, `it`, `test`, the four hooks and `expect`, each a Proxy that forwards every operation to the global the worker installed, at the moment of the operation. It imports nothing at run time, so a test file reaching it loads no second engine (a copy of `expect` would have its own matchers and state). Outside a worker, or with `injectGlobals` off, an export throws `ProvinoWorkerApiError` (`PROVINO_NO_WORKER_API`). The proxy is not `===` the global (`expect(expect).toBe(globalThis.expect)` fails); `expect.extend`, `describe.each` and `it.only` pass through |
+| `src/globals.ts` | `provino/globals`: `declare global` of the same eight as `var`s typed by `WorkerApi`. Types only: its built JavaScript is empty |
+| `src/config.ts`, `reporters.ts`, `environment.ts`, `jest.ts` | `provino/config` (`ConfigError`, `formatConfigIssue`, the config types), `/reporters` (`defaultReporter`, `normalizedJsonReporter`, `defineReporter`), `/environment` (`nodeEnvironment`, `jsdomEnvironment`, `defineEnvironment`, the environment types), `/jest` (`jestDialect`, `jestPolicy`): re-exports, with `defineEnvironment` the one new function |
 | `src/node.ts` | The `provino/node` entry: `run` and the types in `src/types.ts` (`RunOptions`, `RunResult`, `ReporterChoice`, `NormalizedJsonChoiceOptions`) |
 | `src/run.ts` | `run(options)`: the whole flow below |
 | `src/cli.ts` | The `provino` bin (`bin` points at the `.ts`, as `provino-bench` does): `process.exitCode = await main(argv)`. Run it with `pnpm provino run --config <file>` |
@@ -18,6 +21,10 @@ The umbrella package (layer 6, composition root). B11 built its first part: `pro
 | `src/internal/reporters.ts` | `reportersFor`: a built-in name, `['normalized-json', { outputFile?, suite? }]` or a `Reporter` object becomes a reporter; the policy's `report.defaultReporters` when none are given |
 | `src/internal/describe.ts` | `usageMessage(error)`: the text for an error that means bad input (issues the message doesn't already list, and the `cause` chain, including a thrown string or object), `undefined` for any other |
 | `src/internal/usage-error.ts`, `ci.ts`, `version.ts` | `UsageError` (`PROVINO_USAGE`), `isCi(env)`, this package's version (through `import.meta.resolve('provino/package.json')`; read by `reporters.ts` only when it builds the `normalized-json` reporter) |
+
+## Build and exports (B21e, T1.10)
+
+`pnpm --filter provino build` writes one bundle to `dist/` (`tooling/packaging/CLAUDE.md` → "The umbrella"): every `@provino/*` package inlined, `dependencies` the third-party packages they need (`pnpm hygiene` checks the list), six files from the package in a worker's cold start. `exports`: `.`, `./globals`, `./config`, `./node`, `./reporters`, `./environment`, `./jest` (each `provino-source`, `types`, `import`) and `./package.json`; any other path throws `ERR_PACKAGE_PATH_NOT_EXPORTED`. `bin` is the source for the workspace and `publishConfig.bin` the built `dist/cli.js`. `provino --version` prints the version (`packageVersion`). API reports are `etc/provino*.api.md`. `/plugin` (no package) and `/vitest` (T11.16) wait. `test/exports.test.ts` runs the **built** package (turbo `test` depends on `build` here, `turbo.json`): the subpaths and what they export, the refused paths, the bin, and a real project whose test imports `provino`, with a `registerHooks` recorder (`test/load-recorder.ts`) counting the files a worker loads from `dist` (at most 10; it is 6).
 
 ## `run()`
 
@@ -73,5 +80,5 @@ Flow: check `config` and `maxWorkers` → `loadProject(config against cwd, { dia
 
 ## Not built yet
 
-- The rest of `provino/node` (`createProvino()`, `resolveConfig()`, event types, a `provino/node` form of `provino jest`), the other subpaths (`.`, `/globals`, `/config`, `/reporters`, `/environment`, `/plugin`, `/jest`, `/vitest`), the tsdown build, and `provino vitest` (T11.16).
+- The rest of `provino/node` (`createProvino()`, `resolveConfig()`, event types, a `provino/node` form of `provino jest`), `/plugin` and `/vitest`, `defineConfig` and `defineProject` in `/config` (T1.4), the neutral API in `.` (the lazy variables, `fn`, `spyOn`, `mock`, `timers`; the Jest facade has them as `jest.*`), and `provino vitest` (T11.16).
 - SIGINT/SIGTERM handling and `--bail` (T9.10, B21); the other reporters and custom reporter modules (T9.7), so `--reporters`, `--json` for a run and `--outputFile` are refused; `--shard`, `--watch`, `--coverage`, `--findRelatedTests`, `--onlyChanged` (refused by name, with their tasks); the `--projects` flag.

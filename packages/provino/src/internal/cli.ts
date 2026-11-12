@@ -8,6 +8,7 @@ import { detectProject } from './detect.ts'
 import { runJestCommand } from './jest-command.ts'
 import { BUILT_IN_REPORTERS } from './reporters.ts'
 import { UsageError } from './usage-error.ts'
+import { packageVersion } from './version.ts'
 
 /** What the process exits with for an error that is a bug in Provino. */
 const INTERNAL_ERROR_EXIT = 1
@@ -42,6 +43,7 @@ Options of provino run:
       --passWithNoTests             Pass when no test files are found
       --no-cache                    Neither read nor write the results cache or the transform cache
   -h, --help                        Print this text
+      --version                     Print the version of provino
 `
 
 /**
@@ -50,6 +52,7 @@ Options of provino run:
  */
 export type RunCommand =
   | { readonly type: 'help' }
+  | { readonly type: 'version' }
   | { readonly type: 'run'; readonly options: RunOptions }
   | { readonly type: 'jest'; readonly args: readonly string[] }
   | { readonly type: 'bare'; readonly args: readonly string[] }
@@ -178,6 +181,7 @@ export interface CliIo {
 /** What `command` and its `args` ask for. */
 function parseCommand(command: string | undefined, args: readonly string[]): RunCommand {
   if (command === '--help' || command === '-h') return { type: 'help' }
+  if (command === '--version') return { type: 'version' }
   if (command === undefined) return { type: 'bare', args: [] }
   if (command === 'run') return parseRunArgs(args)
   if (command === 'jest') return { type: 'jest', args }
@@ -238,6 +242,11 @@ async function helpExit(io: CliIo): Promise<number> {
   return ExitCode.Pass
 }
 
+async function versionExit(io: CliIo): Promise<number> {
+  await (io.stdout ?? process.stdout).write(`${packageVersion()}\n`)
+  return ExitCode.Pass
+}
+
 function ioOptions(io: CliIo): Pick<RunOptions, 'stdout' | 'stderr' | 'cwd'> {
   return {
     stdout: io.stdout ?? process.stdout,
@@ -259,6 +268,7 @@ export async function main(argv: readonly string[], io: CliIo = {}): Promise<num
     const [command, ...args] = argv
     const parsed = parseCommand(command, args)
     if (parsed.type === 'help') return await helpExit(io)
+    if (parsed.type === 'version') return await versionExit(io)
     if (parsed.type === 'bare') return await runBare(parsed.args, io)
     if (parsed.type === 'jest') return await runBareJest(parsed.args, io)
     return (await run({ ...parsed.options, ...ioOptions(io) })).exitCode
