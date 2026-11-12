@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
 import { lockfileHash, prepareCache, pruneCache, pruneCacheIfWritten } from './maintenance.ts'
-import { createTransformCache } from './store.ts'
+import { createTransformCache, hasProvinoTag } from './store.ts'
 import { entryFor, keyFor } from './test-entries.ts'
 
 const dirs: string[] = []
@@ -151,4 +151,19 @@ test('lockfileHash reads a lockfile once for a shared memo', () => {
   writeFileSync(join(top, 'pnpm-lock.yaml'), 'b')
   assert.equal(lockfileHash(root, memo), first)
   assert.notEqual(lockfileHash(root), first)
+})
+
+test('hasProvinoTag is true for a directory prepareCache made, false for another tool or none', () => {
+  const dir = join(tempDir(), 't')
+  assert.equal(hasProvinoTag(dir), false)
+  prepareCache(dir, null)
+  assert.equal(hasProvinoTag(dir), true)
+  const foreign = tempDir()
+  writeFileSync(
+    join(foreign, 'CACHEDIR.TAG'),
+    'Signature: 8a477f597d28d172789f06886806bc55\n# by another tool\n',
+  )
+  assert.equal(hasProvinoTag(foreign), false)
+  writeFileSync(join(foreign, 'CACHEDIR.TAG'), '# Provino, but no signature\n')
+  assert.equal(hasProvinoTag(foreign), false)
 })

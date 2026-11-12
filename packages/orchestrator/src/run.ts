@@ -24,12 +24,7 @@ import type {
   WorkerExit,
   WorkerKey,
 } from '@provino/types'
-import {
-  createResultsCache,
-  defaultCacheDir,
-  type ResultsCache,
-  transformCacheDir,
-} from './cache.ts'
+import { cacheDirectories, createResultsCache, type ResultsCache } from './cache.ts'
 import { type DiscoveredFile, discoverFiles } from './discover.ts'
 import { discoverByRules } from './discover-rules.ts'
 import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
@@ -312,7 +307,7 @@ export async function runProjects(
   const cacheFor = (project: ResolvedProject): ResultsCache | undefined => {
     if (options.cache === false) return undefined
     if (options.cache !== undefined) return options.cache
-    const directory = defaultCacheDir(project.rootDir, project.cacheDirectory)
+    const directory = cacheDirectories(project).results
     let cache = caches.get(directory)
     if (cache === undefined) {
       cache = createResultsCache(directory)
@@ -336,11 +331,7 @@ export async function runProjects(
     const cached =
       options.cache === false
         ? resolved
-        : withTransformCache(
-            resolved,
-            transformCacheDir(resolved.rootDir, resolved.cacheDirectory),
-            lockfileHashes,
-          )
+        : withTransformCache(resolved, cacheDirectories(resolved).transform, lockfileHashes)
     const project: SeededProject = {
       ...cached,
       config: { ...cached.config, seed: cached.config.seed ?? runSeed },

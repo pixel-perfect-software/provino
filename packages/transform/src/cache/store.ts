@@ -35,6 +35,22 @@ const CACHEDIR_TAG = `Signature: 8a477f597d28d172789f06886806bc55
 export const CACHEDIR_TAG_NAME = 'CACHEDIR.TAG'
 
 /**
+ * Whether `dir` holds the `CACHEDIR.TAG` Provino wrote: the signature and the creator's name. A
+ * directory a user made, with a tag of another tool or none, is not Provino's.
+ * @public
+ */
+export function hasProvinoTag(dir: string): boolean {
+  try {
+    const tag = readFileSync(join(dir, CACHEDIR_TAG_NAME), 'utf8')
+    return (
+      tag.startsWith(CACHEDIR_TAG.slice(0, CACHEDIR_TAG.indexOf('\n'))) && tag.includes('Provino')
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
  * What an entry holds: the record without its key and `fromCache`, which the lookup supplies.
  * @internal
  */

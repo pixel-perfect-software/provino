@@ -1,4 +1,5 @@
 export {
+  cacheDirectories,
   createResultsCache,
   defaultCacheDir,
   isProvinoCacheDir,

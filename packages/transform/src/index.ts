@@ -5,6 +5,7 @@ export type { PruneResult, TransformCache } from './cache/index.ts'
 export {
   createTransformCache,
   DEFAULT_CACHE_MAX_BYTES,
+  hasProvinoTag,
   lockfileHash,
   prepareCache,
   pruneCache,

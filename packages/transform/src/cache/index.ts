@@ -9,4 +9,4 @@ export {
   pruneCacheIfWritten,
 } from './maintenance.ts'
 export type { TransformCache } from './store.ts'
-export { CACHEDIR_TAG_NAME, createTransformCache } from './store.ts'
+export { CACHEDIR_TAG_NAME, createTransformCache, hasProvinoTag } from './store.ts'
