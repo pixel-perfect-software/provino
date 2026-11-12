@@ -24,7 +24,7 @@ The neutral fake clock (Track 4, T4.9): one `FakeClock` per environment global o
 ## Testing
 
 - `src/clock.test.ts`, `src/members.test.ts`: every policy value on a stand-in global (the Temporal cases use a stub `Temporal`), the async-context binding, the facade returns.
-- `src/dom-raf.test.ts` (T4.9's last Done-when clause, B17c): a jsdom window and a happy-dom `GlobalWindow`, put on a stand-in global by `populateGlobal` (what the DOM environments do; this package can't import `@provino/env-jsdom`, a higher layer), have `window.requestAnimationFrame` faked, advanced a frame at a time, cancelled and put back. The same through the real environment is `provino`'s `test/env-jsdom.test.ts` (`jest.useFakeTimers()` in a worker). A jsdom window needs a real `url`: an opaque origin makes reading `localStorage` throw.
+- `src/dom-raf.test.ts` (T4.9's last Done-when clause, B17c): a jsdom window and a happy-dom `GlobalWindow` are each the clock's own global (`createFakeClock(window, policy)`, so no real timer is faked and no environment package is needed), and `window.requestAnimationFrame` is faked, advanced a frame at a time, cancelled and put back. The same through the real environment is `provino`'s `test/env-jsdom.test.ts` (`jest.useFakeTimers()` in a worker).
 - `test/timers.test-d.ts`: the public types and misuse (a wrong option name, a string for milliseconds, a tick mode outside the three).
 - Against the real runners: `@provino/harness`'s `timer-corpus.test.ts` runs the 8 `fixtures/mocking/timers-*` fixtures (48 cases per runner) in a child process, because the clock fakes that process's own timers; and `@provino/dialect-jest`'s `runtime/timers.test.ts` and `provino`'s `test/runtime.test.ts` (through `run()`).
 

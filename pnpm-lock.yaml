@@ -928,9 +928,6 @@ importers:
         specifier: 'catalog:'
         version: 15.4.0
     devDependencies:
-      '@provino/env-shared':
-        specifier: workspace:*
-        version: link:../env-shared
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy

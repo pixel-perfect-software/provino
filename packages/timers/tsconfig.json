@@ -7,9 +7,6 @@
     },
     {
       "path": "../policy"
-    },
-    {
-      "path": "../env-shared"
     }
   ]
 }

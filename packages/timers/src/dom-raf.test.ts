@@ -1,15 +1,13 @@
-// T4.9's last Done-when clause: under a jsdom window and under a happy-dom `GlobalWindow`, put on an
-// environment global by `populateGlobal` (what `@provino/env-jsdom` does for jsdom), the fake clock
-// fakes `window.requestAnimationFrame`. The target is a stand-in global (`makeEnv`), so the test
-// never fakes the timers `node:test` runs on. `provino`'s `test/env-jsdom.test.ts` runs the same
-// thing through the real environment in a worker.
+// T4.9's last Done-when clause: with a jsdom window and with a happy-dom `GlobalWindow` as the
+// clock's global (the window itself, so nothing real is faked and no environment is needed), the
+// fake clock fakes `window.requestAnimationFrame`. `provino`'s `test/env-jsdom.test.ts` runs the
+// same thing through the real environment in a worker.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { populateGlobal } from '@provino/env-shared'
 import { GlobalWindow } from 'happy-dom'
 import { JSDOM } from 'jsdom'
 import { createFakeClock } from './clock.ts'
-import { makeEnv, neutral } from './internal/test-support.ts'
+import { neutral } from './internal/test-support.ts'
 
 interface Window {
   requestAnimationFrame(callback: (time: number) => void): number
@@ -22,8 +20,6 @@ const windows: readonly (readonly [string, () => { win: object; close(): void }]
     () => {
       const dom = new JSDOM('<!DOCTYPE html>', {
         pretendToBeVisual: true,
-        // An opaque origin makes `localStorage` throw when the window is read key by key.
-        url: 'http://localhost:3000',
       })
       return { win: dom.window, close: () => dom.window.close() }
     },
@@ -41,14 +37,12 @@ for (const [name, make] of windows) {
   describe(name, () => {
     test('window.requestAnimationFrame is faked by the fake clock', () => {
       const { win, close } = make()
-      const { env } = makeEnv()
-      const populated = populateGlobal(env, win, { bindFunctions: true })
       try {
-        const dom = env as unknown as { window: Window }
+        const dom = win as unknown as { window: Window }
         const real = dom.window.requestAnimationFrame
         assert.equal(typeof real, 'function', 'the window has requestAnimationFrame')
 
-        const clock = createFakeClock(env, neutral)
+        const clock = createFakeClock(win, neutral)
         clock.install({ now: 0 })
         assert.notEqual(dom.window.requestAnimationFrame, real, 'the window global is faked')
 
@@ -71,7 +65,6 @@ for (const [name, make] of windows) {
         clock.uninstall()
         assert.equal(dom.window.requestAnimationFrame, real, 'uninstall puts the real one back')
       } finally {
-        populated.restore()
         close()
       }
     })
