@@ -370,11 +370,26 @@ const IMPORT_NAMES = ['a', 'c', 'def', 'ns'] as const
 const OTHER_NAMES = ['x', 'y'] as const
 const ALL_NAMES = [...IMPORT_NAMES, ...OTHER_NAMES] as const
 
+/** The share of generated programs that redeclare an import binding on purpose (an error path). */
+const REDECLARE_SHARE = 0.05
+
+/** What a scope declares, so a generated name never clashes with another in the same scope. */
+interface Scope {
+  /** `let`, `const`, `class` and function names (at the top: the imports). */
+  readonly lexical: Set<string>
+  /** Parameter names: a `let` in the body clashes with one, a `var` does not. */
+  readonly params: Set<string>
+  /** `var` names hoisted through this scope: a `let` of the same name here would clash. */
+  readonly vars: Set<string>
+  readonly isFunction: boolean
+}
+
 /**
  * Seeded programs: imports of `a`, `c`, `def` and `ns`, then nested scopes that declare, shadow and
  * use those names in every position the generator knows (calls, shorthand, patterns, writes).
- * Every program is valid JavaScript except for the rare duplicate declaration, which both
- * transforms must report alike.
+ * A program is valid JavaScript, except for the ones that redeclare an import binding on purpose
+ * (about `REDECLARE_SHARE`), which both transforms must report alike. The programs are unique:
+ * the generator goes on until it has `count` different ones.
  */
 export function generateScopingPrograms(count: number, seed: number): Case[] {
   const next = random(seed)
@@ -439,83 +454,162 @@ export function generateScopingPrograms(count: number, seed: number): Case[] {
     }
   }
 
-  function block(depth: number, declared: Set<string>): string {
+  const scopes: Scope[] = []
+  const here = (): Scope => scopes[scopes.length - 1] as Scope
+
+  /** Whether a `let`, `const`, `class` or function of `name` is valid in the current scope. */
+  function lexicalFree(name: string): boolean {
+    const scope = here()
+    return !scope.lexical.has(name) && !scope.params.has(name) && !scope.vars.has(name)
+  }
+
+  /** Whether `var name` is valid here: no enclosing scope up to the function declares it. */
+  function varFree(name: string): boolean {
+    for (let i = scopes.length - 1; i >= 0; i--) {
+      const scope = scopes[i] as Scope
+      if (scope.lexical.has(name)) return false
+      if (scope.isFunction) break
+    }
+    return true
+  }
+
+  /** Records `var name`, which hoists through every scope up to the function's. */
+  function declareVar(name: string): void {
+    for (let i = scopes.length - 1; i >= 0; i--) {
+      const scope = scopes[i] as Scope
+      scope.vars.add(name)
+      if (scope.isFunction) break
+    }
+  }
+
+  interface Init {
+    readonly lexical?: readonly string[]
+    readonly params?: readonly string[]
+    readonly vars?: readonly string[]
+    readonly isFunction?: boolean
+  }
+
+  function block(depth: number, init: Init = {}): string {
+    scopes.push({
+      lexical: new Set(init.lexical),
+      params: new Set(init.params),
+      vars: new Set(init.vars),
+      isFunction: init.isFunction === true,
+    })
     const lines: string[] = []
     const count = 1 + Math.floor(next() * 4)
-    for (let i = 0; i < count; i++) lines.push(statement(depth, declared))
+    for (let i = 0; i < count; i++) lines.push(statement(depth))
+    scopes.pop()
     return lines.join('\n')
   }
 
-  function declaration(kind: 'let' | 'const' | 'var', declared: Set<string>): string {
+  function declaration(kind: 'let' | 'const' | 'var'): string {
     const name = pick(ALL_NAMES)
-    if (declared.has(name)) return exprStatement()
-    declared.add(name)
+    if (kind === 'var') {
+      if (!varFree(name)) return exprStatement()
+      declareVar(name)
+    } else {
+      if (!lexicalFree(name)) return exprStatement()
+      here().lexical.add(name)
+    }
     return `${kind} ${name} = ${chance(0.5) ? pick(ALL_NAMES) : '1'}`
   }
 
-  function statement(depth: number, declared: Set<string>): string {
+  function statement(depth: number): string {
     const roll = Math.floor(next() * (depth > 3 ? 4 : 16))
     switch (roll) {
       case 0:
       case 1:
         return exprStatement()
       case 2:
-        return declaration('let', declared)
+        return declaration('let')
       case 3:
         return `out.push(${use().startsWith('{') ? `(${use()})` : use()})`
       case 4:
-        return declaration('const', declared)
+        return declaration('const')
       case 5:
-        return declaration('var', new Set())
+        return declaration('var')
       case 6: {
         const params = pattern()
-        const name = pick(OTHER_NAMES)
-        return `function ${name}${depth}(${params.text.replace('...', '')}) { ${block(depth + 1, new Set(params.names))} }`
+        const name = `${pick(OTHER_NAMES)}${depth}`
+        // Two functions of one name in a block are a duplicate declaration in a module.
+        if (!lexicalFree(name)) return exprStatement()
+        here().lexical.add(name)
+        return `function ${name}(${params.text.replace('...', '')}) { ${block(depth + 1, { params: params.names, isFunction: true })} }`
       }
       case 7: {
         const params = pattern()
-        return `out.push((${params.text}) => { ${block(depth + 1, new Set(params.names))} })`
+        return `out.push((${params.text}) => { ${block(depth + 1, { params: params.names, isFunction: true })} })`
       }
       case 8:
-        return `{ ${block(depth + 1, new Set())} }`
+        return `{ ${block(depth + 1)} }`
       case 9: {
         const name = pick(ALL_NAMES)
-        return `try { ${block(depth + 1, new Set())} } catch (${chance(0.7) ? name : `{ k: ${name} }`}) { ${block(depth + 1, new Set([name]))} }`
+        const tried = block(depth + 1)
+        return `try { ${tried} } catch (${chance(0.7) ? name : `{ k: ${name} }`}) { ${block(depth + 1, { lexical: [name] })} }`
       }
       case 10: {
         const name = pick(ALL_NAMES)
-        return `for (let ${name} = 0; ${name} < 1; ${name}++) { ${block(depth + 1, new Set([name]))} }`
+        return `for (let ${name} = 0; ${name} < 1; ${name}++) { ${block(depth + 1, { lexical: [name] })} }`
       }
       case 11: {
         const name = pick(ALL_NAMES)
-        return `for (const ${name} of [1]) { ${block(depth + 1, new Set([name]))} }`
+        return `for (const ${name} of [1]) { ${block(depth + 1, { lexical: [name] })} }`
       }
       case 12:
-        return `switch (${pick(ALL_NAMES)}) { case ${pick(ALL_NAMES)}: ${block(depth + 1, new Set())}\n break; default: ${exprStatement()} }`
+        return `switch (${pick(ALL_NAMES)}) { case ${pick(ALL_NAMES)}: ${block(depth + 1)}\n break; default: ${exprStatement()} }`
       case 13: {
         const name = pick(ALL_NAMES)
-        return `class K${depth}_${Math.floor(next() * 1e6)} extends ${pick(ALL_NAMES)} { static ${chance(0.5) ? 'v' : `[${name}]`} = ${pick(ALL_NAMES)}; m(${name}) { ${block(depth + 1, new Set([name]))} } }`
+        const cls = `K${depth}_${Math.floor(next() * 1e6)}`
+        if (!lexicalFree(cls)) return exprStatement()
+        here().lexical.add(cls)
+        return `class ${cls} extends ${pick(ALL_NAMES)} { static ${chance(0.5) ? 'v' : `[${name}]`} = ${pick(ALL_NAMES)}; m(${name}) { ${block(depth + 1, { params: [name], isFunction: true })} } }`
       }
       case 14:
         return `if (${pick(ALL_NAMES)}) ${exprStatement('')}\nelse ${exprStatement('')}`
-      default:
-        return `out.push(function ${pick(OTHER_NAMES)}() { var ${pick(ALL_NAMES)}; ${block(depth + 1, new Set())} })`
+      default: {
+        const name = pick(OTHER_NAMES)
+        const declared = pick(ALL_NAMES)
+        return `out.push(function ${name}() { var ${declared}; ${block(depth + 1, { vars: [declared], isFunction: true })} })`
+      }
     }
   }
 
   const cases: Case[] = []
-  for (let i = 0; i < count; i++) {
+  const seen = new Set<string>()
+  // A program is the same program if it has the same text before its per-index export names.
+  for (let attempt = 0; cases.length < count; attempt++) {
+    if (attempt > count * 20) throw new Error(`the scoping generator found no ${count} programs`)
     const lines = [
       "import def, { a, b as c } from 'm1'",
       "import * as ns from 'm2'",
       'const out = []',
     ]
     // Names `x` and `y` are free (no declaration): the generator treats them as ordinary globals.
-    lines.push(block(0, new Set(['out', ...IMPORT_NAMES])))
-    if (chance(0.3)) lines.push(`export const r${i} = ${pick(IMPORT_NAMES)}`)
+    lines.push(block(0, { lexical: ['out', ...IMPORT_NAMES], isFunction: true }))
+    if (chance(REDECLARE_SHARE)) {
+      const name = pick(IMPORT_NAMES)
+      lines.push(
+        pick([
+          `let ${name} = 1`,
+          `const ${name} = 1`,
+          `var ${name} = 1`,
+          `function ${name}() {}`,
+          `class ${name} {}`,
+        ]),
+      )
+    }
+    if (chance(0.3)) lines.push(`export const r$I = ${pick(IMPORT_NAMES)}`)
     if (chance(0.2)) lines.push(`export default ${pick(IMPORT_NAMES)}`)
-    if (chance(0.2)) lines.push(`export { ${pick(IMPORT_NAMES)} as e${i} }`)
-    cases.push({ id: `generated-${String(i).padStart(5, '0')}`, source: `${lines.join('\n')}\n` })
+    if (chance(0.2)) lines.push(`export { ${pick(IMPORT_NAMES)} as e$I }`)
+    const text = `${lines.join('\n')}\n`
+    if (seen.has(text)) continue
+    seen.add(text)
+    const i = cases.length
+    cases.push({
+      id: `generated-${String(i).padStart(5, '0')}`,
+      source: text.replaceAll('$I', String(i)),
+    })
   }
   return cases
 }

@@ -26,7 +26,7 @@ import { type ImportBinding, isImportReference, walkProgram } from './analyse.ts
  * Bump when the module-runner form changes for the same input: it is part of the pipeline
  * fingerprint (`runnerForm`), so every cached runner form is made again.
  */
-export const RUNNER_FORM_VERSION = '1'
+export const RUNNER_FORM_VERSION = '2'
 
 export interface RewrittenModule {
   readonly code: string
@@ -258,6 +258,9 @@ export function rewriteModule(filename: string, code: string): RewrittenModule {
   }
 
   const walked = walkProgram(program, imports)
+  if (walked.redeclared !== null) {
+    throw new RunnerParseError(`Identifier \`${walked.redeclared}\` has already been declared`)
+  }
   for (const ref of walked.references) {
     if (!isImportReference(ref)) continue
     const binding = imports.get(ref.name) as ImportBinding
@@ -297,6 +300,12 @@ export function rewriteModule(filename: string, code: string): RewrittenModule {
       } else break
     }
     edits.push({ start: at, end: at, text: at === 0 ? `${block}\n` : `${guard}\n${block}\n` })
+  }
+  // A hashbang is legal only at the start of a script or module, and the loader runs this code
+  // inside a function, so it becomes a line comment of the same length: columns and the map hold.
+  if (program.hashbang != null) {
+    const start = program.hashbang.start
+    edits.push({ start, end: start + 2, text: '//' })
   }
 
   if (edits.length === 0) return { code, edits, deps: [...deps], dynamicDeps: [...dynamicDeps] }

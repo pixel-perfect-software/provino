@@ -175,10 +175,12 @@ export function judge(
   if (strict === null) return { reason: null, exemption: null }
   for (const entry of EXEMPTIONS) {
     if (!entry.applies(input, expected, actual)) continue
-    if (
-      entry.relax === undefined ||
-      compareOutputs(filename, expected, actual, defaultImportNames(input)) === null
-    ) {
+    if (entry.relax === undefined && entry.expect === undefined) {
+      return { reason: null, exemption: entry.id }
+    }
+    const reference = entry.expect?.(expected) ?? expected
+    const defaults = entry.relax === undefined ? undefined : defaultImportNames(input)
+    if (compareOutputs(filename, reference, actual, defaults) === null) {
       return { reason: null, exemption: entry.id }
     }
   }
@@ -201,9 +203,12 @@ export function compareOutputs(
   const actualCode = actual.code as string
   const left = parseSync(filename, expectedCode, PARSE)
   const right = parseSync(filename, actualCode, PARSE)
-  if (right.errors.some((error) => String(error.severity) === 'Error')) {
-    return `our output does not parse: ${right.errors[0]?.message}`
-  }
+  // Both sides must parse: a normalised AST of a failed parse is a partial tree, and two partial
+  // trees can be equal.
+  const leftError = left.errors.find((error) => String(error.severity) === 'Error')
+  if (leftError !== undefined) return `oracle A's output does not parse: ${leftError.message}`
+  const rightError = right.errors.find((error) => String(error.severity) === 'Error')
+  if (rightError !== undefined) return `our output does not parse: ${rightError.message}`
   const diff = firstDifference(
     normalise(left.program, defaults && { side: 'oracle', names: defaults }),
     normalise(right.program, defaults && { side: 'ours', names: defaults }),
@@ -229,9 +234,26 @@ export function compareOutputs(
 
 /** What running a module did: the linker's log, its exports and any error. */
 export interface Execution {
+  /** `false` when the wrapper failed to compile (a SyntaxError): no code ran. */
+  readonly compiled: boolean
   readonly log: readonly string[]
   readonly exports: Readonly<Record<string, string>>
   readonly error: string | null
+}
+
+/**
+ * How two executions of the same module compare. `notRunnable`: neither compiled, with the same
+ * error (decorators, `accessor` and the like, which this Node cannot compile), so nothing ran and
+ * nothing was compared. A pair where only one side compiled is a difference.
+ */
+export function compareExecutions(
+  expected: Execution,
+  actual: Execution,
+): 'equal' | 'differ' | 'notRunnable' {
+  if (!expected.compiled && !actual.compiled) {
+    return expected.error === actual.error ? 'notRunnable' : 'differ'
+  }
+  return JSON.stringify(expected) === JSON.stringify(actual) ? 'equal' : 'differ'
 }
 
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
@@ -337,12 +359,24 @@ export async function execute(code: string): Promise<Execution> {
     void ns
   }
   let error: string | null = null
-  try {
-    const fn = new AsyncFunction(...PARAMS, `'use strict';${code}`)
-    await fn(exports, { url: 'file:///stub.js' }, importer, dynamic, exportAll, importer)
-  } catch (thrown) {
+  let compiled = true
+  const failure = (thrown: unknown): string => {
     const e = thrown as { name?: string; message?: string }
-    error = `${e.name}: ${e.message}`
+    return `${e.name}: ${e.message}`
+  }
+  let fn: ((...args: unknown[]) => Promise<unknown>) | undefined
+  try {
+    fn = new AsyncFunction(...PARAMS, `'use strict';${code}`)
+  } catch (thrown) {
+    compiled = false
+    error = failure(thrown)
+  }
+  if (fn !== undefined) {
+    try {
+      await fn(exports, { url: 'file:///stub.js' }, importer, dynamic, exportAll, importer)
+    } catch (thrown) {
+      error = failure(thrown)
+    }
   }
   const values: Record<string, string> = {}
   for (const key of Object.keys(exports).sort()) {
@@ -352,5 +386,5 @@ export async function execute(code: string): Promise<Execution> {
       values[key] = `throws ${(thrown as { name?: string }).name}`
     }
   }
-  return { log, exports: values, error }
+  return { compiled, log, exports: values, error }
 }

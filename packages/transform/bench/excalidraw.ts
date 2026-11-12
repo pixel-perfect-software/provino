@@ -14,6 +14,8 @@ import {
   MANIFEST_PATH,
   type Manifest,
   median,
+  parseBar,
+  parseOrExitUsage,
   readManifest,
   readSources,
 } from './corpus.ts'
@@ -24,13 +26,16 @@ const RULE = '.ts and .tsx files under 200,000 bytes, outside node_modules'
 const MAX_BYTES = 200_000
 const TIMED_PASSES = 3
 
-const { values: args } = parseArgs({
-  options: {
-    root: { type: 'string', default: DEFAULT_ROOT },
-    'max-median-ms': { type: 'string' },
-    'write-manifest': { type: 'boolean', default: false },
-    json: { type: 'boolean', default: false },
-  },
+const args = parseOrExitUsage('bench:excalidraw', () => {
+  const { values } = parseArgs({
+    options: {
+      root: { type: 'string', default: DEFAULT_ROOT },
+      'max-median-ms': { type: 'string' },
+      'write-manifest': { type: 'boolean', default: false },
+      json: { type: 'boolean', default: false },
+    },
+  })
+  return { ...values, maxMedianMs: parseBar('max-median-ms', values['max-median-ms']) }
 })
 const root = args.root
 
@@ -92,11 +97,11 @@ const warmup = pass()
 const medians = Array.from({ length: TIMED_PASSES }, () => median(pass().times))
 const medianMs = median(medians)
 const bytes = sources.reduce((sum, { source }) => sum + Buffer.byteLength(source), 0)
-const maxMedianMs = args['max-median-ms'] === undefined ? undefined : Number(args['max-median-ms'])
+const maxMedianMs = args.maxMedianMs
 
 const failures: string[] = []
 if (warmup.failed.length > 0) failures.push(`${warmup.failed.length} files failed`)
-if (maxMedianMs !== undefined && medianMs > maxMedianMs) {
+if (maxMedianMs !== undefined && !(medianMs <= maxMedianMs)) {
   failures.push(`median ${medianMs.toFixed(3)} ms/file is above ${maxMedianMs}`)
 }
 

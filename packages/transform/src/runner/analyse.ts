@@ -48,6 +48,8 @@ export interface Walked {
   readonly dynamicImports: readonly DynamicImport[]
   /** Ranges of `import.meta`. */
   readonly metas: readonly { readonly start: number; readonly end: number }[]
+  /** An import's name that a module-level declaration redeclares, which the parser let through. */
+  readonly redeclared: string | null
 }
 
 const SKIP_KEYS: ReadonlySet<string> = new Set(['type', 'start', 'end', 'range', 'loc', 'parent'])
@@ -71,12 +73,17 @@ export function walkProgram(program: Program, imports: ReadonlyMap<string, Impor
   let scope: Scope = top
   let varScope: Scope = top
   let statementStart = -1
+  let redeclared: string | null = null
 
   function declare(name: string, into: Scope): void {
-    // A module-level declaration of an import's name is a redeclaration error the parser reports
-    // (or, for a `var` in a `catch` block with that parameter, one it lets through): the import
-    // stays the binding.
-    if (into === top || !imports.has(name)) return
+    if (!imports.has(name)) return
+    // A module-level declaration of an import's name is a redeclaration error. The parser reports
+    // every form but a `var` in a `catch` block whose parameter has that name, so the walk keeps
+    // the first one for `rewriteModule` to report.
+    if (into === top) {
+      redeclared ??= name
+      return
+    }
     into.names ??= new Set()
     into.names.add(name)
   }
@@ -333,7 +340,7 @@ export function walkProgram(program: Program, imports: ReadonlyMap<string, Impor
     }
   }
 
-  return { references, dynamicImports, metas }
+  return { references, dynamicImports, metas, redeclared }
 }
 
 /** Whether `ref` still means the import (nothing between it and the module declares its name). */

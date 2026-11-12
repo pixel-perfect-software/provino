@@ -117,6 +117,33 @@ test('semantic errors fail the file with the parser’s text (the harness matche
   )
 })
 
+test('a `var` in a catch block that redeclares an import fails the file, as Node does', () => {
+  // The parser lets this one form through (a catch parameter may share a `var`'s name), but the
+  // `var` still declares the module-level name the import holds.
+  assert.match(
+    runnerError("import { x } from 'a'\ntry {} catch (x) { var x = 1 }\n"),
+    /\/s\.ts: Identifier `x` has already been declared/,
+  )
+})
+
+test('a hashbang becomes a comment of the same length, so the loader can run the module', () => {
+  // The loader runs the output inside an async function, where `#!` is a SyntaxError.
+  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
+    ...args: string[]
+  ) => unknown
+  for (const code of [
+    "#!/usr/bin/env node\nimport { a } from './a.js'\nexport const b = a\n",
+    '#!/usr/bin/env node\nconsole.log(1)\n',
+  ]) {
+    const record: TransformRecord = { ...strip('/ok.ts', 'export {}\n'), code }
+    const output = toModuleRunner('/cli.mjs', record)
+    assert.ok(output.code.startsWith('///usr/bin/env node\n'), output.code)
+    assert.doesNotThrow(
+      () => new AsyncFunction('__vite_ssr_import__', '__vite_ssr_exports__', output.code),
+    )
+  }
+})
+
 test('a throw maps back to the original TypeScript line, and the map is composed once', () => {
   const source = [
     "import { a } from './a.js'",
