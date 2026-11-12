@@ -239,6 +239,7 @@ export async function createJestHost(config: SerializedTransformConfig): Promise
         rules: rules.map((rule) => [rule.pattern.source, rule.path, rule.options]),
         ignore: config.ignorePatterns,
         config: configString,
+        hoistedMarkers: config.hoistedMarkers,
       }),
     )
     .digest('hex')

@@ -218,6 +218,14 @@ describe('routing', () => {
     assert.equal(host.handles(join(fixture, 'skip/deps.ts')), false)
   })
 
+  test('the fingerprint moves with the hoisted markers', async () => {
+    const one = await createJestHost(config(babel.module, babel.options))
+    const other = await createJestHost(
+      config(babel.module, babel.options, { hoistedMarkers: ['_getJestObj', '_other'] }),
+    )
+    assert.notEqual(one.fingerprint, other.fingerprint)
+  })
+
   test('a transformer that throws is a TRANSFORMER_FAILED error on the record', async () => {
     const host = await createJestHost(config(babel.module, babel.options))
     const pipeline = createPipeline({

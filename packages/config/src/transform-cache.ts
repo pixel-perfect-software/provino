@@ -8,11 +8,19 @@ import type { ResolvedProject } from './resolve.ts'
 
 /**
  * `project` with its workers' transform cache directory set to `dir`, after `dir` is made ready:
- * wiped when the project's lockfile is not the one it was filled under. Never throws.
+ * wiped when the project's lockfile is not the one it was filled under. When the wipe fails twice
+ * the project comes back without a `cacheDir` and a process warning says so. Never throws.
  * @public
  */
 export function withTransformCache(project: ResolvedProject, dir: string): ResolvedProject {
-  prepareCache(dir, lockfileHash(project.rootDir))
+  if (!prepareCache(dir, lockfileHash(project.rootDir))) {
+    // Stale entries that could not be removed must not be served: this run goes without the cache.
+    process.emitWarning(
+      `Provino could not clear the transform cache at ${dir}; this run uses no transform cache.`,
+      { code: 'PROVINO_TRANSFORM_CACHE_STALE' },
+    )
+    return project
+  }
   return {
     ...project,
     config: { ...project.config, loader: { ...project.config.loader, cacheDir: dir } },

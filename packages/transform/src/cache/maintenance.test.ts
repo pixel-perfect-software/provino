@@ -62,6 +62,33 @@ test('prepareCache keeps the entries while the lockfile hash is the same, and wi
   assert.equal(readFileSync(join(dir, 'lockfile-hash'), 'utf8'), 'two')
 })
 
+test('a wipe that fails is retried once, and a second failure means no cache for this run', () => {
+  const dir = join(tempDir(), 't')
+  prepareCache(dir, 'one')
+  put(dir, 1)
+  let calls = 0
+  const failing = (): void => {
+    calls++
+    throw new Error('EBUSY')
+  }
+  assert.equal(prepareCache(dir, 'two', { rm: failing }), false)
+  assert.equal(calls, 2, 'retried once')
+  // The stamp keeps the old hash, so the next run wipes again.
+  assert.equal(readFileSync(join(dir, 'lockfile-hash'), 'utf8'), 'one')
+  // A wipe that works the second time is a ready cache.
+  let first = true
+  const flaky = (path: string, options: { recursive: true; force: true }): void => {
+    if (first) {
+      first = false
+      throw new Error('EBUSY')
+    }
+    rmSync(path, options)
+  }
+  assert.equal(prepareCache(dir, 'two', { rm: flaky }), true)
+  assert.equal(createTransformCache(dir).get(keyFor(1)), undefined)
+  assert.equal(readFileSync(join(dir, 'lockfile-hash'), 'utf8'), 'two')
+})
+
 test('prepareCache with no lockfile leaves the entries alone', () => {
   const dir = join(tempDir(), 't')
   prepareCache(dir, 'one')

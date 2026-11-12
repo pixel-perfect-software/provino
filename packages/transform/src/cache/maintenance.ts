@@ -61,14 +61,28 @@ export function lockfileHash(root: string): string | null {
   }
 }
 
+/** What `prepareCache` may be given in place of the file system's own calls (a test's failing `rm`). */
+export interface PrepareCacheOptions {
+  readonly rm?: (path: string, options: { recursive: true; force: true }) => void
+}
+
 /**
  * Makes `dir` ready for a run: when it was filled under another lockfile hash, everything in it is
- * removed; then the directory, its `CACHEDIR.TAG` and the hash stamp exist. A `null` hash (no
- * lockfile) leaves the directory as it is. Best effort: it never throws, and a directory that can't
- * be written to is one the workers' writes will skip.
+ * removed (once more if the first try fails); then the directory, its `CACHEDIR.TAG` and the hash
+ * stamp exist. A `null` hash (no lockfile) leaves the directory as it is. Never throws.
+ *
+ * Returns `false` when the directory is not safe to use: the stale entries could not be removed
+ * (an interrupted or refused wipe), so the stamp is left as it was, for the next run to try again,
+ * and the caller must run without this cache. `true` otherwise, including a directory that can't
+ * be written to, which the workers' writes will skip.
  * @public
  */
-export function prepareCache(dir: string, hash: string | null): void {
+export function prepareCache(
+  dir: string,
+  hash: string | null,
+  options: PrepareCacheOptions = {},
+): boolean {
+  const remove = options.rm ?? rmSync
   try {
     let stamped: string | undefined
     try {
@@ -77,7 +91,15 @@ export function prepareCache(dir: string, hash: string | null): void {
       stamped = undefined
     }
     if (hash !== null && stamped !== undefined && stamped !== hash) {
-      rmSync(dir, { recursive: true, force: true })
+      try {
+        remove(dir, { recursive: true, force: true })
+      } catch {
+        try {
+          remove(dir, { recursive: true, force: true })
+        } catch {
+          return false
+        }
+      }
     }
     mkdirSync(dir, { recursive: true })
     writeCacheTag(dir)
@@ -89,6 +111,7 @@ export function prepareCache(dir: string, hash: string | null): void {
   } catch {
     // Best effort.
   }
+  return true
 }
 
 /**
