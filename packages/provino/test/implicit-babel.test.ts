@@ -67,14 +67,22 @@ test('plain', () => { expect(1 + 1).toBe(2) })
 test.skip('later', () => {})
 `
 
-async function project(withBabel: boolean): Promise<string> {
+async function project(withBabel: boolean, below = false): Promise<string> {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'provino-implicit-babel-')))
   made.push(dir)
   const files: Record<string, string> = {
     'package.json': '{"type":"commonjs"}\n',
     'jest.config.json': '{}\n',
-    'a.test.js': TESTS,
-    ...(withBabel ? { 'babel.config.js': babelConfig('on'), 'marker-plugin.cjs': PLUGIN } : {}),
+    [below ? 'src/a.test.js' : 'a.test.js']: TESTS,
+    ...(below
+      ? {
+          'src/.babelrc': '{"plugins":[["../marker-plugin.cjs",{"to":"on"}]]}\n',
+          'marker-plugin.cjs': PLUGIN,
+        }
+      : {}),
+    ...(withBabel && !below
+      ? { 'babel.config.js': babelConfig('on'), 'marker-plugin.cjs': PLUGIN }
+      : {}),
   }
   for (const [name, text] of Object.entries(files)) {
     await mkdir(dirname(join(dir, name)), { recursive: true })
@@ -143,6 +151,15 @@ describe("Jest's implicit babel-jest (D68)", () => {
     const dir = await project(true)
     const expected = await jestStatuses(dir)
     assert.equal(expected.get('sees the plugin'), 'passed', 'real Jest applies the plugin')
+    const ran = await provinoStatuses(dir)
+    assert.equal(ran.code, 0, ran.stderr)
+    assert.deepEqual(sorted(ran.statuses), sorted(expected))
+  })
+
+  it('a .babelrc below the root, in the root package, applies: statuses equal real Jest', async () => {
+    const dir = await project(false, true)
+    const expected = await jestStatuses(dir)
+    assert.equal(expected.get('sees the plugin'), 'passed', 'real Jest applies src/.babelrc')
     const ran = await provinoStatuses(dir)
     assert.equal(ran.code, 0, ran.stderr)
     assert.deepEqual(sorted(ran.statuses), sorted(expected))

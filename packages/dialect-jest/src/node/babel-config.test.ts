@@ -56,6 +56,23 @@ test('a config below the root is not found (babelrcRoots defaults to the root)',
   assert.equal(hasBabelConfig(tree({ 'sub/.babelrc': '{}\n', 'sub/babel.config.js': '' })), false)
 })
 
+test('a .babelrc below the root counts when the root is a package, not through another package or node_modules', () => {
+  const pkg = '{}\n'
+  assert.equal(hasBabelConfig(tree({ 'package.json': pkg, 'src/deep/.babelrc': '{}\n' })), true)
+  assert.equal(hasBabelConfig(tree({ 'package.json': pkg, 'src/.babelrc.json': '{}\n' })), true)
+  // Another package below the root is outside `babelrcRoots`.
+  assert.equal(
+    hasBabelConfig(tree({ 'package.json': pkg, 'pkg/package.json': pkg, 'pkg/.babelrc': '{}\n' })),
+    false,
+  )
+  assert.equal(
+    hasBabelConfig(tree({ 'package.json': pkg, 'node_modules/x/.babelrc': '{}\n' })),
+    false,
+  )
+  assert.equal(hasBabelConfig(tree({ 'package.json': pkg, '.git/.babelrc': '{}\n' })), false)
+  assert.equal(hasBabelConfig(tree({ 'package.json': pkg, 'src/a.js': '' })), false)
+})
+
 test('a project naming no transform keeps the default babel-jest entry only with a Babel config', async () => {
   const withConfig = tree({
     'jest.config.js': 'module.exports = {}\n',
