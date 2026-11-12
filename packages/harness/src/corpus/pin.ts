@@ -151,7 +151,7 @@ async function pinEntry(
  * Pins the selected repositories in the manifest's JSON. Each entry needs `id`, `repo` and
  * `f5Sha`. The `sha`, `commitDate` and `tarballSha256` it already has must equal what the API and
  * the tarball say now (`HARNESS_CORPUS_PIN_FAILED`, `HARNESS_CORPUS_TARBALL_MISMATCH`); the ones it
- * lacks are filled. A repository that fails stops there for a report and the others go on. With
+ * lacks are filled. An id that names no repository (a subject id included) is `HARNESS_USAGE`, before anything is asked of `gh`. A repository that fails stops there for a report and the others go on. With
  * no failure the whole result is parsed strictly and returned as the new text; with one the text is
  * returned unchanged, so a half-pinned manifest is never written.
  * @public
@@ -180,8 +180,7 @@ export async function pinManifest(
     })
   }
   const { selection } = options
-  const changes: PinChange[] = []
-  const failures: PinFailure[] = []
+  const entries: { entry: Record<string, unknown>; id: string; repo: string }[] = []
   for (const entry of root.repos) {
     if (!isRecord(entry) || typeof entry.id !== 'string' || typeof entry.repo !== 'string') {
       throw new HarnessError(
@@ -190,13 +189,30 @@ export async function pinManifest(
         { path: source },
       )
     }
+    entries.push({ entry, id: entry.id, repo: entry.repo })
+  }
+  if (selection.kind === 'ids') {
+    // As `selectRepos` does, but only a repository can be pinned: its subjects share its pin.
+    const known = new Set(entries.map(({ id }) => id))
+    for (const id of selection.ids) {
+      if (!known.has(id)) {
+        throw new HarnessError(
+          'HARNESS_USAGE',
+          `no corpus repository "${id}" to pin (a subject id is not one: name its repository)`,
+        )
+      }
+    }
+  }
+  const changes: PinChange[] = []
+  const failures: PinFailure[] = []
+  for (const { entry, id, repo } of entries) {
     const wanted =
       selection.kind === 'all' ||
       (selection.kind === 'pilot' && entry.pilot === true) ||
-      (selection.kind === 'ids' && selection.ids.includes(entry.id))
+      (selection.kind === 'ids' && selection.ids.includes(id))
     if (!wanted) continue
     try {
-      const { pin, filled } = await pinEntry(entry, entry.id, entry.repo, source, {
+      const { pin, filled } = await pinEntry(entry, id, repo, source, {
         workRoot: options.workRoot,
         deps,
         env,
@@ -204,12 +220,12 @@ export async function pinManifest(
       entry.sha = pin.sha
       entry.commitDate = pin.commitDate
       entry.tarballSha256 = pin.tarballSha256
-      const change: PinChange = { id: entry.id, outcome: filled ? 'new' : 'same' }
+      const change: PinChange = { id, outcome: filled ? 'new' : 'same' }
       changes.push(change)
       options.onChange?.(change)
     } catch (error) {
       if (!(error instanceof HarnessError)) throw error
-      failures.push({ id: entry.id, error })
+      failures.push({ id, error })
     }
   }
   if (failures.length > 0) return { text, changes, failures }

@@ -225,3 +225,21 @@ test('an entry with no f5Sha cannot be resolved', async () => {
   })
   assert.match(result.failures[0]?.error.message ?? '', /no f5Sha/)
 })
+
+test('an id that names no repository, or only a subject, is HARNESS_USAGE and pins nothing', async () => {
+  const work = await tempDir('pin-unknown')
+  const text = manifestText(entry(A))
+  const subject = manifest.repos.flatMap((repo) =>
+    (repo.subjects as { id: string }[]).filter((candidate) => candidate.id !== repo.id),
+  )[0]?.id
+  assert.ok(subject !== undefined, 'the manifest has a subject whose id is not its repository')
+  const fake = deps({ [key(A)]: answer(SHA_A) })
+  for (const id of ['jset-extended', subject]) {
+    await assert.rejects(
+      pinManifest(text, 'm.json', { selection: only(A, id), workRoot: work, deps: fake }),
+      (error: unknown) =>
+        error instanceof HarnessError && error.code === 'HARNESS_USAGE' && error.message.includes(id),
+    )
+  }
+  assert.deepEqual(fake.calls, [], 'nothing was asked of gh or curl')
+})
