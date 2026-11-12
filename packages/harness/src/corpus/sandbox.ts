@@ -5,7 +5,8 @@
 // sandbox is a pure function with tests; `runProbe` is what proves, on the real machine, that the
 // profile holds, and `corpus run` repeats it before every repository and refuses to start if any
 // attempt got out (fail closed).
-import { mkdir, realpath, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -73,8 +74,9 @@ function sbplString(value: string): string {
 /**
  * The Seatbelt profile (SBPL) for one run, as text:
  *
- * - **Network:** everything denied except loopback and unix sockets; the DNS mach services denied
- *   too, so a name cannot be resolved by the system resolver either.
+ * - **Network:** everything denied except loopback and unix-domain sockets under the run's own
+ *   directories (`writable`); the DNS mach services denied too, so a name cannot be resolved by
+ *   the system resolver either.
  * - **Reads:** everything allowed except the credential paths under the real home and any extra
  *   `deniedReads`.
  * - **Writes:** everything denied except the run's directories, `/dev/null` and the terminal
@@ -92,12 +94,14 @@ export function seatbeltProfile(policy: SandboxPolicy): string {
   const lines = [
     '(version 1)',
     '(allow default)',
-    ';; network: loopback and unix sockets only',
+    ';; network: loopback, and unix sockets under the run directory',
     '(deny network*)',
     '(allow network* (remote ip "localhost:*"))',
     '(allow network* (local ip "localhost:*"))',
-    '(allow network* (remote unix-socket))',
-    '(allow network* (local unix-socket))',
+    ...policy.writable.flatMap((entry) => [
+      `(allow network* (remote unix-socket (subpath ${sbplString(entry)})))`,
+      `(allow network* (local unix-socket (subpath ${sbplString(entry)})))`,
+    ]),
     ';; DNS goes through mach services, which a network rule does not cover',
     ...DNS_SERVICES.map((name) => `(deny mach-lookup (global-name ${serviceName(name)}))`),
     ';; credentials',
@@ -232,16 +236,23 @@ export interface ProbeAttempt {
 }
 
 /**
- * The attempts a probe makes: four that must fail inside the profile, and loopback, which must
- * work.
+ * The attempts a probe makes: those that must fail inside the profile, and loopback, which must
+ * work. `socket` connects to a unix socket outside the run's directories.
  * @public
  */
-export type ProbeName = 'tcp' | 'dns' | 'https' | 'canary' | 'ssh' | 'loopback'
+export type ProbeName = 'tcp' | 'dns' | 'https' | 'socket' | 'canary' | 'ssh' | 'loopback'
 
 /** The attempts that must fail, in the order the report prints them. */
-export const BLOCKED_ATTEMPTS: readonly ProbeName[] = ['tcp', 'dns', 'https', 'canary', 'ssh']
+export const BLOCKED_ATTEMPTS: readonly ProbeName[] = [
+  'tcp',
+  'dns',
+  'https',
+  'socket',
+  'canary',
+  'ssh',
+]
 
-const NETWORK_ATTEMPTS: ReadonlySet<ProbeName> = new Set(['tcp', 'dns', 'https'])
+const NETWORK_ATTEMPTS: ReadonlySet<ProbeName> = new Set(['tcp', 'dns', 'https', 'socket'])
 const DENIAL_CODES: ReadonlySet<string> = new Set(['EPERM', 'EACCES'])
 
 /**
@@ -358,6 +369,8 @@ export interface ProbeOptions {
   readonly home?: string
   /** The platform to judge (tests only). Default: this one. */
   readonly platform?: NodeJS.Platform
+  /** Where the child's `socket` attempt connects (tests only). Default: `listenOutsideRun`. */
+  readonly listen?: () => Promise<OutsideSocket>
 }
 
 /**
@@ -369,7 +382,44 @@ export function probeChildPath(): string {
 }
 
 /**
- * Runs the probe (T12.10's sandbox check): the child makes the attempts once inside the profile
+ * A listening unix socket, which the probe's `socket` attempt connects to.
+ * @internal
+ */
+export interface OutsideSocket {
+  readonly path: string
+  readonly close: () => Promise<void>
+}
+
+/**
+ * A listening unix socket in a fresh temporary directory, which is no run's directory. A short
+ * path (a unix socket's name has a length limit).
+ * @internal
+ */
+export async function listenOutsideRun(): Promise<OutsideSocket> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'provino-probe-'))
+  const socketPath = path.join(dir, 's')
+  const server = net.createServer((connection) => connection.end())
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(socketPath, resolve)
+    })
+  } catch (cause) {
+    await rm(dir, { recursive: true, force: true })
+    throw cause
+  }
+  return {
+    path: socketPath,
+    close: async () => {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await rm(dir, { recursive: true, force: true })
+    },
+  }
+}
+
+/**
+ * Runs the probe (T12.10's sandbox check): the parent listens on a unix socket outside the run's
+ * directories; the child makes the attempts once inside the profile
  * and once outside it as a control, and `evaluateProbe` judges both. Throws
  * `HARNESS_CORPUS_SANDBOX_LEAK` when the verdict is not ok, so `corpus run` can never start on a
  * profile that leaks. On a platform without Seatbelt it throws `HARNESS_CORPUS_NO_SANDBOX`.
@@ -386,40 +436,47 @@ export async function runProbe(options: ProbeOptions): Promise<ProbeVerdict> {
   const env = sandboxEnv({ runDir: probeDir })
   await mkdir(env.HOME ?? probeDir, { recursive: true })
   await mkdir(env.TMPDIR ?? probeDir, { recursive: true })
-  const childArgs = [
-    '--conditions=provino-source',
-    probeChildPath(),
-    '--canary',
-    canary,
-    '--ssh',
-    path.join(home, '.ssh', 'provino-probe-canary'),
-  ]
-  const run = async (wrapped: boolean) => {
-    const target = wrapped
-      ? sandboxed(profile, process.execPath, childArgs)
-      : { command: process.execPath, args: childArgs }
-    const result = await deps.run(target.command, target.args, {
-      cwd: probeDir,
-      env: wrapped ? env : { PATH: env.PATH ?? '', HOME: env.HOME ?? probeDir },
-      timeoutMs: 60_000,
-      keepStreams: true,
-    })
-    return { result, attempts: parseProbeOutput(result.streams?.stdout ?? '') }
+  const outsideSocket = await (options.listen ?? listenOutsideRun)()
+  try {
+    const childArgs = [
+      '--conditions=provino-source',
+      probeChildPath(),
+      '--canary',
+      canary,
+      '--ssh',
+      path.join(home, '.ssh', 'provino-probe-canary'),
+      '--socket',
+      outsideSocket.path,
+    ]
+    const run = async (wrapped: boolean) => {
+      const target = wrapped
+        ? sandboxed(profile, process.execPath, childArgs)
+        : { command: process.execPath, args: childArgs }
+      const result = await deps.run(target.command, target.args, {
+        cwd: probeDir,
+        env: wrapped ? env : { PATH: env.PATH ?? '', HOME: env.HOME ?? probeDir },
+        timeoutMs: 60_000,
+        keepStreams: true,
+      })
+      return { result, attempts: parseProbeOutput(result.streams?.stdout ?? '') }
+    }
+    const inside = await run(true)
+    if (inside.attempts.length === 0) {
+      throw new HarnessError(
+        'HARNESS_CORPUS_SANDBOX_LEAK',
+        `the probe printed nothing inside the profile (exit ${inside.result.exitCode ?? inside.result.signal}), so the sandbox cannot be trusted: ${inside.result.output.trim().slice(-400)}`,
+      )
+    }
+    const outside = await run(false)
+    const verdict = evaluateProbe(inside.attempts, outside.attempts)
+    if (!verdict.ok) {
+      throw new HarnessError(
+        'HARNESS_CORPUS_SANDBOX_LEAK',
+        `the sandbox probe failed:\n${verdict.lines.map((line) => `  ${line}`).join('\n')}`,
+      )
+    }
+    return verdict
+  } finally {
+    await outsideSocket.close()
   }
-  const inside = await run(true)
-  if (inside.attempts.length === 0) {
-    throw new HarnessError(
-      'HARNESS_CORPUS_SANDBOX_LEAK',
-      `the probe printed nothing inside the profile (exit ${inside.result.exitCode ?? inside.result.signal}), so the sandbox cannot be trusted: ${inside.result.output.trim().slice(-400)}`,
-    )
-  }
-  const outside = await run(false)
-  const verdict = evaluateProbe(inside.attempts, outside.attempts)
-  if (!verdict.ok) {
-    throw new HarnessError(
-      'HARNESS_CORPUS_SANDBOX_LEAK',
-      `the sandbox probe failed:\n${verdict.lines.map((line) => `  ${line}`).join('\n')}`,
-    )
-  }
-  return verdict
 }

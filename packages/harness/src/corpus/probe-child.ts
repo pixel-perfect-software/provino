@@ -1,9 +1,10 @@
 // The sandbox probe's child (T12.10; `sandbox.ts`). It runs once inside the Seatbelt profile and
-// once outside it as a control, makes six attempts and prints one JSON line for each:
+// once outside it as a control, makes seven attempts and prints one JSON line for each:
 //
 //   tcp       a TCP connect to 1.1.1.1:443
 //   dns       a lookup of registry.npmjs.org, by the system resolver and by DNS queries
 //   https     an HTTPS fetch of registry.npmjs.org (no proxy variables are in this environment)
+//   socket    a connect to a unix socket outside the run's directories (the parent listens on it)
 //   canary    a read of the canary file the profile denies
 //   ssh       a read of a file under ~/.ssh
 //   loopback  a connection to a server on 127.0.0.1 (the one that must work)
@@ -46,9 +47,16 @@ async function attempt(name: string, action: () => Promise<void>): Promise<void>
   }
 }
 
-function connect(host: string, port: number): Promise<void> {
+function connectPath(socketPath: string | undefined): Promise<void> {
+  if (socketPath === undefined) {
+    return Promise.reject(Object.assign(new Error('no path given'), { code: 'EUSAGE' }))
+  }
+  return connect({ path: socketPath })
+}
+
+function connect(target: net.NetConnectOpts): Promise<void> {
   return new Promise((resolve, reject) => {
-    const socket = net.connect({ host, port })
+    const socket = net.connect(target)
     const timer = setTimeout(() => {
       socket.destroy()
       reject(Object.assign(new Error('timed out'), { code: 'ETIMEDOUT_PROBE' }))
@@ -101,7 +109,7 @@ async function loopbackAttempt(): Promise<void> {
   try {
     const address = server.address()
     if (address === null || typeof address === 'string') throw new Error('no address')
-    await connect('127.0.0.1', address.port)
+    await connect({ host: '127.0.0.1', port: address.port })
   } finally {
     server.close()
   }
@@ -112,9 +120,10 @@ function argument(flag: string): string | undefined {
   return index < 0 ? undefined : process.argv[index + 1]
 }
 
-await attempt('tcp', () => connect('1.1.1.1', 443))
+await attempt('tcp', () => connect({ host: '1.1.1.1', port: 443 }))
 await attempt('dns', dnsAttempt)
 await attempt('https', httpsAttempt)
+await attempt('socket', () => connectPath(argument('--socket')))
 await attempt('canary', readAttempt(argument('--canary')))
 await attempt('ssh', readAttempt(argument('--ssh')))
 await attempt('loopback', loopbackAttempt)
