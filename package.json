@@ -41,6 +41,7 @@
     "bench:loader": "node --conditions=provino-source packages/bench/src/loader/cli.ts",
     "bench:worker": "node --conditions=provino-source packages/bench/src/worker/cli.ts",
     "bench:expect": "node --conditions=provino-source packages/bench/src/expect/cli.ts",
+    "bench:env": "node --expose-gc --conditions=provino-source packages/bench/src/env/cli.ts",
     "bench:mock": "node --conditions=provino-source packages/bench/src/mock/cli.ts",
     "bench:hoist": "node --conditions=provino-source packages/bench/src/hoist/cli.ts",
     "bench:jest-config": "node --conditions=provino-source packages/bench/src/jest-config/cli.ts",

@@ -183,3 +183,15 @@ function isSame(original: PropertyDescriptor, current: PropertyDescriptor | unde
     original.configurable === current.configurable
   )
 }
+
+/**
+ * The teardown report for the keys `restore()` could not restore: nothing when there are none,
+ * otherwise `{ leakedGlobals }` with each key as a string (`String(symbol)` for a symbol), as
+ * `EnvironmentTeardownReport` says (decision D22).
+ * @public
+ */
+export function leakReport(
+  leaked: readonly (string | symbol)[],
+): { readonly leakedGlobals: readonly string[] } | undefined {
+  return leaked.length === 0 ? undefined : { leakedGlobals: leaked.map(String) }
+}

@@ -51,12 +51,18 @@ export const formatValue: FormatValue = (value) =>
 export const snapshotKey: SnapshotKey = (fullName, count) => `${fullName} ${count}`
 
 /**
- * Export conditions for an environment: its own list if it has one, `['browser']` for the DOM
- * environments, otherwise `['node']`.
+ * Export conditions for an environment: the project's `customExportConditions` option when it is
+ * a list of strings, else the environment's own list, `['browser']` for the DOM environments,
+ * otherwise `['node']`.
  * @public
  */
-export const environmentConditions: EnvironmentConditions = (env) =>
-  env.conditions ?? (DOM_ENVIRONMENTS.has(env.name) ? ['browser'] : ['node'])
+export const environmentConditions: EnvironmentConditions = (env) => {
+  const custom = env.options?.customExportConditions
+  if (Array.isArray(custom) && custom.every((item): item is string => typeof item === 'string')) {
+    return custom
+  }
+  return env.conditions ?? (DOM_ENVIRONMENTS.has(env.name) ? ['browser'] : ['node'])
+}
 
 function readPath(row: unknown, path: string): unknown {
   let value = row

@@ -2,7 +2,7 @@
 // non-configurable property can never be removed from it again.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { snapshotProperties } from './restore.ts'
+import { leakReport, snapshotProperties } from './restore.ts'
 
 /** An object with a mix of properties, and the descriptors it started with. */
 function sample(): { readonly target: Record<string | symbol, unknown>; readonly tag: symbol } {
@@ -236,4 +236,9 @@ test('a second restore does not replay an assignment made after the first', () =
   target.cell = 'after the file'
   assert.deepEqual(snapshot.restore(), [])
   assert.equal(state.value, 'after the file', 'the wrapper is gone, so there is nothing to replay')
+})
+
+test('leakReport is nothing for a clean restore, else the keys as strings', () => {
+  assert.equal(leakReport([]), undefined)
+  assert.deepEqual(leakReport(['a', Symbol('b')]), { leakedGlobals: ['a', 'Symbol(b)'] })
 })

@@ -50,6 +50,9 @@
       "path": "packages/dialect-vitest/test"
     },
     {
+      "path": "packages/env-jsdom/test"
+    },
+    {
       "path": "packages/env-node/test"
     },
     {

@@ -46,6 +46,22 @@ test('snapshotKey joins the name and the count', () => {
   assert.equal(snapshotKey('suite > adds', 2), 'suite > adds 2')
 })
 
+test('environmentConditions: options.customExportConditions replaces the default list', () => {
+  assert.deepEqual(
+    environmentConditions({ name: 'jsdom', options: { customExportConditions: ['worker'] } }),
+    ['worker'],
+  )
+  // Not a list of strings: ignored.
+  assert.deepEqual(
+    environmentConditions({ name: 'jsdom', options: { customExportConditions: 'worker' } }),
+    ['browser'],
+  )
+  assert.deepEqual(
+    environmentConditions({ name: 'jsdom', options: { customExportConditions: [1] } }),
+    ['browser'],
+  )
+})
+
 test('environmentConditions: own list, then DOM, then node', () => {
   assert.deepEqual(environmentConditions({ name: 'jsdom', conditions: ['worker'] }), ['worker'])
   assert.deepEqual(environmentConditions({ name: 'happy-dom' }), ['browser'])

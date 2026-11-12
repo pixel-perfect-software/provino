@@ -56,6 +56,39 @@ import {
   type VitestConvertOptions,
   vitestMockPolicy,
 } from '@provino/harness'
+import {
+  type CorpusDeps,
+  type CorpusManifest,
+  type CorpusRepo,
+  type CorpusRunner,
+  type CorpusSelection,
+  type CorpusSubject,
+  type FetchResult,
+  fetchRepo,
+  flakyKeys,
+  type GateReport,
+  type GateSubject,
+  type InstallPlan,
+  type InstallRecord,
+  installPlan,
+  installRepo,
+  type PinChange,
+  type ProbeAttempt,
+  type ProbeName,
+  type ProbeVerdict,
+  parseCorpusManifest,
+  pinManifest,
+  type RunMeta,
+  type RunReferenceOptions,
+  readCorpusManifest,
+  repoPaths,
+  runProbe,
+  runReference,
+  type SelfDiff,
+  selectRepos,
+  selfDiff,
+  tarballUrl,
+} from '@provino/harness/corpus'
 import type {
   ApiRow,
   ApiSupport,
@@ -407,3 +440,86 @@ const badFlaky: DiffOptions = {
   flaky: [{ file: 'a.test.ts' }],
 }
 void badFlaky
+
+// B16: `@provino/harness/corpus`, the pinned corpus and its reference runs.
+expectTypeOf(parseCorpusManifest).parameters.toEqualTypeOf<[content: string, source: string]>()
+expectTypeOf(parseCorpusManifest).returns.toEqualTypeOf<CorpusManifest>()
+expectTypeOf(readCorpusManifest).returns.toEqualTypeOf<Promise<CorpusManifest>>()
+expectTypeOf(selectRepos).returns.toEqualTypeOf<readonly CorpusRepo[]>()
+expectTypeOf(tarballUrl).parameter(0).toEqualTypeOf<Pick<CorpusRepo, 'repo' | 'sha'>>()
+expectTypeOf(fetchRepo).returns.toEqualTypeOf<Promise<FetchResult>>()
+expectTypeOf(installPlan).returns.toEqualTypeOf<InstallPlan>()
+expectTypeOf(installRepo).returns.toEqualTypeOf<Promise<InstallRecord>>()
+expectTypeOf(runReference).returns.toEqualTypeOf<Promise<RunMeta>>()
+expectTypeOf(runProbe).returns.toEqualTypeOf<Promise<ProbeVerdict>>()
+expectTypeOf(flakyKeys).parameter(0).toEqualTypeOf<readonly NormalizedRun[]>()
+expectTypeOf(flakyKeys).returns.toEqualTypeOf<string[]>()
+expectTypeOf(selfDiff).returns.toEqualTypeOf<SelfDiff>()
+expectTypeOf<CorpusRunner>().toEqualTypeOf<'jest' | 'vitest'>()
+expectTypeOf<CorpusSelection['kind']>().toEqualTypeOf<'all' | 'pilot' | 'ids'>()
+expectTypeOf<Extract<CorpusSelection, { kind: 'ids' }>['ids']>().toEqualTypeOf<readonly string[]>()
+expectTypeOf<ProbeName>().toEqualTypeOf<
+  'tcp' | 'dns' | 'https' | 'socket' | 'canary' | 'ssh' | 'loopback'
+>()
+expectTypeOf<PinChange['outcome']>().toEqualTypeOf<'new' | 'same'>()
+expectTypeOf<GateReport['subjects']>().toEqualTypeOf<readonly GateSubject[]>()
+expectTypeOf<CorpusDeps['run']>().parameters.toEqualTypeOf<
+  [command: string, args: readonly string[], options: ProcessOptions]
+>()
+expectTypeOf(repoPaths).returns.toHaveProperty('tarball').toEqualTypeOf<string>()
+expectTypeOf(pinManifest).parameter(2).toHaveProperty('selection').toEqualTypeOf<CorpusSelection>()
+expectTypeOf<RunReferenceOptions['unsandboxed']>().toEqualTypeOf<boolean | undefined>()
+
+// @ts-expect-error a corpus subject runs Jest or Vitest, nothing else
+const mochaCorpusSubject: CorpusRunner = 'mocha'
+void mochaCorpusSubject
+
+// @ts-expect-error a selection is all, the pilot or a list of ids
+const badSelection: CorpusSelection = { kind: 'some' }
+void badSelection
+
+// @ts-expect-error an `ids` selection needs its ids
+const idsWithoutIds: CorpusSelection = { kind: 'ids' }
+void idsWithoutIds
+
+// @ts-expect-error licences other than MIT are not pinned
+const gplRepo: Pick<CorpusRepo, 'licence'> = { licence: 'GPL' }
+void gplRepo
+
+// @ts-expect-error a subject needs the runner config files it reads
+const subjectWithoutConfig: CorpusSubject = {
+  id: 's',
+  cwd: '.',
+  runner: 'jest',
+  runnerVersion: '30.5.2',
+  argv: [],
+  env: {},
+  r6: false,
+}
+void subjectWithoutConfig
+
+// @ts-expect-error the manifest is parsed from its text, not from an object
+void parseCorpusManifest({ schemaVersion: 1, repos: [] }, 'manifest.json')
+
+// @ts-expect-error a probe attempt's outcome is ok, error or timeout
+const refused: ProbeAttempt = { name: 'tcp', outcome: 'blocked' }
+void refused
+
+// @ts-expect-error the probe has no attempt called "udp"
+const udp: ProbeName = 'udp'
+void udp
+
+// @ts-expect-error a pin run needs the selection of repositories to pin
+void pinManifest('{}', 'manifest.json', { workRoot: '/w' })
+
+// @ts-expect-error a fetch needs the work directory
+void fetchRepo({} as CorpusRepo, {})
+
+// @ts-expect-error installing a repository needs the work directory
+void installRepo({} as CorpusRepo, { deps: {} as CorpusDeps })
+
+// @ts-expect-error the sandbox platform is a Node platform name
+void runProbe({ workRoot: '/w', platform: 'macos' })
+
+// @ts-expect-error a test key in the flaky list is a string, so the runs are what `flakyKeys` takes
+void flakyKeys(['a.test.ts::x#0'])
