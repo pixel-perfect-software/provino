@@ -35,19 +35,29 @@ async function readInputs(
   const cand = parseNormalizedRun(await readText(command.cand, 'candidate run'), command.cand)
   if (command.suite !== undefined) {
     const manifest = await readCorpusManifest(options.manifestPath)
-    if (
-      !manifest.repos.some((repo) => repo.subjects.some((subject) => subject.id === command.suite))
-    ) {
+    const owner = manifest.repos.find((repo) =>
+      repo.subjects.some((subject) => subject.id === command.suite),
+    )
+    if (owner === undefined) {
       throw new HarnessError(
         'HARNESS_USAGE',
         `--suite ${command.suite} is not a subject in the corpus manifest`,
+      )
+    }
+    // As `corpus self-diff` and `gate` do: a missing list is not an empty one, or flaky tests
+    // would read as differences (or, worse, the list's absence would go unnoticed).
+    const flaky = await readSubjectFlaky(command.suite, options.corpusDir)
+    if (flaky === undefined) {
+      throw new HarnessError(
+        'HARNESS_CORPUS_GATE_INPUT',
+        `${command.suite}: no flaky.json; run "corpus flaky ${owner.id}" first`,
       )
     }
     return {
       ref,
       cand,
       exclusions: await readSubjectExclusions(command.suite, today, options.corpusDir),
-      flaky: (await readSubjectFlaky(command.suite, options.corpusDir)) ?? [],
+      flaky,
     }
   }
   const exclusions =
