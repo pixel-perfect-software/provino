@@ -46,7 +46,7 @@ The Jest 30.5 dialect. B08 built its `expect` part: the `ExpectPolicy` slice and
 | File | Role |
 |---|---|
 | `cli.ts` | `parseJestArgv(args)` = `buildArgv(args)` minus `$0` (throws `JestCliError`); `parseJestCli(args)` adds the diagnostics below; `jestArgvToRunRequest(argv)`; `jestCli`, `jestFlags` |
-| `cli-table.ts` | `JEST_CLI_OPTIONS`: the 105 `yargsOptions` of jest-cli, copied in its order with its descriptions, plus our `support` for each (`request` 14, `config` 50, `accepted` 5, `warn` 10, `refuse` 26) and, for a refusal or warning, its `owner` task |
+| `cli-table.ts` | `JEST_CLI_OPTIONS`: the 105 `yargsOptions` of jest-cli, copied in its order with its descriptions, plus our `support` for each (`request` 14, `config` 50, `accepted` 7 (`--selectProjects` and `--ignoreProjects` read by `provino jest`, D69), `warn` 10, `refuse` 24) and, for a refusal or warning, its `owner` task |
 | `internal/yargs-parse.ts`, `camelcase.ts` | yargs 17.7.3 / yargs-parser 21.1.1's grammar, branch for branch (aliases set both keys, `--no-x`, `--x=false`, greedy array flags, `--`, numeric positionals, camel-cased dashed forms, `requiresArg`, `choices`), and `camelcase@6.3.0` as jest-validate uses it |
 | `internal/cli-oracle*.ts`, `cli-encode.ts` | The tests' oracle: one child process runs real `buildArgv` over every case (it stubs `process.exit`, as yargs calls it on a failure) |
 

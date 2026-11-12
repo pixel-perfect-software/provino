@@ -20,6 +20,12 @@ import type { ReporterChoice } from '../types.ts'
 import { ENVIRONMENTS } from './built-ins.ts'
 import { usageMessage } from './describe.ts'
 import { executeProject } from './execute.ts'
+import {
+  chooseProjects,
+  noProjectsMessage,
+  selectionFromArgv,
+  selectionMessage,
+} from './select-projects.ts'
 import { UsageError } from './usage-error.ts'
 
 /**
@@ -48,6 +54,13 @@ function usageExitCode(): number {
   const { policy } = jestNodeDialect
   if (typeof policy === 'function') return ExitCode.UsageError
   return policy.orchestrator?.exitCodes?.usage ?? ExitCode.UsageError
+}
+
+/** The Jest dialect's exit code for a run that found no tests. */
+function noTestsExitCode(): number {
+  const { policy } = jestNodeDialect
+  if (typeof policy === 'function') return ExitCode.TestFailure
+  return policy.orchestrator?.exitCodes?.noTests ?? ExitCode.TestFailure
 }
 
 /**
@@ -149,8 +162,22 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       return ExitCode.Pass
     }
 
+    // `--selectProjects` / `--ignoreProjects` (D69): Jest clears the cache of every project, and
+    // says what it selected, on the output stream, before it lists or runs the chosen ones.
+    const selection = selectionFromArgv(parsed.argv)
+    let neutrals = read.neutral
+    let noneSelected = false
+    if (selection !== undefined && request.mode !== 'clear-cache') {
+      neutrals = chooseProjects(read.neutral, selection)
+      noneSelected = neutrals.length === 0
+      const message = selectionMessage(read.neutral, neutrals, selection)
+      // Under `--json` or `--useStderr` the output stream is stderr, so stdout stays parseable.
+      if (parsed.argv.json === true || parsed.argv.useStderr === true) stderr.write(message)
+      else await stdout.write(message)
+    }
+
     const projects: ResolvedProject[] = []
-    for (const neutral of read.neutral) {
+    for (const neutral of neutrals) {
       projects.push(
         await resolveNeutralProject(neutral, {
           dialect: jestNodeDialect,
@@ -186,7 +213,20 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     }
 
     const [project, ...others] = projects
-    if (project === undefined) throw new UsageError('the config has no project to run')
+    if (project === undefined) {
+      if (!noneSelected) throw new UsageError('the config has no project to run')
+      // A selection that left no project: Jest runs nothing and says there are no tests.
+      const passWithNoTests = read.globalConfig.passWithNoTests
+      const message = noProjectsMessage({
+        rootDir: read.globalConfig.rootDir,
+        passWithNoTests,
+        byPath: parsed.argv.runTestsByPath === true,
+        filters: request.fileFilters,
+      })
+      if (parsed.argv.json === true || parsed.argv.useStderr === true) stderr.write(message)
+      else await stdout.write(message)
+      return passWithNoTests ? ExitCode.Pass : noTestsExitCode()
+    }
     const result = await executeProject({
       project,
       others,

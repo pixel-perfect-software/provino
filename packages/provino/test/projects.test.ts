@@ -111,15 +111,19 @@ function run(
   command: string,
   args: readonly string[],
   cwd: string,
-): Promise<{ code: number | null; stdout: string }> {
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'ignore'] })
+    const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
     let stdout = ''
+    let stderr = ''
     child.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString()
     })
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString()
+    })
     child.once('error', reject)
-    child.once('close', (code) => resolve({ code, stdout }))
+    child.once('close', (code) => resolve({ code, stdout, stderr }))
   })
 }
 
@@ -259,5 +263,185 @@ describe('provino jest runs the projects of a config in one pool, as Jest does',
     const ended = await spawnCli(['jest', '--no-cache', '--ci', '--maxWorkers=1'], { cwd: dir })
     assert.equal(ended.code, 1, ended.stderr)
     assert.match(ended.stderr, /Test Suites: 1 failed, 4 passed, 5 total/)
+  })
+})
+
+/** The RHF shape plus a project with no `displayName`, and (for the plural) a second. */
+const RHF_WITH_UNNAMED: Readonly<Record<string, string>> = {
+  'package.json': '{"type":"commonjs"}\n',
+  'jest.config.json': JSON.stringify({
+    projects: [
+      { displayName: 'server', testMatch: ['<rootDir>/server/**/*.test.js'] },
+      { displayName: 'client', testMatch: ['<rootDir>/client/**/*.test.js'] },
+      { testMatch: ['<rootDir>/other/**/*.test.js'] },
+    ],
+  }),
+  'server/a.test.js': pass('serves') + pass('routes'),
+  'client/b.test.js': pass('renders') + fail('breaks'),
+  'client/c.test.js': skip('later') + pass('hydrates'),
+  'other/d.test.js': pass('unnamed'),
+}
+
+const TWO_UNNAMED: Readonly<Record<string, string>> = {
+  ...RHF_WITH_UNNAMED,
+  'jest.config.json': JSON.stringify({
+    projects: [
+      { displayName: 'server', testMatch: ['<rootDir>/server/**/*.test.js'] },
+      { testMatch: ['<rootDir>/client/**/*.test.js'] },
+      { testMatch: ['<rootDir>/other/**/*.test.js'] },
+    ],
+  }),
+}
+
+/** Real Jest with `args`: its exit code, the two streams, and (from a `--json` run) the statuses. */
+async function jestWith(
+  dir: string,
+  args: readonly string[],
+): Promise<{
+  code: number | null
+  stdout: string
+  stderr: string
+  statuses: Map<string, string>
+}> {
+  const plain = await run(process.execPath, [JEST, '--no-cache', '--ci', ...args], dir)
+  const out = join(dir, '.out-select.json')
+  await rm(out, { force: true })
+  // A listing has no results to read.
+  if (!args.includes('--listTests')) {
+    await run(
+      process.execPath,
+      [JEST, '--no-cache', '--ci', '--json', `--outputFile=${out}`, ...args],
+      dir,
+    )
+  }
+  const statuses = new Map<string, string>()
+  const text = await readFile(out, 'utf8').catch(() => undefined)
+  if (text !== undefined) {
+    const report = JSON.parse(text) as {
+      testResults: { name: string; assertionResults: { fullName: string; status: string }[] }[]
+    }
+    for (const file of report.testResults) {
+      for (const test of file.assertionResults) {
+        statuses.set(`${relative(dir, file.name)}::${test.fullName}`, test.status)
+      }
+    }
+  }
+  return { code: plain.code, stdout: plain.stdout, stderr: plain.stderr, statuses }
+}
+
+/** Provino with `args`: exit code, stdout (the selection text), stderr and the statuses it wrote. */
+async function provinoWith(
+  dir: string,
+  args: readonly string[],
+): Promise<{
+  code: number
+  stdout: string
+  stderr: string
+  statuses: Map<string, string>
+}> {
+  const out = join(dir, '.out-provino-select.json')
+  await rm(out, { force: true })
+  const stdout = new Sink()
+  const stderr = new Sink()
+  const code = await runJestCommand(['--no-cache', '--ci', ...args], {
+    stdout,
+    stderr,
+    cwd: dir,
+    reporters: [['normalized-json', { outputFile: out }]],
+  })
+  const statuses = new Map<string, string>()
+  const text = await readFile(out, 'utf8').catch(() => undefined)
+  if (text !== undefined) {
+    const word: Readonly<Record<string, string>> = { skipped: 'pending' }
+    for (const [file, entry] of viewOfNormalized(text).files) {
+      const path = file.startsWith('/') ? relative(dir, file) : file
+      for (const [name, status] of entry.tests) {
+        statuses.set(
+          `${path}::${name.replaceAll(' > ', ' ')}`,
+          word[String(status)] ?? String(status),
+        )
+      }
+    }
+  }
+  return { code, stdout: stdout.text, stderr: stderr.text, statuses }
+}
+
+const SELECTIONS: readonly (readonly [
+  string,
+  Readonly<Record<string, string>>,
+  readonly string[],
+])[] = [
+  ['--selectProjects one name', RHF_SHAPED, ['--selectProjects', 'server']],
+  ['--selectProjects two names', RHF_SHAPED, ['--selectProjects', 'server', 'client']],
+  ['--ignoreProjects one name', RHF_SHAPED, ['--ignoreProjects', 'server']],
+  ['--selectProjects with an unnamed project', RHF_WITH_UNNAMED, ['--selectProjects', 'server']],
+  [
+    '--ignoreProjects keeps an unnamed project',
+    RHF_WITH_UNNAMED,
+    ['--ignoreProjects', 'server', 'client'],
+  ],
+  ['two unnamed projects', TWO_UNNAMED, ['--ignoreProjects', 'server']],
+  [
+    '--selectProjects and --ignoreProjects',
+    RHF_SHAPED,
+    ['--selectProjects', 'server', 'client', '--ignoreProjects', 'client'],
+  ],
+  ['--selectProjects a name nobody has', RHF_SHAPED, ['--selectProjects', 'nope']],
+  ['--ignoreProjects every project', RHF_SHAPED, ['--ignoreProjects', 'server', 'client']],
+  [
+    '--selectProjects and --ignoreProjects with nothing left',
+    RHF_SHAPED,
+    ['--selectProjects', 'server', '--ignoreProjects', 'server'],
+  ],
+  [
+    'nothing selected, with --passWithNoTests',
+    RHF_SHAPED,
+    ['--selectProjects', 'nope', '--passWithNoTests'],
+  ],
+  ['nothing selected, with a path pattern', RHF_SHAPED, ['--selectProjects', 'nope', 'a.test']],
+  ['a selection with --listTests', RHF_SHAPED, ['--selectProjects', 'client', '--listTests']],
+  [
+    'a selection with --listTests --json (the messages go to stderr)',
+    RHF_SHAPED,
+    ['--ignoreProjects', 'client', '--listTests', '--json'],
+  ],
+  ['a selection that names a project twice', RHF_SHAPED, ['--selectProjects', 'server', 'server']],
+]
+
+describe('--selectProjects and --ignoreProjects (D69) against Jest 30.5.2', () => {
+  for (const [name, files, args] of SELECTIONS) {
+    it(`${name}: statuses, messages and exit code are Jest's`, async () => {
+      const dir = await tree(files)
+      const expected = await jestWith(dir, args)
+      const got = await provinoWith(dir, args)
+      assert.equal(got.code, expected.code, got.stderr)
+      assert.equal(got.stdout, expected.stdout)
+      // Jest's own diagnostics for the selection go to the stream that carries them: stderr under
+      // `--json`, stdout otherwise; the tests' output is not part of this check.
+      if (args.includes('--json')) {
+        for (const line of got.stderr.split('\n').filter((l) => l !== '')) {
+          assert.ok(expected.stderr.includes(line), `Jest's stderr has "${line}"`)
+        }
+      }
+      assert.deepEqual(
+        [...got.statuses].sort(([a], [b]) => (a < b ? -1 : 1)),
+        [...expected.statuses].sort(([a], [b]) => (a < b ? -1 : 1)),
+      )
+    })
+  }
+
+  it('an empty selection is refused with Jest’s text and exit code', async () => {
+    const dir = await tree(RHF_SHAPED)
+    const expected = await run(process.execPath, [JEST, '--selectProjects'], dir)
+    const got = await provinoWith(dir, ['--selectProjects'])
+    assert.equal(got.code, expected.code)
+    assert.ok(got.stderr.length > 0)
+  })
+
+  it('--projects stays refused', async () => {
+    const dir = await tree(RHF_SHAPED)
+    const got = await provinoWith(dir, ['--projects', 'server'])
+    assert.equal(got.code, 1)
+    assert.match(got.stderr, /--projects is not supported yet/)
   })
 })

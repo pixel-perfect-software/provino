@@ -265,8 +265,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     string: true,
     description:
       'Ignore the tests of the specified projects. Jest uses the attribute `displayName` in the configuration to identify each project.',
-    support: 'refuse',
-    owner: 'project selection by displayName, no task yet',
+    support: 'accepted',
   },
   injectGlobals: {
     type: 'boolean',
@@ -514,8 +513,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     string: true,
     description:
       'Run the tests of the specified projects. Jest uses the attribute `displayName` in the configuration to identify each project.',
-    support: 'refuse',
-    owner: 'project selection by displayName, no task yet',
+    support: 'accepted',
   },
   setupFiles: {
     type: 'array',
