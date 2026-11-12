@@ -304,3 +304,48 @@ test('diskUsageMb reads du -sk, and says undefined when it cannot', async () => 
   }
   assert.equal(await diskUsageMb(dir, broken), undefined)
 })
+
+test('a pinned tarball is listed and its licence read once; a repeat fetch reads neither', async () => {
+  const work = await tempDir('fetch-memo')
+  const { repo } = repoFor(work)
+  const deps = curlDeps()
+  const tarCalls = (flag: string) => deps.calls.filter((call) => call.args.includes(flag)).length
+  const first = await fetchRepo(repo, { workRoot: work, deps })
+  assert.deepEqual([tarCalls('-tzf'), tarCalls('-xzOf')], [1, 1])
+  const again = await fetchRepo(repo, { workRoot: work, deps })
+  assert.deepEqual([tarCalls('-tzf'), tarCalls('-xzOf')], [1, 1], 'no second list or licence read')
+  assert.deepEqual(again.problems, first.problems)
+  assert.equal(again.entries, first.entries)
+  assert.deepEqual(again.leftOut, first.leftOut)
+})
+
+test('the remembered check is for one sha256: another tarball is listed again, and the manifest is still checked', async () => {
+  const work = await tempDir('fetch-memo-sha')
+  const { repo } = repoFor(work)
+  const deps = curlDeps()
+  await fetchRepo(repo, { workRoot: work, deps })
+  // The pin moves to a tarball that lacks the licence: the old answer must not be reused.
+  const { LICENSE: _gone, ...without } = FILES
+  const other = await makeTarball(await tempDir('fetch-memo-other'), without)
+  const moved = { ...repo, tarballSha256: await sha256OfFile(other) }
+  const changed = await fetchRepo(moved, { workRoot: work, deps: curlDeps({ serve: other }) })
+  assert.deepEqual(changed.problems, ['no licence file at the root'])
+  // A manifest that now wants a config the tarball lacks fails from the remembered entries.
+  const demanding = makeRepo({
+    ...moved,
+    subjects: [makeSubject({ config: ['missing.config.js'] })],
+  })
+  const stricter = await fetchRepo(demanding, { workRoot: work, deps: curlDeps({ serve: other }) })
+  assert.ok(stricter.problems.some((problem) => problem.includes('missing.config.js')))
+})
+
+test('a damaged remembered check is made again', async () => {
+  const work = await tempDir('fetch-memo-bad')
+  const { repo } = repoFor(work)
+  const deps = curlDeps()
+  await fetchRepo(repo, { workRoot: work, deps })
+  await writeFile(`${repoPaths(work, repo).tarball}.index.json`, '{ not json')
+  const again = await fetchRepo(repo, { workRoot: work, deps })
+  assert.deepEqual(again.problems, [])
+  assert.equal(deps.calls.filter((call) => call.args.includes('-tzf')).length, 2)
+})

@@ -80,3 +80,20 @@ export function repoPaths(
 export function runDir(paths: RepoPaths, subjectId: string, n: number): string {
   return path.join(paths.runs, subjectId, String(n))
 }
+
+/**
+ * The `HOME` of a run or an install whose directory is `dir`: inside it, so nothing reads or
+ * writes the user's own.
+ * @public
+ */
+export function homeDir(dir: string): string {
+  return path.join(dir, 'home')
+}
+
+/**
+ * The `TMPDIR` of a run or an install whose directory is `dir`.
+ * @public
+ */
+export function tmpDir(dir: string): string {
+  return path.join(dir, 'tmp')
+}

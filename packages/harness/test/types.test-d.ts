@@ -448,7 +448,7 @@ expectTypeOf(readCorpusManifest).returns.toEqualTypeOf<Promise<CorpusManifest>>(
 expectTypeOf(selectRepos).returns.toEqualTypeOf<readonly CorpusRepo[]>()
 expectTypeOf(tarballUrl).parameter(0).toEqualTypeOf<Pick<CorpusRepo, 'repo' | 'sha'>>()
 expectTypeOf(fetchRepo).returns.toEqualTypeOf<Promise<FetchResult>>()
-expectTypeOf(installPlan).returns.toEqualTypeOf<Promise<InstallPlan>>()
+expectTypeOf(installPlan).returns.toEqualTypeOf<InstallPlan>()
 expectTypeOf(installRepo).returns.toEqualTypeOf<Promise<InstallRecord>>()
 expectTypeOf(runReference).returns.toEqualTypeOf<Promise<RunMeta>>()
 expectTypeOf(runProbe).returns.toEqualTypeOf<Promise<ProbeVerdict>>()

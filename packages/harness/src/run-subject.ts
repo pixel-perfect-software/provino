@@ -7,7 +7,7 @@ import { HarnessError } from './errors.ts'
 import { convertRunnerJson } from './internal/convert-runner.ts'
 import { SIDECAR_ENV } from './internal/sidecar-format.ts'
 import { collectSnapshotFiles, TIMEOUT_MS } from './record.ts'
-import { type ProcessResult, runProcess } from './run-process.ts'
+import { type CommandWrap, type ProcessResult, runProcess } from './run-process.ts'
 import { resolveRunnerPackage } from './runner-package.ts'
 import { parseSidecar, sidecarReporterPath } from './sidecar.ts'
 
@@ -55,10 +55,7 @@ export interface SubjectOptions {
    * and its arguments and returns what to run instead; the working directory, environment and
    * deadline are unchanged.
    */
-  readonly wrap?: (
-    command: string,
-    args: readonly string[],
-  ) => { readonly command: string; readonly args: readonly string[] }
+  readonly wrap?: CommandWrap
 }
 
 /**

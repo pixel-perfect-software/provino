@@ -12,7 +12,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { HarnessError } from '../errors.ts'
 import { isRecord } from '../internal/guards.ts'
-import { type CorpusDeps, defaultDeps } from './deps.ts'
+import type { CommandWrap } from '../run-process.ts'
+import { type CorpusDeps, defaultDeps, exitText, tailOf } from './deps.ts'
+import { homeDir, tmpDir } from './paths.ts'
 
 /** The system's `sandbox-exec`. */
 const SANDBOX_EXEC = '/usr/bin/sandbox-exec'
@@ -103,7 +105,7 @@ export function seatbeltProfile(policy: SandboxPolicy): string {
       `(allow network* (local unix-socket (subpath ${sbplString(entry)})))`,
     ]),
     ';; DNS goes through mach services, which a network rule does not cover',
-    ...DNS_SERVICES.map((name) => `(deny mach-lookup (global-name ${serviceName(name)}))`),
+    ...DNS_SERVICES.map((name) => `(deny mach-lookup (global-name "${name}"))`),
     ';; credentials',
     ...denied.map((entry) => `(deny file-read* (subpath ${sbplString(entry)}))`),
     ';; writes: the run directory only',
@@ -115,16 +117,36 @@ export function seatbeltProfile(policy: SandboxPolicy): string {
   return `${lines.join('\n')}\n`
 }
 
-/** A mach service name literal (no slashes: not a path). */
-function serviceName(name: string): string {
-  if (!/^[A-Za-z0-9._-]+$/.test(name)) throw new Error(`bad service name ${name}`)
-  return `"${name}"`
+/**
+ * The allowlisted environment every corpus child starts from, for an install and for a run
+ * (B16 gap 2): nothing is inherited, so there are no tokens, no proxy variables and no
+ * `NODE_OPTIONS`. `pathPrefix` comes first on `PATH`, then the node binary's directory (so `node`
+ * is the one running the harness) and the system's.
+ * @public
+ */
+export function baseEnv(options: {
+  readonly home: string
+  readonly tmp: string
+  readonly nodeDir?: string | undefined
+  readonly pathPrefix?: readonly string[] | undefined
+}): NodeJS.ProcessEnv {
+  const nodeDir = options.nodeDir ?? path.dirname(process.execPath)
+  return {
+    PATH: [...(options.pathPrefix ?? []), nodeDir, '/usr/bin', '/bin', '/usr/sbin', '/sbin'].join(
+      ':',
+    ),
+    HOME: options.home,
+    TMPDIR: options.tmp,
+    CI: '1',
+    TZ: 'UTC',
+    LANG: 'en_US.UTF-8',
+    FORCE_COLOR: '0',
+  }
 }
 
 /**
- * The environment a sandboxed run starts from: an allowlist (B16 gap 2). Nothing is inherited, so
- * there are no tokens, no proxy variables and no `NODE_OPTIONS`. `HOME` and `TMPDIR` are inside the
- * run directory. The subject's own `env` comes last, so it can set what a repository's script sets.
+ * The environment a sandboxed run starts from: `baseEnv` with `HOME` and `TMPDIR` inside the run
+ * directory. The subject's own `env` comes last, so it can set what a repository's script sets.
  * @public
  */
 export function sandboxEnv(options: {
@@ -136,16 +158,13 @@ export function sandboxEnv(options: {
   /** The node binary's directory, so `node` resolves to the one running the harness. */
   readonly nodeDir?: string
 }): NodeJS.ProcessEnv {
-  const nodeDir = options.nodeDir ?? path.dirname(process.execPath)
-  const systemPath = ['/usr/bin', '/bin', '/usr/sbin', '/sbin']
   return {
-    PATH: [...(options.pathPrefix ?? []), nodeDir, ...systemPath].join(':'),
-    HOME: path.join(options.runDir, 'home'),
-    TMPDIR: path.join(options.runDir, 'tmp'),
-    CI: '1',
-    TZ: 'UTC',
-    LANG: 'en_US.UTF-8',
-    FORCE_COLOR: '0',
+    ...baseEnv({
+      home: homeDir(options.runDir),
+      tmp: tmpDir(options.runDir),
+      nodeDir: options.nodeDir,
+      pathPrefix: options.pathPrefix,
+    }),
     ...options.extra,
   }
 }
@@ -163,6 +182,14 @@ export function sandboxed(
 }
 
 /**
+ * The wrap that runs every command under the profile at `profileFile`.
+ * @public
+ */
+export function sandboxWrap(profileFile: string): CommandWrap {
+  return (command, args) => sandboxed(profileFile, command, args)
+}
+
+/**
  * Refuses a platform that has no sandbox yet: only macOS (Seatbelt) is implemented. A Linux
  * container comes with B18's pinned machine.
  * @public
@@ -176,16 +203,6 @@ export function assertSandboxPlatform(platform: NodeJS.Platform = process.platfo
   }
 }
 
-/** The real paths a run's profile may write to: `mkdir -p` first, then `realpath` (Seatbelt matches real paths). */
-async function realWritable(dirs: readonly string[]): Promise<string[]> {
-  const real: string[] = []
-  for (const dir of dirs) {
-    await mkdir(dir, { recursive: true })
-    real.push(await realpath(dir))
-  }
-  return real
-}
-
 /**
  * Writes a run's profile into its directory and returns the file. The run directory is writable;
  * the real home's credential paths and the work directory's canary are not readable.
@@ -196,8 +213,8 @@ export async function writeProfile(options: {
   readonly workRoot: string
   readonly home?: string
 }): Promise<string> {
-  const [writable] = await realWritable([options.runDir])
-  if (writable === undefined) throw new Error('unreachable')
+  // Seatbelt matches real paths, so the run directory is made and resolved first.
+  const writable = await realpathOf(options.runDir)
   const profile = seatbeltProfile({
     home: options.home ?? os.userInfo().homedir,
     writable: [writable],
@@ -251,6 +268,8 @@ export const BLOCKED_ATTEMPTS: readonly ProbeName[] = [
   'canary',
   'ssh',
 ]
+
+const PROBE_NAMES: readonly ProbeName[] = [...BLOCKED_ATTEMPTS, 'loopback']
 
 const NETWORK_ATTEMPTS: ReadonlySet<ProbeName> = new Set(['tcp', 'dns', 'https', 'socket'])
 const DENIAL_CODES: ReadonlySet<string> = new Set(['EPERM', 'EACCES'])
@@ -336,7 +355,6 @@ export function evaluateProbe(
  * @public
  */
 export function parseProbeOutput(output: string): ProbeAttempt[] {
-  const names: readonly string[] = [...BLOCKED_ATTEMPTS, 'loopback']
   const attempts: ProbeAttempt[] = []
   for (const line of output.split('\n')) {
     let value: unknown
@@ -345,8 +363,9 @@ export function parseProbeOutput(output: string): ProbeAttempt[] {
     } catch {
       continue
     }
-    if (!isRecord(value) || typeof value.name !== 'string' || !names.includes(value.name)) continue
-    const name = BLOCKED_ATTEMPTS.find((candidate) => candidate === value.name) ?? 'loopback'
+    if (!isRecord(value)) continue
+    const name = PROBE_NAMES.find((candidate) => candidate === value.name)
+    if (name === undefined) continue
     const outcome = value.outcome
     if (outcome !== 'ok' && outcome !== 'error' && outcome !== 'timeout') continue
     attempts.push({
@@ -431,8 +450,8 @@ export async function runProbe(options: ProbeOptions): Promise<ProbeVerdict> {
   const home = options.home ?? os.userInfo().homedir
   const profile = await writeProfile({ runDir: probeDir, workRoot: options.workRoot, home })
   const env = sandboxEnv({ runDir: probeDir })
-  await mkdir(env.HOME ?? probeDir, { recursive: true })
-  await mkdir(env.TMPDIR ?? probeDir, { recursive: true })
+  await mkdir(homeDir(probeDir), { recursive: true })
+  await mkdir(tmpDir(probeDir), { recursive: true })
   const outsideSocket = await (options.listen ?? listenOutsideRun)()
   try {
     const childArgs = [
@@ -447,7 +466,7 @@ export async function runProbe(options: ProbeOptions): Promise<ProbeVerdict> {
     ]
     const run = async (wrapped: boolean) => {
       const target = wrapped
-        ? sandboxed(profile, process.execPath, childArgs)
+        ? sandboxWrap(profile)(process.execPath, childArgs)
         : { command: process.execPath, args: childArgs }
       const result = await deps.run(target.command, target.args, {
         cwd: probeDir,
@@ -461,7 +480,7 @@ export async function runProbe(options: ProbeOptions): Promise<ProbeVerdict> {
     if (inside.attempts.length === 0) {
       throw new HarnessError(
         'HARNESS_CORPUS_SANDBOX_LEAK',
-        `the probe printed nothing inside the profile (exit ${inside.result.exitCode ?? inside.result.signal}), so the sandbox cannot be trusted: ${inside.result.output.trim().slice(-400)}`,
+        `the probe printed nothing inside the profile (${exitText(inside.result)}), so the sandbox cannot be trusted: ${tailOf(inside.result, 400)}`,
       )
     }
     const outside = await run(false)

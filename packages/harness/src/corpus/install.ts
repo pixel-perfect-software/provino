@@ -4,16 +4,17 @@
 // offline re-install: the `node_modules` trees are deleted and installed again with the network
 // off, inside the sandbox, and the result must be the same tree, file for file.
 import { createHash } from 'node:crypto'
-import { mkdir, readdir, readFile, readlink, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readlink, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { HarnessError } from '../errors.ts'
-import { compareStrings, isNotFound, isRecord } from '../internal/guards.ts'
+import { compareStrings, errorMessage, isRecord, readIfExists } from '../internal/guards.ts'
+import type { CommandWrap, ProcessResult } from '../run-process.ts'
 import { resolveRunnerPackage } from '../runner-package.ts'
-import { type CorpusDeps, defaultDeps } from './deps.ts'
-import { diskUsageMb, readSrcMarker, sha256OfFile } from './fetch.ts'
+import { type CorpusDeps, defaultDeps, exitText, tailOf } from './deps.ts'
+import { digestFile, diskUsageMb, readSrcMarker } from './fetch.ts'
 import type { CorpusRepo } from './manifest.ts'
-import { type RepoPaths, repoPaths, repoRoot } from './paths.ts'
-import { sandboxed, writeProfile } from './sandbox.ts'
+import { homeDir, type RepoPaths, repoPaths, tmpDir } from './paths.ts'
+import { baseEnv, sandboxWrap, writeProfile } from './sandbox.ts'
 
 const INSTALL_TIMEOUT_MS = 30 * 60_000
 
@@ -55,18 +56,6 @@ export interface InstallPlan {
   readonly manager: { readonly name: string; readonly version: string }
 }
 
-/** The pnpm version this repository's own `packageManager` field names, for a repository that pins none. */
-async function ownPnpmVersion(): Promise<string> {
-  const root = path.join(repoRoot(), 'package.json')
-  const manifest: unknown = JSON.parse(await readFile(root, 'utf8'))
-  const field = isRecord(manifest) ? manifest.packageManager : undefined
-  const match = typeof field === 'string' ? /^pnpm@(\d+\.\d+\.\d+)/.exec(field) : null
-  if (match?.[1] === undefined) {
-    throw new HarnessError('HARNESS_CORPUS_INSTALL_FAILED', 'this repository pins no pnpm version')
-  }
-  return match[1]
-}
-
 const PROXY_VARIABLES: readonly string[] = [
   'HTTP_PROXY',
   'HTTPS_PROXY',
@@ -91,21 +80,18 @@ const PROXY_VARIABLES: readonly string[] = [
 export function installEnv(options: {
   readonly paths: RepoPaths
   readonly offline: boolean
-  readonly inherited?: NodeJS.ProcessEnv
-  readonly nodeDir?: string
+  readonly inherited?: NodeJS.ProcessEnv | undefined
+  readonly nodeDir?: string | undefined
 }): NodeJS.ProcessEnv {
   const { paths, offline } = options
-  const home = path.join(paths.dir, 'home')
+  const home = homeDir(paths.dir)
   const cache = paths.cache
-  const nodeDir = options.nodeDir ?? path.dirname(process.execPath)
   const env: NodeJS.ProcessEnv = {
-    PATH: [nodeDir, '/usr/bin', '/bin', '/usr/sbin', '/sbin'].join(':'),
-    HOME: home,
-    TMPDIR: path.join(paths.dir, 'tmp'),
-    CI: '1',
-    TZ: 'UTC',
-    LANG: 'en_US.UTF-8',
-    FORCE_COLOR: '0',
+    ...baseEnv({
+      home,
+      tmp: tmpDir(paths.dir),
+      nodeDir: options.nodeDir,
+    }),
     XDG_CACHE_HOME: path.join(home, '.cache'),
     XDG_CONFIG_HOME: path.join(home, '.config'),
     XDG_DATA_HOME: path.join(home, '.local', 'share'),
@@ -155,32 +141,31 @@ function checkedInstallArgs(repo: CorpusRepo): string[] {
 
 /**
  * The frozen-install command for a repository: its own package manager at the pinned version
- * through `corepack` (npm without a pin is the one that ships with Node), `--frozen-lockfile`,
+ * through `corepack` (the version is manifest data, D40), `--frozen-lockfile`,
  * `ci` or `--immutable`, scripts off, the store and caches in the work directory.
  * @public
  */
-export async function installPlan(
+export function installPlan(
   repo: CorpusRepo,
   options: {
     readonly workRoot: string
     readonly offline: boolean
-    readonly inherited?: NodeJS.ProcessEnv
-    readonly nodeDir?: string
+    readonly inherited?: NodeJS.ProcessEnv | undefined
+    readonly nodeDir?: string | undefined
   },
-): Promise<InstallPlan> {
+): InstallPlan {
   const paths = repoPaths(options.workRoot, repo)
   const env = installEnv({
     paths,
     offline: options.offline,
-    ...(options.inherited === undefined ? {} : { inherited: options.inherited }),
-    ...(options.nodeDir === undefined ? {} : { nodeDir: options.nodeDir }),
+    inherited: options.inherited,
+    nodeDir: options.nodeDir,
   })
   const extra = checkedInstallArgs(repo)
   const offlineFlag = options.offline ? ['--offline'] : []
-  const { name } = repo.install
+  const { name, version } = repo.install
   const base = { env, cwd: paths.src }
   if (name === 'pnpm') {
-    const version = repo.install.version ?? (await ownPnpmVersion())
     return {
       ...base,
       command: 'corepack',
@@ -198,18 +183,21 @@ export async function installPlan(
     }
   }
   if (name === 'npm') {
-    const flags = ['ci', '--ignore-scripts', '--no-audit', '--no-fund', ...offlineFlag, ...extra]
-    const version = repo.install.version
-    return version === undefined
-      ? { ...base, command: 'npm', args: flags, manager: { name, version: 'bundled with Node' } }
-      : {
-          ...base,
-          command: 'corepack',
-          args: [`npm@${version}`, ...flags],
-          manager: { name, version },
-        }
+    return {
+      ...base,
+      command: 'corepack',
+      args: [
+        `npm@${version}`,
+        'ci',
+        '--ignore-scripts',
+        '--no-audit',
+        '--no-fund',
+        ...offlineFlag,
+        ...extra,
+      ],
+      manager: { name, version },
+    }
   }
-  const version = repo.install.version ?? '1.22.22'
   const classic = version.startsWith('1.')
   return {
     ...base,
@@ -269,11 +257,13 @@ export async function fingerprintTree(
   src: string,
   options: {
     readonly concurrency?: number
-    /** Reads one file's sha256 (tests count what is open at once). */
-    readonly hashFile?: (file: string) => Promise<string>
+    /** Reads one file's size and sha256 (tests count what is open at once). */
+    readonly digestFile?: (
+      file: string,
+    ) => Promise<{ readonly size: number; readonly sha256: string }>
   } = {},
 ): Promise<{ readonly hash: string; readonly files: number }> {
-  const hashFile = options.hashFile ?? sha256OfFile
+  const digest = options.digestFile ?? digestFile
   const lines: string[] = []
   const reads: (() => Promise<void>)[] = []
   const walk = async (dir: string): Promise<void> => {
@@ -290,7 +280,8 @@ export async function fingerprintTree(
         await walk(full)
       } else if (entry.isFile()) {
         reads.push(async () => {
-          lines.push(`f\0${relative}\0${(await stat(full)).size}\0${await hashFile(full)}`)
+          const { size, sha256 } = await digest(full)
+          lines.push(`f\0${relative}\0${size}\0${sha256}`)
         })
       }
     }
@@ -309,7 +300,7 @@ export async function fingerprintTree(
 }
 
 async function prepareDirs(paths: RepoPaths): Promise<void> {
-  for (const dir of [path.join(paths.dir, 'home'), path.join(paths.dir, 'tmp'), paths.cache]) {
+  for (const dir of [homeDir(paths.dir), tmpDir(paths.dir), paths.cache]) {
     await mkdir(dir, { recursive: true })
   }
   // This repository's root `package.json` says `"type": "module"`, and Node reads every `.js`
@@ -348,7 +339,7 @@ async function runnerVersions(
         )
       }
     } catch (error) {
-      problems.push(`${subject.id}: ${error instanceof Error ? error.message : String(error)}`)
+      problems.push(`${subject.id}: ${errorMessage(error)}`)
     }
   }
   return { versions, problems }
@@ -357,8 +348,8 @@ async function runnerVersions(
 async function runInstall(
   plan: InstallPlan,
   deps: CorpusDeps,
-  wrap?: (command: string, args: readonly string[]) => { command: string; args: readonly string[] },
-): Promise<{ wallMs: number; output: string; exitCode: number | null }> {
+  wrap?: CommandWrap,
+): Promise<Pick<ProcessResult, 'wallMs' | 'output' | 'exitCode' | 'signal' | 'timedOut'>> {
   const target =
     wrap === undefined ? { command: plan.command, args: plan.args } : wrap(plan.command, plan.args)
   const result = await deps.run(target.command, target.args, {
@@ -373,7 +364,7 @@ async function runInstall(
       `${plan.command} ${plan.args.slice(0, 3).join(' ')} timed out after ${INSTALL_TIMEOUT_MS} ms`,
     )
   }
-  return { wallMs: result.wallMs, output: result.output, exitCode: result.exitCode }
+  return result
 }
 
 /**
@@ -403,20 +394,33 @@ export async function installRepo(
   }
   await srcMustExist(repo, paths)
   await prepareDirs(paths)
-  const plan = await installPlan(repo, {
+  const plan = installPlan(repo, {
     workRoot: options.workRoot,
     offline: false,
-    ...(options.inherited === undefined ? {} : { inherited: options.inherited }),
+    inherited: options.inherited,
   })
   const started = (options.now ?? (() => new Date()))()
   const installed = await runInstall(plan, deps)
   if (installed.exitCode !== 0) {
     throw new HarnessError(
       'HARNESS_CORPUS_INSTALL_FAILED',
-      `${repo.id}: ${plan.manager.name} exited ${installed.exitCode ?? 'by signal'}:\n${installed.output.trim().slice(-1500)}`,
+      `${repo.id}: ${plan.manager.name} ${exitText(installed)}:\n${tailOf(installed, 1500)}`,
     )
   }
-  const wallMs = installed.wallMs + (await rebuildPackages(repo, plan, deps))
+  // The rebuilds run the packages' own install scripts, so they run under the sandbox (a repository
+  // with none needs no profile, and the install itself needs the network).
+  const profile =
+    (repo.rebuild ?? []).length === 0
+      ? undefined
+      : await writeProfile({ runDir: paths.dir, workRoot: options.workRoot })
+  const wallMs =
+    installed.wallMs +
+    (await rebuildPackages(
+      repo,
+      plan,
+      deps,
+      profile === undefined ? undefined : sandboxWrap(profile),
+    ))
   const { versions, problems } = await runnerVersions(repo, paths)
   if (problems.length > 0) {
     throw new HarnessError(
@@ -450,7 +454,7 @@ async function rebuildPackages(
   repo: CorpusRepo,
   plan: InstallPlan,
   deps: CorpusDeps,
-  wrap?: Parameters<typeof runInstall>[2],
+  wrap?: CommandWrap,
 ): Promise<number> {
   let wallMs = 0
   for (const pkg of repo.rebuild ?? []) {
@@ -459,7 +463,7 @@ async function rebuildPackages(
     if (result.exitCode !== 0) {
       throw new HarnessError(
         'HARNESS_CORPUS_INSTALL_FAILED',
-        `${repo.id}: rebuilding ${pkg} exited ${result.exitCode ?? 'by signal'}:\n${result.output.trim().slice(-1500)}`,
+        `${repo.id}: rebuilding ${pkg} ${exitText(result)}:\n${tailOf(result, 1500)}`,
       )
     }
   }
@@ -511,11 +515,11 @@ export async function reinstallOffline(
     )
   }
   await prepareDirs(paths)
-  const plan = await installPlan(repo, { workRoot: options.workRoot, offline: true })
+  const plan = installPlan(repo, { workRoot: options.workRoot, offline: true })
   const profile = await writeProfile({ runDir: paths.dir, workRoot: options.workRoot })
   for (const dir of await findNodeModules(paths.src))
     await rm(dir, { recursive: true, force: true })
-  const wrap = (command: string, args: readonly string[]) => sandboxed(profile, command, args)
+  const wrap = sandboxWrap(profile)
   const result = await runInstall(plan, deps, wrap)
   // The first install ran the same rebuilds before it recorded its fingerprint.
   const rebuildMs = result.exitCode === 0 ? await rebuildPackages(repo, plan, deps, wrap) : 0
@@ -536,7 +540,7 @@ export async function reinstallOffline(
       'HARNESS_CORPUS_INSTALL_FAILED',
       result.exitCode === 0
         ? `${repo.id}: the offline re-install gave another tree (${after.hash.slice(0, 12)}, expected ${recorded.fingerprint.slice(0, 12)}); a file under node_modules changed`
-        : `${repo.id}: the offline re-install exited ${result.exitCode ?? 'by signal'}:\n${result.output.trim().slice(-1500)}`,
+        : `${repo.id}: the offline re-install ${exitText(result)}:\n${tailOf(result, 1500)}`,
     )
   }
   return outcome
@@ -554,13 +558,8 @@ export async function readInstallRecord(
   workRoot: string,
 ): Promise<InstallRecord | undefined> {
   const paths = repoPaths(workRoot, repo)
-  let text: string
-  try {
-    text = await readFile(paths.installRecord, 'utf8')
-  } catch (cause) {
-    if (isNotFound(cause)) return undefined
-    throw cause
-  }
+  const text = await readIfExists(paths.installRecord)
+  if (text === undefined) return undefined
   const record = asInstallRecord(JSON.parse(text))
   if (record?.sha !== repo.sha || (await readSrcMarker(paths)) !== repo.sha) return undefined
   return record

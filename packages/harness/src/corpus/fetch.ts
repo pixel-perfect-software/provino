@@ -1,13 +1,13 @@
 // T12.9's fetcher: a repository's tarball from `codeload.github.com` at its pinned commit, checked
 // against the manifest's sha256, optionally extracted with the system `tar`. It never clones
 // (the sandbox blocks a nested clone, B05) and never installs or runs anything.
-import { createHash } from 'node:crypto'
+import { createHash, hash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { HarnessError } from '../errors.ts'
-import { isNotFound } from '../internal/guards.ts'
-import { type CorpusDeps, defaultDeps } from './deps.ts'
+import { isNotFound, isRecord, readIfExists } from '../internal/guards.ts'
+import { type CorpusDeps, defaultDeps, exitText, tailOf } from './deps.ts'
 import { isLeftOut, LEFT_OUT_PATTERNS } from './left-out.ts'
 import type { CorpusRepo } from './manifest.ts'
 import { type RepoPaths, repoPaths } from './paths.ts'
@@ -23,14 +23,33 @@ export function tarballUrl(repo: Pick<CorpusRepo, 'repo' | 'sha'>): string {
   return `https://codeload.github.com/${repo.repo}/tar.gz/${repo.sha}`
 }
 
+/** Files up to this size are read whole and hashed in one call: far fewer awaits than a stream. */
+const SMALL_FILE_BYTES = 4 * 1024 * 1024
+
 /**
- * The sha256 of a file, read as a stream.
+ * A file's size and sha256: read whole when it is at most `smallBytes`, else streamed.
+ * @internal
+ */
+export async function digestFile(
+  file: string,
+  smallBytes: number = SMALL_FILE_BYTES,
+): Promise<{ readonly size: number; readonly sha256: string }> {
+  const { size } = await stat(file)
+  if (size <= smallBytes) {
+    const bytes = await readFile(file)
+    return { size: bytes.length, sha256: hash('sha256', bytes) }
+  }
+  const streamed = createHash('sha256')
+  for await (const chunk of createReadStream(file)) streamed.update(chunk as Buffer)
+  return { size, sha256: streamed.digest('hex') }
+}
+
+/**
+ * The sha256 of a file.
  * @public
  */
 export async function sha256OfFile(file: string): Promise<string> {
-  const hash = createHash('sha256')
-  for await (const chunk of createReadStream(file)) hash.update(chunk as Buffer)
-  return hash.digest('hex')
+  return (await digestFile(file)).sha256
 }
 
 /** Downloads the tarball to `dest` through a temporary name, so a partial file never stays. */
@@ -52,7 +71,7 @@ async function download(
     await rm(partial, { force: true })
     throw new HarnessError(
       'HARNESS_CORPUS_FETCH_FAILED',
-      `curl exited ${result.exitCode ?? result.signal} for ${url}: ${result.output.trim().slice(-300)}`,
+      `curl ${exitText(result)} for ${url}: ${tailOf(result, 300)}`,
       { path: dest },
     )
   }
@@ -121,7 +140,7 @@ async function listTarball(
   if (result.exitCode !== 0) {
     throw new HarnessError(
       'HARNESS_CORPUS_FETCH_FAILED',
-      `tar could not list ${tarball}: ${result.output.trim().slice(-300)}`,
+      `tar could not list ${tarball}: ${tailOf(result, 300)}`,
       { path: tarball },
     )
   }
@@ -176,7 +195,11 @@ function licenceEntry(entries: ReadonlySet<string>): string | undefined {
     .toSorted()[0]
 }
 
-async function readEntry(
+/**
+ * One member's text, by its exact name under the top directory.
+ * @internal
+ */
+export async function readEntry(
   tarball: string,
   top: string,
   entry: string,
@@ -200,6 +223,75 @@ async function readEntry(
     )
   }
   return result.streams?.stdout ?? ''
+}
+
+/**
+ * What a pass over a tarball finds, which is a function of its bytes alone: the entry names, the
+ * top directory and the licence file's verdict. `fetchRepo` checks the manifest against it.
+ * @internal
+ */
+export interface TarballIndex {
+  readonly top: string
+  readonly entries: ReadonlySet<string>
+  /** The licence file's name, if the tarball has one, and whether it reads as MIT. */
+  readonly licence: { readonly entry: string | undefined; readonly mit: boolean }
+}
+
+/** Where a tarball's index is remembered, keyed inside by the tarball's sha256. */
+function indexFile(tarball: string): string {
+  return `${tarball}.index.json`
+}
+
+function parseIndex(text: string, sha256: string): TarballIndex | undefined {
+  let value: unknown
+  try {
+    value = JSON.parse(text)
+  } catch {
+    return undefined
+  }
+  if (
+    !isRecord(value) ||
+    value.sha256 !== sha256 ||
+    typeof value.top !== 'string' ||
+    !Array.isArray(value.entries) ||
+    !value.entries.every((entry): entry is string => typeof entry === 'string') ||
+    !isRecord(value.licence) ||
+    typeof value.licence.mit !== 'boolean' ||
+    (value.licence.entry !== undefined && typeof value.licence.entry !== 'string')
+  ) {
+    return undefined
+  }
+  return {
+    top: value.top,
+    entries: new Set(value.entries),
+    licence: { entry: value.licence.entry, mit: value.licence.mit },
+  }
+}
+
+/**
+ * The tarball's index: read from the file next to it when that was written for this sha256,
+ * else made with one list pass and one read of the licence, and written. A different tarball has
+ * a different sha256, so it is checked afresh.
+ * @internal
+ */
+export async function indexTarball(
+  tarball: string,
+  sha256: string,
+  deps: CorpusDeps,
+  env: NodeJS.ProcessEnv,
+): Promise<TarballIndex> {
+  const remembered = await readIfExists(indexFile(tarball))
+  const known = remembered === undefined ? undefined : parseIndex(remembered, sha256)
+  if (known !== undefined) return known
+  const { entries, top } = await listTarball(tarball, deps, env)
+  const entry = licenceEntry(entries)
+  const mit = entry !== undefined && MIT_TEXT.test(await readEntry(tarball, top, entry, deps, env))
+  const index: TarballIndex = { top, entries, licence: { entry, mit } }
+  await writeFile(
+    indexFile(tarball),
+    `${JSON.stringify({ sha256, top, entries: [...entries], licence: { ...(entry === undefined ? {} : { entry }), mit } })}\n`,
+  )
+  return index
 }
 
 /**
@@ -241,12 +333,7 @@ export interface FetchOptions {
 export async function readSrcMarker(
   paths: Pick<RepoPaths, 'srcMarker'>,
 ): Promise<string | undefined> {
-  try {
-    return (await readFile(paths.srcMarker, 'utf8')).trim()
-  } catch (cause) {
-    if (isNotFound(cause)) return undefined
-    throw cause
-  }
+  return (await readIfExists(paths.srcMarker))?.trim()
 }
 
 async function extract(
@@ -277,7 +364,7 @@ async function extract(
     await rm(paths.src, { recursive: true, force: true }).catch(() => undefined)
     throw new HarnessError(
       'HARNESS_CORPUS_FETCH_FAILED',
-      `tar could not extract ${paths.tarball}: ${result.output.trim().slice(-300)}`,
+      `tar could not extract ${paths.tarball}: ${tailOf(result, 300)}`,
       { path: paths.tarball },
     )
   }
@@ -303,13 +390,12 @@ export async function fetchRepo(repo: CorpusRepo, options: FetchOptions): Promis
     deps,
     env,
   })
-  const { entries, top } = await listTarball(paths.tarball, deps, env)
+  const { entries, licence } = await indexTarball(paths.tarball, sha256, deps, env)
   const problems = verifyEntries(repo, entries)
-  const licence = licenceEntry(entries)
-  if (licence === undefined) {
+  if (licence.entry === undefined) {
     problems.push('no licence file at the root')
-  } else if (!MIT_TEXT.test(await readEntry(paths.tarball, top, licence, deps, env))) {
-    problems.push(`${licence} does not read as the MIT licence`)
+  } else if (!licence.mit) {
+    problems.push(`${licence.entry} does not read as the MIT licence`)
   }
   const base = {
     id: repo.id,

@@ -315,6 +315,7 @@
       "pilot": false,
       "install": {
         "name": "npm",
+        "version": "11.19.1",
         "lockfile": "package-lock.json"
       },
       "testScript": "node --expose-gc --experimental-import-meta-resolve --disable-warning=ExperimentalWarning ./node_modules/jest/bin/jest.js --config ./config/jest.config.ts",
@@ -388,7 +389,8 @@
           "r6": false,
           "note": "A workspace package (@apollo/client-codemod-migrate-3-to-4) whose own `test` script is `NODE_OPTIONS='--import ./src/devLoader.js' vitest run`. I did not find it in the root `npm test` or in any CircleCI job; the only mention in the GitHub workflows is a build step for pkg.pr.new publishing. It is included because it is the repo's only Vitest suite (11 test files by name pattern under that directory; vitest.config.ts adds **/__tests__/*.test.ts and globals: true). vitest 4.1.11 is the version package-lock.json resolves (node_modules/vitest). B22 may drop it if Tyler wants only what CI runs. The relative path in NODE_OPTIONS is resolved against the cwd."
         }
-      ]
+      ],
+      "note": "No root packageManager string; devEngines asks for npm >=10.8.2 and package-lock.json is lockfileVersion 3, so install.version is npm 11.19.1 (inside that range), the npm that ships with Node 24."
     },
     {
       "id": "react-hook-form",
@@ -401,6 +403,7 @@
       "pilot": true,
       "install": {
         "name": "pnpm",
+        "version": "12.16.0",
         "lockfile": "pnpm-lock.yaml"
       },
       "testScript": "jest --config ./scripts/jest/jest.config.js",
@@ -422,7 +425,8 @@
           "r6": true,
           "note": "Two inline projects (web: jest-fixed-jsdom, server: node), so Provino cannot run it until D29. TEST_ENV is unset, which runs both. The repo pins no pnpm version: the install uses the pnpm on PATH."
         }
-      ]
+      ],
+      "note": "No packageManager field; pnpm-lock.yaml is lockfileVersion 9.0 is written by pnpm 9 through 12 and read by the newest, so install.version is pnpm 12.16.0, the newest the corpus pins elsewhere (material-ui) and the one `corpus install` used before the version became required."
     },
     {
       "id": "mobx",
@@ -435,6 +439,7 @@
       "pilot": true,
       "install": {
         "name": "npm",
+        "version": "11.19.1",
         "lockfile": "package-lock.json"
       },
       "testScript": "jest",
@@ -487,7 +492,8 @@
           ],
           "note": "The root config has 6 projects (mobx, mobx-react-lite, mobx-react, mobx-undecorate and eslint-plugin-mobx under eslint 7 and 9), so Provino cannot run it until D29. The prepare steps are CI's \"npm run build:test\" per workspace: mobx-react imports mobx and mobx-react-lite from their dist. CI runs the tests with -i; the reference run keeps Jest's default workers (B16 gap 6)."
         }
-      ]
+      ],
+      "note": "No packageManager field; package-lock.json lockfileVersion 3 is read by npm 9 and later, so install.version is npm 11.19.1, the npm that ships with Node 24 and the one `corpus install` used before the version became required."
     },
     {
       "id": "styled-components",
@@ -1382,6 +1388,10 @@
           "r6": false,
           "provinoRefuses": [
             {
+              "flag": "--detectOpenHandles",
+              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
+            },
+            {
               "flag": "--forceExit",
               "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode, so a run that leaves handles open would hang or differ"
             }
@@ -1408,6 +1418,10 @@
           },
           "r6": false,
           "provinoRefuses": [
+            {
+              "flag": "--detectOpenHandles",
+              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
+            },
             {
               "flag": "--forceExit",
               "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
@@ -1436,6 +1450,10 @@
           "r6": false,
           "provinoRefuses": [
             {
+              "flag": "--detectOpenHandles",
+              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
+            },
+            {
               "flag": "--forceExit",
               "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
             }
@@ -1461,6 +1479,10 @@
           },
           "r6": false,
           "provinoRefuses": [
+            {
+              "flag": "--detectOpenHandles",
+              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
+            },
             {
               "flag": "--forceExit",
               "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
@@ -1488,6 +1510,10 @@
           "r6": false,
           "provinoRefuses": [
             {
+              "flag": "--detectOpenHandles",
+              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
+            },
+            {
               "flag": "--forceExit",
               "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
             }
@@ -1513,6 +1539,10 @@
           },
           "r6": false,
           "provinoRefuses": [
+            {
+              "flag": "--detectOpenHandles",
+              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
+            },
             {
               "flag": "--forceExit",
               "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
@@ -1540,6 +1570,10 @@
           "r6": false,
           "provinoRefuses": [
             {
+              "flag": "--detectOpenHandles",
+              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
+            },
+            {
               "flag": "--forceExit",
               "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
             }
@@ -1566,6 +1600,10 @@
           "r6": false,
           "provinoRefuses": [
             {
+              "flag": "--detectOpenHandles",
+              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
+            },
+            {
               "flag": "--forceExit",
               "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
             }
@@ -1591,6 +1629,10 @@
           },
           "r6": false,
           "provinoRefuses": [
+            {
+              "flag": "--detectOpenHandles",
+              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
+            },
             {
               "flag": "--forceExit",
               "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
@@ -1645,7 +1687,8 @@
       "licence": "MIT",
       "pilot": false,
       "install": {
-        "name": "npm"
+        "name": "npm",
+        "version": "11.19.1"
       },
       "testScript": "kcd-scripts test",
       "subjects": [
@@ -1667,7 +1710,7 @@
           "note": "UNCERTAIN, two items. (1) NO LOCKFILE EXISTS at this pin: the repo's .npmrc has package-lock=false and CI installs with bahmutov/npm-install useLockFile:false, so `install.lockfile` (package-lock.json) names a file that is not in the tarball and runnerVersion is INFERRED, not read: jest is not a direct dependency, it comes through kcd-scripts ^13.0.0 (caret on 13 stays on 13.x), which I recall depending on jest ^29; I could not confirm it (node_modules is not in the tarball). Whoever pins this repo must either generate and commit a lockfile at the pin or accept a floating install. (2) `kcd-scripts test` is a wrapper that runs jest with the repo's own jest.config.js (root `projects`: tests/jest.config.dom.js for jsdom, tests/jest.config.node.js for __node_tests__). kcd-scripts adds --watch only outside CI, so `--ci` alone is the CI behaviour; I did not see kcd-scripts' source so any env it sets (BABEL_ENV/NODE_ENV=test) is not listed; Jest itself sets NODE_ENV=test. All three configs `require('kcd-scripts/jest')`, so they only load after install. Coverage thresholds belong to `kcd-scripts validate`, not to `test`, so none are in argv."
         }
       ],
-      "note": "Single runner invocation at the root: jest.config.js with two inline-file projects (dom and node). CI (.github/workflows/validate.yml) runs `npm run validate` (kcd-scripts validate = lint + typecheck + test with coverage) on node 18 and 24; this subject covers only the test part. The repository commits no lockfile (.npmrc sets package-lock=false), so there is nothing to freeze: the bundle that installs it (B22) decides how to pin its dependencies. runnerVersion 29.7.0 is inferred from kcd-scripts ^13, not read from a lockfile."
+      "note": "Single runner invocation at the root: jest.config.js with two inline-file projects (dom and node). CI (.github/workflows/validate.yml) runs `npm run validate` (kcd-scripts validate = lint + typecheck + test with coverage) on node 18 and 24; this subject covers only the test part. The repository commits no lockfile (.npmrc sets package-lock=false), so there is nothing to freeze: the bundle that installs it (B22) decides how to pin its dependencies. runnerVersion 29.7.0 is inferred from kcd-scripts ^13, not read from a lockfile. There is no lockfile and no packageManager field, so nothing implies an npm version: install.version is npm 11.19.1, the npm that ships with Node 24, and B22 revisits it with the dependency pin."
     },
     {
       "id": "vitest",
@@ -2581,6 +2624,7 @@
       "pilot": true,
       "install": {
         "name": "npm",
+        "version": "11.19.1",
         "lockfile": "package-lock.json",
         "args": [
           "--legacy-peer-deps"
@@ -2613,7 +2657,8 @@
           "r6": false,
           "note": "The unit specs (packages/**/*.spec.ts). CI runs \"npm run build\" (tsc -b packages) before them; the config resolves the @nestjs/* packages to source, so no prepare step is added. If a run fails broadly on a missing module, add the build as a prepare step."
         }
-      ]
+      ],
+      "note": "No packageManager field; package-lock.json lockfileVersion 3 is read by npm 9 and later, so install.version is npm 11.19.1, the npm that ships with Node 24 and the one `corpus install` used before the version became required."
     },
     {
       "id": "msw",
@@ -3447,6 +3492,7 @@
       "pilot": false,
       "install": {
         "name": "pnpm",
+        "version": "12.16.0",
         "lockfile": "pnpm-lock.yaml"
       },
       "testScript": "mise //pkgs/core:test/node",
@@ -3527,7 +3573,7 @@
           "note": "mise task pkgs/utc test/unit is `pnpm vitest run`. Only 2 test files (src/date/tests.ts, src/utc/tests.ts). Same remark as tz: mirrors the package's own task, not seen in CI."
         }
       ],
-      "note": "The testScript is the CI command from .github/workflows/node_tests.yaml (the root package.json has no test script); mise runs scripts/test/node.sh, which for Node 22/24/25/26 runs `pnpm vitest run --project main` and then scripts/test/tz.sh. No root runner invocation: the root vitest.config.ts is only `projects: ['pkgs/*']` (would pull in the browser project), and CI always runs from pkgs/core, so subjects are per package. Root package.json has no packageManager field and pkgs/docs/package.json says pnpm@10.14.0 while mise.toml pins pnpm = 'latest' (lockfileVersion 9.0), so install.version is omitted. Node is managed by mise (26) / .nvmrc (22.19). pkgs/dev is a helper package with no vitest config. All four vitest importers resolve vitest 5.0.1."
+      "note": "The testScript is the CI command from .github/workflows/node_tests.yaml (the root package.json has no test script); mise runs scripts/test/node.sh, which for Node 22/24/25/26 runs `pnpm vitest run --project main` and then scripts/test/tz.sh. No root runner invocation: the root vitest.config.ts is only `projects: ['pkgs/*']` (would pull in the browser project), and CI always runs from pkgs/core, so subjects are per package. Root package.json has no packageManager field and pkgs/docs/package.json says pnpm@10.14.0 while mise.toml pins pnpm = 'latest' (lockfileVersion 9.0), so install.version is pnpm 12.16.0: lockfileVersion 9.0 is written by pnpm 9 through 12 and read by the newest, and mise's `latest` means the newest. Node is managed by mise (26) / .nvmrc (22.19). pkgs/dev is a helper package with no vitest config. All four vitest importers resolve vitest 5.0.1."
     },
     {
       "id": "vue-core",
@@ -3590,6 +3636,7 @@
       "pilot": false,
       "install": {
         "name": "pnpm",
+        "version": "12.16.0",
         "lockfile": "pnpm-lock.yaml"
       },
       "testScript": "nub exec --node vitest run",
@@ -3624,7 +3671,7 @@
           "note": "Root `nub run test` is `nub exec --node vitest run` with one root vitest.config.ts: projects ['packages/*', './vitest.compile.config.ts'], where the compile-mode project reruns packages/zod/src/**/*.test.ts with scripts/enable-compile.ts. packages/zod, mini, resolution and docs each have their own vitest.config.ts (merged from the root one or vitest.root.mjs); about 196 of the roughly 202 *.test.ts files are under packages/zod. Resolution uses the '@zod/source' condition and packages/zod/package.json exports point at ./src/*.ts, so I think no build is needed even though CI runs `nub run build` (zshy) first; I could not confirm that, and no prepare is listed. The config has typecheck.enabled true (tsc), which Provino cannot do; it also sets silent true and setupFiles scripts/fail-on-console.ts. The packages/treeshake tests (3 files) have no vitest config of their own; whether the `packages/*` glob picks that directory up as a project was not determined. Lockfile resolves vitest 4.1.5 (root importer)."
         }
       ],
-      "note": "UNCERTAIN package manager: root packageManager is `nub@0.8.3` (nubjs, a manager that is not pnpm, npm or yarn), and CONTRIBUTING.md says the existing pnpm-lock.yaml 'is the lockfile format, not a requirement to install pnpm'. The schema allows only pnpm, npm or yarn, so install.name is 'pnpm' (lockfile pnpm-lock.yaml, lockfileVersion 9.0, .npmrc has pnpm-style keys) and version is omitted: B22 must decide whether a pnpm frozen-lockfile install reproduces nub's. CI installs with `nub install --frozen-lockfile` (nubjs/setup-nub, nub-version 0.8.3) on Node lts/* and also re-adds typescript@5.5, 6 or latest before `nub run test`."
+      "note": "UNCERTAIN package manager: root packageManager is `nub@0.8.3` (nubjs, a manager that is not pnpm, npm or yarn), and CONTRIBUTING.md says the existing pnpm-lock.yaml 'is the lockfile format, not a requirement to install pnpm'. The schema allows only pnpm, npm or yarn, so install.name is 'pnpm' (lockfile pnpm-lock.yaml, lockfileVersion 9.0, .npmrc has pnpm-style keys) and install.version is pnpm 12.16.0 (lockfileVersion 9.0 is read by the newest pnpm; it is the one `corpus install` used before the version became required): B22 must decide whether a pnpm frozen-lockfile install reproduces nub's. CI installs with `nub install --frozen-lockfile` (nubjs/setup-nub, nub-version 0.8.3) on Node lts/* and also re-adds typescript@5.5, 6 or latest before `nub run test`."
     },
     {
       "id": "svelte",
@@ -3705,6 +3752,7 @@
       "pilot": false,
       "install": {
         "name": "yarn",
+        "version": "1.22.22",
         "lockfile": "yarn.lock"
       },
       "testScript": "vitest run && yarn test:build && yarn test:flow",
@@ -3759,7 +3807,7 @@
           "note": "Second half of the root `test` script: `yarn test:build` = `yarn build && vitest run --config vitest.config.build.ts`, where build is `tsup` (tsup.config.ts; esbuild-based, which I assumed works offline). The config aliases every immer import to dist/cjs/immer.cjs.production.js, defines global.USES_BUILD, and writes snapshots under __tests__/__prod_snapshots__. It lists reporters ['default', './vitest-custom-reporter.ts']; the harness owns reporters. The same specs as immer-src run against the production build, so results are expected to be the same count of tests."
         }
       ],
-      "note": "Yarn classic: yarn.lock header 'yarn lockfile v1', root package.json has no packageManager field, so install.version is omitted; CI (.github/workflows/test.yml) runs `yarn --frozen-lockfile` on Node 24, then `yarn test`, `yarn coverage` and `yarn test:perf`. Vitest resolves to 3.2.6 in yarn.lock (spec ^3.2.6). tsup needs esbuild's native binary; if a scripts-off install leaves it missing, esbuild is the package to `rebuild`."
+      "note": "Yarn classic: yarn.lock header 'yarn lockfile v1', root package.json has no packageManager field, so install.version is Yarn classic 1.22.22, its last release; CI (.github/workflows/test.yml) runs `yarn --frozen-lockfile` on Node 24, then `yarn test`, `yarn coverage` and `yarn test:perf`. Vitest resolves to 3.2.6 in yarn.lock (spec ^3.2.6). tsup needs esbuild's native binary; if a scripts-off install leaves it missing, esbuild is the package to `rebuild`."
     },
     {
       "id": "axios",
@@ -3772,6 +3820,7 @@
       "pilot": false,
       "install": {
         "name": "npm",
+        "version": "11.19.1",
         "lockfile": "package-lock.json"
       },
       "testScript": "npm run test:vitest",
@@ -3808,7 +3857,7 @@
           "note": "CI (.github/workflows/run-ci.yml) runs `npm run test:vitest:unit` = `vitest run --project unit`; the root `test` script is `vitest run` over all three inline projects, which would start the browser ones, hence the project filter. The unit project is node environment, include tests/unit/**/*.test.js (about 74 files); testTimeout is 10 s. Tests import the source (../../index.js, ../../lib/...) and the ones I opened do not read dist, so I listed no prepare although CI runs `npm run build` (gulp + rollup) before the tests; I did not open every file. The adapter tests start local HTTP servers (tests/setup/server.js) on loopback, so the run needs localhost sockets, and I did not check whether any test calls an external host. Lockfile resolves vitest 4.1.12."
         }
       ],
-      "note": "Package manager is npm (package-lock.json lockfileVersion 3, no packageManager field, so version omitted); CI installs with `npm ci --ignore-scripts` and .npmrc sets ignore-scripts=true, so the 'prepare' husky hook never runs. Main CI job uses Node 26.x; smoke and module jobs use Node 12 to 26."
+      "note": "Package manager is npm (package-lock.json lockfileVersion 3, no packageManager field; npm 11.19.1 is the npm that ships with Node 24 and the one `corpus install` used before install.version became required); CI installs with `npm ci --ignore-scripts` and .npmrc sets ignore-scripts=true, so the 'prepare' husky hook never runs. Main CI job uses Node 26.x; smoke and module jobs use Node 12 to 26."
     }
   ]
 }

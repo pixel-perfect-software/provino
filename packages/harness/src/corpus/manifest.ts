@@ -3,8 +3,9 @@
 // JSON path, and nothing is cast.
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { parseJestCli } from '@provino/dialect-jest/node'
 import { HarnessError } from '../errors.ts'
-import { isRecord } from '../internal/guards.ts'
+import { errorMessage, isRecord } from '../internal/guards.ts'
 import { harnessPackageDir } from './paths.ts'
 
 /**
@@ -87,8 +88,11 @@ export interface SkippedProject {
  */
 export interface CorpusInstall {
   readonly name: CorpusPackageManager
-  /** Pinned by the repository's `packageManager` field or lockfile; absent when it pins none. */
-  readonly version?: string
+  /**
+   * Exact version of the package manager (DECISIONS D40). `corpus pin` fills it from the
+   * repository's `packageManager` field, else from its lockfile's version marker.
+   */
+  readonly version: string
   /**
    * Relative to the repository root; the frozen install needs it. Absent for a repository that
    * commits none (testing-library/dom sets `package-lock=false`): `corpus install` refuses it
@@ -137,34 +141,8 @@ export interface CorpusManifest {
   readonly repos: readonly CorpusRepo[]
 }
 
-/**
- * The 5 repositories Track 12 R6 measures (jest-extended, react-hook-form, mobx, swr,
- * styled-components): a subject with `r6` set belongs to one of them, and each has exactly one.
- * @public
- */
-export const R6_REPO_IDS: readonly string[] = [
-  'jest-extended',
-  'react-hook-form',
-  'mobx',
-  'swr',
-  'styled-components',
-]
-
-/**
- * The flags a runner's `provino jest` refuses today (B14c; DECISIONS D41): a subject whose `argv`
- * has one must list it under `provinoRefuses`.
- * @public
- */
-export const PROVINO_REFUSED_FLAGS: readonly string[] = [
-  '--forceExit',
-  '--coverage',
-  '--bail',
-  '--shard',
-  '-u',
-  '--updateSnapshot',
-  '--watch',
-  '--watchAll',
-]
+/** How many repositories Track 12 R6 measures (jest-extended, react-hook-form, mobx, swr, styled-components). */
+const R6_REPO_COUNT = 5
 
 /** Flags the harness owns (`subjectArgs`), which a subject may not set. */
 const HARNESS_FLAGS: readonly string[] = [
@@ -183,7 +161,8 @@ export const DEFAULT_SUBJECT_TIMEOUT_MS: number = 30 * 60_000
 const ID = /^[a-z0-9][a-z0-9-]*$/
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
 const SHA7 = /^[0-9a-f]{7}$/
-const SHA40 = /^[0-9a-f]{40}$/
+/** A full commit SHA. */
+export const SHA40: RegExp = /^[0-9a-f]{40}$/
 const SHA256 = /^[0-9a-f]{64}$/
 const COMMIT_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/
 const VERSION = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/
@@ -224,12 +203,31 @@ function relativePath(value: unknown, at: string, source: string, allowDot: bool
   return found
 }
 
+/** Each element of an array at `at`, through `item`, which is given the element's path. */
+function arrayOf<T>(
+  value: unknown,
+  at: string,
+  source: string,
+  item: (element: unknown, where: string) => T,
+  options: { readonly nonEmpty?: boolean; readonly what?: string } = {},
+): T[] {
+  if (!Array.isArray(value) || (options.nonEmpty === true && value.length === 0)) {
+    throw invalid(source, at, options.what ?? 'must be an array')
+  }
+  return value.map((element: unknown, index) => item(element, `${at}[${index}]`))
+}
+
 function strings(value: unknown, at: string, source: string): string[] {
-  if (!Array.isArray(value)) throw invalid(source, at, 'must be an array of strings')
-  return value.map((item, index) => {
-    if (typeof item !== 'string') throw invalid(source, `${at}[${index}]`, 'must be a string')
-    return item
-  })
+  return arrayOf(
+    value,
+    at,
+    source,
+    (item, where) => {
+      if (typeof item !== 'string') throw invalid(source, where, 'must be a string')
+      return item
+    },
+    { what: 'must be an array of strings' },
+  )
 }
 
 function onlyKeys(
@@ -266,9 +264,7 @@ function optionalText(value: unknown, at: string, source: string): { note?: stri
 }
 
 function prepareOf(value: unknown, at: string, source: string): PrepareStep[] {
-  if (!Array.isArray(value)) throw invalid(source, at, 'must be an array')
-  return value.map((item, index) => {
-    const where = `${at}[${index}]`
+  return arrayOf(value, at, source, (item, where) => {
     const step = record(item, where, source)
     onlyKeys(step, ['command', 'args', 'cwd'], where, source)
     return {
@@ -282,18 +278,20 @@ function prepareOf(value: unknown, at: string, source: string): PrepareStep[] {
 }
 
 function refusedOf(value: unknown, at: string, source: string): RefusedFlag[] {
-  if (!Array.isArray(value) || value.length === 0) {
-    throw invalid(source, at, 'must be a non-empty array')
-  }
-  return value.map((item, index) => {
-    const where = `${at}[${index}]`
-    const entry = record(item, where, source)
-    onlyKeys(entry, ['flag', 'reason'], where, source)
-    return {
-      flag: text(entry.flag, `${where}.flag`, source),
-      reason: text(entry.reason, `${where}.reason`, source),
-    }
-  })
+  return arrayOf(
+    value,
+    at,
+    source,
+    (item, where) => {
+      const entry = record(item, where, source)
+      onlyKeys(entry, ['flag', 'reason'], where, source)
+      return {
+        flag: text(entry.flag, `${where}.flag`, source),
+        reason: text(entry.reason, `${where}.reason`, source),
+      }
+    },
+    { nonEmpty: true, what: 'must be a non-empty array' },
+  )
 }
 
 function envOf(value: unknown, at: string, source: string): Record<string, string> {
@@ -312,6 +310,54 @@ function envOf(value: unknown, at: string, source: string): Record<string, strin
 function flagName(argument: string): string {
   const equals = argument.indexOf('=')
   return argument.startsWith('-') && equals > 0 ? argument.slice(0, equals) : argument
+}
+
+/**
+ * The flags `provino jest` refuses for a Jest subject's `argv`, as the parser itself says it
+ * (`JEST_CLI_UNSUPPORTED`, DECISIONS D41), by canonical name (`-u` is `--updateSnapshot`).
+ */
+function flagsProvinoRefuses(argv: readonly string[], at: string, source: string): string[] {
+  try {
+    return parseJestCli(argv)
+      .diagnostics.filter(
+        (diagnostic) => diagnostic.level === 'error' && diagnostic.code === 'JEST_CLI_UNSUPPORTED',
+      )
+      .flatMap((diagnostic) => (diagnostic.key === undefined ? [] : [diagnostic.key]))
+  } catch (cause) {
+    throw invalid(source, at, `is not a command line provino jest can read: ${errorMessage(cause)}`)
+  }
+}
+
+/**
+ * `provinoRefuses` must name exactly the flags `provino jest` refuses on the subject's `argv`.
+ * A Vitest subject runs through `provino vitest`, which has no parser to ask yet: its entries need
+ * only be flags it uses.
+ */
+function checkRefused(
+  runner: CorpusRunner,
+  argv: readonly string[],
+  listed: readonly string[],
+  at: string,
+  source: string,
+): void {
+  if (runner === 'vitest') {
+    const names = argv.map(flagName)
+    for (const flag of listed) {
+      if (!names.includes(flag)) throw invalid(source, at, `lists ${flag}, which is not in argv`)
+    }
+    return
+  }
+  const refused = flagsProvinoRefuses(argv, at, source)
+  for (const flag of listed) {
+    if (!refused.includes(flag)) {
+      throw invalid(source, at, `lists ${flag}, which provino jest does not refuse for this argv`)
+    }
+  }
+  for (const flag of refused) {
+    if (!listed.includes(flag)) {
+      throw invalid(source, at, `must list ${flag}: provino jest refuses it (DECISIONS D41)`)
+    }
+  }
 }
 
 function subjectOf(value: unknown, at: string, source: string): CorpusSubject {
@@ -357,21 +403,13 @@ function subjectOf(value: unknown, at: string, source: string): CorpusSubject {
     subject.provinoRefuses === undefined
       ? []
       : refusedOf(subject.provinoRefuses, `${at}.provinoRefuses`, source)
-  const listed = refused.map((entry) => entry.flag)
-  for (const flag of listed) {
-    if (!names.includes(flag)) {
-      throw invalid(source, `${at}.provinoRefuses`, `lists ${flag}, which is not in argv`)
-    }
-  }
-  for (const name of names) {
-    if (PROVINO_REFUSED_FLAGS.includes(name) && !listed.includes(name)) {
-      throw invalid(
-        source,
-        `${at}.provinoRefuses`,
-        `must list ${name}: provino jest refuses it (DECISIONS D41)`,
-      )
-    }
-  }
+  checkRefused(
+    runner,
+    argv,
+    refused.map((entry) => entry.flag),
+    `${at}.provinoRefuses`,
+    source,
+  )
   const config = strings(subject.config, `${at}.config`, source).map((file, index) =>
     relativePath(file, `${at}.config[${index}]`, source, false),
   )
@@ -415,9 +453,13 @@ function installOf(value: unknown, at: string, source: string): CorpusInstall {
   const name = oneOf(install.name, ['pnpm', 'npm', 'yarn'], `${at}.name`, source)
   return {
     name,
-    ...(install.version === undefined
-      ? {}
-      : { version: matching(install.version, VERSION, `${at}.version`, 'a version', source) }),
+    version: matching(
+      install.version,
+      VERSION,
+      `${at}.version`,
+      'the package manager\'s exact version (run "corpus pin")',
+      source,
+    ),
     ...(install.lockfile === undefined
       ? {}
       : { lockfile: relativePath(install.lockfile, `${at}.lockfile`, source, false) }),
@@ -455,14 +497,17 @@ function repoOf(value: unknown, at: string, source: string): CorpusRepo {
   }
   if (repo.licence !== 'MIT') throw invalid(source, `${at}.licence`, 'must be "MIT" (DECISIONS D4)')
   if (typeof repo.pilot !== 'boolean') throw invalid(source, `${at}.pilot`, 'must be true or false')
-  if (!Array.isArray(repo.subjects) || repo.subjects.length === 0) {
-    throw invalid(source, `${at}.subjects`, 'must be a non-empty array')
-  }
+  const subjects = arrayOf(
+    repo.subjects,
+    `${at}.subjects`,
+    source,
+    (subject, where) => subjectOf(subject, where, source),
+    { nonEmpty: true, what: 'must be a non-empty array' },
+  )
   const skipped =
     repo.skipped === undefined
       ? []
-      : (Array.isArray(repo.skipped) ? repo.skipped : []).map((item: unknown, index: number) => {
-          const where = `${at}.skipped[${index}]`
+      : arrayOf(repo.skipped, `${at}.skipped`, source, (item, where) => {
           const entry = record(item, where, source)
           onlyKeys(entry, ['path', 'reason'], where, source)
           return {
@@ -470,9 +515,6 @@ function repoOf(value: unknown, at: string, source: string): CorpusRepo {
             reason: text(entry.reason, `${where}.reason`, source),
           }
         })
-  if (repo.skipped !== undefined && !Array.isArray(repo.skipped)) {
-    throw invalid(source, `${at}.skipped`, 'must be an array')
-  }
   return {
     id: matching(repo.id, ID, `${at}.id`, 'a lowercase id (a-z, 0-9, -)', source),
     repo: matching(repo.repo, REPO, `${at}.repo`, 'owner/name', source),
@@ -494,17 +536,16 @@ function repoOf(value: unknown, at: string, source: string): CorpusRepo {
       : { rebuild: strings(repo.rebuild, `${at}.rebuild`, source) }),
     testScript: text(repo.testScript, `${at}.testScript`, source),
     ...(skipped.length === 0 ? {} : { skipped }),
-    subjects: repo.subjects.map((subject: unknown, index: number) =>
-      subjectOf(subject, `${at}.subjects[${index}]`, source),
-    ),
+    subjects,
     ...optionalText(repo.note, `${at}.note`, source),
   }
 }
 
 /**
  * Reads `corpus/manifest.json`: every repository needs a full SHA that starts with F5's, a sha256,
- * MIT, a known package manager and unique repository and subject ids. The subjects' `r6` flags
- * must match R6's 5 repositories, one subject each (DECISIONS D41). Anything else is
+ * MIT, a known package manager with its exact version and unique repository and subject ids.
+ * The subjects' `r6` flags must mark 5 repositories, one subject each (DECISIONS D41); a Jest
+ * subject's `provinoRefuses` must be what `provino jest` refuses on its `argv`. Anything else is
  * `HARNESS_CORPUS_MANIFEST_INVALID` with the JSON path.
  * @public
  */
@@ -521,12 +562,10 @@ export function parseCorpusManifest(content: string, source: string): CorpusMani
   const root = record(value, '$', source)
   onlyKeys(root, ['schemaVersion', 'repos'], '$', source)
   if (root.schemaVersion !== 1) throw invalid(source, 'schemaVersion', 'must be 1')
-  if (!Array.isArray(root.repos) || root.repos.length === 0) {
-    throw invalid(source, 'repos', 'must be a non-empty array')
-  }
-  const repos = root.repos.map((repo: unknown, index: number) =>
-    repoOf(repo, `repos[${index}]`, source),
-  )
+  const repos = arrayOf(root.repos, 'repos', source, (repo, where) => repoOf(repo, where, source), {
+    nonEmpty: true,
+    what: 'must be a non-empty array',
+  })
   const repoIds = new Set<string>()
   const subjectIds = new Set<string>()
   for (const repo of repos) {
@@ -538,23 +577,24 @@ export function parseCorpusManifest(content: string, source: string): CorpusMani
         throw invalid(source, 'repos', `has two subjects with id "${subject.id}"`)
       }
       subjectIds.add(subject.id)
-      if (subject.r6 && !R6_REPO_IDS.includes(repo.id)) {
-        throw invalid(
-          source,
-          `subject ${subject.id}`,
-          `has r6 set, but ${repo.id} is not one of R6's 5 repositories`,
-        )
-      }
     }
   }
-  for (const id of R6_REPO_IDS) {
-    const repo = repos.find((candidate) => candidate.id === id)
-    const measured = repo?.subjects.filter((subject) => subject.r6).length ?? 0
-    if (measured !== 1) {
+  // R6's repositories are the ones whose subjects carry `r6`: there are 5, one subject each.
+  const measured = repos.filter((repo) => repo.subjects.some((subject) => subject.r6))
+  if (measured.length !== R6_REPO_COUNT) {
+    throw invalid(
+      source,
+      'repos',
+      `must have exactly ${R6_REPO_COUNT} repositories with an r6 subject (Track 12 R6), has ${measured.length}: ${measured.map((repo) => repo.id).join(', ')}`,
+    )
+  }
+  for (const repo of measured) {
+    const count = repo.subjects.filter((subject) => subject.r6).length
+    if (count !== 1) {
       throw invalid(
         source,
-        `repo ${id}`,
-        `must have exactly one subject with r6 set, has ${measured}`,
+        `repo ${repo.id}`,
+        `must have exactly one subject with r6 set, has ${count}`,
       )
     }
   }

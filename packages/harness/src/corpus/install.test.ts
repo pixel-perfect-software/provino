@@ -2,10 +2,13 @@
 // tree fingerprint, `installRepo` and the offline re-install. No network, no real install.
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import { mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { test } from 'node:test'
 import { HarnessError } from '../errors.ts'
+import { compareStrings } from '../internal/guards.ts'
+import { digestFile } from './fetch.ts'
 import {
   findNodeModules,
   fingerprintTree,
@@ -85,7 +88,7 @@ test('pnpm at a pinned version runs through corepack, frozen, scripts off, store
   const repo = makeRepo({
     install: { name: 'pnpm', version: '12.4.2', lockfile: 'pnpm-lock.yaml' },
   })
-  const plan = await installPlan(repo, { workRoot: '/work', offline: false })
+  const plan = installPlan(repo, { workRoot: '/work', offline: false })
   assert.equal(plan.command, 'corepack')
   assert.deepEqual(plan.args, [
     'pnpm@12.4.2',
@@ -99,20 +102,28 @@ test('pnpm at a pinned version runs through corepack, frozen, scripts off, store
   assert.deepEqual(plan.manager, { name: 'pnpm', version: '12.4.2' })
 })
 
-test('pnpm with no pin uses the version this repository pins, and --offline when offline', async () => {
-  const repo = makeRepo({ install: { name: 'pnpm', lockfile: 'pnpm-lock.yaml' } })
-  const plan = await installPlan(repo, { workRoot: '/work', offline: true })
-  assert.match(plan.manager.version, /^\d+\.\d+\.\d+$/)
-  assert.equal(plan.args[0], `pnpm@${plan.manager.version}`)
+test('pnpm adds --offline when offline, at the manifest version and no other', async () => {
+  const repo = makeRepo({
+    install: { name: 'pnpm', version: '9.15.9', lockfile: 'pnpm-lock.yaml' },
+  })
+  const plan = installPlan(repo, { workRoot: '/work', offline: true })
+  assert.deepEqual(plan.manager, { name: 'pnpm', version: '9.15.9' })
+  assert.equal(plan.args[0], 'pnpm@9.15.9')
   assert.ok(plan.args.includes('--offline'))
 })
 
-test('npm without a pin is the one bundled with Node; pinned, it goes through corepack', async () => {
-  const bundled = await installPlan(makeRepo(), { workRoot: '/work', offline: false })
-  assert.equal(bundled.command, 'npm')
-  assert.deepEqual(bundled.args, ['ci', '--ignore-scripts', '--no-audit', '--no-fund'])
-  assert.equal(bundled.manager.version, 'bundled with Node')
-  const pinned = await installPlan(
+test('npm goes through corepack at the manifest version, with no default of our own', async () => {
+  const online = installPlan(makeRepo(), { workRoot: '/work', offline: false })
+  assert.equal(online.command, 'corepack')
+  assert.deepEqual(online.args, [
+    'npm@11.19.1',
+    'ci',
+    '--ignore-scripts',
+    '--no-audit',
+    '--no-fund',
+  ])
+  assert.deepEqual(online.manager, { name: 'npm', version: '11.19.1' })
+  const pinned = installPlan(
     makeRepo({ install: { name: 'npm', version: '10.9.2', lockfile: 'package-lock.json' } }),
     { workRoot: '/work', offline: true },
   )
@@ -122,7 +133,7 @@ test('npm without a pin is the one bundled with Node; pinned, it goes through co
 })
 
 test('Yarn classic is frozen with scripts off, Berry is immutable', async () => {
-  const classic = await installPlan(
+  const classic = installPlan(
     makeRepo({ install: { name: 'yarn', version: '1.22.22', lockfile: 'yarn.lock' } }),
     { workRoot: '/work', offline: true },
   )
@@ -134,31 +145,39 @@ test('Yarn classic is frozen with scripts off, Berry is immutable', async () => 
     '--non-interactive',
   ])
   assert.ok(classic.args.includes('--offline'))
-  const berry = await installPlan(
+  const berry = installPlan(
     makeRepo({ install: { name: 'yarn', version: '4.5.0', lockfile: 'yarn.lock' } }),
     { workRoot: '/work', offline: false },
   )
   assert.deepEqual(berry.args, ['yarn@4.5.0', 'install', '--immutable'])
-  const unpinned = await installPlan(
-    makeRepo({ install: { name: 'yarn', lockfile: 'yarn.lock' } }),
-    { workRoot: '/work', offline: false },
-  )
-  assert.equal(unpinned.manager.version, '1.22.22')
 })
 
 test("the manifest's extra install flags are appended, and one that is not a flag is refused", async () => {
-  const ok = await installPlan(
+  const ok = installPlan(
     makeRepo({
-      install: { name: 'npm', lockfile: 'package-lock.json', args: ['--legacy-peer-deps'] },
+      install: {
+        name: 'npm',
+        version: '11.19.1',
+        lockfile: 'package-lock.json',
+        args: ['--legacy-peer-deps'],
+      },
     }),
     { workRoot: '/work', offline: false },
   )
   assert.equal(ok.args.at(-1), '--legacy-peer-deps')
-  await assert.rejects(
-    installPlan(
-      makeRepo({ install: { name: 'npm', lockfile: 'package-lock.json', args: ['; rm -rf /'] } }),
-      { workRoot: '/work', offline: false },
-    ),
+  assert.throws(
+    () =>
+      installPlan(
+        makeRepo({
+          install: {
+            name: 'npm',
+            version: '11.19.1',
+            lockfile: 'package-lock.json',
+            args: ['; rm -rf /'],
+          },
+        }),
+        { workRoot: '/work', offline: false },
+      ),
     hasCode('HARNESS_CORPUS_MANIFEST_INVALID'),
   )
 })
@@ -215,9 +234,10 @@ test('installRepo runs the frozen install, checks the runner version and writes 
   assert.equal(record.installedAt, '2026-11-12T10:00:00.000Z')
   assert.deepEqual(record.runnerVersions, { demo: '30.5.2' })
   assert.equal(record.diskMb, 2)
-  assert.equal(record.command[0], 'npm')
+  assert.equal(record.command[0], 'corepack')
+  assert.deepEqual(record.packageManager, { name: 'npm', version: '11.19.1' })
   assert.ok(record.fingerprintFiles >= 2)
-  const install = deps.calls.find((call) => call.command === 'npm')
+  const install = deps.calls.find((call) => call.command === 'corepack')
   assert.equal(install?.options.cwd, paths.src)
   assert.equal(install?.options.env.npm_config_ignore_scripts, 'true')
   assert.deepEqual(await readInstallRecord(repo, work), record)
@@ -231,7 +251,7 @@ test('installRepo needs the extracted tree of this commit, and a lockfile to fre
     hasCode('HARNESS_CORPUS_NOT_INSTALLED'),
   )
   const { install: _dropped, ...rest } = repo
-  const noLock = { ...rest, install: { name: 'npm' as const } }
+  const noLock = { ...rest, install: { name: 'npm' as const, version: '11.19.1' } }
   await assert.rejects(
     installRepo(noLock, { workRoot: work, deps: fakeDeps(() => finished(0)) }),
     /commits no lockfile/,
@@ -296,12 +316,30 @@ test('rebuild packages run with scripts on after the frozen install', async () =
     return finished(0, '', '', { wallMs: 10 })
   })
   const record = await installRepo(repo, { workRoot: work, deps, now: NOW })
-  const corepack = deps.calls.filter((call) => call.command === 'corepack')
-  assert.equal(corepack.length, 2)
-  assert.deepEqual(corepack[1]?.args, ['pnpm@12.4.2', 'rebuild', 'esbuild'])
-  assert.equal(corepack[1]?.options.env.npm_config_ignore_scripts, 'false')
-  assert.equal(corepack[0]?.options.env.npm_config_ignore_scripts, 'true')
+  const [frozen, rebuild] = deps.calls.filter((call) => call.command !== 'du')
+  assert.equal(frozen?.command, 'corepack', 'the install itself needs the network')
+  assert.equal(frozen?.options.env.npm_config_ignore_scripts, 'true')
+  // The rebuild runs the package's own scripts, so it runs under the sandbox.
+  assert.equal(rebuild?.command, '/usr/bin/sandbox-exec')
+  assert.deepEqual(rebuild?.args.slice(2), ['corepack', 'pnpm@12.4.2', 'rebuild', 'esbuild'])
+  assert.equal(rebuild?.options.env.npm_config_ignore_scripts, 'false')
   assert.equal(record.wallMs, 20, 'the rebuild counts toward the install time')
+})
+
+test('a repository with nothing to rebuild writes no sandbox profile for its online install', async () => {
+  const repo = makeRepo()
+  const { work, paths } = await workWithTree(repo)
+  const deps = fakeDeps(async (call: Call) => {
+    if (call.command === 'du') return finished(0, '1\tx')
+    await installRunner(paths.src, '30.5.2')
+    return finished(0)
+  })
+  await installRepo(repo, { workRoot: work, deps, now: NOW })
+  assert.equal(
+    deps.calls.some((call) => call.command === '/usr/bin/sandbox-exec'),
+    false,
+  )
+  await assert.rejects(readFile(path.join(paths.dir, 'sandbox.sb')), { code: 'ENOENT' })
 })
 
 test('a failing rebuild names the package', async () => {
@@ -364,7 +402,7 @@ test('the offline re-install deletes node_modules, runs in the sandbox and check
   const call = seen[0]
   assert.equal(call?.command, '/usr/bin/sandbox-exec')
   assert.equal(call?.args[0], '-f')
-  assert.equal(call?.args[2], 'npm')
+  assert.equal(call?.args[2], 'corepack')
   assert.ok(call?.args.includes('--offline'))
   assert.equal(call?.options.env.npm_config_offline, 'true')
   const stored = await readInstallRecord(repo, work)
@@ -429,15 +467,14 @@ test('fingerprintTree reads a bounded number of files at once and gives the same
   let calls = 0
   const limited = await fingerprintTree(dir, {
     concurrency: 8,
-    hashFile: async (file) => {
+    digestFile: async (file) => {
       calls++
       open++
       most = Math.max(most, open)
       await new Promise((resolve) => setImmediate(resolve))
       open--
-      return createHash('sha256')
-        .update(await readFile(file))
-        .digest('hex')
+      const bytes = await readFile(file)
+      return { size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }
     },
   })
   assert.equal(calls, 200)
@@ -473,4 +510,33 @@ test('the offline re-install rebuilds the same packages, so the fingerprints agr
   assert.equal(seen.length, 2, 'the install and one rebuild')
   assert.equal(seen[1]?.command, '/usr/bin/sandbox-exec', 'the rebuild is sandboxed too')
   assert.ok(seen[1]?.args.includes('rebuild'))
+})
+
+test('fingerprintTree gives the hash the stat-and-stream version gave, small files and large alike', async () => {
+  const dir = await tempDir('fingerprint-same')
+  await writeTree(dir, {
+    'node_modules/a/index.js': 'small',
+    'node_modules/a/empty.js': '',
+    'node_modules/b/big.bin': 'x'.repeat(5000),
+  })
+  await symlink('index.js', path.join(dir, 'node_modules/a/link.js'))
+  // The previous implementation: the size from `stat`, the hash from a stream, every file.
+  const lines: string[] = []
+  for (const file of ['a/index.js', 'a/empty.js', 'b/big.bin']) {
+    const full = path.join(dir, 'node_modules', file)
+    const hash = createHash('sha256')
+    for await (const chunk of createReadStream(full)) hash.update(chunk as Buffer)
+    lines.push(`f\0node_modules/${file}\0${(await stat(full)).size}\0${hash.digest('hex')}`)
+  }
+  lines.push('l\0node_modules/a/link.js\0index.js', 'd\0node_modules/a', 'd\0node_modules/b')
+  const expected = createHash('sha256')
+  for (const line of lines.toSorted(compareStrings)) expected.update(`${line}\n`)
+  const hex = expected.digest('hex')
+  assert.equal((await fingerprintTree(dir)).hash, hex)
+  // A small-file limit under 5000 sends big.bin down the streaming branch.
+  const streamed = await fingerprintTree(dir, {
+    digestFile: (file) => digestFile(file, 100),
+  })
+  assert.equal(streamed.hash, hex)
+  assert.equal(streamed.files, 6)
 })

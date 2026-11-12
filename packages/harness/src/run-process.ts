@@ -3,6 +3,16 @@ import { StringDecoder } from 'node:string_decoder'
 import { spawnInGroup } from './spawn-in-group.ts'
 
 /**
+ * Turns the command a caller means to run into the one that is spawned (B16: `sandbox-exec -f
+ * <profile>` around it). The working directory, environment and deadline are unchanged.
+ * @public
+ */
+export type CommandWrap = (
+  command: string,
+  args: readonly string[],
+) => { readonly command: string; readonly args: readonly string[] }
+
+/**
  * What `runProcess` needs. The deadline is either a time limit or a signal, so a caller (or a test)
  * can own the clock.
  * @public

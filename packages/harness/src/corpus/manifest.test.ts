@@ -5,13 +5,13 @@ import { test } from 'node:test'
 import { HarnessError } from '../errors.ts'
 import {
   type CorpusManifest,
-  PROVINO_REFUSED_FLAGS,
   parseCorpusManifest,
-  R6_REPO_IDS,
   readCorpusManifest,
   selectRepos,
   selectSubjects,
 } from './manifest.ts'
+
+const R6_REPO_IDS = ['jest-extended', 'react-hook-form', 'mobx', 'swr', 'styled-components']
 
 const PILOT = [
   'react-hook-form',
@@ -129,18 +129,50 @@ test('R6 measures the 5 Jest repositories, each by exactly one subject, styled-c
   assert.equal(styled?.subjects[1]?.provinoRefuses?.[0]?.flag, '--forceExit')
 })
 
-test('every flag provino jest refuses is listed on the subject that uses it', async () => {
+test('every package manager is pinned to an exact version, so no install falls back to a default', async () => {
   const manifest = await readCorpusManifest()
-  for (const repo of manifest.repos) {
-    for (const subject of repo.subjects) {
-      const listed = (subject.provinoRefuses ?? []).map((entry) => entry.flag)
-      for (const arg of subject.argv) {
-        if (PROVINO_REFUSED_FLAGS.includes(arg)) {
-          assert.ok(listed.includes(arg), `${subject.id} ${arg}`)
-        }
-      }
-    }
-  }
+  for (const repo of manifest.repos) assert.match(repo.install.version, /^\d+\.\d+\.\d+$/, repo.id)
+  rejects(
+    await edited((draft) => {
+      delete (repoOf(draft, 'mobx').install as { version?: string }).version
+    }),
+    /install\.version must be a non-empty string/,
+  )
+  rejects(
+    await edited((draft) => {
+      repoOf(draft, 'mobx').install.version = 'latest'
+    }),
+    /install\.version must be the package manager's exact version/,
+  )
+})
+
+test('provinoRefuses is what provino jest itself refuses on the subject, by the parser', async () => {
+  rejects(
+    await edited((draft) => {
+      subjectOf(draft, 'mobx').argv.push('--coverage')
+    }),
+    /must list --coverage: provino jest refuses it/,
+  )
+  // A flag is named as the parser names it, with its value split off.
+  rejects(
+    await edited((draft) => {
+      subjectOf(draft, 'mobx').argv.push('--shard=1/2')
+    }),
+    /must list --shard:/,
+  )
+  rejects(
+    await edited((draft) => {
+      subjectOf(draft, 'mobx').argv.push('--maxWorkers=2')
+      subjectOf(draft, 'mobx').provinoRefuses = [{ flag: '--maxWorkers', reason: 'it is read' }]
+    }),
+    /lists --maxWorkers, which provino jest does not refuse for this argv/,
+  )
+  const accepted = await edited((draft) => {
+    const subject = subjectOf(draft, 'mobx')
+    subject.argv.push('--coverage')
+    subject.provinoRefuses = [{ flag: '--coverage', reason: 'no coverage backend yet' }]
+  })
+  assert.doesNotThrow(() => parseCorpusManifest(accepted, 'manifest.json'))
 })
 
 test('the pilot repositories commit a lockfile their own package manager can freeze', async () => {
@@ -231,16 +263,24 @@ test('the parser refuses an argv the harness cannot use', async () => {
   )
 })
 
-test('the parser refuses an r6 flag outside the five, or a missing one', async () => {
+test('the parser wants exactly 5 repositories with an r6 subject, one subject each', async () => {
   rejects(
     await edited((draft) => {
       subjectOf(draft, 'nest').r6 = true
     }),
-    /not one of R6's 5/,
+    /exactly 5 repositories with an r6 subject.*has 6/,
   )
   rejects(
     await edited((draft) => {
       subjectOf(draft, 'swr').r6 = false
+    }),
+    /exactly 5 repositories with an r6 subject.*has 4/,
+  )
+  rejects(
+    await edited((draft) => {
+      const second = repoOf(draft, 'styled-components').subjects[1]
+      if (second === undefined) throw new Error('no second subject')
+      second.r6 = true
     }),
     /exactly one subject with r6/,
   )

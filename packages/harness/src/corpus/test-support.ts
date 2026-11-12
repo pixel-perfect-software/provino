@@ -34,7 +34,7 @@ export function makeRepo(overrides: Partial<CorpusRepo> = {}): CorpusRepo {
     tarballSha256: '0'.repeat(64),
     licence: 'MIT',
     pilot: true,
-    install: { name: 'npm', lockfile: 'package-lock.json' },
+    install: { name: 'npm', version: '11.19.1', lockfile: 'package-lock.json' },
     testScript: 'jest',
     subjects: [makeSubject()],
     ...overrides,
@@ -118,3 +118,11 @@ export async function makeTarball(
   if (result.status !== 0) throw new Error(`tar failed: ${result.stderr}`)
   return tarball
 }
+
+/** The run numbers `listRuns` gives for `runs` finished runs: 1, 2, 3, ... */
+export function numbersFor(runs: readonly unknown[]): number[] {
+  return runs.map((_, index) => index + 1)
+}
+
+/** What a gate report is told about the corpus (33 repositories, 8 of them the pilot). */
+export const CORPUS = { repositories: 33, pilot: 8 } as const

@@ -49,6 +49,14 @@ export function byFile(a: { readonly file: string }, b: { readonly file: string 
 /** A `YYYY-MM-DD` date's shape. Whether the date exists is the caller's check. */
 export const ISO_DATE: RegExp = /^\d{4}-\d{2}-\d{2}$/
 
+/** The date a command works on: its `--today`, else the current UTC date, as `YYYY-MM-DD`. */
+export function today(
+  command: { readonly today?: string },
+  now: () => Date = () => new Date(),
+): string {
+  return command.today ?? now().toISOString().slice(0, 10)
+}
+
 /** The text with every regular-expression metacharacter escaped, for building a pattern. */
 export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

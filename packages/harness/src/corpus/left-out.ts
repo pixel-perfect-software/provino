@@ -5,32 +5,21 @@
 // a test suite as a test input (editor settings, a demo app's `.env`, empty submodule pointers).
 // `FetchResult.leftOut` lists what was left out so a reviewer can check.
 
-/** `tar --exclude` patterns, matched against the whole member name (`*` crosses `/`). */
-export const LEFT_OUT_PATTERNS: readonly string[] = [
-  '*/.env',
-  '*/.env.production',
-  '*/.env.prod',
-  '*/.env.staging',
-  '*/.env.development',
-  '*/.env.dev',
-  '*/.env.local',
-  '*/.env.*.local',
-  '*/.vscode',
-  '*/.vscode/*',
-  '*/.idea',
-  '*/.idea/*',
-  '*/.mcp.json',
-  '*/.gitmodules',
-  '*/.gitconfig',
-  '*/.ripgreprc',
-  '*/.bashrc',
-  '*/.zshrc',
-  '*/.profile',
+/** The environment-file suffixes: `.env`, `.env.production`, ... and `.env.<anything>.local`. */
+const ENV_SUFFIXES: readonly string[] = [
+  'production',
+  'prod',
+  'staging',
+  'development',
+  'dev',
+  'local',
 ]
 
-const ENV_FILE = /^\.env(?:\.(?:production|prod|staging|development|dev|local)|\..+\.local)?$/
+/** Directories left out whole. */
+const LEFT_OUT_DIRS: readonly string[] = ['.vscode', '.idea']
 
-const LEFT_OUT_FILES: ReadonlySet<string> = new Set([
+/** Files left out by name, wherever they are. */
+const LEFT_OUT_FILES: readonly string[] = [
   '.mcp.json',
   '.gitmodules',
   '.gitconfig',
@@ -38,7 +27,18 @@ const LEFT_OUT_FILES: ReadonlySet<string> = new Set([
   '.bashrc',
   '.zshrc',
   '.profile',
-])
+]
+
+/** `tar --exclude` patterns, matched against the whole member name (`*` crosses `/`). */
+export const LEFT_OUT_PATTERNS: readonly string[] = [
+  '*/.env',
+  ...ENV_SUFFIXES.map((suffix) => `*/.env.${suffix}`),
+  '*/.env.*.local',
+  ...LEFT_OUT_DIRS.flatMap((dir) => [`*/${dir}`, `*/${dir}/*`]),
+  ...LEFT_OUT_FILES.map((file) => `*/${file}`),
+]
+
+const ENV_FILE = new RegExp(`^\\.env(?:\\.(?:${ENV_SUFFIXES.join('|')})|\\..+\\.local)?$`)
 
 /**
  * Whether a repository-relative tarball entry is one `LEFT_OUT_PATTERNS` excludes.
@@ -49,8 +49,7 @@ export function isLeftOut(entry: string): boolean {
   const name = segments.at(-1) ?? ''
   return (
     ENV_FILE.test(name) ||
-    LEFT_OUT_FILES.has(name) ||
-    segments.includes('.vscode') ||
-    segments.includes('.idea')
+    LEFT_OUT_FILES.includes(name) ||
+    LEFT_OUT_DIRS.some((dir) => segments.includes(dir))
   )
 }

@@ -26,3 +26,20 @@ export interface CorpusDeps {
  * @public
  */
 export const defaultDeps: CorpusDeps = { run: runProcess }
+
+/**
+ * How a finished command ended, for an error message: `timed out`, `exited 1`, or `exited
+ * SIGKILL` when a signal ended it.
+ * @internal
+ */
+export function exitText(result: Pick<ProcessResult, 'exitCode' | 'signal' | 'timedOut'>): string {
+  return result.timedOut ? 'timed out' : `exited ${result.exitCode ?? result.signal ?? 'by signal'}`
+}
+
+/**
+ * The last `chars` characters of a command's output, trimmed, for an error message.
+ * @internal
+ */
+export function tailOf(result: Pick<ProcessResult, 'output'>, chars: number): string {
+  return result.output.trim().slice(-chars)
+}
