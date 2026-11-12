@@ -171,11 +171,8 @@ export function fromJestEnvironment(
 /** `customExportConditions` from `testEnvironmentOptions`, as the classes read it (an array of strings). */
 function customConditions(options: EnvironmentRequest['options']): readonly string[] | undefined {
   const config = options?.projectConfig
-  const own =
-    isRecord(config) && isRecord(config.testEnvironmentOptions)
-      ? config.testEnvironmentOptions
-      : options
-  const custom = own?.customExportConditions
+  const own = isRecord(config) ? config.testEnvironmentOptions : undefined
+  const custom = isRecord(own) ? own.customExportConditions : undefined
   return Array.isArray(custom) && custom.every((item) => typeof item === 'string')
     ? (custom as readonly string[])
     : undefined
@@ -267,12 +264,9 @@ export const jestEnvironmentFor: EnvironmentResolver = (request) => {
   if (found === undefined) throw notFound(request.name)
   const base = request.base.options
   const baseConfig = isRecord(base.projectConfig) ? base.projectConfig : {}
-  // A built-in environment's options are the `testEnvironmentOptions` themselves.
   const baseOptions = isRecord(baseConfig.testEnvironmentOptions)
     ? baseConfig.testEnvironmentOptions
-    : isRecord(base.projectConfig)
-      ? {}
-      : base
+    : {}
   const docblock = isRecord(request.options) ? request.options : {}
   return {
     module: import.meta.resolve('@provino/dialect-jest/runtime'),

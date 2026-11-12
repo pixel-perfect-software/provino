@@ -3,7 +3,7 @@
 // as `provino run`, and ended with Jest's exit codes.
 import { existsSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { type ResolvedProject, resolveNeutralProject } from '@provino/config'
 import {
   createJestConfigReader,
@@ -79,7 +79,8 @@ function environmentsFor(request: RunRequest, project: NeutralProject): typeof E
   const { name } = project.environment
   if (Object.hasOwn(ENVIRONMENTS, name)) return ENVIRONMENTS
   // Any other environment is the project's own Jest class (D44), run through the adapter.
-  if (isAbsolute(name)) return { ...ENVIRONMENTS, [name]: JEST_ENVIRONMENT }
+  if (typeof project.environment.options.module === 'string')
+    return { ...ENVIRONMENTS, [name]: JEST_ENVIRONMENT }
   if (request.mode === 'run') return ENVIRONMENTS
   return { ...ENVIRONMENTS, [name]: ENVIRONMENTS.node as (typeof ENVIRONMENTS)[string] }
 }
@@ -126,7 +127,7 @@ async function readProjects(
     neutral: neutral.value,
     globalConfig: resolved.value.globalConfig,
     cache: resolved.value.configs.every((config) => config.cache),
-    showable: resolved.value,
+    showable: { globalConfig: resolved.value.globalConfig, configs: resolved.value.configs },
     diagnostics: [...resolved.diagnostics, ...neutral.diagnostics],
   }
 }
