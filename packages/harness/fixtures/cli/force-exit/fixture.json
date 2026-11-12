@@ -1,0 +1,9 @@
+{
+  "description": "--forceExit (T9.10): the run passes while a test's interval is still running. Jest says it is force exiting (a warning on stderr that names --detectOpenHandles) and ends the process with the run's exit code, 0, instead of waiting for the interval. A black-box run.",
+  "runners": ["jest"],
+  "run": {
+    "argv": { "jest": ["--forceExit"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Force exiting Jest|Test Suites:)"
+  }
+}
