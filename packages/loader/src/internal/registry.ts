@@ -27,7 +27,6 @@ import {
   linkAsync,
   linkSync,
   type ModuleRecord,
-  mapperTakes,
   preloadAsync,
   type Records,
   recordFor,
@@ -337,8 +336,8 @@ export class Registry {
    */
   #mockOf(target: Target, specifier: string, importer: string, style: Style): unknown {
     const mocks = this.context.mocks
-    if (target.kind === 'missing') {
-      const served = this.#served(specifier, importer, style)
+    if (target.kind === 'missing' || target.kind === 'served') {
+      const served = target.kind === 'served' ? this.#served(specifier, importer, style) : REAL
       if (served !== REAL) return served
       const found = mocks?.decideUnresolved(specifier, importer)
       if (mocks !== null && found?.mocked === true) return this.#mocked(mocks, found.id, style)
@@ -360,13 +359,11 @@ export class Registry {
     return REAL
   }
 
-  /** The value of a module the dialect serves (`ModuleScope.modules`) for `importer`, or `REAL`. */
+  /**
+   * The value of a module the dialect serves (`ModuleScope.modules`) for `importer`, or `REAL`.
+   * Only a `served` target gets here: no name-mapper rule took it over.
+   */
   #served(specifier: string, importer: string, style: Style): unknown {
-    if (this.#state.options.moduleScope?.modules?.includes(specifier) !== true) return REAL
-    // A name-mapper rule for a mappable module decides it, whether or not its target resolves.
-    if (mapperTakes(this.#state, specifier, importer, style === 'esm' ? 'import' : 'require')) {
-      return REAL
-    }
     const scope = this.context.scope
     const values = scope?.(importer as ModuleId)
     if (values === undefined || !Object.hasOwn(values, specifier)) return REAL

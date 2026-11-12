@@ -28,6 +28,12 @@ export type Target =
   | { readonly kind: 'external'; readonly path: string }
   | { readonly kind: 'builtin'; readonly id: string }
   | { readonly kind: 'missing'; readonly error: ModuleNotFoundError }
+  /**
+   * A module the dialect serves (`ModuleScope.modules`, Jest's `@jest/globals`): never resolved or
+   * loaded, its edge reads the scope's value first (`FileRegistry.#served`). Its `error`, what the
+   * edge throws when the scope has no value for it, is made only when read.
+   */
+  | { readonly kind: 'served'; readonly error: ModuleNotFoundError }
   | { readonly kind: 'failed'; readonly id: ModuleId; readonly error: unknown }
 
 /** A target that leads somewhere loadable. */
@@ -207,15 +213,20 @@ export function resolveOrMissing(
   specifier: string,
   importer: string,
   kind: ResolveKind,
-): Found | Extract<Target, { readonly kind: 'missing' }> {
-  // A module the dialect serves (`@jest/globals`) is never resolved or loaded: it is a `missing`
-  // target whose edge reads the scope's value first (`FileRegistry.#mockOf`), as Jest answers
-  // `@jest/globals` before the mapper, the resolver and the mocks.
+): Found | Extract<Target, { readonly kind: 'missing' | 'served' }> {
+  // A module the dialect serves (`@jest/globals`) is never resolved or loaded: its edge reads the
+  // scope's value first (`FileRegistry.#mockOf`), as Jest answers `@jest/globals` before the
+  // mapper, the resolver and the mocks.
   if (
     state.options.moduleScope?.modules?.includes(specifier) === true &&
     !mapperTakes(state, specifier, importer, kind)
   ) {
-    return { kind: 'missing', error: notFound(state, specifier, importer, kind) }
+    return {
+      kind: 'served',
+      get error() {
+        return notFound(state, specifier, importer, kind)
+      },
+    }
   }
   const result = state.options.resolver.resolve(specifier, {
     importer,
@@ -249,7 +260,7 @@ export function resolveTarget(
   kind: ResolveKind,
 ): Found {
   const target = resolveOrMissing(state, specifier, importer, kind)
-  if (target.kind === 'missing') throw target.error
+  if (target.kind === 'missing' || target.kind === 'served') throw target.error
   return target
 }
 
