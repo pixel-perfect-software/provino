@@ -52,6 +52,25 @@ const RESOLVE_CALL = /import\.meta\.resolve\(\s*(?:"([^"\\]+)"|'([^'\\]+)'|`([^`
 
 const MARK = '__provino_ref__:'
 
+/**
+ * The coordinator's source files: nothing a worker imports. `provino`'s own files are the bin's
+ * and `run()`'s; the dialect's policy values (the files that build `jestDialect`) are read by the
+ * coordinator, and its `runtime` by the worker.
+ */
+const COORDINATOR = new RegExp(
+  [
+    'orchestrator[\\/]src[\\/](?!worker[\\/])',
+    'reporters[\\/]src[\\/]',
+    'config[\\/]src[\\/]',
+    'snapshot[\\/]src[\\/]node[\\/]',
+    'provino[\\/]src[\\/]',
+    'policy[\\/]src[\\/]dialect\\.ts',
+    'dialect-jest[\\/]src[\\/](?:dialect|expect-policy|hoist-policy|mock-policy)\\.ts',
+  ]
+    .map((alternative) => `[\\/]packages[\\/]${alternative}`)
+    .join('|'),
+)
+
 /** A source file of a workspace package. */
 const SHARED = /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/
 
@@ -139,7 +158,20 @@ export function umbrellaConfig(dir: string): UserConfig[] {
         // coordinator, the worker's entries and the dialect's runtime), instead of a dozen small
         // ones, so a worker's cold start loads a handful of files from this package.
         codeSplitting: {
-          groups: [{ name: 'shared', test: SHARED, minShareCount: 2 }],
+          groups: [
+            // The coordinator's own code (the run, discovery, the pool, reporters, config) in one
+            // chunk, so a worker, which loads none of it, doesn't read it or the packages it
+            // pulls (tinyglobby, picomatch): about 10 ms of a cold start.
+            {
+              name: 'coordinator',
+              test: COORDINATOR,
+              minShareCount: 2,
+              priority: 2,
+              // Only the coordinator's own files: what they import (rpc, transform, policy) is shared.
+              includeDependenciesRecursively: false,
+            },
+            { name: 'shared', test: SHARED, minShareCount: 2, priority: 1 },
+          ],
         },
       },
       plugins: workerRefs(),
