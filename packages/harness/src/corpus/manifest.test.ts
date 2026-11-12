@@ -87,7 +87,11 @@ test('a repository run through nx, turbo or lerna has one subject per package it
   assert.deepEqual(counts('typescript-eslint'), { vitest: 14, jest: 0 })
   for (const repo of manifest.repos) {
     for (const skipped of repo.skipped ?? []) {
-      assert.doesNotMatch(skipped.reason, /\bcap(ped|s)?\b|more packages/, `${repo.id}: ${skipped.path}`)
+      assert.doesNotMatch(
+        skipped.reason,
+        /\bcap(ped|s)?\b|more packages/,
+        `${repo.id}: ${skipped.path}`,
+      )
     }
   }
 })
