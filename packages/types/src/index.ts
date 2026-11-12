@@ -76,6 +76,7 @@ export type {
   EnvironmentScope,
   EnvironmentSetupContext,
   EnvironmentTeardownReport,
+  Pragmas,
 } from './environment.ts'
 export type {
   Assertion,

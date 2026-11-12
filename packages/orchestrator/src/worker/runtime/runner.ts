@@ -65,6 +65,7 @@ import type {
   ModuleMocksFactory,
   ModuleScopeValues,
   Policy,
+  Pragmas,
   ResolveSnapshotPath,
   RuntimeEvent,
   SnapshotFileReport,
@@ -116,7 +117,9 @@ interface Booted {
   /**
    * The dialect's resolver for a file's environment pragma, with the project's own environment
    * ref it builds on, its root and the environments prepared so far: one per kind per worker,
-   * made the first time a file names it (R4).
+   * made the first time a file names it (R4). `requested` is the same by what a docblock asked
+   * for (name and options), so a second file with the same pragma neither resolves nor hashes the
+   * ref again.
    */
   pragmaEnvironments:
     | {
@@ -124,6 +127,7 @@ interface Booted {
         readonly base: EnvironmentRef
         readonly rootDir: string
         readonly prepared: Map<string, PreparedEnvironment>
+        readonly requested: Map<string, PreparedEnvironment>
       }
     | undefined
   /** The file registry tier: `process` is the pool's business and runs as `registry`. */
@@ -188,11 +192,6 @@ const BUILT = [
   'modules',
   'snapshots',
 ] as const satisfies readonly (keyof Booted)[]
-
-/** A run's seed when none was given: a 32-bit integer, as Jest draws its own (`jest.getSeed()`). */
-function randomSeed(): number {
-  return Math.floor(0x1_0000_0000 * Math.random()) - 0x8000_0000
-}
 
 function isBooted(parts: Partial<Booted>): parts is Booted {
   return BUILT.every((key) => parts[key] !== undefined)
@@ -493,12 +492,13 @@ export function createRuntimeRunner(): WorkerRunner {
     }
 
     parts.environment = await prepareEnvironment(config.environment)
-    if (config.environmentResolver !== undefined && config.environmentResolver !== null) {
+    if (config.environmentResolver !== undefined) {
       parts.pragmaEnvironments = {
         resolve: await behaviours.load(config.environmentResolver),
         base: config.environment,
         rootDir: config.rootDir,
         prepared: new Map(),
+        requested: new Map(),
       }
     }
 
@@ -520,7 +520,7 @@ export function createRuntimeRunner(): WorkerRunner {
       mockPolicy: policy.mock,
       timers: activeClock,
       timersPolicy: policy.timers,
-      seed: config.seed ?? randomSeed(),
+      seed: config.seed,
       environmentTornDown: () => (fileScope.getStore() ?? fallback)?.tornDown ?? true,
       setDefaultTimeout: (ms) => coreRuntime.setDefaultTimeout(ms),
     }
@@ -585,7 +585,7 @@ export function createRuntimeRunner(): WorkerRunner {
     context: FileContext,
   ): Promise<{ readonly instance: EnvironmentInstance; readonly name: string }> {
     const { scope } = worker
-    const pragmas = await readPragmas(context.job.file)
+    const pragmas = readPragmas(context.job.file)
     // A pragma picks the environment for this file.
     const environment = await environmentFor(worker, pragmas, context.job.file)
     const current = worker.workerEnvironment
@@ -615,7 +615,7 @@ export function createRuntimeRunner(): WorkerRunner {
    */
   async function environmentFor(
     worker: Booted,
-    pragmas: Readonly<Record<string, string | readonly string[]>>,
+    pragmas: Pragmas,
     file: string,
   ): Promise<PreparedEnvironment> {
     const names = worker.modules.policy.orchestrator.environmentPragmas
@@ -633,6 +633,9 @@ export function createRuntimeRunner(): WorkerRunner {
         `${file} asks for the environment "${name}" in its docblock, but this project's dialect can't resolve one`,
       )
     }
+    const requestKey = `${name}\0${optionsText ?? ''}`
+    const requested = known.requested.get(requestKey)
+    if (requested !== undefined) return requested
     let options: JsonValue = null
     if (optionsText !== undefined) {
       try {
@@ -658,6 +661,7 @@ export function createRuntimeRunner(): WorkerRunner {
       prepared = await prepareEnvironment(ref)
       known.prepared.set(key, prepared)
     }
+    known.requested.set(requestKey, prepared)
     return prepared
   }
 

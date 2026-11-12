@@ -20,6 +20,13 @@ export type EnvironmentRealm = 'worker' | 'context'
 export type EnvironmentScope = 'file' | 'worker'
 
 /**
+ * A file's docblock pragmas by name without the `@`: a pragma with no value is `''`, and one given
+ * twice or more holds every value in order.
+ * @public
+ */
+export type Pragmas = Readonly<Record<string, string | readonly string[]>>
+
+/**
  * What an environment's `setup` receives.
  * @public
  */
@@ -29,7 +36,7 @@ export interface EnvironmentSetupContext<Options> {
   readonly scope: EnvironmentScope
   readonly testPath: string
   /** The file's docblock pragmas. */
-  readonly pragmas: Readonly<Record<string, string | readonly string[]>>
+  readonly pragmas: Pragmas
   readonly console: Console
   /** Aborted when the worker cancels. */
   readonly signal: AbortSignal

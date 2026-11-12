@@ -18,6 +18,7 @@ import type {
   EnvironmentSetupContext,
   EnvironmentTeardownReport,
   JsonValue,
+  Pragmas,
 } from '@provino/types'
 
 /**
@@ -48,7 +49,7 @@ export type JestEnvironmentClass = new (
   config: { readonly globalConfig: object; readonly projectConfig: object },
   context: {
     readonly console: Console
-    readonly docblockPragmas: Readonly<Record<string, string | readonly string[]>>
+    readonly docblockPragmas: Pragmas
     readonly testPath: string
   },
 ) => JestEnvironmentLike
