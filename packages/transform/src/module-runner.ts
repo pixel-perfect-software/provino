@@ -53,7 +53,10 @@ export function toModuleRunner(filename: string, record: TransformRecord): Modul
   return {
     code: result.code,
     get map(): SourceMapV3 | null {
-      composed ??= composeMaps([record.map, runnerMap === undefined ? null : toSourceMapV3(runnerMap)])
+      composed ??= composeMaps([
+        record.map,
+        runnerMap === undefined ? null : toSourceMapV3(runnerMap),
+      ])
       return composed
     },
     deps: result.deps,

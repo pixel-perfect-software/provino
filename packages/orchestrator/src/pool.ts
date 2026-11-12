@@ -384,8 +384,8 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     const workerId = nextWorkerId++
     const { key } = waiter.request
     const keyId = workerKeyId(key)
-    let state = keyStates.get(keyId)
-    if (state === undefined) keyStates.set(keyId, (state = { spawning: 0 }))
+    const state = keyStates.get(keyId) ?? { spawning: 0 }
+    keyStates.set(keyId, state)
     state.spawning++
     const doneStarting = (): void => {
       spawning--
