@@ -93,6 +93,50 @@ function isProcessSingleton(key: string | symbol): boolean {
   return typeof key === 'symbol' && /^(graceful-fs\.queue|undici\.)/.test(key.description ?? '')
 }
 
+/** Whether two property descriptors describe the same property, as a restore needs to know. */
+function sameDescriptor(a: PropertyDescriptor, b: PropertyDescriptor): boolean {
+  return (
+    a.configurable === b.configurable &&
+    a.enumerable === b.enumerable &&
+    a.writable === b.writable &&
+    Object.is(a.value, b.value) &&
+    a.get === b.get &&
+    a.set === b.set
+  )
+}
+
+/**
+ * Puts the worker's global back to `baseline` (every own key's descriptor, read before the
+ * environment was built): a key the file or the class added is deleted, one that is gone or that
+ * a test replaced (`fetch`, `setTimeout`, `Date`, ...) is defined again. Jest's fresh vm context
+ * per file makes this unnecessary there; the worker's own global is shared by every file. A key
+ * that can't be put back is returned, for the warning (D22). The same comparison `@provino/env-node`
+ * makes on its restore, kept here because this package has no edge to it.
+ */
+function restoreBaseline(baseline: ReadonlyMap<string | symbol, PropertyDescriptor>): string[] {
+  const failed: string[] = []
+  for (const key of Reflect.ownKeys(globalThis)) {
+    if (baseline.has(key)) continue
+    try {
+      if (!Reflect.deleteProperty(globalThis, key) && !isProcessSingleton(key)) {
+        failed.push(String(key))
+      }
+    } catch {
+      if (!isProcessSingleton(key)) failed.push(String(key))
+    }
+  }
+  for (const [key, descriptor] of baseline) {
+    const now = Object.getOwnPropertyDescriptor(globalThis, key)
+    if (now !== undefined && sameDescriptor(now, descriptor)) continue
+    try {
+      Object.defineProperty(globalThis, key, descriptor)
+    } catch {
+      failed.push(String(key))
+    }
+  }
+  return failed
+}
+
 async function setUpJest(
   context: EnvironmentSetupContext<{ readonly [key: string]: JsonValue }>,
   EnvironmentClass: JestEnvironmentClass,
@@ -102,36 +146,52 @@ async function setUpJest(
   // Read every descriptor first: V8 backs some Node globals (undici's) with lazy properties whose
   // first read adds non-configurable symbols, which would otherwise look like a leak (env-node).
   for (const key of Reflect.ownKeys(globalThis)) Object.getOwnPropertyDescriptor(globalThis, key)
-  const before = new Set(Reflect.ownKeys(globalThis))
+  const baseline = new Map<string | symbol, PropertyDescriptor>()
+  for (const key of Reflect.ownKeys(globalThis)) {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, key)
+    if (descriptor !== undefined) baseline.set(key, descriptor)
+  }
   const environment = new EnvironmentClass(
     { globalConfig: {}, projectConfig },
     { console: context.console, docblockPragmas: context.pragmas, testPath: context.testPath },
   )
-  await environment.setup()
-  // Only a window stands in for the global: a Node or edge environment's code must not see one.
-  const isWindow = 'document' in environment.global
-  const populated = populateGlobal(globalThis, environment.global, {
-    bindFunctions,
-    selfReferences: isWindow,
-  })
+  let populated: ReturnType<typeof populateGlobal> | undefined
+  try {
+    await environment.setup()
+    // Only a window stands in for the global: a Node or edge environment's code must not see one.
+    const isWindow = 'document' in environment.global
+    populated = populateGlobal(globalThis, environment.global, {
+      bindFunctions,
+      selfReferences: isWindow,
+    })
+  } catch (error) {
+    // Jest tears the environment down even when its setup threw: its window, timers and
+    // half-defined accessors must not outlive the failed file.
+    populated?.restore()
+    try {
+      await environment.teardown()
+    } catch {
+      // The setup's error is the one the file fails with.
+    }
+    restoreBaseline(baseline)
+    throw error
+  }
+  const installed = populated
   return {
     global: globalThis,
     async teardown(): Promise<EnvironmentTeardownReport | undefined> {
-      await environment.teardown()
-      populated.restore()
-      // Whatever the class or the test left that is not in the baseline goes too; a key that
-      // can't be deleted is a warning (D22).
-      const leaked: string[] = []
-      for (const key of Reflect.ownKeys(globalThis)) {
-        if (before.has(key)) continue
-        try {
-          if (!Reflect.deleteProperty(globalThis, key) && !isProcessSingleton(key)) {
-            leaked.push(String(key))
-          }
-        } catch {
-          if (!isProcessSingleton(key)) leaked.push(String(key))
-        }
+      let failure: { readonly error: unknown } | undefined
+      try {
+        await environment.teardown()
+      } catch (error) {
+        failure = { error }
       }
+      // Whatever the class threw, the global goes back: the next file's baseline would otherwise
+      // hold this one's accessors. Anything the class or the test left that differs from the
+      // baseline is put right too; a key that can't be is a warning (D22).
+      installed.restore()
+      const leaked = restoreBaseline(baseline)
+      if (failure !== undefined) throw failure.error
       return leaked.length === 0 ? undefined : { leakedGlobals: leaked }
     },
   }
