@@ -36,6 +36,7 @@ function recording(): { readonly registry: ModuleMockRegistry; readonly asked: s
       createMockFromModule: fail,
       onResetModules: () => asked.push('onResetModules'),
       setAutomock: fail,
+      onGenerateMock: fail,
       enterIsolation: (caller) => asked.push(`enterIsolation ${caller ?? ''}`),
       exitIsolation: () => asked.push('exitIsolation'),
       dispose: () => asked.push('dispose'),

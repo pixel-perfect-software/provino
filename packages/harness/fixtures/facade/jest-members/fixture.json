@@ -1,0 +1,5 @@
+{
+  "description": "The members of the module `jest` that Jest 30.5 has beyond the mock calls (T11.10): setMock, deepUnmock (transitive, against unmock), mocked, getSeed, isEnvironmentTornDown, setTimeout's return, the alias pair autoMockOn/autoMockOff, onGenerateMock and unstable_mockModule's argument check. One assertion per test, so the golden holds Jest's verdict on each.",
+  "runners": ["jest"],
+  "jestEsm": true
+}

@@ -24,6 +24,7 @@ import { capturedTimers, createDeadlines, type RealTimers } from './executor/dea
 import {
   Executor,
   type Outcome,
+  type TimeoutDefaults,
   type TryTaskListener,
   type TryTaskListeners,
   taskResult,
@@ -121,6 +122,12 @@ export interface Runtime {
    * returns the function that removes the listeners.
    */
   captureProcessErrors(target?: ProcessLike): () => void
+  /**
+   * Sets the timeout that a test or hook with none of its own gets, in place of the policy's, until
+   * the file that is running ends (Jest's `jest.setTimeout`). It covers the tests declared before
+   * the call too. `0`, `NaN` and a negative number are no timeout given, so the policy's stays.
+   */
+  setDefaultTimeout(ms: number): void
   /** Runs the worker teardowns (last first); rejects with an `AggregateError` if any failed. */
   dispose(): Promise<void>
 }
@@ -159,6 +166,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     },
   })
   const tryTask: TryTaskListeners = { before: [], after: [] }
+  const defaults: TimeoutDefaults = { ms: undefined }
   const processErrors: ProcessErrors = new ProcessErrors({
     lateErrors: policy.errors.lateErrors,
     emit: (event) => sink.emit(event),
@@ -179,6 +187,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     processErrors,
     tryTask,
     locations: options.locations ?? true,
+    defaults,
   })
   const pattern = options.testNamePattern
   const finalizeOptions: Omit<FinalizeOptions, 'lines'> = {
@@ -317,6 +326,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       // listener, a root `aroundAll` that never ran the suite.
       file.errors.push(...(await deadlines.drain(file.handle.teardowns)))
       collector.release(file)
+      defaults.ms = undefined
       // A rejection still held belongs to the task that made it; this is where it is charged.
       processErrors.flush()
     }
@@ -335,6 +345,9 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     onBeforeTryTask: (listener) => addListener(tryTask.before, listener),
     onAfterTryTask: (listener) => addListener(tryTask.after, listener),
     captureProcessErrors: (target = process) => listenForProcessErrors(processErrors, target),
+    setDefaultTimeout(ms) {
+      defaults.ms = Number.isFinite(ms) && ms > 0 ? ms : undefined
+    },
     async dispose(): Promise<void> {
       const errors = await deadlines.drain(workerTeardowns)
       if (errors.length > 0) {

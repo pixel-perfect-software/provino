@@ -41,7 +41,11 @@ export type MockSpec<T = unknown> =
   | { readonly kind: 'factory'; readonly factory: MockFactory<T> }
   | { readonly kind: 'redirect'; readonly to: ModuleId }
   | { readonly kind: 'automock'; readonly spy: boolean }
-  | { readonly kind: 'unmock' }
+  | {
+      readonly kind: 'unmock'
+      /** `deepUnmock`: what the module imports is real too, under automock-all (and what those import). */
+      readonly deep?: boolean
+    }
 
 /**
  * The global realm a `realm`-tier file runs in (Track 8 supplies it).
@@ -178,6 +182,12 @@ export interface ModuleMockRegistry {
   createMockFromModule(specifier: string, from: string): unknown
   /** `resetModules()`: drops cached values when the module registry owns them (`mockValueOwner`). */
   onResetModules(): void
+  /**
+   * Registers a function that runs on every automock built from now on, with the module's resolved
+   * id and the mock, and returns the mock to use (`jest.onGenerateMock`). They run in the order
+   * registered, each on the previous one's result.
+   */
+  onGenerateMock(callback: (moduleId: string, moduleMock: unknown) => unknown): void
   /** Turns automock-all on or off (`enableAutomock`/`disableAutomock`); starts at `policy.automock`. */
   setAutomock(enabled: boolean): void
   /** Opens `isolateModules`'s overlay; throws the dialect's `nested-isolation` text if one is open. */

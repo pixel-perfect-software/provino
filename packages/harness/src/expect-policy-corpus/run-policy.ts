@@ -102,6 +102,9 @@ export async function runPolicyFile(
           throw new Error('the policy corpus does not use the fake clock')
         },
         timersPolicy: neutralPolicy.timers,
+        seed: 0,
+        environmentTornDown: () => false,
+        setDefaultTimeout: () => {},
       }).jest,
     })
     const stopProcessErrors = runtime.captureProcessErrors()

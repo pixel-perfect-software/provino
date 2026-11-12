@@ -114,6 +114,9 @@ export async function runExpectFile(
           throw new Error('the expect corpus does not use the fake clock')
         },
         timersPolicy: neutralPolicy.timers,
+        seed: 0,
+        environmentTornDown: () => false,
+        setDefaultTimeout: () => {},
       }).jest,
     })
     try {

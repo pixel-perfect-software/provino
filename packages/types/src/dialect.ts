@@ -144,6 +144,14 @@ export interface NeutralProject {
   readonly resolution?: NeutralResolution
   /** Values put on the environment's global before `setupFiles` (Jest's `globals`), as data. */
   readonly globalValues?: Readonly<Record<string, JsonValue>>
+  /**
+   * The project's fake-timer defaults (Jest's `fakeTimers`: `now`, `doNotFake`, `timerLimit`,
+   * `advanceTimers`, `legacyFakeTimers`): what every `useFakeTimers` call, and the global install
+   * `policy.timers.enableGlobally` asks for, is layered over.
+   */
+  readonly fakeTimers?: Readonly<Record<string, JsonValue>>
+  /** The run's random seed (Jest's `seed`, `jest.getSeed()`); one for every worker of a run. */
+  readonly seed?: number
   readonly transforms: readonly NeutralTransform[]
   /** Regular expressions' sources: files they match are not transformed. */
   readonly transformIgnorePatterns: readonly string[]
@@ -266,6 +274,18 @@ export interface GlobalsHost {
   timers(): object
   /** The timers slice of the resolved policy: what a timer member built here follows. */
   readonly timersPolicy: TimersPolicy
+  /** The run's random seed (`SerializedProjectConfig.seed`, else one drawn when the worker booted). */
+  readonly seed: number
+  /**
+   * Whether the file's environment is gone: true once its teardown has run, for code that outlives
+   * the file (a late callback). Read it when the global is called.
+   */
+  environmentTornDown(): boolean
+  /**
+   * Sets the timeout a test or hook with none of its own gets, until the file that is running
+   * ends (`Runtime.setDefaultTimeout`).
+   */
+  setDefaultTimeout(ms: number): void
 }
 
 /**

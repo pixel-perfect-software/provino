@@ -48,7 +48,7 @@ import {
   type SnapshotLifecycle,
   type SnapshotState,
 } from '@provino/snapshot/runtime'
-import { createFakeClock, type FakeClock } from '@provino/timers'
+import { createFakeClock, type FakeClock, type FakeTimersConfig } from '@provino/timers'
 import type {
   EnvironmentInstance,
   EnvironmentRef,
@@ -111,6 +111,8 @@ interface Booted {
     | undefined
   /** The project's `globals` values (Jest), copied onto each file's global before anything runs. */
   globalValues: Readonly<Record<string, JsonValue>> | undefined
+  /** The project's fake-timer defaults (Jest's `fakeTimers`), what every clock install is layered over. */
+  fakeTimers: Readonly<Record<string, JsonValue>> | undefined
   /**
    * The dialect's resolver for a file's environment pragma, with the project's own environment
    * ref it builds on, its root and the environments prepared so far: one per kind per worker,
@@ -177,6 +179,11 @@ const BUILT = [
   'snapshots',
 ] as const satisfies readonly (keyof Booted)[]
 
+/** A run's seed when none was given: a 32-bit integer, as Jest draws its own (`jest.getSeed()`). */
+function randomSeed(): number {
+  return Math.floor(0x1_0000_0000 * Math.random()) - 0x8000_0000
+}
+
 function isBooted(parts: Partial<Booted>): parts is Booted {
   return BUILT.every((key) => parts[key] !== undefined)
 }
@@ -210,6 +217,8 @@ interface FileScope {
   readonly installLateGlobals: () => void
   /** The file's fake clock, made once its environment exists. */
   clock: FakeClock | undefined
+  /** True once the file's teardown has run: its environment is gone. */
+  tornDown: boolean
 }
 
 /**
@@ -359,6 +368,7 @@ export function createRuntimeRunner(): WorkerRunner {
     parts.tier = tier
     parts.scope = scope
     parts.globalValues = config.globalValues
+    parts.fakeTimers = config.fakeTimers
 
     // Expect, in the order its docs give: the slot exists before any matcher module loads, and
     // `createExpect` registers the table's matchers. The registry snapshot comes last (below).
@@ -497,6 +507,9 @@ export function createRuntimeRunner(): WorkerRunner {
       mockPolicy: policy.mock,
       timers: activeClock,
       timersPolicy: policy.timers,
+      seed: config.seed ?? randomSeed(),
+      environmentTornDown: () => (fileScope.getStore() ?? fallback)?.tornDown ?? true,
+      setDefaultTimeout: (ms) => coreRuntime.setDefaultTimeout(ms),
     }
     // A module's own bindings (Jest's `jest`) exist whether or not globals are injected.
     if (config.moduleScope !== null) {
@@ -676,6 +689,7 @@ export function createRuntimeRunner(): WorkerRunner {
           }
         },
         clock: undefined,
+        tornDown: false,
       }
       fallback = thisFile
       let environmentName = worker.environment.environment.name
@@ -689,6 +703,8 @@ export function createRuntimeRunner(): WorkerRunner {
         // global per file): each callback it schedules runs as the test that scheduled it.
         thisFile.clock = createFakeClock(instance.global, worker.modules.policy.timers, {
           bind: currentTest.bind,
+          // jest-runtime layers every install over the project's `fakeTimers`, `enableGlobally`'s too.
+          defaults: worker.fakeTimers as FakeTimersConfig | undefined,
         })
         if (worker.modules.policy.timers.enableGlobally) thisFile.clock.install()
         // The rest go on after `setupFiles` (`importFile`). Under `none` the environment, and so
@@ -758,6 +774,7 @@ export function createRuntimeRunner(): WorkerRunner {
             : [disposeClock, disposeModuleMocks, disposeRegistry],
         )),
       )
+      thisFile.tornDown = true
       fallback = undefined
       // A warning, before the file finishes: through the same sink as the file's own events, so it
       // arrives after them and before `fileDone`. It has no task: the file's tasks have ended.

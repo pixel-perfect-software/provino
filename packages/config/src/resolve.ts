@@ -292,6 +292,8 @@ export async function resolveNeutralProject(
       discovery: neutral.discovery,
       aliases: neutral.aliases,
       ...(neutral.globalValues === undefined ? {} : { globalValues: neutral.globalValues }),
+      ...(neutral.fakeTimers === undefined ? {} : { fakeTimers: neutral.fakeTimers }),
+      ...(neutral.seed === undefined ? {} : { seed: neutral.seed }),
       ...(neutral.resolution === undefined ? {} : { resolution: neutral.resolution }),
     },
     { environments: options.environments, ci: options.ci },
@@ -319,6 +321,8 @@ interface ProjectInput {
   readonly aliases?: readonly NeutralAlias[]
   readonly resolution?: NeutralResolution
   readonly globalValues?: Readonly<Record<string, JsonValue>>
+  readonly fakeTimers?: Readonly<Record<string, JsonValue>>
+  readonly seed?: number
 }
 
 /** The resolver keys of the loader config: only the ones the project gave (T3.3). */
@@ -408,6 +412,10 @@ async function finishProject(
     ...(input.globalValues === undefined || Object.keys(input.globalValues).length === 0
       ? {}
       : { globalValues: input.globalValues }),
+    ...(input.fakeTimers === undefined || Object.keys(input.fakeTimers).length === 0
+      ? {}
+      : { fakeTimers: input.fakeTimers }),
+    ...(input.seed === undefined ? {} : { seed: input.seed }),
     setupFiles,
     setupFilesAfterEnv,
     loader: {

@@ -656,3 +656,60 @@ describe('hooks.timeoutCountsTestTimeout', () => {
     assert.equal(codeOf(await running, 't'), 'CORE_TIMEOUT')
   })
 })
+
+describe('setDefaultTimeout (jest.setTimeout)', () => {
+  test('replaces the policy default for a test declared before the call, not an explicit timeout', async () => {
+    const first = startSignal()
+    const second = startSignal()
+    const running = runScript(
+      ({ test }, _step, runtime) => {
+        test('before', () => {
+          first.signal()
+          return hang()
+        })
+        runtime.setDefaultTimeout(300)
+        test('explicit', () => {
+          second.signal()
+          return hang()
+        }, 100)
+      },
+      {},
+      clockOptions(clock),
+    )
+    const state = watch(running)
+    await reached(first.started, running)
+    // `before` has the policy's 5000 ms, but the call raised the default to 300: read when it runs.
+    await clock.tickAsync(299)
+    assert.equal(state.settled, false)
+    await clock.tickAsync(1)
+    await reached(second.started, running)
+    await clock.tickAsync(99)
+    assert.equal(state.settled, false)
+    await clock.tickAsync(1)
+    const run = await running
+    assert.equal(codeOf(run, 'before'), 'CORE_TIMEOUT')
+    assert.equal(codeOf(run, 'explicit'), 'CORE_TIMEOUT')
+  })
+
+  test('0 and a negative number are no timeout given', async () => {
+    const hold = startSignal()
+    const running = runScript(
+      ({ test }, _step, runtime) => {
+        runtime.setDefaultTimeout(0)
+        runtime.setDefaultTimeout(-5)
+        test('slow', () => {
+          hold.signal()
+          return hang()
+        })
+      },
+      { timeouts: { test: 300 } },
+      clockOptions(clock),
+    )
+    const state = watch(running)
+    await reached(hold.started, running)
+    await clock.tickAsync(299)
+    assert.equal(state.settled, false)
+    await clock.tickAsync(1)
+    assert.equal(codeOf(await running, 'slow'), 'CORE_TIMEOUT')
+  })
+})

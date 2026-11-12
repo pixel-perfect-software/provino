@@ -113,6 +113,9 @@ export function unusedJestHost(
         throw new Error(`${label} does not use the fake clock`)
       }),
     timersPolicy: timers?.policy ?? neutralPolicy.timers,
+    seed: 0,
+    environmentTornDown: () => false,
+    setDefaultTimeout: () => {},
   }
 }
 

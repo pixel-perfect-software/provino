@@ -33,6 +33,12 @@ function record(value: unknown, path: string): Readonly<Record<string, unknown>>
   return isRecord(value) ? value : invalid(path, 'an object')
 }
 
+function seedOf(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value)
+    ? value
+    : invalid('seed', 'an integer')
+}
+
 function text(value: unknown, path: string): string {
   return typeof value === 'string' ? value : invalid(path, 'a string')
 }
@@ -234,6 +240,10 @@ export function parseProjectConfig(value: unknown): SerializedProjectConfig {
     ...(config.globalValues === undefined
       ? {}
       : { globalValues: record(config.globalValues, 'globalValues') as Record<string, JsonValue> }),
+    ...(config.fakeTimers === undefined
+      ? {}
+      : { fakeTimers: record(config.fakeTimers, 'fakeTimers') as Record<string, JsonValue> }),
+    ...(config.seed === undefined ? {} : { seed: seedOf(config.seed) }),
     setupFiles: absolutePaths(config.setupFiles, 'setupFiles'),
     setupFilesAfterEnv: absolutePaths(config.setupFilesAfterEnv, 'setupFilesAfterEnv'),
     loader: loaderConfig(config.loader),
