@@ -45,6 +45,7 @@ export interface ModuleRecord {
   readonly format: UserFormat
   /** The wrapper source, or the JSON text. */
   readonly source: string
+  /** Read on demand: composing it is not free, and nothing asks on a warm run. */
   readonly map: SourceMapV3 | null
   /** Static deps: import specifiers (ESM) or literal `require` specifiers (CJS). */
   readonly deps: readonly string[]
@@ -280,7 +281,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   const text = readFileSync(path, 'utf8')
   let record: ModuleRecord
   if (path.endsWith('.json')) {
-    record = makeRecord(id, 'json', text, null, [], [], false)
+    record = makeRecord(id, 'json', text, () => null, [], [], false)
   } else if (/\.(?:wasm|node)$/.test(path)) {
     throw new LoaderError('LOADER_UNSUPPORTED_MODULE', `cannot load ${path} as a user module`)
   } else {
@@ -317,7 +318,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
         id,
         'esm',
         runner.code,
-        runner.map,
+        () => runner.map,
         runner.deps,
         transformed.lateDeps,
         transformed.hasTopLevelAwait,
@@ -326,7 +327,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       const requires = transformed.imports
         .filter((entry) => entry.kind === 'require')
         .map((entry) => entry.specifier)
-      record = makeRecord(id, 'cjs', transformed.code, transformed.map, requires, [], false)
+      record = makeRecord(id, 'cjs', transformed.code, () => transformed.map, requires, [], false)
     }
   }
   state.records.set(id, record)
@@ -338,7 +339,7 @@ function makeRecord(
   id: ModuleId,
   format: UserFormat,
   source: string,
-  map: SourceMapV3 | null,
+  mapOf: () => SourceMapV3 | null,
   deps: readonly string[],
   lateDeps: readonly string[],
   hasTopLevelAwait: boolean,
@@ -348,7 +349,9 @@ function makeRecord(
     path: id,
     format,
     source,
-    map,
+    get map() {
+      return mapOf()
+    },
     deps,
     lateDeps,
     hasTopLevelAwait,
@@ -530,7 +533,9 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
       id: record.id,
       scriptUrl: record.path,
       wrapperColumnOffset: prefix.length,
-      map: record.map,
+      get map() {
+        return record.map
+      },
       thirdParty: false,
     })
   }

@@ -14,7 +14,10 @@ import { composeMaps, toSourceMapV3 } from './internal/maps.ts'
  */
 export interface ModuleRunnerOutput {
   readonly code: string
-  /** From the runner form back to the original source. */
+  /**
+   * From the runner form back to the original source. Composed on first read (it costs a JSON
+   * round trip and a remap, and a warm run almost never asks).
+   */
   readonly map: SourceMapV3 | null
   /** Static import specifiers, in source order. */
   readonly deps: readonly string[]
@@ -45,9 +48,14 @@ export function toModuleRunner(filename: string, record: TransformRecord): Modul
       `the module-runner transform failed on ${filename}: ${first.message}`,
     )
   }
+  const { map: runnerMap } = result
+  let composed: SourceMapV3 | null | undefined
   return {
     code: result.code,
-    map: composeMaps([record.map, result.map === undefined ? null : toSourceMapV3(result.map)]),
+    get map(): SourceMapV3 | null {
+      composed ??= composeMaps([record.map, runnerMap === undefined ? null : toSourceMapV3(runnerMap)])
+      return composed
+    },
     deps: result.deps,
     dynamicDeps: result.dynamicDeps,
   }
