@@ -102,12 +102,15 @@ export async function ensureTarball(
   return { path: file, sha256, downloaded: true }
 }
 
-/** The tarball's entry names with the leading `<repo>-<sha>/` directory removed. */
+/**
+ * The tarball's entry names with the leading `<repo>-<sha>/` directory removed, and that
+ * directory's name (`top`), which `readEntry` needs to name a member exactly.
+ */
 async function listTarball(
   tarball: string,
   deps: CorpusDeps,
   env: NodeJS.ProcessEnv,
-): Promise<Set<string>> {
+): Promise<{ readonly entries: Set<string>; readonly top: string }> {
   const result = await deps.run('tar', ['-tzf', tarball], {
     cwd: path.dirname(tarball),
     env,
@@ -123,13 +126,15 @@ async function listTarball(
     )
   }
   const entries = new Set<string>()
+  let top = ''
   for (const line of (result.streams?.stdout ?? '').split('\n')) {
     const slash = line.indexOf('/')
     if (slash < 0) continue
+    if (top === '') top = line.slice(0, slash)
     const name = line.slice(slash + 1).replace(/\/$/, '')
     if (name !== '') entries.add(name)
   }
-  return entries
+  return { entries, top }
 }
 
 const LICENCE_FILE = /^(?:licen[cs]e|copying)(?:\.[a-z]+)?$/i
@@ -173,12 +178,14 @@ function licenceEntry(entries: ReadonlySet<string>): string | undefined {
 
 async function readEntry(
   tarball: string,
+  top: string,
   entry: string,
   deps: CorpusDeps,
   env: NodeJS.ProcessEnv,
 ): Promise<string> {
-  // The first component is `<repo>-<sha>`; a pattern with a leading `*/` finds the entry in it.
-  const result = await deps.run('tar', ['-xzOf', tarball, '--include', `*/${entry}`], {
+  // One member by its exact name (`<repo>-<sha>/<entry>`). `--include` is bsdtar's alone, and its
+  // `*` crosses `/`, so a pattern could also read a nested file of the same name.
+  const result = await deps.run('tar', ['-xzOf', tarball, `${top}/${entry}`], {
     cwd: path.dirname(tarball),
     env,
     timeoutMs: TAR_TIMEOUT_MS,
@@ -287,12 +294,12 @@ export async function fetchRepo(repo: CorpusRepo, options: FetchOptions): Promis
     deps,
     env,
   })
-  const entries = await listTarball(paths.tarball, deps, env)
+  const { entries, top } = await listTarball(paths.tarball, deps, env)
   const problems = verifyEntries(repo, entries)
   const licence = licenceEntry(entries)
   if (licence === undefined) {
     problems.push('no licence file at the root')
-  } else if (!MIT_TEXT.test(await readEntry(paths.tarball, licence, deps, env))) {
+  } else if (!MIT_TEXT.test(await readEntry(paths.tarball, top, licence, deps, env))) {
     problems.push(`${licence} does not read as the MIT licence`)
   }
   const base = {

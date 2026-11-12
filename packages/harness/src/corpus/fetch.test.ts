@@ -240,6 +240,25 @@ test('a licence that is not MIT, or no licence, is a problem', async () => {
   assert.deepEqual(missing.problems, ['no licence file at the root'])
 })
 
+test('the licence is read from the root entry alone, by its exact name', async () => {
+  // A nested MIT licence must not stand in for a root licence that is not MIT; and `tar` is asked
+  // for one member by name, with no bsdtar-only flag.
+  const other = await makeTarball(await tempDir('fetch-nested'), {
+    ...FILES,
+    LICENSE: 'All rights reserved.\n',
+    'packages/a/LICENSE': MIT,
+  })
+  const work = await tempDir('fetch-nested-work')
+  const { repo } = repoFor(work, { tarballSha256: await sha256OfFile(other) })
+  const deps = curlDeps({ serve: other })
+  const result = await fetchRepo(repo, { workRoot: work, deps, verifyOnly: true })
+  assert.deepEqual(result.problems, ['LICENSE does not read as the MIT licence'])
+  const reads = deps.calls.filter((call) => call.command === 'tar' && call.args.includes('-xzOf'))
+  assert.equal(reads.length, 1)
+  assert.ok(!reads[0]?.args.includes('--include'))
+  assert.ok(reads[0]?.args.includes('demo-abcdef0/LICENSE'))
+})
+
 test('a per-package licence is accepted when the root has none (date-fns)', async () => {
   const { LICENSE: _gone, ...rest } = FILES
   const tarball = await makeTarball(await tempDir('fetch-pkg-licence'), {
