@@ -27,7 +27,7 @@ The per-file transform pipeline (Track 3): TypeScript and JSX through Oxc, mock 
 
 ## The transform cache (`src/cache/`, T3.6)
 
-`createPipeline({ cache: { dir } })` reads an entry before any work and writes one after it; `cache: false` (`--no-cache`) does neither. Both paths go through it, the Oxc path and hosted transformers. **The directory** is the coordinator's choice: `<rootDir>/node_modules/.cache/provino/t` (`transformCacheDir` in the orchestrator, inside the results cache's directory, so `--clearCache` and a cold bench run, which delete that, delete this). Jest's `cacheDirectory` is not used, as for the results cache.
+`createPipeline({ cache: { dir } })` reads an entry before any work and writes one after it; `cache: false` (`--no-cache`) does neither. Both paths go through it, the Oxc path and hosted transformers. **The directory** is the coordinator's choice: `<rootDir>/node_modules/.cache/provino/t` (`transformCacheDir` in the orchestrator, inside the results cache's directory, so `--clearCache` and a cold bench run, which delete that, delete this). When the Jest config sets `cacheDirectory` itself (D70), it is `<cacheDirectory>/provino/t` instead (CI setups cache that directory); Jest's own `/tmp/jest_*` default is never used, as for the results cache. The Jest dialect carries the value as `NeutralProject.cacheDirectory` only when it differs from Jest's default (`jestDefaultCacheDirectory`), so a config that names the default path itself stays on `node_modules/.cache/provino`.
 
 | File | Role |
 |---|---|

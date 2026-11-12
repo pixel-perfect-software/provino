@@ -139,6 +139,12 @@ export interface NeutralProject {
   readonly transformHoistedMarkers?: readonly string[]
   /** Absolute paths. */
   readonly snapshotSerializers: readonly string[]
+  /**
+   * A cache directory the config sets itself (an absolute path), as opposed to a runner's own
+   * default. Provino keeps its caches under `<cacheDirectory>/provino` when it is set (D70), and
+   * under `<rootDir>/node_modules/.cache/provino` when it isn't.
+   */
+  readonly cacheDirectory?: string
   /** The config's keys that map onto the policy, as overrides over the dialect's own. */
   readonly policy: PolicyOverrides
 }

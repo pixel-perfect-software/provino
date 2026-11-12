@@ -170,6 +170,10 @@ void selectFiles([], [], { rootDir: '/p' })
 expectTypeOf(createResultsCache).parameters.toEqualTypeOf<[dir: string]>()
 expectTypeOf(createResultsCache).returns.toEqualTypeOf<ResultsCache>()
 expectTypeOf(defaultCacheDir).returns.toEqualTypeOf<string>()
+expectTypeOf(defaultCacheDir).toBeCallableWith('/root', '/ci/cache')
+expectTypeOf(defaultCacheDir).toBeCallableWith('/root')
+// @ts-expect-error the cache directory is a path
+expectTypeOf(defaultCacheDir).toBeCallableWith('/root', 1)
 expectTypeOf<ResultsCache['get']>().toEqualTypeOf<
   (project: string, path: string) => FileHistory | undefined
 >()

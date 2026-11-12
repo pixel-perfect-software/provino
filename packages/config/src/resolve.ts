@@ -70,6 +70,8 @@ export interface ResolvedProject {
   readonly isolation: IsolationTier
   /** What each worker is started with. */
   readonly config: SerializedProjectConfig
+  /** The cache directory the project's config sets itself (D70), or absent for the default. */
+  readonly cacheDirectory?: string
 }
 
 /**
@@ -282,6 +284,7 @@ export async function resolveNeutralProject(
       setupFilesAfterEnvKey: 'setupFilesAfterEnv',
       discovery: neutral.discovery,
       transform: resolveTransforms(neutral),
+      ...(neutral.cacheDirectory === undefined ? {} : { cacheDirectory: neutral.cacheDirectory }),
     },
     { environments: options.environments, ci: options.ci },
   )
@@ -306,6 +309,8 @@ interface ProjectInput {
   readonly discovery: NeutralDiscovery | null
   /** User transformers (T3.8); a neutral project's only, `undefined` for none. */
   readonly transform?: SerializedTransformConfig | undefined
+  /** The cache directory the config sets itself (D70); a neutral project's only. */
+  readonly cacheDirectory?: string
 }
 
 /** The steps every project shares once its input is read: policy, environment, the worker config. */
@@ -399,5 +404,6 @@ async function finishProject(
     environment,
     isolation,
     config,
+    ...(input.cacheDirectory === undefined ? {} : { cacheDirectory: input.cacheDirectory }),
   }
 }

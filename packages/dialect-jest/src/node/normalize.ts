@@ -111,8 +111,11 @@ function ciFromEnvironment(env: NodeJS.ProcessEnv): boolean {
   ].some((name) => !!env[name])
 }
 
-/** `getCacheDirectory.ts`. */
-function cacheDirectory(): string {
+/**
+ * `getCacheDirectory.ts`: Jest's default `cacheDirectory`. A project whose normalized value differs
+ * from it set one itself (D70).
+ */
+export function jestDefaultCacheDirectory(): string {
   const base = join(tryRealpath(tmpdir()), 'jest')
   return typeof process.getuid === 'function' ? `${base}_${process.getuid().toString(36)}` : base
 }
@@ -123,7 +126,7 @@ export function jestDefaults(ci: boolean): Readonly<Options> {
     automock: false,
     bail: 0,
     cache: true,
-    cacheDirectory: cacheDirectory(),
+    cacheDirectory: jestDefaultCacheDirectory(),
     changedFilesWithAncestor: false,
     ci,
     clearMocks: false,

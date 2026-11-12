@@ -286,7 +286,7 @@ export async function runProjects(
   const cacheFor = (project: ResolvedProject): ResultsCache | undefined => {
     if (options.cache === false) return undefined
     if (options.cache !== undefined) return options.cache
-    const directory = defaultCacheDir(project.rootDir)
+    const directory = defaultCacheDir(project.rootDir, project.cacheDirectory)
     let cache = caches.get(directory)
     if (cache === undefined) {
       cache = createResultsCache(directory)
@@ -300,7 +300,7 @@ export async function runProjects(
     const project =
       options.cache === false
         ? resolved
-        : withTransformCache(resolved, transformCacheDir(resolved.rootDir))
+        : withTransformCache(resolved, transformCacheDir(resolved.rootDir, resolved.cacheDirectory))
     const cacheProject = projectCacheKey(project)
     const identity = nameCounts.get(project.name) === 1 ? project.name : cacheProject
     return {

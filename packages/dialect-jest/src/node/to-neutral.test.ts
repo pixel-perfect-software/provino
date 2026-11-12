@@ -313,3 +313,15 @@ test('a named transform carries the project config as JSON and the hoisted marke
   // It must clone, since it crosses to a worker.
   assert.deepEqual(structuredClone(project?.transformConfig), project?.transformConfig)
 })
+
+test("an explicit cacheDirectory is carried; Jest's own default is not (D70)", async () => {
+  const explicit = tree({
+    'jest.config.js': "module.exports = { cacheDirectory: '<rootDir>/.ci-cache' }\n",
+  })
+  const [withDir] = (await readNeutral(explicit)).neutral.value
+  assert.equal(withDir?.cacheDirectory, join(explicit, '.ci-cache'))
+  const implicit = tree({ 'jest.config.js': 'module.exports = {}\n' })
+  const [without] = (await readNeutral(implicit)).neutral.value
+  assert.equal(without?.cacheDirectory, undefined)
+  assert.equal(Object.hasOwn(without ?? {}, 'cacheDirectory'), false)
+})

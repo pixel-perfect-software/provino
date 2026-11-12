@@ -13,6 +13,7 @@ import type {
   PolicyOverrides,
 } from '@provino/types'
 import { hasBabelConfig } from './babel-config.ts'
+import { jestDefaultCacheDirectory } from './normalize.ts'
 import type { JestGlobalConfig, JestProjectConfig } from './types.ts'
 
 /** The default transform `normalize` injects: `babel-jest` for `\.[jt]sx?$`. */
@@ -233,6 +234,10 @@ export function jestProjectToNeutral(
           transformHoistedMarkers: ['_getJestObj'],
         }),
     snapshotSerializers: [...project.snapshotSerializers],
+    // Jest's `/tmp/jest_*` default is not Provino's to use (D70); a directory the config chose is.
+    ...(project.cacheDirectory === jestDefaultCacheDirectory()
+      ? {}
+      : { cacheDirectory: project.cacheDirectory }),
     policy,
   }
   return { project: neutral, diagnostics }

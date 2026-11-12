@@ -18,10 +18,13 @@ const FILE_NAME = 'results.json'
 const VERSION = 2
 
 /**
- * The directory the results cache lives in by default: `<rootDir>/node_modules/.cache/provino`.
+ * The directory the results cache lives in: `<cacheDirectory>/provino` when the project's config
+ * sets a cache directory itself (D70: CI setups cache it between runs), else
+ * `<rootDir>/node_modules/.cache/provino`.
  * @public
  */
-export function defaultCacheDir(rootDir: string): string {
+export function defaultCacheDir(rootDir: string, cacheDirectory?: string): string {
+  if (cacheDirectory !== undefined) return join(cacheDirectory, 'provino')
   return join(rootDir, 'node_modules', '.cache', 'provino')
 }
 
@@ -30,8 +33,8 @@ export function defaultCacheDir(rootDir: string): string {
  * results cache's directory (`--clearCache`, a cold bench run) deletes it too.
  * @public
  */
-export function transformCacheDir(rootDir: string): string {
-  return join(defaultCacheDir(rootDir), 't')
+export function transformCacheDir(rootDir: string, cacheDirectory?: string): string {
+  return join(defaultCacheDir(rootDir, cacheDirectory), 't')
 }
 
 /**

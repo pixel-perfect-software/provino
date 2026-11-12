@@ -189,7 +189,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
 
     if (request.mode === 'clear-cache') {
       for (const project of projects) {
-        const directory = defaultCacheDir(project.rootDir)
+        const directory = defaultCacheDir(project.rootDir, project.cacheDirectory)
         await rm(directory, { recursive: true, force: true })
         await stdout.write(`Cleared ${directory}\n`)
       }

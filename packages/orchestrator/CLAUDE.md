@@ -84,7 +84,7 @@ Flow: pattern check (`ORCH_BAD_PATTERN`, `new RegExp(p, policy.core.testNamePatt
 
 ## The transform cache (T3.6)
 
-`runProjects` gives every member `withTransformCache(project, transformCacheDir(rootDir))` unless `options.cache === false` (`--no-cache`): `<rootDir>/node_modules/.cache/provino/t`, under the results cache's directory. That wipes the directory when the lockfile hash changed (before any worker starts), and puts `loader.cacheDir` in the project's `WorkerInit.config` (`parseProjectConfig` checks it is absolute). After the run, `writeCache` prunes each distinct directory to 512 MB. Workers only read and write entries.
+`runProjects` gives every member `withTransformCache(project, transformCacheDir(rootDir))` unless `options.cache === false` (`--no-cache`): `<rootDir>/node_modules/.cache/provino/t` (or `<cacheDirectory>/provino/t` when the project's config set one, `ResolvedProject.cacheDirectory`, D70; `defaultCacheDir(rootDir, cacheDirectory?)` decides), under the results cache's directory. That wipes the directory when the lockfile hash changed (before any worker starts), and puts `loader.cacheDir` in the project's `WorkerInit.config` (`parseProjectConfig` checks it is absolute). After the run, `writeCache` prunes each distinct directory to 512 MB. Workers only read and write entries.
 
 ## Several projects (`runProjects`, D29)
 
