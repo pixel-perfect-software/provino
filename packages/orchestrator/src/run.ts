@@ -294,15 +294,27 @@ export async function runProjects(
     }
     return cache
   }
-  const members: Member[] = projects.map((resolved) => {
+  // Two projects can share a name and every discovery input yet differ in environment, transform or
+  // setup files; each still needs a worker key, a file-id namespace and a results history of its own.
+  const takenIdentities = new Set<string>()
+  const uniqueIdentity = (wanted: string, index: number): string => {
+    let identity = wanted
+    for (let attempt = 0; takenIdentities.has(identity); attempt++) {
+      identity = `${wanted}@${index}${attempt === 0 ? '' : `.${attempt}`}`
+    }
+    takenIdentities.add(identity)
+    return identity
+  }
+  const members: Member[] = projects.map((resolved, index) => {
     // The transform cache (T3.6) is on unless the run has no cache (`--no-cache`): the directory is
     // wiped here if the lockfile changed, and handed to the project's workers.
     const project =
       options.cache === false
         ? resolved
         : withTransformCache(resolved, transformCacheDir(resolved.rootDir, resolved.cacheDirectory))
-    const cacheProject = projectCacheKey(project)
-    const identity = nameCounts.get(project.name) === 1 ? project.name : cacheProject
+    const wanted = nameCounts.get(project.name) === 1 ? project.name : projectCacheKey(project)
+    const identity = uniqueIdentity(wanted, index)
+    const cacheProject = identity === wanted ? projectCacheKey(project) : identity
     return {
       project,
       cacheProject,

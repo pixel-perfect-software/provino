@@ -1,6 +1,9 @@
 // `runProjects` (D29): several projects through one pool, over real forked workers.
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
+import type { ResolvedProject } from '@provino/config'
 import { fileIdOf, OrchestratorError, runProjects } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { Reporter } from '@provino/types'
@@ -146,6 +149,38 @@ describe('runProjects over forks', () => {
     assert.equal(summary.files.length, 2)
     const [first, second] = seen.queued
     assert.notEqual(first?.fileId, second?.fileId)
+  })
+
+  it('identical discovery and name, different config: each project runs its own', async () => {
+    // Same root, same globs, no name: only `setupFiles` tells them apart. Each file must run under
+    // the project that discovered it, not under the last project with that identity.
+    const dir = await makeProject({
+      'setup-a.js': "globalThis.__which = 'a'",
+      'probe.test.js': [
+        "const { appendFileSync } = require('node:fs')",
+        "const { join } = require('node:path')",
+        "test('probe', () => {",
+        "  appendFileSync(join(__dirname, 'seen.txt'), `${globalThis.__which ?? 'none'}\\n`)",
+        '})',
+      ].join('\n'),
+    })
+    const plain = runtimeProject(dir.dir, { name: '' })
+    const withSetup: ResolvedProject = {
+      ...plain,
+      config: { ...plain.config, setupFiles: [join(dir.dir, 'setup-a.js')] },
+    }
+    const { reporter, seen } = recorder()
+    const summary = await runProjects([plain, withSetup], {
+      bus: createReporterBus([reporter]),
+      cache: false,
+      stderr: new Collect(),
+      pool: { kind: 'forks', maxWorkers: 2 },
+    })
+    assert.equal(summary.reason, 'passed')
+    assert.equal(summary.files.length, 2)
+    assert.notEqual(seen.queued[0]?.fileId, seen.queued[1]?.fileId)
+    const lines = readFileSync(join(dir.dir, 'seen.txt'), 'utf8').trim().split('\n').sort()
+    assert.deepEqual(lines, ['a', 'none'])
   })
 
   it('no project is ORCH_NO_PROJECTS, before the bus hears of anything', async () => {
