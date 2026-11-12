@@ -128,4 +128,5 @@ const undefinedCache: LoaderOptions = { ...loaderOptions, graphCache: undefined 
 void undefinedCache
 declare const moduleMocks: ModuleMockRegistry
 expectTypeOf(moduleMocks.active).returns.toEqualTypeOf<boolean>()
+expectTypeOf(moduleMocks.generation).returns.toEqualTypeOf<number>()
 expectTypeOf<ModulePolicy['mocksReachShared']>().toEqualTypeOf<boolean>()

@@ -2,7 +2,9 @@
 // graph over a temp tree, and the disk cache (a hit, a miss on a lockfile change, no lockfile, a
 // corrupt file, atomic writes).
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -32,6 +34,12 @@ function writeTree(files: Readonly<Record<string, string>>): string {
     writeFileSync(join(root, path), content)
   }
   return root
+}
+
+/** The hash the loader takes from the transform cache for the graph's key (`null`: no lockfile). */
+function lockOf(root: string): string | null {
+  const file = join(root, 'pnpm-lock.yaml')
+  return existsSync(file) ? createHash('sha256').update(readFileSync(file)).digest('hex') : null
 }
 
 function resolverFor(root: string) {
@@ -260,7 +268,12 @@ describe('the graph cache', () => {
     const root = writeTree(TREE)
     const cacheDir = join(root, 'node_modules/.cache/provino')
     const entry = join(root, 'node_modules/pkg-a/index.js')
-    const first = buildThirdPartyGraph({ root, resolver: resolverFor(root), cacheDir })
+    const first = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
     first.add(entry)
     assert.equal(first.fromCache, false)
     assert.equal(first.scanned, 3)
@@ -268,7 +281,12 @@ describe('the graph cache', () => {
     assert.equal(cacheFiles(cacheDir).length, 1)
     assert.ok(!cacheFiles(cacheDir)[0]?.endsWith('.tmp'))
 
-    const second = buildThirdPartyGraph({ root, resolver: resolverFor(root), cacheDir })
+    const second = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
     second.add(entry)
     assert.equal(second.fromCache, true)
     assert.equal(second.scanned, 0)
@@ -280,11 +298,21 @@ describe('the graph cache', () => {
     const root = writeTree(TREE)
     const cacheDir = join(root, 'node_modules/.cache/provino')
     const entry = join(root, 'node_modules/pkg-a/index.js')
-    const first = buildThirdPartyGraph({ root, resolver: resolverFor(root), cacheDir })
+    const first = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
     first.add(entry)
     first.save()
     writeFileSync(join(root, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n# changed\n')
-    const second = buildThirdPartyGraph({ root, resolver: resolverFor(root), cacheDir })
+    const second = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
     second.add(entry)
     assert.equal(second.fromCache, false)
     assert.equal(second.scanned, 3)
@@ -292,8 +320,8 @@ describe('the graph cache', () => {
 
   test('the resolver and the conditions are part of the key', () => {
     const root = writeTree(TREE)
-    assert.notEqual(graphCacheKey(root, 'a'), graphCacheKey(root, 'b'))
-    assert.equal(graphCacheKey(root, 'a'), graphCacheKey(root, 'a'))
+    assert.notEqual(graphCacheKey(root, 'a', lockOf(root)), graphCacheKey(root, 'b', lockOf(root)))
+    assert.equal(graphCacheKey(root, 'a', lockOf(root)), graphCacheKey(root, 'a', lockOf(root)))
   })
 
   test('no lockfile: the graph stays in memory', () => {
@@ -302,9 +330,14 @@ describe('the graph cache', () => {
       'node_modules/pkg-b/index.js': 'module.exports = 1',
     })
     // The temp directory's parents have no lockfile either.
-    assert.equal(graphCacheKey(root, 'x'), null)
+    assert.equal(graphCacheKey(root, 'x', lockOf(root)), null)
     const cacheDir = join(root, 'node_modules/.cache/provino')
-    const graph = buildThirdPartyGraph({ root, resolver: resolverFor(root), cacheDir })
+    const graph = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
     graph.add(join(root, 'node_modules/pkg-b/index.js'))
     graph.save()
     assert.deepEqual(cacheFiles(cacheDir), [])
@@ -314,18 +347,33 @@ describe('the graph cache', () => {
     const root = writeTree(TREE)
     const cacheDir = join(root, 'node_modules/.cache/provino')
     const entry = join(root, 'node_modules/pkg-a/index.js')
-    const first = buildThirdPartyGraph({ root, resolver: resolverFor(root), cacheDir })
+    const first = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
     first.add(entry)
     first.save()
     const [name] = cacheFiles(cacheDir)
     assert.ok(name !== undefined)
     writeFileSync(join(cacheDir, 'graph', name), '{"format":1,"nodes":{"x":[9')
-    const second = buildThirdPartyGraph({ root, resolver: resolverFor(root), cacheDir })
+    const second = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
     second.add(entry)
     assert.equal(second.fromCache, false)
     assert.equal(second.scanned, 3)
     second.save()
-    const third = buildThirdPartyGraph({ root, resolver: resolverFor(root), cacheDir })
+    const third = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
     third.add(entry)
     assert.equal(third.fromCache, true)
   })
@@ -333,8 +381,18 @@ describe('the graph cache', () => {
   test('a save merges with what another worker wrote, and leaves no temp file', () => {
     const root = writeTree(TREE)
     const cacheDir = join(root, 'node_modules/.cache/provino')
-    const one = buildThirdPartyGraph({ root, resolver: resolverFor(root), cacheDir })
-    const two = buildThirdPartyGraph({ root, resolver: resolverFor(root), cacheDir })
+    const one = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
+    const two = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
     one.add(join(root, 'node_modules/pkg-a/index.js'))
     two.add(join(root, 'node_modules/pkg-esm/index.js'))
     one.save()
@@ -347,5 +405,128 @@ describe('the graph cache', () => {
     const paths = Object.keys(stored ?? {}).map((path) => path.slice(root.length + 1))
     assert.ok(paths.includes('node_modules/pkg-a/index.js'))
     assert.ok(paths.includes('node_modules/pkg-esm/x.js'))
+  })
+})
+
+describe('what the cache must not keep', () => {
+  const cacheOf = (root: string) => join(root, 'node_modules/.cache/provino')
+  const entry = (root: string) => join(root, 'node_modules/pkg-a/index.js')
+
+  test('a file that could not be read is unknown, never cached, and read on a later run', () => {
+    const root = writeTree(TREE)
+    const cacheDir = cacheOf(root)
+    chmodSync(entry(root), 0o000)
+    try {
+      const first = buildThirdPartyGraph({
+        root,
+        resolver: resolverFor(root),
+        cacheDir,
+        lockfileHash: lockOf(root),
+      })
+      first.add(entry(root))
+      assert.equal(first.nodeOf(entry(root))?.dynamic, true, 'unknown to the closure walk')
+      first.save()
+    } finally {
+      chmodSync(entry(root), 0o644)
+    }
+    const second = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
+    second.add(entry(root))
+    const node = second.nodeOf(entry(root))
+    assert.equal(node?.dynamic, false)
+    assert.deepEqual(node?.edges.map((edge) => edge.specifier).sort(), ['os', 'pkg-b'])
+  })
+
+  test('an edge whose resolution threw is unknown, never cached, and resolved on a later run', () => {
+    const root = writeTree(TREE)
+    const cacheDir = cacheOf(root)
+    const real = resolverFor(root)
+    const flaky = {
+      ...real,
+      resolve: () => {
+        throw new Error('EMFILE')
+      },
+    }
+    const first = buildThirdPartyGraph({
+      root,
+      resolver: flaky,
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
+    first.add(entry(root))
+    assert.equal(first.nodeOf(entry(root))?.dynamic, true)
+    first.save()
+    const second = buildThirdPartyGraph({
+      root,
+      resolver: real,
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
+    second.add(entry(root))
+    assert.equal(second.fromCache, false, 'nothing was persisted')
+    assert.equal(
+      second.nodeOf(entry(root))?.edges.find((edge) => edge.specifier === 'pkg-b')?.target,
+      join(root, 'node_modules/pkg-b/index.js'),
+    )
+  })
+
+  test('editing a cached file in place, with no lockfile change, is picked up', () => {
+    const root = writeTree(TREE)
+    const cacheDir = cacheOf(root)
+    const first = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
+    first.add(entry(root))
+    first.save()
+    writeFileSync(entry(root), "module.exports = require('pkg-esm') // edited in place")
+    const second = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
+    second.add(entry(root))
+    assert.equal(second.fromCache, true)
+    assert.deepEqual(
+      second.nodeOf(entry(root))?.edges.map((edge) => edge.specifier),
+      ['pkg-esm'],
+    )
+    assert.ok(second.has(join(root, 'node_modules/pkg-esm/index.js')), 'its new edge was followed')
+    assert.equal(second.scanned >= 1, true)
+  })
+
+  test('a failed save leaves no temp file behind', () => {
+    const root = writeTree(TREE)
+    const cacheDir = cacheOf(root)
+    const first = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
+    first.add(entry(root))
+    first.save()
+    const [name] = readdirSync(join(cacheDir, 'graph'))
+    assert.ok(name !== undefined)
+    // The cache file's own name is now a directory, so the rename onto it fails.
+    rmSync(join(cacheDir, 'graph', name))
+    mkdirSync(join(cacheDir, 'graph', name, 'x'), { recursive: true })
+    const second = buildThirdPartyGraph({
+      root,
+      resolver: resolverFor(root),
+      cacheDir,
+      lockfileHash: lockOf(root),
+    })
+    second.add(join(root, 'node_modules/pkg-esm/index.js'))
+    second.save()
+    const left = readdirSync(join(cacheDir, 'graph')).filter((file) => file.endsWith('.tmp'))
+    assert.deepEqual(left, [])
   })
 })

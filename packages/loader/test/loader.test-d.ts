@@ -7,6 +7,8 @@ import {
 } from '@provino/loader'
 import {
   buildThirdPartyGraph,
+  type ClosureEdge,
+  type ClosureEdges,
   type EdgeKind,
   type GraphEdge,
   type GraphEntry,
@@ -79,6 +81,12 @@ expectTypeOf<GraphEdge['kind']>().toEqualTypeOf<EdgeKind>()
 expectTypeOf<GraphEdge['target']>().toEqualTypeOf<string | null>()
 const graph = buildThirdPartyGraph(graphOptions)
 expectTypeOf(graph.reachable('/a.js')).toEqualTypeOf<readonly GraphEntry[]>()
+expectTypeOf(graph.edgesOf('/a.js')).toEqualTypeOf<ClosureEdges>()
+expectTypeOf<ClosureEdges['edges']>().toEqualTypeOf<readonly ClosureEdge[]>()
+expectTypeOf<ClosureEdge['importer']>().toEqualTypeOf<string>()
+expectTypeOf<GraphOptions['lockfileHash']>().toEqualTypeOf<string | null | undefined>()
+// @ts-expect-error a closure's edges are read, not set
+graph.edgesOf('/a.js').dynamic = true
 // @ts-expect-error the graph's size is read, not set
 graph.size = 1
 // @ts-expect-error exactOptionalPropertyTypes: no cache is `null` or omitted

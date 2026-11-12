@@ -38,6 +38,7 @@ import {
   type Target,
   targetOfId,
   toModuleId,
+  userEdgesOf,
 } from './records.ts'
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
@@ -194,8 +195,9 @@ export class Registry {
   }
 
   /**
-   * Ends the file's inlining: the inlined instances go (a shared registry, `none`, outlives the
-   * file, and the next file must see the shared module), and so does what was remembered.
+   * Ends the file's inlining under `none`: the registry is shared and outlives the file, so the
+   * inlined instances go and the next file sees the shared module, and so does what was
+   * remembered. Any other tier's registry is the file's own and is reset instead.
    */
   dropInlined(): void {
     for (const map of this.#maps) {
@@ -448,7 +450,9 @@ export class Registry {
     if (inlined === undefined) {
       inlined = false
       if (mocks.active() && !path.endsWith('.node')) {
-        const mockedId = mockedReach(state.inline, state.options, path, mocks)
+        const mockedId = mockedReach(state.inline, state.options, path, mocks, (user) =>
+          userEdgesOf(state, user),
+        )
         if (mockedId !== null) {
           inlined = true
           noteInlined(state.inline, state.options, this.#ledger, toModuleId(path), mockedId)

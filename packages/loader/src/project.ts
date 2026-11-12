@@ -5,7 +5,7 @@ import { statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createBehaviourLoader } from '@provino/policy'
 import { createNameMapper, createResolver } from '@provino/resolver'
-import { createJestHost, createPipeline } from '@provino/transform'
+import { createJestHost, createPipeline, lockfileHash } from '@provino/transform'
 import type {
   JestCustomResolver,
   Loader,
@@ -141,6 +141,8 @@ export async function createProjectLoader(
     root,
     engine: 'runner',
     graphCache: config.cacheDir ?? null,
+    lockfileHash:
+      policy.mocksReachShared && config.cacheDir !== undefined ? lockfileHash(root) : null,
     resolver: createResolver({
       root,
       mappers,

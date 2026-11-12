@@ -77,6 +77,7 @@ function recordingModuleMocks(calls: string[]): ModuleMockRegistry {
     decide: () => no,
     decideUnresolved: () => no,
     active: () => false,
+    generation: () => 0,
     materialize: unused('materialize'),
     mockFor(specifier, from) {
       calls.push(`mockFor ${specifier} from ${from}`)

@@ -14,7 +14,9 @@ import type {
   ResolveResult,
   SourceMapV3,
 } from '@provino/types'
+import { conditionsOf } from '../graph/conditions.ts'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
+import { type GraphEdge, inGraph } from '../graph/index.ts'
 import { createInlineState, type InlineState } from './inline.ts'
 import { loaderMessage } from './messages.ts'
 
@@ -96,7 +98,7 @@ export function toModuleId(path: string): ModuleId {
 }
 
 function isThirdParty(path: string, inline: readonly (string | RegExp)[]): boolean {
-  if (!/[\\/]node_modules[\\/]/.test(path)) return false
+  if (!inGraph(path)) return false
   return !inline.some((rule) =>
     typeof rule === 'string' ? path.includes(`/node_modules/${rule}/`) : rule.test(path),
   )
@@ -212,7 +214,7 @@ export function mapperTakes(
   const result = state.options.resolver.resolve(specifier, {
     importer,
     kind,
-    conditions: state.options.conditions ?? ['node'],
+    conditions: conditionsOf(state.options),
   })
   return (result.type === 'file' || result.type === 'not-found') && result.mappedBy !== null
 }
@@ -241,7 +243,7 @@ export function resolveOrMissing(
   const result = state.options.resolver.resolve(specifier, {
     importer,
     kind,
-    conditions: state.options.conditions ?? ['node'],
+    conditions: conditionsOf(state.options),
   })
   if (result.type === 'builtin') return { kind: 'builtin', id: result.id }
   if (result.type === 'file') {
@@ -287,9 +289,31 @@ export function targetOfId(state: Records, id: string): Found {
   return { kind: 'user', id: toModuleId(id) }
 }
 
-/** Whether `path` is a node_modules file the loader shares natively unless a mock makes it inline. */
-export function isSharedPath(state: Records, path: string): boolean {
-  return isThirdParty(path, state.options.inline ?? [])
+/**
+ * The edges of the user module at `path` as the loader holds them: its static deps (and the late
+ * ones) resolved from it, as an edge would. `null` when its file does not compile. Used to follow
+ * a closure of node_modules files through a workspace package linked into them (T2.6).
+ */
+export function userEdgesOf(state: Records, path: string): readonly GraphEdge[] | null {
+  let record: ModuleRecord
+  try {
+    record = recordFor(state, toModuleId(path), false)
+  } catch {
+    return null
+  }
+  const kind = record.format === 'cjs' ? 'require' : 'import'
+  return [...record.deps, ...record.lateDeps].map((specifier): GraphEdge => {
+    let target: string | null = null
+    try {
+      const found = resolveOrMissing(state, specifier, path, kind)
+      if (found.kind === 'user') target = found.id
+      else if (found.kind === 'external') target = found.path
+      else if (found.kind === 'builtin') target = found.id
+    } catch {
+      // A resolver that throws leaves the edge unresolved, as the graph's own would.
+    }
+    return { specifier, kind, target }
+  })
 }
 
 /** The key of an external or builtin in `externals` and `required`. */
@@ -306,7 +330,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   const path: string = id
   const text = readFileSync(path, 'utf8')
   // A node_modules file only gets here when a mock made it inline (T2.6), or `inline` names it.
-  const thirdParty = isSharedPath(state, path)
+  const thirdParty = isThirdParty(path, state.options.inline ?? [])
   let record: ModuleRecord
   if (path.endsWith('.json')) {
     record = makeRecord(id, 'json', text, () => null, [], [], false, false)

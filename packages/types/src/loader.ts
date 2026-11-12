@@ -132,6 +132,11 @@ export interface LoaderOptions {
    * `<dir>/graph/<key>.json`. `null` or absent keeps the graph in memory.
    */
   readonly graphCache?: string | null
+  /**
+   * The hash of the project's lockfile (`lockfileHash` in `@provino/transform`), which keys the
+   * graph cache. `null` or absent keeps the graph in memory.
+   */
+  readonly lockfileHash?: string | null
   /** Where the loader's warnings go. Default `process.emitWarning` with the warning's code. */
   readonly onWarning?: (warning: LoaderWarning) => void
   readonly leaks?: LeakOptions
@@ -233,6 +238,12 @@ export interface ModuleMockRegistry {
    * (`decide`'s fast path, inverted). The loader scans no module graph while it is `false`.
    */
   active(): boolean
+  /**
+   * A number that changes whenever what `decide` answers can change: a registration, an unmock,
+   * automock turned on or off, or `resetModules` clearing the registrations. A caller may keep a
+   * verdict it got from `decide` for as long as this holds the same value.
+   */
+  generation(): number
   /** Forgets everything; further calls throw. Calling it again does nothing. */
   dispose(): void
 }
@@ -287,11 +298,7 @@ export interface FileRegistryOptions {
 export interface RegisterMockOptions {
   /** The module need not exist (Jest's `{ virtual: true }`). */
   readonly virtual?: boolean
-  /**
-   * Whether the call is a hoisted form (`jest.mock`, `vi.mock`), not a `do` form. Only a warm-up:
-   * a file whose hoisted mocks ran starts the node_modules graph before its first edge needs it
-   * (T2.6, B13d Gap 4). Correctness never depends on it, since a `do` form registers later.
-   */
+  /** Whether the call is a hoisted form (`jest.mock`, `vi.mock`), not a `do` form. */
   readonly hoisted?: boolean
 }
 

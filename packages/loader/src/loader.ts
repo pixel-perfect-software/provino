@@ -12,6 +12,7 @@ import type {
   ModuleId,
   ModuleMockRegistry,
 } from '@provino/types'
+import { conditionsOf } from './graph/conditions.ts'
 import { LoaderError } from './errors.ts'
 import { saveGraph } from './internal/inline.ts'
 import { loaderMessage } from './internal/messages.ts'
@@ -32,7 +33,7 @@ const UNRESOLVED_RELATIVE_MOCK = 'unresolved-relative-mock'
 export const createLoader: CreateLoader = (options) => {
   if (options.engine !== 'runner') throw notYet("engine: 'native'", 'T2.10')
   const state = createRecords(options)
-  const conditions = options.conditions ?? ['node']
+  const conditions = conditionsOf(options)
   // The `none` tier: one instance map for every file in the worker.
   const shared = new Registry(state)
 
@@ -140,8 +141,7 @@ export const createLoader: CreateLoader = (options) => {
         // What the file inlined, for its report; under `none` the instances go too, so the next
         // file sees the shared module.
         const inlinedForMocks = registry.inlined()
-        registry.dropInlined()
-        saveGraph(state.inline)
+        if (registryOptions.tier === 'none') registry.dropInlined()
         // Under `none` the registry outlives the file: a later file sets its own context, and
         // code the file left behind finds no disposed registry in the meantime.
         if (registry.context === context) registry.context = NO_FILE
@@ -174,6 +174,8 @@ export const createLoader: CreateLoader = (options) => {
     },
     getSourceMap: (id) => state.records.get(id)?.map ?? null,
     [Symbol.dispose]: () => {
+      // Once per worker, with everything its files scanned.
+      saveGraph(state.inline)
       state.records.clear()
       state.externals.clear()
       state.required.clear()

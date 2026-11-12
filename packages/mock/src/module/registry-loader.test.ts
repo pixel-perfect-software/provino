@@ -277,3 +277,43 @@ test('active is decide`s fast path inverted: a registration, automock-all or a r
   )
   assert.equal(registered.active(), true)
 })
+
+test('generation changes with what decide can answer: a registration, automock-all, a reset that clears them', () => {
+  const tree = tempTree('provino-generation-')
+  const build = (policy = jestLike) =>
+    createModuleMockRegistry({
+      policy,
+      mockPolicy: neutral,
+      mocks: createMockRegistry(),
+      resolver: fakeResolver({}),
+      roots: [tree.dir],
+      extensions: ['.ts'],
+      loadActual: () => ({}),
+    })
+  const registry = build()
+  const start = registry.generation()
+  assert.equal(registry.generation(), start, 'asking changes nothing')
+  registry.decide('/proj/a.ts', '/proj/t.ts', 'cjs')
+  registry.enterIsolation()
+  registry.exitIsolation()
+  registry.onResetModules()
+  assert.equal(registry.generation(), start, 'a decision, an isolation and a plain reset do not')
+  registry.register(
+    'virtual-pkg',
+    { kind: 'factory', factory: () => ({}) },
+    { from: '/proj/t.ts', virtual: true },
+  )
+  const registered = registry.generation()
+  assert.notEqual(registered, start)
+  registry.setAutomock(true)
+  assert.notEqual(registry.generation(), registered)
+  const clearing = build({ ...jestLike, resetModulesClearsMocks: true })
+  clearing.register(
+    'virtual-pkg',
+    { kind: 'factory', factory: () => ({}) },
+    { from: '/proj/t.ts', virtual: true },
+  )
+  const before = clearing.generation()
+  clearing.onResetModules()
+  assert.notEqual(clearing.generation(), before)
+})

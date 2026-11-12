@@ -32,6 +32,7 @@ function recording(): { readonly registry: ModuleMockRegistry; readonly asked: s
         return no
       },
       active: () => true,
+      generation: () => 0,
       materialize: fail,
       mockFor: fail,
       createMockFromModule: fail,

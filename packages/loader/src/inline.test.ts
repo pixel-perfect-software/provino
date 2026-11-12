@@ -2,12 +2,12 @@
 // that file only. The Done-when's own case runs on the installed `pretty-format` → `ansi-styles`
 // (D53); the rest on small trees, with `ModulePolicy.mocksReachShared` both ways.
 import assert from 'node:assert/strict'
-import { existsSync, readdirSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, realpathSync, symlinkSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import type { LoaderWarning, ModuleId } from '@provino/types'
+import type { LoaderWarning, ModuleId, ModuleMockRegistry } from '@provino/types'
 import { initLexer } from './graph/index.ts'
 import {
   at,
@@ -244,19 +244,28 @@ test('the budget warns once per mocked module, and still inlines', () => {
 test('with no mock, nothing is scanned or cached', () => {
   const root = writeTree({ ...CHAIN, 'pnpm-lock.yaml': 'lockfileVersion: 9\n' })
   const cache = join(root, 'cache')
-  const files = fileWithMocks(loaderFor(root, { graphCache: cache }), join(root, 'a.test.js')).files
+  const files = fileWithMocks(
+    loaderFor(root, { graphCache: cache, lockfileHash: 'lock-1' }),
+    join(root, 'a.test.js'),
+  ).files
   assert.equal(files.require<{ sees: string }>('pkg-c', FROM(root)).sees, 'real b')
   assert.deepEqual(files.dispose().inlinedForMocks, [])
   assert.equal(existsSync(join(cache, 'graph')), false)
 })
 
-test('a file with mocks scans once, and the graph is cached for the next worker', () => {
+test('the graph is written once, when the worker ends, and read by the next worker', () => {
   const root = writeTree({ ...CHAIN, 'pnpm-lock.yaml': 'lockfileVersion: 9\n' })
   const cache = join(root, 'cache')
-  const files = fileWithMocks(loaderFor(root, { graphCache: cache }), join(root, 'a.test.js')).files
-  files.registerMock('pkg-b', FROM(root), factory({ name: 'mock b' }))
-  files.require('pkg-c', FROM(root))
-  files.dispose()
+  const options = { graphCache: cache, lockfileHash: 'lock-1' }
+  const loader = loaderFor(root, options)
+  for (const file of ['a.test.js', 'b.test.js']) {
+    const files = fileWithMocks(loader, join(root, file)).files
+    files.registerMock('pkg-b', FROM(root), factory({ name: 'mock b' }))
+    files.require('pkg-c', FROM(root))
+    files.dispose()
+  }
+  assert.equal(existsSync(join(cache, 'graph')), false, 'a file ending is not the worker ending')
+  loader[Symbol.dispose]()
   assert.equal(readdirSync(join(cache, 'graph')).length, 1)
 })
 
@@ -351,4 +360,101 @@ test('under a policy where mocks do not reach shared modules, pretty-format sees
   const { format } = files.require<Format>(PRETTY_FORMAT, FROM(root))
   assert.equal(highlighted(format), 'formatted')
   assert.equal(JESTISH.mocksReachShared, true)
+})
+
+test('a package reaches a mock through a workspace package linked into node_modules', () => {
+  const root = writeTree({
+    ...PKG('dep-b'),
+    'node_modules/dep-b/index.js': "module.exports = { name: 'real b' }",
+    'packages/ws/package.json': '{"name":"@s/ws","main":"index.js"}',
+    'packages/ws/index.js': "module.exports = { sees: require('dep-b').name }",
+    'node_modules/.pnpm/tp@1.0.0/node_modules/tp/package.json': '{"name":"tp","main":"index.js"}',
+    'node_modules/.pnpm/tp@1.0.0/node_modules/tp/index.js':
+      "module.exports = { sees: require('@s/ws').sees }",
+    'a.test.js': '',
+  })
+  // As pnpm lays it out: the workspace package linked in twice, and tp's own store entry.
+  mkdirSync(join(root, 'node_modules/@s'), { recursive: true })
+  symlinkSync(join(root, 'packages/ws'), join(root, 'node_modules/@s/ws'))
+  mkdirSync(join(root, 'node_modules/.pnpm/tp@1.0.0/node_modules/@s'), { recursive: true })
+  symlinkSync(
+    join(root, 'packages/ws'),
+    join(root, 'node_modules/.pnpm/tp@1.0.0/node_modules/@s/ws'),
+  )
+  symlinkSync(
+    join(root, 'node_modules/.pnpm/tp@1.0.0/node_modules/tp'),
+    join(root, 'node_modules/tp'),
+  )
+  const loader = loaderFor(root)
+  const first = fileWithMocks(loader, join(root, 'a.test.js')).files
+  first.registerMock('dep-b', FROM(root), factory({ name: 'mock b' }))
+  assert.equal(first.require<{ sees: string }>('tp', FROM(root)).sees, 'mock b')
+  assert.equal(first.require<{ sees: string }>('@s/ws', FROM(root)).sees, 'mock b')
+  assert.deepEqual(
+    first.dispose().inlinedForMocks.map((id) => id.slice(root.length + 1)),
+    ['node_modules/.pnpm/tp@1.0.0/node_modules/tp/index.js'],
+  )
+  const second = fileWithMocks(loader, join(root, 'b.test.js')).files
+  assert.equal(second.require<{ sees: string }>('tp', FROM(root)).sees, 'real b')
+})
+
+/** A module-mock registry that counts what the loader asks it. */
+function counting(counts: {
+  decide: number
+}): (registry: ModuleMockRegistry) => ModuleMockRegistry {
+  return (registry) =>
+    new Proxy(registry, {
+      get(target, property) {
+        if (property === 'decide') {
+          return (...args: Parameters<ModuleMockRegistry['decide']>) => {
+            counts.decide++
+            return target.decide(...args)
+          }
+        }
+        const value: unknown = Reflect.get(target, property, target)
+        return typeof value === 'function' ? value.bind(target) : value
+      },
+    })
+}
+
+test('a verdict stands across resetModules and isolateModules until the mocks change', () => {
+  const root = writeTree(CHAIN)
+  const counts = { decide: 0 }
+  const files = fileWithMocks(loaderFor(root), join(root, 'a.test.js'), {
+    wrap: counting(counts),
+  }).files
+  files.registerMock('pkg-b', FROM(root), factory({ name: 'mock b' }))
+  assert.equal(files.require<{ sees: string }>('pkg-c', FROM(root)).sees, 'mock b')
+  const firstLoad = counts.decide
+  // What a load asks of the mocks is its own edges; the first one also put the closure to them.
+  files.resetModules()
+  const before = counts.decide
+  assert.equal(files.require<{ sees: string }>('pkg-c', FROM(root)).sees, 'mock b')
+  const reload = counts.decide - before
+  assert.ok(reload < firstLoad, `a reload asked ${reload}, the first load ${firstLoad}`)
+  const beforeIsolated = counts.decide
+  files.isolateModules(() => {
+    assert.equal(files.require<{ sees: string }>('pkg-c', FROM(root)).sees, 'mock b')
+  })
+  assert.equal(counts.decide - beforeIsolated, reload)
+  // A new registration is a new question: the closure is put to the mocks again.
+  files.registerMock('pkg-x', FROM(root), factory({}), { virtual: true })
+  files.resetModules()
+  const beforeChanged = counts.decide
+  assert.equal(files.require<{ sees: string }>('pkg-c', FROM(root)).sees, 'mock b')
+  assert.ok(counts.decide - beforeChanged > reload)
+})
+
+test('a verdict of no mock holds for what the closure covers', () => {
+  const root = writeTree(CHAIN)
+  const counts = { decide: 0 }
+  const files = fileWithMocks(loaderFor(root), join(root, 'a.test.js'), {
+    wrap: counting(counts),
+  }).files
+  files.registerMock('unrelated', FROM(root), factory({}), { virtual: true })
+  assert.equal(files.require<{ sees: string }>('pkg-c', FROM(root)).sees, 'real b')
+  const asked = counts.decide
+  // pkg-a is in pkg-c's closure: its verdict is known, so only the edge to it is decided.
+  assert.equal(files.require<{ sees: string }>('pkg-a', FROM(root)).sees, 'real b')
+  assert.equal(counts.decide - asked, 1)
 })

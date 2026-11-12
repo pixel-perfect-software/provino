@@ -101,6 +101,7 @@ export function loaderFor(
     readonly policy?: Partial<ModulePolicy>
     readonly hoist?: HoistPolicy | null
     readonly graphCache?: string | null
+    readonly lockfileHash?: string | null
     readonly inlineBudget?: number
     readonly onWarning?: LoaderOptions['onWarning']
   } = {},
@@ -124,6 +125,7 @@ export function loaderFor(
     policy: { ...JESTISH, ...options.policy },
     moduleScope: { names: ['mocker'] },
     ...(options.graphCache === undefined ? {} : { graphCache: options.graphCache }),
+    ...(options.lockfileHash === undefined ? {} : { lockfileHash: options.lockfileHash }),
     ...(options.inlineBudget === undefined ? {} : { inlineBudget: options.inlineBudget }),
     ...(options.onWarning === undefined ? {} : { onWarning: options.onWarning }),
   })

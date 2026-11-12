@@ -1,14 +1,16 @@
 // The graph's disk cache (T2.6, B13d Gap 10): `<dir>/graph/<key>.json`, keyed by what decides the
-// contents of node_modules and how its edges resolve. Read once per worker, written atomically
-// and merged with the copy on disk, so a lost race between workers only costs a rescan.
-import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+// contents of node_modules and how its edges resolve, with each node stamped by its file's mtime and
+// size. Read once per worker and trusted by format and key, written once per worker, atomically and
+// merged with the copy on disk, so a lost race between workers only costs a rescan.
+import { createHash, randomBytes } from 'node:crypto'
+import { mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { threadId } from 'node:worker_threads'
 import type { EdgeKind } from './scan.ts'
 
 /** The cache file's layout version: bumped when a node's shape or the scan's meaning changes. */
-export const GRAPH_FORMAT = 1
+export const GRAPH_FORMAT = 2
 
 /**
  * A target of an edge: a real path, a `node:` builtin, or `null` for one that doesn't resolve.
@@ -35,8 +37,23 @@ export interface GraphNode {
   readonly dynamic: boolean
 }
 
-/** A node as the file holds it: `[dynamic, [specifier, kind, target][]]`. */
-type StoredNode = readonly [0 | 1, ReadonlyArray<readonly [string, 0 | 1, EdgeTarget]>]
+/**
+ * A node as the file holds it: `[dynamic, [specifier, kind, target][], mtimeMs, size]`. The two
+ * numbers are the file's stamp when it was scanned, checked on the node's first visit in a worker.
+ * @internal
+ */
+export type StoredNode = readonly [
+  0 | 1,
+  ReadonlyArray<readonly [string, 0 | 1, EdgeTarget]>,
+  number,
+  number,
+]
+
+/** What a file looked like when it was scanned. */
+export interface FileStamp {
+  readonly mtimeMs: number
+  readonly size: number
+}
 
 interface CacheFile {
   readonly format: number
@@ -44,7 +61,6 @@ interface CacheFile {
   readonly nodes: Readonly<Record<string, StoredNode>>
 }
 
-const LOCKFILES = ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock', 'bun.lockb']
 const INSTALL_MARKERS = ['node_modules/.modules.yaml', 'node_modules/.package-lock.json']
 
 let lexerVersion: string | undefined
@@ -66,41 +82,41 @@ function lexerVersionOf(): string {
   return lexerVersion
 }
 
-/** The nearest lockfile at or above `root`, with its directory. */
-function findLockfile(root: string): { readonly dir: string; readonly file: string } | null {
+/** The size and mtime of the install marker nearest at or above `root` (empty when none). */
+function installStamp(root: string): string {
   let dir = resolve(root)
   for (;;) {
-    for (const name of LOCKFILES) {
-      const file = join(dir, name)
-      if (existsSync(file)) return { dir, file }
+    for (const marker of INSTALL_MARKERS) {
+      try {
+        const stats = statSync(join(dir, marker))
+        return `${marker}:${stats.size}:${stats.mtimeMs}`
+      } catch {
+        // This marker isn't here: the other package manager's may be.
+      }
     }
     const parent = dirname(dir)
-    if (parent === dir) return null
+    if (parent === dir) return ''
     dir = parent
   }
 }
 
 /**
- * The cache key: a hash of the nearest lockfile, the install marker's size and mtime, the graph
- * format, the lexer's version and how edges resolve (`extra`: the resolver's fingerprint and the
- * conditions). `null` when the project has no lockfile, and the graph then stays in memory.
+ * The cache key: a hash of the lockfile's hash (`lockfileHash`, which the loader takes from the
+ * transform cache's), the install marker's size and mtime, the graph format, the lexer's version
+ * and how edges resolve (`extra`: the resolver's fingerprint and the conditions). `null` when the
+ * project has no lockfile, and the graph then stays in memory.
  * @public
  */
-export function graphCacheKey(root: string, extra: string): string | null {
-  const lock = findLockfile(root)
-  if (lock === null) return null
+export function graphCacheKey(
+  root: string,
+  extra: string,
+  lockfileHash: string | null,
+): string | null {
+  if (lockfileHash === null) return null
   const hash = createHash('sha256')
   hash.update(String(GRAPH_FORMAT)).update('\0').update(lexerVersionOf()).update('\0')
   hash.update(resolve(root)).update('\0').update(extra).update('\0')
-  hash.update(readFileSync(lock.file))
-  for (const marker of INSTALL_MARKERS) {
-    try {
-      const stats = statSync(join(lock.dir, marker))
-      hash.update(`\0${marker}:${stats.size}:${stats.mtimeMs}`)
-    } catch {
-      // This marker isn't there: the other package manager's may be.
-    }
-  }
+  hash.update(lockfileHash).update('\0').update(installStamp(root))
   return hash.digest('hex').slice(0, 32)
 }
 
@@ -109,46 +125,36 @@ export function graphCacheFile(dir: string, key: string): string {
   return join(dir, 'graph', `${key}.json`)
 }
 
-function fromStored(stored: StoredNode): GraphNode {
-  return {
-    dynamic: stored[0] === 1,
-    edges: stored[1].map(([specifier, kind, target]) => ({
-      specifier,
-      kind: kind === 1 ? 'require' : 'import',
-      target,
-    })),
+/** A node as the graph holds it, or `null` for a stored form that is not one (a damaged file). */
+export function fromStored(stored: StoredNode): GraphNode | null {
+  try {
+    return {
+      dynamic: stored[0] === 1,
+      edges: stored[1].map(([specifier, kind, target]) => ({
+        specifier,
+        kind: kind === 1 ? 'require' : 'import',
+        target,
+      })),
+    }
+  } catch {
+    return null
   }
 }
 
-function toStored(node: GraphNode): StoredNode {
+export function toStored(node: GraphNode, stamp: FileStamp): StoredNode {
   return [
     node.dynamic ? 1 : 0,
     node.edges.map((edge) => [edge.specifier, edge.kind === 'require' ? 1 : 0, edge.target]),
+    stamp.mtimeMs,
+    stamp.size,
   ]
 }
 
-function isStoredNode(value: unknown): value is StoredNode {
-  return (
-    Array.isArray(value) &&
-    value.length === 2 &&
-    (value[0] === 0 || value[0] === 1) &&
-    Array.isArray(value[1]) &&
-    value[1].every(
-      (edge: unknown) =>
-        Array.isArray(edge) &&
-        edge.length === 3 &&
-        typeof edge[0] === 'string' &&
-        (edge[1] === 0 || edge[1] === 1) &&
-        (edge[2] === null || typeof edge[2] === 'string'),
-    )
-  )
-}
-
 /**
- * Reads a cache file: its nodes by path, or `null` when it is missing, corrupt, or another
- * format or key (a corrupt file is rebuilt by the next write).
+ * Reads a cache file: its nodes by path, in the stored form (a node is checked when it is first
+ * visited), or `null` when it is missing, corrupt, or another format or key.
  */
-export function readGraphCache(file: string, key: string): Map<string, GraphNode> | null {
+export function readGraphCache(file: string, key: string): Map<string, StoredNode> | null {
   let parsed: unknown
   try {
     parsed = JSON.parse(readFileSync(file, 'utf8'))
@@ -161,36 +167,41 @@ export function readGraphCache(file: string, key: string): Map<string, GraphNode
   }
   const stored: unknown = Reflect.get(parsed, 'nodes')
   if (stored === null || typeof stored !== 'object') return null
-  const nodes = new Map<string, GraphNode>()
-  for (const [path, value] of Object.entries(stored)) {
-    if (!isStoredNode(value)) return null
-    nodes.set(path, fromStored(value))
-  }
-  return nodes
+  return new Map(Object.entries(stored as Record<string, StoredNode>))
 }
 
+/** Names a temp file apart from every other writer's: another process, or a worker thread of this one. */
+const NONCE = `${process.pid}.${threadId}.${randomBytes(4).toString('hex')}`
+let counter = 0
+
 /**
- * Writes `nodes` merged over the copy on disk, through a temp file and a rename, so a reader
- * never sees half a file. A failure is swallowed: the cache is only a speed-up.
+ * Writes `nodes` merged over the copy on disk (in the stored form, with no conversion), through a
+ * temp file and a rename, so a reader never sees half a file. A failure is swallowed, and its temp
+ * file removed: the cache is only a speed-up.
  */
 export function writeGraphCache(
   file: string,
   key: string,
-  nodes: ReadonlyMap<string, GraphNode>,
+  nodes: ReadonlyMap<string, StoredNode>,
 ): void {
+  const temp = `${file}.${NONCE}.${counter++}.tmp`
   try {
-    const merged = readGraphCache(file, key) ?? new Map<string, GraphNode>()
+    const merged = readGraphCache(file, key) ?? new Map<string, StoredNode>()
     for (const [path, node] of nodes) merged.set(path, node)
     const body: CacheFile = {
       format: GRAPH_FORMAT,
       key,
-      nodes: Object.fromEntries([...merged].map(([path, node]) => [path, toStored(node)])),
+      nodes: Object.fromEntries(merged),
     }
     mkdirSync(dirname(file), { recursive: true })
-    const temp = `${file}.${process.pid}.${Date.now()}.tmp`
     writeFileSync(temp, JSON.stringify(body))
     renameSync(temp, file)
   } catch {
     // Read-only checkout, a full disk: the graph is rebuilt next time.
+    try {
+      unlinkSync(temp)
+    } catch {
+      // Never written, or already gone.
+    }
   }
 }
