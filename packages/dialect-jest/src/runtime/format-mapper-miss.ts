@@ -5,6 +5,7 @@ import type { FormatMapperMiss } from '@provino/types'
 /**
  * jest-resolve prints a one-element target list as that target, and a longer one as JSON, nested
  * one level below the config object's key so its brackets line up there.
+ * @public
  */
 export const formatMapperMiss: FormatMapperMiss = ({
   specifier,

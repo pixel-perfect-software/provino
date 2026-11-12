@@ -77,7 +77,10 @@ export const DEPRECATED_CONFIG: Readonly<Record<string, () => string>> = {
   Please update your configuration.`,
 }
 
-/** What validation found: warnings, and whether a deprecated key was among them. */
+/**
+ * What validation found: warnings, and whether a deprecated key was among them.
+ * @public
+ */
 export interface ValidationOutcome {
   readonly diagnostics: readonly Diagnostic[]
   readonly hasDeprecationWarnings: boolean
