@@ -31,7 +31,10 @@ const code = await main(process.argv.slice(2), {
   },
 })
 signals.dispose()
-process.exitCode = code
+// A run the user cut short ends with the signal's code (130, 143) even when it had nothing left to
+// interrupt: Ctrl+C while the workers were still stopping is still a Ctrl+C.
+const finalCode = signals.exitCode() ?? code
+process.exitCode = finalCode
 
 // `--forceExit`: end the process now, as Jest does, once what the run printed has been written. A
 // run that wasn't asked to leaves the exit to the event loop: with forks or threads the pool has
@@ -39,5 +42,5 @@ process.exitCode = code
 // leaked handle (a timer, a socket) keeps it alive, as with Jest's `--runInBand`.
 if (forceExit) {
   await Promise.all([flushed(process.stdout), flushed(process.stderr)])
-  process.exit(code)
+  process.exit(finalCode)
 }

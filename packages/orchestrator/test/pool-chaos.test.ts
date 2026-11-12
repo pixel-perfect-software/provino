@@ -26,8 +26,11 @@ const makeProject = trackedProjects()
 
 const OK_FILES = 195
 const CRASHES = ['crash-1', 'crash-2', 'crash-3']
-/** The deadline for the file that hangs. Short: the run waits it out once. */
-const FILE_TIMEOUT_MS = 2000
+/**
+ * The deadline for the file that hangs. It has room: every other file, the one that runs out of
+ * memory included, must end well inside it on a busy machine. The run waits it out once.
+ */
+const FILE_TIMEOUT_MS = 6000
 /** Small enough that a runaway allocation ends quickly, large enough for the runtime itself. */
 const HEAP_LIMIT_MB = 192
 
@@ -62,7 +65,7 @@ function sources(kind: PoolKindUnderTest): Record<string, string> {
         : "test('exits the thread', () => { process.exit(3) })\n"
   }
   files['oom.test.js'] =
-    "test('runs out of memory', () => { const hold = []; for (;;) hold.push(new Array(100_000).fill({ hold })) })\n"
+    "test('runs out of memory', () => { const hold = []; for (;;) hold.push(new Array(2_000_000).fill(0)) })\n"
   files['hang.test.js'] = "test('hangs', () => { for (;;) {} })\n"
   return files
 }
