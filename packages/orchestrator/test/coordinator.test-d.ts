@@ -27,6 +27,7 @@ import {
   type RunProjectOptions,
   relativePosix,
   runProject,
+  runProjects,
   sameWorkerKey,
   selectFiles,
   type TransportForOptions,
@@ -292,3 +293,15 @@ expectTypeOf(createFileDispatch).returns.toEqualTypeOf<FileDispatch>()
 expectTypeOf<FileDispatch['handle']>().returns.toEqualTypeOf<Promise<void>>()
 // @ts-expect-error a dispatch is made for one file, with the bus and a handler for unhandled errors
 createFileDispatch({ bus })
+
+// ---- runProjects (D29): several resolved projects through one pool.
+expectTypeOf(runProjects).parameters.toEqualTypeOf<
+  [readonly ResolvedProject[], RunProjectOptions]
+>()
+expectTypeOf(runProjects).returns.toEqualTypeOf<Promise<RunSummary>>()
+void runProjects([project, project], { bus, root: '/repo' })
+// @ts-expect-error a list of projects, not one
+void runProjects(project, { bus })
+// @ts-expect-error the run's root is a path
+void runProjects([project], { bus, root: 3 })
+expectTypeOf<OrchestratorErrorCode>().toExtend<string>()

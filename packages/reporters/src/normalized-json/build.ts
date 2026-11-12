@@ -207,7 +207,7 @@ function normalizeTest(
 ): NormalizedTest {
   const retries = result === undefined ? undefined : retriesOf(test, result, counted)
   return {
-    id: { file: info.path, path: [...test.fullName], dupIndex: test.dupIndex },
+    id: { file: info.runPath ?? info.path, path: [...test.fullName], dupIndex: test.dupIndex },
     // An error charged to the test after it ended fails it, whatever it ended as.
     status: late.length > 0 ? 'failed' : testStatus(result),
     ...(result?.skipReason === undefined || late.length > 0
@@ -267,7 +267,7 @@ function normalizeFile(
       ? normalizeErrors(errors)
       : undefined
   return {
-    file: info.path,
+    file: info.runPath ?? info.path,
     status,
     ...(fileError === undefined ? {} : { fileError }),
     tests,

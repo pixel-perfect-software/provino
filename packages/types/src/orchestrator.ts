@@ -391,6 +391,12 @@ export interface FileInfo {
   /** POSIX, relative to the project root. */
   readonly path: string
   readonly project: string
+  /**
+   * POSIX, relative to the run's root. Set only when that differs from `path`: a run of several
+   * projects whose roots differ (Jest's `projects`), where two projects can have a file with the
+   * same `path`.
+   */
+  readonly runPath?: string
 }
 
 /**

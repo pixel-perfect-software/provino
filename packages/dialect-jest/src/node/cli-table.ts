@@ -266,7 +266,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     description:
       'Ignore the tests of the specified projects. Jest uses the attribute `displayName` in the configuration to identify each project.',
     support: 'refuse',
-    owner: 'multi-project runs, D29/B17',
+    owner: 'project selection by displayName, no task yet',
   },
   injectGlobals: {
     type: 'boolean',
@@ -427,7 +427,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     description:
       'A list of projects that use Jest to run all tests of all projects in a single instance of Jest.',
     support: 'refuse',
-    owner: 'multi-project runs, D29/B17',
+    owner: 'the --projects flag, no task yet (a config `projects` runs)',
   },
   randomize: {
     type: 'boolean',
@@ -515,7 +515,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     description:
       'Run the tests of the specified projects. Jest uses the attribute `displayName` in the configuration to identify each project.',
     support: 'refuse',
-    owner: 'multi-project runs, D29/B17',
+    owner: 'project selection by displayName, no task yet',
   },
   setupFiles: {
     type: 'array',

@@ -187,14 +187,10 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
 
     const [project, ...others] = projects
     if (project === undefined) throw new UsageError('the config has no project to run')
-    if (others.length > 0) {
-      // D29: reading `projects` is B14; running several is B17's.
-      throw new UsageError(
-        `running several projects is not supported yet (${projects.length} found; DECISIONS D29, B17)`,
-      )
-    }
     const result = await executeProject({
       project,
+      others,
+      root: read.globalConfig.rootDir,
       cwd,
       stdout,
       stderr,

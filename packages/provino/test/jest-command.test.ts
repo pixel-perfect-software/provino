@@ -74,7 +74,7 @@ describe('what provino jest does not run is said, not ignored', () => {
     assert.match(ended.stderr, /T3\.3/)
   })
 
-  it('refuses several projects for a run (D29), and lists the files of all of them', async () => {
+  it('runs several projects (D29), and lists the files of all of them', async () => {
     const dir = await tree({
       'jest.config.json': JSON.stringify({ projects: ['<rootDir>/one', '<rootDir>/two'] }),
       'one/jest.config.json': JSON.stringify({ testMatch: ['<rootDir>/**/*.test.js'] }),
@@ -83,11 +83,9 @@ describe('what provino jest does not run is said, not ignored', () => {
       'two/b.test.js': passing('b'),
     })
     const run = await provino([], dir)
-    assert.equal(run.code, 1, run.stderr)
-    assert.match(
-      run.stderr,
-      /running several projects is not supported yet \(2 found; DECISIONS D29/,
-    )
+    assert.equal(run.code, 0, run.stderr)
+    assert.match(run.stderr, /PASS one\/a\.test\.js|PASS a\.test\.js/)
+    assert.match(run.stderr, /Test Suites: 2 passed, 2 total/)
 
     const listed = await provino(['--listTests'], dir)
     assert.equal(listed.code, 0, listed.stderr)

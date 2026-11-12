@@ -1481,7 +1481,7 @@ This usually means that your "projects" config includes a directory that doesn't
  * Reads every project of a run as Jest's `readConfigs(argv, projectPaths)` does: the first path's
  * config, then each entry of its `projects` (globs expanded, paths to directories or config
  * files, inline objects), validated as projects unless one is the root config itself. Running
- * several is B17's (D29); this reads them. `root` is the first path's config when the caller has
+ * several is `runProjects`'s (D29); this reads them. `root` is the first path's config when the caller has
  * loaded it already (the config reader's `resolve` step), so it isn't loaded again. Each config
  * file is loaded once, and normalized as often as Jest reads it (see `LoadedFiles`).
  * @public
