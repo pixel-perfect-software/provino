@@ -3,7 +3,7 @@
 // project, that nothing in it is a `RegExp` or a function and every path is absolute, that keys read
 // but not applied yet warn naming their task, and that the project resolves to a worker config.
 import assert from 'node:assert/strict'
-import { isAbsolute, join } from 'node:path'
+import { delimiter, isAbsolute, join } from 'node:path'
 import { after, test } from 'node:test'
 import { resolveNeutralProject } from '@provino/config'
 import { resolvePolicy } from '@provino/policy'
@@ -348,4 +348,18 @@ test("an explicit cacheDirectory is carried; Jest's own default is not (D70)", a
   const [without] = (await readNeutral(implicit)).neutral.value
   assert.equal(without?.cacheDirectory, undefined)
   assert.equal(Object.hasOwn(without ?? {}, 'cacheDirectory'), false)
+})
+
+test('NODE_PATH entries are module search paths ahead of modulePaths, as jest-resolve has them', async () => {
+  const root = tree({ 'jest.config.js': "module.exports = { modulePaths: ['/from/config'] }\n" })
+  const saved = process.env.NODE_PATH
+  process.env.NODE_PATH = ['/abs/one', 'rel/two', ''].join(delimiter)
+  try {
+    const { neutral } = await readNeutral(root)
+    const paths = neutral.value[0]?.resolution?.modulePaths
+    assert.deepEqual(paths, ['/abs/one', join(root, 'rel/two'), '/from/config'])
+  } finally {
+    if (saved === undefined) delete process.env.NODE_PATH
+    else process.env.NODE_PATH = saved
+  }
 })

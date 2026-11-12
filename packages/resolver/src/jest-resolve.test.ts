@@ -324,6 +324,49 @@ test("custom resolver: called with Jest's options; a string answer wins; a throw
   )
 })
 
+test('custom resolver: a name-mapped target is resolved through it, as Jest resolves stub targets', () => {
+  const root = writeTree({ 'src/a.js': '', 'src/stub.js': '', 'custom/answer.js': '' })
+  const asked: { path: string; basedir: unknown }[] = []
+  const resolver = createResolver({
+    root,
+    mappers: [createNameMapper({ rules: [{ pattern: '^@stub$', targets: ['./stub'] }] })],
+    extensions: EXTENSIONS,
+    tsconfig: false,
+    custom: (path, options) => {
+      asked.push({ path, basedir: options.basedir })
+      if (path === './stub') return join(root, 'custom/answer.js')
+      throw new Error('not found')
+    },
+  })
+  const from = join(root, 'src/a.js')
+  const result = resolver.resolve('@stub', ctx(from))
+  assert.equal(pathOf(result), join(root, 'custom/answer.js'), 'the custom resolver answered')
+  assert.deepEqual(asked, [{ path: './stub', basedir: join(root, 'src') }])
+})
+
+test('a mock specifier finds a package that only has a require condition', () => {
+  const root = writeTree({
+    'src/a.js': '',
+    'node_modules/cjsonly/package.json': JSON.stringify({
+      name: 'cjsonly',
+      exports: { '.': { require: './c.cjs' } },
+    }),
+    'node_modules/cjsonly/c.cjs': 'module.exports = 1\n',
+  })
+  const resolver = createResolver({
+    root,
+    mappers: [],
+    extensions: EXTENSIONS,
+    tsconfig: false,
+  })
+  const from = join(root, 'src/a.js')
+  const expected = join(root, 'node_modules/cjsonly/c.cjs')
+  assert.equal(pathOf(resolver.resolve('cjsonly', ctx(from, [], 'mock'))), expected)
+  assert.equal(pathOf(resolver.resolve('cjsonly', ctx(from, [], 'require'))), expected)
+  // An import of it is still not found: the `import` condition is real.
+  assert.equal(resolver.resolve('cjsonly', ctx(from, [], 'import')).type, 'not-found')
+})
+
 test('custom resolver is asked for builtins too (Jest skips its own core check when one is set)', () => {
   const root = writeTree({ 'a.js': '' })
   const asked: string[] = []

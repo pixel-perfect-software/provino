@@ -5,7 +5,7 @@
 // apply yet warn, naming the task that builds them (gap 9 of `bundles/B14.md`: nothing is ignored
 // silently).
 
-import { isAbsolute } from 'node:path'
+import { delimiter, isAbsolute, resolve } from 'node:path'
 import type {
   Diagnostic,
   JsonValue,
@@ -91,6 +91,14 @@ function notApplied(diagnostics: Diagnostic[], key: string, owner: string, detai
     key,
     message: `Jest config key "${key}" is read but not applied yet (${owner} builds it)${detail}.`,
   })
+}
+
+/** The `NODE_PATH` directories, absolute against `cwd`, as jest-resolve reads them. */
+function nodePathEntries(cwd: string): string[] {
+  return (process.env.NODE_PATH ?? '')
+    .split(delimiter)
+    .filter((entry) => entry !== '')
+    .map((entry) => resolve(cwd, entry))
 }
 
 function isDefaultTransform(transform: JestProjectConfig['transform']): boolean {
@@ -259,7 +267,8 @@ export function jestProjectToNeutral(
     seed: globalConfig.seed,
     resolution: {
       moduleDirectories: [...project.moduleDirectories],
-      modulePaths: [...(project.modulePaths ?? [])],
+      // Jest's resolver searches `NODE_PATH` before `modulePaths` (`jest-resolve` `Resolver`).
+      modulePaths: [...nodePathEntries(project.cwd), ...(project.modulePaths ?? [])],
       ...(project.resolver === undefined ? {} : { resolver: project.resolver }),
     },
     transforms,

@@ -127,7 +127,21 @@ export const createResolver: CreateResolver = (options) => {
       : factory.sync(dirname(context.importer), specifier)
   }
 
+  /**
+   * A mock specifier resolves like an import, and a package that only has a `require` condition
+   * (`exports: { '.': { require: './c.cjs' } }`) is not found that way. Jest resolves `jest.mock`
+   * targets with the CommonJS conditions, so a miss is tried again as a `require`.
+   */
   function resolveDirect(specifier: string, context: ResolveContext): ResolveResult {
+    const result = resolveOnce(specifier, context)
+    if (result.type === 'not-found' && context.kind === 'mock') {
+      const again = resolveOnce(specifier, { ...context, kind: 'require' })
+      if (again.type !== 'not-found') return again
+    }
+    return result
+  }
+
+  function resolveOnce(specifier: string, context: ResolveContext): ResolveResult {
     const conditions = [...new Set([...context.conditions, kindCondition(context.kind)])]
     let result = resolveWith(factoryFor(conditions), specifier, context)
     if (result.path === undefined && result.builtin === undefined && retryRoot !== null) {
@@ -227,7 +241,11 @@ export const createResolver: CreateResolver = (options) => {
         const hit = mapper.map(specifier, context)
         if (hit === null) continue
         for (const candidate of hit.candidates) {
-          const result = resolveDirect(candidate, context)
+          // Jest resolves a stub target through the project's resolver too (`resolveStubModuleName`).
+          const result =
+            customSync !== null
+              ? resolveCustom(customSync, candidate, context)
+              : resolveDirect(candidate, context)
           if (result.type === 'file') return { ...result, mappedBy: hit.rule }
           if (result.type !== 'not-found') return result
         }
