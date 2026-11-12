@@ -4,6 +4,7 @@
 // `formatEachTitle` (T5.4) is the dialect's `core.formatEachTitle` behaviour.
 export { type EachTableKind, formatEachTitle } from '../each/format-each-title.ts'
 export { jestExpectTable } from './expect-table.ts'
+export { formatMapperMiss } from './format-mapper-miss.ts'
 export { formatValue } from './format-value.ts'
 export {
   type JestFakeTimersConfig,

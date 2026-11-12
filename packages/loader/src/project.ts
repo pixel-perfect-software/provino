@@ -160,6 +160,9 @@ export async function createProjectLoader(
     policy,
     conditions: config.conditions,
     ...(config.resolver === undefined ? {} : { resolverName: config.resolver.module }),
+    ...(policy.mapperMiss === null
+      ? {}
+      : { formatMapperMiss: await behaviours.load(policy.mapperMiss) }),
     ...(config.moduleScope.length === 0 && (config.scopeModules ?? []).length === 0
       ? {}
       : {

@@ -103,12 +103,26 @@ export const moduleClaims: Claims = {
       matches: (g, value) => templateIn(value, observedMessage(g, 'load after dontMock')),
     }),
   ],
-  // jest-resolve's error for a `moduleNameMapper` rule that matched and resolved to nothing, for a
-  // single target and for a list (`resolve/mapper-miss`; the placeholders stand for the paths).
-  'module.messages.mapper-miss': golden('resolve/mapper-miss', {
-    matches: (g, value) =>
-      ['single', 'array', 'first'].every((id) => templateIn(value, observedMessage(g, id))),
-  }),
+  // Jest's error for a `moduleNameMapper` rule that matched and resolved to nothing, for a single
+  // target and for a list (`resolve/mapper-miss`): the ref names the formatter, and its tests hold
+  // the text to the recorded one. Vitest has no name mapper.
+  'module.mapperMiss': each(
+    own(
+      'packages/dialect-jest/src/runtime/format-mapper-miss.test.ts',
+      'a single target prints as itself',
+      {
+        module: import.meta.resolve('@provino/dialect-jest/runtime'),
+        export: 'formatMapperMiss',
+      },
+      "jest-resolve's configuration error: `resolve/mapper-miss` records the text, and the provino end-to-end test holds the formatter to it",
+    ),
+    own(
+      'packages/dialect-vitest/src/dialect.test.ts',
+      'mapperMiss',
+      null,
+      'Vitest has no moduleNameMapper, so a miss is a not-found',
+    ),
+  ),
   // Vitest's texts.
   'module.messages.factory-not-object': mod('mod-factory-function'),
   'module.messages.missing-factory-export': mod('mod-factory-async-missing-export'),

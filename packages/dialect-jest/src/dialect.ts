@@ -23,6 +23,7 @@ import type {
   EnvironmentConditions,
   EnvironmentResolver,
   FormatEachTitle,
+  FormatMapperMiss,
   FormatValue,
   GlobalsFactory,
   ModuleScopeFactory,
@@ -232,12 +233,13 @@ export const jestPolicy: PolicyOverrides = {
       // `resolver.ts` L523 (`_throwModNotFoundError`), `{from}` relative to the root. Recorded:
       // `mod-root-package-uninstalled` ("load after dontMock").
       'module-not-found': "Cannot find module '{specifier}' from '{from}'",
-      // jest-resolve `resolver.ts` L1024-L1052 (`createNoMappedModuleFoundError`): a
-      // `moduleNameMapper` rule matched and none of its targets resolved. Recorded:
-      // `resolve/mapper-miss`.
-      'mapper-miss':
-        'Configuration error:\n\nCould not locate module {specifier} mapped as:\n{target}.\n\nPlease check your configuration for these entries:\n{\n  "moduleNameMapper": {\n    "{rule}": "{declared}"\n  },\n  "resolver": {resolver}\n}',
     },
+    // jest-resolve `resolver.ts` L1024-L1052 (`createNoMappedModuleFoundError`): a
+    // `moduleNameMapper` rule matched and none of its targets resolved. Recorded: `resolve/mapper-miss`.
+    mapperMiss: moduleRef<FormatMapperMiss>(
+      import.meta.resolve('@provino/dialect-jest/runtime'),
+      'formatMapperMiss',
+    ),
   },
   snapshot: {
     // research: track-01 L215, track-07 L468, track-11 L520

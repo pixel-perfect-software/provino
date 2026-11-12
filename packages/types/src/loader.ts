@@ -3,7 +3,7 @@
 // `ResolvedModule` and `TransformedModule` are not here: the loader takes Track 3's resolver and
 // a `ModuleTransformer` that returns Track 3's transform record (see the package README).
 import type { IsolationTier } from './isolation.ts'
-import type { ModulePolicy } from './policy/module.ts'
+import type { FormatMapperMiss, ModulePolicy } from './policy/module.ts'
 import type { Resolver } from './resolve.ts'
 import type { ModuleTransformer, SourceMapV3 } from './transform.ts'
 
@@ -98,10 +98,15 @@ export interface LoaderOptions {
   /** Environment export conditions for resolution (Track 8); the call kind adds its own. Default `['node']`. */
   readonly conditions?: readonly string[]
   /**
-   * What a name-mapper miss prints as the project's custom resolver (Jest prints the config
-   * value, `undefined` when there is none). Default `'undefined'`.
+   * The project's custom resolver as the config names it, handed to `formatMapperMiss`. Default
+   * none.
    */
   readonly resolverName?: string
+  /**
+   * The text of a name-mapper miss (`ModulePolicy.mapperMiss`, loaded): none means the miss is a
+   * `module-not-found`.
+   */
+  readonly formatMapperMiss?: FormatMapperMiss
   /** Modules always loaded per file (Vitest `server.deps.inline`). */
   readonly inline?: readonly (string | RegExp)[]
   /** Default 400. */

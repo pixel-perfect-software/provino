@@ -72,3 +72,40 @@ test('aliases, modulePaths, moduleDirectories and a custom resolver reach the re
     .require<{ custom: string }>(custom)
   assert.equal(loaded.custom, 'real')
 })
+
+// A name-mapper miss is worded by the policy's `mapperMiss` behaviour, handed the structured miss;
+// the loader lays no text out itself. With none, the miss is a plain not-found.
+test('a name-mapper miss is worded by the policy`s mapperMiss, else it is a not-found', async () => {
+  const root = writeTree({
+    'entry.test.cjs': "require('@app/missing')\n",
+    'resolver.cjs': 'module.exports = (path, options) => options.defaultResolver(path, options)\n',
+  })
+  const config: SerializedLoaderConfig = {
+    ...CONFIG,
+    aliases: [{ pattern: '^@app/(.*)$', targets: ['<rootDir>/a/$1', '<rootDir>/b/$1'] }],
+    resolver: { module: join(root, 'resolver.cjs'), export: 'default' },
+  }
+  const entry = join(root, 'entry.test.cjs')
+  const load = async (module: typeof neutralPolicy.module): Promise<string> => {
+    const loader = await createProjectLoader(root, config, module)
+    try {
+      loader.createFileRegistry(entry, { tier: 'registry' }).require(entry)
+    } catch (error) {
+      return (error as Error).message.replaceAll(root, '<root>')
+    }
+    return 'did not throw'
+  }
+  const worded = await load({
+    ...neutralPolicy.module,
+    mapperMiss: ({ specifier, rule, declared, tried, resolver }) =>
+      JSON.stringify({ specifier, rule, declared, tried, resolver }),
+  })
+  assert.deepEqual(JSON.parse(worded), {
+    specifier: '@app/missing',
+    rule: '/^@app\\/(.*)$/',
+    declared: ['<root>/a/$1', '<root>/b/$1'],
+    tried: ['<root>/a/missing', '<root>/b/missing'],
+    resolver: join(root, 'resolver.cjs').replaceAll(root, '<root>'),
+  })
+  assert.match(await load(neutralPolicy.module), /^Cannot find module '@app\/missing'/)
+})

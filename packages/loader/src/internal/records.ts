@@ -176,15 +176,16 @@ function mapperMissMessage(
   miss: Extract<ResolveResult, { readonly type: 'not-found' }>,
 ): string | undefined {
   const { mappedBy, declared, tried } = miss
-  if (mappedBy === null || declared === undefined) return undefined
-  const single = declared.length === 1 ? declared[0] : undefined
-  return loaderMessage(state.options.policy, 'mapper-miss', {
+  const { formatMapperMiss } = state.options
+  if (formatMapperMiss === undefined || mappedBy === null || declared === undefined) {
+    return undefined
+  }
+  return formatMapperMiss({
     specifier,
     rule: mappedBy,
-    target: single ?? JSON.stringify(tried, null, 2),
-    // Nested one level below a config object's key, so the list's brackets line up there.
-    declared: single ?? `${JSON.stringify(declared, null, 6).slice(0, -1)}    ]`,
-    resolver: state.options.resolverName ?? 'undefined',
+    declared,
+    tried,
+    resolver: state.options.resolverName,
   })
 }
 

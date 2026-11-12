@@ -160,6 +160,8 @@ export const neutralPolicy: Policy = deepFreeze({
     unmockedPathPatterns: [],
     // Empty: `@provino/mock` falls back to its own neutral text for every module message code.
     messages: {},
+    // None: a name-mapper miss is a `module-not-found`.
+    mapperMiss: null,
   },
   snapshot: {
     header: '// Provino Snapshot v1',

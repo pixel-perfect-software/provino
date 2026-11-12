@@ -140,10 +140,16 @@ test('the module slice: a missing export reads undefined, and the registry texts
     'transform-failed': '{file}: {message}',
     // The loader's: jest-resolve's not-found text (mod-root-package-uninstalled).
     'module-not-found': "Cannot find module '{specifier}' from '{from}'",
-    // The loader's: jest-resolve's `createNoMappedModuleFoundError` text (resolve/mapper-miss).
-    'mapper-miss':
-      'Configuration error:\n\nCould not locate module {specifier} mapped as:\n{target}.\n\nPlease check your configuration for these entries:\n{\n  "moduleNameMapper": {\n    "{rule}": "{declared}"\n  },\n  "resolver": {resolver}\n}',
   })
+})
+
+test('the name-mapper miss text is a ref to the runtime export (mapperMiss)', async () => {
+  const ref = resolved.module.mapperMiss
+  assert.deepEqual(ref, {
+    module: import.meta.resolve('@provino/dialect-jest/runtime'),
+    export: 'formatMapperMiss',
+  })
+  assert.equal(typeof (await createBehaviourLoader().load(ref as never)), 'function')
 })
 
 test('every module gets its own jest, built by the runtime factory, whether or not globals are injected', async () => {

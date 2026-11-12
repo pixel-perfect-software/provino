@@ -104,3 +104,7 @@ test('the globals factory is an absolute ref to a stub that throws VITEST_DIALEC
   assert.equal(globals.names.length, 19)
   assert.deepEqual(globals.names, [...globals.names].sort())
 })
+
+test('mapperMiss is null: Vitest has no moduleNameMapper, so a miss is a not-found', () => {
+  assert.equal(vitestModulePolicy.mapperMiss, null)
+})
