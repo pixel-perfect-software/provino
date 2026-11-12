@@ -84,6 +84,32 @@ export interface TransformDiagnostic {
 }
 
 /**
+ * One text edit of the module-runner step: `[start, end)` of the record's `code` becomes `text`
+ * (an insertion when `start` equals `end`).
+ * @beta
+ */
+export interface RunnerEdit {
+  readonly start: number
+  readonly end: number
+  readonly text: string
+}
+
+/**
+ * The record's `code` in module-runner form (imports as `__vite_ssr_import__` calls, exports as
+ * getters), made by the pipeline when it is asked to and kept in the transform cache, so a warm run
+ * skips the step. The loader evaluates it in place of running the step itself.
+ * @beta
+ */
+export interface RunnerForm {
+  readonly code: string
+  /** Static import specifiers, in source order, each once. */
+  readonly deps: readonly string[]
+  readonly dynamicDeps: readonly string[]
+  /** The edits that made `code` from the record's `code`: the source map is built from them on demand. */
+  readonly edits: readonly RunnerEdit[]
+}
+
+/**
  * What a transform produces. The loader evaluates `code`; mocks, the dependency graph and
  * coverage read the rest.
  * @public
@@ -110,6 +136,11 @@ export interface TransformRecord {
   readonly diagnostics: readonly TransformDiagnostic[]
   readonly cacheKey: string
   readonly fromCache: boolean
+  /**
+   * `code` in module-runner form, for an ES module, when the pipeline was created with
+   * `runnerForm: true`. Absent otherwise (and for a module the step fails on).
+   */
+  readonly runner?: RunnerForm | undefined
 }
 
 /**

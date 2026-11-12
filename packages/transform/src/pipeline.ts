@@ -30,6 +30,8 @@ import {
   loadEmitOptions,
 } from './internal/tsconfig.ts'
 import type { HostedSource, JestHost } from './jest-host/index.ts'
+import { usesModuleRunnerForm } from './module-runner.ts'
+import { rewriteModule } from './runner/apply.ts'
 
 /**
  * JSX settings that override the tsconfig's.
@@ -73,6 +75,11 @@ export interface PipelineOptions {
    * through the transformer instead of Oxc; every other file takes the Oxc path.
    */
   readonly transformers?: JestHost
+  /**
+   * Also make each ES module's module-runner form (`TransformRecord.runner`) and keep it in the
+   * cache, so a warm run skips that step. The loader sets it; the strip-only benches don't.
+   */
+  readonly runnerForm?: boolean
 }
 
 /**
@@ -263,6 +270,7 @@ export const createPipeline: CreatePipeline = (options) => {
     define: options.define,
     hoist: options.hoist,
     transformers: options.transformers?.fingerprint ?? null,
+    runnerForm: options.runnerForm === true,
   })
   const cache = options.cache === false ? undefined : createTransformCache(options.cache.dir)
 
@@ -362,10 +370,25 @@ export const createPipeline: CreatePipeline = (options) => {
     }
   }
 
-  /** Stores a record that came from work, and returns it. */
-  function stored(key: string, record: TransformRecord): TransformRecord {
-    cache?.set(key, record)
-    return record
+  /**
+   * Stores a record that came from work, and returns it. With `runnerForm`, an ES module's
+   * module-runner form is made first, so it is stored and a warm run doesn't make it again.
+   */
+  function stored(key: string, filename: string, record: TransformRecord): TransformRecord {
+    let result = record
+    if (
+      options.runnerForm === true &&
+      !record.diagnostics.some((diagnostic) => diagnostic.severity === 'error') &&
+      usesModuleRunnerForm(record)
+    ) {
+      try {
+        result = { ...record, runner: rewriteModule(filename, record.code) }
+      } catch {
+        // No form is kept: the failure surfaces, named, when the loader calls `toModuleRunner`.
+      }
+    }
+    cache?.set(key, result)
+    return result
   }
 
   function transform(request: TransformRequest): TransformRecord {
@@ -377,7 +400,7 @@ export const createPipeline: CreatePipeline = (options) => {
         const hit = cache?.get(key)
         if (hit !== undefined) return hit
         const source = host.transform(request, transformerKey)
-        return stored(key, hostedRecord(request, host, source, key))
+        return stored(key, request.filename, hostedRecord(request, host, source, key))
       } catch (error) {
         return failedRecord(error)
       }
@@ -435,7 +458,7 @@ export const createPipeline: CreatePipeline = (options) => {
     const facts = moduleFacts(filename, source, found.lang, found.sourceType)
     const format =
       found.sourceType === 'commonjs' ? 'cjs' : formatOf(facts, /\.m[jt]s$/.test(filename))
-    return stored(cacheKey, {
+    return stored(cacheKey, filename, {
       code,
       map: composeMaps(maps),
       format,
@@ -462,7 +485,7 @@ export const createPipeline: CreatePipeline = (options) => {
           const hit = cache?.get(key)
           if (hit !== undefined) return hit
           const source = await host.transformAsync(request, transformerKey)
-          return stored(key, hostedRecord(request, host, source, key))
+          return stored(key, request.filename, hostedRecord(request, host, source, key))
         } catch (error) {
           return failedRecord(error)
         }

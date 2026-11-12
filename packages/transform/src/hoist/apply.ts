@@ -7,6 +7,7 @@
 import type { HoistPolicy, SourceMapV3 } from '@provino/types'
 import MagicString from 'magic-string'
 import { toSourceMapV3 } from '../internal/maps.ts'
+import { CONTINUES_LINE, skipTrivia } from '../internal/trivia.ts'
 import type { Analysis, ImportRef, Unit } from './analyse.ts'
 import {
   bodyOf,
@@ -40,30 +41,6 @@ export const LATE_IMPORT = '__provino_import__'
 const EXPORT_ALL = '__vite_ssr_exportAll__'
 /** The module-runner form's exports object (the loader's wrapper passes it in). */
 const EXPORTS = '__vite_ssr_exports__'
-/** What a line can start with and still continue the line before it, with no `;` between. */
-const CONTINUES = new Set(['[', '(', '`', '+', '-', '/', '<'])
-const LINE_BREAK = /[\n\r\p{Zl}\p{Zp}]/u
-
-/** The offset of the next character that is not whitespace or inside a comment. */
-function skipTrivia(code: string, from: number): number {
-  let at = from
-  while (at < code.length) {
-    const char = code[at] ?? ''
-    if (char === '/' && code[at + 1] === '/') {
-      at += 2
-      while (at < code.length && !LINE_BREAK.test(code[at] ?? '')) at++
-    } else if (char === '/' && code[at + 1] === '*') {
-      const close = code.indexOf('*/', at + 2)
-      if (close === -1) return code.length
-      at = close + 2
-    } else if (/\s/.test(char)) {
-      at++
-    } else {
-      return at
-    }
-  }
-  return at
-}
 
 /** The end of a statement's own line, so a moved statement takes its newline with it. */
 function tailEnd(code: string, end: number): number {
@@ -181,11 +158,11 @@ export function applyHoist(
     for (const block of blocks.toReversed()) {
       if (block.end !== target && !(staying === undefined && block === last)) {
         // The statement before this one now meets whatever came after it.
-        if (CONTINUES.has(code[skipTrivia(code, block.end)] ?? '')) {
+        if (CONTINUES_LINE.has(code[skipTrivia(code, block.end)] ?? '')) {
           s.prependRight(block.end, ';')
         }
         // And this one now meets whatever it lands after.
-        if (CONTINUES.has(code[block.start] ?? '')) s.prependRight(block.start, ';')
+        if (CONTINUES_LINE.has(code[block.start] ?? '')) s.prependRight(block.start, ';')
         s.move(block.start, block.end, target)
       }
       target = block.start

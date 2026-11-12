@@ -11,18 +11,35 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
-import { createPipeline } from '@provino/transform'
-import type { TransformRecord } from '@provino/types'
-import { DEFAULT_ROOT, median, readManifest, readSources } from './corpus.ts'
+import { createPipeline, toModuleRunner } from '@provino/transform'
+import type { RunnerForm, TransformRecord } from '@provino/types'
+import { moduleRunnerTransformSync } from 'oxc-transform'
+import {
+  DEFAULT_ROOT,
+  median,
+  parseBar,
+  parseOrExitUsage,
+  readManifest,
+  readSources,
+} from './corpus.ts'
 
 const TIMED_PASSES = 15
 
-const { values: args } = parseArgs({
-  options: {
-    root: { type: 'string', default: DEFAULT_ROOT },
-    'max-warm-ms': { type: 'string' },
-    json: { type: 'boolean', default: false },
-  },
+// Parsed before any work, so a mistyped bar stops the run: `Number('abc')` is NaN, and a NaN is
+// never above a bar.
+const args = parseOrExitUsage('bench:transform-cache', () => {
+  const { values } = parseArgs({
+    options: {
+      root: { type: 'string', default: DEFAULT_ROOT },
+      'max-warm-ms': { type: 'string' },
+      json: { type: 'boolean', default: false },
+    },
+  })
+  return {
+    root: values.root,
+    maxWarmMs: parseBar('max-warm-ms', values['max-warm-ms']),
+    json: values.json,
+  }
 })
 const root = args.root
 
@@ -87,10 +104,113 @@ try {
   if (misses > 0) failures.push(`${misses} warm transforms missed the cache`)
   if (different > 0) failures.push(`${different} warm records differ from the uncached ones`)
 
-  const maxWarmMs = args['max-warm-ms'] === undefined ? undefined : Number(args['max-warm-ms'])
-  if (maxWarmMs !== undefined && warmMedianMs > maxWarmMs) {
+  const { maxWarmMs } = args
+  if (maxWarmMs !== undefined && !(warmMedianMs <= maxWarmMs)) {
     failures.push(`warm median ${warmMedianMs.toFixed(4)} ms/file is above ${maxWarmMs}`)
   }
+
+  // B20 Q3: the whole warm route per ES module, `transform` (a hit) then the module-runner step as
+  // the loader runs it. Three ways: (1) oxc's runner transform, which production used before B20;
+  // (2) our transform, run on every warm hit; (3) the runner form read from the cache
+  // (`runnerForm: true`), where the step is skipped. The three are interleaved file by file, and
+  // the order rotates with the file and the pass, so none always runs first on a cold cache line.
+  const formDir = mkdtempSync(join(tmpdir(), 'provino-transform-cache-bench-form-'))
+  const route = {
+    oxc: [] as number[][],
+    ours: [] as number[][],
+    cached: [] as number[][],
+    esmFiles: 0,
+  }
+  // Every warm hit's runner form must equal the one made fresh from the uncached record.
+  const formCheck = { hits: 0, different: 0 }
+  try {
+    const withForm = (cache: false | { readonly dir: string }): ReturnType<typeof createPipeline> =>
+      createPipeline({
+        root,
+        typescript: 'oxc',
+        tsconfig: 'auto',
+        hoist: null,
+        cache,
+        runnerForm: true,
+      })
+    pass(withForm({ dir: formDir }))
+    const request = (filename: string, source: string) =>
+      ({ filename, source, role: 'source', consumer: 'import', instrument: false }) as const
+    // `uncached.records` is in the order of `sources`.
+    const esm = sources.filter((_, index) => uncached.records[index]?.format === 'esm')
+    const formText = (form: RunnerForm | undefined): string | undefined =>
+      form === undefined
+        ? undefined
+        : JSON.stringify({
+            code: form.code,
+            deps: form.deps,
+            dynamicDeps: form.dynamicDeps,
+            edits: form.edits,
+          })
+    const fresh = withForm(false)
+    const freshForms = new Map(
+      esm.map(({ filename, source }) => [
+        filename,
+        formText(fresh.transform(request(filename, source)).runner),
+      ]),
+    )
+    for (let i = 0; i < TIMED_PASSES; i++) {
+      const plain = pipelineWith({ dir: cacheDir })
+      const form = withForm({ dir: formDir })
+      const oxc: number[] = []
+      const ours: number[] = []
+      const cached: number[] = []
+      for (const [index, { filename, source }] of esm.entries()) {
+        // Each way returns the record it read, so the cached one can be checked outside the timing.
+        const ways: readonly (() => TransformRecord)[] = [
+          () => {
+            const a = plain.transform(request(filename, source))
+            moduleRunnerTransformSync(filename, a.code, { sourcemap: true })
+            return a
+          },
+          () => {
+            const a = plain.transform(request(filename, source))
+            toModuleRunner(filename, a)
+            return a
+          },
+          () => {
+            const a = form.transform(request(filename, source))
+            toModuleRunner(filename, a)
+            return a
+          },
+        ]
+        const samples = [oxc, ours, cached]
+        let hit: TransformRecord | undefined
+        for (let step = 0; step < ways.length; step++) {
+          const which = (index + i + step) % ways.length
+          const start = process.hrtime.bigint()
+          const record = ways[which]?.()
+          samples[which]?.push(Number(process.hrtime.bigint() - start) / 1e6)
+          if (which === 2) hit = record
+        }
+        if (hit === undefined || hit.runner === undefined || !hit.fromCache) {
+          failures.push(`${filename}: no cached runner form`)
+        } else {
+          formCheck.hits++
+          if (formText(hit.runner) !== freshForms.get(filename)) formCheck.different++
+        }
+      }
+      route.oxc.push(oxc)
+      route.ours.push(ours)
+      route.cached.push(cached)
+    }
+    route.esmFiles = esm.length
+  } finally {
+    rmSync(formDir, { recursive: true, force: true })
+  }
+  if (formCheck.hits === 0) failures.push('no warm hit carried a runner form to check')
+  if (formCheck.different > 0) {
+    failures.push(`${formCheck.different} cached runner forms differ from the fresh ones`)
+  }
+  const routeStats = (passes: number[][]) => ({
+    median: Number(median(passes.map((times) => median(times))).toFixed(4)),
+    mean: Number((passes.flat().reduce((a, b) => a + b, 0) / passes.flat().length).toFixed(4)),
+  })
 
   const bytes = sources.reduce((sum, { source }) => sum + Buffer.byteLength(source), 0)
   const report = {
@@ -109,6 +229,14 @@ try {
         (warm.length * sources.length)
       ).toFixed(4),
     ),
+    warmRoute: {
+      esmFiles: route.esmFiles,
+      runnerFormsChecked: formCheck.hits,
+      runnerFormsDifferent: formCheck.different,
+      oxcRunner: routeStats(route.oxc),
+      ourRunner: routeStats(route.ours),
+      cachedRunnerForm: routeStats(route.cached),
+    },
     failures,
   }
   if (args.json) process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
@@ -120,6 +248,11 @@ try {
         `  no cache  median ${report.uncachedMedianMsPerFile} ms/file`,
         `  cold fill median ${report.coldMedianMsPerFile} ms/file`,
         `  warm      median ${report.warmMedianMsPerFile} ms/file (mean ${report.warmMeanMsPerFile}; passes: ${report.warmPassMediansMs.join(', ')})`,
+        `  warm route (hit + runner step, ${report.warmRoute.esmFiles} ES modules, ms/file):`,
+        `    oxc's runner transform (before B20)  median ${report.warmRoute.oxcRunner.median}  mean ${report.warmRoute.oxcRunner.mean}`,
+        `    our transform, run on every hit      median ${report.warmRoute.ourRunner.median}  mean ${report.warmRoute.ourRunner.mean}`,
+        `    runner form from the cache (Q3)      median ${report.warmRoute.cachedRunnerForm.median}  mean ${report.warmRoute.cachedRunnerForm.mean}`,
+        `    cached runner forms equal to the fresh ones: ${report.warmRoute.runnerFormsChecked - report.warmRoute.runnerFormsDifferent} of ${report.warmRoute.runnerFormsChecked} warm hits`,
         ...failures.map((failure) => `FAIL ${failure}`),
         '',
       ].join('\n'),

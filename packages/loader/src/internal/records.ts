@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { runInThisContext } from 'node:vm'
-import { LATE_IMPORT, toModuleRunner } from '@provino/transform'
+import { LATE_IMPORT, toModuleRunner, usesModuleRunnerForm } from '@provino/transform'
 import type {
   CompiledModuleEvent,
   LoaderOptions,
@@ -360,11 +360,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
     }
     // A file whose only module syntax is `import()` has no static form (`unknown`), and `import()`
     // fails in a CommonJS `vm` script, so it runs in module form (B13c Gap 6).
-    const esm =
-      transformed.format === 'esm' ||
-      (transformed.format === 'unknown' &&
-        transformed.imports.some((entry) => entry.kind === 'dynamic'))
-    if (esm) {
+    if (usesModuleRunnerForm(transformed)) {
       const runner = toModuleRunner(path, transformed)
       record = makeRecord(
         id,
@@ -567,7 +563,9 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
   const cached = mode === 'sync' ? record.compiledSync : record.compiledAsync
   if (cached !== null) return cached
   const scope = scopeOf(state, record)
-  let body = record.source
+  // A hashbang is legal only at the start of a script or module, and the wrapper puts the body
+  // inside a function, so it becomes a line comment of the same length: columns and the map hold.
+  let body = record.source.startsWith('#!') ? `//${record.source.slice(2)}` : record.source
   let inner: string
   let head = ''
   if (record.format === 'esm') {

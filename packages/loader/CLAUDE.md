@@ -68,7 +68,7 @@ Pure functions, by `ModulePolicy.interopDefault`, held to B13b's fake loader's r
 
 Read from `ModulePolicy.messages`, like the module-mock registry's. `transform-failed` (`{file}`, `{where}`, `{message}`; a code frame follows after a blank line; neutral `{file}{where}: {message}`, Jest `{file}: {message}`), `module-not-found` (`{specifier}`, `{from}` relative to the root, `{importer}`; Jest's is jest-resolve's), `unresolved-mock-import` (no neutral text; Vitest's profile appends ` imported from {importer}` when the test file's load fails on `unresolved-relative-mock`; an import from inside a test isn't wrapped). A not-found error is a `ModuleNotFoundError`, whose `name` stays `Error` (Node's and jest-resolve's are), code `MODULE_NOT_FOUND` for a `require` and `ERR_MODULE_NOT_FOUND` for an `import`.
 
-## The wrapper shape (oxc's runner output, Vite's shape)
+## The wrapper shape (the module-runner transform's output: oxc's shape, our own transform)
 
 - **Imports** become `const __vite_ssr_import_N__ = await __vite_ssr_import__('./x', { importedNames })`. Uses become `__vite_ssr_import_N__.x`, which stays live.
 - **Exports** become getters on `__vite_ssr_exports__`, hoisted above the imports, so cycles see live bindings.
@@ -76,6 +76,7 @@ Read from `ModulePolicy.messages`, like the module-mock registry's. `transform-f
 - **Other rewrites:** `import()` becomes `__vite_ssr_dynamic_import__`, and `import.meta` becomes `__vite_ssr_import_meta__`. The hoister's rewritten imports are `__provino_import__` calls.
 - **Sync evaluation:** the plain `function` wrapper, with `await __vite_ssr_import__(` and `await __provino_import__(` stripped. Only `asyncGraph` modules, and an `import` of a module with late deps, use the `async function` wrapper. The compile listener fires once per wrapper compiled.
 - **CJS** user files use Node's `(exports, require, module, __filename, __dirname)` wrapper. `require()` of an `asyncGraph` ESM module throws `ERR_REQUIRE_ASYNC_MODULE`.
+- **A hashbang** is legal only at the start of a script or module, and the wrapper puts the body inside a function, so `compile()` writes `//` over a body's leading `#!`, for both formats, before wrapping. The length is the same, so `wrapperColumnOffset` and the maps hold; the transform keeps the `#!` and puts its generated block after it.
 
 ## Not here yet (each throws `LOADER_NOT_IMPLEMENTED`, or is a stub)
 
@@ -90,7 +91,7 @@ Read from `ModulePolicy.messages`, like the module-mock registry's. `transform-f
 
 ## Gotchas
 
-- **The deprecated oxc runner transform aborts the process on unstripped TypeScript.** Only `toModuleRunner`, in `@provino/transform`, may call it, and only on the pipeline's output (DECISIONS D10).
+- **The module-runner step is `toModuleRunner`, in `@provino/transform` (B20).** Our own transform on `oxc-parser`; unstripped TypeScript is a per-file parse error, and no production file names oxc's deprecated `moduleRunnerTransformSync` (DECISIONS D10). The loader's project pipeline is made with `runnerForm: true`, so a warm record carries its runner form and `recordFor` skips the step. `deps` come in source order, so externals preload in the order the file imports them.
 - **A JSON module's `import * as`** gives `{ default }` only (Node's shape) under either interop; Babel's would carry the keys too. No golden pins it.
 - **Tests:** `loader.test.ts` (tiers, interop, isolation, invalidate), `mocks.test.ts` (T2.5's contract: every edge decides, the actual paths, reset and isolation reach the registry, scratch, lazy misses, the message codes, D38, scope bindings, `none` with mocks, no registry), `review-regressions.test.ts` (one test per pre-merge review finding), `internal/interop.test.ts`, `project.test.ts`, `inline.test.ts` (T2.6: the installed `pretty-format` → `ansi-styles` case in both file orders under `registry` and `none`, and small trees for the served-instance rule, `isolateModules`, builtins, nested copies, the budget and dynamic requires), `graph/graph.test.ts` (scan, graph, cache). The mock tests share `internal/test-support.ts` (a temp tree, small policies, a loader and a file with a real module-mock registry).
 - **Checks:**

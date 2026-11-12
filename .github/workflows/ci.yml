@@ -141,6 +141,20 @@ jobs:
           include: '^(packages/bench/|packages/harness/src/|packages/harness/sample/|packages/[^/]+/(src/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
           exclude: '^packages/[^/]+/src/.*\.test(-d)?\.ts$'
           keep: "^packages/(bench|harness)/"
+      # The `--runner vitest` legs of app-500 and mock-heavy-500 only check that the generated Vitest
+      # trees pass under real Vitest, and take about 10 minutes here (Vitest's per-file isolation
+      # fetches every module from its main process, on 4 cores). Their answer depends on the generator
+      # and check code (bench, the harness helpers it uses, the types they share), Vitest's version,
+      # Node, the root scripts and this workflow, not on Provino's packages, so they have their own,
+      # narrower scope. Jest stays in the Provino legs: Provino's statuses are compared with Jest's.
+      - id: vitest
+        name: Decide whether the Vitest legs of the suite checks run
+        uses: ./.github/actions/scope
+        with:
+          label: the Vitest legs of the suite checks
+          include: '^(packages/bench/|packages/harness/src/|packages/types/(src/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
+          exclude: '^packages/[^/]+/src/.*\.test(-d)?\.ts$'
+          keep: "^packages/(bench|harness)/"
       # What `record --check` reads (B14a): the recorder and every fixture, the runners' versions,
       # Node and the root scripts. A dialect's values aren't one: `policy-truth.test.ts` holds them
       # to the committed goldens in `pnpm test`.
@@ -170,9 +184,13 @@ jobs:
       # mock-heavy-500 (B13c) also run Provino (the `provino` bin, as a black box, all cores but one):
       # every test passes, its normalized-json parses, and each test's status equals Jest's (B11).
       - if: ${{ steps.scope.outputs.run == 'true' }}
-        run: pnpm provino-bench check app-500 --runner jest --runner vitest --runner provino
+        run: pnpm provino-bench check app-500 --runner jest --runner provino
       - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
-        run: pnpm provino-bench check mock-heavy-500 --runner jest --runner vitest --runner provino
+        run: pnpm provino-bench check mock-heavy-500 --runner jest --runner provino
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.vitest.outputs.run == 'true' }}
+        run: pnpm provino-bench check app-500 --runner vitest
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.vitest.outputs.run == 'true' }}
+        run: pnpm provino-bench check mock-heavy-500 --runner vitest
       - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
         run: pnpm provino-bench check isolate-heavy --runner jest --runner vitest
       # Re-record every fixture and fail if a golden drifted (.claude/rules/tests.md).
@@ -269,3 +287,7 @@ jobs:
       # with no process abort and every failure reported per file.
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm bench:runner-fuzz
+      # T3.13: our module-runner transform is AST-equal to oxc's on the fuzz, excalidraw and scoping
+      # corpora (or on the exemption list). Its speed is checked locally only.
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm bench:runner-diff --skip-speed

@@ -1,11 +1,10 @@
-// T2.4 / DECISIONS D10: the stopgap module-runner rewrite. This is the only caller of oxc's
-// deprecated `moduleRunnerTransformSync` ("Only works for Vite"). It aborts the whole process on
-// unstripped TypeScript, so it only ever sees the pipeline's stripped output, and any error it
-// reports becomes a per-file `TransformError`. Track 3's own transform (T3.13, B20) replaces it.
-import type { SourceMapV3, TransformRecord } from '@provino/types'
-import { moduleRunnerTransformSync } from 'oxc-transform'
+// T3.13 / DECISIONS D10: the module-runner rewrite, our own (`runner/`) in place of oxc's
+// deprecated module-runner transform. It only ever sees the pipeline's stripped output; any
+// error becomes a per-file `TransformError`, and unstripped TypeScript is a parse error.
+import type { RunnerForm, SourceMapV3, TransformRecord } from '@provino/types'
 import { TransformError } from './errors.ts'
 import { composeMaps, toSourceMapV3 } from './internal/maps.ts'
+import { mapOfEdits, RunnerParseError, rewriteModule } from './runner/apply.ts'
 
 /**
  * A module in module-runner form: imports become `__vite_ssr_import__` calls and exports become
@@ -25,41 +24,59 @@ export interface ModuleRunnerOutput {
 }
 
 /**
+ * Whether the loader runs a record in module-runner form (`toModuleRunner`): an ES module, or a
+ * file whose only module syntax is `import()` (format `unknown`), which fails in a CommonJS `vm`
+ * script and so runs as a module.
+ * @beta
+ */
+export function usesModuleRunnerForm(record: Pick<TransformRecord, 'format' | 'imports'>): boolean {
+  return (
+    record.format === 'esm' ||
+    (record.format === 'unknown' && record.imports.some((entry) => entry.kind === 'dynamic'))
+  )
+}
+
+/**
  * Rewrites a transformed ESM module into module-runner form. `record` must come from the
  * pipeline (TypeScript already stripped). Errors are thrown as `TRANSFORM_RUNNER_FAILED`,
- * naming the file.
+ * naming the file. Deterministic: the same record gives the same bytes.
  * @beta
  */
 export function toModuleRunner(filename: string, record: TransformRecord): ModuleRunnerOutput {
-  let result: ReturnType<typeof moduleRunnerTransformSync>
+  // A cached or pipeline-made runner form skips the step (`createPipeline({ runnerForm: true })`).
+  const form = record.runner ?? runnerFormOf(filename, record.code)
+  let composed: SourceMapV3 | null | undefined
+  return {
+    code: form.code,
+    get map(): SourceMapV3 | null {
+      if (composed === undefined) {
+        composed = composeMaps([
+          record.map,
+          toSourceMapV3(mapOfEdits(filename, record.code, form.edits)),
+        ])
+      }
+      return composed
+    },
+    deps: form.deps,
+    dynamicDeps: form.dynamicDeps,
+  }
+}
+
+/** The module-runner form of `code`, or the per-file `TRANSFORM_RUNNER_FAILED` error. */
+function runnerFormOf(filename: string, code: string): RunnerForm {
   try {
-    result = moduleRunnerTransformSync(filename, record.code, { sourcemap: true })
+    return rewriteModule(filename, code)
   } catch (error) {
+    if (error instanceof RunnerParseError) {
+      throw new TransformError(
+        'TRANSFORM_RUNNER_FAILED',
+        `the module-runner transform failed on ${filename}: ${error.message}`,
+      )
+    }
     throw new TransformError(
       'TRANSFORM_RUNNER_FAILED',
       `the module-runner transform failed on ${filename}`,
       { cause: error },
     )
-  }
-  const [first] = result.errors
-  if (first !== undefined) {
-    throw new TransformError(
-      'TRANSFORM_RUNNER_FAILED',
-      `the module-runner transform failed on ${filename}: ${first.message}`,
-    )
-  }
-  const { map: runnerMap } = result
-  let composed: SourceMapV3 | null | undefined
-  return {
-    code: result.code,
-    get map(): SourceMapV3 | null {
-      composed ??= composeMaps([
-        record.map,
-        runnerMap === undefined ? null : toSourceMapV3(runnerMap),
-      ])
-      return composed
-    },
-    deps: result.deps,
-    dynamicDeps: result.dynamicDeps,
   }
 }

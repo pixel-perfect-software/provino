@@ -297,7 +297,7 @@ const API_NOT_FOUND_GUARD = /\nif \(typeof globalThis\["[^\n]*\{ throw new Error
 /**
  * Real Vitest: `hoistMockAndResolve` over an oxc AST. `undefined` means it left the file alone. What
  * it leaves static (`export * from`) really does load first: the module runner moves it above
- * `vi.mock`, measured on oxc's `moduleRunnerTransformSync`.
+ * `vi.mock`, measured on oxc's module-runner transform (our own transform keeps its shape).
  */
 function referenceVitest(upstream: HoistCase, record: TransformRecord): Outcome {
   const parse = (source: string): unknown =>
