@@ -14,6 +14,7 @@ import {
   failLine,
   failureBlock,
   obsoleteBlock,
+  openHandlesText,
   passLine,
   skipLine,
   snapshotLine,
@@ -66,8 +67,9 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
   return {
     name: 'default',
 
-    'run:start'() {
+    'run:start'(_info, files) {
       state = freshState()
+      state.queued = files.length
     },
 
     // Kept until the file ends: a suite's name path is only built if that suite failed.
@@ -144,9 +146,18 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
       const parts = [
         ...unhandled,
         ...(obsolete === '' ? [] : [obsolete]),
-        summaryLines(state.files, state.tests, summary.durationMs, snapshotLine(summary.snapshots)),
+        summaryLines(
+          state.files,
+          state.tests,
+          summary.durationMs,
+          snapshotLine(summary.snapshots),
+          state.queued,
+        ),
       ]
       await print((atBlank ? parts : ['', ...parts]).join('\n'))
+      if (summary.openHandles !== undefined && summary.openHandles.length > 0) {
+        await print(openHandlesText(summary.openHandles))
+      }
     },
   }
 
@@ -186,10 +197,13 @@ interface RunState {
   /** File tallies (`todo` stays 0) and test tallies. */
   files: TestCounts
   tests: TestCounts
+  /** How many files `run:start` announced; more than `files.total` when the run ended early (bail). */
+  queued: number
 }
 
 function freshState(): RunState {
   return {
+    queued: 0,
     failures: new Map(),
     suiteFailures: new Map(),
     collected: new Map(),

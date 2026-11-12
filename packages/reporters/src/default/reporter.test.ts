@@ -91,10 +91,83 @@ describe('the default reporter', () => {
         'PASS empty.test.ts (5 ms)',
         '',
         'Test Suites: 1 passed, 1 total',
-        'Tests:       0 passed, 0 total',
+        'Tests:       0 total',
         'Time:        1.234 s',
       ),
     )
+  })
+
+  test('counts the suites that ended out of those that were queued, as Jest does after a bail', async () => {
+    const out = output()
+    const bus = createReporterBus([defaultReporter({ stream: out, report: JESTLIKE })])
+    await playRun(
+      bus,
+      [{ path: 'a.test.ts', tests: [{ path: ['fails'], state: 'fail' }, { path: ['passes'] }] }],
+      { notRun: ['b.test.ts', 'c.test.ts'] },
+    )
+    const summary = out
+      .text()
+      .split('\n')
+      .filter((line) => /^(Test Suites|Tests):/.test(line))
+    assert.deepEqual(summary, [
+      'Test Suites: 1 failed, 1 of 3 total',
+      'Tests:       1 failed, 1 passed, 2 total',
+    ])
+  })
+
+  test('prints what a run left open after the summary, in Jest’s form (--detectOpenHandles)', async () => {
+    const out = output()
+    const bus = createReporterBus([defaultReporter({ stream: out, report: JESTLIKE })])
+    await playRun(bus, [{ path: 'a.test.ts', tests: [{ path: ['leaks'] }] }], {
+      openHandles: [
+        {
+          type: 'Timeout',
+          frames: ['at Object.<anonymous> (a.test.ts:2:3)'],
+          codeFrame: [
+            "  1 | test('leaks', () => {",
+            '> 2 |   setInterval(() => {}, 1000)',
+            '    |   ^',
+            '  3 | })',
+          ].join('\n'),
+        },
+        { type: 'Timeout,Immediate', frames: ['at b (b.ts:1:1)', 'at c (c.ts:2:2)'] },
+      ],
+    })
+    const text = out.text()
+    const from = text.indexOf('\nJest has detected')
+    assert.ok(from > text.indexOf('Time:'), 'after the summary')
+    assert.equal(
+      text.slice(from),
+      lines(
+        '',
+        'Jest has detected the following 2 open handles potentially keeping Jest from exiting:',
+        '',
+        '  ●  Timeout',
+        '',
+        "      1 | test('leaks', () => {",
+        '    > 2 |   setInterval(() => {}, 1000)',
+        '        |   ^',
+        '      3 | })',
+        '',
+        '      at Object.<anonymous> (a.test.ts:2:3)',
+        '',
+        '',
+        '  ●  Timeout,Immediate',
+        '',
+        '      at b (b.ts:1:1)',
+        '      at c (c.ts:2:2)',
+        '',
+      ),
+    )
+  })
+
+  test('says "1 open handle" for one', async () => {
+    const out = output()
+    const bus = createReporterBus([defaultReporter({ stream: out, report: JESTLIKE })])
+    await playRun(bus, [{ path: 'a.test.ts', tests: [{ path: ['x'] }] }], {
+      openHandles: [{ type: 'Timeout', frames: ['at a (a.ts:1:1)'] }],
+    })
+    assert.match(out.text(), /following 1 open handle potentially/)
   })
 
   test('shows a project’s display name before its file, as Jest’s header does', async () => {
@@ -138,7 +211,7 @@ describe('the default reporter', () => {
         '      at Object.<anonymous> (c.test.ts:5:10)',
         '      at run (runner.ts:1:1)',
         '',
-        'Test Suites: 1 failed, 0 passed, 1 total',
+        'Test Suites: 1 failed, 1 total',
         'Tests:       1 failed, 1 passed, 2 total',
         'Time:        1.234 s',
       ),
@@ -223,8 +296,8 @@ describe('the default reporter', () => {
         '',
         "    ImportError: Cannot find module './missing.ts'",
         '',
-        'Test Suites: 1 failed, 0 passed, 1 total',
-        'Tests:       0 passed, 0 total',
+        'Test Suites: 1 failed, 1 total',
+        'Tests:       0 total',
         'Time:        1.234 s',
       ),
     )
