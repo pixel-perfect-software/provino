@@ -136,10 +136,8 @@ try {
     pass(withForm({ dir: formDir }))
     const request = (filename: string, source: string) =>
       ({ filename, source, role: 'source', consumer: 'import', instrument: false }) as const
-    const esm = sources.filter(({ filename, source }) => {
-      const record = pipelineWith({ dir: cacheDir }).transform(request(filename, source))
-      return record.format === 'esm'
-    })
+    // `uncached.records` is in the order of `sources`.
+    const esm = sources.filter((_, index) => uncached.records[index]?.format === 'esm')
     const formText = (form: RunnerForm | undefined): string | undefined =>
       form === undefined
         ? undefined

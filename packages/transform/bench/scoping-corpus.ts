@@ -1,5 +1,6 @@
 // The scoping corpus of B20 (T3.13): hand-written cases in groups, and a seeded generator of
 // programs that mix imports with every construct that can shadow them. Test-only.
+import { pick, random } from './corpus.ts'
 
 export interface Case {
   readonly id: string
@@ -9,7 +10,7 @@ export interface Case {
 const IMPORTS = "import def, { a, b as c } from 'm1'\nimport * as ns from 'm2'\n"
 
 /** Hand-written cases by group; each `source` is a whole module. */
-export const SCOPING_GROUPS: Readonly<Record<string, readonly string[]>> = {
+const SCOPING_GROUPS: Readonly<Record<string, readonly string[]>> = {
   'shadow-parameter': [
     'function f(a) { return a }\nexport const r = f(1) + a',
     'const f = (a) => a\nexport const r = [f(1), a]',
@@ -354,18 +355,6 @@ export const SCOPING_CASES: readonly Case[] = Object.entries(SCOPING_GROUPS).fla
     })),
 )
 
-/** mulberry32: a small seeded PRNG, so a corpus is the same on every run. */
-export function random(seed: number): () => number {
-  let state = seed >>> 0
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0
-    let t = state
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
 const IMPORT_NAMES = ['a', 'c', 'def', 'ns'] as const
 const OTHER_NAMES = ['x', 'y'] as const
 const ALL_NAMES = [...IMPORT_NAMES, ...OTHER_NAMES] as const
@@ -393,11 +382,10 @@ interface Scope {
  */
 export function generateScopingPrograms(count: number, seed: number): Case[] {
   const next = random(seed)
-  const pick = <T>(items: readonly T[]): T => items[Math.floor(next() * items.length)] as T
   const chance = (p: number): boolean => next() < p
 
   function use(): string {
-    const name = pick(ALL_NAMES)
+    const name = pick(next, ALL_NAMES)
     switch (Math.floor(next() * 14)) {
       case 0:
         return `${name}()`
@@ -437,7 +425,7 @@ export function generateScopingPrograms(count: number, seed: number): Case[] {
   }
 
   function pattern(): { text: string; names: string[] } {
-    const first = pick(ALL_NAMES)
+    const first = pick(next, ALL_NAMES)
     switch (Math.floor(next() * 6)) {
       case 0:
         return { text: first, names: [first] }
@@ -446,9 +434,9 @@ export function generateScopingPrograms(count: number, seed: number): Case[] {
       case 2:
         return { text: `[${first}]`, names: [first] }
       case 3:
-        return { text: `{ k: ${first} = ${pick(ALL_NAMES)} }`, names: [first] }
+        return { text: `{ k: ${first} = ${pick(next, ALL_NAMES)} }`, names: [first] }
       case 4:
-        return { text: `[${first} = ${pick(ALL_NAMES)}]`, names: [first] }
+        return { text: `[${first} = ${pick(next, ALL_NAMES)}]`, names: [first] }
       default:
         return { text: `...${first}`, names: [first] }
     }
@@ -504,7 +492,7 @@ export function generateScopingPrograms(count: number, seed: number): Case[] {
   }
 
   function declaration(kind: 'let' | 'const' | 'var'): string {
-    const name = pick(ALL_NAMES)
+    const name = pick(next, ALL_NAMES)
     if (kind === 'var') {
       if (!varFree(name)) return exprStatement()
       declareVar(name)
@@ -512,7 +500,7 @@ export function generateScopingPrograms(count: number, seed: number): Case[] {
       if (!lexicalFree(name)) return exprStatement()
       here().lexical.add(name)
     }
-    return `${kind} ${name} = ${chance(0.5) ? pick(ALL_NAMES) : '1'}`
+    return `${kind} ${name} = ${chance(0.5) ? pick(next, ALL_NAMES) : '1'}`
   }
 
   function statement(depth: number): string {
@@ -531,7 +519,7 @@ export function generateScopingPrograms(count: number, seed: number): Case[] {
         return declaration('var')
       case 6: {
         const params = pattern()
-        const name = `${pick(OTHER_NAMES)}${depth}`
+        const name = `${pick(next, OTHER_NAMES)}${depth}`
         // Two functions of one name in a block are a duplicate declaration in a module.
         if (!lexicalFree(name)) return exprStatement()
         here().lexical.add(name)
@@ -544,32 +532,32 @@ export function generateScopingPrograms(count: number, seed: number): Case[] {
       case 8:
         return `{ ${block(depth + 1)} }`
       case 9: {
-        const name = pick(ALL_NAMES)
+        const name = pick(next, ALL_NAMES)
         const tried = block(depth + 1)
         return `try { ${tried} } catch (${chance(0.7) ? name : `{ k: ${name} }`}) { ${block(depth + 1, { lexical: [name] })} }`
       }
       case 10: {
-        const name = pick(ALL_NAMES)
+        const name = pick(next, ALL_NAMES)
         return `for (let ${name} = 0; ${name} < 1; ${name}++) { ${block(depth + 1, { lexical: [name] })} }`
       }
       case 11: {
-        const name = pick(ALL_NAMES)
+        const name = pick(next, ALL_NAMES)
         return `for (const ${name} of [1]) { ${block(depth + 1, { lexical: [name] })} }`
       }
       case 12:
-        return `switch (${pick(ALL_NAMES)}) { case ${pick(ALL_NAMES)}: ${block(depth + 1)}\n break; default: ${exprStatement()} }`
+        return `switch (${pick(next, ALL_NAMES)}) { case ${pick(next, ALL_NAMES)}: ${block(depth + 1)}\n break; default: ${exprStatement()} }`
       case 13: {
-        const name = pick(ALL_NAMES)
+        const name = pick(next, ALL_NAMES)
         const cls = `K${depth}_${Math.floor(next() * 1e6)}`
         if (!lexicalFree(cls)) return exprStatement()
         here().lexical.add(cls)
-        return `class ${cls} extends ${pick(ALL_NAMES)} { static ${chance(0.5) ? 'v' : `[${name}]`} = ${pick(ALL_NAMES)}; m(${name}) { ${block(depth + 1, { params: [name], isFunction: true })} } }`
+        return `class ${cls} extends ${pick(next, ALL_NAMES)} { static ${chance(0.5) ? 'v' : `[${name}]`} = ${pick(next, ALL_NAMES)}; m(${name}) { ${block(depth + 1, { params: [name], isFunction: true })} } }`
       }
       case 14:
-        return `if (${pick(ALL_NAMES)}) ${exprStatement('')}\nelse ${exprStatement('')}`
+        return `if (${pick(next, ALL_NAMES)}) ${exprStatement('')}\nelse ${exprStatement('')}`
       default: {
-        const name = pick(OTHER_NAMES)
-        const declared = pick(ALL_NAMES)
+        const name = pick(next, OTHER_NAMES)
+        const declared = pick(next, ALL_NAMES)
         return `out.push(function ${name}() { var ${declared}; ${block(depth + 1, { vars: [declared], isFunction: true })} })`
       }
     }
@@ -588,9 +576,9 @@ export function generateScopingPrograms(count: number, seed: number): Case[] {
     // Names `x` and `y` are free (no declaration): the generator treats them as ordinary globals.
     lines.push(block(0, { lexical: ['out', ...IMPORT_NAMES], isFunction: true }))
     if (chance(REDECLARE_SHARE)) {
-      const name = pick(IMPORT_NAMES)
+      const name = pick(next, IMPORT_NAMES)
       lines.push(
-        pick([
+        pick(next, [
           `let ${name} = 1`,
           `const ${name} = 1`,
           `var ${name} = 1`,
@@ -599,9 +587,9 @@ export function generateScopingPrograms(count: number, seed: number): Case[] {
         ]),
       )
     }
-    if (chance(0.3)) lines.push(`export const r$I = ${pick(IMPORT_NAMES)}`)
-    if (chance(0.2)) lines.push(`export default ${pick(IMPORT_NAMES)}`)
-    if (chance(0.2)) lines.push(`export { ${pick(IMPORT_NAMES)} as e$I }`)
+    if (chance(0.3)) lines.push(`export const r$I = ${pick(next, IMPORT_NAMES)}`)
+    if (chance(0.2)) lines.push(`export default ${pick(next, IMPORT_NAMES)}`)
+    if (chance(0.2)) lines.push(`export { ${pick(next, IMPORT_NAMES)} as e$I }`)
     const text = `${lines.join('\n')}\n`
     if (seen.has(text)) continue
     seen.add(text)

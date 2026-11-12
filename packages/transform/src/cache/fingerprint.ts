@@ -52,10 +52,10 @@ export interface FingerprintInputs {
   /** The Jest host's fingerprint (rules, options, ignore patterns, config), or `null`. */
   readonly transformers: string | null
   /**
-   * The version of the module-runner form (`RUNNER_FORM_VERSION`) when records carry one, else
-   * `null`: a change to how the form is made, or to whether it is kept, misses every entry.
+   * Whether records carry the module-runner form: keeping it or not misses every entry. A change
+   * to how the form is made is `code`'s (the hash covers `runner/`).
    */
-  readonly runnerForm: string | null
+  readonly runnerForm: boolean
 }
 
 /**

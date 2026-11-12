@@ -16,6 +16,7 @@ import {
   type TransformError,
   type TransformErrorCode,
   toModuleRunner,
+  usesModuleRunnerForm,
 } from '@provino/transform'
 import type {
   ModuleTransformer,
@@ -74,6 +75,13 @@ form.deps.push('./x')
 // @ts-expect-error `toModuleRunner` takes a record, not code
 toModuleRunner('/a.ts', 'export {}')
 expectTypeOf(toModuleRunner).returns.toEqualTypeOf<ModuleRunnerOutput>()
+// The one predicate for "the loader runs this record in module-runner form".
+expectTypeOf(usesModuleRunnerForm).returns.toEqualTypeOf<boolean>()
+declare const record: TransformRecord
+usesModuleRunnerForm(record)
+usesModuleRunnerForm({ format: 'unknown', imports: [] })
+// @ts-expect-error it reads the record's format and imports, not its code
+usesModuleRunnerForm('export {}')
 
 // T3.8: the Jest transformer host. It is created from the serialized config, in the worker.
 declare const transformConfig: SerializedTransformConfig

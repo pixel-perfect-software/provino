@@ -76,6 +76,7 @@ Read from `ModulePolicy.messages`, like the module-mock registry's. `transform-f
 - **Other rewrites:** `import()` becomes `__vite_ssr_dynamic_import__`, and `import.meta` becomes `__vite_ssr_import_meta__`. The hoister's rewritten imports are `__provino_import__` calls.
 - **Sync evaluation:** the plain `function` wrapper, with `await __vite_ssr_import__(` and `await __provino_import__(` stripped. Only `asyncGraph` modules, and an `import` of a module with late deps, use the `async function` wrapper. The compile listener fires once per wrapper compiled.
 - **CJS** user files use Node's `(exports, require, module, __filename, __dirname)` wrapper. `require()` of an `asyncGraph` ESM module throws `ERR_REQUIRE_ASYNC_MODULE`.
+- **A hashbang** is legal only at the start of a script or module, and the wrapper puts the body inside a function, so `compile()` writes `//` over a body's leading `#!`, for both formats, before wrapping. The length is the same, so `wrapperColumnOffset` and the maps hold; the transform keeps the `#!` and puts its generated block after it.
 
 ## Not here yet (each throws `LOADER_NOT_IMPLEMENTED`, or is a stub)
 

@@ -1,16 +1,5 @@
 // The seeded TypeScript corpus of `bench:runner-fuzz` (T2.4), shared with `bench:runner-diff`.
-
-/** mulberry32: a small seeded PRNG, so the corpus is the same on every run. */
-function random(seed: number): () => number {
-  let state = seed >>> 0
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0
-    let t = state
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
+import { pick, random } from './corpus.ts'
 
 /** Snippets of TS syntax; `@@` is replaced with a per-file unique suffix. */
 const SNIPPETS: readonly string[] = [
@@ -66,13 +55,12 @@ export interface Generated {
 /** The corpus of `files` files from `seed`; 2% are broken on purpose. */
 export function generateFuzzCorpus(files: number, seed: number): Generated[] {
   const next = random(seed)
-  const pick = <T>(items: readonly T[]): T => items[Math.floor(next() * items.length)] as T
   const corpus: Generated[] = []
   for (let i = 0; i < files; i++) {
     const tsx = next() < 0.1
     const parts: string[] = []
     const count = 3 + Math.floor(next() * 6)
-    for (let j = 0; j < count; j++) parts.push(pick(SNIPPETS).replaceAll('@@', `_${i}_${j}`))
+    for (let j = 0; j < count; j++) parts.push(pick(next, SNIPPETS).replaceAll('@@', `_${i}_${j}`))
     if (tsx) parts.push(JSX_SNIPPET.replaceAll('@@', `_${i}`))
     const broken = next() < BROKEN_SHARE
     if (broken) parts.splice(Math.floor(next() * parts.length), 0, BROKEN_SNIPPET)

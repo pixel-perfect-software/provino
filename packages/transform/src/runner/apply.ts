@@ -10,32 +10,12 @@
 //
 // The edits are plain `{ start, end, text }` records applied by slicing; `magic-string` is only
 // built, from the same records, when something reads the source map.
-import type { RunnerEdit } from '@provino/types'
+import type { RunnerEdit, RunnerForm } from '@provino/types'
 import MagicString from 'magic-string'
-import {
-  type Node,
-  type ParserOptions,
-  parseSync,
-  rawTransferSupported,
-  type StringLiteral,
-} from 'oxc-parser'
-import { exportName } from '../hoist/ast.ts'
+import { type ParserOptions, parseSync, rawTransferSupported, type StringLiteral } from 'oxc-parser'
+import { exportName, targetNames } from '../hoist/ast.ts'
+import { CONTINUES_LINE, skipTrivia } from '../internal/trivia.ts'
 import { type ImportBinding, isImportReference, walkProgram } from './analyse.ts'
-
-/**
- * Bump when the module-runner form changes for the same input: it is part of the pipeline
- * fingerprint (`runnerForm`), so every cached runner form is made again.
- */
-export const RUNNER_FORM_VERSION = '2'
-
-export interface RewrittenModule {
-  readonly code: string
-  /** The edits that turned the input into `code`, for the lazily built source map. */
-  readonly edits: readonly RunnerEdit[]
-  /** Static specifiers (imports and re-exports), in source order, each once. */
-  readonly deps: readonly string[]
-  readonly dynamicDeps: readonly string[]
-}
 
 /** The parser's own message for the first error in the file. */
 export class RunnerParseError extends Error {}
@@ -53,8 +33,6 @@ const OPTIONS: Options = {
 }
 
 const IDENTIFIER = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200c\u200d]*$/u
-// A token the next statement may start with that would continue the one before it.
-const CONTINUES_LINE = /[([+\-/<`]/
 
 function member(object: string, name: string): string {
   return IDENTIFIER.test(name) ? `${object}.${name}` : `${object}[${JSON.stringify(name)}]`
@@ -64,57 +42,17 @@ function getter(name: string, value: string): string {
   return `Object.defineProperty(__vite_ssr_exports__, ${JSON.stringify(name)}, { enumerable: true, configurable: true, get() { return ${value}; } });`
 }
 
-/** The names a binding pattern declares, in source order. */
-function patternNames(pattern: Node | null, into: string[]): string[] {
-  switch (pattern?.type) {
-    case 'Identifier':
-      into.push(pattern.name)
-      break
-    case 'ObjectPattern':
-      for (const property of pattern.properties) {
-        patternNames(property.type === 'Property' ? property.value : property, into)
-      }
-      break
-    case 'ArrayPattern':
-      for (const element of pattern.elements) patternNames(element, into)
-      break
-    case 'AssignmentPattern':
-      patternNames(pattern.left, into)
-      break
-    case 'RestElement':
-      patternNames(pattern.argument, into)
-      break
-    default:
-      break
-  }
-  return into
-}
-
-function skipTrivia(code: string, from: number): number {
-  let i = from
-  for (;;) {
-    const c = code.charCodeAt(i)
-    if (c === 32 || c === 9 || c === 10 || c === 13) i++
-    else if (c === 47 && code.charCodeAt(i + 1) === 47) {
-      while (i < code.length && code.charCodeAt(i) !== 10) i++
-    } else if (c === 47 && code.charCodeAt(i + 1) === 42) {
-      const close = code.indexOf('*/', i + 2)
-      i = close === -1 ? code.length : close + 2
-    } else return i
-  }
-}
-
 /** `;` where removing a statement would let the next one continue the line before. */
 function removal(code: string, start: number, end: number): RunnerEdit {
   const next = code[skipTrivia(code, end)]
-  return { start, end, text: next !== undefined && CONTINUES_LINE.test(next) ? ';' : '' }
+  return { start, end, text: next !== undefined && CONTINUES_LINE.has(next) ? ';' : '' }
 }
 
 /**
  * Rewrites `code` (stripped, hoisted JavaScript) into module-runner form.
  * @throws RunnerParseError when the parser reports an error, with its text.
  */
-export function rewriteModule(filename: string, code: string): RewrittenModule {
+export function rewriteModule(filename: string, code: string): RunnerForm {
   const parsed = parseSync(filename, code, OPTIONS)
   for (const error of parsed.errors) {
     if (String(error.severity) === 'Error') throw new RunnerParseError(error.message)
@@ -197,7 +135,7 @@ export function rewriteModule(filename: string, code: string): RewrittenModule {
         if (declaration !== null) {
           if (declaration.type === 'VariableDeclaration') {
             for (const declarator of declaration.declarations) {
-              for (const name of patternNames(declarator.id, [])) getters.push(getter(name, name))
+              for (const name of targetNames(declarator.id)) getters.push(getter(name, name))
             }
           } else if (declaration.id?.type === 'Identifier') {
             getters.push(getter(declaration.id.name, declaration.id.name))
@@ -300,12 +238,6 @@ export function rewriteModule(filename: string, code: string): RewrittenModule {
       } else break
     }
     edits.push({ start: at, end: at, text: at === 0 ? `${block}\n` : `${guard}\n${block}\n` })
-  }
-  // A hashbang is legal only at the start of a script or module, and the loader runs this code
-  // inside a function, so it becomes a line comment of the same length: columns and the map hold.
-  if (program.hashbang != null) {
-    const start = program.hashbang.start
-    edits.push({ start, end: start + 2, text: '//' })
   }
 
   if (edits.length === 0) return { code, edits, deps: [...deps], dynamicDeps: [...dynamicDeps] }

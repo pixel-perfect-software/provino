@@ -14,11 +14,6 @@ export interface Exemption {
    * equal, with those references read alike (`Relax` in `runner-oracle.ts`).
    */
   readonly relax?: true
-  /**
-   * Oracle A's output with this entry's difference made, which ours must then equal in full: the
-   * entry covers that one change and nothing else in the file.
-   */
-  readonly expect?: (expected: OracleResult) => OracleResult
 }
 
 export const EXEMPTIONS: readonly Exemption[] = [
@@ -35,15 +30,5 @@ export const EXEMPTIONS: readonly Exemption[] = [
       'Two `export default` declarations are a SyntaxError in JavaScript. oxc parsed the stripped code as TypeScript (a `.ts` name), where they read as overloads, and emitted two `__vite_ssr_export_default__` constants. We parse JavaScript and report it.',
     applies: (_input, expected, actual) =>
       expected.error === null && actual.error === 'A module cannot have multiple default exports.',
-  },
-  {
-    id: 'hashbang-becomes-comment',
-    reason:
-      "A hashbang is legal only at the start of a script or module. The loader runs this code inside a function, where oxc's kept `#!` is a SyntaxError, though native ESM runs the file. We write `//` in its place, the same length, so columns and the map hold.",
-    applies: (input) => input.startsWith('#!'),
-    expect: (expected) =>
-      expected.code?.startsWith('#!') === true
-        ? { ...expected, code: `//${expected.code.slice(2)}` }
-        : expected,
   },
 ]

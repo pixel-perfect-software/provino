@@ -117,7 +117,8 @@ export function ours(filename: string, code: string): OracleResult {
   }
 }
 
-const EMPTY_RECORD: TransformRecord = {
+/** A record with nothing but `code` to fill in: what `toModuleRunner` needs of a stripped file. */
+export const EMPTY_RECORD: TransformRecord = {
   code: '',
   map: null,
   diagnostics: [],
@@ -141,14 +142,6 @@ export function exportNames(code: string): string[] {
   return names.sort()
 }
 
-/**
- * Compares our output with oracle A's. Returns the reason they differ, or `null` when they have
- * equal ASTs, errors, `deps` as sets, `dynamicDeps` and export names.
- */
-export function compareWithOracle(filename: string, code: string): string | null {
-  return compareOutputs(filename, oracleA(filename, code), ours(filename, code))
-}
-
 function defaultImportNames(input: string): ReadonlySet<string> {
   const names = new Set<string>()
   for (const match of input.matchAll(/\bimport\s+([\w$]+)\s*,\s*\*\s*as\b/g)) {
@@ -164,7 +157,7 @@ export interface Verdict {
   readonly exemption: string | null
 }
 
-/** `compareWithOracle` plus the exemption list: a difference an entry covers is not a failure. */
+/** `compareOutputs` plus the exemption list: a difference an entry covers is not a failure. */
 export function judge(
   filename: string,
   input: string,
@@ -175,19 +168,20 @@ export function judge(
   if (strict === null) return { reason: null, exemption: null }
   for (const entry of EXEMPTIONS) {
     if (!entry.applies(input, expected, actual)) continue
-    if (entry.relax === undefined && entry.expect === undefined) {
-      return { reason: null, exemption: entry.id }
-    }
-    const reference = entry.expect?.(expected) ?? expected
-    const defaults = entry.relax === undefined ? undefined : defaultImportNames(input)
-    if (compareOutputs(filename, reference, actual, defaults) === null) {
+    if (
+      entry.relax === undefined ||
+      compareOutputs(filename, expected, actual, defaultImportNames(input)) === null
+    ) {
       return { reason: null, exemption: entry.id }
     }
   }
   return { reason: strict, exemption: null }
 }
 
-/** The comparison `compareWithOracle` makes, on two results already in hand. */
+/**
+ * Compares our output with oracle A's, both already in hand. Returns the reason they differ, or
+ * `null` when they have equal ASTs, errors, `deps` as sets, `dynamicDeps` and export names.
+ */
 export function compareOutputs(
   filename: string,
   expected: OracleResult,

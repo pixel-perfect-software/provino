@@ -1,5 +1,6 @@
 // What the transform benches share: the excalidraw corpus of T3.5 (the committed file list, and
-// the source in `.refs/excalidraw`), and the median.
+// the source in `.refs/excalidraw`), the median, the seeded generator the generated corpora use and
+// the command-line parsing.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -42,6 +43,23 @@ export function median(values: readonly number[]): number {
   return sorted.length % 2 === 1
     ? (sorted[mid] ?? 0)
     : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
+}
+
+/** mulberry32: a small seeded PRNG, so a generated corpus is the same on every run. */
+export function random(seed: number): () => number {
+  let state = seed >>> 0
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0
+    let t = state
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** One of `items`, chosen by `next` (a `random` generator). */
+export function pick<T>(next: () => number, items: readonly T[]): T {
+  return items[Math.floor(next() * items.length)] as T
 }
 
 /** A command-line mistake: the message is the one line printed before exiting with code 2. */

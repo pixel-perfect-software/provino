@@ -24,6 +24,19 @@ export interface ModuleRunnerOutput {
 }
 
 /**
+ * Whether the loader runs a record in module-runner form (`toModuleRunner`): an ES module, or a
+ * file whose only module syntax is `import()` (format `unknown`), which fails in a CommonJS `vm`
+ * script and so runs as a module.
+ * @beta
+ */
+export function usesModuleRunnerForm(record: Pick<TransformRecord, 'format' | 'imports'>): boolean {
+  return (
+    record.format === 'esm' ||
+    (record.format === 'unknown' && record.imports.some((entry) => entry.kind === 'dynamic'))
+  )
+}
+
+/**
  * Rewrites a transformed ESM module into module-runner form. `record` must come from the
  * pipeline (TypeScript already stripped). Errors are thrown as `TRANSFORM_RUNNER_FAILED`,
  * naming the file. Deterministic: the same record gives the same bytes.
@@ -65,18 +78,5 @@ function runnerFormOf(filename: string, code: string): RunnerForm {
       `the module-runner transform failed on ${filename}`,
       { cause: error },
     )
-  }
-}
-
-/**
- * The runner form the pipeline attaches to a record, or `undefined` when the step fails (the
- * failure then surfaces, named, when the loader calls `toModuleRunner`).
- * @internal
- */
-export function tryRunnerForm(filename: string, code: string): RunnerForm | undefined {
-  try {
-    return rewriteModule(filename, code)
-  } catch {
-    return undefined
   }
 }

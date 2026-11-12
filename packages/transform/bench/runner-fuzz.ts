@@ -9,18 +9,27 @@
 //          [--files 10000] [--seed 1] [--json]
 import { parseArgs } from 'node:util'
 import { createPipeline, TransformError, toModuleRunner } from '@provino/transform'
+import { parseOrExitUsage, parsePositiveInt } from './corpus.ts'
 import { generateFuzzCorpus } from './fuzz-corpus.ts'
 
-const { values: args } = parseArgs({
-  options: {
-    files: { type: 'string', default: '10000' },
-    seed: { type: 'string', default: '1' },
-    json: { type: 'boolean', default: false },
-  },
+// Parsed before any work, so a mistyped size stops the run (exit 2): `Number('abc')` is NaN, which
+// generates no files.
+const args = parseOrExitUsage('bench:runner-fuzz', () => {
+  const { values } = parseArgs({
+    options: {
+      files: { type: 'string', default: '10000' },
+      seed: { type: 'string', default: '1' },
+      json: { type: 'boolean', default: false },
+    },
+  })
+  return {
+    files: parsePositiveInt('files', values.files),
+    seed: parsePositiveInt('seed', values.seed),
+    json: values.json,
+  }
 })
-const FILES = Number(args.files)
 
-const corpus = generateFuzzCorpus(FILES, Number(args.seed))
+const corpus = generateFuzzCorpus(args.files, args.seed)
 
 const pipeline = createPipeline({
   root: '/fuzz',

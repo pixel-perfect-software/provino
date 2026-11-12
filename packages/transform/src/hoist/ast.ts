@@ -95,7 +95,7 @@ export function isDirective(node: Node): boolean {
 }
 
 /** The identifiers a binding pattern or assignment target writes; member targets write none. */
-function targetNames(node: Node | null, into: string[] = []): string[] {
+export function targetNames(node: Node | null, into: string[] = []): string[] {
   switch (node?.type) {
     case 'Identifier':
       into.push(node.name)

@@ -164,6 +164,30 @@ test('CommonJS user modules: require, module.exports and the default interop', a
   )
 })
 
+test('a hashbang starts a module and a CommonJS file, as Node reads them', async () => {
+  const root = writeTree({
+    'dep.js': 'export const base = 40\n',
+    'cli.mjs':
+      "#!/usr/bin/env node\nimport { base } from './dep.js'\nexport const answer = base + 2\n",
+    'plain.mjs': '#!/usr/bin/env node\nexport const plain = 1\n',
+    'tool.cjs': '#!/usr/bin/env node\nexports.ok = true\nexports.sum = 1 + 2\n',
+    'entry.test.ts':
+      "import { answer } from './cli.mjs'\nimport { plain } from './plain.mjs'\nimport tool from './tool.cjs'\nexport { answer, plain, tool }\n",
+  })
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  const entry = await registry.import<{
+    answer: number
+    plain: number
+    tool: { ok: boolean; sum: number }
+  }>(join(root, 'entry.test.ts'))
+  assert.equal(entry.answer, 42)
+  assert.equal(entry.plain, 1)
+  assert.deepEqual(entry.tool, { ok: true, sum: 3 })
+  assert.equal(registry.require<{ ok: boolean }>(join(root, 'tool.cjs')).ok, true)
+})
+
 test('JSON, builtins, import.meta and dynamic import', async () => {
   const root = writeTree({
     'data.json': '{ "answer": 42 }\n',

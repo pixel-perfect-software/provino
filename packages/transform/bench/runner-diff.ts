@@ -21,6 +21,7 @@
 // that is not a whole number of 1 or more) exits with code 2 before any work. Exit 1: a problem.
 import { parseArgs } from 'node:util'
 import { createPipeline, toModuleRunner } from '@provino/transform'
+import type { TransformRecord } from '@provino/types'
 import { moduleRunnerTransformSync } from 'oxc-transform'
 import {
   DEFAULT_ROOT,
@@ -36,6 +37,7 @@ import { generateFuzzCorpus } from './fuzz-corpus.ts'
 import { EXEMPTIONS } from './runner-exemptions.ts'
 import {
   compareExecutions,
+  EMPTY_RECORD,
   execute,
   judge,
   type OracleResult,
@@ -108,14 +110,12 @@ const pipeline = createPipeline({
   cache: false,
 })
 
+function transformFile(filename: string, source: string, role: 'test' | 'source'): TransformRecord {
+  return pipeline.transform({ filename, source, role, consumer: 'import', instrument: false })
+}
+
 function stripped(filename: string, source: string, role: 'test' | 'source'): string | null {
-  const record = pipeline.transform({
-    filename,
-    source,
-    role,
-    consumer: 'import',
-    instrument: false,
-  })
+  const record = transformFile(filename, source, role)
   if (record.diagnostics.some((d) => d.severity === 'error')) return null
   return record.code
 }
@@ -147,19 +147,17 @@ for (const file of generateFuzzCorpus(args.fuzzFiles, 1)) {
     items.push({ corpus: 'fuzz', id: file.filename, filename: file.filename, code })
 }
 const manifest = readManifest()
-const excalidraw: { filename: string; code: string; rel: string }[] = []
+const excalidraw: { filename: string; source: string; code: string }[] = []
 for (const { filename, source } of readSources(args.root, manifest)) {
-  const record = pipeline.transform({
-    filename,
-    source,
-    role: 'source',
-    consumer: 'import',
-    instrument: false,
-  })
+  const record = transformFile(filename, source, 'source')
   if (record.format !== 'esm' || record.diagnostics.some((d) => d.severity === 'error')) continue
-  const rel = filename.slice(args.root.length + 1)
-  excalidraw.push({ filename, code: record.code, rel })
-  items.push({ corpus: 'excalidraw', id: rel, filename, code: record.code })
+  excalidraw.push({ filename, source, code: record.code })
+  items.push({
+    corpus: 'excalidraw',
+    id: filename.slice(args.root.length + 1),
+    filename,
+    code: record.code,
+  })
 }
 for (const { id, source } of [...SCOPING_CASES, ...generateScopingPrograms(args.scopingFiles, 1)]) {
   items.push({ corpus: 'scoping', id, filename: `/${id}.js`, code: source })
@@ -244,8 +242,8 @@ if (!args.skipDiff) {
     if ((counts.get(corpus)?.files ?? 0) === 0) problems.push(`${corpus}: compared 0 files`)
   }
   // Oracle B: every fuzz file both transforms made code for (and no exemption covers), run beside
-  // each other: about 0.65 s for 8,130 files, `local`, so none is left out. A file that neither side
-  // can compile (decorators, `accessor`) is counted apart: it ran nothing.
+  // each other, so none is left out. A file that neither side can compile (decorators, `accessor`)
+  // is counted apart: it ran nothing.
   const start = process.hrtime.bigint()
   for (const file of runnable) {
     executed.offered++
@@ -280,37 +278,19 @@ if (!args.skipSpeed) {
   const oracleTimes = excalidraw.map(() => [] as number[])
   const ourTimes = excalidraw.map(() => [] as number[])
   const first = process.hrtime.bigint()
-  toModuleRunner('/first.js', {
-    ...pipeline.transform({
-      filename: '/first.ts',
-      source: 'export const a = 1',
-      role: 'source',
-      consumer: 'import',
-      instrument: false,
-    }),
-  })
+  toModuleRunner('/first.js', transformFile('/first.ts', 'export const a = 1', 'source'))
   speed.firstCallMs = ns(first)
   for (let pass = 0; pass < passes + 1; pass++) {
     for (let i = 0; i < excalidraw.length; i++) {
       const file = excalidraw[i]
       if (file === undefined) continue
-      const record = {
-        code: file.code,
-        map: null,
-        diagnostics: [],
-        imports: [],
-        staticMocks: [],
-        lateDeps: [],
-        format: 'esm' as const,
-        hasTopLevelAwait: false,
-        cacheKey: '',
-      }
+      const record: TransformRecord = { ...EMPTY_RECORD, code: file.code }
       // Alternate who goes first, so neither one always runs on a cold cache line.
       const order = (i + pass) % 2 === 0
       for (const which of order ? [0, 1] : [1, 0]) {
         const start = process.hrtime.bigint()
         if (which === 0) moduleRunnerTransformSync(file.filename, file.code, { sourcemap: true })
-        else toModuleRunner(file.filename, record as never)
+        else toModuleRunner(file.filename, record)
         const elapsed = ns(start)
         if (pass > 0) (which === 0 ? oracleTimes : ourTimes)[i]?.push(elapsed)
       }
@@ -324,21 +304,12 @@ if (!args.skipSpeed) {
   speed.ours = summary(ourTimes)
   // The route: the pipeline then the runner, per file, as the loader runs them on a cold cache.
   const route = excalidraw.map(() => [] as number[])
-  const sources = readSources(args.root, manifest)
-  const sourceOf = new Map(sources.map((s) => [s.filename, s.source]))
   for (let pass = 0; pass < passes; pass++) {
     for (let i = 0; i < excalidraw.length; i++) {
       const file = excalidraw[i]
-      const source = file === undefined ? undefined : sourceOf.get(file.filename)
-      if (file === undefined || source === undefined) continue
+      if (file === undefined) continue
       const start = process.hrtime.bigint()
-      const record = pipeline.transform({
-        filename: file.filename,
-        source,
-        role: 'source',
-        consumer: 'import',
-        instrument: false,
-      })
+      const record = transformFile(file.filename, file.source, 'source')
       toModuleRunner(file.filename, record)
       route[i]?.push(ns(start))
     }

@@ -30,8 +30,8 @@ import {
   loadEmitOptions,
 } from './internal/tsconfig.ts'
 import type { HostedSource, JestHost } from './jest-host/index.ts'
-import { tryRunnerForm } from './module-runner.ts'
-import { RUNNER_FORM_VERSION } from './runner/apply.ts'
+import { usesModuleRunnerForm } from './module-runner.ts'
+import { rewriteModule } from './runner/apply.ts'
 
 /**
  * JSX settings that override the tsconfig's.
@@ -270,7 +270,7 @@ export const createPipeline: CreatePipeline = (options) => {
     define: options.define,
     hoist: options.hoist,
     transformers: options.transformers?.fingerprint ?? null,
-    runnerForm: options.runnerForm === true ? RUNNER_FORM_VERSION : null,
+    runnerForm: options.runnerForm === true,
   })
   const cache = options.cache === false ? undefined : createTransformCache(options.cache.dir)
 
@@ -372,19 +372,20 @@ export const createPipeline: CreatePipeline = (options) => {
 
   /**
    * Stores a record that came from work, and returns it. With `runnerForm`, an ES module's
-   * module-runner form is made first, so it is stored and a warm run doesn't make it again. The
-   * loader treats a format `unknown` file with an `import()` as a module too.
+   * module-runner form is made first, so it is stored and a warm run doesn't make it again.
    */
   function stored(key: string, filename: string, record: TransformRecord): TransformRecord {
     let result = record
     if (
       options.runnerForm === true &&
       !record.diagnostics.some((diagnostic) => diagnostic.severity === 'error') &&
-      (record.format === 'esm' ||
-        (record.format === 'unknown' && record.imports.some((entry) => entry.kind === 'dynamic')))
+      usesModuleRunnerForm(record)
     ) {
-      const runner = tryRunnerForm(filename, record.code)
-      if (runner !== undefined) result = { ...record, runner }
+      try {
+        result = { ...record, runner: rewriteModule(filename, record.code) }
+      } catch {
+        // No form is kept: the failure surfaces, named, when the loader calls `toModuleRunner`.
+      }
     }
     cache?.set(key, result)
     return result

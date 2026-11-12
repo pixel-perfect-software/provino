@@ -126,21 +126,69 @@ test('a `var` in a catch block that redeclares an import fails the file, as Node
   )
 })
 
-test('a hashbang becomes a comment of the same length, so the loader can run the module', () => {
-  // The loader runs the output inside an async function, where `#!` is a SyntaxError.
-  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
-    ...args: string[]
-  ) => unknown
-  for (const code of [
-    "#!/usr/bin/env node\nimport { a } from './a.js'\nexport const b = a\n",
-    '#!/usr/bin/env node\nconsole.log(1)\n',
+// The trivia the statement edits look through is the language's: every whitespace the parser
+// skips, and a `//` comment that ends at any line terminator.
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
+  ...args: string[]
+) => unknown
+
+function runnerCode(code: string): string {
+  const record: TransformRecord = { ...strip('/ok.ts', 'export {}\n'), code }
+  return toModuleRunner('/trivia.js', record).code
+}
+
+function parses(code: string): void {
+  assert.doesNotThrow(
+    () => new AsyncFunction('__vite_ssr_import__', '__vite_ssr_exports__', code),
+    code,
+  )
+}
+
+const DEFAULT_GETTER =
+  'Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get() { return __vite_ssr_export_default__; } });\n'
+
+test('`export default` is rewritten whatever whitespace or comment sits before `default`', () => {
+  for (const between of [
+    ' ',
+    '  ',
+    '\t',
+    '\u000b',
+    '\f',
+    '\u00a0',
+    '\ufeff',
+    ' /* c */ ',
+    ' // c\n',
+    ' // c\r',
+    ' // c\u2028',
+    ' // c\u2029',
   ]) {
-    const record: TransformRecord = { ...strip('/ok.ts', 'export {}\n'), code }
-    const output = toModuleRunner('/cli.mjs', record)
-    assert.ok(output.code.startsWith('///usr/bin/env node\n'), output.code)
-    assert.doesNotThrow(
-      () => new AsyncFunction('__vite_ssr_import__', '__vite_ssr_exports__', output.code),
+    const output = runnerCode(`export${between}default 1`)
+    assert.equal(
+      output,
+      `${DEFAULT_GETTER}const __vite_ssr_export_default__ = 1`,
+      JSON.stringify(between),
     )
+    parses(output)
+  }
+})
+
+test('a removed import keeps a `;` before a line that would continue the one before it', () => {
+  const imported =
+    'const __vite_ssr_import_0__ = await __vite_ssr_import__("a", { importedNames: ["default"] });\n'
+  for (const between of [
+    ' \n',
+    ' \u2028',
+    ' \u2029',
+    '\u00a0\n',
+    '\f\n',
+    ' // c\r',
+    ' // c\u2028',
+    ' // c\u2029',
+    ' /* c\n */ ',
+  ]) {
+    const output = runnerCode(`foo()\nimport x from 'a'${between}[1].map(f)`)
+    assert.equal(output, `${imported}foo()\n;${between}[1].map(f)`, JSON.stringify(between))
+    parses(output)
   }
 })
 
