@@ -2,6 +2,7 @@ export {
   createResultsCache,
   defaultCacheDir,
   type ResultsCache,
+  transformCacheDir,
 } from './cache.ts'
 export {
   type ConnectWorkerOptions,

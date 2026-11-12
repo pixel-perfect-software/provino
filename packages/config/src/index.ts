@@ -10,3 +10,4 @@ export {
   resolveNeutralProject,
   resolveProject,
 } from './resolve.ts'
+export { pruneTransformCache, withTransformCache } from './transform-cache.ts'

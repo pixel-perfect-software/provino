@@ -83,13 +83,14 @@ async function jestStatuses(config: string): Promise<ReadonlyMap<string, string>
 /** Each test's status as Provino reports it, with Jest's word for it. */
 async function provinoStatuses(
   config: string,
+  cache = false,
 ): Promise<{ code: number; statuses: ReadonlyMap<string, string>; stderr: string }> {
   const out = join(await temp(), 'run.json')
   const stderr = new Sink()
   const here = process.cwd()
   process.chdir(FIXTURE)
   try {
-    const code = await runJestCommand(['-c', config, '--no-cache', '--ci'], {
+    const code = await runJestCommand(['-c', config, ...(cache ? [] : ['--no-cache']), '--ci'], {
       stdout: new Sink(),
       stderr,
       cwd: FIXTURE,
@@ -128,6 +129,22 @@ describe('Jest transformers on the rebuilt T3.8 fixture', () => {
         [...ran.statuses].sort(([a], [b]) => (a < b ? -1 : 1)),
         [...expected].sort(([a], [b]) => (a < b ? -1 : 1)),
       )
+    })
+  }
+
+  for (const name of ['babel', 'ts-jest', 'swc']) {
+    it(`${name}: a second run, served from the transform cache, has the same statuses`, async () => {
+      const config = `jest.${name}.config.json`
+      const expected = await jestStatuses(config)
+      const cold = await provinoStatuses(config, true)
+      const warm = await provinoStatuses(config, true)
+      for (const ran of [cold, warm]) {
+        assert.equal(ran.code, 0, ran.stderr)
+        assert.deepEqual(
+          [...ran.statuses].sort(([a], [b]) => (a < b ? -1 : 1)),
+          [...expected].sort(([a], [b]) => (a < b ? -1 : 1)),
+        )
+      }
     })
   }
 

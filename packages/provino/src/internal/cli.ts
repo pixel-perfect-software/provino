@@ -40,7 +40,7 @@ Options of provino run:
   -u, --updateSnapshot              Rewrite the snapshots that differ (default: write new ones)
       --ci                          Treat this as a CI run (default: from the CI variable)
       --passWithNoTests             Pass when no test files are found
-      --no-cache                    Neither read nor write the results cache
+      --no-cache                    Neither read nor write the results cache or the transform cache
   -h, --help                        Print this text
 `
 

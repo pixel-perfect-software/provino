@@ -26,6 +26,15 @@ export function defaultCacheDir(rootDir: string): string {
 }
 
 /**
+ * The directory of the transform cache (T3.6): `t` inside `defaultCacheDir`, so that deleting the
+ * results cache's directory (`--clearCache`, a cold bench run) deletes it too.
+ * @public
+ */
+export function transformCacheDir(rootDir: string): string {
+  return join(defaultCacheDir(rootDir), 't')
+}
+
+/**
  * The history of past runs, per project and file. `project` is whatever key tells the project's
  * configs apart (`runProject` uses its name and a hash of its root and globs).
  * @public

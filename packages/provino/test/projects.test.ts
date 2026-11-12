@@ -6,10 +6,10 @@
 // `projects` key, so the oracle is run here rather than recorded.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative } from 'node:path'
+import { dirname, join, relative, sep } from 'node:path'
 import { Writable } from 'node:stream'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -149,14 +149,17 @@ async function jest(dir: string): Promise<{
 }
 
 /** Provino: the same, through `runJestCommand` with the normalized-json reporter. */
-async function provino(dir: string): Promise<{
+async function provino(
+  dir: string,
+  cache = false,
+): Promise<{
   code: number
   statuses: Map<string, string>
   stderr: string
 }> {
   const out = join(dir, '.out-provino.json')
   const stderr = new Sink()
-  const code = await runJestCommand(['--no-cache', '--ci'], {
+  const code = await runJestCommand(cache ? ['--ci'] : ['--no-cache', '--ci'], {
     stdout: new Sink(),
     stderr,
     cwd: dir,
@@ -175,6 +178,20 @@ async function provino(dir: string): Promise<{
     }
   }
   return { code, statuses, stderr: stderr.text }
+}
+
+/** The files in every `node_modules/.cache/provino/t` shard under `dir`. */
+async function transformCacheEntries(dir: string): Promise<number> {
+  let count = 0
+  async function walk(path: string): Promise<void> {
+    for (const entry of await readdir(path, { withFileTypes: true })) {
+      const full = join(path, entry.name)
+      if (entry.isDirectory()) await walk(full)
+      else if (path.includes(`${sep}.cache${sep}provino${sep}t${sep}`)) count++
+    }
+  }
+  await walk(dir).catch(() => undefined)
+  return count
 }
 
 describe('provino jest runs the projects of a config in one pool, as Jest does', () => {
@@ -201,6 +218,31 @@ describe('provino jest runs the projects of a config in one pool, as Jest does',
       assert.equal(expected.listed.length, count)
     })
   }
+
+  for (const [name, files] of SHAPES) {
+    it(`${name}: a second run, served from the transform cache, has the same statuses`, async () => {
+      const dir = await tree(files)
+      const expected = await jest(dir)
+      const cold = await provino(dir, true)
+      const entries = await transformCacheEntries(dir)
+      assert.ok(entries > 0, 'the first run filled the transform cache')
+      const warm = await provino(dir, true)
+      assert.equal(await transformCacheEntries(dir), entries, 'the second run added nothing')
+      for (const ran of [cold, warm]) {
+        assert.equal(ran.code, expected.code, ran.stderr)
+        assert.deepEqual(
+          [...ran.statuses].sort(([a], [b]) => (a < b ? -1 : 1)),
+          [...expected.statuses].sort(([a], [b]) => (a < b ? -1 : 1)),
+        )
+      }
+    })
+  }
+
+  it('--no-cache writes no transform cache', async () => {
+    const dir = await tree(RHF_SHAPED)
+    await provino(dir)
+    assert.equal(await transformCacheEntries(dir), 0)
+  })
 
   it('prints each project’s display name before its files, and runs through the bin', async () => {
     const dir = await tree(RHF_SHAPED)

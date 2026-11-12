@@ -1,7 +1,7 @@
 // The coordinator's run (U3, minimal): discover the project's files, order them, push them
 // through the pool, and report to the bus. The CLI, `run()` and config loading are `provino`'s.
 import { join, resolve } from 'node:path'
-import type { ResolvedProject } from '@provino/config'
+import { pruneTransformCache, type ResolvedProject, withTransformCache } from '@provino/config'
 import { serializeError } from '@provino/rpc'
 import {
   createSnapshotAggregate,
@@ -27,7 +27,12 @@ import type {
   WorkerExit,
   WorkerKey,
 } from '@provino/types'
-import { createResultsCache, defaultCacheDir, type ResultsCache } from './cache.ts'
+import {
+  createResultsCache,
+  defaultCacheDir,
+  type ResultsCache,
+  transformCacheDir,
+} from './cache.ts'
 import { type DiscoveredFile, discoverFiles } from './discover.ts'
 import { discoverByRules } from './discover-rules.ts'
 import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
@@ -289,7 +294,13 @@ export async function runProjects(
     }
     return cache
   }
-  const members: Member[] = projects.map((project) => {
+  const members: Member[] = projects.map((resolved) => {
+    // The transform cache (T3.6) is on unless the run has no cache (`--no-cache`): the directory is
+    // wiped here if the lockfile changed, and handed to the project's workers.
+    const project =
+      options.cache === false
+        ? resolved
+        : withTransformCache(resolved, transformCacheDir(resolved.rootDir))
     const cacheProject = projectCacheKey(project)
     const identity = nameCounts.get(project.name) === 1 ? project.name : cacheProject
     return {
@@ -489,6 +500,11 @@ export async function runProjects(
       // A read-only directory must not fail a run that passed.
       stderr.write(`Provino: could not write the results cache: ${messageOf(error)}\n`)
     }
+    // Eviction by size is the coordinator's, after the run (Track 3 R5).
+    const directories = new Set(
+      members.flatMap((member) => member.project.config.loader.cacheDir ?? []),
+    )
+    for (const directory of directories) pruneTransformCache(directory)
   }
 
   try {

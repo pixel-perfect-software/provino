@@ -160,6 +160,12 @@ export interface SerializedLoaderConfig {
   readonly typescript: 'oxc' | 'node-strip' | 'off'
   /** User transformers (T3.8); absent for none, where every file takes the Oxc pipeline. */
   readonly transform?: SerializedTransformConfig
+  /**
+   * The transform cache's directory (T3.6), an absolute path; absent for no cache (`--no-cache`).
+   * The coordinator makes it ready before any worker starts, so a worker only reads and writes
+   * entries.
+   */
+  readonly cacheDir?: string
 }
 
 /**

@@ -7,11 +7,13 @@ import {
   importConfigModule,
   loadConfigFile,
   loadProject,
+  pruneTransformCache,
   type ResolvedProject,
   type ResolveNeutralProjectOptions,
   type ResolveProjectOptions,
   resolveNeutralProject,
   resolveProject,
+  withTransformCache,
 } from '@provino/config'
 import type {
   ConfigEnv,
@@ -106,3 +108,11 @@ loadProject('/a', { dialects: [], environments: {}, ci: false, configPath: '/a' 
 expectTypeOf(formatConfigIssue).toEqualTypeOf<(issue: ConfigIssue) => string>()
 // @ts-expect-error an issue is { path, message }, not a string
 formatConfigIssue('path: message')
+
+// T3.6: the transform cache's coordinator half.
+expectTypeOf(withTransformCache).toEqualTypeOf<
+  (project: ResolvedProject, dir: string) => ResolvedProject
+>()
+expectTypeOf(pruneTransformCache).toEqualTypeOf<(dir: string) => void>()
+// @ts-expect-error the directory is a string
+pruneTransformCache(undefined)

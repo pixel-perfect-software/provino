@@ -76,7 +76,8 @@ function buildMapper(
  * which is why this is async. Mock hoisting follows `config.hoist` (the dialect's policy, by
  * value), and every module's wrapper declares `config.moduleScope`'s names. `config.transform`'s
  * transformers are loaded here, in the worker, from their own paths (T3.8); a file one of them
- * matches goes through it, every other file through Oxc. The transform cache is off until T3.6.
+ * matches goes through it, every other file through Oxc. `config.cacheDir` turns the transform cache
+ * on (T3.6): a file's record is read from it before any work and written after.
  * @public
  */
 export async function createProjectLoader(
@@ -110,7 +111,7 @@ export async function createProjectLoader(
       typescript: config.typescript,
       tsconfig,
       hoist: config.hoist,
-      cache: false,
+      cache: config.cacheDir === undefined ? false : { dir: config.cacheDir },
       ...(transformers === undefined ? {} : { transformers }),
     }),
     policy,
