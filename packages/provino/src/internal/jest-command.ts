@@ -16,6 +16,7 @@ import {
 import { defaultCacheDir, discoverProject, ExitCode, selectFiles } from '@provino/orchestrator'
 import type { TextSink } from '@provino/reporters'
 import type { ConfigSource, Diagnostic, NeutralProject, RunRequest } from '@provino/types'
+import type { ReporterChoice } from '../types.ts'
 import { ENVIRONMENTS, JEST_ENVIRONMENT } from './built-ins.ts'
 import { usageMessage } from './describe.ts'
 import { executeProject } from './execute.ts'
@@ -29,6 +30,11 @@ export interface JestCommandIo {
   readonly stdout: TextSink
   readonly stderr: NodeJS.WritableStream
   readonly cwd: string
+  /**
+   * Reporters in place of the policy's defaults. `provino jest` has no flag for them yet (T11.9),
+   * so only a caller of this module sets it (the tests that read each test's status).
+   */
+  readonly reporters?: readonly ReporterChoice[]
 }
 
 /** The version of Jest the dialect mirrors, for `--showConfig`. */
@@ -195,6 +201,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       cwd,
       stdout,
       stderr,
+      ...(io.reporters === undefined ? {} : { reporters: io.reporters }),
       pool: {
         ...(request.workerThreads === true ? { kind: 'threads' as const } : {}),
         maxWorkers: read.globalConfig.maxWorkers,
