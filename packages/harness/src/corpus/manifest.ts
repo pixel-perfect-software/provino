@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { HarnessError } from '../errors.ts'
 import { isRecord } from '../internal/guards.ts'
+import { harnessPackageDir } from './paths.ts'
 
 /**
  * The runners a corpus subject can use (Track 12: each repository uses exactly one).
@@ -565,7 +566,7 @@ export function parseCorpusManifest(content: string, source: string): CorpusMani
  * @public
  */
 export function defaultManifestPath(): string {
-  return path.resolve(import.meta.dirname, '..', '..', 'corpus', 'manifest.json')
+  return path.join(harnessPackageDir(), 'corpus', 'manifest.json')
 }
 
 /**

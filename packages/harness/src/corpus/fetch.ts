@@ -234,19 +234,26 @@ export interface FetchOptions {
   readonly env?: NodeJS.ProcessEnv
 }
 
+/**
+ * The commit the extracted tree came from (`src.sha`), or `undefined` when there is no marker.
+ * @internal
+ */
+export async function readSrcMarker(paths: Pick<RepoPaths, 'srcMarker'>): Promise<string | undefined> {
+  try {
+    return (await readFile(paths.srcMarker, 'utf8')).trim()
+  } catch (cause) {
+    if (isNotFound(cause)) return undefined
+    throw cause
+  }
+}
+
 async function extract(
   repo: CorpusRepo,
   paths: RepoPaths,
   deps: CorpusDeps,
   env: NodeJS.ProcessEnv,
 ): Promise<void> {
-  let marker: string | undefined
-  try {
-    marker = (await readFile(paths.srcMarker, 'utf8')).trim()
-  } catch (cause) {
-    if (!isNotFound(cause)) throw cause
-  }
-  if (marker === repo.sha) return
+  if ((await readSrcMarker(paths)) === repo.sha) return
   // Another commit's tree (or a half-extracted one) goes before the new one comes in.
   await rm(paths.src, { recursive: true, force: true })
   await rm(paths.srcMarker, { force: true })

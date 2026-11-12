@@ -4,16 +4,15 @@
 // offline re-install: the `node_modules` trees are deleted and installed again with the network
 // off, inside the sandbox, and the result must be the same tree, file for file.
 import { createHash } from 'node:crypto'
-import { createReadStream } from 'node:fs'
 import { mkdir, readdir, readFile, readlink, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { HarnessError } from '../errors.ts'
 import { compareStrings, isNotFound, isRecord } from '../internal/guards.ts'
 import { resolveRunnerPackage } from '../runner-package.ts'
 import { type CorpusDeps, defaultDeps } from './deps.ts'
-import { diskUsageMb } from './fetch.ts'
+import { diskUsageMb, readSrcMarker, sha256OfFile } from './fetch.ts'
 import type { CorpusRepo } from './manifest.ts'
-import { type RepoPaths, repoPaths } from './paths.ts'
+import { type RepoPaths, repoPaths, repoRoot } from './paths.ts'
 import { sandboxed, writeProfile } from './sandbox.ts'
 
 const INSTALL_TIMEOUT_MS = 30 * 60_000
@@ -58,7 +57,7 @@ export interface InstallPlan {
 
 /** The pnpm version this repository's own `packageManager` field names, for a repository that pins none. */
 async function ownPnpmVersion(): Promise<string> {
-  const root = path.resolve(import.meta.dirname, '..', '..', '..', '..', 'package.json')
+  const root = path.join(repoRoot(), 'package.json')
   const manifest: unknown = JSON.parse(await readFile(root, 'utf8'))
   const field = isRecord(manifest) ? manifest.packageManager : undefined
   const match = typeof field === 'string' ? /^pnpm@(\d+\.\d+\.\d+)/.exec(field) : null
@@ -256,41 +255,54 @@ export async function findNodeModules(src: string): Promise<string[]> {
   return found.toSorted(compareStrings)
 }
 
-async function sha256Of(file: string): Promise<string> {
-  const hash = createHash('sha256')
-  for await (const chunk of createReadStream(file)) hash.update(chunk as Buffer)
-  return hash.digest('hex')
-}
+/** How many files `fingerprintTree` reads at once: a `node_modules` has 100,000 of them. */
+const FINGERPRINT_CONCURRENCY = 32
 
 /**
  * A hash over every directory, file (size and content) and symbolic link (target) under every
  * `node_modules` in the tree, volatile files aside. Two installs that give the same tree give the
- * same hash; the offline re-install must reproduce it.
+ * same hash; the offline re-install must reproduce it. The tree is listed first, then its files
+ * and links are read `concurrency` at a time.
  * @public
  */
 export async function fingerprintTree(
   src: string,
+  options: {
+    readonly concurrency?: number
+    /** Reads one file's sha256 (tests count what is open at once). */
+    readonly hashFile?: (file: string) => Promise<string>
+  } = {},
 ): Promise<{ readonly hash: string; readonly files: number }> {
+  const hashFile = options.hashFile ?? sha256OfFile
   const lines: string[] = []
+  const reads: (() => Promise<void>)[] = []
   const walk = async (dir: string): Promise<void> => {
-    const entries = await readdir(dir, { withFileTypes: true })
-    await Promise.all(
-      entries.map(async (entry) => {
-        if (VOLATILE_NAMES.has(entry.name)) return
-        const full = path.join(dir, entry.name)
-        const relative = path.relative(src, full)
-        if (entry.isSymbolicLink()) {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      if (VOLATILE_NAMES.has(entry.name)) continue
+      const full = path.join(dir, entry.name)
+      const relative = path.relative(src, full)
+      if (entry.isSymbolicLink()) {
+        reads.push(async () => {
           lines.push(`l\0${relative}\0${await readlink(full)}`)
-        } else if (entry.isDirectory()) {
-          lines.push(`d\0${relative}`)
-          await walk(full)
-        } else if (entry.isFile()) {
-          lines.push(`f\0${relative}\0${(await stat(full)).size}\0${await sha256Of(full)}`)
-        }
-      }),
-    )
+        })
+      } else if (entry.isDirectory()) {
+        lines.push(`d\0${relative}`)
+        await walk(full)
+      } else if (entry.isFile()) {
+        reads.push(async () => {
+          lines.push(`f\0${relative}\0${(await stat(full)).size}\0${await hashFile(full)}`)
+        })
+      }
+    }
   }
   for (const dir of await findNodeModules(src)) await walk(dir)
+  let next = 0
+  const worker = async (): Promise<void> => {
+    for (let read = reads[next++]; read !== undefined; read = reads[next++]) await read()
+  }
+  await Promise.all(
+    Array.from({ length: Math.max(1, options.concurrency ?? FINGERPRINT_CONCURRENCY) }, worker),
+  )
   const hash = createHash('sha256')
   for (const line of lines.toSorted(compareStrings)) hash.update(`${line}\n`)
   return { hash: hash.digest('hex'), files: lines.length }
@@ -311,13 +323,7 @@ async function prepareDirs(paths: RepoPaths): Promise<void> {
 }
 
 async function srcMustExist(repo: CorpusRepo, paths: RepoPaths): Promise<void> {
-  let marker: string | undefined
-  try {
-    marker = (await readFile(paths.srcMarker, 'utf8')).trim()
-  } catch (cause) {
-    if (!isNotFound(cause)) throw cause
-  }
-  if (marker !== repo.sha) {
+  if ((await readSrcMarker(paths)) !== repo.sha) {
     throw new HarnessError(
       'HARNESS_CORPUS_NOT_INSTALLED',
       `${repo.id}: no extracted tree at ${repo.sha}; run "corpus fetch ${repo.id}" first`,
@@ -410,18 +416,7 @@ export async function installRepo(
       `${repo.id}: ${plan.manager.name} exited ${installed.exitCode ?? 'by signal'}:\n${installed.output.trim().slice(-1500)}`,
     )
   }
-  let wallMs = installed.wallMs
-  for (const pkg of repo.rebuild ?? []) {
-    const rebuild = rebuildPlan(plan, pkg)
-    const result = await runInstall(rebuild, deps)
-    wallMs += result.wallMs
-    if (result.exitCode !== 0) {
-      throw new HarnessError(
-        'HARNESS_CORPUS_INSTALL_FAILED',
-        `${repo.id}: rebuilding ${pkg} exited ${result.exitCode ?? 'by signal'}:\n${result.output.trim().slice(-1500)}`,
-      )
-    }
-  }
+  const wallMs = installed.wallMs + (await rebuildPackages(repo, plan, deps))
   const { versions, problems } = await runnerVersions(repo, paths)
   if (problems.length > 0) {
     throw new HarnessError(
@@ -445,6 +440,30 @@ export async function installRepo(
   }
   await writeFile(paths.installRecord, `${JSON.stringify(record, null, 2)}\n`)
   return record
+}
+
+/**
+ * Rebuilds each of the repository's `rebuild` packages with its scripts on, and returns the
+ * milliseconds that took. Both installs run it, so their trees (and fingerprints) agree.
+ */
+async function rebuildPackages(
+  repo: CorpusRepo,
+  plan: InstallPlan,
+  deps: CorpusDeps,
+  wrap?: Parameters<typeof runInstall>[2],
+): Promise<number> {
+  let wallMs = 0
+  for (const pkg of repo.rebuild ?? []) {
+    const result = await runInstall(rebuildPlan(plan, pkg), deps, wrap)
+    wallMs += result.wallMs
+    if (result.exitCode !== 0) {
+      throw new HarnessError(
+        'HARNESS_CORPUS_INSTALL_FAILED',
+        `${repo.id}: rebuilding ${pkg} exited ${result.exitCode ?? 'by signal'}:\n${result.output.trim().slice(-1500)}`,
+      )
+    }
+  }
+  return wallMs
 }
 
 /** The command that rebuilds one package with its scripts on (`pnpm rebuild`, `npm rebuild`, `yarn rebuild`). */
@@ -488,7 +507,7 @@ export async function reinstallOffline(
   if (recorded === undefined) {
     throw new HarnessError(
       'HARNESS_CORPUS_NOT_INSTALLED',
-      `${repo.id}: no install record; run "corpus install ${repo.id}" first`,
+      `${repo.id}: no install record at ${repo.sha.slice(0, 12)}; run "corpus install ${repo.id}" first`,
     )
   }
   await prepareDirs(paths)
@@ -496,12 +515,15 @@ export async function reinstallOffline(
   const profile = await writeProfile({ runDir: paths.dir, workRoot: options.workRoot })
   for (const dir of await findNodeModules(paths.src))
     await rm(dir, { recursive: true, force: true })
-  const result = await runInstall(plan, deps, (command, args) => sandboxed(profile, command, args))
+  const wrap = (command: string, args: readonly string[]) => sandboxed(profile, command, args)
+  const result = await runInstall(plan, deps, wrap)
+  // The first install ran the same rebuilds before it recorded its fingerprint.
+  const rebuildMs = result.exitCode === 0 ? await rebuildPackages(repo, plan, deps, wrap) : 0
   const after = await fingerprintTree(paths.src)
   const ok = result.exitCode === 0 && after.hash === recorded.fingerprint
   const outcome = {
     ok,
-    wallMs: result.wallMs,
+    wallMs: result.wallMs + rebuildMs,
     verifiedAt: (options.now ?? (() => new Date()))().toISOString(),
     fingerprint: after.hash,
   }
@@ -521,21 +543,27 @@ export async function reinstallOffline(
 }
 
 /**
- * Reads a repository's `install.json`, or `undefined` if it has none.
+ * Reads a repository's `install.json`, or `undefined` if it has none, it is malformed, or it is
+ * not of the pinned commit: a record whose `sha` differs from the manifest's, or whose extracted
+ * tree (`src.sha`) is another commit's, describes a tree that is gone, so the repository counts
+ * as not installed.
  * @public
  */
 export async function readInstallRecord(
   repo: Pick<CorpusRepo, 'id' | 'sha'>,
   workRoot: string,
 ): Promise<InstallRecord | undefined> {
+  const paths = repoPaths(workRoot, repo)
   let text: string
   try {
-    text = await readFile(repoPaths(workRoot, repo).installRecord, 'utf8')
+    text = await readFile(paths.installRecord, 'utf8')
   } catch (cause) {
     if (isNotFound(cause)) return undefined
     throw cause
   }
-  return asInstallRecord(JSON.parse(text))
+  const record = asInstallRecord(JSON.parse(text))
+  if (record?.sha !== repo.sha || (await readSrcMarker(paths)) !== repo.sha) return undefined
+  return record
 }
 
 function stringRecord(value: unknown): Record<string, string> | undefined {

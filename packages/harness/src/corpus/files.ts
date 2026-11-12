@@ -8,13 +8,14 @@ import type { ExclusionRule } from '../diff.ts'
 import { parseExclusions, parseFlaky } from '../exclusions.ts'
 import { readIfExists } from '../internal/guards.ts'
 import { assertNoPathLeak } from '../internal/recording.ts'
+import { harnessPackageDir, repoRoot } from './paths.ts'
 
 /**
  * `packages/harness/corpus/`: the manifest and each subject's committed files.
  * @public
  */
 export function defaultCorpusDir(): string {
-  return path.resolve(import.meta.dirname, '..', '..', 'corpus')
+  return path.join(harnessPackageDir(), 'corpus')
 }
 
 /**
@@ -71,7 +72,7 @@ export async function writeSubjectFlaky(
   const text = `${JSON.stringify({ keys: [...keys] }, null, 2)}\n`
   assertNoPathLeak(
     text,
-    [options.workRoot, path.resolve(import.meta.dirname, '..', '..', '..', '..'), os.homedir()],
+    [options.workRoot, repoRoot(), os.homedir()],
     files.flaky,
   )
   await mkdir(files.dir, { recursive: true })

@@ -1,6 +1,7 @@
 // T12.9's installer with a fake package manager: the plan for each manager, the environment, the
 // tree fingerprint, `installRepo` and the offline re-install. No network, no real install.
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { test } from 'node:test'
@@ -402,4 +403,74 @@ test('the offline re-install needs an install record first', async () => {
     reinstallOffline(repo, { workRoot: work, deps: fakeDeps(() => finished(0)) }),
     hasCode('HARNESS_CORPUS_NOT_INSTALLED'),
   )
+})
+
+test('a record of another commit, or of a tree extracted from another commit, is not installed', async () => {
+  const { repo, work, paths } = await installed()
+  assert.equal((await readInstallRecord(repo, work))?.sha, repo.sha)
+  // A re-pin: the manifest names another commit while install.json is still the old one's.
+  const moved = { ...repo, sha: `abcdef0${'2'.repeat(33)}` }
+  assert.equal(await readInstallRecord(moved, work), undefined)
+  // The record names this commit, but the extracted tree is another one (or has no marker).
+  await writeFile(paths.srcMarker, `${moved.sha}\n`)
+  assert.equal(await readInstallRecord(repo, work), undefined)
+  await rm(paths.srcMarker)
+  assert.equal(await readInstallRecord(repo, work), undefined)
+})
+
+test('fingerprintTree reads a bounded number of files at once and gives the same hash', async () => {
+  const dir = await tempDir('fingerprint-pool')
+  const files: Record<string, string> = {}
+  for (let i = 0; i < 200; i++) files[`node_modules/pkg/f${i}.js`] = `file ${i}`
+  await writeTree(dir, files)
+  const expected = await fingerprintTree(dir)
+  let open = 0
+  let most = 0
+  let calls = 0
+  const limited = await fingerprintTree(dir, {
+    concurrency: 8,
+    hashFile: async (file) => {
+      calls++
+      open++
+      most = Math.max(most, open)
+      await new Promise((resolve) => setImmediate(resolve))
+      open--
+      return createHash('sha256')
+        .update(await readFile(file))
+        .digest('hex')
+    },
+  })
+  assert.equal(calls, 200)
+  assert.ok(most <= 8, `${most} files were open at once`)
+  assert.ok(most > 1, 'they are read in parallel')
+  assert.deepEqual(limited, expected)
+})
+
+test('the offline re-install rebuilds the same packages, so the fingerprints agree', async () => {
+  const repo = makeRepo({ rebuild: ['sharp'] })
+  const { work, paths } = await workWithTree(repo)
+  const install = async (call: Call) => {
+    if (call.command === 'du') return finished(0, '1\tx')
+    await installRunner(paths.src, '30.5.2')
+    // The rebuild's own output, which only the rebuild step makes.
+    if (call.args.includes('rebuild')) {
+      await writeTree(paths.src, { 'node_modules/sharp/build/sharp.node': 'binary' })
+    }
+    return finished(0)
+  }
+  const record = await installRepo(repo, { workRoot: work, deps: fakeDeps(install), now: NOW })
+  const seen: Call[] = []
+  const outcome = await reinstallOffline(repo, {
+    workRoot: work,
+    deps: fakeDeps((call) => {
+      seen.push(call)
+      return install(call)
+    }),
+    now: NOW,
+  })
+  assert.equal(outcome.fingerprint, record.fingerprint)
+  assert.equal(outcome.ok, true)
+  assert.equal(seen.length, 2, 'the install and one rebuild')
+  assert.equal(seen[1]?.command, '/usr/bin/sandbox-exec', 'the rebuild is sandboxed too')
+  assert.ok(seen[1]?.args.includes('rebuild'))
 })

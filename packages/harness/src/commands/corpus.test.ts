@@ -189,7 +189,7 @@ test('run probes before every repository, and refuses one that is not installed'
   assert.equal(await h.run('run', REPO), 1)
   assert.equal(probes, 1)
   assert.deepEqual(h.started, [])
-  assert.match(text(h.err), /not installed; run "corpus install jest-extended" first/)
+  assert.match(text(h.err), /not installed at \w+ .*run "corpus install jest-extended" first/)
 })
 
 test('run makes the runs per subject, skips finished ones and redoes them with --force', async () => {

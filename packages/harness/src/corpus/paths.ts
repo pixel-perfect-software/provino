@@ -7,13 +7,29 @@ import path from 'node:path'
 export const CORPUS_DIR_ENV = 'PROVINO_CORPUS_DIR'
 
 /**
+ * `packages/harness/`, found from this file (`src/corpus/`).
+ * @internal
+ */
+export function harnessPackageDir(): string {
+  return path.resolve(import.meta.dirname, '..', '..')
+}
+
+/**
+ * The repository's root (`packages/harness/` is two levels below it).
+ * @internal
+ */
+export function repoRoot(): string {
+  return path.resolve(harnessPackageDir(), '..', '..')
+}
+
+/**
  * The corpus work directory: `$PROVINO_CORPUS_DIR`, else `.refs/corpus/` at the repository root.
  * @public
  */
 export function corpusWorkRoot(env: NodeJS.ProcessEnv = process.env): string {
   const override = env[CORPUS_DIR_ENV]
   if (override !== undefined && override !== '') return path.resolve(override)
-  return path.resolve(import.meta.dirname, '..', '..', '..', '..', '.refs', 'corpus')
+  return path.join(repoRoot(), '.refs', 'corpus')
 }
 
 /**
