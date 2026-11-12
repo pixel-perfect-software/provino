@@ -108,6 +108,32 @@ export interface EnvironmentRef {
 }
 
 /**
+ * What a worker asks a dialect to resolve when a file's docblock names an environment
+ * (`@jest-environment jsdom`, `@jest-environment-options {...}`).
+ * @public
+ */
+export interface EnvironmentPragmaRequest {
+  /** The pragma's value as written: a name, a package or a path. */
+  readonly name: string
+  /** The options pragma, parsed (`null` when the file gives none). */
+  readonly options: JsonValue
+  readonly rootDir: string
+  readonly testPath: string
+  /** The project's own environment, whose options (`testEnvironmentOptions`, `globals`) the file's build on. */
+  readonly base: EnvironmentRef
+}
+
+/**
+ * A dialect's way to turn a file's environment pragma into an `EnvironmentRef` (its `module` an
+ * absolute path or URL). Loaded in the worker by `ModuleRef`; it may throw the dialect's own error
+ * for a name that doesn't resolve.
+ * @public
+ */
+export type EnvironmentResolver = (
+  request: EnvironmentPragmaRequest,
+) => EnvironmentRef | Promise<EnvironmentRef>
+
+/**
  * The signature of `defineEnvironment`: it keeps the literal name.
  * @public
  */

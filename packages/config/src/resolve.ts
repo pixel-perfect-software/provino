@@ -146,11 +146,18 @@ function projectLayer(
  * behaviour, loaded and called here in the coordinator. It only knows the environment's name,
  * not the `conditions` its `Environment` declares (that object lives in the worker).
  */
-async function loaderConditions(policy: Policy, environment: string): Promise<readonly string[]> {
+async function loaderConditions(
+  policy: Policy,
+  environment: string,
+  options: EnvironmentRef['options'],
+): Promise<readonly string[]> {
   const behaviour = policy.orchestrator.environmentConditions
   let conditions: unknown
   try {
-    conditions = await callBehaviour(createBehaviourLoader(), behaviour, { name: environment })
+    conditions = await callBehaviour(createBehaviourLoader(), behaviour, {
+      name: environment,
+      options,
+    })
   } catch (cause) {
     throw new ConfigError(
       'CONFIG_LOAD_FAILED',
@@ -380,7 +387,7 @@ async function finishProject(
       resolveSetupFiles(input.setupFiles, rootDir, 'setupFiles'),
       resolveSetupFiles(input.setupFilesAfterEnv, rootDir, input.setupFilesAfterEnvKey),
     ]),
-    loaderConditions(policy, environment),
+    loaderConditions(policy, environment, input.environmentOptions),
   )
   const config: SerializedProjectConfig = {
     name: input.name,
@@ -395,6 +402,9 @@ async function finishProject(
     globals: globalsFactory,
     // A module's own bindings exist whether or not globals are injected (Jest's `jest`).
     moduleScope: dialect?.moduleScope?.factory ?? null,
+    ...(dialect?.environmentResolver === undefined
+      ? {}
+      : { environmentResolver: dialect.environmentResolver }),
     ...(input.globalValues === undefined || Object.keys(input.globalValues).length === 0
       ? {}
       : { globalValues: input.globalValues }),

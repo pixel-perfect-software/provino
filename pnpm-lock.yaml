@@ -718,6 +718,12 @@ importers:
       jest-config:
         specifier: 'catalog:'
         version: 30.5.2(@types/node@22.20.5)(supports-color@8.1.1)
+      jest-environment-jsdom:
+        specifier: 'catalog:'
+        version: 30.5.2(supports-color@8.1.1)
+      jest-environment-node:
+        specifier: 'catalog:'
+        version: 30.5.2
       jest-serializer-vue:
         specifier: 'catalog:'
         version: 3.1.0

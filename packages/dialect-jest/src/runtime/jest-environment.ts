@@ -5,11 +5,16 @@
 // (`new Class({ globalConfig, projectConfig }, { console, docblockPragmas, testPath })`), set up,
 // and its `global` populated onto the worker's own global (isolation `registry`; the realm
 // `context` tier waits for T2.8). `teardown` puts the worker's global back.
+import { createRequire } from 'node:module'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { populateGlobal } from '@provino/env-shared'
 import type {
   Environment,
+  EnvironmentConditions,
   EnvironmentInstance,
+  EnvironmentRequest,
+  EnvironmentResolver,
   EnvironmentSetupContext,
   EnvironmentTeardownReport,
   JsonValue,
@@ -103,7 +108,12 @@ async function setUpJest(
     { console: context.console, docblockPragmas: context.pragmas, testPath: context.testPath },
   )
   await environment.setup()
-  const populated = populateGlobal(globalThis, environment.global, { bindFunctions })
+  // Only a window stands in for the global: a Node or edge environment's code must not see one.
+  const isWindow = 'document' in environment.global
+  const populated = populateGlobal(globalThis, environment.global, {
+    bindFunctions,
+    selfReferences: isWindow,
+  })
   return {
     global: globalThis,
     async teardown(): Promise<EnvironmentTeardownReport | undefined> {
@@ -163,5 +173,119 @@ export function fromJestEnvironment(
     name: 'jest-environment',
     realms: ['worker'],
     setup: (context) => setUpJest(context, EnvironmentClass, projectConfig, false),
+  }
+}
+
+/** `customExportConditions` from `testEnvironmentOptions`, as the classes read it (an array of strings). */
+function customConditions(options: EnvironmentRequest['options']): readonly string[] | undefined {
+  const config = options?.projectConfig
+  const own =
+    isRecord(config) && isRecord(config.testEnvironmentOptions)
+      ? config.testEnvironmentOptions
+      : options
+  const custom = own?.customExportConditions
+  return Array.isArray(custom) && custom.every((item) => typeof item === 'string')
+    ? (custom as readonly string[])
+    : undefined
+}
+
+/**
+ * The resolver export conditions of a Jest environment (`orchestrator.environmentConditions`),
+ * which jest-runtime reads from the class's `exportConditions()`: the option
+ * `customExportConditions` when the project gives it (`['']` for react-hook-form's, which names no
+ * condition), else the default of the package Jest ships: `['browser']` for the jsdom family,
+ * `['node', 'node-addons']` for `jest-environment-node`, `['edge', 'edge-light']` for the edge
+ * runtime. A class this doesn't know has none, as jest-runtime's `?.() ?? []`.
+ * @public
+ */
+export const jestEnvironmentConditions: EnvironmentConditions = (env) => {
+  const custom = customConditions(env.options)
+  if (custom !== undefined) return custom
+  const where = env.name
+  if (where === 'node' || /jest-environment-node/.test(where)) return ['node', 'node-addons']
+  if (/jsdom/.test(where)) return ['browser']
+  if (/@edge-runtime[\\/]jest-environment/.test(where)) return ['edge', 'edge-light']
+  return env.conditions ?? []
+}
+
+/**
+ * A `require.resolve` from where Jest's own packages live: the project's `jest`, then `jest-cli`,
+ * then `jest-config` (each found from the one before, which works under pnpm). `undefined` when
+ * the project has no Jest.
+ */
+function jestRequire(from: NodeRequire): (name: string) => string | undefined {
+  return (name) => {
+    try {
+      const jest = createRequire(from.resolve('jest/package.json'))
+      const cli = createRequire(jest.resolve('jest-cli/package.json'))
+      const config = createRequire(cli.resolve('jest-config/package.json'))
+      return config.resolve(name)
+    } catch {
+      return undefined
+    }
+  }
+}
+
+/** Jest's `resolveWithPrefix` message for an environment that can't be found. */
+function notFound(name: string): Error {
+  return new Error(
+    `Test environment ${name} cannot be found. Make sure the testEnvironment configuration option points to an existing node module.`,
+  )
+}
+
+/**
+ * The environment a test file's docblock names (`@jest-environment`), resolved as jest-runner's
+ * `resolveTestEnvironment` does it for a project: from the project's root, `jsdom` and `node` as
+ * their `jest-environment-*` packages, a name as a path or package, then with the
+ * `jest-environment-` prefix. The options pragma is merged over the project's
+ * `testEnvironmentOptions`. Every environment runs through the adapter (D44).
+ * @public
+ */
+export const jestEnvironmentFor: EnvironmentResolver = (request) => {
+  const from = createRequire(join(request.rootDir, '__provino_environment__.js'))
+  const fromJest = jestRequire(from)
+  const alias =
+    request.name === 'jsdom'
+      ? 'jest-environment-jsdom'
+      : request.name === 'node'
+        ? 'jest-environment-node'
+        : request.name
+  let found: string | undefined
+  for (const candidate of [alias, `jest-environment-${request.name}`]) {
+    try {
+      found = from.resolve(candidate)
+      break
+    } catch {
+      // try the next one
+    }
+  }
+  // `jest-environment-node` and `-jsdom` belong to Jest's own install, which pnpm doesn't hoist:
+  // look from jest-config's place, as jest-config's `requireResolve` does.
+  for (const candidate of found === undefined ? [alias, `jest-environment-${request.name}`] : []) {
+    found ??= fromJest(candidate)
+  }
+  if (found === undefined) throw notFound(request.name)
+  const base = request.base.options
+  const baseConfig = isRecord(base.projectConfig) ? base.projectConfig : {}
+  // A built-in environment's options are the `testEnvironmentOptions` themselves.
+  const baseOptions = isRecord(baseConfig.testEnvironmentOptions)
+    ? baseConfig.testEnvironmentOptions
+    : isRecord(base.projectConfig)
+      ? {}
+      : base
+  const docblock = isRecord(request.options) ? request.options : {}
+  return {
+    module: import.meta.resolve('@provino/dialect-jest/runtime'),
+    export: 'jestEnvironment',
+    options: {
+      module: found,
+      projectConfig: {
+        rootDir: request.rootDir,
+        cwd: request.rootDir,
+        ...baseConfig,
+        testEnvironment: found,
+        testEnvironmentOptions: { ...baseOptions, ...docblock } as JsonValue,
+      } as JsonValue,
+    },
   }
 }

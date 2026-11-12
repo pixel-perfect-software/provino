@@ -10,7 +10,7 @@ import type {
   ModuleScopeFactory,
   NeutralAlias,
 } from './dialect.ts'
-import type { EnvironmentRef } from './environment.ts'
+import type { EnvironmentRef, EnvironmentResolver } from './environment.ts'
 import type { PluginRegistry, ProvinoPlugin } from './extensions.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { IsolationTier } from './isolation.ts'
@@ -163,6 +163,8 @@ export interface SerializedProjectConfig {
    * for a dialect with none. Its names are `loader.moduleScope`.
    */
   readonly moduleScope: ModuleRef<ModuleScopeFactory> | null
+  /** The dialect's resolver for a docblock's environment (`Dialect.environmentResolver`); absent or `null` for none. */
+  readonly environmentResolver?: ModuleRef<EnvironmentResolver> | null
   /**
    * Values defined on the environment's global for each file, before anything else runs (Jest's
    * `globals`: jest-environment-node's `installCommonGlobals`). Absent means none.

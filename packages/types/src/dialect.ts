@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { JsonValue } from './clone-safe.ts'
+import type { EnvironmentResolver } from './environment.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { FileRegistry, ModuleMockRegistry } from './loader.ts'
 import type { MockPolicy, ModuleRef, PolicyOverrides, TimersPolicy } from './policy/index.ts'
@@ -334,6 +335,8 @@ export interface Dialect<Name extends string = string, Options = unknown> {
   readonly loader?: LoaderPolicies
   /** Bindings each module gets its own value of, whether or not globals are injected. */
   readonly moduleScope?: ModuleScope
+  /** Resolves the environment a test file's docblock names (Jest's `@jest-environment`), in the worker. */
+  readonly environmentResolver?: ModuleRef<EnvironmentResolver>
   readonly reporterAdapters?: readonly ReporterAdapter[]
   /** Type entry points, e.g. `'@provino/dialect-jest/globals'`. */
   readonly typeEntries?: readonly string[]

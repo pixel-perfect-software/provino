@@ -12,8 +12,6 @@
 //   were here; B14a recorded Jest's and sets them. `module.missingFactoryExport` and
 //   `module.messages` were too; B13b sets them. `timers.facadeReturns` and `timers.fakeTemporal`
 //   were; B17a records them as `mocking/timers-facade` and `policy/timers-temporal`.)
-// - A behaviour whose Jest implementation is not built yet, so the key stays the neutral one:
-//   orchestrator.environmentConditions (the environment's own `exportConditions()`, T8.7).
 // - The same as the neutral value, so there is nothing to override:
 //   core.orderHooks (`null`: `hookOrder` decides), snapshot.key (`${name} ${n}`, the neutral
 //   `snapshotKey` function), snapshot.resolvePath (`null`: the default layout; Jest's is the
@@ -22,6 +20,8 @@
 import { defineDialect, moduleRef } from '@provino/policy'
 import type {
   Dialect,
+  EnvironmentConditions,
+  EnvironmentResolver,
   FormatEachTitle,
   FormatValue,
   GlobalsFactory,
@@ -274,6 +274,12 @@ export const jestPolicy: PolicyOverrides = {
     watchDefault: 'never',
     // research: track-09 L560 (`all` with `--watchAll`)
     watch: { initialRun: 'changed' },
+    // jest-runtime reads the environment's `exportConditions()`; the coordinator can't build the
+    // class, so the behaviour answers for the packages Jest ships and `customExportConditions`.
+    environmentConditions: moduleRef<EnvironmentConditions>(
+      import.meta.resolve('@provino/dialect-jest/runtime'),
+      'jestEnvironmentConditions',
+    ),
     // Ours: Jest's `testMatch` is picomatch on the absolute path (`policy/orchestrator-match-path`).
     globMatchesOn: 'absolute-path',
     // research: track-01 L227
@@ -397,6 +403,11 @@ export const jestDialect: Dialect<'jest'> = defineDialect({
   },
   // `createProjectLoader` hoists with it; `config` copies it to the worker by value (B13c).
   loader: { hoist: jestHoistPolicy },
+  // A test file's `@jest-environment` docblock is resolved in the worker, from the project's root.
+  environmentResolver: moduleRef<EnvironmentResolver>(
+    import.meta.resolve('@provino/dialect-jest/runtime'),
+    'jestEnvironmentFor',
+  ),
   // Each module gets its own `jest`, as jest-runtime's `_createJestObjectFor(from)` does: a
   // `jest.mock` resolves from the module that calls it. Recorded: every Jest `mod-*` fixture whose
   // helper registers a mock (`mod-require-esm-helper`, `mod-adjacent`).

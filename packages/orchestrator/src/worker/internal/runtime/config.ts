@@ -6,6 +6,7 @@ import { isAbsolute } from 'node:path'
 import { forEachModuleRef, isImportableLocation, isModuleRef, neutralPolicy } from '@provino/policy'
 import type {
   EnvironmentRef,
+  EnvironmentResolver,
   GlobalsFactory,
   HoistPolicy,
   JsonValue,
@@ -137,6 +138,15 @@ function hoistPolicy(value: unknown): HoistPolicy | null {
   return value as HoistPolicy
 }
 
+/** The dialect's environment resolver ref: absolute, like the globals one. */
+function environmentResolverRef(value: unknown): ModuleRef<EnvironmentResolver> {
+  if (!isModuleRef(value)) return invalid('environmentResolver', 'null or a { module, export } ref')
+  return {
+    module: moduleLocation(value.module, 'environmentResolver.module'),
+    export: value.export,
+  }
+}
+
 /** The module-scope factory's ref, or `null` for a dialect with none. */
 function moduleScopeRef(value: unknown): ModuleRef<ModuleScopeFactory> | null {
   if (value === null) return null
@@ -216,6 +226,11 @@ export function parseProjectConfig(value: unknown): SerializedProjectConfig {
     environment: environmentRef(config.environment),
     globals: globalsRef(config.globals),
     moduleScope: moduleScopeRef(config.moduleScope),
+    ...(config.environmentResolver === undefined || config.environmentResolver === null
+      ? {}
+      : {
+          environmentResolver: environmentResolverRef(config.environmentResolver),
+        }),
     ...(config.globalValues === undefined
       ? {}
       : { globalValues: record(config.globalValues, 'globalValues') as Record<string, JsonValue> }),

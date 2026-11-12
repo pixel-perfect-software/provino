@@ -110,15 +110,11 @@ export function jestProjectToNeutral(
   globalConfig: JestGlobalConfig,
 ): { readonly project: NeutralProject; readonly diagnostics: readonly Diagnostic[] } {
   const diagnostics: Diagnostic[] = []
-  const environment = neutralEnvironmentName(project.testEnvironment)
-  if (environment !== 'node') {
-    notApplied(
-      diagnostics,
-      'testEnvironment',
-      environment === 'jsdom' || environment === 'happy-dom' ? 'T8.3' : 'T8.5',
-      `; "${environment}" is not a built-in environment yet`,
-    )
-  }
+  // Decision D44: `jest-environment-node` is the built-in `node`; every other environment, jsdom
+  // included, is the project's own Jest environment class, named by its path and run through the
+  // adapter (`jestEnvironment`), so the DOM is the one Jest would build.
+  const isNode = neutralEnvironmentName(project.testEnvironment) === 'node'
+  const environment = isNode ? 'node' : project.testEnvironment
   if (!isDefaultTransform(project.transform)) {
     notApplied(diagnostics, 'transform', 'T3.8', "; Provino's own transform runs instead")
   }
@@ -207,7 +203,25 @@ export function jestProjectToNeutral(
     globalTeardown: project.globalTeardown === undefined ? [] : [project.globalTeardown],
     environment: {
       name: environment,
-      options: jsonObject(project.testEnvironmentOptions, 'testEnvironmentOptions', diagnostics),
+      options: isNode
+        ? jsonObject(project.testEnvironmentOptions, 'testEnvironmentOptions', diagnostics)
+        : {
+            module: project.testEnvironment,
+            // What a Jest environment class reads of `projectConfig`.
+            projectConfig: {
+              rootDir: project.rootDir,
+              cwd: project.cwd,
+              testEnvironment: project.testEnvironment,
+              testEnvironmentOptions: jsonObject(
+                project.testEnvironmentOptions,
+                'testEnvironmentOptions',
+                diagnostics,
+              ),
+              globals: jsonObject(project.globals, 'globals', diagnostics),
+              fakeTimers: jsonObject(project.fakeTimers, 'fakeTimers', diagnostics),
+              injectGlobals: project.injectGlobals,
+            },
+          },
     },
     aliases,
     globalValues: jsonObject(project.globals, 'globals', diagnostics),

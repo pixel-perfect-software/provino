@@ -13,6 +13,7 @@ expectTypeOf<Populated['restore']>().toEqualTypeOf<() => void>()
 expectTypeOf<PopulateOptions>().toEqualTypeOf<{
   readonly bindFunctions?: boolean
   readonly additionalKeys?: readonly string[]
+  readonly selfReferences?: boolean
 }>()
 
 // @ts-expect-error: the window must be an object

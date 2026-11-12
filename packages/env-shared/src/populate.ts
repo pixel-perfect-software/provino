@@ -20,6 +20,12 @@ export interface PopulateOptions {
   readonly bindFunctions?: boolean
   /** Keys to copy besides the window's own names and the built-in list. */
   readonly additionalKeys?: readonly string[]
+  /**
+   * Make `window`, `self`, `top`, `parent` and `document.defaultView` the global (default `true`).
+   * Off for an environment that isn't a window (Node's, the edge runtime's): its code must not
+   * see a `window`.
+   */
+  readonly selfReferences?: boolean
 }
 
 /**
@@ -76,7 +82,7 @@ export function populateGlobal(
 ): Populated {
   const target = global as Loose
   const source = win as Loose
-  const { bindFunctions = false } = options
+  const { bindFunctions = false, selfReferences = true } = options
   const keys = new Set(windowKeys(target, source, options.additionalKeys ?? []))
   const originals = new Map<string | symbol, PropertyDescriptor>()
   const overrides = new Map<string | symbol, unknown>()
@@ -114,28 +120,30 @@ export function populateGlobal(
     })
   }
 
-  for (const key of [...SKIP_KEYS, 'global']) {
-    if (key === 'global' && !('global' in target)) continue
-    capture(key)
-  }
-  target.window = target
-  target.self = target
-  target.top = target
-  target.parent = target
-  if (target.global !== undefined) target.global = target
+  if (selfReferences) {
+    for (const key of [...SKIP_KEYS, 'global']) {
+      if (key === 'global' && !('global' in target)) continue
+      capture(key)
+    }
+    target.window = target
+    target.self = target
+    target.top = target
+    target.parent = target
+    if (target.global !== undefined) target.global = target
 
-  // `document.defaultView` must be the same global context. The document belongs to the window,
-  // which is closed afterwards, so it needs no restore.
-  const document = target.document as object | undefined
-  if (document !== undefined && (document as { defaultView?: unknown }).defaultView) {
-    Object.defineProperty(document, 'defaultView', {
-      get: () => target,
-      enumerable: true,
-      configurable: true,
-    })
-  }
+    // `document.defaultView` must be the same global context. The document belongs to the window,
+    // which is closed afterwards, so it needs no restore.
+    const document = target.document as object | undefined
+    if (document !== undefined && (document as { defaultView?: unknown }).defaultView) {
+      Object.defineProperty(document, 'defaultView', {
+        get: () => target,
+        enumerable: true,
+        configurable: true,
+      })
+    }
 
-  for (const key of SKIP_KEYS) keys.add(key)
+    for (const key of SKIP_KEYS) keys.add(key)
+  }
 
   return {
     keys,

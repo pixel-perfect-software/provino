@@ -227,7 +227,6 @@ test('the keys the dialect leaves to the neutral policy are the ones listed in d
       'snapshot.key',
       'snapshot.serializers',
       'snapshot.resolvePath',
-      'orchestrator.environmentConditions',
       'orchestrator.isolationDefault.byEnvironment',
     ].sort(),
   )

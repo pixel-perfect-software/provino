@@ -211,13 +211,14 @@ test('keys read but not applied yet warn, naming the task (gap 9)', async () => 
   assert.ok(!messages.some((m) => m.startsWith('Jest config key "moduleNameMapper"')))
   assert.deepEqual(neutral.value[0]?.aliases, [{ pattern: '^a$', targets: ['b'] }])
   assert.deepEqual(neutral.value[0]?.resolution?.moduleDirectories, ['node_modules'])
-  assert.ok(
-    messages.some((m) => m.startsWith('Jest config key "testEnvironment"') && m.includes('T8.3')),
-  )
+  // D44: jsdom is the project's own environment class, run through the adapter, so it no longer warns.
+  assert.ok(!messages.some((m) => m.startsWith('Jest config key "testEnvironment"')))
   assert.ok(
     messages.some((m) => m.startsWith('Jest config key "fakeTimers"') && m.includes('T4.9')),
   )
-  assert.equal(neutral.value[0]?.environment.name, 'jsdom')
+  const environment = neutral.value[0]?.environment
+  assert.match(environment?.name ?? '', /jest-environment-jsdom/)
+  assert.equal(environment?.options.module, environment?.name)
 })
 
 test('projects: one neutral project each', async () => {
