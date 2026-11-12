@@ -7,50 +7,32 @@
 //
 // Usage: node --conditions=provino-source packages/transform/bench/transform-cache.ts
 //          [--root <dir>] [--max-warm-ms 0.05] [--json]
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { createPipeline } from '@provino/transform'
 import type { TransformRecord } from '@provino/types'
+import { DEFAULT_ROOT, median, readManifest, readSources } from './corpus.ts'
 
 const TIMED_PASSES = 15
 
-interface Manifest {
-  readonly commit: string
-  readonly files: readonly string[]
-}
-
-const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
-const manifestPath = fileURLToPath(new URL('../fixtures/excalidraw.json', import.meta.url))
 const { values: args } = parseArgs({
   options: {
-    root: { type: 'string', default: join(repoRoot, '.refs/excalidraw') },
+    root: { type: 'string', default: DEFAULT_ROOT },
     'max-warm-ms': { type: 'string' },
     json: { type: 'boolean', default: false },
   },
 })
 const root = args.root
 
-const manifest: Manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-const sources = manifest.files.map((file) => ({
-  filename: join(root, file),
-  source: readFileSync(join(root, file), 'utf8'),
-}))
+const manifest = readManifest()
+const sources = readSources(root, manifest)
 
 const cacheDir = mkdtempSync(join(tmpdir(), 'provino-transform-cache-bench-'))
 
 function pipelineWith(cache: false | { readonly dir: string }): ReturnType<typeof createPipeline> {
   return createPipeline({ root, typescript: 'oxc', tsconfig: 'auto', hoist: null, cache })
-}
-
-function median(values: readonly number[]): number {
-  const sorted = [...values].sort((a, b) => a - b)
-  const mid = sorted.length >> 1
-  return sorted.length % 2 === 1
-    ? (sorted[mid] ?? 0)
-    : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
 }
 
 interface Pass {
