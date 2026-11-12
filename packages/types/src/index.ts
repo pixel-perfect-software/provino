@@ -55,6 +55,7 @@ export type {
   NeutralAlias,
   NeutralDiscovery,
   NeutralProject,
+  NeutralResolution,
   NeutralTransform,
   ReporterAdapter,
 } from './dialect.ts'

@@ -10,11 +10,14 @@ import type {
   Dialect,
   EnvironmentRef,
   IsolationTier,
+  NeutralAlias,
   NeutralDiscovery,
   NeutralProject,
+  NeutralResolution,
   Policy,
   PolicyOverrides,
   ProvinoConfigInput,
+  SerializedLoaderConfig,
   SerializedProjectConfig,
 } from '@provino/types'
 import { ConfigError } from './errors.ts'
@@ -279,6 +282,8 @@ export async function resolveNeutralProject(
       setupFilesAfterEnv: neutral.setupFilesAfterEnv,
       setupFilesAfterEnvKey: 'setupFilesAfterEnv',
       discovery: neutral.discovery,
+      aliases: neutral.aliases,
+      ...(neutral.resolution === undefined ? {} : { resolution: neutral.resolution }),
     },
     { environments: options.environments, ci: options.ci },
   )
@@ -301,6 +306,26 @@ interface ProjectInput {
   /** The config key `setupFilesAfterEnv` came from, for messages. */
   readonly setupFilesAfterEnvKey: string
   readonly discovery: NeutralDiscovery | null
+  /** Name-mapping rules and resolver keys (T3.3); none for a `provino.config.*` project. */
+  readonly aliases?: readonly NeutralAlias[]
+  readonly resolution?: NeutralResolution
+}
+
+/** The resolver keys of the loader config: only the ones the project gave (T3.3). */
+function resolverKeys(input: ProjectInput): Partial<SerializedLoaderConfig> {
+  const { aliases, resolution } = input
+  return {
+    ...(aliases === undefined || aliases.length === 0 ? {} : { aliases }),
+    ...(resolution?.moduleDirectories === undefined
+      ? {}
+      : { moduleDirectories: resolution.moduleDirectories }),
+    ...(resolution?.modulePaths === undefined || resolution.modulePaths.length === 0
+      ? {}
+      : { modulePaths: resolution.modulePaths }),
+    ...(resolution?.resolver === undefined
+      ? {}
+      : { resolver: { module: resolution.resolver, export: 'default' } }),
+  }
 }
 
 /** The steps every project shares once its input is read: policy, environment, the worker config. */
@@ -378,6 +403,7 @@ async function finishProject(
       tsconfig: 'auto',
       mappers: [],
       typescript: 'oxc',
+      ...resolverKeys(input),
     },
   }
   assertWorkerConfig(config)

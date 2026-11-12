@@ -207,9 +207,10 @@ test('keys read but not applied yet warn, naming the task (gap 9)', async () => 
   const { neutral } = await readNeutral(root)
   const messages = neutral.diagnostics.map((d) => d.message)
   assert.ok(messages.some((m) => m.startsWith('Jest config key "transform"') && m.includes('T3.8')))
-  assert.ok(
-    messages.some((m) => m.startsWith('Jest config key "moduleNameMapper"') && m.includes('T3.3')),
-  )
+  // T3.3 applies the mapper, so it no longer warns, and the resolver keys reach the neutral project.
+  assert.ok(!messages.some((m) => m.startsWith('Jest config key "moduleNameMapper"')))
+  assert.deepEqual(neutral.value[0]?.aliases, [{ pattern: '^a$', targets: ['b'] }])
+  assert.deepEqual(neutral.value[0]?.resolution?.moduleDirectories, ['node_modules'])
   assert.ok(
     messages.some((m) => m.startsWith('Jest config key "testEnvironment"') && m.includes('T8.3')),
   )

@@ -73,6 +73,18 @@ export interface NeutralAlias {
 }
 
 /**
+ * The resolver keys of a project (T3.3). Absent keys keep the resolver's defaults.
+ * @public
+ */
+export interface NeutralResolution {
+  readonly moduleDirectories?: readonly string[]
+  /** Absolute directories. */
+  readonly modulePaths?: readonly string[]
+  /** An absolute path to a custom resolver module (Jest's `resolver`). */
+  readonly resolver?: string
+}
+
+/**
  * One transform rule (Jest's `transform` entry): a file whose path matches `pattern` (a regular
  * expression's source) goes through `module` (an absolute path, or the bare name of a package the
  * runner itself ships) with `options`.
@@ -127,6 +139,8 @@ export interface NeutralProject {
     readonly options: Readonly<Record<string, JsonValue>>
   }
   readonly aliases: readonly NeutralAlias[]
+  /** How specifiers resolve beyond `aliases` (Jest's `moduleDirectories`, `modulePaths`, `resolver`). */
+  readonly resolution?: NeutralResolution
   readonly transforms: readonly NeutralTransform[]
   /** Regular expressions' sources: files they match are not transformed. */
   readonly transformIgnorePatterns: readonly string[]

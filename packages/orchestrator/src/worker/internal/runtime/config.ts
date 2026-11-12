@@ -143,6 +143,36 @@ function moduleScopeRef(value: unknown): ModuleRef<ModuleScopeFactory> | null {
   return { module: moduleLocation(value.module, 'moduleScope.module'), export: value.export }
 }
 
+/** The optional resolver keys (T3.3); an absent one stays absent. */
+function resolverKeys(loader: Record<string, unknown>): Partial<SerializedLoaderConfig> {
+  const keys: { -readonly [K in keyof SerializedLoaderConfig]?: SerializedLoaderConfig[K] } = {}
+  if (loader.aliases !== undefined) {
+    if (!Array.isArray(loader.aliases)) invalid('loader.aliases', 'an array')
+    keys.aliases = loader.aliases.map((item: unknown, index) => {
+      const alias = record(item, `loader.aliases[${index}]`)
+      return {
+        pattern: text(alias.pattern, `loader.aliases[${index}].pattern`),
+        targets: texts(alias.targets, `loader.aliases[${index}].targets`),
+      }
+    })
+  }
+  if (loader.moduleDirectories !== undefined) {
+    keys.moduleDirectories = texts(loader.moduleDirectories, 'loader.moduleDirectories')
+  }
+  if (loader.modulePaths !== undefined) {
+    keys.modulePaths = absolutePaths(loader.modulePaths, 'loader.modulePaths')
+  }
+  if (loader.resolver !== undefined && loader.resolver !== null) {
+    if (!isModuleRef(loader.resolver))
+      invalid('loader.resolver', 'null or a { module, export } ref')
+    keys.resolver = {
+      module: moduleLocation(loader.resolver.module, 'loader.resolver.module'),
+      export: loader.resolver.export,
+    }
+  }
+  return keys
+}
+
 function loaderConfig(value: unknown): SerializedLoaderConfig {
   const loader = record(value, 'loader')
   const { tsconfig, typescript } = loader
@@ -155,6 +185,7 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
     invalid('loader.typescript', "'oxc', 'node-strip' or 'off'")
   }
   return {
+    ...resolverKeys(loader),
     hoist: hoistPolicy(loader.hoist),
     moduleScope: texts(loader.moduleScope, 'loader.moduleScope'),
     extensions: texts(loader.extensions, 'loader.extensions'),

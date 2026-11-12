@@ -4,13 +4,15 @@
 import { statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createBehaviourLoader } from '@provino/policy'
-import { createResolver } from '@provino/resolver'
+import { createNameMapper, createResolver } from '@provino/resolver'
 import { createPipeline } from '@provino/transform'
 import type {
+  JestCustomResolver,
   Loader,
   ModuleMapper,
   ModuleMapperFactory,
   ModulePolicy,
+  ModuleRef,
   SerializedLoaderConfig,
 } from '@provino/types'
 import { LoaderError } from './errors.ts'
@@ -71,6 +73,27 @@ function buildMapper(
   return mapper
 }
 
+/** Loads a Jest `resolver` module by ref: a function, or an object with `sync` and/or `async`. */
+async function loadCustomResolver(
+  behaviours: ReturnType<typeof createBehaviourLoader>,
+  ref: ModuleRef,
+): Promise<JestCustomResolver> {
+  const loaded: unknown = await behaviours.load(ref)
+  if (typeof loaded === 'function') return loaded as JestCustomResolver
+  if (
+    typeof loaded === 'object' &&
+    loaded !== null &&
+    (typeof Reflect.get(loaded, 'sync') === 'function' ||
+      typeof Reflect.get(loaded, 'async') === 'function')
+  ) {
+    return loaded as JestCustomResolver
+  }
+  throw new LoaderError(
+    'LOADER_INVALID_MAPPER',
+    `loader.resolver: the module must export a function or an object with sync/async`,
+  )
+}
+
 /**
  * Creates the worker's loader for one project. `config.mappers` are loaded by `ModuleRef` first,
  * which is why this is async. Mock hoisting follows `config.hoist` (the dialect's policy, by
@@ -91,6 +114,20 @@ export async function createProjectLoader(
       buildMapper(await behaviours.load(mapper.factory), mapper.options, index),
     ),
   )
+  // Name-mapping rules run before the mapper factories, as Jest's `moduleNameMapper` runs first.
+  const aliases = config.aliases ?? []
+  if (aliases.length > 0) {
+    mappers.unshift(
+      createNameMapper({
+        rootDir: root,
+        rules: aliases.map(({ pattern, targets }) => ({ pattern, targets })),
+      }),
+    )
+  }
+  const custom =
+    config.resolver === undefined || config.resolver === null
+      ? undefined
+      : await loadCustomResolver(behaviours, config.resolver)
   return createLoader({
     root,
     engine: 'runner',
@@ -99,6 +136,11 @@ export async function createProjectLoader(
       mappers,
       extensions: config.extensions,
       tsconfig: tsconfig === 'auto' || tsconfig === false ? tsconfig : { configFile: tsconfig },
+      ...(config.moduleDirectories === undefined
+        ? {}
+        : { moduleDirectories: config.moduleDirectories }),
+      ...(config.modulePaths === undefined ? {} : { modulePaths: config.modulePaths }),
+      ...(custom === undefined ? {} : { custom }),
     }),
     transformer: createPipeline({
       root,

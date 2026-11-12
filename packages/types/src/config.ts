@@ -6,6 +6,7 @@ import type {
   DialectRegistry,
   GlobalsFactory,
   ModuleScopeFactory,
+  NeutralAlias,
 } from './dialect.ts'
 import type { EnvironmentRef } from './environment.ts'
 import type { PluginRegistry, ProvinoPlugin } from './extensions.ts'
@@ -116,6 +117,17 @@ export interface SerializedLoaderConfig {
   readonly mappers: readonly SerializedModuleMapper[]
   /** How TypeScript is stripped. */
   readonly typescript: 'oxc' | 'node-strip' | 'off'
+  /**
+   * The dialect's name-mapping rules (Jest's `moduleNameMapper`; T3.3), regex sources in order. They
+   * run before `mappers`. Absent means none.
+   */
+  readonly aliases?: readonly NeutralAlias[]
+  /** Replaces `node_modules` as the directories searched up the tree (Jest `moduleDirectories`). */
+  readonly moduleDirectories?: readonly string[]
+  /** Absolute directories searched after a miss (Jest `modulePaths`). */
+  readonly modulePaths?: readonly string[]
+  /** A custom resolver module (Jest `resolver`), its `module` absolute; the export is `default`. */
+  readonly resolver?: ModuleRef | null
 }
 
 /**

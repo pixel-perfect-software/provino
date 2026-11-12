@@ -122,11 +122,6 @@ export function jestProjectToNeutral(
   if (!isDefaultTransform(project.transform)) {
     notApplied(diagnostics, 'transform', 'T3.8', "; Provino's own transform runs instead")
   }
-  if (project.moduleNameMapper.length > 0) notApplied(diagnostics, 'moduleNameMapper', 'T3.3')
-  if (project.resolver !== undefined) notApplied(diagnostics, 'resolver', 'T3.3')
-  if (project.modulePaths !== undefined && project.modulePaths.length > 0) {
-    notApplied(diagnostics, 'modulePaths', 'T3.3')
-  }
   if (project.snapshotResolver !== undefined) {
     notApplied(
       diagnostics,
@@ -215,6 +210,11 @@ export function jestProjectToNeutral(
       options: jsonObject(project.testEnvironmentOptions, 'testEnvironmentOptions', diagnostics),
     },
     aliases,
+    resolution: {
+      moduleDirectories: [...project.moduleDirectories],
+      modulePaths: [...(project.modulePaths ?? [])],
+      ...(project.resolver === undefined ? {} : { resolver: project.resolver }),
+    },
     transforms,
     transformIgnorePatterns: [...project.transformIgnorePatterns],
     snapshotSerializers: [...project.snapshotSerializers],
