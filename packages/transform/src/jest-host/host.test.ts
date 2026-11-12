@@ -121,7 +121,10 @@ describe('the three real transformers on the fixture', () => {
       const key = host.cacheKey(request(testFile, source))
       assert.equal(typeof key, 'string')
       assert.ok((key ?? '').length > 0)
-      const hosted = host.transform(request(testFile, source))
+      const hosted = host.transform(
+        request(testFile, source),
+        host.cacheKey(request(testFile, source)),
+      )
       assert.equal(hosted.transformerCacheKey, key)
       const pipeline = createPipeline({
         root: fixture,
@@ -139,8 +142,14 @@ describe('the three real transformers on the fixture', () => {
 
     test(`${name}: the async form is called as Jest's async path calls it`, async () => {
       const host = await createJestHost(config(tool.module, tool.options))
-      const sync = host.transform(request(testFile, source))
-      const async = await host.transformAsync(request(testFile, source))
+      const sync = host.transform(
+        request(testFile, source),
+        host.cacheKey(request(testFile, source)),
+      )
+      const async = await host.transformAsync(
+        request(testFile, source),
+        await host.cacheKeyAsync(request(testFile, source)),
+      )
       assert.equal(async.transformerCacheKey, sync.transformerCacheKey)
       assert.ok(async.code.includes("mock('./deps')"))
       // `@swc/jest`'s `processAsync` is always ESM ("async transform is always ESM"), as Jest's
@@ -152,7 +161,10 @@ describe('the three real transformers on the fixture', () => {
   test('babel-jest hoists by itself and the host leaves it alone; ts-jest and swc meet our hoister, which moves nothing', async () => {
     for (const [name, tool] of Object.entries(tools)) {
       const host = await createJestHost(config(tool.module, tool.options))
-      const hosted = host.transform(request(testFile, source))
+      const hosted = host.transform(
+        request(testFile, source),
+        host.cacheKey(request(testFile, source)),
+      )
       const pipeline = createPipeline({
         root: fixture,
         typescript: 'oxc',
@@ -264,7 +276,7 @@ describe('what a transformer module may be', () => {
       't.cjs': `module.exports = { createTransformer: (options) => ({ process: (src) => ({ code: '// ' + JSON.stringify(options) + '\\n' + src }) }) }`,
     })
     const host = await hostFor(join(dir, 't.cjs'), { flag: 1 })
-    assert.equal(host.transform(target).code, '// {"flag":1}\nconst a = 1')
+    assert.equal(host.transform(target, host.cacheKey(target)).code, '// {"flag":1}\nconst a = 1')
   })
 
   test('an ES module default export that is the transformer itself', async () => {
@@ -272,7 +284,7 @@ describe('what a transformer module may be', () => {
       't.mjs': `export default { process: (src) => ({ code: src.toUpperCase() }) }`,
     })
     const host = await hostFor(join(dir, 't.mjs'))
-    assert.equal(host.transform(target).code, 'CONST A = 1')
+    assert.equal(host.transform(target, host.cacheKey(target)).code, 'CONST A = 1')
   })
 
   test('an ES module with a named createTransformer, which may be async', async () => {
@@ -280,7 +292,7 @@ describe('what a transformer module may be', () => {
       't.mjs': `export const createTransformer = async () => ({ process: (src) => ({ code: src + '!' }) })`,
     })
     const host = await hostFor(join(dir, 't.mjs'))
-    assert.equal(host.transform(target).code, 'const a = 1!')
+    assert.equal(host.transform(target, host.cacheKey(target)).code, 'const a = 1!')
   })
 
   test('a module that is not a transformer is TRANSFORM_TRANSFORMER_INVALID', async () => {
@@ -301,14 +313,21 @@ describe('what a transformer module may be', () => {
       't.cjs': `module.exports = { processAsync: async (src) => ({ code: src + '//async' }) }`,
     })
     const host = await hostFor(join(dir, 't.cjs'))
-    assert.equal((await host.transformAsync(target)).code, 'const a = 1//async')
-    assert.throws(() => host.transform(target), { code: 'TRANSFORM_TRANSFORMER_INVALID' })
+    assert.equal(
+      (await host.transformAsync(target, await host.cacheKeyAsync(target))).code,
+      'const a = 1//async',
+    )
+    assert.throws(() => host.transform(target, host.cacheKey(target)), {
+      code: 'TRANSFORM_TRANSFORMER_INVALID',
+    })
   })
 
   test('a result with no code string is refused', async () => {
     const dir = write({ 't.cjs': `module.exports = { process: () => ({}) }` })
     const host = await hostFor(join(dir, 't.cjs'))
-    assert.throws(() => host.transform(target), { code: 'TRANSFORM_TRANSFORMER_INVALID' })
+    assert.throws(() => host.transform(target, host.cacheKey(target)), {
+      code: 'TRANSFORM_TRANSFORMER_INVALID',
+    })
   })
 
   test('a map as an object, as JSON text, or inlined in the code is read; none is null', async () => {
@@ -327,9 +346,9 @@ describe('what a transformer module may be', () => {
     })
     for (const name of ['object', 'text', 'inline']) {
       const host = await hostFor(join(dir, `${name}.cjs`))
-      assert.equal(host.transform(target).map?.mappings, 'AAAA', name)
+      assert.equal(host.transform(target, host.cacheKey(target)).map?.mappings, 'AAAA', name)
     }
-    assert.equal((await hostFor(join(dir, 'none.cjs'))).transform(target).map, null)
+    assert.equal((await hostFor(join(dir, 'none.cjs'))).transform(target, null).map, null)
   })
 
   test('a transformer with no getCacheKey has a null key', async () => {
@@ -343,7 +362,7 @@ describe('what a transformer module may be', () => {
       't.cjs': `module.exports = { process: (s, path, o) => ({ code: '// ' + JSON.stringify({ path, instrument: o.instrument, esm: o.supportsStaticESM, dyn: o.supportsDynamicImport, tla: o.supportsTopLevelAwait, ns: o.supportsExportNamespaceFrom, root: o.config.rootDir, cfg: JSON.parse(o.configString).id, tc: o.transformerConfig }) }) }`,
     })
     const host = await hostFor(join(dir, 't.cjs'), { k: 'v' })
-    assert.deepEqual(JSON.parse(host.transform(target).code.slice(3)), {
+    assert.deepEqual(JSON.parse(host.transform(target, host.cacheKey(target)).code.slice(3)), {
       path: '/project/a.ts',
       instrument: false,
       esm: false,

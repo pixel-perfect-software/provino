@@ -3,7 +3,6 @@
 // `ScriptTransformer.ts`): the first rule whose pattern matches the file picks the transformer,
 // `transformIgnorePatterns` (joined with `|`) opts a file out, `getCacheKey(Async)` and
 // `process(Async)` get the same options, and the result is `{ code, map }`.
-import { createHash } from 'node:crypto'
 import { realpathSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import type {
@@ -16,6 +15,7 @@ import type {
   SourceMapV3,
   TransformRequest,
 } from '@provino/types'
+import { hashParts, stableJson } from '../cache/fingerprint.ts'
 import { TransformError } from '../errors.ts'
 import { toSourceMapV3 } from '../internal/maps.ts'
 
@@ -44,12 +44,12 @@ export interface JestHost {
   handles(filename: string): boolean
   /**
    * Jest's sync `transformSource`: `process`; a transformer with only `processAsync` throws.
-   * `cacheKey` is the result of `cacheKey(request)` when the caller already asked (a pipeline with
-   * a cache does, before it looks an entry up), so `getCacheKey` runs once per file.
+   * `cacheKey` is the result of `cacheKey(request)`, which the caller asks for first (the pipeline
+   * does, before it looks an entry up), so `getCacheKey` runs once per file.
    */
-  transform(request: TransformRequest, cacheKey?: string | null): HostedSource
+  transform(request: TransformRequest, cacheKey: string | null): HostedSource
   /** Jest's `transformSourceAsync`: `processAsync` when there is one, else `process`. */
-  transformAsync(request: TransformRequest, cacheKey?: string | null): Promise<HostedSource>
+  transformAsync(request: TransformRequest, cacheKey: string | null): Promise<HostedSource>
   /** The transformer's `getCacheKey` for `request`, or `null` (none, or no rule matches). */
   cacheKey(request: TransformRequest): string | null
   /** `getCacheKeyAsync` when the transformer has it, else `getCacheKey`. */
@@ -227,31 +227,36 @@ export async function createJestHost(config: SerializedTransformConfig): Promise
   const rules = await Promise.all(config.rules.map(loadRule))
   const ignore =
     config.ignorePatterns.length === 0 ? null : new RegExp(config.ignorePatterns.join('|'))
-  const configString = JSON.stringify(config.config, (_key, value: unknown) =>
-    isRecord(value) && !Array.isArray(value)
-      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)))
-      : value,
-  )
+  const configString = stableJson(config.config)
   const cacheFS = new Map<string, string>()
-  const fingerprint = createHash('sha256')
-    .update(
-      JSON.stringify({
-        rules: rules.map((rule) => [rule.pattern.source, rule.path, rule.options]),
-        ignore: config.ignorePatterns,
-        config: configString,
-        hoistedMarkers: config.hoistedMarkers,
-      }),
-    )
-    .digest('hex')
+  const fingerprint = hashParts([
+    stableJson({
+      rules: rules.map((rule) => [rule.pattern.source, rule.path, rule.options]),
+      ignore: config.ignorePatterns,
+      config: configString,
+      hoistedMarkers: config.hoistedMarkers,
+    }),
+  ])
 
-  function ruleFor(filename: string): LoadedRule | undefined {
-    return rules.find((rule) => rule.pattern.test(filename))
+  /**
+   * The rule that takes `filename` and its real path, or `null` when none does or an ignore
+   * pattern matches. Resolving the real path and testing the patterns costs a system call and a
+   * scan of every rule, and `handles`, `cacheKey` and `transform` each ask about the same file.
+   */
+  const matches = new Map<string, { rule: LoadedRule; filename: string } | null>()
+  function match(filename: string): { rule: LoadedRule; filename: string } | null {
+    let found = matches.get(filename)
+    if (found === undefined) {
+      const real = realpathOf(filename)
+      const rule = ignore?.test(real) === true ? undefined : rules.find((r) => r.pattern.test(real))
+      found = rule === undefined ? null : { rule, filename: real }
+      matches.set(filename, found)
+    }
+    return found
   }
 
   function handles(filename: string): boolean {
-    const path = realpathOf(filename)
-    if (ignore?.test(path) === true) return false
-    return ruleFor(path) !== undefined
+    return match(filename) !== null
   }
 
   // Jest's CommonJS path: nothing ESM-only is offered to a transformer (jest-runtime L82-L85).
@@ -270,15 +275,14 @@ export async function createJestHost(config: SerializedTransformConfig): Promise
   }
 
   function pick(request: TransformRequest): { rule: LoadedRule; filename: string } {
-    const filename = realpathOf(request.filename)
-    const rule = ruleFor(filename)
-    if (rule === undefined || ignore?.test(filename) === true) {
+    const found = match(request.filename)
+    if (found === null) {
       throw new TransformError(
         'TRANSFORM_UNSUPPORTED_FILE',
         `no Jest transformer handles ${request.filename}`,
       )
     }
-    return { rule, filename }
+    return found
   }
 
   function finish(
@@ -324,8 +328,7 @@ export async function createJestHost(config: SerializedTransformConfig): Promise
         )
       }
       const options = optionsFor(rule, request.instrument)
-      const key = knownKey === undefined ? cacheKey(request) : knownKey
-      return finish(rule, transformer.process(request.source, filename, options), key)
+      return finish(rule, transformer.process(request.source, filename, options), knownKey)
     },
     async transformAsync(request, knownKey) {
       const { rule, filename } = pick(request)
@@ -333,8 +336,7 @@ export async function createJestHost(config: SerializedTransformConfig): Promise
       const process = transformer.processAsync ?? transformer.process
       if (typeof process !== 'function') throw invalidTransformer(rule.path)
       const options = optionsFor(rule, request.instrument)
-      const key = knownKey === undefined ? await cacheKeyAsync(request) : knownKey
-      return finish(rule, await process(request.source, filename, options), key)
+      return finish(rule, await process(request.source, filename, options), knownKey)
     },
   }
 }

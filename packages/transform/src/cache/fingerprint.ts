@@ -5,13 +5,17 @@ import { hash } from 'node:crypto'
 import type { HoistPolicy } from '@provino/types'
 
 /**
- * A stable serialization for fingerprints: regexps as their source, sets sorted.
+ * A stable serialization for fingerprints: object keys sorted, regexps as their source, sets
+ * sorted.
  * @internal
  */
 export function stableJson(value: unknown): string {
   return JSON.stringify(value, (_key, v: unknown) => {
     if (v instanceof RegExp) return v.toString()
     if (v instanceof Set) return [...v].map(String).sort()
+    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+      return Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1)))
+    }
     return v
   })
 }
