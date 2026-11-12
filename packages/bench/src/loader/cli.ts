@@ -46,9 +46,9 @@ if (command === 'graph-child') {
   process.exit(0)
 }
 if (command === 'graph') {
-  const { lines: graphLines, ok: graphOk } = await graphCommand({ maxColdMs, maxWarmMs })
+  const { lines: graphLines, exitCode } = await graphCommand({ maxColdMs, maxWarmMs })
   process.stdout.write(`${graphLines.join('\n')}\n`)
-  process.exit(graphOk ? 0 : 1)
+  process.exit(exitCode)
 }
 
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'provino-loader-fixture-')))

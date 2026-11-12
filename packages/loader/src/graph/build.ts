@@ -10,7 +10,6 @@
 // the resolver threw on, is `dynamic` (unknown to a closure walk) and never written to the cache.
 import { readFileSync, statSync } from 'node:fs'
 import type { Resolver } from '@provino/types'
-import { conditionsOf } from './conditions.ts'
 import {
   type FileStamp,
   fromStored,
@@ -23,6 +22,7 @@ import {
   toStored,
   writeGraphCache,
 } from './cache.ts'
+import { conditionsOf } from './conditions.ts'
 import { scanSource } from './scan.ts'
 
 /**
@@ -82,7 +82,11 @@ export interface ClosureEdges {
  * @public
  */
 export interface ThirdPartyGraph {
-  /** Scans `entry` and every file under `node_modules` it can reach, unless already known. */
+  /**
+   * Scans `entry` and every file under `node_modules` it can reach, unless already known. What a
+   * cache file holds counts as known and is not stamped here: `reachable` and `edgesOf` do that, on
+   * a file's first visit.
+   */
   add(entry: string): void
   /** Whether `path` is in the graph. */
   has(path: string): boolean
@@ -254,8 +258,9 @@ export function buildThirdPartyGraph(options: GraphOptions): ThirdPartyGraph {
       slot.node = node
       return node
     }
-    const rescanned = install(path, scan(path))
-    return rescanned.node as GraphNode
+    const scanned = scan(path)
+    install(path, scanned)
+    return scanned.node
   }
 
   /** The slot of `path` as a walk should see it: stamped on its first visit in this worker. */
@@ -309,7 +314,20 @@ export function buildThirdPartyGraph(options: GraphOptions): ThirdPartyGraph {
   const graph: ThirdPartyGraph = {
     add(entry) {
       load()
-      if (inGraph(entry)) closureOf(entry, true)
+      // What the cache holds is taken as whole: a walk (`reachable`, `edgesOf`) stamps it on first
+      // visit and scans what a changed file now reaches. Only what is new is scanned here.
+      const stack = [entry]
+      while (stack.length > 0) {
+        const path = stack.pop()
+        if (path === undefined || !inGraph(path) || slots.has(path)) continue
+        const scanned = scan(path)
+        install(path, scanned)
+        for (const edge of scanned.node.edges) {
+          if (edge.target !== null && inGraph(edge.target) && !slots.has(edge.target)) {
+            stack.push(edge.target)
+          }
+        }
+      }
     },
     has: (path) => slots.has(path),
     nodeOf(path) {

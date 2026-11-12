@@ -14,8 +14,8 @@ import type {
   ResolveResult,
   SourceMapV3,
 } from '@provino/types'
-import { conditionsOf } from '../graph/conditions.ts'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
+import { conditionsOf } from '../graph/conditions.ts'
 import { type GraphEdge, inGraph } from '../graph/index.ts'
 import { createInlineState, type InlineState } from './inline.ts'
 import { loaderMessage } from './messages.ts'

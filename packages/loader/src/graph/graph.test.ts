@@ -492,7 +492,7 @@ describe('what the cache must not keep', () => {
       cacheDir,
       lockfileHash: lockOf(root),
     })
-    second.add(entry(root))
+    second.edgesOf(entry(root))
     assert.equal(second.fromCache, true)
     assert.deepEqual(
       second.nodeOf(entry(root))?.edges.map((edge) => edge.specifier),
