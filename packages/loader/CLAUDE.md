@@ -49,7 +49,7 @@ Pure functions, by `ModulePolicy.interopDefault`, held to B13b's fake loader's r
 
 Read from `ModulePolicy.messages`, like the module-mock registry's. `transform-failed` (`{file}`, `{where}`, `{message}`; a code frame follows after a blank line; neutral `{file}{where}: {message}`, Jest `{file}: {message}`), `module-not-found` (`{specifier}`, `{from}` relative to the root, `{importer}`; Jest's is jest-resolve's), `unresolved-mock-import` (no neutral text; Vitest's profile appends ` imported from {importer}` when the test file's load fails on `unresolved-relative-mock`; an import from inside a test isn't wrapped). A not-found error is a `ModuleNotFoundError`, whose `name` stays `Error` (Node's and jest-resolve's are), code `MODULE_NOT_FOUND` for a `require` and `ERR_MODULE_NOT_FOUND` for an `import`.
 
-## The wrapper shape (oxc's runner output, Vite's shape)
+## The wrapper shape (the module-runner transform's output: oxc's shape, our own transform)
 
 - **Imports** become `const __vite_ssr_import_N__ = await __vite_ssr_import__('./x', { importedNames })`. Uses become `__vite_ssr_import_N__.x`, which stays live.
 - **Exports** become getters on `__vite_ssr_exports__`, hoisted above the imports, so cycles see live bindings.
@@ -72,7 +72,7 @@ Read from `ModulePolicy.messages`, like the module-mock registry's. `transform-f
 
 ## Gotchas
 
-- **The deprecated oxc runner transform aborts the process on unstripped TypeScript.** Only `toModuleRunner`, in `@provino/transform`, may call it, and only on the pipeline's output (DECISIONS D10).
+- **The module-runner step is `toModuleRunner`, in `@provino/transform` (B20).** Our own transform on `oxc-parser`; unstripped TypeScript is a per-file parse error, and no production file names oxc's deprecated `moduleRunnerTransformSync` (DECISIONS D10). The loader's project pipeline is made with `runnerForm: true`, so a warm record carries its runner form and `recordFor` skips the step. `deps` come in source order, so externals preload in the order the file imports them.
 - **A JSON module's `import * as`** gives `{ default }` only (Node's shape) under either interop; Babel's would carry the keys too. No golden pins it.
 - **Tests:** `loader.test.ts` (tiers, interop, isolation, invalidate), `mocks.test.ts` (T2.5's contract: every edge decides, the actual paths, reset and isolation reach the registry, scratch, lazy misses, the message codes, D38, scope bindings, `none` with mocks, no registry), `review-regressions.test.ts` (one test per pre-merge review finding), `internal/interop.test.ts`, `project.test.ts`. The mock tests share `internal/test-support.ts` (a temp tree, small policies, a loader and a file with a real module-mock registry).
 - **Checks:**

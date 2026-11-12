@@ -240,7 +240,8 @@ export function createTransformCache(dir: string): TransformCache {
         }
         const code = Buffer.from(record.code, 'utf8')
         const map = record.map === null ? Buffer.alloc(0) : Buffer.from(JSON.stringify(record.map))
-        const runnerCode = record.runner === undefined ? null : Buffer.from(record.runner.code, 'utf8')
+        const runnerCode =
+          record.runner === undefined ? null : Buffer.from(record.runner.code, 'utf8')
         const runnerEdits =
           record.runner === undefined ? null : Buffer.from(JSON.stringify(record.runner.edits))
         const header: Header = {
