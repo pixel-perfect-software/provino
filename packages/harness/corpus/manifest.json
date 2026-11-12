@@ -702,10 +702,6 @@
         {
           "path": "examples",
           "reason": "standalone pnpm workspaces with their own lockfiles"
-        },
-        {
-          "path": "(29 more packages)",
-          "reason": "B22 enumerates these when it installs the repository"
         }
       ],
       "subjects": [
@@ -899,7 +895,471 @@
           ],
           "env": {},
           "r6": false,
-          "note": "About 25 spec files by name pattern; tied with packages/expo (25) for twelfth place, taken by name order."
+          "note": "About 25 spec files by name pattern."
+        },
+        {
+          "id": "nx-angular-rspack-compiler",
+          "cwd": "packages/angular-rspack-compiler",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/angular-rspack-compiler/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 14 spec files by name pattern."
+        },
+        {
+          "id": "nx-angular-rspack",
+          "cwd": "packages/angular-rspack",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/angular-rspack/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 21 spec files by name pattern."
+        },
+        {
+          "id": "nx-create-nx-plugin",
+          "cwd": "packages/create-nx-plugin",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/create-nx-plugin/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 1 spec files by name pattern."
+        },
+        {
+          "id": "nx-create-nx-workspace",
+          "cwd": "packages/create-nx-workspace",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/create-nx-workspace/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 14 spec files by name pattern."
+        },
+        {
+          "id": "nx-detox",
+          "cwd": "packages/detox",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/detox/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 13 spec files by name pattern."
+        },
+        {
+          "id": "nx-docker",
+          "cwd": "packages/docker",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/docker/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 8 spec files by name pattern."
+        },
+        {
+          "id": "nx-dotnet",
+          "cwd": "packages/dotnet",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/dotnet/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 8 spec files by name pattern."
+        },
+        {
+          "id": "nx-esbuild",
+          "cwd": "packages/esbuild",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/esbuild/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 9 spec files by name pattern."
+        },
+        {
+          "id": "nx-eslint-plugin",
+          "cwd": "packages/eslint-plugin",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/eslint-plugin/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 9 spec files by name pattern."
+        },
+        {
+          "id": "nx-eslint",
+          "cwd": "packages/eslint",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/eslint/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 27 spec files by name pattern."
+        },
+        {
+          "id": "nx-expo",
+          "cwd": "packages/expo",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/expo/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 26 spec files by name pattern."
+        },
+        {
+          "id": "nx-express",
+          "cwd": "packages/express",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/express/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 5 spec files by name pattern."
+        },
+        {
+          "id": "nx-maven",
+          "cwd": "packages/maven",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/maven/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 13 spec files by name pattern."
+        },
+        {
+          "id": "nx-module-federation",
+          "cwd": "packages/module-federation",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/module-federation/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 5 spec files by name pattern."
+        },
+        {
+          "id": "nx-nest",
+          "cwd": "packages/nest",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/nest/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 22 spec files by name pattern."
+        },
+        {
+          "id": "nx-node",
+          "cwd": "packages/node",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/node/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 12 spec files by name pattern."
+        },
+        {
+          "id": "nx-nuxt",
+          "cwd": "packages/nuxt",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/nuxt/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 18 spec files by name pattern."
+        },
+        {
+          "id": "nx-oxlint",
+          "cwd": "packages/oxlint",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/oxlint/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 14 spec files by name pattern."
+        },
+        {
+          "id": "nx-playwright",
+          "cwd": "packages/playwright",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/playwright/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 14 spec files by name pattern."
+        },
+        {
+          "id": "nx-plugin",
+          "cwd": "packages/plugin",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/plugin/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 10 spec files by name pattern."
+        },
+        {
+          "id": "nx-react-native",
+          "cwd": "packages/react-native",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/react-native/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 20 spec files by name pattern."
+        },
+        {
+          "id": "nx-remix",
+          "cwd": "packages/remix",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/remix/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 12 spec files by name pattern."
+        },
+        {
+          "id": "nx-rolldown",
+          "cwd": "packages/rolldown",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/rolldown/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 5 spec files by name pattern."
+        },
+        {
+          "id": "nx-rollup",
+          "cwd": "packages/rollup",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/rollup/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 24 spec files by name pattern."
+        },
+        {
+          "id": "nx-rsbuild",
+          "cwd": "packages/rsbuild",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/rsbuild/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 15 spec files by name pattern."
+        },
+        {
+          "id": "nx-storybook",
+          "cwd": "packages/storybook",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/storybook/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 21 spec files by name pattern."
+        },
+        {
+          "id": "nx-vitest",
+          "cwd": "packages/vitest",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/vitest/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 20 spec files by name pattern."
+        },
+        {
+          "id": "nx-vue",
+          "cwd": "packages/vue",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/vue/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 19 spec files by name pattern."
+        },
+        {
+          "id": "nx-web",
+          "cwd": "packages/web",
+          "runner": "vitest",
+          "runnerVersion": "4.1.2",
+          "config": [
+            "packages/web/vitest.config.mts"
+          ],
+          "argv": [
+            "run",
+            "--passWithNoTests"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "About 9 spec files by name pattern."
         },
         {
           "id": "nx-jest",
@@ -1139,7 +1599,7 @@
           "note": "About 1 spec file by name pattern. I did not open this config."
         }
       ],
-      "note": "Root `test` is `nx run-many -t test`, which runs each project's inferred `test` target: nx.json's @nx/jest/plugin (targetName test, excluding e2e/**, __fixtures__ and root jest.config.ts) turns each project with a jest.config.* into `jest` run in that project's directory, and @nx/vitest (targetName test, include packages/**/*) turns each vitest.config.mts into `vitest`. nx.json targetDefaults add `--passWithNoTests --detectOpenHandles --forceExit` with NODE_OPTIONS=--experimental-vm-modules to the Jest targets and `--passWithNoTests` to the Vitest targets; the subjects copy those. The 12 Vitest subjects are the 12 packages with the most spec files (by name pattern, excluding __fixtures__ and files/ templates; 41 Vitest packages in all; the 29 left out, named in skipped as '(29 more packages)', are angular-rspack-compiler, angular-rspack, create-nx-plugin, create-nx-workspace, detox, docker, dotnet, esbuild, eslint-plugin, eslint, expo, express, maven, module-federation, nest, node, nuxt, oxlint, playwright, plugin, react-native, remix, rolldown, rollup, rsbuild, storybook, vitest, vue and web; packages/expo has 25 test files, the same as packages/next, which took twelfth place by name order). Jest has only 9 projects with tests outside e2e/** (all listed), under the cap. Versions are from pnpm-lock.yaml: jest 30.3.0 (catalog:jest) and vitest 4.1.2 (catalog:vite). nx.json also gives the `test` target dependsOn ['test-native', 'build-native', '^build-native'], i.e. the Rust native bindings (packages/nx/src/native) must be built with cargo before many tests can load them (packages/nx and everything importing nx at runtime); no prepare step covers that because I could not verify a cargo/napi build in a network-off run, so B22 must decide how to provide the .node binding (it may come from the optional @nx/nx-<platform> packages the install fetches). The root postinstall (install-maven-plugin.js, `dotnet restore`) and preinstall scripts are not needed for unit tests as far as I can tell. .pnpmrc sets enable-scripts for sharp, @swc/core, @swc/cli, @swc-node/register and esbuild; the `rebuild` field is left out because those arrive as prebuilt optional packages, which I did not verify. Counts are file-name patterns from the tarball listing, not run results."
+      "note": "Root `test` is `nx run-many -t test`, which runs each project's inferred `test` target: nx.json's @nx/jest/plugin (targetName test, excluding e2e/**, __fixtures__ and root jest.config.ts) turns each project with a jest.config.* into `jest` run in that project's directory, and @nx/vitest (targetName test, include packages/**/*) turns each vitest.config.mts into `vitest`. nx.json targetDefaults add `--passWithNoTests --detectOpenHandles --forceExit` with NODE_OPTIONS=--experimental-vm-modules to the Jest targets and `--passWithNoTests` to the Vitest targets; the subjects copy those. The 41 Vitest subjects are every package with a vitest.config.mts (D56: no cap). Jest has only 9 projects with tests outside e2e/** (all listed). Versions are from pnpm-lock.yaml: jest 30.3.0 (catalog:jest) and vitest 4.1.2 (catalog:vite). nx.json also gives the `test` target dependsOn ['test-native', 'build-native', '^build-native'], i.e. the Rust native bindings (packages/nx/src/native) must be built with cargo before many tests can load them (packages/nx and everything importing nx at runtime); no prepare step covers that because I could not verify a cargo/napi build in a network-off run, so B22 must decide how to provide the .node binding (it may come from the optional @nx/nx-<platform> packages the install fetches). The root postinstall (install-maven-plugin.js, `dotnet restore`) and preinstall scripts are not needed for unit tests as far as I can tell. .pnpmrc sets enable-scripts for sharp, @swc/core, @swc/cli, @swc-node/register and esbuild; the `rebuild` field is left out because those arrive as prebuilt optional packages, which I did not verify. Counts are file-name patterns from the tarball listing, not run results."
     },
     {
       "id": "jest-extended",
@@ -1581,70 +2041,6 @@
       "testScript": "nx run-many --targets=test:sherif,test:knip,test:docs,test:eslint,test:oxlint,test:lib,test:types,test:build,build",
       "skipped": [
         {
-          "path": "packages/angular-query-experimental",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/angular-query-persist-client",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/preact-query-devtools",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/preact-query-persist-client",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/query-async-storage-persister",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/query-broadcast-client-experimental",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/query-sync-storage-persister",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/query-test-utils",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/react-query-devtools",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/react-query-persist-client",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/solid-query-devtools",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/solid-query-persist-client",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/svelte-query-devtools",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/svelte-query-persist-client",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/vue-query",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
-          "path": "packages/vue-query-devtools",
-          "reason": "has a test:lib target; B16 caps the pilot at the 10 packages with the most test files, and B22 adds the rest (vue-query runs three Vue variants)"
-        },
-        {
           "path": "integrations",
           "reason": "Vite sample apps, not library tests"
         }
@@ -1811,6 +2207,290 @@
           "runnerVersion": "5.0.5",
           "config": [
             "packages/query-codemods/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-angular-query-experimental",
+          "cwd": "packages/angular-query-experimental",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/angular-query-experimental/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-angular-query-persist-client",
+          "cwd": "packages/angular-query-persist-client",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/angular-query-persist-client/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-preact-query-devtools",
+          "cwd": "packages/preact-query-devtools",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/preact-query-devtools/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-preact-query-persist-client",
+          "cwd": "packages/preact-query-persist-client",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/preact-query-persist-client/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--retry=3",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-query-async-storage-persister",
+          "cwd": "packages/query-async-storage-persister",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/query-async-storage-persister/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-query-broadcast-client-experimental",
+          "cwd": "packages/query-broadcast-client-experimental",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/query-broadcast-client-experimental/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-query-sync-storage-persister",
+          "cwd": "packages/query-sync-storage-persister",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/query-sync-storage-persister/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-query-test-utils",
+          "cwd": "packages/query-test-utils",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/query-test-utils/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-react-query-devtools",
+          "cwd": "packages/react-query-devtools",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/react-query-devtools/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-react-query-persist-client",
+          "cwd": "packages/react-query-persist-client",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/react-query-persist-client/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--retry=3",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-solid-query-devtools",
+          "cwd": "packages/solid-query-devtools",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/solid-query-devtools/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--retry=3",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-solid-query-persist-client",
+          "cwd": "packages/solid-query-persist-client",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/solid-query-persist-client/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-svelte-query-devtools",
+          "cwd": "packages/svelte-query-devtools",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/svelte-query-devtools/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-svelte-query-persist-client",
+          "cwd": "packages/svelte-query-persist-client",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/svelte-query-persist-client/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool."
+        },
+        {
+          "id": "tanstack-vue-query",
+          "cwd": "packages/vue-query",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/vue-query/vite.config.ts"
+          ],
+          "argv": [
+            "run",
+            "--coverage.enabled=false",
+            "--typecheck.enabled=false"
+          ],
+          "env": {},
+          "r6": false,
+          "note": "The package's \"test:lib\" (vitest). The flags --coverage.enabled=false and --typecheck.enabled=false are added: the config turns coverage on under CI and typecheck on always, and type tests need each dependency's compile output (dist-ts), which the nx task graph builds. Provino has no typecheck pool. The script runs the suite three times, as Vue 2, 2.7 and 3 (vue-demi-switch, then vitest); the subject is the Vue 3 run, selected by a prepare step. B22 may add the other two variants.",
+          "prepare": [
+            {
+              "command": "vue-demi-switch",
+              "args": [
+                "3"
+              ],
+              "cwd": "packages/vue-query"
+            }
+          ]
+        },
+        {
+          "id": "tanstack-vue-query-devtools",
+          "cwd": "packages/vue-query-devtools",
+          "runner": "vitest",
+          "runnerVersion": "5.0.5",
+          "config": [
+            "packages/vue-query-devtools/vite.config.ts"
           ],
           "argv": [
             "run",
@@ -2080,10 +2760,6 @@
         {
           "path": "packages/website",
           "reason": "Docs site; no unit tests and no vitest config (build and typecheck only)."
-        },
-        {
-          "path": "(2 more packages)",
-          "reason": "B22 enumerates these when it installs the repository: packages/tsconfig-utils and packages/visitor-keys (1 test file each), left out by the 12-subject cap."
         }
       ],
       "subjects": [
@@ -2470,9 +3146,73 @@
             }
           ],
           "note": "Counts are *.test.ts files outside fixtures. Runs `nx test <pkg>` in CI, which is `vitest run` with --config=vitest.config.mts in the package dir; `test` dependsOn `^build`, hence the prepare (root `build` is `nx run-many -t build --exclude website website-eslint`; the repo has an nxCloudId, so nx may try to reach Nx Cloud, which the network-off prepare cannot)."
+        },
+        {
+          "id": "typescript-eslint-tsconfig-utils",
+          "cwd": "packages/tsconfig-utils",
+          "runner": "vitest",
+          "runnerVersion": "5.0.3",
+          "config": [
+            "packages/tsconfig-utils/vitest.config.mts",
+            "vitest.config.base.mts"
+          ],
+          "argv": [
+            "run"
+          ],
+          "env": {
+            "CI": "true"
+          },
+          "r6": false,
+          "prepare": [
+            {
+              "command": "nx",
+              "args": [
+                "run-many",
+                "-t",
+                "build",
+                "--exclude",
+                "website",
+                "website-eslint"
+              ],
+              "cwd": "."
+            }
+          ],
+          "note": "Counts are *.test.ts files outside fixtures. Runs `nx test <pkg>` in CI, which is `vitest run` with --config=vitest.config.mts in the package dir; `test` dependsOn `^build`, hence the prepare (root `build` is `nx run-many -t build --exclude website website-eslint`; the repo has an nxCloudId, so nx may try to reach Nx Cloud, which the network-off prepare cannot)."
+        },
+        {
+          "id": "typescript-eslint-visitor-keys",
+          "cwd": "packages/visitor-keys",
+          "runner": "vitest",
+          "runnerVersion": "5.0.3",
+          "config": [
+            "packages/visitor-keys/vitest.config.mts",
+            "vitest.config.base.mts"
+          ],
+          "argv": [
+            "run"
+          ],
+          "env": {
+            "CI": "true"
+          },
+          "r6": false,
+          "prepare": [
+            {
+              "command": "nx",
+              "args": [
+                "run-many",
+                "-t",
+                "build",
+                "--exclude",
+                "website",
+                "website-eslint"
+              ],
+              "cwd": "."
+            }
+          ],
+          "note": "Counts are *.test.ts files outside fixtures. Runs `nx test <pkg>` in CI, which is `vitest run` with --config=vitest.config.mts in the package dir; `test` dependsOn `^build`, hence the prepare (root `build` is `nx run-many -t build --exclude website website-eslint`; the repo has an nxCloudId, so nx may try to reach Nx Cloud, which the network-off prepare cannot)."
         }
       ],
-      "note": "Rule 3: the root `test` script is `nx run-many -t test`, which runs one `vitest run` per package that has its own vitest.config.mts. 14 such packages have tests; this lists the 12 with the most test files (ties at 1 file broken by name: ast-spec and rule-schema-to-typescript-types kept, tsconfig-utils and visitor-keys left out). Version 5.0.3 is the pnpm-lock.yaml resolution of the catalog vitest. All package configs merge the root vitest.config.base.mts (globals, isolate false, setup file console-fail-test/setup). A root vitest.config.mts with a `projects` list also exists (used for coverage and the editor), but the repo scripts and CI never run it. The root postinstall (`tsx tools/scripts/postinstall.mts`) installs husky and builds; a scripts-off install skips it, and the prepare step covers the build. packageManager is pnpm 12.15.0 (hash stripped); engines node ^18.18 || ^20.9 || >=21.1."
+      "note": "Rule 3: the root `test` script is `nx run-many -t test`, which runs one `vitest run` per package that has its own vitest.config.mts. 14 such packages have tests; this lists all 14 (D56: one subject per package the script covers). Version 5.0.3 is the pnpm-lock.yaml resolution of the catalog vitest. All package configs merge the root vitest.config.base.mts (globals, isolate false, setup file console-fail-test/setup). A root vitest.config.mts with a `projects` list also exists (used for coverage and the editor), but the repo scripts and CI never run it. The root postinstall (`tsx tools/scripts/postinstall.mts`) installs husky and builds; a scripts-off install skips it, and the prepare step covers the build. packageManager is pnpm 12.15.0 (hash stripped); engines node ^18.18 || ^20.9 || >=21.1."
     },
     {
       "id": "redux-toolkit",

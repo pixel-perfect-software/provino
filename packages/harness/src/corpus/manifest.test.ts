@@ -71,6 +71,27 @@ test('the manifest pins all 33 F5 repositories, each with a full SHA and a tarba
   assert.equal(new Set(subjects).size, subjects.length, 'subject ids are unique')
 })
 
+test('a repository run through nx, turbo or lerna has one subject per package its script covers (D56: no cap)', async () => {
+  const manifest = await readCorpusManifest()
+  const counts = (id: string) => {
+    const repo = manifest.repos.find((candidate) => candidate.id === id)
+    if (repo === undefined) throw new Error(`no repo ${id}`)
+    return {
+      vitest: repo.subjects.filter((subject) => subject.runner === 'vitest').length,
+      jest: repo.subjects.filter((subject) => subject.runner === 'jest').length,
+    }
+  }
+  assert.deepEqual(counts('nx'), { vitest: 41, jest: 9 })
+  // test:lib in 26 packages (vue-query runs it once, as Vue 3).
+  assert.deepEqual(counts('tanstack-query'), { vitest: 26, jest: 0 })
+  assert.deepEqual(counts('typescript-eslint'), { vitest: 14, jest: 0 })
+  for (const repo of manifest.repos) {
+    for (const skipped of repo.skipped ?? []) {
+      assert.doesNotMatch(skipped.reason, /\bcap(ped|s)?\b|more packages/, `${repo.id}: ${skipped.path}`)
+    }
+  }
+})
+
 test('the pilot is the 8 repositories D4 and D40 name', async () => {
   const manifest = await readCorpusManifest()
   assert.deepEqual(
