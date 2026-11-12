@@ -458,7 +458,9 @@ expectTypeOf(selfDiff).returns.toEqualTypeOf<SelfDiff>()
 expectTypeOf<CorpusRunner>().toEqualTypeOf<'jest' | 'vitest'>()
 expectTypeOf<CorpusSelection['kind']>().toEqualTypeOf<'all' | 'pilot' | 'ids'>()
 expectTypeOf<Extract<CorpusSelection, { kind: 'ids' }>['ids']>().toEqualTypeOf<readonly string[]>()
-expectTypeOf<ProbeName>().toEqualTypeOf<'tcp' | 'dns' | 'https' | 'canary' | 'ssh' | 'loopback'>()
+expectTypeOf<ProbeName>().toEqualTypeOf<
+  'tcp' | 'dns' | 'https' | 'socket' | 'canary' | 'ssh' | 'loopback'
+>()
 expectTypeOf<PinChange['outcome']>().toEqualTypeOf<'new' | 'same'>()
 expectTypeOf<GateReport['subjects']>().toEqualTypeOf<readonly GateSubject[]>()
 expectTypeOf<CorpusDeps['run']>().parameters.toEqualTypeOf<
