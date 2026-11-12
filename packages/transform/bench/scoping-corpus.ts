@@ -257,6 +257,7 @@ const SCOPING_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'export default function () {}\n(a)',
     'export default class {}\n;(a)',
     'export default a\nexport const r = 2',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the corpus is source text, and this case is a template literal
     'export default `t${a}`',
     'export default typeof a',
     'export default await a',
@@ -289,6 +290,7 @@ const SCOPING_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'export const r = import("./x.js", { with: { type: "json" } })',
     'export const r = import(a)',
     'export const r = import(`./y.js`)',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the corpus is source text, and this case is a template literal
     'export const r = import(`./${a}.js`)',
     'export const r = import("./x.js").then((m) => m.default)',
     'export const r = () => import("./x.js")\nexport const s = () => import("./z.js")',
