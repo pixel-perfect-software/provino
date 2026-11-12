@@ -87,6 +87,72 @@ describe('parseRunArgs', () => {
     })
   })
 
+  it('reads --bail with or without a count: --bail, --bail=3 and --bail 3 (T9.10)', () => {
+    const bail = (...args: string[]) =>
+      (parseRunArgs(['--config', 'c.mjs', ...args]) as { options: { bail?: number } }).options.bail
+    assert.equal(bail('--bail'), 1)
+    assert.equal(bail('--bail=3'), 3)
+    assert.equal(bail('--bail', '3'), 3)
+    assert.equal(bail('--bail=0'), 0, 'zero is off, as in Jest')
+    assert.equal(bail(), undefined)
+    // A flag after a bare --bail is a flag, not its count.
+    assert.deepEqual(parseRunArgs(['--config', 'c.mjs', '--bail', '--ci']), {
+      type: 'run',
+      options: { config: 'c.mjs', bail: 1, ci: true },
+    })
+    usageError(['--config', 'c.mjs', '--bail=x'], /--bail must be a whole number/)
+    usageError(['--config', 'c.mjs', '--bail=-1'], /--bail must be a whole number/)
+    usageError(['--config', 'c.mjs', '--bail=1.5'], /--bail must be a whole number/)
+  })
+
+  it('reads --forceExit and --detectOpenHandles (T9.10)', () => {
+    assert.deepEqual(parseRunArgs(['--config', 'c.mjs', '--forceExit', '--detectOpenHandles']), {
+      type: 'run',
+      options: { config: 'c.mjs', detectOpenHandles: true },
+      forceExit: true,
+    })
+  })
+
+  it('reads the recycling and deadline flags (T9.5)', () => {
+    assert.deepEqual(
+      parseRunArgs([
+        '--config',
+        'c.mjs',
+        '--workerMemoryLimit',
+        '512MB',
+        '--maxFilesPerWorker',
+        '3',
+        '--fileTimeout',
+        '5000',
+      ]),
+      {
+        type: 'run',
+        options: {
+          config: 'c.mjs',
+          workerMemoryLimit: 512_000_000,
+          maxFilesPerWorker: 3,
+          fileTimeoutMs: 5000,
+        },
+      },
+    )
+    const limit = (text: string) =>
+      (
+        parseRunArgs(['--config', 'c.mjs', '--workerMemoryLimit', text]) as {
+          options: { workerMemoryLimit?: number }
+        }
+      ).options.workerMemoryLimit
+    assert.equal(limit('0'), 0, 'every file')
+    assert.equal(limit('1024'), 1024)
+    assert.equal(limit('1.5gb'), 1_500_000_000)
+    assert.equal(limit('2 KB'), 2000)
+    assert.equal(limit('512MiB'), 512 * 1024 * 1024)
+    usageError(['--config', 'c.mjs', '--workerMemoryLimit', 'lots'], /--workerMemoryLimit must be/)
+    usageError(['--config', 'c.mjs', '--workerMemoryLimit=-5'], /--workerMemoryLimit must be/)
+    usageError(['--config', 'c.mjs', '--maxFilesPerWorker', '0'], /--maxFilesPerWorker must be/)
+    usageError(['--config', 'c.mjs', '--fileTimeout', '0'], /--fileTimeout must be/)
+    usageError(['--config', 'c.mjs', '--fileTimeout', '1s'], /--fileTimeout must be/)
+  })
+
   it('refuses a repeated --reporter', () => {
     usageError(
       ['--config', 'c.mjs', '--reporter', 'normalized-json', '--reporter', 'normalized-json'],

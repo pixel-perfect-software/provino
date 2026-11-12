@@ -41,7 +41,18 @@ Options of provino run:
       --ci                          Treat this as a CI run (default: from the CI variable)
       --passWithNoTests             Pass when no test files are found
       --no-cache                    Neither read nor write the results cache or the transform cache
+      --bail[=n]                    End the run once n tests have failed (default 1; 0 is off)
+      --forceExit                   Exit the process when the run is over, whatever a test left open
+      --detectOpenHandles           Report what is still open after the run, and where it was made;
+                                    runs in this process, and slows every timer and socket
+      --workerMemoryLimit <n>       Replace a worker that holds more than n bytes after a file (512MB
+                                    is 512,000,000, 512MiB is 2^29); 0 replaces it after every file
+      --maxFilesPerWorker <n>       Replace a worker after it has run n files
+      --fileTimeout <ms>            Kill a worker that runs one file longer than this, and fail it
   -h, --help                        Print this text
+
+Ctrl+C (SIGINT) ends the run: no file starts, the running ones are killed, exit code 130. A second
+Ctrl+C kills every worker at once. SIGTERM does the same and exits 143.
 `
 
 /**
@@ -50,12 +61,72 @@ Options of provino run:
  */
 export type RunCommand =
   | { readonly type: 'help' }
-  | { readonly type: 'run'; readonly options: RunOptions }
+  | { readonly type: 'run'; readonly options: RunOptions; readonly forceExit?: true }
   | { readonly type: 'jest'; readonly args: readonly string[] }
   | { readonly type: 'bare'; readonly args: readonly string[] }
 
 function isPoolKind(value: string): value is PoolKind {
   return POOL_KINDS.some((kind) => kind === value)
+}
+
+/**
+ * `--bail` with no count is `--bail=1`, and `--bail 2` is `--bail=2` (`provino run` takes no
+ * positional arguments): `parseArgs` has no option with an optional value.
+ */
+function bailWithCount(args: readonly string[]): string[] {
+  const out: string[] = []
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index] as string
+    if (arg !== '--bail') {
+      out.push(arg)
+      continue
+    }
+    const next = args[index + 1]
+    if (next !== undefined && /^\d+$/.test(next)) {
+      out.push(`--bail=${next}`)
+      index++
+    } else {
+      out.push('--bail=1')
+    }
+  }
+  return out
+}
+
+function parseBail(text: string): number {
+  if (!/^\d+$/.test(text) || !Number.isSafeInteger(Number(text))) {
+    throw new UsageError(`--bail must be a whole number, 0 or more (got "${text}")`)
+  }
+  return Number(text)
+}
+
+/** The bytes in each unit a `--workerMemoryLimit` may name: Jest's, decimal for `kb`/`mb`/`gb`, binary for `kib`/`mib`/`gib`. */
+const BYTE_UNITS: Readonly<Record<string, number>> = {
+  b: 1,
+  kb: 1000,
+  mb: 1000 ** 2,
+  gb: 1000 ** 3,
+  kib: 1024,
+  mib: 1024 ** 2,
+  gib: 1024 ** 3,
+}
+
+/** A number of bytes, with an optional unit after it (any case). */
+function parseBytes(text: string, flag: string): number {
+  const match = /^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|kib|mib|gib)?$/i.exec(text)
+  if (match === null) {
+    throw new UsageError(
+      `${flag} must be a number of bytes, such as 536870912 or 512MB (got "${text}")`,
+    )
+  }
+  const factor = BYTE_UNITS[(match[2] ?? 'b').toLowerCase()] ?? 1
+  return Math.floor(Number(match[1]) * factor)
+}
+
+function parseWhole(text: string, flag: string): number {
+  if (!/^[1-9]\d*$/.test(text) || !Number.isSafeInteger(Number(text))) {
+    throw new UsageError(`${flag} must be a whole number of at least 1 (got "${text}")`)
+  }
+  return Number(text)
 }
 
 function parseMaxWorkers(text: string): number {
@@ -101,7 +172,7 @@ export function parseRunArgs(
 ): Extract<RunCommand, { readonly type: 'help' | 'run' }> {
   let parsed: ReturnType<typeof parse>
   try {
-    parsed = parse(args.map(longFormOfShortWithEquals))
+    parsed = parse(bailWithCount(args).map(longFormOfShortWithEquals))
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error), { cause: error })
   }
@@ -123,8 +194,23 @@ export function parseRunArgs(
     ...(values.passWithNoTests === true ? { passWithNoTests: true } : {}),
     ...(values.testNamePattern === undefined ? {} : { testNamePattern: values.testNamePattern }),
     ...(values['no-cache'] === true ? { cache: false } : {}),
+    ...(values.bail === undefined ? {} : { bail: parseBail(values.bail) }),
+    ...(values.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
+    ...(values.workerMemoryLimit === undefined
+      ? {}
+      : { workerMemoryLimit: parseBytes(values.workerMemoryLimit, '--workerMemoryLimit') }),
+    ...(values.maxFilesPerWorker === undefined
+      ? {}
+      : { maxFilesPerWorker: parseWhole(values.maxFilesPerWorker, '--maxFilesPerWorker') }),
+    ...(values.fileTimeout === undefined
+      ? {}
+      : { fileTimeoutMs: parseWhole(values.fileTimeout, '--fileTimeout') }),
   }
-  return { type: 'run', options }
+  return {
+    type: 'run',
+    options,
+    ...(values.forceExit === true ? { forceExit: true as const } : {}),
+  }
 }
 
 const OPTIONS = {
@@ -138,6 +224,12 @@ const OPTIONS = {
   updateSnapshot: { type: 'boolean', short: 'u' },
   passWithNoTests: { type: 'boolean' },
   'no-cache': { type: 'boolean' },
+  bail: { type: 'string' },
+  forceExit: { type: 'boolean' },
+  detectOpenHandles: { type: 'boolean' },
+  workerMemoryLimit: { type: 'string' },
+  maxFilesPerWorker: { type: 'string' },
+  fileTimeout: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
 } as const satisfies ParseArgsOptionsConfig
 
@@ -173,6 +265,16 @@ export interface CliIo {
   readonly stdout?: TextSink
   readonly stderr?: NodeJS.WritableStream
   readonly cwd?: string
+  /** Aborted by the first SIGINT or SIGTERM (the bin's `handleSignals`); the run ends 130 or 143. */
+  readonly signal?: AbortSignal
+  /** Aborted by the second signal: every worker is killed at once. */
+  readonly forceSignal?: AbortSignal
+  /**
+   * Called once when the command was given `--forceExit` and the run is over (after the reporters
+   * have written): the process should end now, whatever is still open. The bin exits from it; this
+   * module never calls `process.exit`.
+   */
+  readonly onForceExit?: () => void
 }
 
 /** What `command` and its `args` ask for. */
@@ -222,7 +324,24 @@ async function runBare(args: readonly string[], io: CliIo): Promise<number> {
   if (found.kind === 'jest') return runBareJest(rest, io)
   const parsed = parseRunArgs(['--config', found.config, ...rest])
   if (parsed.type === 'help') return helpExit(io)
-  return (await run({ ...parsed.options, ...ioOptions(io) })).exitCode
+  return runCommand(parsed, io)
+}
+
+/** `provino run`: the run, then the process's exit if `--forceExit` asked for it. */
+async function runCommand(
+  parsed: Extract<RunCommand, { readonly type: 'run' }>,
+  io: CliIo,
+): Promise<number> {
+  const { exitCode } = await run({ ...parsed.options, ...ioOptions(io) })
+  if (parsed.forceExit === true) {
+    if (parsed.options.detectOpenHandles !== true) {
+      ;(io.stderr ?? process.stderr).write(
+        'Provino: force exiting. Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?\n',
+      )
+    }
+    io.onForceExit?.()
+  }
+  return exitCode
 }
 
 function runBareJest(args: readonly string[], io: CliIo): Promise<number> {
@@ -230,6 +349,9 @@ function runBareJest(args: readonly string[], io: CliIo): Promise<number> {
     stdout: io.stdout ?? process.stdout,
     stderr: io.stderr ?? process.stderr,
     cwd: io.cwd ?? process.cwd(),
+    ...(io.signal === undefined ? {} : { signal: io.signal }),
+    ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
+    ...(io.onForceExit === undefined ? {} : { onForceExit: io.onForceExit }),
   })
 }
 
@@ -238,11 +360,15 @@ async function helpExit(io: CliIo): Promise<number> {
   return ExitCode.Pass
 }
 
-function ioOptions(io: CliIo): Pick<RunOptions, 'stdout' | 'stderr' | 'cwd'> {
+function ioOptions(
+  io: CliIo,
+): Pick<RunOptions, 'stdout' | 'stderr' | 'cwd' | 'signal' | 'forceSignal'> {
   return {
     stdout: io.stdout ?? process.stdout,
     stderr: io.stderr ?? process.stderr,
     ...(io.cwd === undefined ? {} : { cwd: io.cwd }),
+    ...(io.signal === undefined ? {} : { signal: io.signal }),
+    ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
   }
 }
 
@@ -261,7 +387,7 @@ export async function main(argv: readonly string[], io: CliIo = {}): Promise<num
     if (parsed.type === 'help') return await helpExit(io)
     if (parsed.type === 'bare') return await runBare(parsed.args, io)
     if (parsed.type === 'jest') return await runBareJest(parsed.args, io)
-    return (await run({ ...parsed.options, ...ioOptions(io) })).exitCode
+    return await runCommand(parsed, io)
   } catch (error) {
     if (error instanceof UsageError) {
       stderr.write(`Provino: ${error.message}\n\n${USAGE}`)

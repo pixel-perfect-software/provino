@@ -3,6 +3,7 @@
 // as `provino run`, and ended with Jest's exit codes.
 import { existsSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { totalmem } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { type ResolvedProject, resolveNeutralProject } from '@provino/config'
 import {
@@ -48,10 +49,24 @@ export interface JestCommandIo {
    * so only a caller of this module sets it (the tests that read each test's status).
    */
   readonly reporters?: readonly ReporterChoice[]
+  /** Aborted by the first SIGINT or SIGTERM: the run ends 130 or 143. Default: never. */
+  readonly signal?: AbortSignal
+  /** Aborted by the second signal: every worker is killed at once. */
+  readonly forceSignal?: AbortSignal
+  /**
+   * Called once when `--forceExit` is on and the run is over (after the reporters have written):
+   * the process should end now, with the exit code returned, whatever a test left open. The bin
+   * exits from it; this module never calls `process.exit`.
+   */
+  readonly onForceExit?: () => void
 }
 
 /** The version of Jest the dialect mirrors, for `--showConfig`. */
 const JEST_VERSION = '30.5.2'
+
+/** What Jest 30.5.2's `--forceExit` says before it exits, when `--detectOpenHandles` isn't on. */
+const FORCE_EXIT_WARNING =
+  'Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?'
 
 /**
  * One of the Jest dialect's own `orchestrator.exitCodes` (`usage` for a command line or config
@@ -77,6 +92,24 @@ function environmentsFor(request: RunRequest, project: NeutralProject): typeof J
     return { ...JEST_BUILT_INS, [name]: JEST_ENVIRONMENT }
   if (request.mode === 'run') return JEST_BUILT_INS
   return { ...JEST_BUILT_INS, [name]: NODE_ENVIRONMENT }
+}
+
+/**
+ * Jest's `workerIdleMemoryLimit` as the pool's recycle policy, read as jest-worker 30.5.1 reads
+ * the number jest-config normalized it to (`stringToBytes`, which the config reader rebuilds):
+ * `0` replaces the worker after every file, a number in (0, 1] is that fraction of the machine's
+ * memory, any other is a count of bytes. Absent: the pool's own default limit. A divergence
+ * (DIVERGENCES, B21a): jest-worker compares the child's `heapUsed`, the pool compares its RSS
+ * (`heapUsed + external` for a thread), so Provino recycles a little earlier.
+ * @internal
+ */
+export function workerRecycle(
+  limit: number | undefined,
+  totalMemory: number = totalmem(),
+): { readonly recycle?: { readonly memoryLimitBytes: number } } {
+  if (limit === undefined) return {}
+  const bytes = limit > 0 && limit <= 1 ? Math.floor(totalMemory * limit) : Math.floor(limit)
+  return { recycle: { memoryLimitBytes: bytes } }
 }
 
 /** A diagnostic as a line (or lines) for the user. Jest's own texts keep their form. */
@@ -251,12 +284,23 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       pool: {
         ...(request.workerThreads === true ? { kind: 'threads' as const } : {}),
         maxWorkers: read.globalConfig.maxWorkers,
+        ...workerRecycle(read.globalConfig.workerIdleMemoryLimit),
       },
       ...(request.cache === false || !read.cache ? { cache: false } : {}),
       testNamePattern: read.globalConfig.testNamePattern,
       update: request.update,
       fileFilters: request.fileFilters,
+      // The merged global config, not the command line alone: `bail` also comes from the config
+      // (and `--bail=2` is false, as in Jest 30.5.2, so a count is always the config's).
+      ...(read.globalConfig.bail > 0 ? { bail: { count: read.globalConfig.bail } } : {}),
+      ...(read.globalConfig.detectOpenHandles ? { detectOpenHandles: true } : {}),
+      ...(io.signal === undefined ? {} : { signal: io.signal }),
+      ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
     })
+    if (read.globalConfig.forceExit) {
+      if (!read.globalConfig.detectOpenHandles) stderr.write(`${FORCE_EXIT_WARNING}\n`)
+      io.onForceExit?.()
+    }
     return result.exitCode
   } catch (error) {
     if (error instanceof JestCliError || error instanceof JestConfigError) {

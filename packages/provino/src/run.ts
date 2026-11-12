@@ -19,9 +19,37 @@ function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']
       `maxWorkers must be a whole number of at least 1 (got ${String(options.maxWorkers)})`,
     )
   }
+  const { workerMemoryLimit, maxFilesPerWorker, fileTimeoutMs } = options
+  if (workerMemoryLimit !== undefined && !(workerMemoryLimit >= 0)) {
+    throw new UsageError(
+      `workerMemoryLimit must be a number of bytes, 0 or more (got ${String(workerMemoryLimit)})`,
+    )
+  }
+  if (
+    maxFilesPerWorker !== undefined &&
+    !(Number.isSafeInteger(maxFilesPerWorker) && maxFilesPerWorker >= 1)
+  ) {
+    throw new UsageError(
+      `maxFilesPerWorker must be a whole number of at least 1 (got ${String(maxFilesPerWorker)})`,
+    )
+  }
+  if (fileTimeoutMs !== undefined && !(fileTimeoutMs > 0 && Number.isFinite(fileTimeoutMs))) {
+    throw new UsageError(
+      `fileTimeoutMs must be a number of milliseconds above 0 (got ${String(fileTimeoutMs)})`,
+    )
+  }
   return {
     ...(options.pool === undefined ? {} : { kind: options.pool }),
     ...(options.maxWorkers === undefined ? {} : { maxWorkers: options.maxWorkers }),
+    ...(fileTimeoutMs === undefined ? {} : { fileTimeoutMs }),
+    ...(workerMemoryLimit === undefined && maxFilesPerWorker === undefined
+      ? {}
+      : {
+          recycle: {
+            ...(workerMemoryLimit === undefined ? {} : { memoryLimitBytes: workerMemoryLimit }),
+            ...(maxFilesPerWorker === undefined ? {} : { maxFilesPerWorker }),
+          },
+        }),
   }
 }
 
@@ -53,6 +81,9 @@ async function execute(
     update: options.updateSnapshot,
     passWithNoTests: options.passWithNoTests,
     signal: options.signal,
+    forceSignal: options.forceSignal,
+    ...(options.bail === undefined || options.bail === 0 ? {} : { bail: { count: options.bail } }),
+    ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
   })
 }
 
