@@ -570,12 +570,6 @@
               "cwd": "packages/styled-components"
             }
           ],
-          "provinoRefuses": [
-            {
-              "flag": "--forceExit",
-              "reason": "provino jest refuses --forceExit until T9.10 (B21); joins R6 then (DECISIONS D41)"
-            }
-          ],
           "note": "The package's \"test:native\", with its --forceExit kept: the reference runner is Jest."
         }
       ]
@@ -1386,16 +1380,6 @@
             "NODE_OPTIONS": "--experimental-vm-modules"
           },
           "r6": false,
-          "provinoRefuses": [
-            {
-              "flag": "--detectOpenHandles",
-              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
-            },
-            {
-              "flag": "--forceExit",
-              "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode, so a run that leaves handles open would hang or differ"
-            }
-          ],
           "note": "The Jest unit project for @nx/jest (about 26 spec files by name pattern, the largest Jest project). All Jest unit projects extend jest.preset.js: @swc/jest transform with a mut-cjs-exports plugin, testMatch '**/+(*.)+(spec|test).+(ts|js)?(x)', testTimeout 35000, maxWorkers 1, a resolver at ../../scripts/patched-jest-resolver.js and setup file ../../scripts/unit-test-setup.js (paths relative to the project directory, so cwd must be the project directory), and moduleNameMapper mocks for ora, chalk, prettier, oxfmt and others under scripts/jest-mocks. The preset requires @nx/jest/preset from the installed package's dist."
         },
         {
@@ -1417,16 +1401,6 @@
             "NODE_OPTIONS": "--experimental-vm-modules"
           },
           "r6": false,
-          "provinoRefuses": [
-            {
-              "flag": "--detectOpenHandles",
-              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
-            },
-            {
-              "flag": "--forceExit",
-              "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
-            }
-          ],
           "note": "About 10 spec files by name pattern. Overrides the preset's resolver with undefined so it consumes installed dependencies, and maps relative .js imports back to .ts."
         },
         {
@@ -1448,16 +1422,6 @@
             "NODE_OPTIONS": "--experimental-vm-modules"
           },
           "r6": false,
-          "provinoRefuses": [
-            {
-              "flag": "--detectOpenHandles",
-              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
-            },
-            {
-              "flag": "--forceExit",
-              "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
-            }
-          ],
           "note": "About 4 spec files by name pattern; ts-jest with tools/eslint-rules/tsconfig.spec.json and moduleNameMapper to packages/devkit sources."
         },
         {
@@ -1478,16 +1442,6 @@
             "NODE_OPTIONS": "--experimental-vm-modules"
           },
           "r6": false,
-          "provinoRefuses": [
-            {
-              "flag": "--detectOpenHandles",
-              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
-            },
-            {
-              "flag": "--forceExit",
-              "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
-            }
-          ],
           "note": "About 2 spec files by name pattern. Uses @nx/jest/preset (not jest.preset.js) with babel-jest and @nx/next/babel, and the @nx/react/plugins/jest transform for assets; React/jsdom project."
         },
         {
@@ -1508,16 +1462,6 @@
             "NODE_OPTIONS": "--experimental-vm-modules"
           },
           "r6": false,
-          "provinoRefuses": [
-            {
-              "flag": "--detectOpenHandles",
-              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
-            },
-            {
-              "flag": "--forceExit",
-              "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
-            }
-          ],
           "note": "About 1 spec file by name pattern. I did not open this config."
         },
         {
@@ -1538,16 +1482,6 @@
             "NODE_OPTIONS": "--experimental-vm-modules"
           },
           "r6": false,
-          "provinoRefuses": [
-            {
-              "flag": "--detectOpenHandles",
-              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
-            },
-            {
-              "flag": "--forceExit",
-              "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
-            }
-          ],
           "note": "About 1 spec file by name pattern. I did not open this config."
         },
         {
@@ -1568,16 +1502,6 @@
             "NODE_OPTIONS": "--experimental-vm-modules"
           },
           "r6": false,
-          "provinoRefuses": [
-            {
-              "flag": "--detectOpenHandles",
-              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
-            },
-            {
-              "flag": "--forceExit",
-              "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
-            }
-          ],
           "note": "About 2 spec files by name pattern. I did not open this config."
         },
         {
@@ -1598,16 +1522,6 @@
             "NODE_OPTIONS": "--experimental-vm-modules"
           },
           "r6": false,
-          "provinoRefuses": [
-            {
-              "flag": "--detectOpenHandles",
-              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
-            },
-            {
-              "flag": "--forceExit",
-              "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
-            }
-          ],
           "note": "About 1 spec file by name pattern. I did not open this config."
         },
         {
@@ -1628,16 +1542,6 @@
             "NODE_OPTIONS": "--experimental-vm-modules"
           },
           "r6": false,
-          "provinoRefuses": [
-            {
-              "flag": "--detectOpenHandles",
-              "reason": "nx.json targetDefaults adds --detectOpenHandles to every @nx/jest/plugin test target; provino jest refuses it until the open-handle report exists (T9.10), and Jest implies runInBand with it"
-            },
-            {
-              "flag": "--forceExit",
-              "reason": "nx.json targetDefaults adds --forceExit to every @nx/jest/plugin test target; Provino has no force-exit mode"
-            }
-          ],
           "note": "About 1 spec file by name pattern. I did not open this config."
         }
       ],

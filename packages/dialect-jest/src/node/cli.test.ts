@@ -1180,10 +1180,10 @@ describe('diagnostics', () => {
   })
 
   it("lists several in the table's order, and lets --json and --outputFile shape --listTests", () => {
-    const { diagnostics } = parseJestCli(['--watch', '--bail', '--verbose', '--coverage'])
+    const { diagnostics } = parseJestCli(['--watch', '--shard', '1/2', '--verbose', '--coverage'])
     assert.deepEqual(
       diagnostics.map((diagnostic) => diagnostic.key),
-      ['--bail', '--coverage', '--verbose', '--watch'],
+      ['--coverage', '--shard', '--verbose', '--watch'],
     )
     assert.deepEqual(parseJestCli(['--listTests', '--json']).diagnostics, [])
     assert.deepEqual(
