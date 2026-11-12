@@ -1,5 +1,6 @@
 // The public API of @provino/env-shared.
 import {
+  leakReport,
   type Populated,
   type PopulateOptions,
   type PropertySnapshot,
@@ -35,3 +36,10 @@ expectTypeOf<PropertySnapshot['restore']>().toEqualTypeOf<() => readonly (string
 
 // @ts-expect-error: a snapshot is of an object, not a primitive
 snapshotProperties(1)
+
+expectTypeOf(leakReport).parameter(0).toEqualTypeOf<readonly (string | symbol)[]>()
+expectTypeOf(leakReport).returns.toEqualTypeOf<
+  { readonly leakedGlobals: readonly string[] } | undefined
+>()
+// @ts-expect-error a key is a string or a symbol
+leakReport([1])

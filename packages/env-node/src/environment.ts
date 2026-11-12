@@ -2,7 +2,7 @@
 // does not build a global: test code sees the worker's own, and the file's changes to it are
 // undone when the file ends. Realm `context` (a vm context with Node's globals) needs the `realm`
 // isolation tier, T2.8.
-import { snapshotProperties } from '@provino/env-shared'
+import { leakReport, snapshotProperties } from '@provino/env-shared'
 import type { Environment, EnvironmentInstance, EnvironmentTeardownReport } from '@provino/types'
 import { NodeEnvironmentError } from './errors.ts'
 
@@ -45,8 +45,7 @@ export const nodeEnvironment: Environment<'node'> = {
     return {
       global: globalThis,
       teardown(): EnvironmentTeardownReport | undefined {
-        const leaked = snapshot.restore()
-        return leaked.length === 0 ? undefined : { leakedGlobals: leaked.map(String) }
+        return leakReport(snapshot.restore())
       },
     }
   },

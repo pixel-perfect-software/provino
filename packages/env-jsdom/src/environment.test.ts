@@ -2,6 +2,7 @@
 // change the real `globalThis`, so each runs synchronously and inside `guarded`, which puts back
 // the keys the test touched whether or not `teardown` worked.
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { test } from 'node:test'
 import type { EnvironmentInstance, EnvironmentSetupContext } from '@provino/types'
 import { type JsdomEnvironmentOptions, jsdomEnvironment } from './index.ts'
@@ -233,5 +234,52 @@ test('Node`s fetch API is the window`s, so a Response from fetch is the one the 
     assert.equal(globalThis.Response, nodeResponse)
     assert.equal(globalThis.Headers, nodeHeaders)
     tearDown(instance)
+  })
+})
+
+test('a populated key the test made non-configurable is reported, and the rest is restored (D22)', () => {
+  // A non-configurable key can never be removed from the real global, so this runs in a child.
+  const index = new URL('./index.ts', import.meta.url).href
+  const script = `
+    import { jsdomEnvironment } from ${JSON.stringify(index)}
+    const prepared = await jsdomEnvironment.prepare({})
+    const instance = await jsdomEnvironment.setup(
+      { options: {}, realm: 'worker', scope: 'file', testPath: '/a.test.ts', pragmas: {}, console, signal: new AbortController().signal },
+      prepared,
+    )
+    Object.defineProperty(globalThis, 'HTMLElement', { value: 1, configurable: false })
+    const report = instance.teardown()
+    const left = ['window', 'self', 'top', 'parent', 'document'].filter((key) => Reflect.has(globalThis, key))
+    console.log('RESULT ' + JSON.stringify({ report, left }))
+  `
+  const output = execFileSync(
+    process.execPath,
+    ['--conditions=provino-source', '--input-type=module', '--eval', script],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+  )
+  const line = output.split('\n').find((text) => text.startsWith('RESULT '))
+  assert.ok(line !== undefined, output)
+  const result = JSON.parse(line.slice('RESULT '.length)) as {
+    report: { leakedGlobals: string[] } | undefined
+    left: string[]
+  }
+  assert.deepEqual(result.report?.leakedGlobals, ['HTMLElement'])
+  assert.deepEqual(result.left, [], 'window, self, top, parent and document are gone')
+})
+
+test('teardown restores the global even when closing the window throws', () => {
+  guarded(() => {
+    const before = properties()
+    const instance = setUp()
+    const dom = globalThis as unknown as { readonly jsdom: { readonly window: { close(): void } } }
+    dom.jsdom.window.close = () => {
+      throw new Error('close failed')
+    }
+    assert.throws(() => instance.teardown(), /close failed/)
+    const after = properties()
+    assert.deepEqual(new Set(after.keys()), new Set(before.keys()))
+    for (const [key, descriptor] of before) {
+      assert.deepStrictEqual(after.get(key), descriptor, `descriptor of ${String(key)}`)
+    }
   })
 })

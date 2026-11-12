@@ -3,15 +3,16 @@
 // global's names and descriptors are as they were. The semantics of what is copied are Vitest's
 // (`@provino/env-shared`'s `populateGlobal`); the options and the error-event bridge follow
 // Vitest's `jsdom` environment and Jest's `jest-environment-jsdom`.
-import { populateGlobal, snapshotProperties } from '@provino/env-shared'
+import { leakReport, populateGlobal, snapshotProperties } from '@provino/env-shared'
 import type {
   Environment,
   EnvironmentInstance,
   EnvironmentOptionsMap,
   EnvironmentTeardownReport,
 } from '@provino/types'
-import type { ConstructorOptions, DOMWindow, JSDOM, VirtualConsole } from 'jsdom'
+import type { DOMWindow } from 'jsdom'
 import { JsdomEnvironmentError } from './errors.ts'
+import { createDom, type JsdomModule } from './window.ts'
 
 /**
  * The options of the jsdom environment: `url`, `html`, `userAgent`, `pretendToBeVisual`,
@@ -21,13 +22,7 @@ import { JsdomEnvironmentError } from './errors.ts'
  */
 export type JsdomEnvironmentOptions = EnvironmentOptionsMap['jsdom']
 
-/** What `prepare` hands every `setup`: the classes of the project's jsdom, imported once. */
-interface Prepared {
-  readonly JSDOM: typeof JSDOM
-  readonly VirtualConsole: typeof VirtualConsole
-}
-
-function isPrepared(value: unknown): value is Prepared {
+function isPrepared(value: unknown): value is JsdomModule {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -93,31 +88,15 @@ function bridgeErrors(win: DOMWindow): () => void {
   }
 }
 
-function constructorOptions(
-  options: JsdomEnvironmentOptions,
-  virtualConsole: VirtualConsole,
-): ConstructorOptions {
-  const { userAgent } = options
-  return {
-    pretendToBeVisual: options.pretendToBeVisual ?? true,
-    runScripts: 'dangerously',
-    url: options.url ?? 'http://localhost:3000',
-    virtualConsole,
-    ...(userAgent === undefined ? {} : { resources: { userAgent } }),
-    // The user's own bag of `JSDOM` constructor options, free-form by design, goes last.
-    ...(options.jsdom as ConstructorOptions | undefined),
-  }
-}
-
 /**
  * The jsdom test environment.
  *
  * `prepare` imports the project's `jsdom` once per worker (a missing package is
  * `ENV_JSDOM_NOT_INSTALLED`). `setup` makes a new `JSDOM` from the options, puts its window on the
  * worker's `globalThis` with `populateGlobal` and returns that global. `teardown` closes the
- * window and puts the global back: first what `populateGlobal` changed, then every other
- * difference (a global the test added or changed) from a descriptor snapshot taken before the
- * window went on, so afterwards the global's property names and every original descriptor equal
+ * window and puts the global back from a descriptor snapshot taken before the window went on
+ * (what `populateGlobal` changed and whatever the test added or changed), so afterwards the
+ * global's property names and every original descriptor equal
  * what `setup` saw. A key it cannot restore is a warning, not a failure (decision D22): the
  * teardown returns a report naming it.
  *
@@ -133,10 +112,18 @@ function constructorOptions(
 export const jsdomEnvironment: Environment<'jsdom', JsdomEnvironmentOptions> = {
   name: 'jsdom',
   realms: ['worker'],
-  async prepare(): Promise<Prepared> {
+  async prepare(): Promise<JsdomModule> {
     try {
-      const { JSDOM, VirtualConsole } = await import('jsdom')
-      return { JSDOM, VirtualConsole }
+      const jsdom = await import('jsdom')
+      // `ResourceLoader` is exported by jsdom 26 to 29 only; it decides how a user agent is set.
+      const { ResourceLoader } = jsdom as {
+        readonly ResourceLoader?: JsdomModule['ResourceLoader']
+      }
+      return {
+        JSDOM: jsdom.JSDOM,
+        VirtualConsole: jsdom.VirtualConsole,
+        ...(ResourceLoader === undefined ? {} : { ResourceLoader }),
+      }
     } catch (cause) {
       throw new JsdomEnvironmentError(
         'ENV_JSDOM_NOT_INSTALLED',
@@ -158,13 +145,7 @@ export const jsdomEnvironment: Environment<'jsdom', JsdomEnvironmentOptions> = {
         "The jsdom environment's setup needs what its prepare returned.",
       )
     }
-    const { options } = context
-    const virtualConsole = new prepared.VirtualConsole()
-    virtualConsole.forwardTo(context.console)
-    const dom = new prepared.JSDOM(
-      options.html ?? '<!DOCTYPE html>',
-      constructorOptions(options, virtualConsole),
-    )
+    const dom = createDom(prepared, context.options, context.console)
     const win = dom.window
     const clearErrors = bridgeErrors(win)
 
@@ -182,15 +163,21 @@ export const jsdomEnvironment: Environment<'jsdom', JsdomEnvironmentOptions> = {
     }
 
     const snapshot = snapshotProperties(globalThis)
-    const populated = populateGlobal(globalThis, win, { bindFunctions: true })
+    populateGlobal(globalThis, win, { bindFunctions: true })
     return {
       global: globalThis,
       teardown(): EnvironmentTeardownReport | undefined {
-        clearErrors()
-        win.close()
-        populated.restore()
-        const leaked = snapshot.restore()
-        return leaked.length === 0 ? undefined : { leakedGlobals: leaked.map(String) }
+        let leaked: readonly (string | symbol)[] = []
+        try {
+          clearErrors()
+          win.close()
+        } finally {
+          // The snapshot alone puts the global back, the populated keys included: a key the test
+          // made non-configurable is reported as a leak, where `populated.restore()` would throw
+          // and leave `window`, `self`, `top` and `parent` on the global unreported (D22).
+          leaked = snapshot.restore()
+        }
+        return leakReport(leaked)
       },
     }
   },

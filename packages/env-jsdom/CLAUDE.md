@@ -13,12 +13,16 @@ Provino's own jsdom environment (Track 8, T8.3's jsdom part; B17c part 3). Runs 
 
 ## What `setup` does
 
-1. Builds a `JSDOM` from the options: `html` (default `<!DOCTYPE html>`), `url` (default `http://localhost:3000`), `pretendToBeVisual` (default `true`, so `requestAnimationFrame` exists), `runScripts: 'dangerously'` (Jest's and Vitest's default), `userAgent` (as `resources: { userAgent }`; jsdom 30's constructor has no `userAgent`), then the `jsdom` bag (any other constructor option) last. Its virtual console forwards to the file's `console`.
+1. Builds a `JSDOM` from the options: `html` (default `<!DOCTYPE html>`), `url` (default `http://localhost:3000`), `pretendToBeVisual` (default `true`, so `requestAnimationFrame` exists), `runScripts: 'dangerously'` (Jest's and Vitest's default), `userAgent` (see below), then the `jsdom` bag (any other constructor option) last. Its virtual console forwards to the file's `console`.
 2. Bridges errors: an `error` event on the window with no listener of the test's own is prevented and sent to `process.emit('uncaughtException', error)`, where the runtime charges it (Jest's and Vitest's behaviour). `window.addEventListener`/`removeEventListener` count the test's `error` listeners.
 3. Gives the window Node's `Buffer`, the fetch family (`fetch`, `Request`, `Response`, `Headers`, `AbortController`, `AbortSignal`, `URLSearchParams`) and, where it has none, `structuredClone`, `TextEncoder`/`TextDecoder` and the channel classes. `window.jsdom` is the `JSDOM`.
 4. Takes a descriptor snapshot of the global (`snapshotProperties`), then `populateGlobal(globalThis, window, { bindFunctions: true })`.
 
-`teardown` removes the error handler, closes the window, runs `populated.restore()` and then the snapshot's `restore()`, which also undoes whatever the test added or changed on the global. It returns an `EnvironmentTeardownReport` naming any key it could not restore (D22), else nothing.
+`teardown` removes the error handler and closes the window, and in a `finally` (so a `close()` that throws still restores) runs the snapshot's `restore()`. That alone puts back the populated keys and whatever the test added or changed; `populated.restore()` is not called, since a populated key the test made non-configurable would make it throw before the report. It returns an `EnvironmentTeardownReport` naming any key it could not restore (D22), else nothing.
+
+## The user agent across the peer range (`src/window.ts`)
+
+`createDom(jsdomModule, options, console)` builds the window and is what the tests run against jsdom 26.1.0 (`jsdom-26`, a catalog alias, with a type shim) and 30. A user agent must not turn subresource loading on. Decided by what the installed jsdom exports, not by a version: with `ResourceLoader` (26 to 29) it is a `ResourceLoader` subclass whose `fetch` returns `null`, since a plain `resources` object is refused there; without it (30, where any `resources` value sets `loadSubresources`) `navigator.userAgent` is defined after construction, and XHR keeps jsdom's own header. jsdom 26 to 29 call the console method `sendTo`, 30 `forwardTo`; both are handled.
 
 ## Options
 

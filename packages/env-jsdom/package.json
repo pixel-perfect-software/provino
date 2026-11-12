@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@types/jsdom": "catalog:",
-    "jsdom": "catalog:"
+    "jsdom": "catalog:",
+    "jsdom-26": "catalog:"
   }
 }
