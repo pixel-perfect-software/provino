@@ -1,0 +1,10 @@
+{
+  "description": "`injectGlobals: false` (T11.10): the test globals are gone, `@jest/globals` still works, and `typeof jest` is undefined.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "injectGlobals": false
+    }
+  },
+  "jestEsm": true
+}

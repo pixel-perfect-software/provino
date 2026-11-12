@@ -1,5 +1,7 @@
 // Track 1 §Config at v0. T1.4 (@provino/config) adds defineConfig, loading and validation, and
 // the keys each feature needs.
+
+import type { JsonValue } from './clone-safe.ts'
 import type {
   Dialect,
   DialectName,
@@ -107,6 +109,8 @@ export interface SerializedLoaderConfig {
   readonly hoist: HoistPolicy | null
   /** The dialect's per-module binding names (`Dialect.moduleScope.names`); `[]` for none. */
   readonly moduleScope: readonly string[]
+  /** The dialect's served module specifiers (`Dialect.moduleScope.modules`); absent means none. */
+  readonly scopeModules?: readonly string[]
   /** Extensions tried for a specifier without one, in order (`.ts`, `.js`, …). */
   readonly extensions: readonly string[]
   /** Environment export conditions for resolution; the call kind adds its own. */
@@ -159,6 +163,11 @@ export interface SerializedProjectConfig {
    * for a dialect with none. Its names are `loader.moduleScope`.
    */
   readonly moduleScope: ModuleRef<ModuleScopeFactory> | null
+  /**
+   * Values defined on the environment's global for each file, before anything else runs (Jest's
+   * `globals`: jest-environment-node's `installCommonGlobals`). Absent means none.
+   */
+  readonly globalValues?: Readonly<Record<string, JsonValue>>
   /** Absolute paths, imported before each test file, first (Jest `setupFiles`). */
   readonly setupFiles: readonly string[]
   /** Absolute paths, imported after `setupFiles` and before each test file (Jest `setupFilesAfterEnv`, Vitest `setupFiles`). */

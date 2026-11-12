@@ -75,6 +75,8 @@ export interface LeakOptions {
  */
 export interface ModuleScopeNames {
   readonly names: readonly string[]
+  /** Specifiers served by the scope's values, by key, before resolution (`ModuleScope.modules`). */
+  readonly modules?: readonly string[]
 }
 
 /**

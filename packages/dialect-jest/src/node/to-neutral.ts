@@ -210,6 +210,7 @@ export function jestProjectToNeutral(
       options: jsonObject(project.testEnvironmentOptions, 'testEnvironmentOptions', diagnostics),
     },
     aliases,
+    globalValues: jsonObject(project.globals, 'globals', diagnostics),
     resolution: {
       moduleDirectories: [...project.moduleDirectories],
       modulePaths: [...(project.modulePaths ?? [])],

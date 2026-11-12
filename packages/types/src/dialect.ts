@@ -141,6 +141,8 @@ export interface NeutralProject {
   readonly aliases: readonly NeutralAlias[]
   /** How specifiers resolve beyond `aliases` (Jest's `moduleDirectories`, `modulePaths`, `resolver`). */
   readonly resolution?: NeutralResolution
+  /** Values put on the environment's global before `setupFiles` (Jest's `globals`), as data. */
+  readonly globalValues?: Readonly<Record<string, JsonValue>>
   readonly transforms: readonly NeutralTransform[]
   /** Regular expressions' sources: files they match are not transformed. */
   readonly transformIgnorePatterns: readonly string[]
@@ -283,6 +285,12 @@ export type ModuleScopeFactory = {
  */
 export interface ModuleScope {
   readonly names: readonly string[]
+  /**
+   * Module specifiers the runner itself serves (Jest's `@jest/globals`; U9's `expect`,
+   * `@jest/expect` and `jest-mock`). An import of one never reaches the resolver, the mapper
+   * rules or a mock: the value is the factory's result under that key, for the importing module.
+   */
+  readonly modules?: readonly string[]
   readonly factory: ModuleRef<ModuleScopeFactory>
 }
 

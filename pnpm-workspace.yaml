@@ -31,6 +31,7 @@ catalog:
   "@jest/expect-utils": 30.5.2
   "@jest/get-type": 30.5.0
   # Jest 30.5 and Vitest 5.0: subjects of the dev packages (harness, bench), never our runner.
+  "@jest/globals": 30.5.2
   "@jest/test-result": 30.5.2
   # The Spike A loader fixture's Jest baseline uses @swc/jest (Track 2, bench-e2e).
   "@swc/core": 1.16.20

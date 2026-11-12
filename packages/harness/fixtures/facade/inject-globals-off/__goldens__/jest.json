@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "facade/inject-globals-off",
+  "files": [
+    {
+      "file": "inject-globals-off.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "inject-globals-off.jest.test.ts",
+            "path": [
+              "with injectGlobals false",
+              "has no test globals"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "location": {
+            "line": 6,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "inject-globals-off.jest.test.ts",
+            "path": [
+              "with injectGlobals false",
+              "has no jest global"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 11,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "inject-globals-off.jest.test.ts",
+            "path": [
+              "with injectGlobals false",
+              "still has the facade"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 14,
+            "column": 5
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

@@ -8,6 +8,7 @@ import type {
   EnvironmentRef,
   GlobalsFactory,
   HoistPolicy,
+  JsonValue,
   ModuleRef,
   ModuleScopeFactory,
   SerializedLoaderConfig,
@@ -146,6 +147,9 @@ function moduleScopeRef(value: unknown): ModuleRef<ModuleScopeFactory> | null {
 /** The optional resolver keys (T3.3); an absent one stays absent. */
 function resolverKeys(loader: Record<string, unknown>): Partial<SerializedLoaderConfig> {
   const keys: { -readonly [K in keyof SerializedLoaderConfig]?: SerializedLoaderConfig[K] } = {}
+  if (loader.scopeModules !== undefined) {
+    keys.scopeModules = texts(loader.scopeModules, 'loader.scopeModules')
+  }
   if (loader.aliases !== undefined) {
     if (!Array.isArray(loader.aliases)) invalid('loader.aliases', 'an array')
     keys.aliases = loader.aliases.map((item: unknown, index) => {
@@ -212,6 +216,9 @@ export function parseProjectConfig(value: unknown): SerializedProjectConfig {
     environment: environmentRef(config.environment),
     globals: globalsRef(config.globals),
     moduleScope: moduleScopeRef(config.moduleScope),
+    ...(config.globalValues === undefined
+      ? {}
+      : { globalValues: record(config.globalValues, 'globalValues') as Record<string, JsonValue> }),
     setupFiles: absolutePaths(config.setupFiles, 'setupFiles'),
     setupFilesAfterEnv: absolutePaths(config.setupFilesAfterEnv, 'setupFilesAfterEnv'),
     loader: loaderConfig(config.loader),

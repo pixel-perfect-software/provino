@@ -57,6 +57,7 @@ import type {
   FileRegistry,
   GlobalsHost,
   IsolationTier,
+  JsonValue,
   Loader,
   ModuleMockRegistry,
   ModuleMocksFactory,
@@ -105,6 +106,8 @@ interface Booted {
         readonly after: Readonly<Record<string, unknown>>
       }
     | undefined
+  /** The project's `globals` values (Jest), copied onto each file's global before anything runs. */
+  globalValues: Readonly<Record<string, JsonValue>> | undefined
   /** The file registry tier: `process` is the pool's business and runs as `registry`. */
   tier: Exclude<IsolationTier, 'process'>
   /**
@@ -339,6 +342,7 @@ export function createRuntimeRunner(): WorkerRunner {
     const scope: EnvironmentScope = tier === 'none' ? 'worker' : 'file'
     parts.tier = tier
     parts.scope = scope
+    parts.globalValues = config.globalValues
 
     // Expect, in the order its docs give: the slot exists before any matcher module loads, and
     // `createExpect` registers the table's matchers. The registry snapshot comes last (below).
@@ -609,6 +613,11 @@ export function createRuntimeRunner(): WorkerRunner {
         // the late globals of the file before, persist: a later file's `setupFiles` sees them.
         // Deliberate: Jest has no `none` to match, and the tier keeps everything (runtime.test.ts
         // pins it).
+        // Jest's `globals` config: copied for each file and defined before anything else (the
+        // environment constructor's `installCommonGlobals`), so `setupFiles` see them.
+        if (worker.globalValues !== undefined) {
+          installGlobals(instance.global, structuredClone(worker.globalValues))
+        }
         if (globals !== undefined) installGlobals(instance.global, globals.before)
         worker.source.startFile(job.file)
         // The file's snapshots: the state is where the matchers find it (Jest's

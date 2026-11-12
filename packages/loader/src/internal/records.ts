@@ -163,6 +163,12 @@ export function resolveOrMissing(
   importer: string,
   kind: ResolveKind,
 ): Found | Extract<Target, { readonly kind: 'missing' }> {
+  // A module the dialect serves (`@jest/globals`) is never resolved or loaded: it is a `missing`
+  // target whose edge reads the scope's value first (`FileRegistry.#mockOf`), as Jest answers
+  // `@jest/globals` before the mapper, the resolver and the mocks.
+  if (state.options.moduleScope?.modules?.includes(specifier) === true) {
+    return { kind: 'missing', error: notFound(state, specifier, importer, kind) }
+  }
   const result = state.options.resolver.resolve(specifier, {
     importer,
     kind,

@@ -61,7 +61,7 @@ describe('what provino jest does not run is said, not ignored', () => {
   it('warns, naming the task, for a config key it reads and does not apply', async () => {
     const config = JSON.stringify({
       testMatch: ['<rootDir>/tests/**/*.test.js'],
-      moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' },
+      collectCoverage: true,
     })
     const dir = await tree({
       'jest.config.json': config,
@@ -70,8 +70,8 @@ describe('what provino jest does not run is said, not ignored', () => {
     })
     const ended = await provino([], dir)
     assert.equal(ended.code, 0, ended.stderr)
-    assert.match(ended.stderr, /moduleNameMapper/)
-    assert.match(ended.stderr, /T3\.3/)
+    assert.match(ended.stderr, /collectCoverage/)
+    assert.match(ended.stderr, /T8\.8/)
   })
 
   it('refuses several projects for a run (D29), and lists the files of all of them', async () => {

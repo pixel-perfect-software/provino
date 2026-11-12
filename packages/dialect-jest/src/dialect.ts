@@ -336,6 +336,14 @@ export const jestPolicy: PolicyOverrides = {
  * these keys.
  * research: jest-circus 30.5.2 `jestAdapterInit` (`globalsObject`), read from source, not recorded
  */
+/** The specifiers the Jest dialect serves from its facades (U9). */
+const JEST_SERVED_MODULES: readonly string[] = [
+  '@jest/globals',
+  '@jest/expect',
+  'expect',
+  'jest-mock',
+]
+
 const JEST_GLOBAL_NAMES: readonly string[] = [
   'afterAll',
   'afterEach',
@@ -394,6 +402,10 @@ export const jestDialect: Dialect<'jest'> = defineDialect({
   // helper registers a mock (`mod-require-esm-helper`, `mod-adjacent`).
   moduleScope: {
     names: ['jest'],
+    // jest-runtime answers `@jest/globals` itself (`requireModuleOrMock`), and `@jest/expect` and
+    // `expect` from the framework's own registry (`FRAMEWORK_SINGLETON_MODULES`); U9 also serves
+    // `jest-mock` from Provino's facade. None goes through `moduleNameMapper` or the resolver.
+    modules: JEST_SERVED_MODULES,
     factory: moduleRef<ModuleScopeFactory>(
       import.meta.resolve('@provino/dialect-jest/runtime'),
       'jestModuleScope',

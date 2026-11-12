@@ -436,6 +436,20 @@ function moduleJest(host: JestGlobalsHost, isolating: Isolating, from: string): 
  * @public
  */
 export function jestGlobals(host: JestGlobalsHost): JestGlobals {
+  const known = globalsByHost.get(host)
+  if (known !== undefined) return known
+  const built = buildGlobals(host)
+  globalsByHost.set(host, built)
+  return built
+}
+
+/**
+ * One set per host: the worker's injected globals and `@jest/globals` (which `jestModuleScope`
+ * serves, with `injectGlobals: false` too) are the same objects, as in jest-runtime.
+ */
+const globalsByHost = new WeakMap<JestGlobalsHost, JestGlobals>()
+
+function buildGlobals(host: JestGlobalsHost): JestGlobals {
   const { api, expect } = host
   // The registries with an isolation running now. Jest keeps this on each file's module registries
   // (one set per file's runtime); a `FileRegistry` is the same scope here, so a `WeakSet` keyed by
@@ -462,6 +476,11 @@ export function jestGlobals(host: JestGlobalsHost): JestGlobals {
   }
 }
 
+/** What `require('expect')` is: `expect`'s own exports (`expect`, `default`). */
+function expectModule(expect: JestGlobals['expect']): Readonly<Record<string, unknown>> {
+  return { __esModule: true, expect, default: expect }
+}
+
 /**
  * The Jest dialect's per-module bindings (`jestDialect.moduleScope`, a `ModuleScopeFactory`): the
  * loader calls the function this returns for each module whose source names `jest`, and that
@@ -476,5 +495,31 @@ export function jestModuleScope(
   // One record of isolating registries for every module's `jest`, apart from the global's: the
   // file's module-mock registry refuses a nested isolation between the two (`nested-isolation`).
   const isolating: Isolating = new WeakSet()
-  return (from) => ({ jest: moduleJest(host, isolating, from) })
+  // jest-runtime keeps one `jest` object per module (`jestObjectCaches`): the `jest` a module's
+  // wrapper binds and the one `@jest/globals` hands it are the same object.
+  const objects = new Map<string, JestModuleObject>()
+  return (from) => {
+    let jest = objects.get(from)
+    if (jest === undefined) {
+      jest = moduleJest(host, isolating, from)
+      objects.set(from, jest)
+    }
+    // Lazy and not enumerable: a module that names none builds nothing, and the keys of the
+    // result stay the binding names (`jestDialect.moduleScope.names`).
+    const scope: Record<string, unknown> = { jest }
+    const served = (name: string, get: () => unknown): void => {
+      Object.defineProperty(scope, name, { get, enumerable: false })
+    }
+    // jest-runtime `cjsGlobals(from)`: the injected globals, with this module's own `jest`.
+    served('@jest/globals', () => ({ ...jestGlobals(host), jest }))
+    // U9: `expect` and `@jest/expect` are the runner's own, never a second copy from the project.
+    served('expect', () => expectModule(jestGlobals(host).expect))
+    served('@jest/expect', () => ({ jestExpect: jestGlobals(host).expect }))
+    served('jest-mock', () => ({
+      fn: jest.fn,
+      spyOn: jest.spyOn,
+      replaceProperty: jest.replaceProperty,
+    }))
+    return scope
+  }
 }

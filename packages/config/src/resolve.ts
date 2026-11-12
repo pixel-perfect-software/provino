@@ -10,6 +10,7 @@ import type {
   Dialect,
   EnvironmentRef,
   IsolationTier,
+  JsonValue,
   NeutralAlias,
   NeutralDiscovery,
   NeutralProject,
@@ -283,6 +284,7 @@ export async function resolveNeutralProject(
       setupFilesAfterEnvKey: 'setupFilesAfterEnv',
       discovery: neutral.discovery,
       aliases: neutral.aliases,
+      ...(neutral.globalValues === undefined ? {} : { globalValues: neutral.globalValues }),
       ...(neutral.resolution === undefined ? {} : { resolution: neutral.resolution }),
     },
     { environments: options.environments, ci: options.ci },
@@ -309,6 +311,7 @@ interface ProjectInput {
   /** Name-mapping rules and resolver keys (T3.3); none for a `provino.config.*` project. */
   readonly aliases?: readonly NeutralAlias[]
   readonly resolution?: NeutralResolution
+  readonly globalValues?: Readonly<Record<string, JsonValue>>
 }
 
 /** The resolver keys of the loader config: only the ones the project gave (T3.3). */
@@ -392,12 +395,18 @@ async function finishProject(
     globals: globalsFactory,
     // A module's own bindings exist whether or not globals are injected (Jest's `jest`).
     moduleScope: dialect?.moduleScope?.factory ?? null,
+    ...(input.globalValues === undefined || Object.keys(input.globalValues).length === 0
+      ? {}
+      : { globalValues: input.globalValues }),
     setupFiles,
     setupFilesAfterEnv,
     loader: {
       // The dialect's hoist policy crosses by value: data, with `RegExp` and `Set` leaves (B13c Gap 12).
       hoist: dialect?.loader?.hoist ?? null,
       moduleScope: dialect?.moduleScope?.names ?? [],
+      ...(dialect?.moduleScope?.modules === undefined
+        ? {}
+        : { scopeModules: dialect.moduleScope.modules }),
       extensions: Object.freeze([...LOADER_EXTENSIONS]),
       conditions,
       tsconfig: 'auto',

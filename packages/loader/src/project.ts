@@ -151,6 +151,8 @@ export async function createProjectLoader(
     }),
     policy,
     conditions: config.conditions,
-    ...(config.moduleScope.length === 0 ? {} : { moduleScope: { names: config.moduleScope } }),
+    ...(config.moduleScope.length === 0 && (config.scopeModules ?? []).length === 0
+      ? {}
+      : { moduleScope: { names: config.moduleScope, modules: config.scopeModules ?? [] } }),
   })
 }

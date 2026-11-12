@@ -1,0 +1,5 @@
+{
+  "description": "What `@jest/globals` gives a test file (T11.10, U9): the same objects as the injected globals, a `jest` that has the module-mock calls, and the matcher symbol. One assertion per test, so the golden holds each verdict.",
+  "runners": ["jest"],
+  "jestEsm": true
+}
