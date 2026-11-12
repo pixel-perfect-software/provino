@@ -17,6 +17,7 @@ import type {
   RunSummary,
   ScheduleInput,
   SerializedError,
+  SerializedProjectConfig,
   TaskResult,
   TaskState,
   WorkerEvent,
@@ -34,11 +35,16 @@ import { discoverByRules } from './discover-rules.ts'
 import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
 import { OrchestratorError } from './errors.ts'
 import { fileIdOf, relativePosix } from './file-id.ts'
-import { hashOf, workerKeyOf } from './key.ts'
+import { configHash, hashOf, workerKeyOf } from './key.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
 import { selectFiles } from './select.ts'
 import { createHistorySequencer } from './sequencer.ts'
-import { mergedSnapshots, snapshotMember, snapshotsFailRun } from './snapshot-members.ts'
+import {
+  mergedSnapshots,
+  type SnapshotMember,
+  snapshotMember,
+  snapshotsFailRun,
+} from './snapshot-members.ts'
 import { type TransportForOptions, transportFor } from './transport/for-kind.ts'
 import { describeExit } from './transport/shared.ts'
 import { messageOf } from './util.ts'
@@ -226,14 +232,22 @@ function crashError(file: FileInfo, exit: WorkerExit): SerializedError {
   }
 }
 
+/** A project with the run's seed in its worker config. */
+type SeededProject = Omit<ResolvedProject, 'config'> & { readonly config: SerializedProjectConfig }
+
 /** One project of a run, with what the run decided for it once. */
 interface Member {
-  readonly project: ResolvedProject
+  readonly project: SeededProject
   /** The results cache's key for the project's history. */
   readonly cacheProject: string
-  /** What names the project inside this run: its `name`, or `name#hash` when another project has the same name. */
+  /**
+   * What names the project inside this run (the worker key, the file ids): its `name`, or
+   * `name#hash` of its finished config when another project has the same name, and `@index` after
+   * that when another one's config is byte-identical.
+   */
   readonly identity: string
-  readonly updateSnapshots: ReturnType<typeof resolveUpdateMode>
+  /** What the project's files reported, its update mode and its policy. */
+  readonly snapshots: SnapshotMember
   readonly cache: ResultsCache | undefined
   readonly key: WorkerKey
 }
@@ -294,9 +308,6 @@ export async function runProjects(
   const kind = options.pool?.kind ?? orchestrator.pool.default
   const execArgv = options.pool?.execArgv
 
-  const nameCounts = new Map<string, number>()
-  for (const project of projects)
-    nameCounts.set(project.name, (nameCounts.get(project.name) ?? 0) + 1)
   const caches = new Map<string, ResultsCache>()
   const cacheFor = (project: ResolvedProject): ResultsCache | undefined => {
     if (options.cache === false) return undefined
@@ -309,22 +320,16 @@ export async function runProjects(
     }
     return cache
   }
-  // Two projects can share a name and every discovery input yet differ in environment, transform or
-  // setup files; each still needs a worker key, a file-id namespace and a results history of its own.
-  const takenIdentities = new Set<string>()
-  const uniqueIdentity = (wanted: string, index: number): string => {
-    let identity = wanted
-    for (let attempt = 0; takenIdentities.has(identity); attempt++) {
-      identity = `${wanted}@${index}${attempt === 0 ? '' : `.${attempt}`}`
-    }
-    takenIdentities.add(identity)
-    return identity
-  }
   // One seed for the run (`jest.getSeed()`): a project that gives none takes this one, so every
   // worker of every such project reports the same value, as Jest's single `globalConfig.seed`.
   const runSeed = Math.floor(0x1_0000_0000 * Math.random()) - 0x8000_0000
   /** Each lockfile's hash by path, so projects that share a lockfile read it once. */
   const lockfileHashes = new Map<string, string>()
+  // Two projects can share a name, yet differ in discovery, environment, transform or setup files;
+  // each still needs a worker key, a file-id namespace and a results history of its own.
+  const takenIdentities = new Set<string>()
+  const nameCounts = Map.groupBy(projects, (project) => project.name)
+  const cacheKeyCounts = Map.groupBy(projects, projectCacheKey)
   const members: Member[] = projects.map((resolved, index) => {
     // The transform cache (T3.6) is on unless the run has no cache (`--no-cache`): the directory is
     // wiped here if the lockfile changed, and handed to the project's workers.
@@ -336,24 +341,33 @@ export async function runProjects(
             transformCacheDir(resolved.rootDir, resolved.cacheDirectory),
             lockfileHashes,
           )
-    const project =
-      cached.config.seed === undefined
-        ? { ...cached, config: { ...cached.config, seed: runSeed } }
-        : cached
-    const wanted = nameCounts.get(project.name) === 1 ? project.name : projectCacheKey(project)
-    const identity = uniqueIdentity(wanted, index)
-    const cacheProject = identity === wanted ? projectCacheKey(project) : identity
+    const project: SeededProject = {
+      ...cached,
+      config: { ...cached.config, seed: cached.config.seed ?? runSeed },
+    }
+    const base =
+      nameCounts.get(project.name)?.length === 1
+        ? project.name
+        : `${project.name}#${configHash(project.config).slice(0, 8)}`
+    const identity = takenIdentities.has(base) ? `${base}@${index}` : base
+    takenIdentities.add(identity)
+    const cacheKey = projectCacheKey(project)
     return {
       project,
-      cacheProject,
+      // The results history keeps its stable key, so editing a config doesn't lose it, unless
+      // another project of the run has the same one.
+      cacheProject: cacheKeyCounts.get(cacheKey)?.length === 1 ? cacheKey : identity,
       identity,
       // What every file does with its snapshots (build-plan §6: the worker writes the `.snap` files).
-      updateSnapshots: resolveUpdateMode({
-        update: options.update ?? false,
-        ci: project.config.ci,
-        env: options.env ?? process.env,
-        policy: project.policy.snapshot,
-      }),
+      snapshots: snapshotMember(
+        resolveUpdateMode({
+          update: options.update ?? false,
+          ci: project.config.ci,
+          env: options.env ?? process.env,
+          policy: project.policy.snapshot,
+        }),
+        project.policy.snapshot,
+      ),
       cache: cacheFor(project),
       key: workerKeyOf({
         project: identity,
@@ -365,12 +379,7 @@ export async function runProjects(
     }
   })
   const byIdentity = new Map(members.map((member) => [member.identity, member]))
-  const snapshotMembers = new Map(
-    members.map((member) => [
-      member,
-      snapshotMember(member.updateSnapshots, member.project.policy.snapshot),
-    ]),
-  )
+  const snapshotMembers = members.map((member) => member.snapshots)
 
   const startedAt = performance.now()
   const stderr = options.stderr ?? process.stderr
@@ -460,16 +469,15 @@ export async function runProjects(
   const finishedFiles = (): FileResult[] => queue.flatMap((entry) => results.get(entry) ?? [])
 
   const summarize = (reason: RunSummary['reason']): RunSummary => {
-    const run = mergedSnapshots([...snapshotMembers.values()])
+    const run = mergedSnapshots(snapshotMembers)
     return {
       reason,
       files: finishedFiles(),
       unhandled,
       durationMs: performance.now() - startedAt,
-      ...(run === undefined ? {} : { snapshots: run }),
       ...(run === undefined
         ? {}
-        : { snapshotsFail: snapshotsFailRun([...snapshotMembers.values()]) }),
+        : { snapshots: run, snapshotsFail: snapshotsFailRun(snapshotMembers) }),
     }
   }
 
@@ -484,7 +492,7 @@ export async function runProjects(
     const job: FileJob = {
       file: entry.file.path,
       fileId: entry.info.fileId,
-      updateSnapshots: member.updateSnapshots,
+      updateSnapshots: member.snapshots.update,
       ...(options.testNamePattern === undefined
         ? {}
         : { testNamePattern: options.testNamePattern }),
@@ -513,7 +521,7 @@ export async function runProjects(
         await bus.emit('file:start', entry.info, outcome.workerId)
       }
       if (outcome.type === 'done' && outcome.done.snapshot !== undefined) {
-        snapshotMembers.get(entry.member)?.aggregate.add(outcome.done.snapshot, entry.file.path)
+        entry.member.snapshots.aggregate.add(outcome.done.snapshot, entry.file.path)
       }
       const elapsedMs = takenAt === undefined ? 0 : performance.now() - takenAt
       const result = resultOf(entry.info, outcome, dispatch.result, elapsedMs)
@@ -613,7 +621,7 @@ export async function runProjects(
 
     const failed =
       finishedFiles().some((file) => file.state === 'fail') ||
-      snapshotsFailRun([...snapshotMembers.values()]) ||
+      snapshotsFailRun(snapshotMembers) ||
       (orchestrator.unhandledErrors === 'fail-run' && unhandled.length > 0)
     const summary = summarize(interrupted ? 'interrupted' : failed ? 'failed' : 'passed')
     await bus.emit('run:end', summary)

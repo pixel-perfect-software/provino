@@ -55,7 +55,7 @@ function isRefOrFunction(value: unknown): value is object {
  * key path.
  * @internal
  */
-export function assertWorkerConfig(config: SerializedProjectConfig): void {
+export function assertWorkerConfig(config: Omit<SerializedProjectConfig, 'seed'>): void {
   forEachModuleRef(
     config.policy,
     'policy',

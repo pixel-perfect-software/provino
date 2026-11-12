@@ -45,6 +45,7 @@ const config: SerializedProjectConfig = {
   name: 'test',
   rootDir: '/',
   ci: false,
+  seed: 0,
   policy: serializePolicy(neutralPolicy),
   environment: {
     module: fixture('runtime-env.ts').href,
@@ -197,6 +198,7 @@ export function runtimeConfig(
     name: 'rt',
     rootDir,
     ci: false,
+    seed: 0,
     policy: runtimePolicy(),
     environment: {
       module: fixture('runtime-env.ts').href,

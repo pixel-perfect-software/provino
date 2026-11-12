@@ -131,7 +131,7 @@ export async function createProjectLoader(
     )
   }
   const custom =
-    config.resolver === undefined || config.resolver === null
+    config.resolver === undefined
       ? undefined
       : await loadCustomResolver(behaviours, config.resolver)
   return createLoader({
@@ -158,9 +158,7 @@ export async function createProjectLoader(
     }),
     policy,
     conditions: config.conditions,
-    ...(config.resolver === undefined || config.resolver === null
-      ? {}
-      : { resolverName: config.resolver.module }),
+    ...(config.resolver === undefined ? {} : { resolverName: config.resolver.module }),
     ...(config.moduleScope.length === 0 && (config.scopeModules ?? []).length === 0
       ? {}
       : {

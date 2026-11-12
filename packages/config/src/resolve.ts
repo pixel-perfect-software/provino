@@ -48,6 +48,15 @@ export interface ResolveProjectOptions {
 }
 
 /**
+ * A project's worker config before the run gives it a seed: a Jest or Vitest config reader brings
+ * its own, a `provino.config.*` project none, and one run shares a single seed across its projects.
+ * @public
+ */
+export type UnseededProjectConfig = Omit<SerializedProjectConfig, 'seed'> & {
+  readonly seed?: number
+}
+
+/**
  * A project, resolved: the choices config and policy made, and the config its workers get.
  * @public
  */
@@ -72,8 +81,8 @@ export interface ResolvedProject {
   /** The environment's name: `WorkerKey.environment`. */
   readonly environment: string
   readonly isolation: IsolationTier
-  /** What each worker is started with. */
-  readonly config: SerializedProjectConfig
+  /** What each worker is started with, but for the run's seed (`withSeed`). */
+  readonly config: UnseededProjectConfig
   /** The cache directory the project's config sets itself (D70), or absent for the default. */
   readonly cacheDirectory?: string
 }
@@ -295,12 +304,12 @@ export async function resolveNeutralProject(
       setupFilesAfterEnvKey: 'setupFilesAfterEnv',
       discovery: neutral.discovery,
       transform: resolveTransforms(neutral),
-      ...(neutral.cacheDirectory === undefined ? {} : { cacheDirectory: neutral.cacheDirectory }),
+      cacheDirectory: neutral.cacheDirectory,
       aliases: neutral.aliases,
-      ...(neutral.globalValues === undefined ? {} : { globalValues: neutral.globalValues }),
-      ...(neutral.fakeTimers === undefined ? {} : { fakeTimers: neutral.fakeTimers }),
-      ...(neutral.seed === undefined ? {} : { seed: neutral.seed }),
-      ...(neutral.resolution === undefined ? {} : { resolution: neutral.resolution }),
+      globalValues: neutral.globalValues,
+      fakeTimers: neutral.fakeTimers,
+      seed: neutral.seed,
+      resolution: neutral.resolution,
     },
     { environments: options.environments, ci: options.ci },
   )
@@ -326,13 +335,18 @@ interface ProjectInput {
   /** User transformers (T3.8); a neutral project's only, `undefined` for none. */
   readonly transform?: SerializedTransformConfig | undefined
   /** The cache directory the config sets itself (D70); a neutral project's only. */
-  readonly cacheDirectory?: string
+  readonly cacheDirectory?: string | undefined
   /** Name-mapping rules and resolver keys (T3.3); none for a `provino.config.*` project. */
-  readonly aliases?: readonly NeutralAlias[]
-  readonly resolution?: NeutralResolution
-  readonly globalValues?: Readonly<Record<string, JsonValue>>
-  readonly fakeTimers?: Readonly<Record<string, JsonValue>>
-  readonly seed?: number
+  readonly aliases?: readonly NeutralAlias[] | undefined
+  readonly resolution?: NeutralResolution | undefined
+  readonly globalValues?: Readonly<Record<string, JsonValue>> | undefined
+  readonly fakeTimers?: Readonly<Record<string, JsonValue>> | undefined
+  readonly seed?: number | undefined
+}
+
+/** `record`, or `undefined` when it has no keys: an empty one is no setting. */
+function nonEmpty<T extends object>(record: T | undefined): T | undefined {
+  return record === undefined || Object.keys(record).length === 0 ? undefined : record
 }
 
 /** The resolver keys of the loader config: only the ones the project gave (T3.3). */
@@ -403,7 +417,9 @@ async function finishProject(
     ]),
     loaderConditions(policy, environment, input.environmentOptions),
   )
-  const config: SerializedProjectConfig = {
+  const globalValues = nonEmpty(input.globalValues)
+  const fakeTimers = nonEmpty(input.fakeTimers)
+  const config: UnseededProjectConfig = {
     name: input.name,
     rootDir,
     ci: options.ci,
@@ -419,12 +435,8 @@ async function finishProject(
     ...(dialect?.environmentResolver === undefined
       ? {}
       : { environmentResolver: dialect.environmentResolver }),
-    ...(input.globalValues === undefined || Object.keys(input.globalValues).length === 0
-      ? {}
-      : { globalValues: input.globalValues }),
-    ...(input.fakeTimers === undefined || Object.keys(input.fakeTimers).length === 0
-      ? {}
-      : { fakeTimers: input.fakeTimers }),
+    ...(globalValues === undefined ? {} : { globalValues }),
+    ...(fakeTimers === undefined ? {} : { fakeTimers }),
     ...(input.seed === undefined ? {} : { seed: input.seed }),
     setupFiles,
     setupFilesAfterEnv,

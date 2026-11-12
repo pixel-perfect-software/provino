@@ -181,7 +181,7 @@ export interface SerializedLoaderConfig {
   /** Absolute directories searched after a miss (Jest `modulePaths`). */
   readonly modulePaths?: readonly string[]
   /** A custom resolver module (Jest `resolver`), its `module` absolute; the export is `default`. */
-  readonly resolver?: ModuleRef | null
+  readonly resolver?: ModuleRef
 }
 
 /**
@@ -213,8 +213,8 @@ export interface SerializedProjectConfig {
    * for a dialect with none. Its names are `loader.moduleScope`.
    */
   readonly moduleScope: ModuleRef<ModuleScopeFactory> | null
-  /** The dialect's resolver for a docblock's environment (`Dialect.environmentResolver`); absent or `null` for none. */
-  readonly environmentResolver?: ModuleRef<EnvironmentResolver> | null
+  /** The dialect's resolver for a docblock's environment (`Dialect.environmentResolver`); absent for none. */
+  readonly environmentResolver?: ModuleRef<EnvironmentResolver>
   /**
    * Values defined on the environment's global for each file, before anything else runs (Jest's
    * `globals`: jest-environment-node's `installCommonGlobals`). Absent means none.
@@ -222,8 +222,8 @@ export interface SerializedProjectConfig {
   readonly globalValues?: Readonly<Record<string, JsonValue>>
   /** The project's fake-timer defaults (`NeutralProject.fakeTimers`). Absent means none. */
   readonly fakeTimers?: Readonly<Record<string, JsonValue>>
-  /** The run's random seed (`NeutralProject.seed`). Absent: the coordinator gives every worker of the run one it draws. */
-  readonly seed?: number
+  /** The run's random seed (`jest.getSeed()`): the coordinator draws one per run, or takes the project's own (`NeutralProject.seed`). */
+  readonly seed: number
   /** Absolute paths, imported before each test file, first (Jest `setupFiles`). */
   readonly setupFiles: readonly string[]
   /** Absolute paths, imported after `setupFiles` and before each test file (Jest `setupFilesAfterEnv`, Vitest `setupFiles`). */

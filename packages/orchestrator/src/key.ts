@@ -77,3 +77,19 @@ export function sameWorkerKey(a: WorkerKey, b: WorkerKey): boolean {
 export function workerKeyId(key: WorkerKey): string {
   return `${key.project}\0${key.pool}\0${key.environment}\0${key.environmentOptionsHash}\0${key.execArgvHash}\0${key.envHash}`
 }
+
+/** `value` as JSON-like data: regular expressions as their text, sets as sorted lists, functions dropped. */
+function plain(value: unknown): unknown {
+  if (value instanceof RegExp) return value.toString()
+  if (value instanceof Set) return [...value].map(String).sort()
+  if (Array.isArray(value)) return value.map(plain)
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, plain(item)]))
+  }
+  return typeof value === 'function' ? undefined : value
+}
+
+/** A hash of a finished project config, by its content: equal for byte-identical configs, whatever their key order. */
+export function configHash(config: unknown): string {
+  return hashOf(plain(config) as JsonValue)
+}

@@ -9,5 +9,6 @@ export {
   type ResolveProjectOptions,
   resolveNeutralProject,
   resolveProject,
+  type UnseededProjectConfig,
 } from './resolve.ts'
 export { pruneTransformCache, withTransformCache } from './transform-cache.ts'

@@ -5,6 +5,7 @@
 import { isAbsolute } from 'node:path'
 import { forEachModuleRef, isImportableLocation, isModuleRef, neutralPolicy } from '@provino/policy'
 import type {
+  AnyFunction,
   EnvironmentRef,
   EnvironmentResolver,
   GlobalsFactory,
@@ -32,6 +33,20 @@ function invalid(path: string, expected: string): never {
 
 function record(value: unknown, path: string): Readonly<Record<string, unknown>> {
   return isRecord(value) ? value : invalid(path, 'an object')
+}
+
+/** A `{ module, export }` ref with its module made importable as it is (see `moduleLocation`). */
+function absoluteRef<Fn extends AnyFunction>(
+  value: unknown,
+  path: string,
+  expected = 'a { module, export } ref',
+): ModuleRef<Fn> {
+  if (!isModuleRef(value)) return invalid(path, expected)
+  const ref: ModuleRef<Fn> = {
+    module: moduleLocation(value.module, `${path}.module`),
+    export: value.export,
+  }
+  return ref
 }
 
 function seedOf(value: unknown): number {
@@ -112,8 +127,7 @@ function environmentRef(value: unknown): EnvironmentRef {
 /** The globals ref, or `null` for a dialect that injects none. */
 function globalsRef(value: unknown): ModuleRef<GlobalsFactory> | null {
   if (value === null) return null
-  if (!isModuleRef(value)) invalid('globals', 'null or a { module, export } ref')
-  return { module: moduleLocation(value.module, 'globals.module'), export: value.export }
+  return absoluteRef(value, 'globals', 'null or a { module, export } ref')
 }
 
 /** Each mapper is a `{ factory, options }`: a ref to its factory and the data it is called with. */
@@ -122,11 +136,13 @@ function mapperList(value: unknown): readonly SerializedModuleMapper[] {
   return value.map((item: unknown, index): SerializedModuleMapper => {
     const path = `loader.mappers[${index}]`
     const mapper = record(item, path)
-    if (!isModuleRef(mapper.factory)) invalid(`${path}.factory`, 'a { module, export } ref')
+    const factory: SerializedModuleMapper['factory'] = absoluteRef(
+      mapper.factory,
+      `${path}.factory`,
+    )
     if (!('options' in mapper)) invalid(`${path}.options`, 'present (null for none)')
-    const { module, export: name } = mapper.factory
     return {
-      factory: { module: moduleLocation(module, `${path}.factory.module`), export: name },
+      factory,
       options: mapper.options as SerializedModuleMapper['options'],
     }
   })
@@ -147,18 +163,13 @@ function hoistPolicy(value: unknown): HoistPolicy | null {
 
 /** The dialect's environment resolver ref: absolute, like the globals one. */
 function environmentResolverRef(value: unknown): ModuleRef<EnvironmentResolver> {
-  if (!isModuleRef(value)) return invalid('environmentResolver', 'null or a { module, export } ref')
-  return {
-    module: moduleLocation(value.module, 'environmentResolver.module'),
-    export: value.export,
-  }
+  return absoluteRef(value, 'environmentResolver')
 }
 
 /** The module-scope factory's ref, or `null` for a dialect with none. */
 function moduleScopeRef(value: unknown): ModuleRef<ModuleScopeFactory> | null {
   if (value === null) return null
-  if (!isModuleRef(value)) invalid('moduleScope', 'null or a { module, export } ref')
-  return { module: moduleLocation(value.module, 'moduleScope.module'), export: value.export }
+  return absoluteRef(value, 'moduleScope', 'null or a { module, export } ref')
 }
 
 /** The user transformers (T3.8); the caller reads this only when the key is present. */
@@ -169,14 +180,14 @@ function transformConfig(value: unknown): SerializedTransformConfig {
     rules: transform.rules.map((item: unknown, index) => {
       const path = `loader.transform.rules[${index}]`
       const rule = record(item, path)
-      if (!isModuleRef(rule.transformer)) invalid(`${path}.transformer`, 'a { module, export } ref')
+      const transformer: SerializedTransformConfig['rules'][number]['transformer'] = absoluteRef(
+        rule.transformer,
+        `${path}.transformer`,
+      )
       if (!('options' in rule)) invalid(`${path}.options`, 'present (null for none)')
       return {
         pattern: text(rule.pattern, `${path}.pattern`),
-        transformer: {
-          module: moduleLocation(rule.transformer.module, `${path}.transformer.module`),
-          export: rule.transformer.export,
-        },
+        transformer,
         options: rule.options as SerializedTransformConfig['rules'][number]['options'],
       }
     }),
@@ -214,14 +225,7 @@ function resolverKeys(loader: Record<string, unknown>): Partial<SerializedLoader
   if (loader.modulePaths !== undefined) {
     keys.modulePaths = absolutePaths(loader.modulePaths, 'loader.modulePaths')
   }
-  if (loader.resolver !== undefined && loader.resolver !== null) {
-    if (!isModuleRef(loader.resolver))
-      invalid('loader.resolver', 'null or a { module, export } ref')
-    keys.resolver = {
-      module: moduleLocation(loader.resolver.module, 'loader.resolver.module'),
-      export: loader.resolver.export,
-    }
-  }
+  if (loader.resolver !== undefined) keys.resolver = absoluteRef(loader.resolver, 'loader.resolver')
   return keys
 }
 
@@ -268,18 +272,16 @@ export function parseProjectConfig(value: unknown): SerializedProjectConfig {
     environment: environmentRef(config.environment),
     globals: globalsRef(config.globals),
     moduleScope: moduleScopeRef(config.moduleScope),
-    ...(config.environmentResolver === undefined || config.environmentResolver === null
+    ...(config.environmentResolver === undefined
       ? {}
-      : {
-          environmentResolver: environmentResolverRef(config.environmentResolver),
-        }),
+      : { environmentResolver: environmentResolverRef(config.environmentResolver) }),
     ...(config.globalValues === undefined
       ? {}
       : { globalValues: record(config.globalValues, 'globalValues') as Record<string, JsonValue> }),
     ...(config.fakeTimers === undefined
       ? {}
       : { fakeTimers: record(config.fakeTimers, 'fakeTimers') as Record<string, JsonValue> }),
-    ...(config.seed === undefined ? {} : { seed: seedOf(config.seed) }),
+    seed: seedOf(config.seed),
     setupFiles: absolutePaths(config.setupFiles, 'setupFiles'),
     setupFilesAfterEnv: absolutePaths(config.setupFilesAfterEnv, 'setupFilesAfterEnv'),
     loader: loaderConfig(config.loader),
