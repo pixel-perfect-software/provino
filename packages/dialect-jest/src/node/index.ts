@@ -90,6 +90,8 @@ export { type ValidationOutcome, validateJestConfig } from './validate.ts'
 export interface JestResolvedConfig {
   readonly globalConfig: JestGlobalConfig
   readonly configs: readonly JestProjectConfig[]
+  /** Per config, whether it named a `cacheDirectory` (D70). Absent: none did. */
+  readonly cacheDirectorySet?: readonly boolean[]
 }
 
 /**
@@ -135,14 +137,24 @@ export function createJestConfigReader(
         raw,
       )
       return {
-        value: { globalConfig: read.globalConfig, configs: read.configs },
+        value: {
+          globalConfig: read.globalConfig,
+          configs: read.configs,
+          cacheDirectorySet: read.cacheDirectorySet,
+        },
         diagnostics: read.diagnostics,
       }
     },
     toNeutral(resolved: JestResolvedConfig) {
       const diagnostics: Diagnostic[] = []
-      const value: NeutralProject[] = resolved.configs.map((config) => {
-        const neutral = jestProjectToNeutral(config, resolved.globalConfig)
+      const value: NeutralProject[] = resolved.configs.map((config, index) => {
+        const neutral = jestProjectToNeutral(config, resolved.globalConfig, {
+          cacheDirectorySet: resolved.cacheDirectorySet?.[index] ?? false,
+          ...(options.env === undefined ? {} : { env: options.env }),
+          ...(options.requireResolve === undefined
+            ? {}
+            : { requireResolve: options.requireResolve }),
+        })
         diagnostics.push(...neutral.diagnostics)
         return neutral.project
       })

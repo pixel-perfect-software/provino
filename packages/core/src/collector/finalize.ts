@@ -53,7 +53,7 @@ export function finalize(file: FileState, options: FinalizeOptions): TaskNode[] 
   applyLineFilter(file, testFile, options)
   blockOnly(nodes, options)
   checkEmpty(file, nodes, options.policy)
-  return toTasks(file, nodes, options.projectName)
+  return toTasks(file, nodes, options.projectName, options.policy.timeouts.test)
 }
 
 /** A file's task id: a hash of the project name and its relative path (stable across runs). */
@@ -413,7 +413,12 @@ function failEmptySuites(suite: SuiteNode, withTests: ReadonlySet<SuiteNode>): v
 }
 
 /** The clone-safe task list, file first; each node keeps its own task for the executor. */
-function toTasks(file: FileState, nodes: Nodes, projectName: string): TaskNode[] {
+function toTasks(
+  file: FileState,
+  nodes: Nodes,
+  projectName: string,
+  testTimeoutMs: number,
+): TaskNode[] {
   const root = file.root
   const fileTask: FileTask = {
     type: 'file',
@@ -465,7 +470,7 @@ function toTasks(file: FileState, nodes: Nodes, projectName: string): TaskNode[]
       each: node.each,
       concurrent: node.concurrent,
       expectFail: node.expectFail,
-      timeoutMs: node.timeoutMs,
+      timeoutMs: node.timeoutMs ?? testTimeoutMs,
       retry: node.retry,
       repeats: node.repeats,
     }

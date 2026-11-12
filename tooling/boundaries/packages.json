@@ -204,7 +204,7 @@
       "dir": "packages/env-node",
       "layer": 3,
       "runsIn": "worker",
-      "deps": ["@provino/types"],
+      "deps": ["@provino/types", "@provino/env-shared"],
       "slices": []
     },
     "@provino/env-jsdom": {
@@ -316,6 +316,7 @@
         "@provino/expect",
         "@provino/mock",
         "@provino/timers",
+        "@provino/env-shared",
         "@provino/dialect-jest"
       ],
       "slices": "all"

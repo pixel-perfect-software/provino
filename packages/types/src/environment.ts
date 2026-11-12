@@ -20,6 +20,13 @@ export type EnvironmentRealm = 'worker' | 'context'
 export type EnvironmentScope = 'file' | 'worker'
 
 /**
+ * A file's docblock pragmas by name without the `@`: a pragma with no value is `''`, and one given
+ * twice or more holds every value in order.
+ * @public
+ */
+export type Pragmas = Readonly<Record<string, string | readonly string[]>>
+
+/**
  * What an environment's `setup` receives.
  * @public
  */
@@ -29,7 +36,7 @@ export interface EnvironmentSetupContext<Options> {
   readonly scope: EnvironmentScope
   readonly testPath: string
   /** The file's docblock pragmas. */
-  readonly pragmas: Readonly<Record<string, string | readonly string[]>>
+  readonly pragmas: Pragmas
   readonly console: Console
   /** Aborted when the worker cancels. */
   readonly signal: AbortSignal
@@ -106,6 +113,32 @@ export interface EnvironmentRef {
   /** What `setup` and `prepare` get as `options`. */
   readonly options: { readonly [key: string]: JsonValue }
 }
+
+/**
+ * What a worker asks a dialect to resolve when a file's docblock names an environment
+ * (`@jest-environment jsdom`, `@jest-environment-options {...}`).
+ * @public
+ */
+export interface EnvironmentPragmaRequest {
+  /** The pragma's value as written: a name, a package or a path. */
+  readonly name: string
+  /** The options pragma, parsed (`null` when the file gives none). */
+  readonly options: JsonValue
+  readonly rootDir: string
+  readonly testPath: string
+  /** The project's own environment, whose options (`testEnvironmentOptions`, `globals`) the file's build on. */
+  readonly base: EnvironmentRef
+}
+
+/**
+ * A dialect's way to turn a file's environment pragma into an `EnvironmentRef` (its `module` an
+ * absolute path or URL). Loaded in the worker by `ModuleRef`; it may throw the dialect's own error
+ * for a name that doesn't resolve.
+ * @public
+ */
+export type EnvironmentResolver = (
+  request: EnvironmentPragmaRequest,
+) => EnvironmentRef | Promise<EnvironmentRef>
 
 /**
  * The signature of `defineEnvironment`: it keeps the literal name.

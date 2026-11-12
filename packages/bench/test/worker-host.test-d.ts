@@ -41,13 +41,26 @@ declare const mockPolicy: MockPolicy
 declare const moduleMocks: () => ModuleMockRegistry
 declare const timers: () => FakeClock
 declare const timersPolicy: TimersPolicy
+declare const seed: number
+declare const environmentTornDown: () => boolean
+declare const setDefaultTimeout: (ms: number) => void
 declare const api: RuntimeGlobalsHost['api']
 declare const expectStatic: RuntimeGlobalsHost['expect']
 
 // A host with the wrong objects is not a `RuntimeGlobalsHost`, and so not what the dialect takes.
 // The parts each case keeps, so each case stays on the line its `@ts-expect-error` covers.
 const core = { api, expect: expectStatic, registry }
-const rest = { mocks, moduleMocks, mockPolicy, timers, timersPolicy }
+const rest = {
+  mocks,
+  moduleMocks,
+  mockPolicy,
+  timers,
+  timersPolicy,
+  seed,
+  environmentTornDown,
+  setDefaultTimeout,
+}
+const tail = { seed, environmentTornDown, setDefaultTimeout }
 // @ts-expect-error `api` must be core's, not any object
 const wrongApi: RuntimeGlobalsHost = { ...rest, api: {}, expect: expectStatic, registry }
 // @ts-expect-error `expect` must be the worker's `expect`, not any object
@@ -55,15 +68,56 @@ const wrongExpect: RuntimeGlobalsHost = { ...rest, api, expect: {}, registry }
 // @ts-expect-error `registry` is part of the host
 const noRegistry: RuntimeGlobalsHost = { ...rest, api, expect: expectStatic }
 // @ts-expect-error `mocks` is part of the host
-const noMocks: RuntimeGlobalsHost = { ...core, moduleMocks, mockPolicy, timers, timersPolicy }
+const noMocks: RuntimeGlobalsHost = {
+  ...core,
+  moduleMocks,
+  mockPolicy,
+  timers,
+  timersPolicy,
+  ...tail,
+}
 // @ts-expect-error `moduleMocks` is part of the host (B13c)
-const noModuleMocks: RuntimeGlobalsHost = { ...core, mocks, mockPolicy, timers, timersPolicy }
+const noModuleMocks: RuntimeGlobalsHost = {
+  ...core,
+  mocks,
+  mockPolicy,
+  timers,
+  timersPolicy,
+  ...tail,
+}
 // @ts-expect-error `mockPolicy` is part of the host
-const noMockPolicy: RuntimeGlobalsHost = { ...core, mocks, moduleMocks, timers, timersPolicy }
+const noMockPolicy: RuntimeGlobalsHost = {
+  ...core,
+  mocks,
+  moduleMocks,
+  timers,
+  timersPolicy,
+  ...tail,
+}
 // @ts-expect-error `timers` is part of the host (B17a)
-const noTimers: RuntimeGlobalsHost = { ...core, mocks, moduleMocks, mockPolicy, timersPolicy }
+const noTimers: RuntimeGlobalsHost = {
+  ...core,
+  mocks,
+  moduleMocks,
+  mockPolicy,
+  timersPolicy,
+  ...tail,
+}
 // @ts-expect-error `timersPolicy` is part of the host (B17a)
-const noTimersPolicy: RuntimeGlobalsHost = { ...core, mocks, moduleMocks, mockPolicy, timers }
+const noTimersPolicy: RuntimeGlobalsHost = {
+  ...core,
+  mocks,
+  moduleMocks,
+  mockPolicy,
+  timers,
+  ...tail,
+}
+// @ts-expect-error `seed` is part of the host (B17c)
+const noSeed: RuntimeGlobalsHost = { ...core, ...rest, seed: undefined }
+// @ts-expect-error `environmentTornDown` is part of the host (B17c)
+const noTornDown: RuntimeGlobalsHost = { ...core, ...rest, environmentTornDown: undefined }
+// @ts-expect-error `setDefaultTimeout` is part of the host (B17c)
+const noDefaultTimeout: RuntimeGlobalsHost = { ...core, ...rest, setDefaultTimeout: undefined }
 const right: RuntimeGlobalsHost = { ...core, ...rest }
 
 // The Jest dialect's per-module bindings take the same host the worker builds.
@@ -73,12 +127,15 @@ expectTypeOf<ReturnType<typeof jestModuleScope>>().toEqualTypeOf<
 >()
 
 export {
+  noDefaultTimeout,
   noMockPolicy,
   noMocks,
   noModuleMocks,
   noRegistry,
+  noSeed,
   noTimers,
   noTimersPolicy,
+  noTornDown,
   right,
   wrongApi,
   wrongExpect,

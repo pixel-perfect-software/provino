@@ -143,6 +143,15 @@ test('the module slice: a missing export reads undefined, and the registry texts
   })
 })
 
+test('the name-mapper miss text is a ref to the runtime export (mapperMiss)', async () => {
+  const ref = resolved.module.mapperMiss
+  assert.deepEqual(ref, {
+    module: import.meta.resolve('@provino/dialect-jest/runtime'),
+    export: 'formatMapperMiss',
+  })
+  assert.equal(typeof (await createBehaviourLoader().load(ref as never)), 'function')
+})
+
 test('every module gets its own jest, built by the runtime factory, whether or not globals are injected', async () => {
   const scope = jestDialect.moduleScope
   assert.ok(scope !== undefined)
@@ -227,7 +236,6 @@ test('the keys the dialect leaves to the neutral policy are the ones listed in d
       'snapshot.key',
       'snapshot.serializers',
       'snapshot.resolvePath',
-      'orchestrator.environmentConditions',
       'orchestrator.isolationDefault.byEnvironment',
     ].sort(),
   )

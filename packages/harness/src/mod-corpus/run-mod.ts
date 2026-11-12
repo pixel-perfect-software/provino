@@ -111,6 +111,7 @@ function sabotaged(
     mockFor: (specifier, from) => registry.mockFor(specifier, from),
     createMockFromModule: (specifier, from) => registry.createMockFromModule(specifier, from),
     onResetModules: () => registry.onResetModules(),
+    onGenerateMock: (callback) => registry.onGenerateMock(callback),
     setAutomock: (enabled) => {
       if (!inert) registry.setAutomock(enabled)
     },

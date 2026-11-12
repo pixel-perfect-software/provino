@@ -156,8 +156,10 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
     failed: readonly FailedTest[],
     failedSuites: readonly FailedTest[],
   ): string {
-    if (result.state === 'skip') return skipLine(file.path)
-    if (result.state === 'pass') return passLine(file.path, result.durationMs)
+    // A project with a display name shows it before the path, as Jest's header does.
+    const shown = file.project === '' ? file.path : `${file.project} ${file.path}`
+    if (result.state === 'skip') return skipLine(shown)
+    if (result.state === 'pass') return passLine(shown, result.durationMs)
     const blocks = [...failed, ...failedSuites].map((test) =>
       failureBlock(report, test.title, test.errors),
     )
@@ -168,7 +170,7 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
           : 'Errors outside the tests'
       blocks.push(failureBlock(report, title, result.errors))
     }
-    return [failLine(file.path), ...blocks].join('\n')
+    return [failLine(shown), ...blocks].join('\n')
   }
 }
 

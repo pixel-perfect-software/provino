@@ -1,0 +1,6 @@
+{
+  "description": "jest.setTimeout (T11.10): with testTimeout 100, a file that raises its default to 500 passes a 250 ms test, another file without the call fails the same test, and a call after a test was declared still applies to it.",
+  "runners": ["jest"],
+  "config": { "jest": { "testTimeout": 100 } },
+  "jestEsm": true
+}

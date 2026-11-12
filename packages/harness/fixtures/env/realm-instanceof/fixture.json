@@ -1,0 +1,9 @@
+{
+  "description": "Track 8 R5, gap 1: which `instanceof` checks hold between a jsdom node and the test's own built-ins under Jest (the window is its own vm context there). One check per test, so the golden holds Jest's verdict on each; Provino's registry tier runs test code in the worker's realm, so the ones that cross realms can differ.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  }
+}

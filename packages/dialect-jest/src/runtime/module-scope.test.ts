@@ -86,6 +86,7 @@ function recordingModuleMocks(calls: string[]): ModuleMockRegistry {
       return { automock: specifier }
     },
     onResetModules: unused('onResetModules'),
+    onGenerateMock() {},
     setAutomock(enabled) {
       calls.push(`setAutomock ${enabled}`)
     },

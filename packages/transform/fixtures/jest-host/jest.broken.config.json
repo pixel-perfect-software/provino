@@ -1,0 +1,6 @@
+{
+  "rootDir": ".",
+  "transform": {
+    "^.+\\.tsx?$": ["@swc/jest", { "jsc": { "parser": { "syntax": "ecmascript" } } }]
+  }
+}

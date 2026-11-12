@@ -10,18 +10,24 @@ import type {
   Dialect,
   EnvironmentRef,
   IsolationTier,
+  JsonValue,
+  NeutralAlias,
   NeutralDiscovery,
   NeutralProject,
+  NeutralResolution,
   Policy,
   PolicyOverrides,
   ProvinoConfigInput,
+  SerializedLoaderConfig,
   SerializedProjectConfig,
+  SerializedTransformConfig,
 } from '@provino/types'
 import { ConfigError } from './errors.ts'
 import { dialectPolicy, selectDialect } from './internal/dialect.ts'
 import { describe, isStringArray, messageOf, parseInput } from './internal/input.ts'
 import { assertWorkerConfig } from './internal/refs.ts'
 import { resolveSetupFiles } from './internal/setup-files.ts'
+import { resolveTransforms } from './internal/transform.ts'
 
 /**
  * What `resolveProject` needs besides the config itself. The dialects and environments come from
@@ -39,6 +45,15 @@ export interface ResolveProjectOptions {
   >
   /** Whether this is a CI run (`allowOnly: 'not-in-ci'`). */
   readonly ci: boolean
+}
+
+/**
+ * A project's worker config before the run gives it a seed: a Jest or Vitest config reader brings
+ * its own, a `provino.config.*` project none, and one run shares a single seed across its projects.
+ * @public
+ */
+export type UnseededProjectConfig = Omit<SerializedProjectConfig, 'seed'> & {
+  readonly seed?: number
 }
 
 /**
@@ -66,8 +81,10 @@ export interface ResolvedProject {
   /** The environment's name: `WorkerKey.environment`. */
   readonly environment: string
   readonly isolation: IsolationTier
-  /** What each worker is started with. */
-  readonly config: SerializedProjectConfig
+  /** What each worker is started with, but for the run's seed (`withSeed`). */
+  readonly config: UnseededProjectConfig
+  /** The cache directory the project's config sets itself (D70), or absent for the default. */
+  readonly cacheDirectory?: string
 }
 
 /**
@@ -142,11 +159,18 @@ function projectLayer(
  * behaviour, loaded and called here in the coordinator. It only knows the environment's name,
  * not the `conditions` its `Environment` declares (that object lives in the worker).
  */
-async function loaderConditions(policy: Policy, environment: string): Promise<readonly string[]> {
+async function loaderConditions(
+  policy: Policy,
+  environment: string,
+  options: EnvironmentRef['options'],
+): Promise<readonly string[]> {
   const behaviour = policy.orchestrator.environmentConditions
   let conditions: unknown
   try {
-    conditions = await callBehaviour(createBehaviourLoader(), behaviour, { name: environment })
+    conditions = await callBehaviour(createBehaviourLoader(), behaviour, {
+      name: environment,
+      options,
+    })
   } catch (cause) {
     throw new ConfigError(
       'CONFIG_LOAD_FAILED',
@@ -279,6 +303,13 @@ export async function resolveNeutralProject(
       setupFilesAfterEnv: neutral.setupFilesAfterEnv,
       setupFilesAfterEnvKey: 'setupFilesAfterEnv',
       discovery: neutral.discovery,
+      transform: resolveTransforms(neutral),
+      cacheDirectory: neutral.cacheDirectory,
+      aliases: neutral.aliases,
+      globalValues: neutral.globalValues,
+      fakeTimers: neutral.fakeTimers,
+      seed: neutral.seed,
+      resolution: neutral.resolution,
     },
     { environments: options.environments, ci: options.ci },
   )
@@ -301,6 +332,38 @@ interface ProjectInput {
   /** The config key `setupFilesAfterEnv` came from, for messages. */
   readonly setupFilesAfterEnvKey: string
   readonly discovery: NeutralDiscovery | null
+  /** User transformers (T3.8); a neutral project's only, `undefined` for none. */
+  readonly transform?: SerializedTransformConfig | undefined
+  /** The cache directory the config sets itself (D70); a neutral project's only. */
+  readonly cacheDirectory?: string | undefined
+  /** Name-mapping rules and resolver keys (T3.3); none for a `provino.config.*` project. */
+  readonly aliases?: readonly NeutralAlias[] | undefined
+  readonly resolution?: NeutralResolution | undefined
+  readonly globalValues?: Readonly<Record<string, JsonValue>> | undefined
+  readonly fakeTimers?: Readonly<Record<string, JsonValue>> | undefined
+  readonly seed?: number | undefined
+}
+
+/** `record`, or `undefined` when it has no keys: an empty one is no setting. */
+function nonEmpty<T extends object>(record: T | undefined): T | undefined {
+  return record === undefined || Object.keys(record).length === 0 ? undefined : record
+}
+
+/** The resolver keys of the loader config: only the ones the project gave (T3.3). */
+function resolverKeys(input: ProjectInput): Partial<SerializedLoaderConfig> {
+  const { aliases, resolution } = input
+  return {
+    ...(aliases === undefined || aliases.length === 0 ? {} : { aliases }),
+    ...(resolution?.moduleDirectories === undefined
+      ? {}
+      : { moduleDirectories: resolution.moduleDirectories }),
+    ...(resolution?.modulePaths === undefined || resolution.modulePaths.length === 0
+      ? {}
+      : { modulePaths: resolution.modulePaths }),
+    ...(resolution?.resolver === undefined
+      ? {}
+      : { resolver: { module: resolution.resolver, export: 'default' } }),
+  }
 }
 
 /** The steps every project shares once its input is read: policy, environment, the worker config. */
@@ -352,9 +415,11 @@ async function finishProject(
       resolveSetupFiles(input.setupFiles, rootDir, 'setupFiles'),
       resolveSetupFiles(input.setupFilesAfterEnv, rootDir, input.setupFilesAfterEnvKey),
     ]),
-    loaderConditions(policy, environment),
+    loaderConditions(policy, environment, input.environmentOptions),
   )
-  const config: SerializedProjectConfig = {
+  const globalValues = nonEmpty(input.globalValues)
+  const fakeTimers = nonEmpty(input.fakeTimers)
+  const config: UnseededProjectConfig = {
     name: input.name,
     rootDir,
     ci: options.ci,
@@ -365,19 +430,36 @@ async function finishProject(
       options: input.environmentOptions,
     },
     globals: globalsFactory,
-    // A module's own bindings exist whether or not globals are injected (Jest's `jest`).
+    // The factory stays whether or not globals are injected: it also serves the imports (`@jest/globals`).
     moduleScope: dialect?.moduleScope?.factory ?? null,
+    ...(dialect?.environmentResolver === undefined
+      ? {}
+      : { environmentResolver: dialect.environmentResolver }),
+    ...(globalValues === undefined ? {} : { globalValues }),
+    ...(fakeTimers === undefined ? {} : { fakeTimers }),
+    ...(input.seed === undefined ? {} : { seed: input.seed }),
     setupFiles,
     setupFilesAfterEnv,
     loader: {
       // The dialect's hoist policy crosses by value: data, with `RegExp` and `Set` leaves (B13c Gap 12).
       hoist: dialect?.loader?.hoist ?? null,
-      moduleScope: dialect?.moduleScope?.names ?? [],
+      // A module's own bindings (Jest's `jest`) are part of what `injectGlobals` injects: off, the
+      // wrapper declares none, so a module that names one gets a `ReferenceError` as in jest-runtime
+      // (and `typeof jest` is 'undefined').
+      moduleScope: policy.core.injectGlobals ? (dialect?.moduleScope?.names ?? []) : [],
+      ...(dialect?.moduleScope?.modules === undefined
+        ? {}
+        : { scopeModules: dialect.moduleScope.modules }),
+      ...(dialect?.moduleScope?.mappable === undefined
+        ? {}
+        : { scopeMappable: dialect.moduleScope.mappable }),
       extensions: Object.freeze([...LOADER_EXTENSIONS]),
       conditions,
       tsconfig: 'auto',
       mappers: [],
       typescript: 'oxc',
+      ...(input.transform === undefined ? {} : { transform: input.transform }),
+      ...resolverKeys(input),
     },
   }
   assertWorkerConfig(config)
@@ -393,5 +475,6 @@ async function finishProject(
     environment,
     isolation,
     config,
+    ...(input.cacheDirectory === undefined ? {} : { cacheDirectory: input.cacheDirectory }),
   }
 }

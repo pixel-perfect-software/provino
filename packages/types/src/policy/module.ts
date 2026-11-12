@@ -1,3 +1,5 @@
+import type { Behaviour } from './behaviour.ts'
+
 /**
  * Error texts the module-mock registry prints, by message code. `@provino/mock` defines the codes
  * (`module-missing`, `factory-not-object`, `missing-factory-export`, `nested-isolation`, ...) and
@@ -8,6 +10,28 @@
 export interface ModuleMessages {
   readonly [code: string]: string
 }
+
+/**
+ * What a name-mapper rule that matched with no target resolving gives the dialect to word:
+ * `specifier` as written, `rule` the rule's regular expression as text, `declared` the targets as
+ * configured, `tried` what each resolved to, and `resolver` the project's custom resolver (as the
+ * config names it; `undefined` when there is none).
+ * @public
+ */
+export interface MapperMiss {
+  readonly specifier: string
+  readonly rule: string
+  readonly declared: readonly string[]
+  readonly tried: readonly string[]
+  readonly resolver: string | undefined
+}
+
+/**
+ * The text of a name-mapper miss. A behaviour, not a template: how a list of targets is laid out
+ * is the runner's.
+ * @public
+ */
+export type FormatMapperMiss = (miss: MapperMiss) => string
 
 /**
  * The `module` slice, read by `@provino/loader` (Track 2) and `@provino/mock` (Track 4): module
@@ -88,6 +112,14 @@ export interface ModulePolicy {
    * compares a runner name. Jest: `metadata`. Vitest: `deep`. research: track-04 L314
    */
   readonly automockShape: 'metadata' | 'deep'
+  /**
+   * The kind a mock call's specifier resolves as, which decides the package `exports` conditions
+   * it is looked up with: `require` (the `require` condition) or `import` (the `import` one). A
+   * package that only has the other condition is not found, and a mock of it is refused or
+   * treated as a virtual one by `requireVirtualFlag`. Jest: `require`. Vitest: `import`.
+   * Recorded by `mod-conditions` (Jest 30.5.2, Vitest 5.0.5).
+   */
+  readonly mockResolveKind: 'require' | 'import'
   /** Paths `automock` leaves real (Jest `unmockedModulePathPatterns`). Jest: `[]`. Vitest: `[]`. research: track-04 L316 */
   readonly unmockedPathPatterns: readonly RegExp[]
   /**
@@ -95,4 +127,10 @@ export interface ModulePolicy {
    * jest-runtime's `MockState.ts` and jest-resolve; Vitest's from `@vitest/mocker`.
    */
   readonly messages: ModuleMessages
+  /**
+   * The text of a name-mapper rule that matched with no target resolving, or `null` for none: the
+   * miss is then a `module-not-found`. Jest: jest-resolve's configuration error
+   * (`createNoMappedModuleFoundError`), recorded by `resolve/mapper-miss`. Vitest: `null`.
+   */
+  readonly mapperMiss: Behaviour<FormatMapperMiss> | null
 }

@@ -75,7 +75,9 @@ export interface NormalizeOptions {
    * (`projectJestRequireResolve(rootDir)`); without one, each stays its bare name.
    */
   readonly requireResolve?: JestRequireResolve
-  /** Whether this is a CI run (Jest's `ci-info`). Default: from the environment. */
+  /** The environment variables Jest reads (`CI`, `NODE_PATH`). Default: `process.env`. */
+  readonly env?: NodeJS.ProcessEnv
+  /** Whether this is a CI run (Jest's `ci-info`). Default: from `env`. */
   readonly ci?: boolean
   /** Jest's random seed when `argv.seed` is unset. Default: random. */
   readonly seed?: number
@@ -84,6 +86,8 @@ export interface NormalizeOptions {
 /** One normalized config before the split, with what validation reported. */
 export interface NormalizedJestOptions {
   readonly options: Readonly<Options>
+  /** Whether the config (its preset, or `--cacheDirectory`) named a `cacheDirectory` (D70). */
+  readonly cacheDirectorySet: boolean
   readonly hasDeprecationWarnings: boolean
   readonly diagnostics: readonly Diagnostic[]
 }
@@ -111,8 +115,8 @@ function ciFromEnvironment(env: NodeJS.ProcessEnv): boolean {
   ].some((name) => !!env[name])
 }
 
-/** `getCacheDirectory.ts`. */
-function cacheDirectory(): string {
+/** `getCacheDirectory.ts`: Jest's default `cacheDirectory`, which is not Provino's to use (D70). */
+export function jestDefaultCacheDirectory(): string {
   const base = join(tryRealpath(tmpdir()), 'jest')
   return typeof process.getuid === 'function' ? `${base}_${process.getuid().toString(36)}` : base
 }
@@ -123,7 +127,7 @@ export function jestDefaults(ci: boolean): Readonly<Options> {
     automock: false,
     bail: 0,
     cache: true,
-    cacheDirectory: cacheDirectory(),
+    cacheDirectory: jestDefaultCacheDirectory(),
     changedFilesWithAncestor: false,
     ci,
     clearMocks: false,
@@ -728,7 +732,7 @@ export async function normalizeJestConfig(
     cwd,
     resolution,
     bare: new Set(),
-    ci: options.ci ?? ciFromEnvironment(process.env),
+    ci: options.ci ?? ciFromEnvironment(options.env ?? process.env),
     seed: options.seed,
     jestFound: resolution.requireResolve('babel-jest') !== undefined,
   }
@@ -772,6 +776,7 @@ export async function normalizeJestConfig(
   if (!merged.coverageDirectory) merged.coverageDirectory = resolve(rootDir(), 'coverage')
   setupBabelJest(run, merged)
 
+  const cacheDirectorySet = Boolean(merged.cacheDirectory)
   const out: Options = { ...DEFAULTS }
   let resolver: string | undefined
   if (merged.resolver) {
@@ -1196,6 +1201,7 @@ export async function normalizeJestConfig(
 
   return {
     options: out,
+    cacheDirectorySet,
     hasDeprecationWarnings: validation.hasDeprecationWarnings,
     diagnostics: validation.diagnostics,
   }
@@ -1373,6 +1379,8 @@ export interface ReadJestConfigOptions extends NormalizeOptions {
 
 /** `readConfig`'s result, with the warnings validation produced. */
 export interface JestReadOutcome extends JestReadConfig {
+  /** Whether the config named a `cacheDirectory` (see `NormalizedJestOptions`). */
+  readonly cacheDirectorySet: boolean
   readonly diagnostics: readonly Diagnostic[]
 }
 
@@ -1397,6 +1405,7 @@ export async function normalizeLoadedJestConfig(
     configPath: loaded.configPath,
     ...groupJestOptions(normalized.options),
     hasDeprecationWarnings: normalized.hasDeprecationWarnings,
+    cacheDirectorySet: normalized.cacheDirectorySet,
     diagnostics: normalized.diagnostics,
   }
 }
@@ -1462,6 +1471,8 @@ async function readOne(
 export interface JestReadConfigsOutcome {
   readonly globalConfig: JestGlobalConfig
   readonly configs: readonly JestProjectConfig[]
+  /** Per config, whether it named a `cacheDirectory` (see `NormalizedJestOptions`). */
+  readonly cacheDirectorySet: readonly boolean[]
   readonly hasDeprecationWarnings: boolean
   readonly diagnostics: readonly Diagnostic[]
 }
@@ -1481,7 +1492,7 @@ This usually means that your "projects" config includes a directory that doesn't
  * Reads every project of a run as Jest's `readConfigs(argv, projectPaths)` does: the first path's
  * config, then each entry of its `projects` (globs expanded, paths to directories or config
  * files, inline objects), validated as projects unless one is the root config itself. Running
- * several is B17's (D29); this reads them. `root` is the first path's config when the caller has
+ * several is `runProjects`'s (D29); this reads them. `root` is the first path's config when the caller has
  * loaded it already (the config reader's `resolve` step), so it isn't loaded again. Each config
  * file is loaded once, and normalized as often as Jest reads it (see `LoadedFiles`).
  * @public
@@ -1498,6 +1509,7 @@ export async function readJestConfigs(
   let globalConfig: JestGlobalConfig | undefined
   let hasDeprecationWarnings = false
   let configs: JestProjectConfig[] = []
+  let cacheDirectorySet: boolean[] = []
   let projects: readonly (string | Readonly<Record<string, unknown>>)[] = projectPaths
   let configPath: string | null | undefined
   const diagnostics: Diagnostic[] = []
@@ -1510,6 +1522,7 @@ export async function readJestConfigs(
     hasDeprecationWarnings = parsed.hasDeprecationWarnings
     globalConfig = parsed.globalConfig
     configs = [parsed.projectConfig]
+    cacheDirectorySet = [parsed.cacheDirectorySet]
     diagnostics.push(...parsed.diagnostics)
     if (globalConfig.projects.length > 0) projects = globalConfig.projects
   } else if (projectPaths.length > 1 && argv.config) {
@@ -1570,6 +1583,7 @@ export async function readJestConfigs(
       })
     }
     configs = parsedConfigs.map((parsed) => parsed.projectConfig)
+    cacheDirectorySet = parsedConfigs.map((parsed) => parsed.cacheDirectorySet)
     for (const parsed of parsedConfigs) diagnostics.push(...parsed.diagnostics)
     if (!hasDeprecationWarnings) {
       hasDeprecationWarnings = parsedConfigs.some((parsed) => parsed.hasDeprecationWarnings)
@@ -1582,5 +1596,5 @@ export async function readJestConfigs(
       'jest: No configuration found for any project.',
     )
   }
-  return { globalConfig, configs, hasDeprecationWarnings, diagnostics }
+  return { globalConfig, configs, cacheDirectorySet, hasDeprecationWarnings, diagnostics }
 }

@@ -5,11 +5,18 @@
 //
 // Usage: node --conditions=provino-source packages/transform/bench/excalidraw.ts
 //          [--root <dir>] [--max-median-ms 0.5] [--write-manifest] [--json]
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { createPipeline } from '@provino/transform'
+import {
+  DEFAULT_ROOT,
+  MANIFEST_PATH,
+  type Manifest,
+  median,
+  readManifest,
+  readSources,
+} from './corpus.ts'
 
 const REPO = 'excalidraw/excalidraw'
 const COMMIT = 'b99a49dbebd25fbf85ad9ae33c9e361a16d5a39e'
@@ -17,18 +24,9 @@ const RULE = '.ts and .tsx files under 200,000 bytes, outside node_modules'
 const MAX_BYTES = 200_000
 const TIMED_PASSES = 3
 
-interface Manifest {
-  readonly repo: string
-  readonly commit: string
-  readonly rule: string
-  readonly files: readonly string[]
-}
-
-const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
-const manifestPath = fileURLToPath(new URL('../fixtures/excalidraw.json', import.meta.url))
 const { values: args } = parseArgs({
   options: {
-    root: { type: 'string', default: join(repoRoot, '.refs/excalidraw') },
+    root: { type: 'string', default: DEFAULT_ROOT },
     'max-median-ms': { type: 'string' },
     'write-manifest': { type: 'boolean', default: false },
     json: { type: 'boolean', default: false },
@@ -51,16 +49,13 @@ function listCorpus(dir: string): string[] {
 
 if (args['write-manifest']) {
   const manifest: Manifest = { repo: REPO, commit: COMMIT, rule: RULE, files: listCorpus(root) }
-  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
-  process.stdout.write(`wrote ${manifest.files.length} files to ${manifestPath}\n`)
+  writeFileSync(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`)
+  process.stdout.write(`wrote ${manifest.files.length} files to ${MANIFEST_PATH}\n`)
   process.exit(0)
 }
 
-const manifest: Manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-const sources = manifest.files.map((file) => ({
-  filename: join(root, file),
-  source: readFileSync(join(root, file), 'utf8'),
-}))
+const manifest = readManifest()
+const sources = readSources(root, manifest)
 const pipeline = createPipeline({
   root,
   typescript: 'oxc',
@@ -68,14 +63,6 @@ const pipeline = createPipeline({
   hoist: null,
   cache: false,
 })
-
-function median(values: readonly number[]): number {
-  const sorted = [...values].sort((a, b) => a - b)
-  const mid = sorted.length >> 1
-  return sorted.length % 2 === 1
-    ? (sorted[mid] ?? 0)
-    : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
-}
 
 /** One pass over the corpus: per-file times in ms, and the files with errors. */
 function pass(): { readonly times: number[]; readonly failed: string[] } {

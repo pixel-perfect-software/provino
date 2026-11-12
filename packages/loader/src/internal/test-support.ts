@@ -75,6 +75,7 @@ export const JESTISH: ModulePolicy = {
   requireVirtualFlag: true,
   missingFactoryExport: 'undefined',
   mockValueOwner: 'module-registry',
+  mockResolveKind: 'require',
 }
 
 /** Vitest's: a factory is a namespace and awaited, the actual module comes through `import`. */
@@ -87,6 +88,7 @@ export const VITESTISH: ModulePolicy = {
   requireVirtualFlag: false,
   missingFactoryExport: 'undefined',
   mockValueOwner: 'registration',
+  mockResolveKind: 'import',
   automockShape: 'deep',
 }
 

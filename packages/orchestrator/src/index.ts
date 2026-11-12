@@ -1,7 +1,10 @@
 export {
+  cacheDirectories,
   createResultsCache,
   defaultCacheDir,
+  isProvinoCacheDir,
   type ResultsCache,
+  transformCacheDir,
 } from './cache.ts'
 export {
   type ConnectWorkerOptions,
@@ -42,6 +45,7 @@ export {
   type RunPoolOptions,
   type RunProjectOptions,
   runProject,
+  runProjects,
 } from './run.ts'
 export { type SelectOptions, selectFiles } from './select.ts'
 export { createHistorySequencer, type HistorySequencerOptions } from './sequencer.ts'

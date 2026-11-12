@@ -3,7 +3,7 @@
 // project, that nothing in it is a `RegExp` or a function and every path is absolute, that keys read
 // but not applied yet warn naming their task, and that the project resolves to a worker config.
 import assert from 'node:assert/strict'
-import { isAbsolute, join } from 'node:path'
+import { delimiter, isAbsolute, join } from 'node:path'
 import { after, test } from 'node:test'
 import { resolveNeutralProject } from '@provino/config'
 import { resolvePolicy } from '@provino/policy'
@@ -86,10 +86,14 @@ test('a plain config: discovery, setup files, environment and policy keys', asyn
   })
   assert.deepEqual(project.setupFiles, [join(root, 'before.js')])
   assert.deepEqual(project.setupFilesAfterEnv, [join(root, 'after.js')])
-  assert.deepEqual(project.environment, {
-    name: 'node',
-    options: { customExportConditions: ['node'] },
-  })
+  assert.equal(project.environment.name, 'node')
+  // One shape for every environment: the options live under `projectConfig`; no `module` for `node`.
+  assert.equal('module' in project.environment.options, false)
+  assert.deepEqual(
+    (project.environment.options.projectConfig as { testEnvironmentOptions: unknown })
+      .testEnvironmentOptions,
+    { customExportConditions: ['node'] },
+  )
   const policy = resolvePolicy(project.policy)
   assert.equal(policy.core.timeouts.test, 1234)
   assert.equal(policy.core.injectGlobals, false)
@@ -206,17 +210,42 @@ test('keys read but not applied yet warn, naming the task (gap 9)', async () => 
   })
   const { neutral } = await readNeutral(root)
   const messages = neutral.diagnostics.map((d) => d.message)
-  assert.ok(messages.some((m) => m.startsWith('Jest config key "transform"') && m.includes('T3.8')))
-  assert.ok(
-    messages.some((m) => m.startsWith('Jest config key "moduleNameMapper"') && m.includes('T3.3')),
-  )
-  assert.ok(
-    messages.some((m) => m.startsWith('Jest config key "testEnvironment"') && m.includes('T8.3')),
-  )
-  assert.ok(
-    messages.some((m) => m.startsWith('Jest config key "fakeTimers"') && m.includes('T4.9')),
-  )
-  assert.equal(neutral.value[0]?.environment.name, 'jsdom')
+  // T3.8 applies `transform`: it is no longer a warning.
+  assert.ok(!messages.some((m) => m.startsWith('Jest config key "transform"')))
+  // T3.3 applies the mapper, so it no longer warns, and the resolver keys reach the neutral project.
+  assert.ok(!messages.some((m) => m.startsWith('Jest config key "moduleNameMapper"')))
+  assert.deepEqual(neutral.value[0]?.aliases, [{ pattern: '^a$', targets: ['b'] }])
+  assert.deepEqual(neutral.value[0]?.resolution?.moduleDirectories, ['node_modules'])
+  // D44: jsdom is the project's own environment class, run through the adapter, so it no longer warns.
+  assert.ok(!messages.some((m) => m.startsWith('Jest config key "testEnvironment"')))
+  // `fakeTimers` applies through @provino/timers, so it no longer warns (T4.9).
+  assert.ok(!messages.some((m) => m.startsWith('Jest config key "fakeTimers"')))
+  const environment = neutral.value[0]?.environment
+  assert.match(environment?.name ?? '', /jest-environment-jsdom/)
+  assert.equal(environment?.options.module, environment?.name)
+})
+
+test('fakeTimers: enableGlobally is the timers policy, the rest are the defaults of every install', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = {
+  fakeTimers: { enableGlobally: true, doNotFake: ['nextTick'], timerLimit: 500, now: 1000 },
+}
+`,
+  })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.equal(project?.policy.timers?.enableGlobally, true)
+  assert.deepEqual(project?.fakeTimers, { doNotFake: ['nextTick'], timerLimit: 500, now: 1000 })
+  assert.equal(typeof project?.seed, 'number')
+  assert.ok(!neutral.diagnostics.some((d) => d.message.includes('fakeTimers')))
+})
+
+test('no fakeTimers key: the timers policy is left to the dialect and no defaults cross', async () => {
+  const root = tree({ 'jest.config.js': 'module.exports = {}\n' })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.equal(project?.policy.timers, undefined)
+  assert.deepEqual(project?.fakeTimers, {})
 })
 
 test('projects: one neutral project each', async () => {
@@ -251,7 +280,12 @@ test('the neutral project resolves to a worker config through @provino/config', 
   assert.equal(resolved.isolation, 'registry')
   assert.deepEqual(resolved.config.setupFiles, [join(root, 'before.js')])
   assert.deepEqual(resolved.config.setupFilesAfterEnv, [join(root, 'after.js')])
-  assert.deepEqual(resolved.config.environment.options, { a: 1 })
+  // One shape for every environment: the options live under `projectConfig`.
+  assert.deepEqual(
+    (resolved.config.environment.options.projectConfig as { testEnvironmentOptions: unknown })
+      .testEnvironmentOptions,
+    { a: 1 },
+  )
   assert.equal(resolved.policy.mock.between.clear, true)
   assert.deepEqual(resolved.discovery, project.discovery)
   assert.ok(resolved.config.globals !== null)
@@ -287,4 +321,54 @@ test('jestNodeDialect is jestDialect with the reader', async () => {
   assert.equal(jestNodeDialect.globals, jestDialect.globals)
   assert.ok(jestNodeDialect.configReader !== undefined)
   assert.ok(jestNodeDialect.configReader.candidates.includes('jest.config.ts'))
+})
+
+test('the default babel-jest transform stays on the Oxc path: no entries, no config, no marker', async () => {
+  const root = tree({ 'jest.config.js': 'module.exports = {}\n' })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.deepEqual(project?.transforms, [])
+  assert.equal(project?.transformConfig, undefined)
+  assert.equal(project?.transformHoistedMarkers, undefined)
+})
+
+test('a named transform carries the project config as JSON and the hoisted marker', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = { transform: { '\\\\.ts$': ['<rootDir>/t.js', { a: 1 }] } }\n`,
+    't.js': '',
+  })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.equal(project?.transforms.length, 1)
+  assert.equal(project?.transformConfig?.rootDir, project?.rootDir)
+  assert.equal(project?.transformConfig?.cwd, project?.rootDir)
+  assert.deepEqual(project?.transformHoistedMarkers, ['_getJestObj'])
+  // It must clone, since it crosses to a worker.
+  assert.deepEqual(structuredClone(project?.transformConfig), project?.transformConfig)
+})
+
+test("an explicit cacheDirectory is carried; Jest's own default is not (D70)", async () => {
+  const explicit = tree({
+    'jest.config.js': "module.exports = { cacheDirectory: '<rootDir>/.ci-cache' }\n",
+  })
+  const [withDir] = (await readNeutral(explicit)).neutral.value
+  assert.equal(withDir?.cacheDirectory, join(explicit, '.ci-cache'))
+  const implicit = tree({ 'jest.config.js': 'module.exports = {}\n' })
+  const [without] = (await readNeutral(implicit)).neutral.value
+  assert.equal(without?.cacheDirectory, undefined)
+  assert.equal(Object.hasOwn(without ?? {}, 'cacheDirectory'), false)
+})
+
+test('NODE_PATH entries are module search paths ahead of modulePaths, as jest-resolve has them', async () => {
+  const root = tree({ 'jest.config.js': "module.exports = { modulePaths: ['/from/config'] }\n" })
+  const saved = process.env.NODE_PATH
+  process.env.NODE_PATH = ['/abs/one', 'rel/two', ''].join(delimiter)
+  try {
+    const { neutral } = await readNeutral(root)
+    const paths = neutral.value[0]?.resolution?.modulePaths
+    assert.deepEqual(paths, ['/abs/one', join(root, 'rel/two'), '/from/config'])
+  } finally {
+    if (saved === undefined) delete process.env.NODE_PATH
+    else process.env.NODE_PATH = saved
+  }
 })

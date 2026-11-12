@@ -1,0 +1,4 @@
+{
+  "description": "Automocking a module whose export has no mock metadata (a module that is itself a BigInt): Jest throws when the module is required, with its own text.",
+  "runners": ["jest"]
+}

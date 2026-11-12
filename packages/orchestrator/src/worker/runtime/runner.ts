@@ -48,20 +48,24 @@ import {
   type SnapshotLifecycle,
   type SnapshotState,
 } from '@provino/snapshot/runtime'
-import { createFakeClock, type FakeClock } from '@provino/timers'
+import { createFakeClock, type FakeClock, type FakeTimersConfig } from '@provino/timers'
 import type {
   EnvironmentInstance,
+  EnvironmentRef,
+  EnvironmentResolver,
   EnvironmentScope,
   EventSink,
   FileJob,
   FileRegistry,
   GlobalsHost,
   IsolationTier,
+  JsonValue,
   Loader,
   ModuleMockRegistry,
   ModuleMocksFactory,
   ModuleScopeValues,
   Policy,
+  Pragmas,
   ResolveSnapshotPath,
   RuntimeEvent,
   SnapshotFileReport,
@@ -78,6 +82,7 @@ import {
 } from '../internal/runtime/environment.ts'
 import { installGlobals, splitGlobals } from '../internal/runtime/globals.ts'
 import { fileLeakEvent, leakedGlobalsOf, workerLeakEvent } from '../internal/runtime/leaks.ts'
+import { pragmaValue, readPragmas } from '../internal/runtime/pragmas.ts'
 import { assertionCountSink } from '../internal/runtime/sink.ts'
 import type { FileContext, FileOutcome, WorkerContext, WorkerRunner } from '../start.ts'
 
@@ -105,6 +110,26 @@ interface Booted {
         readonly after: Readonly<Record<string, unknown>>
       }
     | undefined
+  /** The project's `globals` values (Jest), copied onto each file's global before anything runs. */
+  globalValues: Readonly<Record<string, JsonValue>> | undefined
+  /** The project's fake-timer defaults (Jest's `fakeTimers`), what every clock install is layered over. */
+  fakeTimers: Readonly<Record<string, JsonValue>> | undefined
+  /**
+   * The dialect's resolver for a file's environment pragma, with the project's own environment
+   * ref it builds on, its root and the environments prepared so far: one per kind per worker,
+   * made the first time a file names it (R4). `requested` is the same by what a docblock asked
+   * for (name and options), so a second file with the same pragma neither resolves nor hashes the
+   * ref again.
+   */
+  pragmaEnvironments:
+    | {
+        readonly resolve: EnvironmentResolver
+        readonly base: EnvironmentRef
+        readonly rootDir: string
+        readonly prepared: Map<string, PreparedEnvironment>
+        readonly requested: Map<string, PreparedEnvironment>
+      }
+    | undefined
   /** The file registry tier: `process` is the pool's business and runs as `registry`. */
   tier: Exclude<IsolationTier, 'process'>
   /**
@@ -112,8 +137,18 @@ interface Booted {
    * the environment, the globals and the registry last as long as the worker), `file` otherwise.
    */
   scope: EnvironmentScope
-  /** The instance of a worker-scoped environment, set up for the first file; `stop` tears it down. */
-  workerEnvironment: { readonly instance: EnvironmentInstance; readonly name: string } | undefined
+  /**
+   * The instance of a worker-scoped environment and the kind it was prepared from. It is kept for
+   * as long as the files that follow want the same kind, and torn down when one wants another (a
+   * docblock); `stop` tears the last one down.
+   */
+  workerEnvironment:
+    | {
+        readonly instance: EnvironmentInstance
+        readonly name: string
+        readonly prepared: PreparedEnvironment
+      }
+    | undefined
   /** The mock registry of a worker-scoped run (isolation `none`); `stop` disposes it. */
   workerMocks: MockRegistry | undefined
   /** What each file's module-mock registry is built from (B13c). */
@@ -191,6 +226,8 @@ interface FileScope {
   readonly installLateGlobals: () => void
   /** The file's fake clock, made once its environment exists. */
   clock: FakeClock | undefined
+  /** True once the file's teardown has run: its environment is gone. */
+  tornDown: boolean
 }
 
 /**
@@ -339,6 +376,8 @@ export function createRuntimeRunner(): WorkerRunner {
     const scope: EnvironmentScope = tier === 'none' ? 'worker' : 'file'
     parts.tier = tier
     parts.scope = scope
+    parts.globalValues = config.globalValues
+    parts.fakeTimers = config.fakeTimers
 
     // Expect, in the order its docs give: the slot exists before any matcher module loads, and
     // `createExpect` registers the table's matchers. The registry snapshot comes last (below).
@@ -386,6 +425,9 @@ export function createRuntimeRunner(): WorkerRunner {
       }
       // The globals a dialect installs only after `setupFiles` (Jest's `describe`, `expect`, ...).
       activeScope().installLateGlobals()
+      // `fakeTimers.enableGlobally` installs the clock here, as jestAdapter does after
+      // `runTest` ran `setupFiles`: a setup file sees real timers, `setupFilesAfterEnv` fake ones.
+      if (policy.timers.enableGlobally) activeScope().clock?.install()
       // The project's snapshot serializers, when the test framework starts: after `setupFiles` and
       // the globals, before `setupFilesAfterEnv`. Jest tries them ahead of its own and in the order
       // listed, so they are added in reverse (jestAdapterInit.ts L134-L136).
@@ -450,6 +492,15 @@ export function createRuntimeRunner(): WorkerRunner {
     }
 
     parts.environment = await prepareEnvironment(config.environment)
+    if (config.environmentResolver !== undefined) {
+      parts.pragmaEnvironments = {
+        resolve: await behaviours.load(config.environmentResolver),
+        base: config.environment,
+        rootDir: config.rootDir,
+        prepared: new Map(),
+        requested: new Map(),
+      }
+    }
 
     // Jest's `roots` default to the root; a project's own `roots` arrive with B14c.
     const roots = [config.rootDir]
@@ -469,8 +520,12 @@ export function createRuntimeRunner(): WorkerRunner {
       mockPolicy: policy.mock,
       timers: activeClock,
       timersPolicy: policy.timers,
+      seed: config.seed,
+      environmentTornDown: () => (fileScope.getStore() ?? fallback)?.tornDown ?? true,
+      setDefaultTimeout: (ms) => coreRuntime.setDefaultTimeout(ms),
     }
-    // A module's own bindings (Jest's `jest`) exist whether or not globals are injected.
+    // The scope also serves the imports (`@jest/globals`); the bindings a module's wrapper declares
+    // are `config.loader.moduleScope`, which is empty when `injectGlobals` is off.
     if (config.moduleScope !== null) {
       const scopeFactory = await behaviours.load(config.moduleScope)
       const values: unknown = scopeFactory(host)
@@ -504,27 +559,95 @@ export function createRuntimeRunner(): WorkerRunner {
 
   /**
    * The environment instance for a file: a new one for scope `file` (given the file's `signal`),
-   * and for scope `worker` the one made for the first file (given the worker's lifetime signal,
-   * because it outlives that file; its `testPath` stays the first file's, the only file it was set
-   * up for).
+   * and for scope `worker` the worker's one while the files want the same kind of environment
+   * (given the worker's lifetime signal, because it outlives the file it was made for; its
+   * `testPath` stays that file's). A file whose docblock names another kind tears the current one
+   * down first, so the global is restored before the next populates it: each environment is on the
+   * global only while its own files run.
    */
   async function setUpEnvironment(
     worker: Booted,
     context: FileContext,
-  ): Promise<EnvironmentInstance> {
-    const { scope, environment } = worker
-    if (worker.workerEnvironment !== undefined) return worker.workerEnvironment.instance
+  ): Promise<{ readonly instance: EnvironmentInstance; readonly name: string }> {
+    const { scope } = worker
+    const pragmas = readPragmas(context.job.file)
+    // A pragma picks the environment for this file.
+    const environment = await environmentFor(worker, pragmas, context.job.file)
+    const current = worker.workerEnvironment
+    if (current !== undefined) {
+      if (current.prepared === environment) return current
+      // Another kind: this one goes (the global is restored) before the next is set up. A global it
+      // could not remove is the worker's to report, as at `stop`.
+      worker.workerEnvironment = undefined
+      const leaked = leakedGlobalsOf(await current.instance.teardown(), current.name)
+      if (leaked.length > 0) context.sink.emit(workerLeakEvent(leaked))
+    }
     const instance = await setupEnvironment(environment, {
       scope,
       testPath: context.job.file,
-      pragmas: {},
+      pragmas,
       console: context.console,
       signal: scope === 'worker' ? workerLifetime.signal : context.signal,
     })
-    if (scope === 'worker') {
-      worker.workerEnvironment = { instance, name: environment.environment.name }
+    const set = { instance, name: environment.environment.name, prepared: environment }
+    if (scope === 'worker') worker.workerEnvironment = set
+    return set
+  }
+
+  /**
+   * The prepared environment for a file: the project's own, or the one its docblock names, resolved
+   * by the dialect and prepared once per kind (the same ref and options is the same kind).
+   */
+  async function environmentFor(
+    worker: Booted,
+    pragmas: Pragmas,
+    file: string,
+  ): Promise<PreparedEnvironment> {
+    const names = worker.modules.policy.orchestrator.environmentPragmas
+    const name = names
+      .map((pragma) => pragmaValue(pragmas, pragma))
+      .find((value) => value !== undefined)
+    if (name === undefined || name === '') return worker.environment
+    const optionsText = names
+      .map((pragma) => pragmaValue(pragmas, `${pragma}-options`))
+      .find((value) => value !== undefined)
+    const known = worker.pragmaEnvironments
+    if (known === undefined) {
+      throw new WorkerError(
+        'ORCH_BAD_ENVIRONMENT',
+        `${file} asks for the environment "${name}" in its docblock, but this project's dialect can't resolve one`,
+      )
     }
-    return instance
+    const requestKey = `${name}\0${optionsText ?? ''}`
+    const requested = known.requested.get(requestKey)
+    if (requested !== undefined) return requested
+    let options: JsonValue = null
+    if (optionsText !== undefined) {
+      try {
+        options = JSON.parse(optionsText) as JsonValue
+      } catch (cause) {
+        throw new WorkerError(
+          'ORCH_BAD_ENVIRONMENT',
+          `${file}: the @${names[0]}-options docblock must be JSON (${optionsText})`,
+          { cause },
+        )
+      }
+    }
+    const ref = await known.resolve({
+      name,
+      options,
+      rootDir: known.rootDir,
+      testPath: file,
+      base: known.base,
+    })
+    const key = JSON.stringify([ref.module, ref.export, ref.options])
+    let prepared = known.prepared.get(key)
+    if (prepared === undefined) {
+      prepared = await prepareEnvironment(ref)
+      known.prepared.set(key, prepared)
+    }
+    known.requested.set(requestKey, prepared)
+    return prepared
   }
 
   /** The filters this file's job carries; `exactOptionalPropertyTypes` forbids passing `undefined`. */
@@ -593,22 +716,32 @@ export function createRuntimeRunner(): WorkerRunner {
           }
         },
         clock: undefined,
+        tornDown: false,
       }
       fallback = thisFile
+      let environmentName = worker.environment.environment.name
       const errors: unknown[] = []
       let snapshotReport: SnapshotFileReport | null = null
       try {
-        instance = await setUpEnvironment(worker, context)
+        const set = await setUpEnvironment(worker, context)
+        instance = set.instance
+        environmentName = set.name
         // The fake clock of this file, on the environment's global (the registry tier keeps one
         // global per file): each callback it schedules runs as the test that scheduled it.
         thisFile.clock = createFakeClock(instance.global, worker.modules.policy.timers, {
           bind: currentTest.bind,
+          // jest-runtime layers every install over the project's `fakeTimers`, `enableGlobally`'s too.
+          defaults: worker.fakeTimers as FakeTimersConfig | undefined,
         })
-        if (worker.modules.policy.timers.enableGlobally) thisFile.clock.install()
         // The rest go on after `setupFiles` (`importFile`). Under `none` the environment, and so
         // the late globals of the file before, persist: a later file's `setupFiles` sees them.
         // Deliberate: Jest has no `none` to match, and the tier keeps everything (runtime.test.ts
         // pins it).
+        // Jest's `globals` config: copied for each file and defined before anything else (the
+        // environment constructor's `installCommonGlobals`), so `setupFiles` see them.
+        if (worker.globalValues !== undefined) {
+          installGlobals(instance.global, structuredClone(worker.globalValues))
+        }
         if (globals !== undefined) installGlobals(instance.global, globals.before)
         worker.source.startFile(job.file)
         // The file's snapshots: the state is where the matchers find it (Jest's
@@ -642,7 +775,7 @@ export function createRuntimeRunner(): WorkerRunner {
       const teardownEnvironment = async (): Promise<void> => {
         // The environment reports a global it couldn't remove instead of throwing (D22).
         if (instance === undefined) return
-        leaked = leakedGlobalsOf(await instance.teardown(), worker.environment.environment.name)
+        leaked = leakedGlobalsOf(await instance.teardown(), environmentName)
       }
       const restoreMatchers = () => worker.snapshot.restore()
       const disposeRegistry = () => registry.dispose()
@@ -667,6 +800,7 @@ export function createRuntimeRunner(): WorkerRunner {
             : [disposeClock, disposeModuleMocks, disposeRegistry],
         )),
       )
+      thisFile.tornDown = true
       fallback = undefined
       // A warning, before the file finishes: through the same sink as the file's own events, so it
       // arrives after them and before `fileDone`. It has no task: the file's tasks have ended.

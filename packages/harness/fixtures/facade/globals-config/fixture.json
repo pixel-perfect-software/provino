@@ -1,0 +1,10 @@
+{
+  "description": "The `globals` config key (T11.10): installed on the environment's global before `setupFiles` run, as own, writable, enumerable properties.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "globals": { "__APP_VERSION__": "1.2.3", "__FLAGS__": { "a": 1, "list": [1, 2] } },
+      "setupFiles": ["<rootDir>/setup-files.ts"]
+    }
+  }
+}

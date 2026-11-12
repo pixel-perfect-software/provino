@@ -1,0 +1,6 @@
+{
+  "description": "jest.setTimeout is copied into the run state once, at run_start (eventHandler.ts): a call in a hook or a test body does not lift the timeout of the test that is running, and a negative value is truthy and fires at once.",
+  "runners": ["jest"],
+  "config": { "jest": { "testTimeout": 100 } },
+  "jestEsm": true
+}

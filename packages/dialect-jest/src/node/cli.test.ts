@@ -996,7 +996,7 @@ describe('the options table', () => {
   it('classifies every option once, and counts the classes', (t) => {
     const counts = Object.fromEntries(supports)
     t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
-    assert.deepEqual(counts, { request: 14, config: 50, accepted: 5, warn: 10, refuse: 26 })
+    assert.deepEqual(counts, { request: 14, config: 50, accepted: 7, warn: 10, refuse: 24 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'
       assert.equal(option.owner !== undefined, needsOwner, name)
@@ -1030,6 +1030,8 @@ describe('the options table', () => {
     )
     assert.deepEqual(named('accepted'), [
       'all',
+      'ignoreProjects',
+      'selectProjects',
       'skipFilter',
       'testLocationInResults',
       'useStderr',
@@ -1090,7 +1092,7 @@ describe('diagnostics', () => {
   }
 
   it('gives an error diagnostic for each refused flag, naming the task', () => {
-    assert.equal(Object.keys(REFUSED).length, 26)
+    assert.equal(Object.keys(REFUSED).length, 24)
     for (const [name, owner] of Object.entries(REFUSED)) {
       const { diagnostics } = parseJestCli(lineFor(name))
       assert.deepEqual(
@@ -1129,9 +1131,7 @@ describe('diagnostics', () => {
       forceExit: 'T9.10',
       detectOpenHandles: 'T9.10',
       detectLeaks: 'T2.7',
-      projects: 'multi-project runs, D29/B17',
-      selectProjects: 'multi-project runs, D29/B17',
-      ignoreProjects: 'multi-project runs, D29/B17',
+      projects: 'the --projects flag, no task yet (a config `projects` runs)',
       randomize: 'Track 9, no task yet',
       seed: 'Track 9, no task yet',
       showSeed: 'Track 9, no task yet',

@@ -42,6 +42,7 @@
     "@jest/get-type": "catalog:",
     "@provino/config": "workspace:*",
     "@provino/core": "workspace:*",
+    "@provino/env-shared": "workspace:*",
     "@provino/expect": "workspace:*",
     "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
@@ -54,9 +55,14 @@
     "pretty-format": "catalog:"
   },
   "devDependencies": {
+    "@edge-runtime/jest-environment": "catalog:",
     "expect": "catalog:",
     "jest-cli": "catalog:",
     "jest-config": "catalog:",
+    "jest-environment-jsdom": "catalog:",
+    "jest-environment-jsdom-29": "catalog:",
+    "jest-environment-node": "catalog:",
+    "jest-fixed-jsdom": "catalog:",
     "jest-mock": "catalog:"
   }
 }

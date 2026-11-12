@@ -155,10 +155,13 @@ export const neutralPolicy: Policy = deepFreeze({
     requireVirtualFlag: false,
     virtualRelative: true,
     mockValueOwner: 'registration',
+    mockResolveKind: 'import',
     automockShape: 'deep',
     unmockedPathPatterns: [],
     // Empty: `@provino/mock` falls back to its own neutral text for every module message code.
     messages: {},
+    // None: a name-mapper miss is a `module-not-found`.
+    mapperMiss: null,
   },
   snapshot: {
     header: '// Provino Snapshot v1',

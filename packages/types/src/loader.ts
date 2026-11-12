@@ -3,7 +3,7 @@
 // `ResolvedModule` and `TransformedModule` are not here: the loader takes Track 3's resolver and
 // a `ModuleTransformer` that returns Track 3's transform record (see the package README).
 import type { IsolationTier } from './isolation.ts'
-import type { ModulePolicy } from './policy/module.ts'
+import type { FormatMapperMiss, ModulePolicy } from './policy/module.ts'
 import type { Resolver } from './resolve.ts'
 import type { ModuleTransformer, SourceMapV3 } from './transform.ts'
 
@@ -41,7 +41,11 @@ export type MockSpec<T = unknown> =
   | { readonly kind: 'factory'; readonly factory: MockFactory<T> }
   | { readonly kind: 'redirect'; readonly to: ModuleId }
   | { readonly kind: 'automock'; readonly spy: boolean }
-  | { readonly kind: 'unmock' }
+  | {
+      readonly kind: 'unmock'
+      /** `deepUnmock`: what the module imports is real too, under automock-all (and what those import). */
+      readonly deep?: boolean
+    }
 
 /**
  * The global realm a `realm`-tier file runs in (Track 8 supplies it).
@@ -75,6 +79,10 @@ export interface LeakOptions {
  */
 export interface ModuleScopeNames {
   readonly names: readonly string[]
+  /** Specifiers served by the scope's values, by key, before resolution (`ModuleScope.modules`). */
+  readonly modules?: readonly string[]
+  /** The part of `modules` a matching name-mapper rule takes over (`ModuleScope.mappable`). */
+  readonly mappable?: readonly string[]
 }
 
 /**
@@ -89,6 +97,16 @@ export interface LoaderOptions {
   readonly policy: ModulePolicy
   /** Environment export conditions for resolution (Track 8); the call kind adds its own. Default `['node']`. */
   readonly conditions?: readonly string[]
+  /**
+   * The project's custom resolver as the config names it, handed to `formatMapperMiss`. Default
+   * none.
+   */
+  readonly resolverName?: string
+  /**
+   * The text of a name-mapper miss (`ModulePolicy.mapperMiss`, loaded): none means the miss is a
+   * `module-not-found`.
+   */
+  readonly formatMapperMiss?: FormatMapperMiss
   /** Modules always loaded per file (Vitest `server.deps.inline`). */
   readonly inline?: readonly (string | RegExp)[]
   /** Default 400. */
@@ -176,6 +194,12 @@ export interface ModuleMockRegistry {
   createMockFromModule(specifier: string, from: string): unknown
   /** `resetModules()`: drops cached values when the module registry owns them (`mockValueOwner`). */
   onResetModules(): void
+  /**
+   * Registers a function that runs on every automock built from now on, with the module's resolved
+   * id and the mock, and returns the mock to use (`jest.onGenerateMock`). They run in the order
+   * registered, each on the previous one's result.
+   */
+  onGenerateMock(callback: (moduleId: string, moduleMock: unknown) => unknown): void
   /** Turns automock-all on or off (`enableAutomock`/`disableAutomock`); starts at `policy.automock`. */
   setAutomock(enabled: boolean): void
   /** Opens `isolateModules`'s overlay; throws the dialect's `nested-isolation` text if one is open. */

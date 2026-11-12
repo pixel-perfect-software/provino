@@ -375,10 +375,30 @@ function calibrationProblems(
 }
 
 /**
+ * T12.16's bar (B17d, DECISIONS D30): the least share of the sample's reference tests whose status
+ * Provino matches. It is the share measured on B17d's branch, 84 of 88, so a change that makes
+ * Provino match fewer fails the self-test (no regression); raise it when parity improves, never
+ * lower it to pass. The sample's Jest copy is rebuilt with it, so the count moves only with the
+ * sample (see `docs/plan/bundles/B17.md`).
+ */
+const PROVINO_STATUS_PARITY_FLOOR: number = 84 / 88
+
+/**
+ * What is wrong with a `provino:jest` run's status parity against Jest, if anything. The text names
+ * no number, because CI logs are public.
+ * @internal
+ */
+export function provinoParityProblems(statusParity: number): string[] {
+  return statusParity + 1e-12 < PROVINO_STATUS_PARITY_FLOOR
+    ? ['status parity against Jest is below the bar B17d set (D30); the number is in the report']
+    : []
+}
+
+/**
  * T12.16: Provino on the sample's Jest copy, as a subject. It passes when Provino ran to the end
- * (exit 0 or 1: a failing test is a result) and wrote a valid `normalized-json`; the report is
- * written to `out`. No parity bar until B17 (DECISIONS D30), and no number is printed, because CI
- * logs are public.
+ * (exit 0 or 1: a failing test is a result), wrote a valid `normalized-json`, and matched Jest's
+ * statuses at least as often as the bar (`PROVINO_STATUS_PARITY_FLOOR`); the report is written to
+ * `out`. No number is printed, because CI logs are public.
  */
 async function provinoCheck(
   fixture: Fixture,
@@ -398,8 +418,7 @@ async function provinoCheck(
       `provino exited ${exitCode ?? proc.signal}. Output tail:\n${proc.output}`,
     ])
   }
-  // Provino may crash files the reference runs: that is parity, which has no bar yet. Only a run
-  // that doesn't cover the sample's files fails here.
+  // A run that doesn't cover the sample's files fails here; how many statuses match is the bar.
   const problems = coverageProblems(sample.result.run, sample.testFiles)
   if (problems.length > 0) return check(PROVINO_CHECK, problems)
   const report = diffRuns(
@@ -409,10 +428,11 @@ async function provinoCheck(
     today,
   )
   if (command.out !== undefined) await writeJson(command.out, report)
-  return { name: PROVINO_CHECK, ok: true }
+  return check(PROVINO_CHECK, provinoParityProblems(report.statusParity))
 }
 
-const PROVINO_CHECK = 'provino:jest ran the sample and wrote a valid normalized-json'
+const PROVINO_CHECK =
+  'provino:jest ran the sample, wrote a valid normalized-json and met the status parity bar'
 
 /**
  * Runs the sample under one runner. `selfTestCommand` takes one, so a test can stand in for the

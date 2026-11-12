@@ -17,6 +17,7 @@ const config: SerializedProjectConfig = {
   name: 't',
   rootDir: '/',
   ci: false,
+  seed: 0,
   policy: serializePolicy(neutralPolicy),
   environment: { module: '@provino/env-node', export: 'nodeEnvironment', options: {} },
   globals: null,

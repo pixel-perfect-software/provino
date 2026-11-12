@@ -4,13 +4,15 @@
 import { statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createBehaviourLoader } from '@provino/policy'
-import { createResolver } from '@provino/resolver'
-import { createPipeline } from '@provino/transform'
+import { createNameMapper, createResolver } from '@provino/resolver'
+import { createJestHost, createPipeline } from '@provino/transform'
 import type {
+  JestCustomResolver,
   Loader,
   ModuleMapper,
   ModuleMapperFactory,
   ModulePolicy,
+  ModuleRef,
   SerializedLoaderConfig,
 } from '@provino/types'
 import { LoaderError } from './errors.ts'
@@ -71,11 +73,34 @@ function buildMapper(
   return mapper
 }
 
+/** Loads a Jest `resolver` module by ref: a function, or an object with `sync` and/or `async`. */
+async function loadCustomResolver(
+  behaviours: ReturnType<typeof createBehaviourLoader>,
+  ref: ModuleRef,
+): Promise<JestCustomResolver> {
+  const loaded: unknown = await behaviours.load(ref)
+  if (typeof loaded === 'function') return loaded as JestCustomResolver
+  if (
+    typeof loaded === 'object' &&
+    loaded !== null &&
+    (typeof Reflect.get(loaded, 'sync') === 'function' ||
+      typeof Reflect.get(loaded, 'async') === 'function')
+  ) {
+    return loaded as JestCustomResolver
+  }
+  throw new LoaderError(
+    'LOADER_INVALID_MAPPER',
+    `loader.resolver: the module must export a function or an object with sync/async`,
+  )
+}
+
 /**
  * Creates the worker's loader for one project. `config.mappers` are loaded by `ModuleRef` first,
  * which is why this is async. Mock hoisting follows `config.hoist` (the dialect's policy, by
- * value), and every module's wrapper declares `config.moduleScope`'s names. The transform cache is
- * off until T3.6.
+ * value), and every module's wrapper declares `config.moduleScope`'s names. `config.transform`'s
+ * transformers are loaded here, in the worker, from their own paths (T3.8); a file one of them
+ * matches goes through it, every other file through Oxc. `config.cacheDir` turns the transform cache
+ * on (T3.6): a file's record is read from it before any work and written after.
  * @public
  */
 export async function createProjectLoader(
@@ -91,6 +116,24 @@ export async function createProjectLoader(
       buildMapper(await behaviours.load(mapper.factory), mapper.options, index),
     ),
   )
+  const transformers =
+    config.transform === undefined || config.transform.rules.length === 0
+      ? undefined
+      : await createJestHost(config.transform)
+  // Name-mapping rules run before the mapper factories, as Jest's `moduleNameMapper` runs first.
+  const aliases = config.aliases ?? []
+  if (aliases.length > 0) {
+    mappers.unshift(
+      createNameMapper({
+        rootDir: root,
+        rules: aliases.map(({ pattern, targets }) => ({ pattern, targets })),
+      }),
+    )
+  }
+  const custom =
+    config.resolver === undefined
+      ? undefined
+      : await loadCustomResolver(behaviours, config.resolver)
   return createLoader({
     root,
     engine: 'runner',
@@ -99,16 +142,35 @@ export async function createProjectLoader(
       mappers,
       extensions: config.extensions,
       tsconfig: tsconfig === 'auto' || tsconfig === false ? tsconfig : { configFile: tsconfig },
+      ...(config.moduleDirectories === undefined
+        ? {}
+        : { moduleDirectories: config.moduleDirectories }),
+      ...(config.modulePaths === undefined ? {} : { modulePaths: config.modulePaths }),
+      ...(custom === undefined ? {} : { custom }),
     }),
     transformer: createPipeline({
       root,
       typescript: config.typescript,
       tsconfig,
       hoist: config.hoist,
-      cache: false,
+      cache: config.cacheDir === undefined ? false : { dir: config.cacheDir },
+      ...(config.codeIdentity === undefined ? {} : { codeIdentity: config.codeIdentity }),
+      ...(transformers === undefined ? {} : { transformers }),
     }),
     policy,
     conditions: config.conditions,
-    ...(config.moduleScope.length === 0 ? {} : { moduleScope: { names: config.moduleScope } }),
+    ...(config.resolver === undefined ? {} : { resolverName: config.resolver.module }),
+    ...(policy.mapperMiss === null
+      ? {}
+      : { formatMapperMiss: await behaviours.load(policy.mapperMiss) }),
+    ...(config.moduleScope.length === 0 && (config.scopeModules ?? []).length === 0
+      ? {}
+      : {
+          moduleScope: {
+            names: config.moduleScope,
+            modules: config.scopeModules ?? [],
+            ...(config.scopeMappable === undefined ? {} : { mappable: config.scopeMappable }),
+          },
+        }),
   })
 }

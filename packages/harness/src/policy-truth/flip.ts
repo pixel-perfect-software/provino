@@ -59,6 +59,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'module.interopDefault': ['babel', 'node'],
   'module.missingFactoryExport': ['undefined', 'throw'],
   'module.mockValueOwner': ['module-registry', 'registration'],
+  'module.mockResolveKind': ['require', 'import'],
   'module.automockShape': ['metadata', 'deep'],
   'snapshot.ciUpdate': ['new', 'none'],
   'snapshot.throwErrorBody': ['message', 'error'],

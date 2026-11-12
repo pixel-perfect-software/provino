@@ -62,6 +62,9 @@
       "path": "packages/env-node"
     },
     {
+      "path": "packages/env-shared"
+    },
+    {
       "path": "packages/config"
     },
     {

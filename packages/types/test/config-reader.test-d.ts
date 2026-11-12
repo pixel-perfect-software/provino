@@ -50,6 +50,8 @@ expectTypeOf<NeutralProject['environment']['options']>().toExtend<
   SerializedProjectConfig['environment']['options']
 >()
 declare const project: NeutralProject
+// The directory a user chose for caches (D70) is optional, and a plain string.
+expectTypeOf<NeutralProject['cacheDirectory']>().toEqualTypeOf<string | undefined>()
 // @ts-expect-error a pattern is a source, never a RegExp
 const pattern: RegExp = project.aliases[0]?.pattern ?? /x/
 void pattern

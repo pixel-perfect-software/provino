@@ -1,13 +1,16 @@
 // Track 1 §Config at v0. T1.4 (@provino/config) adds defineConfig, loading and validation, and
 // the keys each feature needs.
+
+import type { JsonValue } from './clone-safe.ts'
 import type {
   Dialect,
   DialectName,
   DialectRegistry,
   GlobalsFactory,
   ModuleScopeFactory,
+  NeutralAlias,
 } from './dialect.ts'
-import type { EnvironmentRef } from './environment.ts'
+import type { EnvironmentRef, EnvironmentResolver } from './environment.ts'
 import type { PluginRegistry, ProvinoPlugin } from './extensions.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { IsolationTier } from './isolation.ts'
@@ -95,6 +98,46 @@ export interface ConfigEnv {
 }
 
 /**
+ * One transform rule as it crosses coordinator → worker: a file whose absolute path matches
+ * `pattern` (a regular expression's source) goes through the transformer `transformer` names,
+ * created with `options`. `transformer.module` is an absolute path or URL (D21) and its `export`
+ * is always `'default'`: the worker loads the module the way Jest's `requireOrImportModule` does
+ * (its `default` when it is an ES module, else `module.exports`) and calls its `createTransformer`
+ * when it has one, so the ref names a module, not a function.
+ * @public
+ */
+export interface SerializedTransform {
+  readonly pattern: string
+  readonly transformer: ModuleRef
+  readonly options: JsonValue
+}
+
+/**
+ * The user transformers of a project (Track 3, T3.8), in config order: the first rule whose
+ * `pattern` matches a file wins, as Jest's `transform` does.
+ * @public
+ */
+export interface SerializedTransformConfig {
+  readonly rules: readonly SerializedTransform[]
+  /** Regular expressions' sources, joined with `|`: a file one matches isn't transformed. */
+  readonly ignorePatterns: readonly string[]
+  /**
+   * What a transformer reads as `options.config`: the project's own config, as JSON (Jest's
+   * `ProjectConfig`), with its stable JSON text as `configString`. It holds data only, so it
+   * crosses; what a transformer needs from it (`rootDir`, `cwd`, `globals`, `testMatch`, …) is
+   * the dialect's to supply.
+   */
+  readonly config: Readonly<Record<string, JsonValue>>
+  /**
+   * Identifiers whose presence in a transformer's output means the transformer already hoisted the
+   * file's mock calls (Babel's Jest plugin writes `_getJestObj`); the host's own hoister then
+   * leaves the file alone. A transformer that hoists without one of these (ts-jest, `@swc/jest`)
+   * meets the hoister, which finds every call already at the top of its block and moves nothing.
+   */
+  readonly hoistedMarkers: readonly string[]
+}
+
+/**
  * The clone-safe resolver and transform settings a worker builds its loader from
  * (`createProjectLoader` in `@provino/loader`). Everything else a resolver or pipeline can take
  * (a Jest `custom` resolver, the transform cache) either has a closure in it or is not wired yet.
@@ -106,6 +149,10 @@ export interface SerializedLoaderConfig {
   readonly hoist: HoistPolicy | null
   /** The dialect's per-module binding names (`Dialect.moduleScope.names`); `[]` for none. */
   readonly moduleScope: readonly string[]
+  /** The dialect's served module specifiers (`Dialect.moduleScope.modules`); absent means none. */
+  readonly scopeModules?: readonly string[]
+  /** The part of `scopeModules` a matching name-mapper rule takes over (`Dialect.moduleScope.mappable`). */
+  readonly scopeMappable?: readonly string[]
   /** Extensions tried for a specifier without one, in order (`.ts`, `.js`, …). */
   readonly extensions: readonly string[]
   /** Environment export conditions for resolution; the call kind adds its own. */
@@ -116,6 +163,31 @@ export interface SerializedLoaderConfig {
   readonly mappers: readonly SerializedModuleMapper[]
   /** How TypeScript is stripped. */
   readonly typescript: 'oxc' | 'node-strip' | 'off'
+  /** User transformers (T3.8); absent for none, where every file takes the Oxc pipeline. */
+  readonly transform?: SerializedTransformConfig
+  /**
+   * The transform cache's directory (T3.6), an absolute path; absent for no cache (`--no-cache`).
+   * The coordinator makes it ready before any worker starts, so a worker only reads and writes
+   * entries.
+   */
+  readonly cacheDir?: string
+  /**
+   * The hash of the transform package's own code (`transformCodeIdentity`), which the coordinator
+   * computes once so that no worker reads and hashes that package again. Part of every cache
+   * entry's key. Absent: the worker computes it.
+   */
+  readonly codeIdentity?: string
+  /**
+   * The dialect's name-mapping rules (Jest's `moduleNameMapper`; T3.3), regex sources in order. They
+   * run before `mappers`. Absent means none.
+   */
+  readonly aliases?: readonly NeutralAlias[]
+  /** Replaces `node_modules` as the directories searched up the tree (Jest `moduleDirectories`). */
+  readonly moduleDirectories?: readonly string[]
+  /** Absolute directories searched after a miss (Jest `modulePaths`). */
+  readonly modulePaths?: readonly string[]
+  /** A custom resolver module (Jest `resolver`), its `module` absolute; the export is `default`. */
+  readonly resolver?: ModuleRef
 }
 
 /**
@@ -147,6 +219,17 @@ export interface SerializedProjectConfig {
    * for a dialect with none. Its names are `loader.moduleScope`.
    */
   readonly moduleScope: ModuleRef<ModuleScopeFactory> | null
+  /** The dialect's resolver for a docblock's environment (`Dialect.environmentResolver`); absent for none. */
+  readonly environmentResolver?: ModuleRef<EnvironmentResolver>
+  /**
+   * Values defined on the environment's global for each file, before anything else runs (Jest's
+   * `globals`: jest-environment-node's `installCommonGlobals`). Absent means none.
+   */
+  readonly globalValues?: Readonly<Record<string, JsonValue>>
+  /** The project's fake-timer defaults (`NeutralProject.fakeTimers`). Absent means none. */
+  readonly fakeTimers?: Readonly<Record<string, JsonValue>>
+  /** The run's random seed (`jest.getSeed()`): the coordinator draws one per run, or takes the project's own (`NeutralProject.seed`). */
+  readonly seed: number
   /** Absolute paths, imported before each test file, first (Jest `setupFiles`). */
   readonly setupFiles: readonly string[]
   /** Absolute paths, imported after `setupFiles` and before each test file (Jest `setupFilesAfterEnv`, Vitest `setupFiles`). */

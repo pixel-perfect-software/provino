@@ -19,6 +19,8 @@ export type {
   ReservedConfigKey,
   SerializedLoaderConfig,
   SerializedProjectConfig,
+  SerializedTransform,
+  SerializedTransformConfig,
 } from './config.ts'
 export type {
   CoverageCollector,
@@ -55,6 +57,7 @@ export type {
   NeutralAlias,
   NeutralDiscovery,
   NeutralProject,
+  NeutralResolution,
   NeutralTransform,
   ReporterAdapter,
 } from './dialect.ts'
@@ -66,11 +69,14 @@ export type {
   EnvironmentHelper,
   EnvironmentInstance,
   EnvironmentOptionsMap,
+  EnvironmentPragmaRequest,
   EnvironmentRealm,
   EnvironmentRef,
+  EnvironmentResolver,
   EnvironmentScope,
   EnvironmentSetupContext,
   EnvironmentTeardownReport,
+  Pragmas,
 } from './environment.ts'
 export type {
   Assertion,

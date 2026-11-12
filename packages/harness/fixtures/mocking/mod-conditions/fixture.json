@@ -1,0 +1,15 @@
+{
+  "description": "A mock factory for a package whose `exports` has only a `require` condition, and for one with only an `import` condition: which of the two the runner can resolve as a mock target, and what a load of each gives.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true,
+  "packages": {
+    "require-only": {
+      "package.json": "{ \"name\": \"require-only\", \"version\": \"1.0.0\", \"exports\": { \".\": { \"require\": \"./index.cjs\" } } }\n",
+      "index.cjs": "exports.who = 'real-require-only'\n"
+    },
+    "import-only": {
+      "package.json": "{ \"name\": \"import-only\", \"version\": \"1.0.0\", \"type\": \"module\", \"exports\": { \".\": { \"import\": \"./index.js\" } } }\n",
+      "index.js": "export const who = 'real-import-only'\n"
+    }
+  }
+}
