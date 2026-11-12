@@ -1,0 +1,19 @@
+{
+  "description": "T8.7: the node environment's export conditions are `node` and `node-addons`, so the `node` variant resolves. Under Jest, with the environment package the project installs.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testEnvironment": "node"
+    }
+  },
+  "packages": {
+    "dual": {
+      "package.json": "{\"name\": \"dual\", \"version\": \"1.0.0\", \"exports\": {\".\": {\"browser\": \"./browser.js\", \"node\": \"./node.js\", \"import\": \"./import.js\", \"require\": \"./require.js\", \"default\": \"./default.js\"}}}\n",
+      "browser.js": "module.exports = 'browser'\n",
+      "node.js": "module.exports = 'node'\n",
+      "import.js": "module.exports = 'import'\n",
+      "require.js": "module.exports = 'require'\n",
+      "default.js": "module.exports = 'default'\n"
+    }
+  }
+}

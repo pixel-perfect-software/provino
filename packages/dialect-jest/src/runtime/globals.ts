@@ -176,6 +176,12 @@ export interface JestModuleObject extends JestObject {
   unmock(moduleName: string): JestModuleObject
   /** `unmock`, not hoisted. */
   dontMock(moduleName: string): JestModuleObject
+  /** Replaces `moduleName` for this file with `moduleExports`, as an explicit mock (jest-runtime `setMock`). */
+  setMock(moduleName: string, moduleExports: unknown): JestModuleObject
+  /** `unmock`: the module and what it imports are real again (Provino unmocks the module itself). */
+  deepUnmock(moduleName: string): JestModuleObject
+  /** The argument, typed as mocked (jest-runtime's `mocked` is the identity). */
+  mocked<T>(item: T): T
   /** The real module, whatever is mocked: its own imports still see the mocks. */
   requireActual<T = unknown>(moduleName: string): T
   /** The mocked module, whether or not it is registered: a manual mock, else an automock. */
@@ -406,6 +412,9 @@ function moduleJest(host: JestGlobalsHost, isolating: Isolating, from: string): 
     unmock: unregister,
     // Jest's non-hoisted unmock is `dontMock`; there is no `doUnmock` (mod-unmock, B13b).
     dontMock: unregister,
+    setMock: (name, moduleExports) => register(name, () => moduleExports, undefined, false),
+    deepUnmock: unregister,
+    mocked: <T>(item: T): T => item,
     requireActual: <T>(name: string): T => host.registry().requireActual<T>(name, parent),
     requireMock: <T>(name: string): T => host.moduleMocks().mockFor(name, from) as T,
     createMockFromModule: <T>(name: string): T =>

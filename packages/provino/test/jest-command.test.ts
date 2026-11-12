@@ -147,10 +147,10 @@ describe('the other modes', () => {
     assert.ok(!existsSync(cache))
   })
 
-  it('--listTests and --clearCache work for a project whose environment Provino cannot run yet', async () => {
-    // A custom environment: not built in (T8.5), so a run is refused, but listing the files and
+  it('--listTests and --clearCache work for a project whose environment class is not a working one', async () => {
+    // A custom environment class (run through the Jest adapter, T8.5): listing the files and
     // clearing the cache start no worker and must not depend on it (jsdom projects are most of
-    // the R6 corpus, and U2's check is their `--listTests`).
+    // the R6 corpus, and U2's check is their `--listTests`). This one has no `setup`, so a run fails.
     const dir = await tree({
       'jest.config.json': JSON.stringify({
         testMatch: ['<rootDir>/tests/**/*.test.js'],
@@ -167,8 +167,8 @@ describe('the other modes', () => {
     assert.equal(cleared.code, 0, cleared.stderr)
 
     const run = await provino([], dir)
-    assert.equal(run.code, 1, 'a run is refused')
-    assert.match(run.stderr, /unknown environment/)
+    assert.equal(run.code, 1, 'a run fails: the class has no setup()')
+    assert.doesNotMatch(run.stderr, /unknown environment/)
   })
 
   it('--no-cache neither reads nor writes the results history', async () => {

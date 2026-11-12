@@ -84,6 +84,8 @@ Flow: pattern check (`ORCH_BAD_PATTERN`, `new RegExp(p, policy.core.testNamePatt
 
 ## Rules that aren't obvious
 
+- **Environment pragmas, `globals` and the resolver keys (B17c).** `runFile` reads the file's leading docblock (`internal/runtime/pragmas.ts`, `jest-docblock`'s extract) and passes it as the environment's `pragmas`. A value for one of `policy.orchestrator.environmentPragmas` (`jest-environment`) picks the file's environment: `config.environmentResolver` (the dialect's `ModuleRef`, loaded once) turns the name and `<pragma>-options` (JSON) into an `EnvironmentRef`, prepared once per kind (ref plus options) per worker and cached in `parts.pragmaEnvironments`. Under isolation `none` there is one environment for the worker, so a pragma picks it only for the first file. `config.globalValues` (Jest's `globals`) is defined on the environment's global, copied for each file, before anything else. `loader.aliases`, `moduleDirectories`, `modulePaths` and `resolver` are validated by `parseProjectConfig` (T3.3).
+
 - **Globals come in around `setupFiles` by `core.globalsBeforeSetupFiles`** (B14a). The worker splits the dialect's globals once (`splitGlobals`): the listed names (or all, under `'all'`) are installed with the environment, the rest after `setupFiles` and before `setupFilesAfterEnv` (`FileScope.installLateGlobals`, called from `importFile`). Jest 30.5 lists only `jest` (`policy/core-globals-at-setup`; the bench's worker test runs those files and traces what the golden traced). Under `none` the environment persists, so a later file's `setupFiles` still see the earlier file's late globals: a DIVERGENCES limit.
 - **Setup files are fresh for every file, in every tier, and so is the test file.** Under `none` the registry is shared, so the setup module and the test file itself (queued twice, or imported by an earlier file) are invalidated and imported again (their dependencies stay shared); `isolateModules` would re-instantiate those too. They run inside collection, so a hook they register belongs to the file, and a throwing one fails the file with no tests.
 - **Back-pressure is per file, not per test:** a file waits for `sink.writable()` before it starts, which bounds the worker's buffer to about one file's events beyond the 8-pack window. A per-test wait would need an async hook in core's executor (T5.8).
@@ -139,7 +141,7 @@ Flow: pattern check (`ORCH_BAD_PATTERN`, `new RegExp(p, policy.core.testNamePatt
 | The inline-snapshot writer and its RPC | T7.11 |
 | `cancel` reaching core (a cancelled file stops mid-run): today it only keeps a queued file from starting | T5.12 |
 | The environment's `onTestEvent` (Jest `handleTestEvent`) | T11/T8 |
-| Docblock pragmas (`pragmas` is `{}` in the environment's setup context), `@provino-isolate` escalation | T2.11 |
+| `@provino-isolate` escalation (docblock pragmas for the environment are built, B17c: see "Rules that aren't obvious") | T2.11 |
 | Leak count (`FileOutcome.leakedHandles` is always 0) | T2.7 |
 | The `realm` tier (and an environment with realm `context`) | T2.8 |
 | `BulkPayload` for coverage and snapshots over 64 KiB | Track 8, T7.10 |

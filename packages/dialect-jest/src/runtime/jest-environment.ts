@@ -195,10 +195,18 @@ function customConditions(options: EnvironmentRequest['options']): readonly stri
  * `customExportConditions` when the project gives it (`['']` for react-hook-form's, which names no
  * condition), else the default of the package Jest ships: `['browser']` for the jsdom family,
  * `['node', 'node-addons']` for `jest-environment-node`, `['edge', 'edge-light']` for the edge
- * runtime. A class this doesn't know has none, as jest-runtime's `?.() ?? []`.
+ * runtime. A class this doesn't know has none, as jest-runtime's `?.() ?? []`; `node` is always
+ * added (see below).
  * @public
  */
 export const jestEnvironmentConditions: EnvironmentConditions = (env) => {
+  const own = environmentOwnConditions(env)
+  // jest-resolve resolves `exports` through resolve.exports, which adds `node` itself (recorded:
+  // `env/conditions-custom`, where `['']` still picks the `node` variant).
+  return own.includes('node') ? own : [...own, 'node']
+}
+
+function environmentOwnConditions(env: EnvironmentRequest): readonly string[] {
   const custom = customConditions(env.options)
   if (custom !== undefined) return custom
   const where = env.name

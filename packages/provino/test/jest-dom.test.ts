@@ -16,35 +16,63 @@ function packageDir(name: string): string {
   return dirname(require.resolve(`${name}/package.json`))
 }
 
-describe('a Jest project on jsdom against Jest 30.5.2', () => {
-  it('env/jsdom-project: every file passes as in Jest, with its docblocks and mapper', async () => {
-    const fixture = await loadFixture('env/jsdom-project')
-    const project = await materialize(fixture)
-    try {
-      await mkdir(join(project.root, 'node_modules'), { recursive: true })
-      for (const name of ['jest-environment-jsdom', 'jest-environment-node']) {
-        await symlink(packageDir(name), join(project.root, 'node_modules', name))
-      }
-      const expected = fixture.golden.files.flatMap((file) => file.tests ?? [])
-      const ended = await spawnCli(['jest', '--ci', '-c', 'jest.config.json'], {
-        cwd: project.root,
-      })
-      assert.equal(ended.code, 0, ended.stderr)
-      for (const file of fixture.golden.files) {
+/**
+ * Tests Jest passes and Provino fails today, declared (proposed DIVERGENCE, Track 8 R5): under the
+ * `registry` tier test code runs in the worker's realm, and a jsdom node's prototype chain ends in
+ * the window's own `Object.prototype`, not the worker's. T2.8 (the realm tier) is the fix.
+ */
+const DECLARED: Readonly<Record<string, readonly string[]>> = {
+  'env/realm-instanceof': ['a div is an instance of Object'],
+}
+
+const PROJECTS = [
+  ['env/realm-instanceof', 'the realm checks (Track 8 R5)'],
+  ['env/jsdom-project', 'every file passes, with its docblocks and mapper'],
+  ['env/conditions-jsdom', "jsdom's `browser` export condition (T8.7)"],
+  ['env/conditions-custom', '`customExportConditions: [""]` drops `browser` (T8.7)'],
+  ['env/conditions-node', "the node environment's `node` condition (T8.7)"],
+] as const
+
+describe('a Jest project on its own environment, against Jest 30.5.2', () => {
+  for (const [id, title] of PROJECTS) {
+    it(`${id}: ${title}`, async () => {
+      const fixture = await loadFixture(id)
+      const project = await materialize(fixture)
+      try {
+        await mkdir(join(project.root, 'node_modules'), { recursive: true })
+        for (const name of ['jest-environment-jsdom', 'jest-environment-node']) {
+          await symlink(packageDir(name), join(project.root, 'node_modules', name))
+        }
+        const tests = fixture.golden.files.flatMap((file) => file.tests ?? [])
+        const declared = DECLARED[id] ?? []
+        const failed = tests.filter(
+          (test) => test.status !== 'passed' || declared.includes(test.id.path.at(-1) ?? ''),
+        )
+        const ended = await spawnCli(['jest', '--ci', '-c', 'jest.config.json'], {
+          cwd: project.root,
+        })
+        assert.equal(ended.code, failed.length === 0 ? 0 : 1, ended.stderr)
+        for (const file of fixture.golden.files) {
+          const fails =
+            file.status !== 'passed' ||
+            (file.tests ?? []).some((test) => declared.includes(test.id.path.at(-1) ?? ''))
+          assert.match(
+            ended.stderr,
+            new RegExp(`${fails ? 'FAIL' : 'PASS'} ${file.file.replace('.', '\\.')}`),
+            ended.stderr,
+          )
+        }
         assert.match(
           ended.stderr,
-          new RegExp(`PASS ${file.file.replace('.', '\\.')}`),
+          new RegExp(
+            `Tests:\\s+(?:\\d+ failed, )?${tests.length - failed.length} passed, ${tests.length} total`,
+          ),
           ended.stderr,
         )
+        assert.doesNotMatch(ended.stderr, /not applied/)
+      } finally {
+        await project.dispose()
       }
-      assert.match(
-        ended.stderr,
-        new RegExp(`Tests:\\s+${expected.length} passed, ${expected.length} total`),
-        ended.stderr,
-      )
-      assert.doesNotMatch(ended.stderr, /not applied/)
-    } finally {
-      await project.dispose()
-    }
-  })
+    })
+  }
 })
