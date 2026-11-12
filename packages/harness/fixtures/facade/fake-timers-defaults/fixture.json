@@ -1,0 +1,6 @@
+{
+  "description": "fakeTimers without enableGlobally (T4.9, T11.10): the timers are real until a test installs them, and an install is layered over the project's `now` and `timerLimit`, a call's own config winning.",
+  "runners": ["jest"],
+  "config": { "jest": { "fakeTimers": { "now": 5000, "timerLimit": 50 } } },
+  "jestEsm": true
+}

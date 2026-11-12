@@ -126,7 +126,6 @@ export function jestProjectToNeutral(
       '; snapshots stay beside the test file',
     )
   }
-  if (project.fakeTimers.enableGlobally === true) notApplied(diagnostics, 'fakeTimers', 'T4.9')
   if (project.globalSetup !== undefined) notApplied(diagnostics, 'globalSetup', 'Track 9')
   if (project.globalTeardown !== undefined) notApplied(diagnostics, 'globalTeardown', 'Track 9')
   if (globalConfig.collectCoverage) notApplied(diagnostics, 'collectCoverage', 'T8.8')
@@ -158,6 +157,8 @@ export function jestProjectToNeutral(
       ...(project.testTimeout === undefined ? {} : { timeouts: { test: project.testTimeout } }),
     },
     mock,
+    // jest-circus installs the fake clock for every file when `fakeTimers.enableGlobally` is set.
+    ...(project.fakeTimers.enableGlobally === true ? { timers: { enableGlobally: true } } : {}),
     orchestrator: {
       passWithNoTests: globalConfig.passWithNoTests,
       slowTestThresholdMs: project.slowTestThreshold * 1000,
@@ -225,6 +226,15 @@ export function jestProjectToNeutral(
     },
     aliases,
     globalValues: jsonObject(project.globals, 'globals', diagnostics),
+    // What every install is layered over (jest-runtime `useFakeTimers`: `{...config.fakeTimers, ...own}`).
+    fakeTimers: jsonObject(
+      Object.fromEntries(
+        Object.entries(project.fakeTimers).filter(([key]) => key !== 'enableGlobally'),
+      ),
+      'fakeTimers',
+      diagnostics,
+    ),
+    seed: globalConfig.seed,
     resolution: {
       moduleDirectories: [...project.moduleDirectories],
       modulePaths: [...(project.modulePaths ?? [])],

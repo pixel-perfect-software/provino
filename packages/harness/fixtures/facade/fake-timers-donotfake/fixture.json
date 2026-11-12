@@ -1,0 +1,6 @@
+{
+  "description": "fakeTimers.enableGlobally with doNotFake (T4.9, T11.10): the timers are faked and the named global stays real.",
+  "runners": ["jest"],
+  "config": { "jest": { "fakeTimers": { "enableGlobally": true, "doNotFake": ["Date"] } } },
+  "jestEsm": true
+}
