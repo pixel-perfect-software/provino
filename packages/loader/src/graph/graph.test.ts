@@ -44,69 +44,113 @@ function resolverFor(root: string) {
 }
 
 describe('scanSource', () => {
-  for (const wasm of [false, true]) {
-    describe(wasm ? 'the wasm lexer' : 'the asm.js lexer', () => {
-      before(async () => {
-        if (wasm) await initLexer()
-      })
+  before(async () => {
+    await initLexer()
+  })
 
-      test('finds ES static imports, re-exports and import() with a literal', () => {
-        const scan = scanSource(
-          [
-            "import a from './a.js'",
-            "import { b } from 'b'",
-            "export * from './c.js'",
-            "export { d } from 'd'",
-            "const e = await import('e')",
-            "import type { T } from 't'",
-          ].join('\n'),
-        )
-        assert.deepEqual(scan.edges.map((edge) => `${edge.kind} ${edge.specifier}`).sort(), [
-          'import ./a.js',
-          'import ./c.js',
-          'import b',
-          'import d',
-          'import e',
-        ])
-        assert.equal(scan.dynamic, false)
-      })
+  test('finds ES static imports, re-exports and import() with a literal', () => {
+    const scan = scanSource(
+      [
+        "import a from './a.js'",
+        "import { b } from 'b'",
+        "export * from './c.js'",
+        "export { d } from 'd'",
+        "const e = await import('e')",
+        "import type { T } from 't'",
+      ].join('\n'),
+    )
+    assert.deepEqual(scan.edges.map((edge) => `${edge.kind} ${edge.specifier}`).sort(), [
+      'import ./a.js',
+      'import ./c.js',
+      'import b',
+      'import d',
+      'import e',
+    ])
+    assert.equal(scan.dynamic, false)
+  })
 
-      test('finds CommonJS requires, in each quote style', () => {
-        const scan = scanSource(
-          "const a = require('a'); const b = require(\"./b\"); const c = require(`c`)\nfoo.require('no')",
-        )
-        assert.deepEqual(
-          scan.edges.map((edge) => `${edge.kind} ${edge.specifier}`),
-          ['require a', 'require ./b', 'require c'],
-        )
-        assert.equal(scan.dynamic, false)
-      })
+  test('finds CommonJS requires, in each quote style', () => {
+    const scan = scanSource(
+      "const a = require('a'); const b = require(\"./b\"); const c = require(`c`)\nfoo.require('no')",
+    )
+    assert.deepEqual(
+      scan.edges.map((edge) => `${edge.kind} ${edge.specifier}`),
+      ['require a', 'require ./b', 'require c'],
+    )
+    assert.equal(scan.dynamic, false)
+  })
 
-      test('flags a computed specifier, for require and for import()', () => {
-        assert.equal(scanSource('require(name)').dynamic, true)
-        assert.equal(scanSource("require('a' + b)").dynamic, true)
-        assert.equal(scanSource('await import(name)').dynamic, true)
-        assert.equal(scanSource(['await import(`./locales/$', '{l}.js`)'].join('')).dynamic, true)
-        assert.equal(scanSource("require('literal')").dynamic, false)
-      })
+  test('flags a computed specifier, for require and for import()', () => {
+    assert.equal(scanSource('require(name)').dynamic, true)
+    assert.equal(scanSource("require('a' + b)").dynamic, true)
+    assert.equal(scanSource('await import(name)').dynamic, true)
+    assert.equal(scanSource(['await import(`./locales/$', '{l}.js`)'].join('')).dynamic, true)
+    assert.equal(scanSource("require('literal')").dynamic, false)
+  })
 
-      test('a file the lexer rejects still gets its requires', () => {
-        const scan = scanSource("import {{{ broken\nrequire('still-here')")
-        assert.deepEqual(
-          scan.edges.map((edge) => edge.specifier),
-          ['still-here'],
-        )
-      })
+  test('a file the lexer rejects still gets its requires', () => {
+    const scan = scanSource("import {{{ broken\nrequire('still-here')")
+    assert.deepEqual(
+      scan.edges.map((edge) => edge.specifier),
+      ['still-here'],
+    )
+  })
 
-      test('lists an edge once', () => {
-        const scan = scanSource("require('a'); require('a'); import('a'); import('a')")
-        assert.deepEqual(
-          scan.edges.map((edge) => `${edge.kind} ${edge.specifier}`),
-          ['import a', 'require a'],
-        )
-      })
-    })
-  }
+  test('lists an edge once', () => {
+    const scan = scanSource("require('a'); require('a'); import('a'); import('a')")
+    assert.deepEqual(
+      scan.edges.map((edge) => `${edge.kind} ${edge.specifier}`),
+      ['import a', 'require a'],
+    )
+  })
+})
+
+describe('scanSource: what it must not lose', () => {
+  before(async () => {
+    await initLexer()
+  })
+
+  test('a file the lexer cannot parse is dynamic, and keeps its requires', () => {
+    const scan = scanSource("import x from 'x'; }}}\nrequire('still-here')")
+    assert.equal(scan.dynamic, true)
+    assert.deepEqual(
+      scan.edges.map((edge) => edge.specifier),
+      ['still-here'],
+    )
+  })
+
+  test('a file with no module syntax is never reported as unparseable', () => {
+    assert.equal(scanSource('module.exports = { exports: 1 } }}}').dynamic, false)
+  })
+
+  test('module.require is a require', () => {
+    const scan = scanSource("const a = module.require('a'); other.require('no')")
+    assert.deepEqual(
+      scan.edges.map((edge) => `${edge.kind} ${edge.specifier}`),
+      ['require a'],
+    )
+    assert.equal(scan.dynamic, false)
+  })
+
+  test('createRequire and an alias of require are dynamic', () => {
+    assert.equal(scanSource("const { createRequire } = require('node:module')").dynamic, true)
+    assert.equal(scanSource("const r = require; r('x')").dynamic, true)
+    assert.equal(scanSource("foo(require); require('x')").dynamic, true)
+  })
+
+  test('require.resolve, require.cache and typeof require are not aliases', () => {
+    assert.equal(scanSource("require.resolve('x'); require.cache; require.main").dynamic, false)
+    assert.equal(scanSource("if (typeof require === 'function') module.exports = 1").dynamic, false)
+  })
+
+  test('a comment before the literal still yields the edge', () => {
+    const scan = scanSource("require(/* c */ 'a'); require( // line\n 'b' /* d */ )")
+    assert.deepEqual(
+      scan.edges.map((edge) => edge.specifier),
+      ['a', 'b'],
+    )
+    assert.equal(scan.dynamic, false)
+  })
 })
 
 const TREE = {
