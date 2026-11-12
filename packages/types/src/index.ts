@@ -135,6 +135,7 @@ export type {
   LoadActualOptions,
   Loader,
   LoaderOptions,
+  LoaderWarning,
   MockDecision,
   MockFactory,
   MockSpec,

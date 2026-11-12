@@ -18,6 +18,7 @@ import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ModuleId, ModuleMockRegistry, ModuleScopeValues, ResolveKind } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
+import { createLedger, mockedReach, noteInlined } from './inline.ts'
 import { actualView, cjsNamespace, createInteropCache, esmExports } from './interop.ts'
 import {
   type Compiled,
@@ -36,6 +37,8 @@ import {
   setResolved,
   type Target,
   targetOfId,
+  toModuleId,
+  userEdgesOf,
 } from './records.ts'
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
@@ -135,6 +138,15 @@ export class Registry {
   #scratch: AsyncLocalStorage<Map<ModuleId, Instance>> | null = null
   /** How many scratch loads are running: with none, `#instances` asks no async context. */
   #scratchLoads = 0
+  /**
+   * Whether each node_modules file was served shared (`false`) or inlined (`true`), per instance map
+   * (T2.6, B13d Gap 3): a module already served keeps its instance, so a `doMock` that comes after
+   * its first load doesn't change it, `resetModules` forgets it, and an `isolateModules` layer
+   * decides afresh.
+   */
+  readonly #memory = new WeakMap<Map<ModuleId, Instance>, Map<string, boolean>>()
+  /** What this file inlined, for the budget and `LeakReport.inlinedForMocks`. */
+  #ledger = createLedger()
   /** The running file's context. Under `none` the registry is shared, and each file sets its own. */
   context: FileContext = NO_FILE
 
@@ -171,7 +183,30 @@ export class Registry {
    * still running removes its own (now empty) map when it finishes.
    */
   reset(): void {
-    for (const map of this.#maps) map.clear()
+    for (const map of this.#maps) {
+      map.clear()
+      this.#memory.delete(map)
+    }
+  }
+
+  /** The modules this file inlined for its mocks, in the order they were. */
+  inlined(): ModuleId[] {
+    return [...this.#ledger.modules]
+  }
+
+  /**
+   * Ends the file's inlining under `none`: the registry is shared and outlives the file, so the
+   * inlined instances go and the next file sees the shared module, and so does what was
+   * remembered. Any other tier's registry is the file's own and is reset instead.
+   */
+  dropInlined(): void {
+    for (const map of this.#maps) {
+      const served = this.#memory.get(map)
+      if (served === undefined) continue
+      for (const [path, inlined] of served) if (inlined) map.delete(toModuleId(path))
+      this.#memory.delete(map)
+    }
+    this.#ledger = createLedger()
   }
 
   /**
@@ -271,7 +306,7 @@ export class Registry {
     const target = resolveOrMissing(this.#state, specifier, importer, 'import')
     const mocked = this.#mockOf(target, specifier, importer, 'esm')
     if (mocked !== REAL) return (await this.#settleFor(mocked, specifier, 'async')) as object
-    const found = target as Found
+    const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#externalAsync(found)
     const record = recordFor(this.#state, found.id, false)
     await linkAsync(this.#state, record)
@@ -291,7 +326,7 @@ export class Registry {
       }
       return mocked
     }
-    const found = target as Found
+    const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#requireExternal(found)
     const dep = recordFor(this.#state, found.id, false)
     linkSync(this.#state, dep)
@@ -303,10 +338,10 @@ export class Registry {
     const target = this.#targetOf(record, specifier, 'import')
     const mocked = this.#mockOf(target, specifier, record.path, 'esm')
     if (mocked !== REAL) return this.#settleFor(mocked, specifier, mode)
-    const found = target as Found
+    const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#externalImport(found)
-    const dep = this.#state.records.get(found.id)
-    if (dep === undefined) throw new Error(`${found.id} was never linked`)
+    // Linked ahead, unless an edge inlined it just now.
+    const dep = this.#state.records.get(found.id) ?? this.#linkNow(found.id)
     return this.#importRecord(dep, mode)
   }
 
@@ -315,7 +350,7 @@ export class Registry {
     const target = resolveOrMissing(this.#state, specifier, record.path, 'import')
     const mocked = this.#mockOf(target, specifier, record.path, 'esm')
     if (mocked !== REAL) return this.#settleFor(mocked, specifier, 'sync')
-    const found = target as Found
+    const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#externalImport(found)
     const dep = recordFor(this.#state, found.id, false)
     linkSync(this.#state, dep)
@@ -392,6 +427,49 @@ export class Registry {
     return shape(served)
   }
 
+  // ---- inlining (T2.6) ----
+
+  /**
+   * An external as the edge should load it: the same external, or a user module when a mock reaches
+   * it. It is inlined when `mocksReachShared` is on and the file's mocks take an edge in its graph
+   * closure; the answer is kept for the instance map in play, and later edges follow it.
+   */
+  #maybeInline(target: Found): Found {
+    if (target.kind !== 'external') return target
+    const state = this.#state
+    const mocks = this.context.mocks
+    if (mocks === null || !state.options.policy.mocksReachShared) return target
+    const path = target.path
+    const map = this.#instances
+    let served = this.#memory.get(map)
+    if (served === undefined) {
+      served = new Map()
+      this.#memory.set(map, served)
+    }
+    let inlined = served.get(path)
+    if (inlined === undefined) {
+      inlined = false
+      if (mocks.active() && !path.endsWith('.node')) {
+        const mockedId = mockedReach(state.inline, state.options, path, mocks, (user) =>
+          userEdgesOf(state, user),
+        )
+        if (mockedId !== null) {
+          inlined = true
+          noteInlined(state.inline, state.options, this.#ledger, toModuleId(path), mockedId)
+        }
+      }
+      served.set(path, inlined)
+    }
+    return inlined ? { kind: 'user', id: toModuleId(path) } : target
+  }
+
+  /** The record of a module an edge inlined, linked now: nothing linked it ahead. */
+  #linkNow(id: ModuleId): ModuleRecord {
+    const record = recordFor(this.#state, id, false)
+    linkSync(this.#state, record)
+    return record
+  }
+
   // ---- externals ----
 
   /** An external's natively required value, shared by the worker (`require`, or the builtin). */
@@ -443,7 +521,7 @@ export class Registry {
   }
 
   #actualSync(id: string): unknown {
-    const target = this.#actualTarget(id)
+    const target = this.#maybeInline(this.#actualTarget(id))
     if (target.kind !== 'user') return this.#requireExternal(target)
     const record = recordFor(this.#state, target.id, false)
     linkSync(this.#state, record)
@@ -457,7 +535,7 @@ export class Registry {
   }
 
   async #actualAsync(id: string): Promise<unknown> {
-    const target = this.#actualTarget(id)
+    const target = this.#maybeInline(this.#actualTarget(id))
     if (target.kind !== 'user') {
       return cjsNamespace(this.#requireExternal(target), this.#interop, this.#cache)
     }

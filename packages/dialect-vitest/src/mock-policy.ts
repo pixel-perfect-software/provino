@@ -77,6 +77,8 @@ export const vitestModulePolicy: ModulePolicy = {
   mockValueOwner: 'registration',
   // Recorded, Vitest 5.0.5: `mod-conditions` (an `import`-only package mocks, a `require`-only one is not exported).
   mockResolveKind: 'import',
+  // Recorded, Vitest 5.0.5: `mod-shared-dep` and `mod-shared-dep-root` (a mock reaches only a direct import).
+  mocksReachShared: false,
   automockShape: 'deep',
   unmockedPathPatterns: [],
   messages: {

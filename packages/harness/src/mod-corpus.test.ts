@@ -65,8 +65,9 @@ const EXPECTED_COUNTED: Readonly<Partial<Record<FixtureProfile, number>>> = {
   // `mod-cjs-lazy` 4 and `mod-dynamic-only` 2 under Jest, and `mod-dynamic-only` 2 under Vitest,
   // B17c's `mod-automock-no-metadata` 1 under Jest (`mod-factory-not-function` is a crash), and
   // `mod-conditions` 2 under each.
-  jest: 130,
-  vitest: 106,
+  // B13d's `mod-shared-dep` 7 under Jest and 8 under Vitest, and `mod-shared-dep-root` 3 under each.
+  jest: 140,
+  vitest: 117,
 }
 
 /**
@@ -82,8 +83,11 @@ const EXPECTED_DISAGREEING: Readonly<
   // `import()` cases, which differ from the golden under any engine), wrong-values +8 (3, 1, 2, 2).
   // B17c's `mod-automock-no-metadata` adds 1 to the Jest inert count (a wrong value changes nothing in it).
   // `mod-conditions` adds 2 to Jest's inert count and 1 to its wrong-values (Vitest's cases mock nothing).
-  inert: { jest: 95, vitest: 73 },
-  'wrong-values': { jest: 81, vitest: 72 },
+  // B13d's `mod-shared-dep` and `mod-shared-dep-root` add 9 to each Jest count (6 + 3: every case
+  // whose golden shows a mock, which the broken engines don't serve) and 2 to each Vitest count
+  // (the two direct imports of a mocked package; every importer sees the real one in both goldens).
+  inert: { jest: 104, vitest: 75 },
+  'wrong-values': { jest: 90, vitest: 74 },
 }
 
 /** Per-file deadline: a hang is a real flaw, not something to retry. */

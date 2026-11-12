@@ -135,6 +135,7 @@ class Registry implements ModuleMockRegistry {
   /** `onGenerateMock`'s callbacks, in the order registered. */
   readonly #onGenerate: Array<(moduleId: string, moduleMock: unknown) => unknown> = []
   #automock: boolean
+  #generation = 0
   #disposed = false
 
   constructor(options: ModuleMockRegistryOptions) {
@@ -148,6 +149,7 @@ class Registry implements ModuleMockRegistry {
 
   register(specifier: string, spec: MockSpec, options: RegisterOptions): void {
     this.#live()
+    this.#generation++
     const targets = this.#identify(specifier, options.from, options.virtual === true, spec)
     const [primary] = targets
     if (primary === undefined) return
@@ -177,11 +179,7 @@ class Registry implements ModuleMockRegistry {
     this.#live()
     // The fast path (B13c Gap 8): nothing registered, automock off and no root mock to apply, so
     // the answer is known before any lookup. A suite that mocks nothing pays this per edge.
-    if (
-      this.#entries.size === 0 &&
-      !this.#automock &&
-      (!this.#policy.rootMocksAutoApply || this.#rootMocks.isEmpty())
-    ) {
+    if (!this.active()) {
       return NOT_MOCKED
     }
     const entry = this.#entries.get(resolvedId)
@@ -217,6 +215,20 @@ class Registry implements ModuleMockRegistry {
       }
     }
     return NOT_MOCKED
+  }
+
+  active(): boolean {
+    this.#live()
+    return (
+      this.#entries.size > 0 ||
+      this.#automock ||
+      (this.#policy.rootMocksAutoApply && !this.#rootMocks.isEmpty())
+    )
+  }
+
+  generation(): number {
+    this.#live()
+    return this.#generation
   }
 
   decideUnresolved(specifier: string, importer: string): MockDecision {
@@ -301,6 +313,7 @@ class Registry implements ModuleMockRegistry {
   onResetModules(): void {
     this.#live()
     if (this.#policy.resetModulesClearsMocks) {
+      this.#generation++
       this.#entries.clear()
       this.#canonical.clear()
       this.#manual.clear()
@@ -318,6 +331,7 @@ class Registry implements ModuleMockRegistry {
 
   setAutomock(enabled: boolean): void {
     this.#live()
+    this.#generation++
     this.#automock = enabled
   }
 

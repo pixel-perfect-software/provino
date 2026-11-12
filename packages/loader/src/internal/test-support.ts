@@ -14,6 +14,7 @@ import type {
   FileRegistryOptions,
   HoistPolicy,
   Loader,
+  LoaderOptions,
   ModuleId,
   ModuleMockRegistry,
   ModulePolicy,
@@ -76,6 +77,7 @@ export const JESTISH: ModulePolicy = {
   missingFactoryExport: 'undefined',
   mockValueOwner: 'module-registry',
   mockResolveKind: 'require',
+  mocksReachShared: true,
 }
 
 /** Vitest's: a factory is a namespace and awaited, the actual module comes through `import`. */
@@ -89,12 +91,20 @@ export const VITESTISH: ModulePolicy = {
   missingFactoryExport: 'undefined',
   mockValueOwner: 'registration',
   mockResolveKind: 'import',
+  mocksReachShared: false,
   automockShape: 'deep',
 }
 
 export function loaderFor(
   root: string,
-  options: { readonly policy?: Partial<ModulePolicy>; readonly hoist?: HoistPolicy | null } = {},
+  options: {
+    readonly policy?: Partial<ModulePolicy>
+    readonly hoist?: HoistPolicy | null
+    readonly graphCache?: string | null
+    readonly lockfileHash?: string | null
+    readonly inlineBudget?: number
+    readonly onWarning?: LoaderOptions['onWarning']
+  } = {},
 ): Loader {
   return createLoader({
     root,
@@ -114,6 +124,10 @@ export function loaderFor(
     }),
     policy: { ...JESTISH, ...options.policy },
     moduleScope: { names: ['mocker'] },
+    ...(options.graphCache === undefined ? {} : { graphCache: options.graphCache }),
+    ...(options.lockfileHash === undefined ? {} : { lockfileHash: options.lockfileHash }),
+    ...(options.inlineBudget === undefined ? {} : { inlineBudget: options.inlineBudget }),
+    ...(options.onWarning === undefined ? {} : { onWarning: options.onWarning }),
   })
 }
 
