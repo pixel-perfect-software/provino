@@ -146,6 +146,24 @@ export function projectCacheKey(project: ResolvedProject): string {
 }
 
 /**
+ * Gives each file that more than one project of the run runs (two projects sharing a root and
+ * matching the same file) a `runPath` that names its project, so a reporter keyed by path (the
+ * normalized-json ids) keeps one entry per run of it.
+ */
+function qualifyDuplicatePaths(queue: readonly QueuedFile[]): QueuedFile[] {
+  const counts = new Map<string, number>()
+  for (const { info } of queue) {
+    const key = info.runPath ?? info.path
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return queue.map((entry) => {
+    const key = entry.info.runPath ?? entry.info.path
+    if ((counts.get(key) ?? 0) < 2) return entry
+    return { ...entry, info: { ...entry.info, runPath: `${key}#${entry.member.identity}` } }
+  })
+}
+
+/**
  * Every test file the project has: by the dialect reader's rules when it gave some, else by the
  * config's `include` and `exclude` globs.
  * @public
@@ -548,8 +566,10 @@ export async function runProjects(
     }
 
     // Project by project, in the config's order: workers change project only at a boundary.
-    queue = found.flatMap(({ member, everything, discovered }) =>
-      planQueue(member, everything, discovered, runRoot),
+    queue = qualifyDuplicatePaths(
+      found.flatMap(({ member, everything, discovered }) =>
+        planQueue(member, everything, discovered, runRoot),
+      ),
     )
 
     announced = true

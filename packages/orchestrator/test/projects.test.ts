@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
 import { fileIdOf, OrchestratorError, runProjects } from '@provino/orchestrator'
-import { createReporterBus } from '@provino/reporters'
+import { createReporterBus, normalizedJsonReporter } from '@provino/reporters'
 import type { Reporter } from '@provino/types'
 import { Collect, runtimeProject, trackedProjects } from './support.ts'
 
@@ -181,6 +181,38 @@ describe('runProjects over forks', () => {
     assert.notEqual(seen.queued[0]?.fileId, seen.queued[1]?.fileId)
     const lines = readFileSync(join(dir.dir, 'seen.txt'), 'utf8').trim().split('\n').sort()
     assert.deepEqual(lines, ['a', 'none'])
+  })
+
+  it('normalized-json keeps one entry per project when two projects run the same file', async () => {
+    const dir = await makeProject({ 'same.test.js': passing('same') })
+    const first = runtimeProject(dir.dir, { name: 'one' })
+    const second = runtimeProject(dir.dir, { name: 'two' })
+    let text = ''
+    const summary = await runProjects([first, second], {
+      bus: createReporterBus([
+        normalizedJsonReporter({
+          stream: {
+            write: (chunk: string) => {
+              text += chunk
+            },
+          },
+          suite: 's',
+          runner: 'provino:test',
+          runnerVersion: '0',
+        }),
+      ]),
+      cache: false,
+      stderr: new Collect(),
+      pool: { kind: 'forks', maxWorkers: 2 },
+    })
+    assert.equal(summary.reason, 'passed')
+    const run = JSON.parse(text) as {
+      files: { file: string; tests: { id: { file: string } }[] }[]
+    }
+    assert.equal(run.files.length, 2)
+    assert.equal(new Set(run.files.map((file) => file.file)).size, 2)
+    const ids = run.files.flatMap((file) => file.tests.map((test) => JSON.stringify(test.id)))
+    assert.equal(new Set(ids).size, ids.length)
   })
 
   it('no project is ORCH_NO_PROJECTS, before the bus hears of anything', async () => {
