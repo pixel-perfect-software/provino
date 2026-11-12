@@ -5,7 +5,7 @@ import { statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createBehaviourLoader } from '@provino/policy'
 import { createResolver } from '@provino/resolver'
-import { createPipeline } from '@provino/transform'
+import { createJestHost, createPipeline } from '@provino/transform'
 import type {
   Loader,
   ModuleMapper,
@@ -74,8 +74,9 @@ function buildMapper(
 /**
  * Creates the worker's loader for one project. `config.mappers` are loaded by `ModuleRef` first,
  * which is why this is async. Mock hoisting follows `config.hoist` (the dialect's policy, by
- * value), and every module's wrapper declares `config.moduleScope`'s names. The transform cache is
- * off until T3.6.
+ * value), and every module's wrapper declares `config.moduleScope`'s names. `config.transform`'s
+ * transformers are loaded here, in the worker, from their own paths (T3.8); a file one of them
+ * matches goes through it, every other file through Oxc. The transform cache is off until T3.6.
  * @public
  */
 export async function createProjectLoader(
@@ -91,6 +92,10 @@ export async function createProjectLoader(
       buildMapper(await behaviours.load(mapper.factory), mapper.options, index),
     ),
   )
+  const transformers =
+    config.transform === undefined || config.transform.rules.length === 0
+      ? undefined
+      : await createJestHost(config.transform)
   return createLoader({
     root,
     engine: 'runner',
@@ -106,9 +111,17 @@ export async function createProjectLoader(
       tsconfig,
       hoist: config.hoist,
       cache: false,
+      ...(transformers === undefined ? {} : { transformers }),
     }),
     policy,
     conditions: config.conditions,
-    ...(config.moduleScope.length === 0 ? {} : { moduleScope: { names: config.moduleScope } }),
+    ...(config.moduleScope.length === 0
+      ? {}
+      : {
+          moduleScope: {
+            names: config.moduleScope,
+            runnerModules: config.hoist?.runnerModules ?? [],
+          },
+        }),
   })
 }

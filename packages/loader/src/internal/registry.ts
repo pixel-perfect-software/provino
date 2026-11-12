@@ -36,6 +36,7 @@ import {
   setResolved,
   type Target,
   targetOfId,
+  toModuleId,
 } from './records.ts'
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
@@ -280,6 +281,16 @@ export class Registry {
 
   /** A `require` from `importer` (from `record`, whose linked targets it reuses), through the mock decision. */
   requireFrom(specifier: string, importer: string, record?: ModuleRecord): unknown {
+    const scope = this.#state.options.moduleScope
+    if (scope?.runnerModules?.includes(specifier) === true) {
+      const values = this.context.scope?.(toModuleId(record?.path ?? importer)) ?? {}
+      return Object.fromEntries(
+        scope.names.map((name) => [
+          name,
+          Object.hasOwn(values, name) ? values[name] : Reflect.get(globalThis, name),
+        ]),
+      )
+    }
     const target =
       record === undefined
         ? resolveOrMissing(this.#state, specifier, importer, 'require')

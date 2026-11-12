@@ -73,6 +73,9 @@ export function assertWorkerConfig(config: SerializedProjectConfig): void {
   if (config.globals !== null) checkRef(config.globals, 'globals')
   if (config.moduleScope !== null) checkRef(config.moduleScope, 'moduleScope')
   checkRef(config.environment, 'environment')
+  config.loader.transform?.rules.forEach((rule, index) => {
+    checkRef(rule.transformer, `loader.transform.rules[${index}].transformer`)
+  })
   try {
     structuredClone(config)
   } catch (cause) {

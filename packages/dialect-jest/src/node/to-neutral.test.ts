@@ -206,7 +206,8 @@ test('keys read but not applied yet warn, naming the task (gap 9)', async () => 
   })
   const { neutral } = await readNeutral(root)
   const messages = neutral.diagnostics.map((d) => d.message)
-  assert.ok(messages.some((m) => m.startsWith('Jest config key "transform"') && m.includes('T3.8')))
+  // T3.8 applies `transform`: it is no longer a warning.
+  assert.ok(!messages.some((m) => m.startsWith('Jest config key "transform"')))
   assert.ok(
     messages.some((m) => m.startsWith('Jest config key "moduleNameMapper"') && m.includes('T3.3')),
   )
@@ -287,4 +288,28 @@ test('jestNodeDialect is jestDialect with the reader', async () => {
   assert.equal(jestNodeDialect.globals, jestDialect.globals)
   assert.ok(jestNodeDialect.configReader !== undefined)
   assert.ok(jestNodeDialect.configReader.candidates.includes('jest.config.ts'))
+})
+
+test('the default babel-jest transform stays on the Oxc path: no entries, no config, no marker', async () => {
+  const root = tree({ 'jest.config.js': 'module.exports = {}\n' })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.deepEqual(project?.transforms, [])
+  assert.equal(project?.transformConfig, undefined)
+  assert.equal(project?.transformHoistedMarkers, undefined)
+})
+
+test('a named transform carries the project config as JSON and the hoisted marker', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = { transform: { '\\\\.ts$': ['<rootDir>/t.js', { a: 1 }] } }\n`,
+    't.js': '',
+  })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.equal(project?.transforms.length, 1)
+  assert.equal(project?.transformConfig?.rootDir, project?.rootDir)
+  assert.equal(project?.transformConfig?.cwd, project?.rootDir)
+  assert.deepEqual(project?.transformHoistedMarkers, ['_getJestObj'])
+  // It must clone, since it crosses to a worker.
+  assert.deepEqual(structuredClone(project?.transformConfig), project?.transformConfig)
 })

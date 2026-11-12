@@ -12,6 +12,7 @@ Loads a project's config file and resolves it into everything the coordinator an
 | `src/internal/input.ts` | `parseInput` (one `optional(input, key, expected, guard)` per key), plus the shared `isString`, `isStringArray`, `messageOf`: checks each key `resolveProject` reads (`CONFIG_INVALID`) and refuses `projects`, `plugins`, `alsoServe` when non-empty (`CONFIG_UNSUPPORTED`, naming T1.4) |
 | `src/internal/dialect.ts` | `selectDialect` (by name, else by `detect`), `dialectPolicy` (a factory gets `config[name]`, checked by the dialect's Standard Schema first) |
 | `src/internal/refs.ts` | `assertWorkerConfig`: the finished `SerializedProjectConfig` is checked before `resolveProject` returns it (see "Refs") |
+| `src/internal/transform.ts` | `resolveTransforms`: a neutral project's `transforms`, `transformIgnorePatterns`, `transformConfig` and `transformHoistedMarkers` as `loader.transform` (`SerializedTransformConfig`, T3.8), or `undefined` for none. Each rule's `module` stays an absolute path or `file:` URL; a bare name resolves from the project's root (`createRequire`, `CONFIG_INVALID` naming `transform[i]` when it can't); a pattern that isn't a regular expression is `CONFIG_INVALID` (`transform[i].pattern`, `transformIgnorePatterns[i]`). `assertWorkerConfig` checks each `transformer` ref like the others |
 | `src/internal/setup-files.ts` | `resolveSetupFiles`: `setupFiles` entries to absolute paths, each checked to be a file |
 | `src/internal/test-support.ts` | Temp dirs and `rejectsWith`, for the tests |
 

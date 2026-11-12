@@ -119,9 +119,6 @@ export function jestProjectToNeutral(
       `; "${environment}" is not a built-in environment yet`,
     )
   }
-  if (!isDefaultTransform(project.transform)) {
-    notApplied(diagnostics, 'transform', 'T3.8', "; Provino's own transform runs instead")
-  }
   if (project.moduleNameMapper.length > 0) notApplied(diagnostics, 'moduleNameMapper', 'T3.3')
   if (project.resolver !== undefined) notApplied(diagnostics, 'resolver', 'T3.3')
   if (project.modulePaths !== undefined && project.modulePaths.length > 0) {
@@ -145,11 +142,16 @@ export function jestProjectToNeutral(
     pattern,
     targets: typeof target === 'string' ? [target] : [...target],
   }))
-  const transforms: NeutralTransform[] = project.transform.map(([pattern, module, options]) => ({
-    pattern,
-    module,
-    options: jsonObject(options, `transform["${pattern}"]`, diagnostics),
-  }))
+  // Jest's default `babel-jest` entry, with no options, stays Provino's own Oxc transform (D7: a
+  // project that names no transformer gets the faster one). Any transform the config names itself
+  // runs as Jest runs it (T3.8), `babel-jest` included.
+  const transforms: NeutralTransform[] = isDefaultTransform(project.transform)
+    ? []
+    : project.transform.map(([pattern, module, options]) => ({
+        pattern,
+        module,
+        options: jsonObject(options, `transform["${pattern}"]`, diagnostics),
+      }))
   const mock = {
     between: {
       clear: project.clearMocks,
@@ -217,6 +219,16 @@ export function jestProjectToNeutral(
     aliases,
     transforms,
     transformIgnorePatterns: [...project.transformIgnorePatterns],
+    // What a transformer reads as `config`: the project config as JSON (ts-jest reads `rootDir`,
+    // `cwd`, `globals` and `testMatch` from it). Nothing in a normalized config fails to clone.
+    ...(transforms.length === 0
+      ? {}
+      : {
+          transformConfig: jsonObject(project, 'transformConfig', []),
+          // babel-plugin-jest-hoist 30.5.0 writes `_getJestObj` into every file it hoists in
+          // (recorded in `packages/transform/src/jest-host/host.test.ts`'s fixture).
+          transformHoistedMarkers: ['_getJestObj'],
+        }),
     snapshotSerializers: [...project.snapshotSerializers],
     policy,
   }

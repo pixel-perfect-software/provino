@@ -16,12 +16,14 @@ import type {
   PolicyOverrides,
   ProvinoConfigInput,
   SerializedProjectConfig,
+  SerializedTransformConfig,
 } from '@provino/types'
 import { ConfigError } from './errors.ts'
 import { dialectPolicy, selectDialect } from './internal/dialect.ts'
 import { describe, isStringArray, messageOf, parseInput } from './internal/input.ts'
 import { assertWorkerConfig } from './internal/refs.ts'
 import { resolveSetupFiles } from './internal/setup-files.ts'
+import { resolveTransforms } from './internal/transform.ts'
 
 /**
  * What `resolveProject` needs besides the config itself. The dialects and environments come from
@@ -279,6 +281,7 @@ export async function resolveNeutralProject(
       setupFilesAfterEnv: neutral.setupFilesAfterEnv,
       setupFilesAfterEnvKey: 'setupFilesAfterEnv',
       discovery: neutral.discovery,
+      transform: resolveTransforms(neutral),
     },
     { environments: options.environments, ci: options.ci },
   )
@@ -301,6 +304,8 @@ interface ProjectInput {
   /** The config key `setupFilesAfterEnv` came from, for messages. */
   readonly setupFilesAfterEnvKey: string
   readonly discovery: NeutralDiscovery | null
+  /** User transformers (T3.8); a neutral project's only, `undefined` for none. */
+  readonly transform?: SerializedTransformConfig | undefined
 }
 
 /** The steps every project shares once its input is read: policy, environment, the worker config. */
@@ -378,6 +383,7 @@ async function finishProject(
       tsconfig: 'auto',
       mappers: [],
       typescript: 'oxc',
+      ...(input.transform === undefined ? {} : { transform: input.transform }),
     },
   }
   assertWorkerConfig(config)

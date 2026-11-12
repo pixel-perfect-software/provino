@@ -14,6 +14,7 @@ import type {
   SerializedModuleMapper,
   SerializedPolicy,
   SerializedProjectConfig,
+  SerializedTransformConfig,
 } from '@provino/types'
 import { WorkerError } from '../../errors.ts'
 import { isRecord, isStringArray } from './guards.ts'
@@ -143,6 +144,34 @@ function moduleScopeRef(value: unknown): ModuleRef<ModuleScopeFactory> | null {
   return { module: moduleLocation(value.module, 'moduleScope.module'), export: value.export }
 }
 
+/** The user transformers (T3.8); the caller reads this only when the key is present. */
+function transformConfig(value: unknown): SerializedTransformConfig {
+  const transform = record(value, 'loader.transform')
+  if (!Array.isArray(transform.rules)) return invalid('loader.transform.rules', 'an array')
+  return {
+    rules: transform.rules.map((item: unknown, index) => {
+      const path = `loader.transform.rules[${index}]`
+      const rule = record(item, path)
+      if (!isModuleRef(rule.transformer)) invalid(`${path}.transformer`, 'a { module, export } ref')
+      if (!('options' in rule)) invalid(`${path}.options`, 'present (null for none)')
+      return {
+        pattern: text(rule.pattern, `${path}.pattern`),
+        transformer: {
+          module: moduleLocation(rule.transformer.module, `${path}.transformer.module`),
+          export: rule.transformer.export,
+        },
+        options: rule.options as SerializedTransformConfig['rules'][number]['options'],
+      }
+    }),
+    ignorePatterns: texts(transform.ignorePatterns, 'loader.transform.ignorePatterns'),
+    config: record(
+      transform.config,
+      'loader.transform.config',
+    ) as SerializedTransformConfig['config'],
+    hoistedMarkers: texts(transform.hoistedMarkers, 'loader.transform.hoistedMarkers'),
+  }
+}
+
 function loaderConfig(value: unknown): SerializedLoaderConfig {
   const loader = record(value, 'loader')
   const { tsconfig, typescript } = loader
@@ -162,6 +191,7 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
     tsconfig,
     mappers: mapperList(loader.mappers),
     typescript: typescript as SerializedLoaderConfig['typescript'],
+    ...(loader.transform === undefined ? {} : { transform: transformConfig(loader.transform) }),
   }
 }
 
