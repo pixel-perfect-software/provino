@@ -410,7 +410,12 @@ function sharedMembers<J>(
       return replaceProperty(host.mockPolicy, host.mocks(), object, key, value)
     },
     setTimeout(timeout) {
-      host.setDefaultTimeout(timeout)
+      // Jest's own reading of the number: `0` and `NaN` give none, so the config's stays; a
+      // negative number is a timer of -1 ms, which fires at once, as a 1 ms deadline does (its
+      // message names 1 ms, not the negative value).
+      host.setDefaultTimeout(
+        Number.isFinite(timeout) && timeout !== 0 ? Math.max(timeout, 1) : undefined,
+      )
       return self()
     },
     retryTimes() {
@@ -469,6 +474,10 @@ function moduleJest(host: JestGlobalsHost, isolating: Isolating, from: string): 
     host.registry().unregisterMock(name, parent)
     return jest
   }
+  const setAutomock = (on: boolean): JestModuleObject => {
+    host.moduleMocks().setAutomock(on)
+    return jest
+  }
   // Jest's own object lists its keys alphabetically (recorded: `mocking/api-surface`), so this one does too.
   const jest: JestModuleObject = withSortedKeys({
     ...sharedMembers<JestModuleObject>(host, isolating, () => jest),
@@ -483,14 +492,8 @@ function moduleJest(host: JestGlobalsHost, isolating: Isolating, from: string): 
       host.registry().registerMock(name, parent, { kind: 'unmock', deep: true }, { hoisted: true })
       return jest
     },
-    autoMockOn() {
-      host.moduleMocks().setAutomock(true)
-      return jest
-    },
-    autoMockOff() {
-      host.moduleMocks().setAutomock(false)
-      return jest
-    },
+    autoMockOn: () => setAutomock(true),
+    autoMockOff: () => setAutomock(false),
     onGenerateMock<T>(callback: (moduleName: string, moduleMock: T) => T) {
       host
         .moduleMocks()
@@ -509,14 +512,8 @@ function moduleJest(host: JestGlobalsHost, isolating: Isolating, from: string): 
     requireMock: <T>(name: string): T => host.moduleMocks().mockFor(name, from) as T,
     createMockFromModule: <T>(name: string): T =>
       host.moduleMocks().createMockFromModule(name, from) as T,
-    enableAutomock() {
-      host.moduleMocks().setAutomock(true)
-      return jest
-    },
-    disableAutomock() {
-      host.moduleMocks().setAutomock(false)
-      return jest
-    },
+    enableAutomock: () => setAutomock(true),
+    disableAutomock: () => setAutomock(false),
   })
   return jest
 }

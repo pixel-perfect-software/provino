@@ -87,3 +87,18 @@ test('a built-in a test replaced on the global is back after teardown', async ()
     })
   }
 })
+
+test('an assignment to a closure-backed accessor (`performance`) does not reach the next file', async () => {
+  const { Class } = environmentClass()
+  const original = global.performance
+  const fake = { now: () => 0 }
+  const instance = await fromJestEnvironment(Class).setup(context(), undefined)
+  global.performance = fake
+  try {
+    assert.equal(global.performance, fake, 'the file sees its own value')
+    await instance.teardown()
+    assert.equal(global.performance, original, 'the next file sees the original')
+  } finally {
+    global.performance = original
+  }
+})

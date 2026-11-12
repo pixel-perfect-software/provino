@@ -8,6 +8,8 @@
 import { KEYS } from './vendor/vitest/jsdom-keys.ts'
 
 const SKIP_KEYS: readonly string[] = ['window', 'self', 'top', 'parent']
+/** The vendored keys as a set: `windowKeys` tests membership for every key of a window. */
+const VENDORED_KEYS: ReadonlySet<string> = new Set(KEYS)
 
 /**
  * @public
@@ -57,12 +59,12 @@ function windowKeys(
   win: Loose,
   additionalKeys: readonly string[],
 ): ReadonlySet<string> {
-  const keysArray = [...additionalKeys, ...KEYS]
+  const additional = new Set(additionalKeys)
   const keys = new Set<string>()
-  for (const key of keysArray.concat(Object.getOwnPropertyNames(win))) {
+  for (const key of [...additional, ...KEYS, ...Object.getOwnPropertyNames(win)]) {
     if (SKIP_KEYS.includes(key)) continue
     if (key in global) {
-      if (keysArray.includes(key)) keys.add(key)
+      if (additional.has(key) || VENDORED_KEYS.has(key)) keys.add(key)
       continue
     }
     keys.add(key)

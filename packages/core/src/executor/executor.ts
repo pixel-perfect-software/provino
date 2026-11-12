@@ -675,10 +675,9 @@ export class Executor {
     return found
   }
 
-  /** A test's timeout: its own, else the file's default (`jest.setTimeout`), else the policy's. */
+  /** A test's timeout: its own, else the file's default (`setDefaultTimeout`), else the policy's. */
   #testTimeout(test: TestNode): number {
-    const { ms } = this.#config.defaults
-    return test.defaultTimeout && ms !== undefined ? ms : test.timeoutMs
+    return test.timeoutMs ?? this.#config.defaults.ms ?? this.#policy.timeouts.test
   }
 
   /** A hook's timeout when it names none: the file's default, else the policy's. */

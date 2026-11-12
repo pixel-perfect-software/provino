@@ -20,10 +20,11 @@ import {
   installMatchersSlot,
 } from '@provino/expect'
 import { createMockRegistry, type MockRegistry } from '@provino/mock'
-import { createBehaviourLoader, neutralPolicy } from '@provino/policy'
+import { createBehaviourLoader } from '@provino/policy'
 import type { CorePolicy, ExpectPolicy, RuntimeEvent } from '@provino/types'
 import { type ExpectTest, summarizeExpectRun } from '../expect-corpus/run-expect.ts'
 import { installGlobals } from '../internal/globals.ts'
+import { unusedJestHost } from '../mock-corpus/run-mock.ts'
 
 /** The slices a run is under: the Jest and Vitest dialects' own, or a flipped one. */
 export interface PolicyRun {
@@ -88,23 +89,8 @@ export async function runPolicyFile(
       ...runtime.api,
       expect,
       jest: jestGlobals({
-        api: runtime.api,
+        ...unusedJestHost(runtime.api, mockRegistry, jestMockPolicy, 'the policy corpus'),
         expect,
-        registry: () => {
-          throw new Error('the policy corpus does not use the module registry')
-        },
-        mocks: () => mockRegistry,
-        moduleMocks: () => {
-          throw new Error('the policy corpus does not use the module-mock registry')
-        },
-        mockPolicy: jestMockPolicy,
-        timers: () => {
-          throw new Error('the policy corpus does not use the fake clock')
-        },
-        timersPolicy: neutralPolicy.timers,
-        seed: 0,
-        environmentTornDown: () => false,
-        setDefaultTimeout: () => {},
       }).jest,
     })
     const stopProcessErrors = runtime.captureProcessErrors()

@@ -2,9 +2,9 @@
 // does not build a global: test code sees the worker's own, and the file's changes to it are
 // undone when the file ends. Realm `context` (a vm context with Node's globals) needs the `realm`
 // isolation tier, T2.8.
+import { snapshotProperties } from '@provino/env-shared'
 import type { Environment, EnvironmentInstance, EnvironmentTeardownReport } from '@provino/types'
 import { NodeEnvironmentError } from './errors.ts'
-import { snapshotProperties } from './internal/restore.ts'
 
 /**
  * The Node test environment.

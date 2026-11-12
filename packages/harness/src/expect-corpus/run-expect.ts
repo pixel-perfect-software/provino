@@ -15,7 +15,7 @@ import {
   type TestRun,
 } from '@provino/expect'
 import { createMockRegistry, type MockRegistry } from '@provino/mock'
-import { createBehaviourLoader, neutralPolicy } from '@provino/policy'
+import { createBehaviourLoader } from '@provino/policy'
 import type {
   CorePolicy,
   ExpectPolicy,
@@ -26,6 +26,7 @@ import type {
   TestTask,
 } from '@provino/types'
 import { installGlobals } from '../internal/globals.ts'
+import { unusedJestHost } from '../mock-corpus/run-mock.ts'
 import { type Reported, reported } from '../runtime-corpus/run-core.ts'
 
 /** One failure of a test: what Jest's JSON holds for it. */
@@ -100,23 +101,8 @@ export async function runExpectFile(
       ...runtime.api,
       expect,
       jest: jestGlobals({
-        api: runtime.api,
+        ...unusedJestHost(runtime.api, mockRegistry, jestMockPolicy, 'the expect corpus'),
         expect,
-        registry: () => {
-          throw new Error('the expect corpus does not use the module registry')
-        },
-        mocks: () => mockRegistry,
-        moduleMocks: () => {
-          throw new Error('the expect corpus does not use the module-mock registry')
-        },
-        mockPolicy: jestMockPolicy,
-        timers: () => {
-          throw new Error('the expect corpus does not use the fake clock')
-        },
-        timersPolicy: neutralPolicy.timers,
-        seed: 0,
-        environmentTornDown: () => false,
-        setDefaultTimeout: () => {},
       }).jest,
     })
     try {

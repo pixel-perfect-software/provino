@@ -5,7 +5,7 @@
 // apply yet warn, naming the task that builds them (gap 9 of `bundles/B14.md`: nothing is ignored
 // silently).
 
-import { delimiter, isAbsolute, resolve } from 'node:path'
+import { delimiter, resolve } from 'node:path'
 import type {
   Diagnostic,
   JsonValue,
@@ -15,7 +15,7 @@ import type {
   PolicyOverrides,
 } from '@provino/types'
 import { hasBabelConfig } from './babel-config.ts'
-import { jestDefaultCacheDirectory } from './normalize.ts'
+import { type JestRequireResolve, projectJestRequireResolve } from './resolution.ts'
 import type { JestGlobalConfig, JestProjectConfig } from './types.ts'
 
 /** The default transform `normalize` injects: `babel-jest` for `\.[jt]sx?$`. */
@@ -94,8 +94,8 @@ function notApplied(diagnostics: Diagnostic[], key: string, owner: string, detai
 }
 
 /** The `NODE_PATH` directories, absolute against `cwd`, as jest-resolve reads them. */
-function nodePathEntries(cwd: string): string[] {
-  return (process.env.NODE_PATH ?? '')
+function nodePathEntries(cwd: string, env: NodeJS.ProcessEnv): string[] {
+  return (env.NODE_PATH ?? '')
     .split(delimiter)
     .filter((entry) => entry !== '')
     .map((entry) => resolve(cwd, entry))
@@ -112,6 +112,16 @@ function isDefaultTransform(transform: JestProjectConfig['transform']): boolean 
   )
 }
 
+/** What `jestProjectToNeutral` needs besides the normalized config. */
+export interface ToNeutralOptions {
+  /** Whether the config named a `cacheDirectory`, so it is the user's (D70). Default: no. */
+  readonly cacheDirectorySet?: boolean
+  /** The variables Jest reads (`NODE_PATH`). Default: `process.env`. */
+  readonly env?: NodeJS.ProcessEnv
+  /** Where Jest's own packages resolve from. Default: the project's own Jest. */
+  readonly requireResolve?: JestRequireResolve
+}
+
 /**
  * One normalized project as a `NeutralProject`, with a warning for each key it reads but doesn't
  * apply yet. `globalConfig` is the run's (`passWithNoTests`, `maxConcurrency`, the global-only keys).
@@ -120,8 +130,17 @@ function isDefaultTransform(transform: JestProjectConfig['transform']): boolean 
 export function jestProjectToNeutral(
   project: JestProjectConfig,
   globalConfig: JestGlobalConfig,
+  options: ToNeutralOptions = {},
 ): { readonly project: NeutralProject; readonly diagnostics: readonly Diagnostic[] } {
   const diagnostics: Diagnostic[] = []
+  // Each JSON view of the config once, so a value that can't be cloned warns once.
+  const testEnvironmentOptions = jsonObject(
+    project.testEnvironmentOptions,
+    'testEnvironmentOptions',
+    diagnostics,
+  )
+  const globalValues = jsonObject(project.globals, 'globals', diagnostics)
+  const fakeTimers = jsonObject(project.fakeTimers, 'fakeTimers', diagnostics)
   // Decision D44: `jest-environment-node` is the built-in `node`; every other environment, jsdom
   // included, is the project's own Jest environment class, named by its path and run through the
   // adapter (`jestEnvironment`), so the DOM is the one Jest would build.
@@ -149,7 +168,9 @@ export function jestProjectToNeutral(
   // a Babel config (D68) it runs as Jest runs it, plugins and presets included, as does any
   // transform the config names itself (T3.8).
   const implicit = isDefaultTransform(project.transform)
-  const babelJestResolved = isAbsolute(project.transform[0]?.[1] ?? '')
+  const babelJestResolved =
+    (options.requireResolve ?? projectJestRequireResolve(project.rootDir))('babel-jest') !==
+    undefined
   const withBabel = implicit && hasBabelConfig(project.rootDir)
   // A project that dropped Jest for Provino may keep a Babel config for its app build while no
   // `babel-jest` resolves: the implicit entry is not worth failing the run, the Oxc path runs.
@@ -244,41 +265,35 @@ export function jestProjectToNeutral(
     globalTeardown: project.globalTeardown === undefined ? [] : [project.globalTeardown],
     environment: {
       name: environment,
-      options: isNode
-        ? jsonObject(project.testEnvironmentOptions, 'testEnvironmentOptions', diagnostics)
-        : {
-            module: project.testEnvironment,
-            // What a Jest environment class reads of `projectConfig`.
-            projectConfig: {
-              rootDir: project.rootDir,
-              cwd: project.cwd,
-              testEnvironment: project.testEnvironment,
-              testEnvironmentOptions: jsonObject(
-                project.testEnvironmentOptions,
-                'testEnvironmentOptions',
-                diagnostics,
-              ),
-              globals: jsonObject(project.globals, 'globals', diagnostics),
-              fakeTimers: jsonObject(project.fakeTimers, 'fakeTimers', diagnostics),
-              injectGlobals: project.injectGlobals,
-            },
-          },
+      // One shape for every environment: the adapter's class (absent for the built-in `node`) and
+      // what a Jest environment class reads of `projectConfig`.
+      options: {
+        ...(isNode ? {} : { module: project.testEnvironment }),
+        projectConfig: {
+          rootDir: project.rootDir,
+          cwd: project.cwd,
+          testEnvironment: project.testEnvironment,
+          testEnvironmentOptions,
+          globals: globalValues,
+          fakeTimers,
+          injectGlobals: project.injectGlobals,
+        },
+      },
     },
     aliases,
-    globalValues: jsonObject(project.globals, 'globals', diagnostics),
+    globalValues,
     // What every install is layered over (jest-runtime `useFakeTimers`: `{...config.fakeTimers, ...own}`).
-    fakeTimers: jsonObject(
-      Object.fromEntries(
-        Object.entries(project.fakeTimers).filter(([key]) => key !== 'enableGlobally'),
-      ),
-      'fakeTimers',
-      diagnostics,
+    fakeTimers: Object.fromEntries(
+      Object.entries(fakeTimers).filter(([key]) => key !== 'enableGlobally'),
     ),
     seed: globalConfig.seed,
     resolution: {
       moduleDirectories: [...project.moduleDirectories],
       // Jest's resolver searches `NODE_PATH` before `modulePaths` (`jest-resolve` `Resolver`).
-      modulePaths: [...nodePathEntries(project.cwd), ...(project.modulePaths ?? [])],
+      modulePaths: [
+        ...nodePathEntries(project.cwd, options.env ?? process.env),
+        ...(project.modulePaths ?? []),
+      ],
       ...(project.resolver === undefined ? {} : { resolver: project.resolver }),
     },
     transforms,
@@ -295,9 +310,7 @@ export function jestProjectToNeutral(
         }),
     snapshotSerializers: [...project.snapshotSerializers],
     // Jest's `/tmp/jest_*` default is not Provino's to use (D70); a directory the config chose is.
-    ...(project.cacheDirectory === jestDefaultCacheDirectory()
-      ? {}
-      : { cacheDirectory: project.cacheDirectory }),
+    ...(options.cacheDirectorySet === true ? { cacheDirectory: project.cacheDirectory } : {}),
     policy,
   }
   return { project: neutral, diagnostics }

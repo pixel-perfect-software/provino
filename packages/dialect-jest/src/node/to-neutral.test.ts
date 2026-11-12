@@ -86,10 +86,14 @@ test('a plain config: discovery, setup files, environment and policy keys', asyn
   })
   assert.deepEqual(project.setupFiles, [join(root, 'before.js')])
   assert.deepEqual(project.setupFilesAfterEnv, [join(root, 'after.js')])
-  assert.deepEqual(project.environment, {
-    name: 'node',
-    options: { customExportConditions: ['node'] },
-  })
+  assert.equal(project.environment.name, 'node')
+  // One shape for every environment: the options live under `projectConfig`; no `module` for `node`.
+  assert.equal('module' in project.environment.options, false)
+  assert.deepEqual(
+    (project.environment.options.projectConfig as { testEnvironmentOptions: unknown })
+      .testEnvironmentOptions,
+    { customExportConditions: ['node'] },
+  )
   const policy = resolvePolicy(project.policy)
   assert.equal(policy.core.timeouts.test, 1234)
   assert.equal(policy.core.injectGlobals, false)
@@ -276,7 +280,12 @@ test('the neutral project resolves to a worker config through @provino/config', 
   assert.equal(resolved.isolation, 'registry')
   assert.deepEqual(resolved.config.setupFiles, [join(root, 'before.js')])
   assert.deepEqual(resolved.config.setupFilesAfterEnv, [join(root, 'after.js')])
-  assert.deepEqual(resolved.config.environment.options, { a: 1 })
+  // One shape for every environment: the options live under `projectConfig`.
+  assert.deepEqual(
+    (resolved.config.environment.options.projectConfig as { testEnvironmentOptions: unknown })
+      .testEnvironmentOptions,
+    { a: 1 },
+  )
   assert.equal(resolved.policy.mock.between.clear, true)
   assert.deepEqual(resolved.discovery, project.discovery)
   assert.ok(resolved.config.globals !== null)

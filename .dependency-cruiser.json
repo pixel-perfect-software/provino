@@ -394,7 +394,7 @@
     },
     {
       "name": "boundary-env-node",
-      "comment": "@provino/env-node (layer 3, runs in worker) may import only: @provino/types.",
+      "comment": "@provino/env-node (layer 3, runs in worker) may import only: @provino/env-shared, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/env-node/"
@@ -404,7 +404,9 @@
         "pathNot": [
           "^packages/env-node/",
           "^packages/types/",
-          "^@provino/types$"
+          "^@provino/types$",
+          "^packages/env-shared/",
+          "^@provino/env-shared$"
         ]
       }
     },

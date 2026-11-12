@@ -195,7 +195,7 @@ export function timerHost(
   timersPolicy: TimersPolicy
   seed: number
   environmentTornDown: () => boolean
-  setDefaultTimeout: (ms: number) => void
+  setDefaultTimeout: (ms: number | undefined) => void
 } {
   const timersPolicy = resolvePolicy(jestPolicy).timers
   const clock = createFakeClock(global, timersPolicy, options)

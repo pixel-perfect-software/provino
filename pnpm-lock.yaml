@@ -607,6 +607,9 @@ importers:
 
   packages/env-node:
     dependencies:
+      '@provino/env-shared':
+        specifier: workspace:*
+        version: link:../env-shared
       '@provino/types':
         specifier: workspace:*
         version: link:../types

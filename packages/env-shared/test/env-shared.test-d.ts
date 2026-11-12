@@ -1,5 +1,11 @@
 // The public API of @provino/env-shared.
-import { type Populated, type PopulateOptions, populateGlobal } from '@provino/env-shared'
+import {
+  type Populated,
+  type PopulateOptions,
+  type PropertySnapshot,
+  populateGlobal,
+  snapshotProperties,
+} from '@provino/env-shared'
 import { expectTypeOf } from 'expect-type'
 
 expectTypeOf(populateGlobal).parameter(0).toEqualTypeOf<object>()
@@ -22,3 +28,10 @@ populateGlobal(globalThis, 1)
 populateGlobal(globalThis, {}, ['window'])
 // @ts-expect-error: the key list is readonly strings
 populateGlobal(globalThis, {}, { additionalKeys: [1] })
+
+expectTypeOf(snapshotProperties).parameter(0).toEqualTypeOf<object>()
+expectTypeOf(snapshotProperties).returns.toEqualTypeOf<PropertySnapshot>()
+expectTypeOf<PropertySnapshot['restore']>().toEqualTypeOf<() => readonly (string | symbol)[]>()
+
+// @ts-expect-error: a snapshot is of an object, not a primitive
+snapshotProperties(1)

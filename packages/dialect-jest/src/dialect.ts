@@ -342,20 +342,6 @@ export const jestPolicy: PolicyOverrides = {
 }
 
 /**
- * The globals Jest 30.5 injects into a test file: jest-circus's (`describe`, `it`, `test`, the
- * hooks, their `f`/`x` aliases), `expect`, and the `jest` object. `jestGlobals` returns exactly
- * these keys.
- * research: jest-circus 30.5.2 `jestAdapterInit` (`globalsObject`), read from source, not recorded
- */
-/** The specifiers the Jest dialect serves from its facades (U9). */
-const JEST_SERVED_MODULES: readonly string[] = [
-  '@jest/globals',
-  '@jest/expect',
-  'expect',
-  'jest-mock',
-]
-
-/**
  * The served specifiers a `moduleNameMapper` rule takes over. `@jest/globals` is answered before
  * the mapper (jest-runtime `requireModuleOrMock`), but `expect`, `@jest/expect` and `jest-mock` go
  * through it as any bare specifier does. Recorded: `resolve/alias-order`, `resolve/alias-jest-mock`.
@@ -365,6 +351,15 @@ const JEST_SERVED_MODULES: readonly string[] = [
  */
 const JEST_MAPPABLE_MODULES: readonly string[] = ['@jest/expect', 'expect', 'jest-mock']
 
+/** The specifiers the Jest dialect serves from its facades (U9). */
+const JEST_SERVED_MODULES: readonly string[] = ['@jest/globals', ...JEST_MAPPABLE_MODULES]
+
+/**
+ * The globals Jest 30.5 injects into a test file: jest-circus's (`describe`, `it`, `test`, the
+ * hooks, their `f`/`x` aliases), `expect`, and the `jest` object. `jestGlobals` returns exactly
+ * these keys.
+ * research: jest-circus 30.5.2 `jestAdapterInit` (`globalsObject`), read from source, not recorded
+ */
 const JEST_GLOBAL_NAMES: readonly string[] = [
   'afterAll',
   'afterEach',
