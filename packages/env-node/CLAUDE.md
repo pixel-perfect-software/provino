@@ -7,7 +7,7 @@ The Node test environment (Track 8, T8.2's node part and T8.3). Runs in the work
 | Path | Role |
 |---|---|
 | `src/environment.ts` | `nodeEnvironment`: `setup` snapshots `globalThis`, `teardown` restores it |
-| `src/internal/restore.ts` | `snapshotProperties(target)`: `restore()` returns the keys it could not restore. Generic over any object, so tests plant a non-configurable property on a plain object instead of on the real global (it can never be removed again) |
+| `@provino/env-shared`'s `src/restore.ts` | `snapshotProperties(target)` (moved there by D71, shared with the Jest adapter): `restore()` returns the keys it could not restore. Generic over any object, so tests plant a non-configurable property on a plain object instead of on the real global (it can never be removed again). The rules below describe it |
 | `src/errors.ts` | `NodeEnvironmentError` (`code`: only `ENV_NODE_REALM_UNSUPPORTED`) |
 
 ## The restore rules
@@ -22,5 +22,5 @@ The Node test environment (Track 8, T8.2's node part and T8.3). Runs in the work
 ## Tests
 
 - `src/environment.test.ts`: the T8.2 done-when on the real global. Each case runs synchronously inside `guarded`, which puts the touched keys back from descriptors the test saved itself, and the checks run before it does, so a restore that does nothing fails them. Cases: new string and symbol keys, an overwritten and a deleted builtin, a getter over a value and the reverse, `Reflect.set` over `process`, `Buffer` and `performance` (`guardedValues` assigns the old values back in a `finally`, since a descriptor cannot undo a closure), a counting closure accessor (the getter is read once, and never on a no-op), `enumerable` and `writable` flipped, a self-replacing lazy global, all of it at once. Never set `configurable: false` on a real global here: it cannot be undone. The D22 case runs in a child process for that reason.
-- `src/internal/restore.test.ts`: plain-object cases, including the unrestorable keys (returned, not thrown) and the setter wrappers (throwing getter, throwing setter, second restore).
+- `@provino/env-shared`'s `src/restore.test.ts`: plain-object cases, including the unrestorable keys (returned, not thrown) and the setter wrappers (throwing getter, throwing setter, second restore).
 - `test/env-node.test-d.ts`: the public types.

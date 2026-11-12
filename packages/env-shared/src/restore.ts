@@ -1,10 +1,10 @@
-// The property snapshot behind `nodeEnvironment`'s teardown (T8.2, node part). It works on any
-// object, so the tests can plant a non-configurable property on a plain object instead of on the
-// real global.
+// The property snapshot behind every environment's teardown (T8.2, node part; shared by
+// `nodeEnvironment` and the Jest environment adapter, D71). It works on any object, so the tests
+// can plant a non-configurable property on a plain object instead of on the real global.
 
 /**
  * An object's own properties as they were, and the way back to them.
- * @internal
+ * @public
  */
 export interface PropertySnapshot {
   /**
@@ -13,7 +13,9 @@ export interface PropertySnapshot {
    * descriptor can no longer be defined (it became non-writable and non-configurable) cannot be
    * redefined, and an accessor whose old value is unknown or refuses to take it back cannot be
    * reset. Everything else is restored whatever the leaks, and nothing here throws for them
-   * (decision D22: the caller reports the keys, it does not fail the file).
+   * (decision D22: the caller reports the keys, it does not fail the file). A non-configurable
+   * symbol that a package loaded mid-file defines once per process and never removes (graceful-fs's
+   * queue, undici's dispatchers) is not a leak and is not returned.
    *
    * Property order is not part of the contract. A key that was deleted and restored is re-added
    * after every key that was never deleted (a property cannot be inserted in the middle), so it
@@ -62,7 +64,7 @@ interface WrappedAccessor {
  * getter warns. Every other accessor is captured as an accessor and never called, and Node's
  * lazy getters that replace themselves with a value on first access are restored to the original
  * getter, which is harmless: it replaces itself again on its next access.
- * @internal
+ * @public
  */
 export function snapshotProperties(target: object): PropertySnapshot {
   const originals = new Map<string | symbol, PropertyDescriptor>()
@@ -81,7 +83,7 @@ export function snapshotProperties(target: object): PropertySnapshot {
     restore(): readonly (string | symbol)[] {
       const leaked = new Set<string | symbol>()
       for (const key of Reflect.ownKeys(target)) {
-        if (!originals.has(key) && !Reflect.deleteProperty(target, key)) leaked.add(key)
+        if (!originals.has(key) && !deleted(target, key) && !isProcessSingleton(key)) leaked.add(key)
       }
       // Before the descriptors go back: a setter that ran changed state the descriptor does not
       // show, whether or not the test later redefined or deleted the key. Emptied, so a second
@@ -98,6 +100,23 @@ export function snapshotProperties(target: object): PropertySnapshot {
       return [...leaked]
     },
   }
+}
+
+/** Whether `key` is gone from `target`; a property that cannot be deleted, or a trap that throws, is not. */
+function deleted(target: object, key: string | symbol): boolean {
+  try {
+    return Reflect.deleteProperty(target, key)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Symbols a package loaded by a test defines on the global once per process and never removes
+ * (graceful-fs's queue, undici's dispatchers). The next file's baseline holds them.
+ */
+function isProcessSingleton(key: string | symbol): boolean {
+  return typeof key === 'symbol' && /^(graceful-fs\.queue|undici\.)/.test(key.description ?? '')
 }
 
 /** Wraps the setter of every configurable accessor in `originals` that has both a getter and a setter. */

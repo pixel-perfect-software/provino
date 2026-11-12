@@ -8,7 +8,7 @@
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { populateGlobal } from '@provino/env-shared'
+import { populateGlobal, snapshotProperties } from '@provino/env-shared'
 import type {
   Environment,
   EnvironmentConditions,
@@ -31,8 +31,6 @@ export interface JestEnvironmentOptions {
   readonly module: string
   /** What Jest's `projectConfig` holds that an environment reads. */
   readonly projectConfig: { readonly [key: string]: JsonValue }
-  /** Bind the window's functions to it (happy-dom needs it; jsdom prefers it off). */
-  readonly bindFunctions?: boolean
 }
 
 /** The surface of a Jest environment class instance the adapter uses. */
@@ -84,73 +82,15 @@ function optionsOf(value: unknown): JestEnvironmentOptions {
   return value as JestEnvironmentOptions
 }
 
-/**
- * Symbols a package a Jest environment loads defines on the global once per process and never
- * removes (graceful-fs's queue, undici's dispatchers). They are not a test's leak, and the next
- * file's baseline holds them.
- */
-function isProcessSingleton(key: string | symbol): boolean {
-  return typeof key === 'symbol' && /^(graceful-fs\.queue|undici\.)/.test(key.description ?? '')
-}
-
-/** Whether two property descriptors describe the same property, as a restore needs to know. */
-function sameDescriptor(a: PropertyDescriptor, b: PropertyDescriptor): boolean {
-  return (
-    a.configurable === b.configurable &&
-    a.enumerable === b.enumerable &&
-    a.writable === b.writable &&
-    Object.is(a.value, b.value) &&
-    a.get === b.get &&
-    a.set === b.set
-  )
-}
-
-/**
- * Puts the worker's global back to `baseline` (every own key's descriptor, read before the
- * environment was built): a key the file or the class added is deleted, one that is gone or that
- * a test replaced (`fetch`, `setTimeout`, `Date`, ...) is defined again. Jest's fresh vm context
- * per file makes this unnecessary there; the worker's own global is shared by every file. A key
- * that can't be put back is returned, for the warning (D22). The same comparison `@provino/env-node`
- * makes on its restore, kept here because this package has no edge to it.
- */
-function restoreBaseline(baseline: ReadonlyMap<string | symbol, PropertyDescriptor>): string[] {
-  const failed: string[] = []
-  for (const key of Reflect.ownKeys(globalThis)) {
-    if (baseline.has(key)) continue
-    try {
-      if (!Reflect.deleteProperty(globalThis, key) && !isProcessSingleton(key)) {
-        failed.push(String(key))
-      }
-    } catch {
-      if (!isProcessSingleton(key)) failed.push(String(key))
-    }
-  }
-  for (const [key, descriptor] of baseline) {
-    const now = Object.getOwnPropertyDescriptor(globalThis, key)
-    if (now !== undefined && sameDescriptor(now, descriptor)) continue
-    try {
-      Object.defineProperty(globalThis, key, descriptor)
-    } catch {
-      failed.push(String(key))
-    }
-  }
-  return failed
-}
-
 async function setUpJest(
   context: EnvironmentSetupContext<{ readonly [key: string]: JsonValue }>,
   EnvironmentClass: JestEnvironmentClass,
   projectConfig: object,
-  bindFunctions: boolean,
 ): Promise<EnvironmentInstance> {
-  // Read every descriptor first: V8 backs some Node globals (undici's) with lazy properties whose
-  // first read adds non-configurable symbols, which would otherwise look like a leak (env-node).
-  for (const key of Reflect.ownKeys(globalThis)) Object.getOwnPropertyDescriptor(globalThis, key)
-  const baseline = new Map<string | symbol, PropertyDescriptor>()
-  for (const key of Reflect.ownKeys(globalThis)) {
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, key)
-    if (descriptor !== undefined) baseline.set(key, descriptor)
-  }
+  // Jest's fresh vm context per file makes a restore unnecessary there; the worker's own global is
+  // shared by every file, so it is put back as `nodeEnvironment` does (D71): descriptor-exact, with
+  // the closure-backed accessors (`process`, `performance`) wrapped so an assignment is undone too.
+  const snapshot = snapshotProperties(globalThis)
   const environment = new EnvironmentClass(
     { globalConfig: {}, projectConfig },
     { console: context.console, docblockPragmas: context.pragmas, testPath: context.testPath },
@@ -160,10 +100,7 @@ async function setUpJest(
     await environment.setup()
     // Only a window stands in for the global: a Node or edge environment's code must not see one.
     const isWindow = 'document' in environment.global
-    populated = populateGlobal(globalThis, environment.global, {
-      bindFunctions,
-      selfReferences: isWindow,
-    })
+    populated = populateGlobal(globalThis, environment.global, { selfReferences: isWindow })
   } catch (error) {
     // Jest tears the environment down even when its setup threw: its window, timers and
     // half-defined accessors must not outlive the failed file.
@@ -173,7 +110,7 @@ async function setUpJest(
     } catch {
       // The setup's error is the one the file fails with.
     }
-    restoreBaseline(baseline)
+    snapshot.restore()
     throw error
   }
   const installed = populated
@@ -188,9 +125,9 @@ async function setUpJest(
       }
       // Whatever the class threw, the global goes back: the next file's baseline would otherwise
       // hold this one's accessors. Anything the class or the test left that differs from the
-      // baseline is put right too; a key that can't be is a warning (D22).
+      // snapshot is put right too; a key that can't be is a warning (D22).
       installed.restore()
-      const leaked = restoreBaseline(baseline)
+      const leaked = snapshot.restore().map(String)
       if (failure !== undefined) throw failure.error
       return leaked.length === 0 ? undefined : { leakedGlobals: leaked }
     },
@@ -211,12 +148,7 @@ export const jestEnvironment: Environment<'jest-environment', JestEnvironmentOpt
   },
   setup(context, prepared) {
     const options = optionsOf(context.options)
-    return setUpJest(
-      context,
-      prepared as JestEnvironmentClass,
-      options.projectConfig,
-      options.bindFunctions === true,
-    )
+    return setUpJest(context, prepared as JestEnvironmentClass, options.projectConfig)
   },
 }
 
@@ -232,7 +164,7 @@ export function fromJestEnvironment(
   return {
     name: 'jest-environment',
     realms: ['worker'],
-    setup: (context) => setUpJest(context, EnvironmentClass, projectConfig, false),
+    setup: (context) => setUpJest(context, EnvironmentClass, projectConfig),
   }
 }
 

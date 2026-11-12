@@ -204,7 +204,7 @@
       "dir": "packages/env-node",
       "layer": 3,
       "runsIn": "worker",
-      "deps": ["@provino/types"],
+      "deps": ["@provino/types", "@provino/env-shared"],
       "slices": []
     },
     "@provino/env-jsdom": {
