@@ -3,11 +3,7 @@
 import { join, resolve } from 'node:path'
 import { pruneTransformCache, type ResolvedProject, withTransformCache } from '@provino/config'
 import { serializeError } from '@provino/rpc'
-import {
-  createSnapshotAggregate,
-  resolveUpdateMode,
-  snapshotRunFails,
-} from '@provino/snapshot/node'
+import { resolveUpdateMode } from '@provino/snapshot/node'
 import type {
   FileFilter,
   FileInfo,
@@ -42,6 +38,7 @@ import { hashOf, workerKeyOf } from './key.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
 import { selectFiles } from './select.ts'
 import { createHistorySequencer } from './sequencer.ts'
+import { mergedSnapshots, snapshotMember, snapshotsFailRun } from './snapshot-members.ts'
 import { type TransportForOptions, transportFor } from './transport/for-kind.ts'
 import { describeExit } from './transport/shared.ts'
 import { messageOf } from './util.ts'
@@ -355,8 +352,12 @@ export async function runProjects(
     }
   })
   const byIdentity = new Map(members.map((member) => [member.identity, member]))
-  const snapshots = createSnapshotAggregate()
-  const updateSnapshots = members[0]?.updateSnapshots ?? 'none'
+  const snapshotMembers = new Map(
+    members.map((member) => [
+      member,
+      snapshotMember(member.updateSnapshots, member.project.policy.snapshot),
+    ]),
+  )
 
   const startedAt = performance.now()
   const stderr = options.stderr ?? process.stderr
@@ -446,13 +447,16 @@ export async function runProjects(
   const finishedFiles = (): FileResult[] => queue.flatMap((entry) => results.get(entry) ?? [])
 
   const summarize = (reason: RunSummary['reason']): RunSummary => {
-    const run = snapshots.summary(updateSnapshots)
+    const run = mergedSnapshots([...snapshotMembers.values()])
     return {
       reason,
       files: finishedFiles(),
       unhandled,
       durationMs: performance.now() - startedAt,
       ...(run === undefined ? {} : { snapshots: run }),
+      ...(run === undefined
+        ? {}
+        : { snapshotsFail: snapshotsFailRun([...snapshotMembers.values()]) }),
     }
   }
 
@@ -496,7 +500,7 @@ export async function runProjects(
         await bus.emit('file:start', entry.info, outcome.workerId)
       }
       if (outcome.type === 'done' && outcome.done.snapshot !== undefined) {
-        snapshots.add(outcome.done.snapshot, entry.file.path)
+        snapshotMembers.get(entry.member)?.aggregate.add(outcome.done.snapshot, entry.file.path)
       }
       const elapsedMs = takenAt === undefined ? 0 : performance.now() - takenAt
       const result = resultOf(entry.info, outcome, dispatch.result, elapsedMs)
@@ -590,7 +594,7 @@ export async function runProjects(
 
     const failed =
       finishedFiles().some((file) => file.state === 'fail') ||
-      snapshotRunFails(snapshots.summary(updateSnapshots), first.policy.snapshot) ||
+      snapshotsFailRun([...snapshotMembers.values()]) ||
       (orchestrator.unhandledErrors === 'fail-run' && unhandled.length > 0)
     const summary = summarize(interrupted ? 'interrupted' : failed ? 'failed' : 'passed')
     await bus.emit('run:end', summary)

@@ -49,7 +49,7 @@ export function exitCodeFor(summary: RunSummary, options: ExitCodeOptions): numb
   const passWithNoTests = options.passWithNoTests ?? orchestrator.passWithNoTests
   if (summary.files.length === 0 && !passWithNoTests) return orchestrator.exitCodes.noTests
   if (summary.files.some((file) => file.state === 'fail')) return orchestrator.exitCodes.failure
-  if (snapshotRunFails(summary.snapshots, options.policy.snapshot)) {
+  if (summary.snapshotsFail ?? snapshotRunFails(summary.snapshots, options.policy.snapshot)) {
     return orchestrator.exitCodes.failure
   }
   if (orchestrator.unhandledErrors === 'fail-run' && summary.unhandled.length > 0) {

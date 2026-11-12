@@ -478,6 +478,13 @@ export interface RunSummary {
   readonly durationMs: number
   /** The run's snapshots, when any file reported some. */
   readonly snapshots?: SnapshotRunSummary
+  /**
+   * Whether a project's own snapshot rule fails the run (obsolete snapshots under its policy and
+   * update mode), when the coordinator judged it: a run over projects with different rules is
+   * judged project by project, and `snapshots` is the merge, for display. Absent, a reader judges
+   * `snapshots` by one policy.
+   */
+  readonly snapshotsFail?: boolean
 }
 
 /**
