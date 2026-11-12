@@ -29,6 +29,13 @@ const CACHEDIR_TAG = `Signature: 8a477f597d28d172789f06886806bc55
 `
 
 /**
+ * The sentinel the first `set` of a process leaves in the directory: `pruneCacheIfWritten` prunes
+ * when it exists and removes it.
+ * @internal
+ */
+export const WRITTEN_NAME = '.written'
+
+/**
  * The name of the tag file in a cache directory.
  * @internal
  */
@@ -115,6 +122,7 @@ export function writeCacheTag(dir: string): void {
 export function createTransformCache(dir: string): TransformCache {
   const madeDirs = new Set<string>()
   let tagged = false
+  let marked = false
   let counter = 0
   // Distinct per process and per cache object, so two writers never share a temporary name.
   const nonce = `${process.pid}.${randomBytes(4).toString('hex')}`
@@ -201,6 +209,10 @@ export function createTransformCache(dir: string): TransformCache {
           Buffer.concat([Buffer.from(`${JSON.stringify(header)}\n`), code, map]),
         )
         renameSync(temporary, file)
+        if (!marked) {
+          writeFileSync(join(dir, WRITTEN_NAME), '')
+          marked = true
+        }
       } catch {
         // Best effort. The shard may have been removed by a wipe or a prune: forget it.
         madeDirs.delete(shard)
