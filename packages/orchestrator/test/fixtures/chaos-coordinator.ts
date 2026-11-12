@@ -15,6 +15,7 @@ const options = JSON.parse(process.env.CHAOS_OPTIONS ?? '{}') as {
   readonly fileTimeoutMs?: number
   readonly heapLimitMb?: number
   readonly maxFilesPerWorker?: number
+  readonly memoryLimitBytes?: number
 }
 
 const summary = await runProject(runtimeProject(dir), {
@@ -26,9 +27,18 @@ const summary = await runProject(runtimeProject(dir), {
     maxWorkers: options.maxWorkers ?? 4,
     ...(options.fileTimeoutMs === undefined ? {} : { fileTimeoutMs: options.fileTimeoutMs }),
     ...(options.heapLimitMb === undefined ? {} : { heapLimitMb: options.heapLimitMb }),
-    ...(options.maxFilesPerWorker === undefined
+    ...(options.maxFilesPerWorker === undefined && options.memoryLimitBytes === undefined
       ? {}
-      : { recycle: { maxFilesPerWorker: options.maxFilesPerWorker } }),
+      : {
+          recycle: {
+            ...(options.maxFilesPerWorker === undefined
+              ? {}
+              : { maxFilesPerWorker: options.maxFilesPerWorker }),
+            ...(options.memoryLimitBytes === undefined
+              ? {}
+              : { memoryLimitBytes: options.memoryLimitBytes }),
+          },
+        }),
   },
 })
 

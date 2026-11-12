@@ -71,8 +71,14 @@ function sources(kind: PoolKindUnderTest): Record<string, string> {
 }
 
 /** Runs the coordinator child over the project and waits for it, killing its group if it hangs. */
-async function chaos(kind: PoolKindUnderTest): Promise<ChaosRun> {
-  const project = await makeProject(sources(kind))
+async function chaos(
+  kind: PoolKindUnderTest,
+  custom: {
+    readonly files?: Record<string, string>
+    readonly options?: Record<string, number>
+  } = {},
+): Promise<ChaosRun> {
+  const project = await makeProject(custom.files ?? sources(kind))
   const out = join(project.dir, '..', `chaos-${process.pid}-${kind}.json`)
   const child = spawn(
     process.execPath,
@@ -83,11 +89,13 @@ async function chaos(kind: PoolKindUnderTest): Promise<ChaosRun> {
       stdio: ['ignore', 'ignore', 'pipe'],
       env: {
         ...process.env,
-        CHAOS_OPTIONS: JSON.stringify({
-          maxWorkers: 4,
-          fileTimeoutMs: FILE_TIMEOUT_MS,
-          heapLimitMb: HEAP_LIMIT_MB,
-        }),
+        CHAOS_OPTIONS: JSON.stringify(
+          custom.options ?? {
+            maxWorkers: 4,
+            fileTimeoutMs: FILE_TIMEOUT_MS,
+            heapLimitMb: HEAP_LIMIT_MB,
+          },
+        ),
       },
     },
   )
@@ -175,3 +183,54 @@ for (const kind of ['forks', 'threads'] as const) {
     })
   })
 }
+
+describe('recycling over real forks (T9.5)', () => {
+  const passingFiles = (count: number): Record<string, string> =>
+    Object.fromEntries(
+      Array.from({ length: count }, (_, i) => [
+        `ok-${String(i).padStart(2, '0')}.test.js`,
+        `test('ok', () => { expect(${i}).toBe(${i}) })
+`,
+      ]),
+    )
+
+  it('maxFilesPerWorker: 3 gives a fresh worker every 3 files', async () => {
+    const run = await chaos('forks', {
+      files: passingFiles(30),
+      options: { maxWorkers: 1, maxFilesPerWorker: 3 },
+    })
+    try {
+      assert.equal(run.reason, 'passed')
+      assert.equal(run.files.length, 30)
+      assert.equal(new Set(run.workerPids).size, 10, '30 files, 3 to a worker: 10 workers')
+      for (const pid of run.workerPids) assert.equal(isRunning(pid), false, `worker ${pid}`)
+    } finally {
+      killGroup(run.pgid)
+    }
+  })
+
+  it('a file over memoryLimitBytes replaces its worker: a limit of 1 byte is a worker per file', async () => {
+    const run = await chaos('forks', {
+      files: passingFiles(6),
+      options: { maxWorkers: 1, memoryLimitBytes: 1 },
+    })
+    try {
+      assert.equal(run.reason, 'passed')
+      assert.equal(new Set(run.workerPids).size, 6, 'six files, six workers')
+    } finally {
+      killGroup(run.pgid)
+    }
+  })
+
+  it('without a limit one worker serves every file (the control)', async () => {
+    const run = await chaos('forks', {
+      files: passingFiles(6),
+      options: { maxWorkers: 1, memoryLimitBytes: Number.MAX_SAFE_INTEGER },
+    })
+    try {
+      assert.equal(new Set(run.workerPids).size, 1)
+    } finally {
+      killGroup(run.pgid)
+    }
+  })
+})

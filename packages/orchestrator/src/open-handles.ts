@@ -53,6 +53,8 @@ interface Frame {
   readonly text: string
   /** The file as a path (a `file:` URL is converted), `undefined` for `node:` internals and eval. */
   readonly file: string | undefined
+  /** The file as the stack wrote it (a `file:` URL stays one): what `shown` replaces. */
+  readonly written: string | undefined
   readonly line: number
   readonly column: number
 }
@@ -75,6 +77,7 @@ function parseFrames(stack: string): Frame[] {
     frames.push({
       text: text.trim(),
       file,
+      written: match?.[1],
       line: Number(match?.[2] ?? 0),
       column: Number(match?.[3] ?? 0),
     })
@@ -133,10 +136,10 @@ export function codeFrame(source: string, line: number, column: number): string 
 
 /** The frame as Jest prints it: its file relative to the first root, when it is under it. */
 function shown(frame: Frame, root: string | undefined): string {
-  if (frame.file === undefined || root === undefined || !frame.file.startsWith(root + sep)) {
-    return frame.text
-  }
-  return frame.text.replace(frame.file, relative(root, frame.file).split(sep).join('/'))
+  const { file, written } = frame
+  if (file === undefined || written === undefined || root === undefined) return frame.text
+  if (!file.startsWith(root + sep)) return frame.text
+  return frame.text.replace(written, relative(root, file).split(sep).join('/'))
 }
 
 /**
