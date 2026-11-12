@@ -78,7 +78,7 @@ describe('collectOpenHandles', () => {
       ['export function leak() {', '  return setInterval(() => {}, 1000)', '}', ''].join('\n'),
     )
     const collect = collectOpenHandles({ roots: [dir] })
-    const timer = mod.leak() as NodeJS.Timeout
+    const timer = mod.leak?.() as NodeJS.Timeout
     try {
       const handles = await collect()
       assert.equal(handles.length, 1)
