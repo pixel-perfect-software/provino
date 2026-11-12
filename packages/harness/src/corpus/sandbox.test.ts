@@ -3,7 +3,6 @@
 // Code's sandbox cannot nest `sandbox-exec`, and the real probe is Tyler's `corpus probe`.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { fakeDeps, finished, tempDir } from './test-support.ts'
 import { HarnessError } from '../errors.ts'
 import {
   assertSandboxPlatform,
@@ -16,6 +15,7 @@ import {
   sandboxed,
   seatbeltProfile,
 } from './sandbox.ts'
+import { fakeDeps, finished, tempDir } from './test-support.ts'
 
 const HOME = '/Users/someone'
 

@@ -14,9 +14,9 @@ import {
   gateSubject,
 } from './gate.ts'
 import type { InstallRecord } from './install.ts'
-import { makeRepo, makeSubject } from './test-support.ts'
 import type { RunMeta } from './run.ts'
 import { selfDiff } from './self-diff.ts'
+import { makeRepo, makeSubject } from './test-support.ts'
 
 const TODAY = '2026-11-12'
 
