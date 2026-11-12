@@ -6,11 +6,13 @@ import type {
   LoadActualOptions,
   Loader,
   LoaderOptions,
+  LoaderWarning,
   MockDecision,
   ModuleId,
   ModuleMockRegistry,
   ModuleMocksContext,
   ModuleMocksFactory,
+  ModulePolicy,
   ModuleScopeNames,
   ModuleTransformer,
   RegisterMockOptions,
@@ -105,3 +107,26 @@ if (decision.mocked) expectTypeOf(decision.id).toEqualTypeOf<string>()
 decision.id
 
 export { bad, badLoad, scratchLoad }
+
+// T2.6 (B13d): where the node_modules graph is cached, where the loader's warnings go, and whether
+// a module-mock registry has anything to decide.
+declare const loaderOptions: LoaderOptions
+expectTypeOf(loaderOptions.graphCache).toEqualTypeOf<string | null | undefined>()
+expectTypeOf(loaderOptions.inlineBudget).toEqualTypeOf<number | undefined>()
+expectTypeOf(loaderOptions.onWarning).toEqualTypeOf<
+  ((warning: LoaderWarning) => void) | undefined
+>()
+expectTypeOf<LoaderWarning['code']>().toEqualTypeOf<
+  'PROVINO_INLINE_BUDGET' | 'PROVINO_INLINE_DYNAMIC'
+>()
+expectTypeOf<LoaderWarning['level']>().toEqualTypeOf<'warn' | 'debug'>()
+// @ts-expect-error a warning has a known code
+const unknownCode: LoaderWarning = { code: 'PROVINO_OTHER', level: 'warn', message: '' }
+void unknownCode
+// @ts-expect-error exactOptionalPropertyTypes: the cache is `null` for memory, not `undefined`
+const undefinedCache: LoaderOptions = { ...loaderOptions, graphCache: undefined }
+void undefinedCache
+declare const moduleMocks: ModuleMockRegistry
+expectTypeOf(moduleMocks.active).returns.toEqualTypeOf<boolean>()
+expectTypeOf(moduleMocks.generation).returns.toEqualTypeOf<number>()
+expectTypeOf<ModulePolicy['mocksReachShared']>().toEqualTypeOf<boolean>()

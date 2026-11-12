@@ -204,6 +204,8 @@ export const jestPolicy: PolicyOverrides = {
     mockValueOwner: 'module-registry',
     // Recorded, Jest 30.5.2: `mod-conditions` (a `require`-only package mocks, an `import`-only one is not found).
     mockResolveKind: 'require',
+    // Recorded, Jest 30.5.2: `mod-shared-dep` and `mod-shared-dep-root` (a mock reaches the packages that require it).
+    mocksReachShared: true,
     // research: track-04 L314
     automockShape: 'metadata',
     // research: track-04 L316

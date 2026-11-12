@@ -1,0 +1,21 @@
+{
+  "description": "A root __mocks__ file for a package, and the packages in node_modules that require that package (plus one with its own nested copy of it): Jest applies the root mock by name to every require, Vitest's vi.mock reaches only the direct import.",
+  "runners": ["jest", "vitest"],
+  "jestEsm": true,
+  "packages": {
+    "pkg-r": {
+      "package.json": "{ \"name\": \"pkg-r\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.who = 'real-r'\n"
+    },
+    "pkg-q": {
+      "package.json": "{ \"name\": \"pkg-q\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.rWho = require('pkg-r').who\n"
+    },
+    "pkg-n": {
+      "package.json": "{ \"name\": \"pkg-n\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.rWho = require('pkg-r').who\n",
+      "node_modules/pkg-r/package.json": "{ \"name\": \"pkg-r\", \"version\": \"2.0.0\", \"main\": \"index.js\" }\n",
+      "node_modules/pkg-r/index.js": "exports.who = 'nested-r'\n"
+    }
+  }
+}

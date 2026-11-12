@@ -104,6 +104,8 @@ function sabotaged(
       inert ? NOT_MOCKED : registry.decide(id, importer, kind, specifier),
     decideUnresolved: (specifier, importer) =>
       inert ? NOT_MOCKED : registry.decideUnresolved(specifier, importer),
+    active: () => !inert && registry.active(),
+    generation: () => registry.generation(),
     materialize: (id) => {
       const served = registry.materialize(id)
       return inert ? served : {}

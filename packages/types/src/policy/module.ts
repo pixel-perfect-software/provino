@@ -120,6 +120,17 @@ export interface ModulePolicy {
    * Recorded by `mod-conditions` (Jest 30.5.2, Vitest 5.0.5).
    */
   readonly mockResolveKind: 'require' | 'import'
+  /**
+   * Whether a mock reaches the modules in `node_modules` that import the mocked one (T2.6, D39). When
+   * `true`, a package whose imports lead to a module the file mocks is loaded per file through that
+   * file's registry (inlined), so the mock reaches it; the next file sees the shared module. When
+   * `false`, such a package stays shared, loaded natively, and sees the real module.
+   *
+   * Jest: `true`, as jest-runtime's registry loads every module, node_modules included, through
+   * `requireModuleOrMock`. Vitest: `false`, as externalized dependencies load natively. Recorded
+   * by `mod-shared-dep` and `mod-shared-dep-root` (Jest 30.5.2, Vitest 5.0.5). Neutral: `true`.
+   */
+  readonly mocksReachShared: boolean
   /** Paths `automock` leaves real (Jest `unmockedModulePathPatterns`). Jest: `[]`. Vitest: `[]`. research: track-04 L316 */
   readonly unmockedPathPatterns: readonly RegExp[]
   /**
