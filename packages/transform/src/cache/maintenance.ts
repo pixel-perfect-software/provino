@@ -4,12 +4,16 @@
 // only read and write entries (`createTransformCache`).
 import { createHash } from 'node:crypto'
 import {
+  closeSync,
+  existsSync,
   mkdirSync,
+  openSync,
   readdirSync,
   readFileSync,
   renameSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -17,6 +21,9 @@ import { writeCacheTag } from './store.ts'
 
 /** The file that holds the lockfile hash the directory was filled under. */
 const STAMP_NAME = 'lockfile-hash'
+
+/** Touched after each `pruneCacheIfWritten`: a shard changed since then holds a new entry. */
+const PRUNE_STAMP_NAME = 'pruned'
 
 /** A temporary file this much older than now is a writer that died. */
 const STALE_TEMPORARY_MS = 60 * 60 * 1000
@@ -37,22 +44,29 @@ const LOCKFILES: readonly string[] = [
 ]
 
 /**
- * A hash of the nearest lockfile at or above `root`, or `null` when there is none.
+ * A hash of the nearest lockfile at or above `root`, or `null` when there is none. `memo`, which a
+ * caller hashing several roots of one run shares, holds the hash of each lockfile by path, so a
+ * lockfile several projects share is read once.
  * @public
  */
-export function lockfileHash(root: string): string | null {
+export function lockfileHash(root: string, memo?: Map<string, string>): string | null {
   let dir = root
   for (;;) {
     for (const name of LOCKFILES) {
+      const path = join(dir, name)
+      if (!existsSync(path)) continue
+      const known = memo?.get(path)
+      if (known !== undefined) return known
       try {
         const hash = createHash('sha256')
-        hash
           .update(name)
           .update('\0')
-          .update(readFileSync(join(dir, name)))
-        return hash.digest('hex')
+          .update(readFileSync(path))
+          .digest('hex')
+        memo?.set(path, hash)
+        return hash
       } catch {
-        // Not here.
+        // Gone or unreadable since the check: as if it was never there.
       }
     }
     const parent = dirname(dir)
@@ -91,13 +105,13 @@ export function prepareCache(
       stamped = undefined
     }
     if (hash !== null && stamped !== undefined && stamped !== hash) {
-      try {
-        remove(dir, { recursive: true, force: true })
-      } catch {
+      // Twice: a first try that fails halfway often succeeds on the second.
+      for (let attempt = 1; ; attempt++) {
         try {
           remove(dir, { recursive: true, force: true })
+          break
         } catch {
-          return false
+          if (attempt === 2) return false
         }
       }
     }
@@ -172,4 +186,36 @@ export function pruneCache(dir: string, maxBytes: number = DEFAULT_CACHE_MAX_BYT
     }
   }
   return { removed, bytesBefore, bytesAfter: bytes }
+}
+
+/**
+ * `pruneCache`, unless no entry was written since the last time this ran: a shard directory
+ * changes when an entry is added to it, so one `stat` per shard against a stamp file replaces
+ * reading every entry's size. Returns `undefined` when it skipped. Never throws.
+ * @public
+ */
+export function pruneCacheIfWritten(
+  dir: string,
+  maxBytes: number = DEFAULT_CACHE_MAX_BYTES,
+): PruneResult | undefined {
+  const stamp = join(dir, PRUNE_STAMP_NAME)
+  try {
+    const since = statSync(stamp).mtimeMs
+    const changed = readdirSync(dir, { withFileTypes: true }).some(
+      (shard) => shard.isDirectory() && statSync(join(dir, shard.name)).mtimeMs >= since,
+    )
+    if (!changed) return undefined
+  } catch {
+    // No stamp yet, or the directory is gone: prune as if never done.
+  }
+  const result = pruneCache(dir, maxBytes)
+  try {
+    closeSync(openSync(stamp, 'a'))
+    // Seconds with a fraction: a whole millisecond could land before the shards' newest write.
+    const now = (performance.timeOrigin + performance.now()) / 1000
+    utimesSync(stamp, now, now)
+  } catch {
+    // Without a stamp the next run prunes in full, as before.
+  }
+  return result
 }

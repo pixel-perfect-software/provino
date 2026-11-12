@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
-import { lockfileHash, prepareCache, pruneCache } from './maintenance.ts'
+import { lockfileHash, prepareCache, pruneCache, pruneCacheIfWritten } from './maintenance.ts'
 import { createTransformCache } from './store.ts'
 import { entryFor, keyFor } from './test-entries.ts'
 
@@ -126,4 +126,29 @@ test('pruneCache removes a stale temporary file and survives a missing directory
   pruneCache(dir)
   assert.equal(existsSync(stale), false)
   assert.deepEqual(pruneCache(join(dir, 'missing')), { removed: 0, bytesBefore: 0, bytesAfter: 0 })
+})
+
+test('pruneCacheIfWritten skips until an entry is written, then prunes', () => {
+  const dir = tempDir()
+  put(dir, 1)
+  put(dir, 2)
+  // The first call has no stamp: it prunes (here, to nothing, as the cap is not reached).
+  assert.equal(pruneCacheIfWritten(dir)?.removed, 0)
+  assert.equal(pruneCacheIfWritten(dir), undefined)
+  put(dir, 3)
+  assert.equal(pruneCacheIfWritten(dir, 1)?.removed, 3)
+  assert.equal(pruneCacheIfWritten(dir), undefined)
+})
+
+test('lockfileHash reads a lockfile once for a shared memo', () => {
+  const top = tempDir()
+  const root = join(top, 'a')
+  mkdirSync(root, { recursive: true })
+  writeFileSync(join(top, 'pnpm-lock.yaml'), 'a')
+  const memo = new Map<string, string>()
+  const first = lockfileHash(root, memo)
+  assert.equal(memo.size, 1)
+  writeFileSync(join(top, 'pnpm-lock.yaml'), 'b')
+  assert.equal(lockfileHash(root, memo), first)
+  assert.notEqual(lockfileHash(root), first)
 })

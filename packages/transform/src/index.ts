@@ -8,6 +8,7 @@ export {
   lockfileHash,
   prepareCache,
   pruneCache,
+  pruneCacheIfWritten,
 } from './cache/index.ts'
 export type { TransformErrorCode } from './errors.ts'
 export { TransformError } from './errors.ts'

@@ -323,13 +323,19 @@ export async function runProjects(
   // One seed for the run (`jest.getSeed()`): a project that gives none takes this one, so every
   // worker of every such project reports the same value, as Jest's single `globalConfig.seed`.
   const runSeed = Math.floor(0x1_0000_0000 * Math.random()) - 0x8000_0000
+  /** Each lockfile's hash by path, so projects that share a lockfile read it once. */
+  const lockfileHashes = new Map<string, string>()
   const members: Member[] = projects.map((resolved, index) => {
     // The transform cache (T3.6) is on unless the run has no cache (`--no-cache`): the directory is
     // wiped here if the lockfile changed, and handed to the project's workers.
     const cached =
       options.cache === false
         ? resolved
-        : withTransformCache(resolved, transformCacheDir(resolved.rootDir, resolved.cacheDirectory))
+        : withTransformCache(
+            resolved,
+            transformCacheDir(resolved.rootDir, resolved.cacheDirectory),
+            lockfileHashes,
+          )
     const project =
       cached.config.seed === undefined
         ? { ...cached, config: { ...cached.config, seed: runSeed } }
@@ -541,7 +547,13 @@ export async function runProjects(
       // A read-only directory must not fail a run that passed.
       stderr.write(`Provino: could not write the results cache: ${messageOf(error)}\n`)
     }
-    // Eviction by size is the coordinator's, after the run (Track 3 R5).
+  }
+
+  /**
+   * Eviction by size is the coordinator's, after the run (Track 3 R5). It runs once the reporters
+   * have the summary, so nothing waits on it, and it skips a directory no worker wrote to.
+   */
+  function pruneTransformCaches(): void {
     const directories = new Set(
       members.flatMap((member) => member.project.config.loader.cacheDir ?? []),
     )
@@ -605,6 +617,7 @@ export async function runProjects(
       (orchestrator.unhandledErrors === 'fail-run' && unhandled.length > 0)
     const summary = summarize(interrupted ? 'interrupted' : failed ? 'failed' : 'passed')
     await bus.emit('run:end', summary)
+    pruneTransformCaches()
     return summary
   } catch (error) {
     await pool.close()
