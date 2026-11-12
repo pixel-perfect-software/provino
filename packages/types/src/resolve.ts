@@ -5,11 +5,11 @@ import type { JsonValue } from './clone-safe.ts'
 import type { ModuleRef } from './policy/behaviour.ts'
 
 /**
- * What kind of reference is being resolved. `mock` is a mock call's specifier;
- * `import-meta-resolve` is `import.meta.resolve` (Track 2).
+ * What kind of reference is being resolved. `import-meta-resolve` is `import.meta.resolve`
+ * (Track 2). A mock call's specifier resolves as the kind `ModulePolicy.mockResolveKind` names.
  * @public
  */
-export type ResolveKind = 'import' | 'require' | 'dynamic-import' | 'import-meta-resolve' | 'mock'
+export type ResolveKind = 'import' | 'require' | 'dynamic-import' | 'import-meta-resolve'
 
 /**
  * Where a specifier is resolved from.

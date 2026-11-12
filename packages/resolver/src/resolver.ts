@@ -34,7 +34,7 @@ const FORMATS: Readonly<Record<string, FileFormat>> = {
   addon: 'addon',
 }
 
-/** The condition a call kind adds. A mock specifier resolves like an import until T4.7 decides. */
+/** The condition a call kind adds. */
 function kindCondition(kind: ResolveKind): string {
   return kind === 'require' ? 'require' : 'import'
 }
@@ -131,21 +131,7 @@ export const createResolver: CreateResolver = (options) => {
       : factory.sync(dirname(context.importer), specifier)
   }
 
-  /**
-   * A mock specifier resolves like an import, and a package that only has a `require` condition
-   * (`exports: { '.': { require: './c.cjs' } }`) is not found that way. Jest resolves `jest.mock`
-   * targets with the CommonJS conditions, so a miss is tried again as a `require`.
-   */
   function resolveDirect(specifier: string, context: ResolveContext): ResolveResult {
-    const result = resolveOnce(specifier, context)
-    if (result.type === 'not-found' && context.kind === 'mock') {
-      const again = resolveOnce(specifier, { ...context, kind: 'require' })
-      if (again.type !== 'not-found') return again
-    }
-    return result
-  }
-
-  function resolveOnce(specifier: string, context: ResolveContext): ResolveResult {
     const conditions = conditionsFor(context)
     let result = resolveWith(factoryFor(conditions), specifier, context)
     if (result.path === undefined && result.builtin === undefined && retryFactoryFor !== null) {

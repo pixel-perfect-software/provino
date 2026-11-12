@@ -105,7 +105,7 @@ describe('a dual package', () => {
     let runs = 0
     const { registry } = build({
       policy: jestLike,
-      resolver: dualResolver({ mock: CJS, import: ESM, require: CJS }),
+      resolver: dualResolver({ import: ESM, require: CJS }),
     })
     registry.register(
       'dual',
@@ -129,7 +129,7 @@ describe('a dual package', () => {
   test('an unmock covers both ids', () => {
     const { registry } = build({
       policy: { ...jestLike, automock: true },
-      resolver: dualResolver({ mock: CJS, import: ESM, require: CJS }),
+      resolver: dualResolver({ import: ESM, require: CJS }),
     })
     registry.register('dual', { kind: 'unmock' }, { from: FROM })
     assert.equal(registry.decide(ESM, FROM, 'esm').mocked, false)
@@ -140,7 +140,7 @@ describe('a dual package', () => {
     const seen: string[] = []
     const { registry } = build({
       policy: jestLike,
-      resolver: dualResolver({ mock: CJS, import: null, require: CJS }, seen),
+      resolver: dualResolver({ import: null, require: CJS }, seen),
     })
     registry.register('dual', { kind: 'factory', factory: () => ({ n: 1 }) }, { from: FROM })
     assert.ok(seen.includes('import') && seen.includes('require'))
@@ -151,7 +151,7 @@ describe('a dual package', () => {
   test('registering again replaces the shared value for both ids under mockValueOwner registration', async () => {
     const { registry } = build({
       policy: vitestLike,
-      resolver: dualResolver({ mock: CJS, import: ESM, require: CJS }),
+      resolver: dualResolver({ import: ESM, require: CJS }),
     })
     registry.register('dual', { kind: 'factory', factory: () => ({ n: 1 }) }, { from: FROM })
     assert.deepEqual(await registry.materialize(ESM), { n: 1 })
@@ -163,7 +163,7 @@ describe('a dual package', () => {
   test('registering again keeps the shared value for both ids until a reset under module-registry', () => {
     const { registry } = build({
       policy: jestLike,
-      resolver: dualResolver({ mock: CJS, import: ESM, require: CJS }),
+      resolver: dualResolver({ import: ESM, require: CJS }),
     })
     registry.register('dual', { kind: 'factory', factory: () => ({ n: 1 }) }, { from: FROM })
     assert.deepEqual(registry.materialize(ESM), { n: 1 })
@@ -296,5 +296,25 @@ describe('errors carry a code', () => {
         error.code === 'unresolved-relative-mock' &&
         error.message === "Cannot find module '/test/gone'",
     )
+  })
+})
+
+describe('the kind a mock call resolves as', () => {
+  const asked = (policy: typeof jestLike): string[] => {
+    const seen: string[] = []
+    const { registry } = build({
+      policy,
+      resolver: dualResolver(
+        { import: '/proj/node_modules/p/i.mjs', require: '/proj/node_modules/p/r.cjs' },
+        seen,
+      ),
+    })
+    registry.register('p', { kind: 'factory', factory: () => ({}) }, { from: FROM })
+    return seen
+  }
+
+  test('is the policy`s mockResolveKind, and the lookup is not retried as another kind', () => {
+    assert.equal(asked({ ...jestLike, mockResolveKind: 'require' })[0], 'require')
+    assert.equal(asked({ ...jestLike, mockResolveKind: 'import' })[0], 'import')
   })
 })

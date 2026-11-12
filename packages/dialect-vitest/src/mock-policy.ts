@@ -75,6 +75,8 @@ export const vitestModulePolicy: ModulePolicy = {
   virtualRelative: false,
   // `mod-reregister` and `mod-reset-modules`: the value is on the registered mock.
   mockValueOwner: 'registration',
+  // Recorded, Vitest 5.0.5: `mod-conditions` (an `import`-only package mocks, a `require`-only one is not exported).
+  mockResolveKind: 'import',
   automockShape: 'deep',
   unmockedPathPatterns: [],
   messages: {

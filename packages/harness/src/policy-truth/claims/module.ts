@@ -56,6 +56,7 @@ export const moduleClaims: Claims = {
   'module.requireVirtualFlag': mod('mod-missing', 'mod-virtual'),
   'module.virtualRelative': mod('mod-virtual', 'mod-missing', 'mod-virtual-static'),
   'module.mockValueOwner': mod('mod-reregister', 'mod-reset-modules'),
+  'module.mockResolveKind': mod('mod-conditions'),
   'module.automockShape': mod('mod-automock-shape', 'mod-automock-inherited'),
   'module.unmockedPathPatterns': each(
     mod('mod-automock-all', 'mod-unmocked-patterns'),

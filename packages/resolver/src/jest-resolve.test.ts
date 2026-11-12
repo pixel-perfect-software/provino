@@ -361,7 +361,6 @@ test('a mock specifier finds a package that only has a require condition', () =>
   })
   const from = join(root, 'src/a.js')
   const expected = join(root, 'node_modules/cjsonly/c.cjs')
-  assert.equal(pathOf(resolver.resolve('cjsonly', ctx(from, [], 'mock'))), expected)
   assert.equal(pathOf(resolver.resolve('cjsonly', ctx(from, [], 'require'))), expected)
   // An import of it is still not found: the `import` condition is real.
   assert.equal(resolver.resolve('cjsonly', ctx(from, [], 'import')).type, 'not-found')

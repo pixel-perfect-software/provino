@@ -88,6 +88,14 @@ export interface ModulePolicy {
    * compares a runner name. Jest: `metadata`. Vitest: `deep`. research: track-04 L314
    */
   readonly automockShape: 'metadata' | 'deep'
+  /**
+   * The kind a mock call's specifier resolves as, which decides the package `exports` conditions
+   * it is looked up with: `require` (the `require` condition) or `import` (the `import` one). A
+   * package that only has the other condition is not found, and a mock of it is refused or
+   * treated as a virtual one by `requireVirtualFlag`. Jest: `require`. Vitest: `import`.
+   * Recorded by `mod-conditions` (Jest 30.5.2, Vitest 5.0.5).
+   */
+  readonly mockResolveKind: 'require' | 'import'
   /** Paths `automock` leaves real (Jest `unmockedModulePathPatterns`). Jest: `[]`. Vitest: `[]`. research: track-04 L316 */
   readonly unmockedPathPatterns: readonly RegExp[]
   /**

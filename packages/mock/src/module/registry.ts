@@ -374,7 +374,7 @@ class Registry implements ModuleMockRegistry {
         kind,
         conditions: this.#options.conditions ?? [],
       })
-    const result = resolve('mock')
+    const result = resolve(this.#policy.mockResolveKind)
     switch (result.type) {
       case 'file': {
         // A dual package resolves to one file for `import` and another for `require`: the mock
@@ -549,7 +549,7 @@ class Registry implements ModuleMockRegistry {
     if (isCoreSpecifier(specifier)) return `node:${coreName(specifier)}`
     const result = this.#options.resolver.resolve(specifier, {
       importer: from,
-      kind: 'mock',
+      kind: this.#policy.mockResolveKind,
       conditions: this.#options.conditions ?? [],
     })
     if (result.type === 'file') return result.path

@@ -201,6 +201,8 @@ export const jestPolicy: PolicyOverrides = {
     // the first factory's value) and `mod-reset-modules` (`resetModules()` runs the factory again).
     // The value lives in `ModuleRegistries.mockRegistry`.
     mockValueOwner: 'module-registry',
+    // Recorded, Jest 30.5.2: `mod-conditions` (a `require`-only package mocks, an `import`-only one is not found).
+    mockResolveKind: 'require',
     // research: track-04 L314
     automockShape: 'metadata',
     // research: track-04 L316

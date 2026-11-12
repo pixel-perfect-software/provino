@@ -155,6 +155,7 @@ export const neutralPolicy: Policy = deepFreeze({
     requireVirtualFlag: false,
     virtualRelative: true,
     mockValueOwner: 'registration',
+    mockResolveKind: 'import',
     automockShape: 'deep',
     unmockedPathPatterns: [],
     // Empty: `@provino/mock` falls back to its own neutral text for every module message code.

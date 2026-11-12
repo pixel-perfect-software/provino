@@ -51,7 +51,7 @@ export const createLoader: CreateLoader = (options) => {
 
     /** The id the actual paths load: the specifier resolved as a mock registration resolves it. */
     const actualId = (specifier: string, from: string): string => {
-      const target = resolveOrMissing(state, specifier, from, 'mock')
+      const target = resolveOrMissing(state, specifier, from, options.policy.mockResolveKind)
       if (target.kind === 'missing' || target.kind === 'served') throw target.error
       return target.kind === 'external' ? target.path : target.id
     }
