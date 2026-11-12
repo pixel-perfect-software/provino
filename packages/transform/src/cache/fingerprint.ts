@@ -51,6 +51,11 @@ export interface FingerprintInputs {
   readonly hoist: HoistPolicy | null
   /** The Jest host's fingerprint (rules, options, ignore patterns, config), or `null`. */
   readonly transformers: string | null
+  /**
+   * The version of the module-runner form (`RUNNER_FORM_VERSION`) when records carry one, else
+   * `null`: a change to how the form is made, or to whether it is kept, misses every entry.
+   */
+  readonly runnerForm: string | null
 }
 
 /**
@@ -73,6 +78,7 @@ export function pipelineFingerprint(inputs: FingerprintInputs): string {
       define: inputs.define ?? null,
       hoist: inputs.hoist,
       transformers: inputs.transformers,
+      runnerForm: inputs.runnerForm,
     }),
   ])
 }

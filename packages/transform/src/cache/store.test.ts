@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
@@ -48,6 +56,32 @@ test('a stored record comes back whole, with staticMocks and lateDeps, from anot
   createTransformCache(dir).set(full.cacheKey, full)
   const hit = createTransformCache(dir).get(full.cacheKey)
   assert.deepEqual(hit, { ...full, fromCache: true })
+})
+
+test('a runner form round-trips, whole and decoded lazily, with a map', () => {
+  const dir = tempDir()
+  const full = record({
+    code: 'import { π } from "./é.js"\nexport const x = π\n',
+    map: { version: 3, sources: ['a.ts'], names: [], mappings: 'AAAA' },
+    runner: {
+      code: 'const __vite_ssr_import_0__ = await __vite_ssr_import__("./é.js");\n',
+      deps: ['./é.js'],
+      dynamicDeps: ['./lazy.js'],
+      edits: [
+        { start: 0, end: 5, text: 'é' },
+        { start: 9, end: 9, text: '' },
+      ],
+    },
+  })
+  createTransformCache(dir).set(full.cacheKey, full)
+  const hit = createTransformCache(dir).get(full.cacheKey)
+  assert.deepEqual(hit, { ...full, fromCache: true })
+  assert.equal(hit?.runner?.code, full.runner?.code)
+  // A torn runner part is a miss.
+  const file = join(dir, full.cacheKey.slice(0, 2), full.cacheKey)
+  const bytes = readFileSync(file)
+  writeFileSync(file, bytes.subarray(0, bytes.length - 3))
+  assert.equal(createTransformCache(dir).get(full.cacheKey), undefined)
 })
 
 test('an unknown key misses, and so does an entry of the wrong length or version', () => {

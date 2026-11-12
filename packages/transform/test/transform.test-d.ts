@@ -7,6 +7,7 @@ import {
   type HostedSource,
   type JestHost,
   lockfileHash,
+  type ModuleRunnerOutput,
   type PipelineOptions,
   type PruneResult,
   prepareCache,
@@ -14,10 +15,13 @@ import {
   type TransformCache,
   type TransformError,
   type TransformErrorCode,
+  toModuleRunner,
 } from '@provino/transform'
 import type {
   ModuleTransformer,
   Pipeline,
+  RunnerEdit,
+  RunnerForm,
   SerializedTransformConfig,
   TransformRecord,
   TransformRequest,
@@ -58,6 +62,18 @@ createPipeline({ ...options, cache: true })
 createPipeline({ ...options, cache: {} })
 // @ts-expect-error not a JSX runtime
 createPipeline({ ...options, jsx: { runtime: 'preserve' } })
+// B20 (Q3): the module-runner form is opt-in, and its record field is optional.
+createPipeline({ ...options, runnerForm: true })
+// @ts-expect-error a flag, not a version
+createPipeline({ ...options, runnerForm: '1' })
+expectTypeOf<TransformRecord['runner']>().toEqualTypeOf<RunnerForm | undefined>()
+expectTypeOf<RunnerForm['edits']>().toEqualTypeOf<readonly RunnerEdit[]>()
+declare const form: RunnerForm
+// @ts-expect-error readonly
+form.deps.push('./x')
+// @ts-expect-error `toModuleRunner` takes a record, not code
+toModuleRunner('/a.ts', 'export {}')
+expectTypeOf(toModuleRunner).returns.toEqualTypeOf<ModuleRunnerOutput>()
 
 // T3.8: the Jest transformer host. It is created from the serialized config, in the worker.
 declare const transformConfig: SerializedTransformConfig

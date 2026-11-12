@@ -286,6 +286,8 @@ export type {
   JestTransformRule,
   ModuleTransformer,
   Pipeline,
+  RunnerEdit,
+  RunnerForm,
   SourceMapV3,
   StaticMockCall,
   TransformDiagnostic,

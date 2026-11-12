@@ -1,6 +1,7 @@
 // T3.6: the on-disk transform cache. One file per key at `<dir>/<2 hex>/<key>`: a one-line JSON
 // header (the record's facts and the lengths in bytes of the code and the map), a newline, the code,
-// then the map's JSON text. The map is last and parsed on first use: a warm run reads thousands of
+// then the map's JSON text, then (when the record has a runner form) its code and its edits' JSON.
+// The map is parsed lazily and parsed on first use: a warm run reads thousands of
 // records and asks for a map only when a stack trace needs one. A write is
 // a temporary file and a rename, so a reader sees a whole entry or none, and a reader that finds
 // the wrong length treats the entry as a miss. Everything is best effort: a cache that can't be
@@ -10,6 +11,8 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path'
 import type {
   ImportRecord,
+  RunnerEdit,
+  RunnerForm,
   SourceMapV3,
   StaticMockCall,
   TransformDiagnostic,
@@ -17,7 +20,7 @@ import type {
 } from '@provino/types'
 
 /** The entry format. Another version reads as a miss. */
-const VERSION = 1
+const VERSION = 2
 
 /**
  * The text of `CACHEDIR.TAG`, as the specification (bford.info/cachedir) asks, so backup tools skip
@@ -74,6 +77,13 @@ interface Header {
   readonly hasTopLevelAwait: boolean
   readonly lateDeps: readonly string[]
   readonly diagnostics: readonly TransformDiagnostic[]
+  /** The runner form (B20, Q3), after the map: its code's length, its edits' JSON length, its deps. */
+  readonly runner: {
+    readonly codeBytes: number
+    readonly editBytes: number
+    readonly deps: readonly string[]
+    readonly dynamicDeps: readonly string[]
+  } | null
 }
 
 /**
@@ -90,6 +100,17 @@ export interface TransformCache {
   set(key: string, record: TransformRecord): void
 }
 
+function isRunnerHeader(value: unknown): value is NonNullable<Header['runner']> {
+  if (typeof value !== 'object' || value === null) return false
+  const runner = value as Record<string, unknown>
+  return (
+    typeof runner.codeBytes === 'number' &&
+    typeof runner.editBytes === 'number' &&
+    Array.isArray(runner.deps) &&
+    Array.isArray(runner.dynamicDeps)
+  )
+}
+
 function isHeader(value: unknown): value is Header {
   if (typeof value !== 'object' || value === null) return false
   const header = value as Record<string, unknown>
@@ -102,7 +123,8 @@ function isHeader(value: unknown): value is Header {
     Array.isArray(header.imports) &&
     Array.isArray(header.staticMocks) &&
     Array.isArray(header.lateDeps) &&
-    Array.isArray(header.diagnostics)
+    Array.isArray(header.diagnostics) &&
+    (header.runner === null || isRunnerHeader(header.runner))
   )
 }
 
@@ -147,16 +169,41 @@ export function createTransformCache(dir: string): TransformCache {
         if (!isHeader(header)) return undefined
         const codeStart = newline + 1
         const mapStart = codeStart + header.codeBytes
-        if (data.length - mapStart !== header.mapBytes) return undefined
+        const runnerStart = mapStart + header.mapBytes
+        const editsStart = runnerStart + (header.runner?.codeBytes ?? 0)
+        if (data.length !== editsStart + (header.runner?.editBytes ?? 0)) return undefined
         let map: SourceMapV3 | null | undefined = header.mapBytes === 0 ? null : undefined
+        let code: string | undefined
+        let runner: RunnerForm | undefined
+        if (header.runner !== null) {
+          const stored = header.runner
+          let runnerCode: string | undefined
+          let edits: RunnerEdit[] | undefined
+          runner = {
+            // Decoded on first read: a warm run evaluates the runner form and never reads the other.
+            get code(): string {
+              runnerCode ??= data.toString('utf8', runnerStart, editsStart)
+              return runnerCode
+            },
+            deps: stored.deps,
+            dynamicDeps: stored.dynamicDeps,
+            get edits(): readonly RunnerEdit[] {
+              edits ??= JSON.parse(data.toString('utf8', editsStart)) as RunnerEdit[]
+              return edits
+            },
+          }
+        }
         return {
-          code: data.toString('utf8', codeStart, mapStart),
+          get code(): string {
+            code ??= data.toString('utf8', codeStart, mapStart)
+            return code
+          },
           get map(): SourceMapV3 | null {
             // A map that fails to parse reads as none: the code is whole, and a stack is still a
             // stack. Memoized, so the parse happens at most once.
             if (map === undefined) {
               try {
-                map = JSON.parse(data.toString('utf8', mapStart)) as SourceMapV3
+                map = JSON.parse(data.toString('utf8', mapStart, runnerStart)) as SourceMapV3
               } catch {
                 map = null
               }
@@ -171,6 +218,7 @@ export function createTransformCache(dir: string): TransformCache {
           diagnostics: header.diagnostics,
           cacheKey: key,
           fromCache: true,
+          ...(runner === undefined ? {} : { runner }),
         }
       } catch {
         return undefined
@@ -192,6 +240,9 @@ export function createTransformCache(dir: string): TransformCache {
         }
         const code = Buffer.from(record.code, 'utf8')
         const map = record.map === null ? Buffer.alloc(0) : Buffer.from(JSON.stringify(record.map))
+        const runnerCode = record.runner === undefined ? null : Buffer.from(record.runner.code, 'utf8')
+        const runnerEdits =
+          record.runner === undefined ? null : Buffer.from(JSON.stringify(record.runner.edits))
         const header: Header = {
           v: VERSION,
           codeBytes: code.length,
@@ -202,11 +253,26 @@ export function createTransformCache(dir: string): TransformCache {
           hasTopLevelAwait: record.hasTopLevelAwait,
           lateDeps: record.lateDeps,
           diagnostics: record.diagnostics,
+          runner:
+            record.runner === undefined || runnerCode === null || runnerEdits === null
+              ? null
+              : {
+                  codeBytes: runnerCode.length,
+                  editBytes: runnerEdits.length,
+                  deps: record.runner.deps,
+                  dynamicDeps: record.runner.dynamicDeps,
+                },
         }
         // JSON.stringify never writes a raw newline, so the first one ends the header.
         writeFileSync(
           temporary,
-          Buffer.concat([Buffer.from(`${JSON.stringify(header)}\n`), code, map]),
+          Buffer.concat([
+            Buffer.from(`${JSON.stringify(header)}\n`),
+            code,
+            map,
+            runnerCode ?? Buffer.alloc(0),
+            runnerEdits ?? Buffer.alloc(0),
+          ]),
         )
         renameSync(temporary, file)
         if (!marked) {

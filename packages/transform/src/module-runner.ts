@@ -1,7 +1,7 @@
 // T3.13 / DECISIONS D10: the module-runner rewrite, our own (`runner/`) in place of oxc's
-// deprecated `moduleRunnerTransformSync`. It only ever sees the pipeline's stripped output; any
+// deprecated module-runner transform. It only ever sees the pipeline's stripped output; any
 // error becomes a per-file `TransformError`, and unstripped TypeScript is a parse error.
-import type { SourceMapV3, TransformRecord } from '@provino/types'
+import type { RunnerForm, SourceMapV3, TransformRecord } from '@provino/types'
 import { TransformError } from './errors.ts'
 import { composeMaps, toSourceMapV3 } from './internal/maps.ts'
 import { mapOfEdits, RunnerParseError, rewriteModule } from './runner/apply.ts'
@@ -30,9 +30,29 @@ export interface ModuleRunnerOutput {
  * @beta
  */
 export function toModuleRunner(filename: string, record: TransformRecord): ModuleRunnerOutput {
-  let result: ReturnType<typeof rewriteModule>
+  // A cached or pipeline-made runner form skips the step (`createPipeline({ runnerForm: true })`).
+  const form = record.runner ?? runnerFormOf(filename, record.code)
+  let composed: SourceMapV3 | null | undefined
+  return {
+    code: form.code,
+    get map(): SourceMapV3 | null {
+      if (composed === undefined) {
+        composed = composeMaps([
+          record.map,
+          toSourceMapV3(mapOfEdits(filename, record.code, form.edits)),
+        ])
+      }
+      return composed
+    },
+    deps: form.deps,
+    dynamicDeps: form.dynamicDeps,
+  }
+}
+
+/** The module-runner form of `code`, or the per-file `TRANSFORM_RUNNER_FAILED` error. */
+function runnerFormOf(filename: string, code: string): RunnerForm {
   try {
-    result = rewriteModule(filename, record.code)
+    return rewriteModule(filename, code)
   } catch (error) {
     if (error instanceof RunnerParseError) {
       throw new TransformError(
@@ -46,18 +66,17 @@ export function toModuleRunner(filename: string, record: TransformRecord): Modul
       { cause: error },
     )
   }
-  const { edits } = result
-  const input = record.code
-  let composed: SourceMapV3 | null | undefined
-  return {
-    code: result.code,
-    get map(): SourceMapV3 | null {
-      if (composed === undefined) {
-        composed = composeMaps([record.map, toSourceMapV3(mapOfEdits(filename, input, edits))])
-      }
-      return composed
-    },
-    deps: result.deps,
-    dynamicDeps: result.dynamicDeps,
+}
+
+/**
+ * The runner form the pipeline attaches to a record, or `undefined` when the step fails (the
+ * failure then surfaces, named, when the loader calls `toModuleRunner`).
+ * @internal
+ */
+export function tryRunnerForm(filename: string, code: string): RunnerForm | undefined {
+  try {
+    return rewriteModule(filename, code)
+  } catch {
+    return undefined
   }
 }

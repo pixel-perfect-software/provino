@@ -1,5 +1,5 @@
 // T3.13: the module-runner form, as text edits. `rewriteModule` parses, reads (`analyse.ts`) and
-// edits; the shape is oxc's `moduleRunnerTransformSync`:
+// edits; the shape is oxc's module-runner transform:
 //
 //   - one `Object.defineProperty(__vite_ssr_exports__, name, { …, get() { return local } })` per
 //     export, then every import as `const __vite_ssr_import_N__ = await __vite_ssr_import__(…)`,
@@ -10,6 +10,7 @@
 //
 // The edits are plain `{ start, end, text }` records applied by slicing; `magic-string` is only
 // built, from the same records, when something reads the source map.
+import type { RunnerEdit } from '@provino/types'
 import MagicString from 'magic-string'
 import {
   type Node,
@@ -21,12 +22,11 @@ import {
 import { exportName } from '../hoist/ast.ts'
 import { type ImportBinding, isImportReference, walkProgram } from './analyse.ts'
 
-/** A replacement of `[start, end)` (an insertion when equal). */
-export interface RunnerEdit {
-  readonly start: number
-  readonly end: number
-  readonly text: string
-}
+/**
+ * Bump when the module-runner form changes for the same input: it is part of the pipeline
+ * fingerprint (`runnerForm`), so every cached runner form is made again.
+ */
+export const RUNNER_FORM_VERSION = '1'
 
 export interface RewrittenModule {
   readonly code: string

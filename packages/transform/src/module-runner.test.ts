@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping'
 import type { TransformRecord } from '@provino/types'
 import { toModuleRunner } from './module-runner.ts'
 import { createPipeline } from './pipeline.ts'
@@ -50,4 +54,115 @@ test('a failure is a per-file TransformError that names the file', () => {
       return true
     },
   )
+})
+
+test('deps are in source order, once each, and dynamicDeps too (B20 Gap 3)', () => {
+  const source = [
+    "import fs from 'node:fs'",
+    "import path from 'node:path'",
+    "import { a } from './a.js'",
+    "import 'node:fs'",
+    "export * from './z.js'",
+    "export { b } from './b.js'",
+    "export const later = [import('./y.js'), import('./x.js'), import('./y.js')]",
+    'export const keep = [fs, path, a]',
+    '',
+  ].join('\n')
+  const output = toModuleRunner('/m.ts', strip('/m.ts', source))
+  assert.deepEqual(output.deps, ['node:fs', 'node:path', './a.js', './z.js', './b.js'])
+  assert.deepEqual(output.dynamicDeps, ['./y.js', './x.js'])
+})
+
+test('the same record gives the same bytes', () => {
+  const record = strip(
+    '/d.ts',
+    "import { a } from './a.js'\nexport default a()\nexport const b = import.meta.url\n",
+  )
+  const first = toModuleRunner('/d.ts', record)
+  const second = toModuleRunner('/d.ts', record)
+  assert.equal(first.code, second.code)
+  assert.deepEqual(first.map, second.map)
+})
+
+test('unstripped TypeScript is a per-file error naming the file, not an abort (B20)', () => {
+  const unstripped: TransformRecord = {
+    ...strip('/ok.ts', 'export {}\n'),
+    code: 'export type T = number\nexport const x: T = 1\n',
+  }
+  assert.throws(
+    () => toModuleRunner('/ts.ts', unstripped),
+    (error: unknown) => {
+      assert.equal((error as { code?: unknown }).code, 'TRANSFORM_RUNNER_FAILED')
+      assert.match(String(error), /\/ts\.ts/)
+      return true
+    },
+  )
+})
+
+function runnerError(code: string): string {
+  const record: TransformRecord = { ...strip('/ok.ts', 'export {}\n'), code }
+  try {
+    toModuleRunner('/s.ts', record)
+  } catch (error) {
+    return String(error)
+  }
+  return ''
+}
+
+test('semantic errors fail the file with the parser’s text (the harness matches these)', () => {
+  assert.match(runnerError('export { x }\n'), /\/s\.ts: Export 'x' is not defined/)
+  assert.match(
+    runnerError("import { vi } from 'm'\nconst vi = 1\n"),
+    /Identifier `vi` has already been declared/,
+  )
+})
+
+test('a throw maps back to the original TypeScript line, and the map is composed once', () => {
+  const source = [
+    "import { a } from './a.js'",
+    'export const n: number = 1',
+    'export function boom(): never {',
+    "  throw new Error('x' + a)",
+    '}',
+    '',
+  ].join('\n')
+  const output = toModuleRunner('/t.ts', strip('/t.ts', source))
+  const generated = output.code.split('\n').findIndex((line) => line.includes('throw new')) + 1
+  const map = output.map
+  assert.ok(map !== null)
+  const traced = new TraceMap(map as ConstructorParameters<typeof TraceMap>[0])
+  const original = originalPositionFor(traced, { line: generated, column: 2 })
+  assert.equal(original.line, 4)
+  assert.equal(original.source, '/t.ts')
+  assert.equal(output.map, map)
+})
+
+test('a JS-only file’s map leads to the file', () => {
+  const record = strip('/plain.js', "import { a } from './a.js'\nexport const b = a\n")
+  assert.equal(record.map, null)
+  assert.deepEqual(toModuleRunner('/plain.js', record).map?.sources, ['/plain.js'])
+})
+
+test('no non-test file under packages/*/src names the deprecated oxc runner transform (B20 Gap 9)', () => {
+  const packages = fileURLToPath(new URL('../../', import.meta.url))
+  const offenders: string[] = []
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name)
+      if (entry.isDirectory()) walk(path)
+      else if (
+        /\.[cm]?ts$/.test(entry.name) &&
+        !/\.test(-d)?\.ts$|\.d\.ts$|\/test-[^/]*$/.test(path) &&
+        readFileSync(path, 'utf8').includes('moduleRunnerTransformSync')
+      ) {
+        offenders.push(path)
+      }
+    }
+  }
+  for (const pkg of readdirSync(packages, { withFileTypes: true })) {
+    if (pkg.isDirectory() && existsSync(join(packages, pkg.name, 'src'))) {
+      walk(join(packages, pkg.name, 'src'))
+    }
+  }
+  assert.deepEqual(offenders, [])
 })

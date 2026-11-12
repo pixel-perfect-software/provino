@@ -153,6 +153,7 @@ export async function createProjectLoader(
       typescript: config.typescript,
       tsconfig,
       hoist: config.hoist,
+      runnerForm: true,
       cache: config.cacheDir === undefined ? false : { dir: config.cacheDir },
       ...(config.codeIdentity === undefined ? {} : { codeIdentity: config.codeIdentity }),
       ...(transformers === undefined ? {} : { transformers }),
