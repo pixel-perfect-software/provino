@@ -2,12 +2,37 @@
 // graph over a temp tree, and the disk cache (a hit, a miss on a lockfile change, no lockfile, a
 // corrupt file, atomic writes).
 import assert from 'node:assert/strict'
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { before, describe, test } from 'node:test'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { after, before, describe, test } from 'node:test'
 import { createResolver } from '@provino/resolver'
-import { writeTree } from '../internal/test-support.ts'
 import { buildThirdPartyGraph, graphCacheKey, importersOf, initLexer, scanSource } from './index.ts'
+
+const roots: string[] = []
+after(() => {
+  for (const root of roots) rmSync(root, { recursive: true, force: true })
+})
+
+/** Writes `files` into a fresh temp directory (its real path), removed after the test file. */
+function writeTree(files: Readonly<Record<string, string>>): string {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-graph-')))
+  roots.push(root)
+  for (const [path, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, path)), { recursive: true })
+    writeFileSync(join(root, path), content)
+  }
+  return root
+}
 
 function resolverFor(root: string) {
   return createResolver({

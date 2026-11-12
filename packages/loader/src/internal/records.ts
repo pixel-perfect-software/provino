@@ -15,6 +15,7 @@ import type {
   SourceMapV3,
 } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
+import { createInlineState, type InlineState } from './inline.ts'
 import { loaderMessage } from './messages.ts'
 
 /**
@@ -58,6 +59,11 @@ export interface ModuleRecord {
   /** Imports the hoister made late (D38): never linked ahead, loaded when their call runs. */
   readonly lateDeps: readonly string[]
   readonly hasTopLevelAwait: boolean
+  /**
+   * A node_modules file inlined for a file's mocks (T2.6): transformed as a dependency, so it is
+   * never hoisted, and reported to coverage as third party.
+   */
+  readonly thirdParty: boolean
   /** Its static subgraph has top-level await, so it evaluates with the async wrapper. */
   asyncGraph: boolean
   /**
@@ -98,6 +104,8 @@ function isThirdParty(path: string, inline: readonly (string | RegExp)[]): boole
 
 export interface Records {
   readonly options: LoaderOptions
+  /** The node_modules graph and what inlining warned (T2.6). */
+  readonly inline: InlineState
   readonly records: Map<ModuleId, ModuleRecord>
   /** Native namespaces of shared externals and builtins (`import()`), by path or `node:` id. */
   readonly externals: Map<string, object>
@@ -134,6 +142,7 @@ export function createRecords(options: LoaderOptions): Records {
   )
   return {
     options,
+    inline: createInlineState(),
     records: new Map(),
     externals: new Map(),
     required: new Map(),
@@ -278,6 +287,11 @@ export function targetOfId(state: Records, id: string): Found {
   return { kind: 'user', id: toModuleId(id) }
 }
 
+/** Whether `path` is a node_modules file the loader shares natively unless a mock makes it inline. */
+export function isSharedPath(state: Records, path: string): boolean {
+  return isThirdParty(path, state.options.inline ?? [])
+}
+
 /** The key of an external or builtin in `externals` and `required`. */
 export function externalKey(target: Target): string {
   if (target.kind === 'builtin') return target.id
@@ -291,16 +305,18 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   if (existing !== undefined) return existing
   const path: string = id
   const text = readFileSync(path, 'utf8')
+  // A node_modules file only gets here when a mock made it inline (T2.6), or `inline` names it.
+  const thirdParty = isSharedPath(state, path)
   let record: ModuleRecord
   if (path.endsWith('.json')) {
-    record = makeRecord(id, 'json', text, () => null, [], [], false)
+    record = makeRecord(id, 'json', text, () => null, [], [], false, false)
   } else if (/\.(?:wasm|node)$/.test(path)) {
     throw new LoaderError('LOADER_UNSUPPORTED_MODULE', `cannot load ${path} as a user module`)
   } else {
     const transformed = state.options.transformer.transform({
       filename: path,
       source: text,
-      role: isTest ? 'test' : 'source',
+      role: thirdParty ? 'dependency' : isTest ? 'test' : 'source',
       consumer: 'import',
       instrument: false,
     })
@@ -334,12 +350,22 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
         runner.deps,
         transformed.lateDeps,
         transformed.hasTopLevelAwait,
+        thirdParty,
       )
     } else {
       const requires = transformed.imports
         .filter((entry) => entry.kind === 'require')
         .map((entry) => entry.specifier)
-      record = makeRecord(id, 'cjs', transformed.code, () => transformed.map, requires, [], false)
+      record = makeRecord(
+        id,
+        'cjs',
+        transformed.code,
+        () => transformed.map,
+        requires,
+        [],
+        false,
+        thirdParty,
+      )
     }
   }
   state.records.set(id, record)
@@ -355,6 +381,7 @@ function makeRecord(
   deps: readonly string[],
   lateDeps: readonly string[],
   hasTopLevelAwait: boolean,
+  thirdParty: boolean,
 ): ModuleRecord {
   return {
     id,
@@ -367,6 +394,7 @@ function makeRecord(
     deps,
     lateDeps,
     hasTopLevelAwait,
+    thirdParty,
     asyncGraph: hasTopLevelAwait,
     lateGraph: lateDeps.length > 0,
     resolved: new Map(),
@@ -548,7 +576,7 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
       get map() {
         return record.map
       },
-      thirdParty: false,
+      thirdParty: record.thirdParty,
     })
   }
   return fn

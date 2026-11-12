@@ -31,6 +31,7 @@ function recording(): { readonly registry: ModuleMockRegistry; readonly asked: s
         asked.push(`unresolved ${specifier}`)
         return no
       },
+      active: () => true,
       materialize: fail,
       mockFor: fail,
       createMockFromModule: fail,

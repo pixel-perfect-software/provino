@@ -5,6 +5,18 @@ import {
   type LoaderError,
   type LoaderErrorCode,
 } from '@provino/loader'
+import {
+  buildThirdPartyGraph,
+  type EdgeKind,
+  type GraphEdge,
+  type GraphEntry,
+  type GraphOptions,
+  importersOf,
+  initLexer,
+  type Scan,
+  scanSource,
+  type ThirdPartyGraph,
+} from '@provino/loader/graph'
 import type {
   CreateLoader,
   FileRegistry,
@@ -54,3 +66,24 @@ registry.invalidate('./setup.ts')
 registry.invalidate('./setup.ts', '/repo/a.ts' as ModuleId)
 // @ts-expect-error the parent is a branded ModuleId
 registry.invalidate('./setup.ts', '/repo/a.ts')
+
+// The node_modules graph is its own subpath entry (D52): nothing of it is on the root.
+declare const graphOptions: GraphOptions
+expectTypeOf(buildThirdPartyGraph).parameters.toEqualTypeOf<[options: GraphOptions]>()
+expectTypeOf(buildThirdPartyGraph).returns.toEqualTypeOf<ThirdPartyGraph>()
+expectTypeOf(importersOf).returns.toEqualTypeOf<readonly string[]>()
+expectTypeOf(importersOf).parameter(1).toEqualTypeOf<string | readonly string[]>()
+expectTypeOf(initLexer).returns.toEqualTypeOf<Promise<void>>()
+expectTypeOf(scanSource).returns.toEqualTypeOf<Scan>()
+expectTypeOf<GraphEdge['kind']>().toEqualTypeOf<EdgeKind>()
+expectTypeOf<GraphEdge['target']>().toEqualTypeOf<string | null>()
+const graph = buildThirdPartyGraph(graphOptions)
+expectTypeOf(graph.reachable('/a.js')).toEqualTypeOf<readonly GraphEntry[]>()
+// @ts-expect-error the graph's size is read, not set
+graph.size = 1
+// @ts-expect-error exactOptionalPropertyTypes: no cache is `null` or omitted
+buildThirdPartyGraph({ ...graphOptions, cacheDir: undefined })
+// @ts-expect-error a graph needs the worker's resolver
+buildThirdPartyGraph({ root: '/repo' })
+// @ts-expect-error importersOf takes the graph first
+importersOf('/a.js', graph)

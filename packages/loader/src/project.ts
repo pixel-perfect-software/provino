@@ -16,6 +16,7 @@ import type {
   SerializedLoaderConfig,
 } from '@provino/types'
 import { LoaderError } from './errors.ts'
+import { initLexer } from './graph/index.ts'
 import { createLoader } from './loader.ts'
 
 /**
@@ -134,9 +135,12 @@ export async function createProjectLoader(
     config.resolver === undefined
       ? undefined
       : await loadCustomResolver(behaviours, config.resolver)
+  // The lexer's WebAssembly build starts here, once per worker, where an `await` is free (B13d Gap 9).
+  if (policy.mocksReachShared) await initLexer()
   return createLoader({
     root,
     engine: 'runner',
+    graphCache: config.cacheDir ?? null,
     resolver: createResolver({
       root,
       mappers,

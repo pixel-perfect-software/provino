@@ -7,24 +7,16 @@ import type {
   CreateLoader,
   FileRegistry,
   FileRegistryOptions,
-  LeakReport,
   LoadActual,
   Loader,
   ModuleId,
   ModuleMockRegistry,
 } from '@provino/types'
 import { LoaderError } from './errors.ts'
+import { saveGraph } from './internal/inline.ts'
 import { loaderMessage } from './internal/messages.ts'
 import { createRecords, resolveOrMissing } from './internal/records.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
-
-const EMPTY_LEAKS: LeakReport = {
-  restored: [],
-  prototypePatches: [],
-  listenersAdded: [],
-  activeResources: [],
-  inlinedForMocks: [],
-}
 
 function notYet(what: string, task: string): LoaderError {
   return new LoaderError('LOADER_NOT_IMPLEMENTED', `${what} is not implemented yet (${task}).`)
@@ -145,11 +137,22 @@ export const createLoader: CreateLoader = (options) => {
       loadedModules: () => registry.loaded(),
       dispose: () => {
         mocks?.dispose()
+        // What the file inlined, for its report; under `none` the instances go too, so the next
+        // file sees the shared module.
+        const inlinedForMocks = registry.inlined()
+        registry.dropInlined()
+        saveGraph(state.inline)
         // Under `none` the registry outlives the file: a later file sets its own context, and
         // code the file left behind finds no disposed registry in the meantime.
         if (registry.context === context) registry.context = NO_FILE
         if (registryOptions.tier !== 'none') registry.reset()
-        return EMPTY_LEAKS
+        return {
+          restored: [],
+          prototypePatches: [],
+          listenersAdded: [],
+          activeResources: [],
+          inlinedForMocks,
+        }
       },
       [Symbol.dispose]: () => {
         fileRegistry.dispose()
