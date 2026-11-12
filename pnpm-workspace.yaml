@@ -90,6 +90,8 @@ catalog:
   jest-util: 30.5.1
   # jsdom (Track 8's version): the propagation test's DOM rows, later the jsdom environment.
   jsdom: 30.1.3
+  # T8.2's second window: happy-dom's `GlobalWindow`, populated and restored by env-shared.
+  happy-dom: 21.0.4
   lodash: 4.18.1
   # The hoister's edits and maps (Track 3 R2), and the Spike A loader fixture.
   magic-string: 1.4.5

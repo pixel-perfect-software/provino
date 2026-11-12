@@ -53,6 +53,9 @@
       "path": "packages/env-node/test"
     },
     {
+      "path": "packages/env-shared/test"
+    },
+    {
       "path": "packages/config/test"
     },
     {
