@@ -269,3 +269,7 @@ jobs:
       # with no process abort and every failure reported per file.
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm bench:runner-fuzz
+      # T3.13: our module-runner transform is AST-equal to oxc's on the fuzz, excalidraw and scoping
+      # corpora (or on the exemption list). Its speed is checked locally only.
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm bench:runner-diff --skip-speed

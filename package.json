@@ -37,6 +37,7 @@
     "bench:excalidraw": "node --conditions=provino-source packages/transform/bench/excalidraw.ts",
     "bench:transform-cache": "node --conditions=provino-source packages/transform/bench/transform-cache.ts",
     "bench:runner-fuzz": "node --conditions=provino-source packages/transform/bench/runner-fuzz.ts",
+    "bench:runner-diff": "node --conditions=provino-source packages/transform/bench/runner-diff.ts",
     "bench:loader": "node --conditions=provino-source packages/bench/src/loader/cli.ts",
     "bench:worker": "node --conditions=provino-source packages/bench/src/worker/cli.ts",
     "bench:expect": "node --conditions=provino-source packages/bench/src/expect/cli.ts",
