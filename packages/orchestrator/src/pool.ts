@@ -18,7 +18,7 @@ import type {
 } from '@provino/types'
 import { connectWorker, type FileDone, type WorkerConnection } from './connect.ts'
 import { OrchestratorError } from './errors.ts'
-import { sameWorkerKey } from './key.ts'
+import { sameWorkerKey, workerKeyId } from './key.ts'
 import { describeExit } from './transport/shared.ts'
 
 /** After this many workers in a row fail to start, the pool starts no more (Track 9). */
@@ -228,12 +228,17 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   const spawns = new Set<Promise<void>>()
   /** Every stop under way, so `close` waits for workers that exited before it was called too. */
   const stops = new Set<Promise<void>>()
+  /** The workers still starting, over every key. */
   let spawning = 0
-  /** The keys of the workers still starting, one entry each. */
-  const spawningKeys: WorkerKey[] = []
   let nextWorkerId = 1
-  /** The latest failed start of each worker key and how many in a row; cleared by a start of that key that works. */
-  const failures: { readonly key: WorkerKey; failure: StartFailure }[] = []
+  /**
+   * Per worker key: how many of its workers are still starting, and its latest failed start with
+   * how many in a row (cleared by a start of that key that works). An entry exists only while
+   * either is set.
+   */
+  const keyStates = new Map<string, { spawning: number; failure?: StartFailure | undefined }>()
+  /** How many entries of `keyStates` hold a failure: `pump` scans the waiters only when some do. */
+  let failedKeys = 0
   let draining = false
   /** Aborted with the pool: kills the workers that have not said `ready` yet. */
   const controller = new AbortController()
@@ -245,10 +250,8 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
    * fail the files of one that can.
    */
   function exhausted(workerKey: WorkerKey): StartFailure | undefined {
-    const entry = failures.find((item) => sameWorkerKey(item.key, workerKey))
-    return entry !== undefined && entry.failure.count >= MAX_START_FAILURES
-      ? entry.failure
-      : undefined
+    const failure = keyStates.get(workerKeyId(workerKey))?.failure
+    return failure !== undefined && failure.count >= MAX_START_FAILURES ? failure : undefined
   }
 
   /** Reports an error no caller waits on: to `onError`, else thrown uncaught, as `connectWorker` does. */
@@ -325,7 +328,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
 
   /** Whether a worker of `workerKey` is alive (and not being stopped) or still starting: one that may take its file. */
   function canServe(workerKey: WorkerKey): boolean {
-    if (spawningKeys.some((item) => sameWorkerKey(item, workerKey))) return true
+    if ((keyStates.get(workerKeyId(workerKey))?.spawning ?? 0) > 0) return true
     for (const slot of slots) if (usable(slot) && sameWorkerKey(slot.key, workerKey)) return true
     return false
   }
@@ -336,11 +339,13 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     // Too many starts of a key failed in a row. Its files left fail only once no worker of that key
     // is left that could run them; while one is alive or starting, they wait for it. Other keys'
     // files are never touched.
-    for (const waiter of [...waiters]) {
-      const gaveUp = exhausted(waiter.request.key)
-      if (gaveUp !== undefined && !canServe(waiter.request.key)) {
-        waiters.splice(waiters.indexOf(waiter), 1)
-        waiter.resolve(startFailed(gaveUp))
+    if (failedKeys > 0) {
+      for (const waiter of [...waiters]) {
+        const gaveUp = exhausted(waiter.request.key)
+        if (gaveUp !== undefined && !canServe(waiter.request.key)) {
+          waiters.splice(waiters.indexOf(waiter), 1)
+          waiter.resolve(startFailed(gaveUp))
+        }
       }
     }
     for (let at = 0; at < waiters.length; ) {
@@ -353,7 +358,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       if (idle !== undefined) {
         waiters.splice(at, 1)
         void execute(idle, waiter)
-      } else if (exhausted(waiterKey) !== undefined) {
+      } else if (failedKeys > 0 && exhausted(waiterKey) !== undefined) {
         // Waits for its own key's worker that is still alive; the files behind it go on.
         at++
       } else if (slots.size + spawning < maxWorkers) {
@@ -378,10 +383,14 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     spawning++
     const workerId = nextWorkerId++
     const { key } = waiter.request
-    spawningKeys.push(key)
+    const keyId = workerKeyId(key)
+    let state = keyStates.get(keyId)
+    if (state === undefined) keyStates.set(keyId, (state = { spawning: 0 }))
+    state.spawning++
     const doneStarting = (): void => {
       spawning--
-      spawningKeys.splice(spawningKeys.indexOf(key), 1)
+      state.spawning--
+      if (state.spawning === 0 && state.failure === undefined) keyStates.delete(keyId)
     }
     const route: Slot['route'] = { handler: undefined }
     let slot: Slot
@@ -414,23 +423,25 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         slot.diedBusy = slot.state === 'busy'
       })
     } catch (error) {
-      doneStarting()
       // A worker that was killed because the pool closed is not a start failure to count.
       if (controller.signal.aborted) {
+        doneStarting()
         waiter.resolve({ type: 'aborted' })
         return
       }
-      const entry = failures.find((item) => sameWorkerKey(item.key, key))
-      const failure: StartFailure = { count: (entry?.failure.count ?? 0) + 1, workerId, error }
-      if (entry === undefined) failures.push({ key, failure })
-      else entry.failure = failure
+      const failure: StartFailure = { count: (state.failure?.count ?? 0) + 1, workerId, error }
+      if (state.failure === undefined) failedKeys++
+      state.failure = failure
+      doneStarting()
       waiter.resolve(startFailed(failure))
       pump()
       return
     }
+    if (state.failure !== undefined) {
+      state.failure = undefined
+      failedKeys--
+    }
     doneStarting()
-    const worked = failures.findIndex((item) => sameWorkerKey(item.key, key))
-    if (worked >= 0) failures.splice(worked, 1)
     slots.add(slot)
     void slot.connection.exited.then(() => {
       reportExit(slot)

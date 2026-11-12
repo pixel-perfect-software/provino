@@ -72,3 +72,8 @@ export function sameWorkerKey(a: WorkerKey, b: WorkerKey): boolean {
     a.envHash === b.envHash
   )
 }
+
+/** A string equal for exactly the keys `sameWorkerKey` calls the same, for a `Map`. */
+export function workerKeyId(key: WorkerKey): string {
+  return `${key.project}\0${key.pool}\0${key.environment}\0${key.environmentOptionsHash}\0${key.execArgvHash}\0${key.envHash}`
+}
