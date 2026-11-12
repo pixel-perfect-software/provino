@@ -58,18 +58,20 @@ class Sink extends Writable {
 }
 
 /** Each test's status as real Jest reports it, by its full name. */
-async function jestStatuses(config: string): Promise<ReadonlyMap<string, string>> {
+async function jestRun(
+  config: string,
+  pattern = 'greeter',
+): Promise<{ code: number | null; statuses: ReadonlyMap<string, string> }> {
   const out = join(await temp(), 'jest.json')
   const code = await new Promise<number | null>((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      [JEST, '-c', config, '--no-cache', '--ci', '--json', `--outputFile=${out}`],
+      [JEST, '-c', config, '--no-cache', '--ci', '--json', `--outputFile=${out}`, pattern],
       { cwd: FIXTURE, stdio: 'ignore' },
     )
     child.once('error', reject)
     child.once('close', resolve)
   })
-  assert.equal(code, 0, 'real Jest passes the fixture')
   const report = JSON.parse(await readFile(out, 'utf8')) as {
     testResults: { assertionResults: { fullName: string; status: string }[] }[]
   }
@@ -77,6 +79,13 @@ async function jestStatuses(config: string): Promise<ReadonlyMap<string, string>
   for (const file of report.testResults) {
     for (const test of file.assertionResults) statuses.set(test.fullName, test.status)
   }
+  return { code, statuses }
+}
+
+/** Each test's status as real Jest reports it, by its full name; the fixture passes under it. */
+async function jestStatuses(config: string): Promise<ReadonlyMap<string, string>> {
+  const { code, statuses } = await jestRun(config)
+  assert.equal(code, 0, 'real Jest passes the fixture')
   return statuses
 }
 
@@ -84,18 +93,22 @@ async function jestStatuses(config: string): Promise<ReadonlyMap<string, string>
 async function provinoStatuses(
   config: string,
   cache = false,
+  pattern = 'greeter',
 ): Promise<{ code: number; statuses: ReadonlyMap<string, string>; stderr: string }> {
   const out = join(await temp(), 'run.json')
   const stderr = new Sink()
   const here = process.cwd()
   process.chdir(FIXTURE)
   try {
-    const code = await runJestCommand(['-c', config, ...(cache ? [] : ['--no-cache']), '--ci'], {
-      stdout: new Sink(),
-      stderr,
-      cwd: FIXTURE,
-      reporters: [['normalized-json', { outputFile: out }]],
-    })
+    const code = await runJestCommand(
+      ['-c', config, ...(cache ? [] : ['--no-cache']), '--ci', pattern],
+      {
+        stdout: new Sink(),
+        stderr,
+        cwd: FIXTURE,
+        reporters: [['normalized-json', { outputFile: out }]],
+      },
+    )
     const view = viewOfNormalized(await readFile(out, 'utf8'))
     const statuses = new Map<string, string>()
     const jestWord: Readonly<Record<string, string>> = { skipped: 'pending' }
@@ -145,6 +158,22 @@ describe('Jest transformers on the rebuilt T3.8 fixture', () => {
           [...expected].sort(([a], [b]) => (a < b ? -1 : 1)),
         )
       }
+    })
+  }
+
+  for (const name of ['babel', 'ts-jest', 'swc']) {
+    it(`${name}: a file importing describe, it, expect and jest from @jest/globals has real Jest's statuses`, async () => {
+      const config = `jest.${name}.config.json`
+      // Whatever real Jest does with the file, failures included (@swc/jest does not hoist
+      // `jest.mock` above an import it takes from `@jest/globals`), Provino does the same.
+      const { code, statuses: expected } = await jestRun(config, 'globals')
+      assert.equal(expected.size, 2)
+      const ran = await provinoStatuses(config, false, 'globals')
+      assert.equal(ran.code, code, ran.stderr)
+      assert.deepEqual(
+        [...ran.statuses].sort(([a], [b]) => (a < b ? -1 : 1)),
+        [...expected].sort(([a], [b]) => (a < b ? -1 : 1)),
+      )
     })
   }
 
