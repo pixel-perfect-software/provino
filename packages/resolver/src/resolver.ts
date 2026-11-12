@@ -98,23 +98,27 @@ export const createResolver: CreateResolver = (options) => {
       ? null
       : { ...base, modules: [...(base.modules ?? []), ...modulePaths] }
   const retryRoot = retryBase === null ? null : root.cloneWithOptions(retryBase)
-  // One clone per condition list; clones share the root's file-system cache.
-  const byConditions = new Map<string, ResolverFactory>()
-  const retryByConditions = new Map<string, ResolverFactory>()
 
-  function factoryFor(conditions: readonly string[], retry = false): ResolverFactory {
-    const key = conditions.join('\0')
-    const cache = retry ? retryByConditions : byConditions
-    let factory = cache.get(key)
-    if (factory === undefined) {
-      const from = retry && retryRoot !== null ? retryRoot : root
-      factory = from.cloneWithOptions({
-        ...(retry ? retryBase : base),
-        conditionNames: [...conditions],
-      })
-      cache.set(key, factory)
+  /** A lookup from a root by condition list: one clone per list, sharing the root's file-system cache. */
+  function factoriesOf(from: ResolverFactory, options: NapiResolveOptions) {
+    const byConditions = new Map<string, ResolverFactory>()
+    return (conditions: readonly string[]): ResolverFactory => {
+      const key = conditions.join('\0')
+      let factory = byConditions.get(key)
+      if (factory === undefined) {
+        factory = from.cloneWithOptions({ ...options, conditionNames: [...conditions] })
+        byConditions.set(key, factory)
+      }
+      return factory
     }
-    return factory
+  }
+  const factoryFor = factoriesOf(root, base)
+  const retryFactoryFor =
+    retryRoot === null || retryBase === null ? null : factoriesOf(retryRoot, retryBase)
+
+  /** The conditions a lookup runs with: the context's plus the call kind's (`require` or `import`). */
+  function conditionsFor(context: ResolveContext): string[] {
+    return [...new Set([...context.conditions, kindCondition(context.kind)])]
   }
 
   function resolveWith(
@@ -142,10 +146,10 @@ export const createResolver: CreateResolver = (options) => {
   }
 
   function resolveOnce(specifier: string, context: ResolveContext): ResolveResult {
-    const conditions = [...new Set([...context.conditions, kindCondition(context.kind)])]
+    const conditions = conditionsFor(context)
     let result = resolveWith(factoryFor(conditions), specifier, context)
-    if (result.path === undefined && result.builtin === undefined && retryRoot !== null) {
-      result = resolveWith(factoryFor(conditions, true), specifier, context)
+    if (result.path === undefined && result.builtin === undefined && retryFactoryFor !== null) {
+      result = resolveWith(retryFactoryFor(conditions), specifier, context)
     }
     if (result.builtin !== undefined && isNodeId(result.builtin.resolved)) {
       return { type: 'builtin', id: result.builtin.resolved }
@@ -190,7 +194,7 @@ export const createResolver: CreateResolver = (options) => {
     specifier: string,
     context: ResolveContext,
   ): ResolveResult {
-    const conditions = [...new Set([...context.conditions, kindCondition(context.kind)])]
+    const conditions = conditionsFor(context)
     const defaultResolver = (path: string, callOptions: JestResolverOptions): string => {
       const result = resolveDirect(path, {
         importer: join(callOptions.basedir, '__provino_resolve__.js'),
@@ -235,6 +239,13 @@ export const createResolver: CreateResolver = (options) => {
     )
     .digest('hex')
 
+  /** What a specifier no mapper took goes through: the project's custom `resolver`, else ours. */
+  const resolveFinal =
+    customSync === null
+      ? resolveDirect
+      : (specifier: string, context: ResolveContext): ResolveResult =>
+          resolveCustom(customSync, specifier, context)
+
   const resolver: Resolver = {
     resolve(specifier, context) {
       for (const mapper of options.mappers) {
@@ -242,10 +253,7 @@ export const createResolver: CreateResolver = (options) => {
         if (hit === null) continue
         for (const candidate of hit.candidates) {
           // Jest resolves a stub target through the project's resolver too (`resolveStubModuleName`).
-          const result =
-            customSync !== null
-              ? resolveCustom(customSync, candidate, context)
-              : resolveDirect(candidate, context)
+          const result = resolveFinal(candidate, context)
           if (result.type === 'file') return { ...result, mappedBy: hit.rule }
           if (result.type !== 'not-found') return result
         }
@@ -262,8 +270,7 @@ export const createResolver: CreateResolver = (options) => {
         // `continue`: the first hit still wins, so later mappers are skipped.
         break
       }
-      if (customSync !== null) return resolveCustom(customSync, specifier, context)
-      return resolveDirect(specifier, context)
+      return resolveFinal(specifier, context)
     },
     invalidate() {
       // oxc-resolver can only clear its whole cache, which every clone shares.
