@@ -2,6 +2,7 @@
 // a run leaves on disk, the sidecar check and the listing of finished runs. No runner starts.
 import assert from 'node:assert/strict'
 import {
+  cp,
   mkdir,
   readdir,
   readFile,
@@ -101,10 +102,23 @@ test('each way the python clone can fail falls back to cp -cR, then to a plain c
     ['the destination exists (EEXIST, 17)', () => finished(17)],
     ['python3 fails some other way', () => finished(1, '', 'Traceback')],
   ]
+  // `cp -cR` clones per file only on APFS. GNU cp (Linux CI) has no clone, so the real one would
+  // fall through to the plain copy; a copy stands in for it here, since the order is under test.
+  const clonePerFile = async (call: Call): Promise<ReturnType<typeof finished>> => {
+    await cp(call.args[1] ?? assert.fail('no source'), call.args[2] ?? assert.fail('no dest'), {
+      recursive: true,
+    })
+    return finished(0)
+  }
   for (const [name, fail] of failures) {
     const out = path.join(dir, `out-${name.length}`)
     const deps = fakeDeps(
-      (call: Call) => (call.command === '/usr/bin/python3' ? fail(call) : undefined),
+      (call: Call) =>
+        call.command === '/usr/bin/python3'
+          ? fail(call)
+          : call.args[0] === '-cR'
+            ? clonePerFile(call)
+            : undefined,
       REAL,
     )
     const result = await cloneTree(path.join(dir, 'src'), out, deps)
