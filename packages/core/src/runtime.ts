@@ -127,10 +127,10 @@ export interface Runtime {
    * the file that is running ends (Jest's `jest.setTimeout`). It covers the tests declared before
    * the call too, and is read once when the run starts, after collection (circus copies it into
    * its state at `run_start`): a call during collection or in `setupFilesAfterEnv` takes effect, one
-   * made inside a hook or a test body does not. `0` and `NaN` are no timeout given, so the policy's
-   * stays; a negative number is one, as in Jest (it fires at once, as a 1 ms deadline).
+   * made inside a hook or a test body does not. `undefined` leaves the policy's in place. A dialect
+   * maps its own odd values (Jest's `0`, `NaN` and negative numbers) before it calls.
    */
-  setDefaultTimeout(ms: number): void
+  setDefaultTimeout(ms: number | undefined): void
   /** Runs the worker teardowns (last first); rejects with an `AggregateError` if any failed. */
   dispose(): Promise<void>
 }
@@ -356,9 +356,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     onAfterTryTask: (listener) => addListener(tryTask.after, listener),
     captureProcessErrors: (target = process) => listenForProcessErrors(processErrors, target),
     setDefaultTimeout(ms) {
-      // A negative number fires at once in Jest (a timer of -1 ms); a deadline of 1 ms does too,
-      // though its message names 1 ms, not the negative value.
-      requestedTimeout = Number.isFinite(ms) && ms !== 0 ? Math.max(ms, 1) : undefined
+      requestedTimeout = ms
     },
     async dispose(): Promise<void> {
       const errors = await deadlines.drain(workerTeardowns)

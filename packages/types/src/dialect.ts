@@ -298,7 +298,7 @@ export interface GlobalsHost {
    * Sets the timeout a test or hook with none of its own gets, until the file that is running
    * ends (`Runtime.setDefaultTimeout`).
    */
-  setDefaultTimeout(ms: number): void
+  setDefaultTimeout(ms: number | undefined): void
 }
 
 /**
@@ -372,7 +372,7 @@ export interface Dialect<Name extends string = string, Options = unknown> {
     readonly names: readonly string[]
   }
   readonly loader?: LoaderPolicies
-  /** Bindings each module gets its own value of, whether or not globals are injected. */
+  /** Bindings each module gets its own value of; `names` are declared only when globals are injected. */
   readonly moduleScope?: ModuleScope
   /** Resolves the environment a test file's docblock names (Jest's `@jest-environment`), in the worker. */
   readonly environmentResolver?: ModuleRef<EnvironmentResolver>

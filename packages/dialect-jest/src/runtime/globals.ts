@@ -410,7 +410,12 @@ function sharedMembers<J>(
       return replaceProperty(host.mockPolicy, host.mocks(), object, key, value)
     },
     setTimeout(timeout) {
-      host.setDefaultTimeout(timeout)
+      // Jest's own reading of the number: `0` and `NaN` give none, so the config's stays; a
+      // negative number is a timer of -1 ms, which fires at once, as a 1 ms deadline does (its
+      // message names 1 ms, not the negative value).
+      host.setDefaultTimeout(
+        Number.isFinite(timeout) && timeout !== 0 ? Math.max(timeout, 1) : undefined,
+      )
       return self()
     },
     retryTimes() {

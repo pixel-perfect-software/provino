@@ -153,6 +153,25 @@ test('describe, it, test and the hooks are core`s; the f and x forms are its onl
   assert.equal(g.expect, expect, 'expect is the host`s')
 })
 
+test("jest.setTimeout hands core Jest's reading: 0 and NaN are none, a negative number is 1 ms", async (t) => {
+  const { expect } = setUpJestExpect(t)
+  const seen: (number | undefined)[] = []
+  await runRegistered((api) => {
+    const g = jestGlobals({
+      api,
+      expect,
+      registry: unusedRegistry,
+      ...mockHost(),
+      setDefaultTimeout: (ms) => {
+        seen.push(ms)
+      },
+    })
+    for (const ms of [250, 0, Number.NaN, -5, Number.POSITIVE_INFINITY]) g.jest.setTimeout(ms)
+  }, jestCore)
+  // Infinity is not finite, so it is none too, as core read it before the mapping moved here.
+  assert.deepEqual(seen, [250, undefined, undefined, 1, undefined])
+})
+
 test('fit registers a focused test; xit and xtest skipped ones', async (t) => {
   const { expect } = setUpJestExpect(t)
   const events = await runRegistered((api) => {
