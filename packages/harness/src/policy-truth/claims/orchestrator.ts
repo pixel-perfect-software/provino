@@ -55,19 +55,33 @@ const DUAL_EXPORTS_ORDER = ['browser', 'node', 'import', 'require', 'default'] a
  * real Jest resolved: the first key of the `dual` package that is among the conditions, plus
  * `require` (the fixtures `require` it from CommonJS).
  */
+const CONDITIONS_BY_RUNNER: Readonly<
+  Record<
+    string,
+    {
+      readonly export: string
+      readonly fn: (env: EnvironmentRequest) => readonly string[]
+      /** The fixtures `require` the package under Jest (CommonJS) and `import` it under Vitest. */
+      readonly token: string
+    }
+  >
+> = {
+  jest: { export: 'jestEnvironmentConditions', fn: jestEnvironmentConditions, token: 'require' },
+  vitest: {
+    export: 'vitestEnvironmentConditions',
+    fn: vitestEnvironmentConditions,
+    token: 'import',
+  },
+}
+
 const conditionsMatch = (g: Golden, value: unknown): boolean => {
+  const runner = CONDITIONS_BY_RUNNER[g.runner]
+  if (runner === undefined) throw new Error(`no conditions are known for the runner ${g.runner}`)
   const ref = value as { readonly export?: unknown } | null
-  const vitest = g.runner === 'vitest'
-  if (ref?.export !== (vitest ? 'vitestEnvironmentConditions' : 'jestEnvironmentConditions')) {
-    return false
-  }
+  if (ref?.export !== runner.export) return false
   const environment = CONDITION_ENVIRONMENTS[g.suite]
   if (environment === undefined) throw new Error(`no environment is known for ${g.suite}`)
-  // The Jest fixtures `require` the package (CommonJS); the Vitest one `import`s it.
-  const conditions = new Set([
-    ...(vitest ? vitestEnvironmentConditions : jestEnvironmentConditions)(environment),
-    vitest ? 'import' : 'require',
-  ])
+  const conditions = new Set([...runner.fn(environment), runner.token])
   const predicted = DUAL_EXPORTS_ORDER.find((key) => key === 'default' || conditions.has(key))
   const test = g.files.flatMap((file) => file.tests)[0]
   if (test === undefined || test.status !== 'passed') {
