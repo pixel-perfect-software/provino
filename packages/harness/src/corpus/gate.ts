@@ -11,6 +11,9 @@ import type { SelfDiff } from './self-diff.ts'
 /** G0's limit on exclusion rules, counted over the whole corpus (Track 12 R3). */
 export const G0_MAX_EXCLUSION_RULES = 30
 
+/** The reference runs G0 needs of each subject (`corpus run --runs` refuses fewer). */
+export const MIN_REFERENCE_RUNS = 3
+
 /** R2's cap on the tests a subject may leave out of T. */
 export const G0_MAX_EXCLUDED_SHARE = 0.02
 
@@ -135,10 +138,14 @@ export function gateSubject(input: GateInput): GateSubject {
   const referenceTests = first?.report.counts.referenceTests ?? 0
   const used = new Map<string, number>()
   let ruleTests = 0
+  let flakyTests = 0
+  let excludedTests = 0
   for (const { report } of selfDiff.pairs) {
     for (const excluded of report.excluded)
       used.set(excluded.ruleId, (used.get(excluded.ruleId) ?? 0) + 1)
     ruleTests = Math.max(ruleTests, report.counts.excluded - report.counts.flaky)
+    flakyTests = Math.max(flakyTests, report.counts.flaky)
+    excludedTests = Math.max(excludedTests, report.counts.excluded)
   }
   const fired: Record<string, number> = {}
   for (const meta of metas) for (const id of meta.fired) fired[id] = (fired[id] ?? 0) + 1
@@ -146,14 +153,18 @@ export function gateSubject(input: GateInput): GateSubject {
   const sidecarFiles = metas.reduce((most, meta) => Math.max(most, meta.sidecar.files), 0)
   const versions = new Set(metas.map((meta) => meta.runnerVersion))
 
-  if (metas.length < 3) problems.push(`${metas.length} reference runs, 3 needed`)
+  if (metas.length < MIN_REFERENCE_RUNS) {
+    problems.push(`${metas.length} reference runs, ${MIN_REFERENCE_RUNS} needed`)
+  }
   if (versions.size > 1)
     problems.push(`runs used different runner versions: ${[...versions].join(', ')}`)
   if (install === undefined) problems.push('no install record')
-  const combined = share(flaky.length + ruleTests, referenceTests)
+  // D65, as the self-diff's bar reads it: the reference tests left out of T, by a rule or as
+  // flaky (a test that is both counts once; a flaky key the reference lacks counts not at all).
+  const combined = share(excludedTests, referenceTests)
   if (combined > G0_MAX_EXCLUDED_SHARE) {
     problems.push(
-      `flaky (${flaky.length}) plus rule-excluded (${ruleTests}) tests are ${(combined * 100).toFixed(2)}% of ${referenceTests}, over R2's ${G0_MAX_EXCLUDED_SHARE * 100}%`,
+      `flaky (${flakyTests}) plus rule-excluded (${ruleTests}) tests are ${(combined * 100).toFixed(2)}% of ${referenceTests}, over R2's ${G0_MAX_EXCLUDED_SHARE * 100}%`,
     )
   }
   if (missing.length > 0)

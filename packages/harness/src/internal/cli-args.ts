@@ -1,4 +1,5 @@
 import { type ParseArgsConfig, parseArgs } from 'node:util'
+import { MIN_REFERENCE_RUNS } from '../corpus/gate.ts'
 import type { CorpusSelection } from '../corpus/manifest.ts'
 import type { DiffOptions } from '../diff.ts'
 import { HarnessError } from '../errors.ts'
@@ -441,7 +442,9 @@ function parseCorpus(argv: readonly string[]): CorpusCommand {
   flagFor('today', values.today !== undefined, ['self-diff', 'gate'])
   flagFor('everything', values.everything, ['clean'])
   const runs = count(values.runs, '--runs') ?? 3
-  if (runs < 2) throw usage('--runs must be at least 2: a self-diff compares runs')
+  if (runs < MIN_REFERENCE_RUNS) {
+    throw usage(`--runs must be at least ${MIN_REFERENCE_RUNS}: G0 needs that many reference runs`)
+  }
   return {
     command: 'corpus',
     action,

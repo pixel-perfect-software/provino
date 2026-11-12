@@ -56,6 +56,7 @@ test('a command line that names nothing, or too much, or a flag for another acti
   usage('fetch', '--all', '--offline')
   usage('install', '--all', '--verify-only')
   usage('run', '--pilot', '--runs', '1')
+  usage('run', '--pilot', '--runs', '2') // G0 needs 3 reference runs (MIN_REFERENCE_RUNS)
   usage('run', '--pilot', '--runs', 'many')
   usage('flaky', '--pilot', '--out', 'x')
 })

@@ -9,6 +9,7 @@ import {
   buildGateReport,
   formatGateReport,
   G0_MAX_EXCLUSION_RULES,
+  MIN_REFERENCE_RUNS,
   type GateInput,
   type GateSubject,
   gateSubject,
@@ -151,6 +152,41 @@ test('flaky tests and rule-excluded tests together may be at most 2% of the refe
       /flaky \(3\) plus rule-excluded \(0\) tests are 3.00% of 100/.test(problem),
     ),
     row.problems.join('\n'),
+  )
+})
+
+test('a flaky key the reference run lacks is not an excluded test (D65 reads counts.excluded)', () => {
+  const runs = [run(100), run(100, { t0: 'skipped' }), run(100)]
+  // 1 real flaky test and 2 keys from tests that are not in run 1: 1% of the reference, not 3%.
+  const flaky = ['src/a.test.js::t0#0', 'src/gone.test.js::x#0', 'src/gone.test.js::y#0']
+  const row = gateSubject(
+    input({ flaky, selfDiff: selfDiff(runs, { exclusions: [], flaky, today: TODAY }) }),
+  )
+  assert.deepEqual(row.selfDiffs.flatMap((pair) => pair.reasons), [])
+  assert.deepEqual(row.problems, [])
+  assert.equal(row.pass, true)
+})
+
+test('the run count the gate needs is the one corpus run requires', () => {
+  assert.equal(MIN_REFERENCE_RUNS, 3)
+  const row = gateSubject(input({ metas: [meta(1), meta(2)] }))
+  assert.ok(row.problems.includes(`2 reference runs, ${MIN_REFERENCE_RUNS} needed`))
+})
+
+test('a self-diff names the runs it compared by their numbers on disk', () => {
+  const runs = [run(100), run(100), run(100)]
+  const diff = selfDiff(runs, { exclusions: [], flaky: [], today: TODAY, numbers: [1, 3, 7] })
+  assert.deepEqual(
+    diff.pairs.map((pair) => pair.pair),
+    [
+      [1, 3],
+      [1, 7],
+    ],
+  )
+  const row = gateSubject(input({ selfDiff: diff }))
+  assert.deepEqual(
+    row.selfDiffs.map((pair) => pair.pair),
+    ['1-3', '1-7'],
   )
 })
 

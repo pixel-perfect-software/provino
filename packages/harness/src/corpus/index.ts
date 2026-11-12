@@ -26,6 +26,7 @@ export {
   formatGateReport,
   G0_MAX_EXCLUDED_SHARE,
   G0_MAX_EXCLUSION_RULES,
+  MIN_REFERENCE_RUNS,
   gateSubject,
 } from './gate.ts'
 export type { InstallPlan, InstallRecord } from './install.ts'

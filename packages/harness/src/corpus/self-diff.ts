@@ -14,7 +14,7 @@ const BARS = { min: 1, maxDiffs: 0, maxExcluded: 0.02, calibration: false } as c
  * @public
  */
 export interface SelfDiffPair {
-  /** Run numbers: the reference's, then the candidate's. */
+  /** Run numbers on disk: the reference's, then the candidate's. */
   readonly pair: readonly [number, number]
   readonly report: ParityReport
   /** Why it fails; empty when it passes. */
@@ -43,12 +43,15 @@ export function selfDiff(
     readonly exclusions: readonly ExclusionRule[]
     readonly flaky: readonly string[]
     readonly today: string
+    /** The number of each run in `runs` (`listRuns`'s); default: 1, 2, 3, ... */
+    readonly numbers?: readonly number[]
   },
 ): SelfDiff {
   const [first, ...rest] = runs
   if (first === undefined || rest.length === 0) {
     return { pairs: [], pass: false }
   }
+  const numbers = options.numbers ?? runs.map((_, index) => index + 1)
   const pairs = rest.map((candidate, index): SelfDiffPair => {
     const report = diffRuns(
       first,
@@ -75,7 +78,7 @@ export function selfDiff(
       reasons.push(
         `suite pass: the runs disagree on ${report.counts.files - report.counts.filesMatched} file status(es)`,
       )
-    return { pair: [1, index + 2], report, reasons, pass: reasons.length === 0 }
+    return { pair: [numbers[0] ?? 1, numbers[index + 1] ?? index + 2], report, reasons, pass: reasons.length === 0 }
   })
   return { pairs, pass: pairs.every((pair) => pair.pass) }
 }

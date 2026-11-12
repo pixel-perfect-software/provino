@@ -226,17 +226,18 @@ async function loadRuns(
   repo: CorpusRepo,
   subjectId: string,
   env: CorpusEnvironment,
-): Promise<{ runs: NormalizedRun[]; metas: RunMeta[] }> {
+): Promise<{ runs: NormalizedRun[]; metas: RunMeta[]; numbers: number[] }> {
   const paths = repoPaths(env.workRoot, repo)
   const runs: NormalizedRun[] = []
   const metas: RunMeta[] = []
-  for (const n of await listRuns(paths, subjectId)) {
+  const numbers = await listRuns(paths, subjectId)
+  for (const n of numbers) {
     const file = runFile(paths, subjectId, n)
     runs.push(parseNormalizedRun(await readFile(file, 'utf8'), file))
     const meta = await readRunMeta(paths, subjectId, n)
     if (meta !== undefined) metas.push(meta)
   }
-  return { runs, metas }
+  return { runs, metas, numbers }
 }
 
 async function flaky(
@@ -276,7 +277,7 @@ async function subjectInput(
 ) {
   const subject = repo.subjects.find((candidate) => candidate.id === subjectId)
   if (subject === undefined) throw new Error(`no subject ${subjectId}`)
-  const { runs, metas } = await loadRuns(repo, subjectId, env)
+  const { runs, metas, numbers } = await loadRuns(repo, subjectId, env)
   const flakyList = await readSubjectFlaky(subjectId, env.corpusDir)
   if (flakyList === undefined) {
     throw new HarnessError(
@@ -285,7 +286,7 @@ async function subjectInput(
     )
   }
   const exclusions = await readSubjectExclusions(subjectId, today, env.corpusDir)
-  const diff = selfDiff(runs, { exclusions, flaky: flakyList, today })
+  const diff = selfDiff(runs, { exclusions, flaky: flakyList, today, numbers })
   if (diff.pairs.length === 0) {
     throw new HarnessError(
       'HARNESS_CORPUS_GATE_INPUT',

@@ -195,23 +195,23 @@ test('run probes before every repository, and refuses one that is not installed'
 test('run makes the runs per subject, skips finished ones and redoes them with --force', async () => {
   const h = await setup()
   await recordInstall(h)
-  assert.equal(await h.run('run', REPO, '--runs', '2'), 0)
-  assert.deepEqual(h.started, [1, 2])
+  assert.equal(await h.run('run', REPO, '--runs', '3'), 0)
+  assert.deepEqual(h.started, [1, 2, 3])
   assert.match(text(h.out), /ran {2}jest-extended #1: 2 tests \(passed 2\)/)
   h.started.length = 0
   h.out.length = 0
-  assert.equal(await h.run('run', REPO, '--runs', '3'), 0)
-  assert.deepEqual(h.started, [3], 'runs 1 and 2 are on disk')
+  assert.equal(await h.run('run', REPO, '--runs', '4'), 0)
+  assert.deepEqual(h.started, [4], 'runs 1 to 3 are on disk')
   assert.match(text(h.out), /have jest-extended #1/)
   h.started.length = 0
-  assert.equal(await h.run('run', REPO, '--runs', '2', '--force'), 0)
-  assert.deepEqual(h.started, [1, 2])
+  assert.equal(await h.run('run', REPO, '--runs', '3', '--force'), 0)
+  assert.deepEqual(h.started, [1, 2, 3])
 })
 
 test('run notes an offline re-install that has not been verified, but still runs', async () => {
   const h = await setup()
   await recordInstall(h, false)
-  assert.equal(await h.run('run', REPO, '--runs', '2'), 0)
+  assert.equal(await h.run('run', REPO, '--runs', '3'), 0)
   assert.match(text(h.out), /note jest-extended: the offline re-install has not been verified/)
 })
 
@@ -268,8 +268,9 @@ test('self-diff exits 0 on identical runs and 1 on a status change the flaky lis
 test('self-diff needs two runs on disk', async () => {
   const h = await setup()
   await recordInstall(h)
-  await h.run('run', REPO, '--runs', '2')
+  await h.run('run', REPO, '--runs', '3')
   await rm0(path.join(h.paths.runs, SUBJECT, '2'))
+  await rm0(path.join(h.paths.runs, SUBJECT, '3'))
   await mkdir(path.join(h.corpusDir, SUBJECT), { recursive: true })
   await writeFile(path.join(h.corpusDir, SUBJECT, 'flaky.json'), '{"keys":[]}\n')
   assert.equal(await h.run('self-diff', REPO), 1)
@@ -315,7 +316,7 @@ test('gate exits 1 without a flaky list, naming the command that makes it', asyn
 test('clean removes the tree, runs and install record; --everything removes the repository directory', async () => {
   const h = await setup()
   await recordInstall(h)
-  await h.run('run', REPO, '--runs', '2')
+  await h.run('run', REPO, '--runs', '3')
   await writeFile(path.join(h.paths.dir, `${repo.sha}.tar.gz`), 'tarball')
   assert.equal(await h.run('clean', REPO), 0)
   for (const gone of [h.paths.src, h.paths.srcMarker, h.paths.runs, h.paths.installRecord]) {
