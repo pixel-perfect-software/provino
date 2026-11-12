@@ -153,7 +153,7 @@
     "{\"id\":\"a package that requires the mocked one\",\"value\":\"real-b\"}",
     "{\"id\":\"a package that requires a package that requires the mocked one\",\"value\":\"real-b\"}",
     "{\"id\":\"requireActual of a package: its view of the mocked one\",\"value\":\"real-b\"}",
-    "{\"id\":\"a package that requires a mocked builtin\",\"value\":\"darwin\"}",
+    "{\"id\":\"a package that requires a mocked builtin\",\"value\":\"real\"}",
     "{\"id\":\"a doMock after the importer loaded, then after resetModules\",\"value\":{\"before\":\"real-d\",\"afterMock\":\"real-d\",\"afterReset\":\"real-d\"}}",
     "{\"id\":\"a package with its own nested copy of the mocked one\",\"value\":\"nested-b\"}",
     "{\"id\":\"an ES module package that imports the mocked one\",\"value\":\"real-b\"}"

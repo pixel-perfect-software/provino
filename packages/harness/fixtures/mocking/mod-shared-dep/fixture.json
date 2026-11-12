@@ -17,7 +17,7 @@
     },
     "pkg-os": {
       "package.json": "{ \"name\": \"pkg-os\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
-      "index.js": "exports.platform = require('os').platform()\n"
+      "index.js": "exports.platform = require('os').platform() === 'mock-os' ? 'mock' : 'real'\n"
     },
     "pkg-d": {
       "package.json": "{ \"name\": \"pkg-d\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
