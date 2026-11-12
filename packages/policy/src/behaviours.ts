@@ -58,8 +58,8 @@ export const snapshotKey: SnapshotKey = (fullName, count) => `${fullName} ${coun
  */
 export const environmentConditions: EnvironmentConditions = (env) => {
   const custom = env.options?.customExportConditions
-  if (Array.isArray(custom) && custom.every((item) => typeof item === 'string')) {
-    return custom as readonly string[]
+  if (Array.isArray(custom) && custom.every((item): item is string => typeof item === 'string')) {
+    return custom
   }
   return env.conditions ?? (DOM_ENVIRONMENTS.has(env.name) ? ['browser'] : ['node'])
 }
