@@ -34,7 +34,11 @@
     "@sinonjs/fake-timers": "catalog:"
   },
   "devDependencies": {
+    "@provino/env-shared": "workspace:*",
     "@provino/policy": "workspace:*",
-    "@types/sinonjs__fake-timers": "catalog:"
+    "@types/jsdom": "catalog:",
+    "@types/sinonjs__fake-timers": "catalog:",
+    "happy-dom": "catalog:",
+    "jsdom": "catalog:"
   }
 }

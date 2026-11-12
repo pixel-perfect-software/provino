@@ -149,7 +149,7 @@
       "dir": "packages/timers",
       "layer": 2,
       "runsIn": "worker",
-      "deps": ["@provino/types", "@provino/policy"],
+      "deps": ["@provino/types", "@provino/policy", "@provino/env-shared"],
       "slices": ["timers"],
       "neutral": true
     },

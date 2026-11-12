@@ -916,12 +916,24 @@ importers:
         specifier: 'catalog:'
         version: 15.4.0
     devDependencies:
+      '@provino/env-shared':
+        specifier: workspace:*
+        version: link:../env-shared
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
+      '@types/jsdom':
+        specifier: 'catalog:'
+        version: 30.0.0
       '@types/sinonjs__fake-timers':
         specifier: 'catalog:'
         version: 15.0.1
+      happy-dom:
+        specifier: 'catalog:'
+        version: 21.0.4
+      jsdom:
+        specifier: 'catalog:'
+        version: 30.1.3
 
   packages/transform:
     dependencies:

@@ -282,7 +282,7 @@
     },
     {
       "name": "boundary-timers",
-      "comment": "@provino/timers (layer 2, runs in worker) may import only: @provino/policy, @provino/types.",
+      "comment": "@provino/timers (layer 2, runs in worker) may import only: @provino/env-shared, @provino/policy, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/timers/"
@@ -294,7 +294,9 @@
           "^packages/types/",
           "^@provino/types$",
           "^packages/policy/",
-          "^@provino/policy$"
+          "^@provino/policy$",
+          "^packages/env-shared/",
+          "^@provino/env-shared$"
         ]
       }
     },
