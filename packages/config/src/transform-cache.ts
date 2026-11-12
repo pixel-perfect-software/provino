@@ -3,7 +3,12 @@
 // project's workers, and prunes it after the run. The directory's location is the caller's: the
 // orchestrator puts it under the results cache's directory, so `--clearCache` and a cold bench run
 // that delete one delete the other.
-import { lockfileHash, prepareCache, pruneCacheIfWritten } from '@provino/transform'
+import {
+  lockfileHash,
+  prepareCache,
+  pruneCacheIfWritten,
+  transformCodeIdentity,
+} from '@provino/transform'
 import type { ResolvedProject } from './resolve.ts'
 
 /**
@@ -28,7 +33,10 @@ export function withTransformCache(
   }
   return {
     ...project,
-    config: { ...project.config, loader: { ...project.config.loader, cacheDir: dir } },
+    config: {
+      ...project.config,
+      loader: { ...project.config.loader, cacheDir: dir, codeIdentity: transformCodeIdentity() },
+    },
   }
 }
 

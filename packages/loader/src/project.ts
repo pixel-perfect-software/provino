@@ -154,6 +154,7 @@ export async function createProjectLoader(
       tsconfig,
       hoist: config.hoist,
       cache: config.cacheDir === undefined ? false : { dir: config.cacheDir },
+      ...(config.codeIdentity === undefined ? {} : { codeIdentity: config.codeIdentity }),
       ...(transformers === undefined ? {} : { transformers }),
     }),
     policy,

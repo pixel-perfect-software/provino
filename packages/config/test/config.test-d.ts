@@ -13,6 +13,7 @@ import {
   type ResolveProjectOptions,
   resolveNeutralProject,
   resolveProject,
+  type UnseededProjectConfig,
   withTransformCache,
 } from '@provino/config'
 import type {
@@ -53,7 +54,10 @@ expectTypeOf(loadProject).returns.toEqualTypeOf<Promise<ResolvedProject>>()
 expectTypeOf<ResolvedProject['dialect']>().toEqualTypeOf<Dialect | null>()
 expectTypeOf<ResolvedProject['policy']>().toEqualTypeOf<Policy>()
 expectTypeOf<ResolvedProject['isolation']>().toEqualTypeOf<IsolationTier>()
-expectTypeOf<ResolvedProject['config']>().toEqualTypeOf<SerializedProjectConfig>()
+// The run gives every project its seed, so a resolved config has one only when the reader brought it.
+expectTypeOf<ResolvedProject['config']>().toEqualTypeOf<UnseededProjectConfig>()
+expectTypeOf<SerializedProjectConfig>().toExtend<UnseededProjectConfig>()
+expectTypeOf<UnseededProjectConfig['seed']>().toEqualTypeOf<number | undefined>()
 expectTypeOf<ResolvedProject['include']>().toEqualTypeOf<readonly string[]>()
 expectTypeOf<ResolvedProject['environment']>().toEqualTypeOf<string>()
 
@@ -111,7 +115,7 @@ formatConfigIssue('path: message')
 
 // T3.6: the transform cache's coordinator half.
 expectTypeOf(withTransformCache).toEqualTypeOf<
-  (project: ResolvedProject, dir: string) => ResolvedProject
+  (project: ResolvedProject, dir: string, lockfiles?: Map<string, string>) => ResolvedProject
 >()
 expectTypeOf(pruneTransformCache).toEqualTypeOf<(dir: string) => void>()
 // @ts-expect-error the directory is a string

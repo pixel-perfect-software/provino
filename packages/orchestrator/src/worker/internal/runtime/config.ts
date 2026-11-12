@@ -250,6 +250,9 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
     mappers: mapperList(loader.mappers),
     typescript: typescript as SerializedLoaderConfig['typescript'],
     ...(loader.transform === undefined ? {} : { transform: transformConfig(loader.transform) }),
+    ...(loader.codeIdentity === undefined
+      ? {}
+      : { codeIdentity: text(loader.codeIdentity, 'loader.codeIdentity') }),
     ...(loader.cacheDir === undefined
       ? {}
       : { cacheDir: absolutePath(loader.cacheDir, 'loader.cacheDir') }),

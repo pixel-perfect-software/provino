@@ -66,8 +66,8 @@ expectTypeOf(createJestHost).parameters.toEqualTypeOf<[SerializedTransformConfig
 expectTypeOf(createJestHost).returns.toEqualTypeOf<Promise<JestHost>>()
 declare const host: JestHost
 expectTypeOf(host.handles).returns.toEqualTypeOf<boolean>()
-expectTypeOf(host.transform(request)).toEqualTypeOf<HostedSource>()
-expectTypeOf(host.transformAsync(request)).toEqualTypeOf<Promise<HostedSource>>()
+expectTypeOf(host.transform(request, null)).toEqualTypeOf<HostedSource>()
+expectTypeOf(host.transformAsync(request, null)).toEqualTypeOf<Promise<HostedSource>>()
 // The seam for T3.6's fingerprint: the transformer's own cache key, when it has one.
 expectTypeOf(host.cacheKey(request)).toEqualTypeOf<string | null>()
 expectTypeOf<HostedSource['transformerCacheKey']>().toEqualTypeOf<string | null>()
@@ -95,5 +95,5 @@ createTransformCache(undefined)
 pruneCache('/tmp/x', '1 MB')
 // The host takes the cache key the caller already asked for.
 expectTypeOf<Parameters<JestHost['transform']>>().toEqualTypeOf<
-  [request: TransformRequest, cacheKey?: string | null | undefined]
+  [request: TransformRequest, cacheKey: string | null]
 >()

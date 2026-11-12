@@ -56,6 +56,7 @@ const config: SerializedProjectConfig = {
   name: 'app',
   rootDir: '/repo',
   ci: false,
+  seed: 1,
   policy,
   environment,
   globals: globalsRef,

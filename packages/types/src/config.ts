@@ -172,6 +172,12 @@ export interface SerializedLoaderConfig {
    */
   readonly cacheDir?: string
   /**
+   * The hash of the transform package's own code (`transformCodeIdentity`), which the coordinator
+   * computes once so that no worker reads and hashes that package again. Part of every cache
+   * entry's key. Absent: the worker computes it.
+   */
+  readonly codeIdentity?: string
+  /**
    * The dialect's name-mapping rules (Jest's `moduleNameMapper`; T3.3), regex sources in order. They
    * run before `mappers`. Absent means none.
    */

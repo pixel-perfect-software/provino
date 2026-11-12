@@ -27,6 +27,8 @@ describe('the transform cache, coordinator side (T3.6)', () => {
     const dir = join(temp.dir, 'cache', 't')
     const prepared = withTransformCache(project, dir)
     assert.equal(prepared.config.loader.cacheDir, dir)
+    // The workers get the transform package's code hash, so none of them reads that package again.
+    assert.match(prepared.config.loader.codeIdentity ?? '', /^[0-9a-f]{16}$/)
     assert.equal(project.config.loader.cacheDir, undefined)
     assert.equal(prepared.rootDir, project.rootDir)
     assert.ok(existsSync(join(dir, 'CACHEDIR.TAG')))

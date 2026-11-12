@@ -64,6 +64,11 @@ export interface PipelineOptions {
    */
   readonly cache: false | { readonly dir: string }
   /**
+   * `transformCodeIdentity()`, when the caller already has it: the pipeline otherwise hashes this
+   * package's code itself, once per process.
+   */
+  readonly codeIdentity?: string
+  /**
    * The project's user transformers (T3.8, `createJestHost`). A file one of its rules matches goes
    * through the transformer instead of Oxc; every other file takes the Oxc path.
    */
@@ -165,6 +170,16 @@ function diagnostic(source: string, error: OxcError): TransformDiagnostic {
 }
 
 /**
+ * A hash of this package's own code, computed once per process. It is part of every cache entry's
+ * key, so a coordinator computes it and passes it on (`PipelineOptions.codeIdentity`) rather than
+ * having every worker read the package again.
+ * @public
+ */
+export function transformCodeIdentity(): string {
+  return ownCodeIdentity(new URL('./', import.meta.url))
+}
+
+/**
  * Creates the transform pipeline.
  * @public
  */
@@ -237,7 +252,7 @@ export const createPipeline: CreatePipeline = (options) => {
   const fingerprint = pipelineFingerprint({
     versions: {
       transform: ownVersion(),
-      code: ownCodeIdentity(new URL('./', import.meta.url)),
+      code: options.codeIdentity ?? transformCodeIdentity(),
       oxcTransform: packageVersion('oxc-transform'),
       oxcParser: packageVersion('oxc-parser'),
     },
