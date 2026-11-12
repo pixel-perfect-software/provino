@@ -691,13 +691,14 @@ describe('setDefaultTimeout (jest.setTimeout)', () => {
     assert.equal(codeOf(run, 'explicit'), 'CORE_TIMEOUT')
   })
 
-  test('0 and a negative number are no timeout given', async () => {
+  test('0 is no timeout given, and a call after the run started changes nothing', async () => {
     const hold = startSignal()
     const running = runScript(
       ({ test }, _step, runtime) => {
         runtime.setDefaultTimeout(0)
-        runtime.setDefaultTimeout(-5)
         test('slow', () => {
+          // circus copies the default at run_start: a call from a test body is ignored.
+          runtime.setDefaultTimeout(60_000)
           hold.signal()
           return hang()
         })
@@ -709,6 +710,24 @@ describe('setDefaultTimeout (jest.setTimeout)', () => {
     await reached(hold.started, running)
     await clock.tickAsync(299)
     assert.equal(state.settled, false)
+    await clock.tickAsync(1)
+    assert.equal(codeOf(await running, 'slow'), 'CORE_TIMEOUT')
+  })
+
+  test('a negative number is a deadline that fires at once, as in Jest', async () => {
+    const hold = startSignal()
+    const running = runScript(
+      ({ test }, _step, runtime) => {
+        runtime.setDefaultTimeout(-5)
+        test('slow', () => {
+          hold.signal()
+          return hang()
+        })
+      },
+      { timeouts: { test: 300 } },
+      clockOptions(clock),
+    )
+    await reached(hold.started, running)
     await clock.tickAsync(1)
     assert.equal(codeOf(await running, 'slow'), 'CORE_TIMEOUT')
   })

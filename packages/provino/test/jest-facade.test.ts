@@ -16,6 +16,10 @@ const FIXTURES = [
   'facade/fake-timers-global',
   'facade/fake-timers-donotfake',
   'facade/fake-timers-defaults',
+  'facade/test-timeout-hooks',
+  'facade/fake-timers-setup-files',
+  'facade/inject-globals-off-module',
+  'facade/set-timeout-late',
 ] as const
 
 describe('the Jest surface against Jest 30.5.2', () => {

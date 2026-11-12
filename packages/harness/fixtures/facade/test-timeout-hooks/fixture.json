@@ -1,0 +1,6 @@
+{
+  "description": "`testTimeout` is also the default timeout of hooks (jest-circus run.ts: `hook.timeout || getState().testTimeout`): with testTimeout 100, a 250 ms beforeAll, beforeEach and afterAll fail, and a hook given its own 500 ms timeout passes.",
+  "runners": ["jest"],
+  "config": { "jest": { "testTimeout": 100 } },
+  "jestEsm": true
+}

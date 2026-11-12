@@ -426,6 +426,9 @@ export function createRuntimeRunner(): WorkerRunner {
       }
       // The globals a dialect installs only after `setupFiles` (Jest's `describe`, `expect`, ...).
       activeScope().installLateGlobals()
+      // `fakeTimers.enableGlobally` installs the clock here, as jestAdapter does after
+      // `runTest` ran `setupFiles`: a setup file sees real timers, `setupFilesAfterEnv` fake ones.
+      if (policy.timers.enableGlobally) activeScope().clock?.install()
       // The project's snapshot serializers, when the test framework starts: after `setupFiles` and
       // the globals, before `setupFilesAfterEnv`. Jest tries them ahead of its own and in the order
       // listed, so they are added in reverse (jestAdapterInit.ts L134-L136).
@@ -521,7 +524,10 @@ export function createRuntimeRunner(): WorkerRunner {
       environmentTornDown: () => (fileScope.getStore() ?? fallback)?.tornDown ?? true,
       setDefaultTimeout: (ms) => coreRuntime.setDefaultTimeout(ms),
     }
-    // A module's own bindings (Jest's `jest`) exist whether or not globals are injected.
+    // A module's own bindings (Jest's `jest`) are part of what `injectGlobals` injects: off, the
+    // wrapper's parameter is left out in jest-runtime, so `typeof jest` is 'undefined' in a module
+    // (feature detection such as Testing Library's). The values the scope serves for imports
+    // (`@jest/globals`) are not bindings and stay.
     if (config.moduleScope !== null) {
       const scopeFactory = await behaviours.load(config.moduleScope)
       const values: unknown = scopeFactory(host)
@@ -531,7 +537,20 @@ export function createRuntimeRunner(): WorkerRunner {
           `The module-scope factory ${config.moduleScope.module}#${config.moduleScope.export} did not return a function`,
         )
       }
-      parts.moduleScope = values as ModuleScopeValues
+      const scopeOf = values as ModuleScopeValues
+      parts.moduleScope = policy.core.injectGlobals
+        ? scopeOf
+        : (from) => {
+            const served = scopeOf(from)
+            const unbound: Record<string, unknown> = Object.defineProperties(
+              {},
+              Object.getOwnPropertyDescriptors(served),
+            )
+            for (const name of config.loader.moduleScope) {
+              Object.defineProperty(unbound, name, { value: undefined, enumerable: false })
+            }
+            return unbound
+          }
     }
 
     if (policy.core.injectGlobals && config.globals !== null) {
@@ -725,7 +744,6 @@ export function createRuntimeRunner(): WorkerRunner {
           // jest-runtime layers every install over the project's `fakeTimers`, `enableGlobally`'s too.
           defaults: worker.fakeTimers as FakeTimersConfig | undefined,
         })
-        if (worker.modules.policy.timers.enableGlobally) thisFile.clock.install()
         // The rest go on after `setupFiles` (`importFile`). Under `none` the environment, and so
         // the late globals of the file before, persist: a later file's `setupFiles` sees them.
         // Deliberate: Jest has no `none` to match, and the tier keeps everything (runtime.test.ts

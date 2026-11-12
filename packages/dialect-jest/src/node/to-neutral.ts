@@ -184,7 +184,17 @@ export function jestProjectToNeutral(
     core: {
       injectGlobals: project.injectGlobals,
       maxConcurrency: globalConfig.maxConcurrency,
-      ...(project.testTimeout === undefined ? {} : { timeouts: { test: project.testTimeout } }),
+      // circus runs hooks with `hook.timeout || getState().testTimeout`, and `testTimeout` is
+      // `globalConfig.testTimeout`: the one value is the default of tests and of hooks.
+      ...(project.testTimeout === undefined
+        ? {}
+        : {
+            timeouts: {
+              test: project.testTimeout,
+              hook: project.testTimeout,
+              teardown: project.testTimeout,
+            },
+          }),
     },
     mock,
     // jest-circus installs the fake clock for every file when `fakeTimers.enableGlobally` is set.

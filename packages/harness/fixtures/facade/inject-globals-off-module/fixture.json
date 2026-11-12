@@ -1,0 +1,6 @@
+{
+  "description": "`injectGlobals: false` leaves `jest` out of every module's scope: `typeof jest` is 'undefined' in the test file and in a module it imports (feature detection such as Testing Library's), while `@jest/globals` still serves one.",
+  "runners": ["jest"],
+  "config": { "jest": { "injectGlobals": false } },
+  "jestEsm": true
+}

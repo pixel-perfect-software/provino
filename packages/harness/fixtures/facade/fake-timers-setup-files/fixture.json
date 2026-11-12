@@ -1,0 +1,12 @@
+{
+  "description": "`fakeTimers.enableGlobally` installs the clock after `setupFiles` and before `setupFilesAfterEnv` (jestAdapter.ts): a setup file reads the real Date.now(), a setupFilesAfterEnv file reads the fixed `now`.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "fakeTimers": { "enableGlobally": true, "now": 123456 },
+      "setupFiles": ["<rootDir>/setup-files.ts"],
+      "setupFilesAfterEnv": ["<rootDir>/setup-after-env.ts"]
+    }
+  },
+  "jestEsm": true
+}
