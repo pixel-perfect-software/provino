@@ -235,3 +235,45 @@ test('under an async actual, only the synchronous part of the load sees the scra
   const value = (await registry.materialize(auto)) as { f: () => unknown }
   assert.equal(value.f(), undefined)
 })
+
+test('active is decide`s fast path inverted: a registration, automock-all or a root mock makes it true', () => {
+  const build = (rootMockFiles: readonly string[], policy = jestLike) => {
+    const tree = tempTree('provino-active-')
+    for (const file of rootMockFiles) tree.write(file)
+    return createModuleMockRegistry({
+      policy,
+      mockPolicy: neutral,
+      mocks: createMockRegistry(),
+      resolver: fakeResolver({}),
+      roots: [tree.dir],
+      extensions: ['.ts'],
+      loadActual: () => ({}),
+    })
+  }
+  const idle = build([])
+  assert.equal(idle.active(), false)
+  idle.setAutomock(true)
+  assert.equal(idle.active(), true)
+  idle.setAutomock(false)
+  assert.equal(idle.active(), false)
+  assert.equal(
+    build(['__mocks__/pkg.ts']).active(),
+    true,
+    'a root mock applies by itself under Jest',
+  )
+  assert.equal(
+    build(['__mocks__/pkg.ts'], { ...jestLike, rootMocksAutoApply: false }).active(),
+    false,
+    'and not where root mocks need a call',
+  )
+  const registered = build([])
+  registered.register(
+    'virtual-pkg',
+    { kind: 'factory', factory: () => ({}) },
+    {
+      from: '/proj/t.ts',
+      virtual: true,
+    },
+  )
+  assert.equal(registered.active(), true)
+})
