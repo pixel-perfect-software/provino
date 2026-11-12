@@ -12,6 +12,7 @@ import type {
   NeutralTransform,
   PolicyOverrides,
 } from '@provino/types'
+import { hasBabelConfig } from './babel-config.ts'
 import type { JestGlobalConfig, JestProjectConfig } from './types.ts'
 
 /** The default transform `normalize` injects: `babel-jest` for `\.[jt]sx?$`. */
@@ -142,16 +143,18 @@ export function jestProjectToNeutral(
     pattern,
     targets: typeof target === 'string' ? [target] : [...target],
   }))
-  // Jest's default `babel-jest` entry, with no options, stays Provino's own Oxc transform (D7: a
-  // project that names no transformer gets the faster one). Any transform the config names itself
-  // runs as Jest runs it (T3.8), `babel-jest` included.
-  const transforms: NeutralTransform[] = isDefaultTransform(project.transform)
-    ? []
-    : project.transform.map(([pattern, module, options]) => ({
-        pattern,
-        module,
-        options: jsonObject(options, `transform["${pattern}"]`, diagnostics),
-      }))
+  // Jest's default `babel-jest` entry, with no options, stays Provino's own Oxc transform when the
+  // project has no Babel config: babel-jest then only hoists, which our hoister matches (D7). With
+  // a Babel config (D68) it runs as Jest runs it, plugins and presets included, as does any
+  // transform the config names itself (T3.8).
+  const transforms: NeutralTransform[] =
+    isDefaultTransform(project.transform) && !hasBabelConfig(project.rootDir)
+      ? []
+      : project.transform.map(([pattern, module, options]) => ({
+          pattern,
+          module,
+          options: jsonObject(options, `transform["${pattern}"]`, diagnostics),
+        }))
   const mock = {
     between: {
       clear: project.clearMocks,
