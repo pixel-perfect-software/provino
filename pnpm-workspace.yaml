@@ -64,11 +64,11 @@ catalog:
   "@types/picomatch": 4.0.3
   "@types/sinonjs__fake-timers": 15.0.1
   # Interop tests only: our asymmetric matchers inside Vitest's expect, and its inside ours (T7.4).
-  "@vitest/expect": 5.1.0
+  "@vitest/expect": 5.0.5
   # The hoist corpus's Vitest reference: its real hoister at the pinned version (T3.4).
-  "@vitest/mocker": 5.1.0
+  "@vitest/mocker": 5.0.5
   # The mock bench's bar: calls within 1.5x of @vitest/spy (T4.3).
-  "@vitest/spy": 5.1.0
+  "@vitest/spy": 5.0.5
   # The TypeScript 6 API, as tsc6, for tools that need it (dependency-cruiser, API Extractor).
   "@typescript/typescript6": 6.0.2
   # The recorder's Jest transform runs after type stripping (Jest's default transform).
@@ -116,6 +116,9 @@ catalog:
   # The oracle for the vendored key order in @provino/snapshot (T7.9): same pairs, same order.
   natural-compare: 1.4.0
   # Oxc (Track 3): the resolver, and the transform pipeline with its parser.
+  # `@oxc-project/types` moves with oxc-parser: it is oxc-walker's optional peer, and without it
+  # oxc-walker takes rolldown's older copy, so its AST types differ from the parser's.
+  "@oxc-project/types": 0.157.0
   oxc-parser: 0.157.0
   oxc-resolver: 11.24.2
   oxc-transform: 0.157.0
@@ -134,7 +137,9 @@ catalog:
   typescript: 7.0.2
   # The type-test job also runs on TypeScript 5.9.
   typescript-5.9: npm:typescript@5.9.3
-  vitest: 5.1.0
+  # Jest 30.5 and Vitest 5.0 are the ground truth every golden records (CLAUDE.md NN2, DECISIONS
+  # S3), so `.always-up-to-date.json` holds both families: moving one is a re-record, not an update.
+  vitest: 5.0.5
   zod: 4.6.7
 
 # dependency-cruiser loads `typescript` at runtime to parse .ts files, and 18.7 can't use the

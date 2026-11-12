@@ -44,6 +44,7 @@
     "@jest/globals": "catalog:",
     "@jest/transform": "catalog:",
     "@jridgewell/trace-mapping": "catalog:",
+    "@oxc-project/types": "catalog:",
     "@swc/core": "catalog:",
     "@swc/jest": "catalog:",
     "babel-jest": "catalog:",
