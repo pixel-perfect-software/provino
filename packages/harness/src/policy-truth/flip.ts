@@ -79,7 +79,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'orchestrator.coverageProvider': ['v8', 'istanbul'],
   'orchestrator.isolationDefault.default': ['none', 'registry', 'realm', 'process'],
   'orchestrator.pool.default': ['forks', 'threads', 'inline'],
-  'orchestrator.shard.fallback': ['sha1-slice'],
+  'orchestrator.shard.fallback': ['sha1-slice', 'path-slice'],
   'orchestrator.globalSetup.signature': ['global-and-project-config', 'project-with-teardown'],
   'orchestrator.globalSetup.teardownOrder': ['in-order', 'reverse'],
   'report.resultStatusSkipped': ['pending', 'skipped'],

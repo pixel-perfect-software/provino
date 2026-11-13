@@ -24,6 +24,13 @@ import { createStderrWatch, type StderrWatch } from './stderr-watch.ts'
 const DISCONNECT_GRACE_MS = 1000
 
 /**
+ * The variable that names, comma separated, the `startupEnv` variables a child must remove from its
+ * own environment. `worker/bootstrap.ts` reads the same name (the two nodes can't share it; the end
+ * to end test in `test/startup-env.test.ts` fails if they disagree).
+ */
+const STARTUP_ENV_NAMES = 'PROVINO_WORKER_STARTUP_ENV'
+
+/**
  * Options for `forksTransport`.
  * @public
  */
@@ -32,6 +39,15 @@ export interface ForksTransportOptions extends TransportOptions {
   readonly execArgv?: readonly string[]
   /** The child's environment. Default: this process's. */
   readonly env?: NodeJS.ProcessEnv
+  /**
+   * Variables for Node's own startup in the child (`NODE_COMPILE_CACHE`, which Node reads before
+   * any of our code runs) that no test may see, since Jest sets none: they are added to the
+   * child's environment, and the worker's bootstrap removes them from its `process.env` before it
+   * loads anything (Node has acted on them by then). A variable the caller wants the tests to see
+   * belongs in `env`. Forks only: a thread shares this process's environment and has no startup of
+   * its own.
+   */
+  readonly startupEnv?: Readonly<Record<string, string>>
   /**
    * The child's old-generation heap limit, as `--max-old-space-size` (added after `execArgv`'s
    * flags, so it wins over one they have). A child that goes over it ends with `oom` and this
@@ -158,12 +174,20 @@ export function forksTransport(options: ForksTransportOptions): TransportFactory
       ? [...flags]
       : [...flags, `--max-old-space-size=${options.memoryLimitMb}`]
   const limitMb = options.memoryLimitMb ?? flaggedHeapLimitMb(flags)
+  const startupNames = Object.keys(options.startupEnv ?? {})
   return createTransport('forks', options, (entry) => {
     const child = fork(bootstrap, [entry], {
       serialization: 'advanced',
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
       execArgv,
-      env: options.env ?? process.env,
+      env:
+        startupNames.length === 0
+          ? (options.env ?? process.env)
+          : {
+              ...(options.env ?? process.env),
+              ...options.startupEnv,
+              [STARTUP_ENV_NAMES]: startupNames.join(','),
+            },
     })
     const stderr = forwardStdio(child, options)
     const watch = createStderrWatch()

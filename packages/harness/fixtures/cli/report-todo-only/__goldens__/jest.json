@@ -163,6 +163,6 @@
   "success": true,
   "observed": {
     "exitCode": 0,
-    "stderr": "PASS ./skip-and-todo.test.ts\nPASS ./todo-only.test.ts\nPASS ./passes.test.ts\nTest Suites: 1 skipped, 3 passed, 3 of 4 total\nTests:       3 skipped, 3 todo, 1 passed, 7 total"
+    "stderr": "PASS ./passes.test.ts\nPASS ./skip-and-todo.test.ts\nPASS ./todo-only.test.ts\nTest Suites: 1 skipped, 3 passed, 3 of 4 total\nTests:       3 skipped, 3 todo, 1 passed, 7 total"
   }
 }

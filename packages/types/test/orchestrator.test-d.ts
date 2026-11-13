@@ -5,10 +5,12 @@ import type {
   CoordinatorMethods,
   CoordinatorToWorker,
   DefineReporter,
+  FileHistory,
   FileInfo,
   FileResult,
   GlobalSetupContext,
   Inject,
+  IsolationTier,
   OpenHandle,
   PoolOptions,
   ReporterBus,
@@ -28,6 +30,7 @@ import type {
   WorkerEvent,
   WorkerExit,
   WorkerInit,
+  WorkerKey,
   WorkerMethods,
   WorkerPort,
   WorkerToCoordinator,
@@ -228,16 +231,52 @@ expectTypeOf<OpenHandle>().toEqualTypeOf<{
 // @ts-expect-error an open handle names the stack that made it
 const noFrames: OpenHandle = { type: 'Timeout' }
 
+// T9.6 and T2.11: the results cache's record has room for an inputs hash, a learned tier and a
+// coverage map, and a worker key names its isolation tier.
+expectTypeOf<WorkerKey['isolation']>().toEqualTypeOf<IsolationTier>()
+expectTypeOf<FileHistory['inputsHash']>().toEqualTypeOf<string | undefined>()
+expectTypeOf<FileHistory['tier']>().toEqualTypeOf<IsolationTier | undefined>()
+expectTypeOf<FileHistory['coverage']>().toEqualTypeOf<
+  Readonly<Record<string, readonly string[]>> | undefined
+>()
+const plainHistory: FileHistory = { durationMs: 1, failed: false, tests: 1, at: 0 }
+const fullHistory: FileHistory = {
+  ...plainHistory,
+  inputsHash: 'abc',
+  tier: 'realm',
+  coverage: { 'a > b': ['f1'] },
+}
+// @ts-expect-error a learned tier is a tier
+const badTier: FileHistory = { ...plainHistory, tier: 'jail' }
+// @ts-expect-error exactOptionalPropertyTypes: leave the hash out, don't give it `undefined`
+const undefinedHash: FileHistory = { ...plainHistory, inputsHash: undefined }
+// @ts-expect-error a coverage entry lists function ids as text
+const badCoverage: FileHistory = { ...plainHistory, coverage: { t: [1] } }
+// @ts-expect-error a worker key needs its isolation tier
+const keyWithoutTier: WorkerKey = {
+  project: 'p',
+  pool: 'forks',
+  environment: 'node',
+  environmentOptionsHash: '',
+  execArgvHash: '',
+  envHash: '',
+}
+
 export {
   bad,
+  badCoverage,
   badPhase,
   badReason,
   badTerminate,
+  badTier,
   fileDoneClean,
   fileDoneSymbols,
   fileDoneWithout,
+  fullHistory,
+  keyWithoutTier,
   noFrames,
   noLimit,
+  undefinedHash,
   unknownCall,
   wrongArgs,
 }

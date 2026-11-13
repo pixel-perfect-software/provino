@@ -79,6 +79,7 @@ export function initFor(pool: PoolKind, workerId = 1): WorkerInit {
     key: {
       project: 'test',
       pool,
+      isolation: 'registry',
       environment: 'node',
       environmentOptionsHash: '',
       execArgvHash: '',

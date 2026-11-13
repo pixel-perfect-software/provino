@@ -1,0 +1,219 @@
+// T9.6: which files a shard runs (`--shard=i/n`). Two splits, both pure in (files, shard):
+//
+// - `sha1Shard`: Jest's and Vitest's. Sort by `sha1(path relative to the project root)`, then
+//   take contiguous slices by file count (jest-test-sequencer 30.5.2 `shard`). No timings.
+// - `sliceShard`: path-sorted, contiguous cuts by predicted time (Bun's `--timings` method, Track
+//   9 §Sharding): a file the timings file has no time for counts as the median of the ones it has,
+//   so a new file doesn't move the files around it. With no timings at all every file counts the
+//   same, which is contiguous slices by file count.
+//
+// Every file lands in exactly one shard, for any input order: both sort first with a total order
+// (path, then project), and a file's shard is a function of its place in that order.
+import { hash } from 'node:crypto'
+import { join } from 'node:path'
+import type { ScheduleInput, TimingsFile } from '@provino/types'
+import type { DiscoveredFile } from './discover.ts'
+import { OrchestratorError } from './errors.ts'
+import { relativePosix } from './file-id.ts'
+import { byText } from './util.ts'
+
+/**
+ * Which shard to run: `index` is 1-based, as `--shard=2/3` writes it.
+ * @public
+ */
+export interface ShardSpec {
+  readonly index: number
+  readonly count: number
+}
+
+/** A weight below this counts as this, so a file with a 0 ms time still has a place in the cumulative sum. */
+const MIN_WEIGHT_MS = 1
+
+/**
+ * A weight above this counts as this (2^32 ms, 49 days: no test file takes longer). The timings
+ * file only checks that a time is finite, so `1e308` is one, and two of them sum to `Infinity`:
+ * `floor(count * middle / total)` is then `NaN`, no shard keeps the file, and it runs nowhere.
+ */
+const MAX_WEIGHT_MS = 2 ** 32
+
+/** `file`'s predicted time as a weight, or `undefined` when it has none (a time that is not a number is none). */
+function timeOf(file: ScheduleInput): number | undefined {
+  const { timingMs } = file
+  if (timingMs === undefined || Number.isNaN(timingMs)) return undefined
+  return Math.min(Math.max(timingMs, MIN_WEIGHT_MS), MAX_WEIGHT_MS)
+}
+
+/**
+ * Throws `ORCH_BAD_OPTION` unless `shard` is `index` of `count`, both whole numbers, with
+ * `1 <= index <= count`. Jest's text for each (`parseShardPair`) is the dialect reader's.
+ * @public
+ */
+export function checkShard(shard: ShardSpec): void {
+  const { index, count } = shard
+  if (!Number.isSafeInteger(count) || count < 1) {
+    throw new OrchestratorError(
+      'ORCH_BAD_OPTION',
+      `shard.count (how many shards the files are split into) must be a whole number of at least 1 (got ${String(count)})`,
+    )
+  }
+  if (!Number.isSafeInteger(index) || index < 1 || index > count) {
+    throw new OrchestratorError(
+      'ORCH_BAD_OPTION',
+      `shard.index (which shard this run is, 1-based) must be a whole number from 1 to ${String(count)} (got ${String(index)})`,
+    )
+  }
+}
+
+/** Path, then project: a total order, so no input order changes a shard (or a sort: the sequencer ends on it too). */
+export function byPathThenProject(a: ScheduleInput, b: ScheduleInput): number {
+  return byText(a.path, b.path) || byText(a.project, b.project)
+}
+
+/** How many files shard `position` (0-based) holds out of `total`: the first `total % count` shards hold one more. */
+function sizeOf(position: number, total: number, count: number): number {
+  return Math.floor(total / count) + (position < total % count ? 1 : 0)
+}
+
+/**
+ * Jest's split: the files sorted by the sha1 of their path relative to their project's root, then
+ * the `index`-th contiguous slice, the first `files.length % count` slices one file longer
+ * (`TestSequencer.shard`). The hash is of `ScheduleInput.path`, which is that relative path with
+ * `/`. Two files with the same path in different projects hash alike: the project breaks the tie
+ * (Jest's stable sort leaves them in discovery order).
+ * @public
+ */
+export function sha1Shard(
+  files: readonly ScheduleInput[],
+  shard: ShardSpec,
+): readonly ScheduleInput[] {
+  checkShard(shard)
+  const hashed = files
+    .toSorted(byPathThenProject)
+    .map((file) => ({ file, hash: hash('sha1', file.path) }))
+    .toSorted((a, b) => byText(a.hash, b.hash))
+  let start = 0
+  for (let position = 0; position < shard.index - 1; position++) {
+    start += sizeOf(position, hashed.length, shard.count)
+  }
+  const end = start + sizeOf(shard.index - 1, hashed.length, shard.count)
+  return hashed.slice(start, end).map((entry) => entry.file)
+}
+
+/**
+ * What each file is predicted to take, in ms: its `timingMs` (at least 1, at most 2^32, so the
+ * cumulative sum stays finite; a time that is not a number is none), else the median of the files
+ * that have one, else 1 (nothing is known, so every file counts the same).
+ * @public
+ */
+export function predictedWeights(
+  files: readonly ScheduleInput[],
+): ReadonlyMap<ScheduleInput, number> {
+  const known = files.flatMap((file) => timeOf(file) ?? []).toSorted((a, b) => a - b)
+  const middle = Math.floor(known.length / 2)
+  const median =
+    known.length === 0
+      ? 1
+      : known.length % 2 === 1
+        ? (known[middle] as number)
+        : ((known[middle - 1] as number) + (known[middle] as number)) / 2
+  return new Map(files.map((file) => [file, timeOf(file) ?? median]))
+}
+
+/**
+ * Path-sorted, contiguous cuts by predicted time: the files sorted by path (then project), each
+ * placed by the middle of its own span of the cumulative time, shard `floor(count * middle /
+ * total)`. A shard is a run of neighbouring files, so files that share modules share a worker and
+ * a shard's caches stay warm from one CI run to the next, and a file's shard only moves when the
+ * time before it changes enough to cross a cut. The shards come out in path order.
+ * @public
+ */
+export function sliceShard(
+  files: readonly ScheduleInput[],
+  shard: ShardSpec,
+): readonly ScheduleInput[] {
+  checkShard(shard)
+  const weights = predictedWeights(files)
+  const sorted = files.toSorted(byPathThenProject)
+  let total = 0
+  for (const file of sorted) total += weights.get(file) as number
+  const kept: ScheduleInput[] = []
+  let before = 0
+  for (const file of sorted) {
+    const weight = weights.get(file) as number
+    const middle = before + weight / 2
+    before += weight
+    const position = Math.min(shard.count - 1, Math.floor((shard.count * middle) / total))
+    if (position === shard.index - 1) kept.push(file)
+  }
+  return kept
+}
+
+/**
+ * The shard of `files` a run takes, whatever the dialect: contiguous cuts by predicted time as soon
+ * as any file has a time (a timings file), else the dialect's `fallback` (`orchestrator.shard
+ * .fallback`): `sha1-slice`, Jest's split, or `path-slice`, slices of the path-sorted files by
+ * count.
+ * @public
+ */
+export function shardInputs(
+  files: readonly ScheduleInput[],
+  shard: ShardSpec,
+  fallback: 'sha1-slice' | 'path-slice',
+): readonly ScheduleInput[] {
+  const timed = files.some((file) => timeOf(file) !== undefined)
+  return !timed && fallback === 'sha1-slice' ? sha1Shard(files, shard) : sliceShard(files, shard)
+}
+
+/**
+ * One project's discovered files, for `shardFiles`: `rootDir` is what a file's path is relative to.
+ * The members' order is the config's, and a project's place in it is what breaks a tie between
+ * two files of one relative path: a name or an identity can't (an unnamed project's identity holds
+ * the run's random seed, so each shard's machine would break the tie its own way).
+ * @public
+ */
+export interface ShardMember {
+  readonly rootDir: string
+  readonly files: readonly DiscoveredFile[]
+}
+
+/**
+ * The files each project runs of shard `shard` of the whole run: Jest shards one list across all
+ * its projects, after the file filters, so this does too. Returns each member's kept files, in the
+ * members' order and each member's own order. `timings` is the committed file: a file is looked up
+ * by its path relative to `runRoot`, with `/`.
+ * @public
+ */
+export function shardFiles(
+  members: readonly ShardMember[],
+  options: {
+    readonly shard: ShardSpec
+    readonly fallback: 'sha1-slice' | 'path-slice'
+    readonly runRoot: string
+    readonly timings?: TimingsFile | undefined
+  },
+): DiscoveredFile[][] {
+  // Zero-padded, so the tie-break compares as numbers: Jest keeps tied files in project order.
+  const keyOf = (index: number): string => String(index).padStart(8, '0')
+  const inputs = members.flatMap((member, index) =>
+    member.files.map((file): ScheduleInput => {
+      // Own entries only: `files['constructor']` is a function on an ordinary object.
+      const path = relativePosix(options.runRoot, join(member.rootDir, file.relativePath))
+      const times = options.timings?.files
+      const timingMs = times !== undefined && Object.hasOwn(times, path) ? times[path] : undefined
+      return {
+        path: file.relativePath,
+        project: keyOf(index),
+        sizeBytes: file.sizeBytes,
+        ...(timingMs === undefined ? {} : { timingMs }),
+      }
+    }),
+  )
+  const kept = new Set(
+    shardInputs(inputs, options.shard, options.fallback).map(
+      (input) => `${input.project}\0${input.path}`,
+    ),
+  )
+  return members.map((member, index) =>
+    member.files.filter((file) => kept.has(`${keyOf(index)}\0${file.relativePath}`)),
+  )
+}

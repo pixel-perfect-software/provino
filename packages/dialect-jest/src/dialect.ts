@@ -327,7 +327,8 @@ export const jestPolicy: PolicyOverrides = {
     pool: { default: 'forks' },
     // research: track-09 L556 (Jest's "20 fast files" rule)
     runInBand: { auto: true },
-    // research: track-09 L558
+    // Recorded from Jest 30.5.2: `cli/shard-1-of-3`, `-2-of-3` and `-3-of-3` (jest-test-sequencer's
+    // `shard`: the sha1 of the root-relative path, then slices by count).
     shard: { fallback: 'sha1-slice' },
     // research: track-09 L559
     sequence: { unknownFirst: true },

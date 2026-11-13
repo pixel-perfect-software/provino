@@ -530,8 +530,8 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     requiresArg: true,
     description:
       'Shard tests and execute only the selected shard, specify in the form "current/all". 1-based, for example "3/5".',
-    support: 'refuse',
-    owner: 'T9.6',
+    // Read into the global config's `shard` (`parseShardPair`), which the command hands the run (T9.6).
+    support: 'config',
   },
   showConfig: {
     type: 'boolean',

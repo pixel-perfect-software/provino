@@ -1,6 +1,7 @@
 // The evidence for the `orchestrator`, `report` and `coverage` slices and the dialects' global
 // names (T1.7). Black-box runs show exit codes, where files run and what the default reporter
 // prints; `policy/defaults` holds the config defaults no run shows (D27).
+import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import { globalSetupFailure as jestGlobalSetupFailure } from '@provino/dialect-jest/global-setup'
 import { jestEnvironmentConditions } from '@provino/dialect-jest/runtime'
@@ -25,6 +26,49 @@ const failureLine = (g: Golden): string => {
   const line = lines.find((text) => text.includes('the failing test'))
   if (line === undefined) throw new Error(`${g.suite} (${g.runner}) printed no failure line`)
   return line
+}
+
+/** The eight files of the `cli/shard-*-of-3` fixtures, as Jest names them (root-relative, `/`). */
+const SHARD_FILES: readonly string[] = [
+  'alpha.test.ts',
+  'bravo.test.ts',
+  'charlie.test.ts',
+  'delta.test.ts',
+  'echo.test.ts',
+  'foxtrot.test.ts',
+  'golf.test.ts',
+  'sub/hotel.test.ts',
+]
+
+/** The files of slice `index` (1-based) of `count` out of `ordered`: the first `length % count` slices are one longer. */
+const sliceOf = (ordered: readonly string[], index: number, count: number): string[] => {
+  const size = (position: number): number =>
+    Math.floor(ordered.length / count) + (position < ordered.length % count ? 1 : 0)
+  let start = 0
+  for (let position = 0; position < index - 1; position++) start += size(position)
+  return ordered.slice(start, start + size(index - 1))
+}
+
+/**
+ * Which split a `--shard=i/n` golden shows: the files Jest ran (its PASS lines) against the slice of
+ * the sha1 order and the slice of the path order. `unknown` when neither is what it ran.
+ */
+const shardSplit = (g: Golden): string => {
+  const [, index, count] = /shard-(\d+)-of-(\d+)$/.exec(g.suite) ?? []
+  if (index === undefined || count === undefined) throw new Error(`${g.suite} is no shard fixture`)
+  const ran = stderrOf(g)
+    .split('\n')
+    .flatMap((line) => (line.startsWith('PASS ') ? [line.slice(5).replace(/^\.\//, '')] : []))
+    .toSorted()
+  const bySha1 = SHARD_FILES.toSorted((a, b) => {
+    const [ha, hb] = [a, b].map((name) => createHash('sha1').update(name).digest('hex'))
+    return (ha as string) < (hb as string) ? -1 : 1
+  })
+  const expected = (ordered: readonly string[]): string[] =>
+    sliceOf(ordered, Number(index), Number(count)).toSorted()
+  if (isDeepStrictEqual(ran, expected(bySha1))) return 'sha1-slice'
+  if (isDeepStrictEqual(ran, expected(SHARD_FILES.toSorted()))) return 'path-slice'
+  return `unknown: ${ran.join(', ')}`
 }
 
 /** What a recorded black-box run printed on stderr (Jest writes its report there). */
@@ -243,7 +287,17 @@ export const orchestratorClaims: Claims = {
   'orchestrator.runInBand.auto': golden('orchestrator-run-in-band', {
     read: (g) => titleAfter(g, 'the only file runs in: ') === 'inline',
   }),
-  'orchestrator.shard.fallback': pending('B21', 'sharding is T9.6s; nothing shards yet'),
+  // Jest 30.5.2's `--shard=i/3` over 8 files (`cli/shard-1-of-3` to `-3-of-3`): each shard ran the
+  // slice of the sha1 order of the paths (3, 3, 2 files), which a path-sorted slice would not give.
+  // Vitest 5.0.5's `BaseSequencer.shard` sorts by sha1 too (read from its source, not recorded).
+  'orchestrator.shard.fallback': each(
+    [
+      golden('cli/shard-1-of-3', { read: shardSplit }),
+      golden('cli/shard-2-of-3', { read: shardSplit }),
+      golden('cli/shard-3-of-3', { read: shardSplit }),
+    ],
+    pending('T11.16', 'Vitest 5.0.5 shards by sha1 in its source; no fixture records it yet'),
+  ),
   'orchestrator.sequence.unknownFirst': pending(
     'B21',
     "T9.6's sequencer; a recorded run lists files by path, so the order needs the sequencer's own code in a fixture (D27)",

@@ -6,6 +6,7 @@
     { "path": "../config" },
     { "path": "../reporters" },
     { "path": "../orchestrator" },
+    { "path": "../transform" },
     { "path": "../dialect-jest" },
     { "path": "../env-jsdom" },
     { "path": "../env-node" }

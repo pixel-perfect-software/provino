@@ -19,6 +19,11 @@
       "provino-source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./v8cache": {
+      "provino-source": "./src/v8cache/index.ts",
+      "types": "./dist/v8cache.d.ts",
+      "import": "./dist/v8cache.js"
     }
   },
   "files": [

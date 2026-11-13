@@ -2,6 +2,7 @@
 import type {
   FileRegistry,
   FileRegistryOptions,
+  IsolationTier,
   LoadActual,
   LoadActualOptions,
   Loader,
@@ -15,8 +16,12 @@ import type {
   ModulePolicy,
   ModuleScopeNames,
   ModuleTransformer,
+  Pragmas,
   RegisterMockOptions,
   Resolver,
+  TierChoice,
+  TierSource,
+  TierSources,
   TransformRecord,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
@@ -130,3 +135,32 @@ declare const moduleMocks: ModuleMockRegistry
 expectTypeOf(moduleMocks.active).returns.toEqualTypeOf<boolean>()
 expectTypeOf(moduleMocks.generation).returns.toEqualTypeOf<number>()
 expectTypeOf<ModulePolicy['mocksReachShared']>().toEqualTypeOf<boolean>()
+
+// T2.11: `tierFor` takes the sources of a tier and says which one won.
+expectTypeOf(loader.tierFor).parameters.toEqualTypeOf<[string, TierSources]>()
+expectTypeOf(loader.tierFor).returns.toEqualTypeOf<TierChoice>()
+expectTypeOf<TierSources['configured']>().toEqualTypeOf<IsolationTier>()
+expectTypeOf<TierSources['docblock']>().toEqualTypeOf<Pragmas | undefined>()
+expectTypeOf<TierSources['learned']>().toEqualTypeOf<IsolationTier | undefined>()
+expectTypeOf<TierSource>().toEqualTypeOf<'config' | 'docblock' | 'learned'>()
+expectTypeOf<TierChoice['tier']>().toEqualTypeOf<IsolationTier>()
+expectTypeOf<TierChoice['source']>().toEqualTypeOf<TierSource>()
+expectTypeOf<TierChoice['warnings']>().toEqualTypeOf<readonly string[]>()
+loader.tierFor('f', { configured: 'process' })
+loader.tierFor('f', {
+  configured: 'none',
+  docblock: { 'provino-isolate': ['realm', 'process'] },
+  learned: 'realm',
+})
+// @ts-expect-error the configured tier is the floor, and it is required
+loader.tierFor('f', {})
+// @ts-expect-error the old three-argument form is gone
+loader.tierFor('f', 'registry', {})
+// @ts-expect-error a learned tier is a tier
+loader.tierFor('f', { configured: 'registry', learned: 'jail' })
+// @ts-expect-error a docblock value is text, or a list of text
+loader.tierFor('f', { configured: 'registry', docblock: { 'provino-isolate': 1 } })
+// @ts-expect-error exactOptionalPropertyTypes: leave `learned` out, don't give it `undefined`
+loader.tierFor('f', { configured: 'registry', learned: undefined })
+// @ts-expect-error the choice is read-only
+loader.tierFor('f', { configured: 'registry' }).warnings.push('x')

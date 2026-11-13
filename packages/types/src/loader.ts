@@ -2,6 +2,7 @@
 // worker, the runtime and coverage consume it. Track 2's own `Resolver`, `ResolveContext`,
 // `ResolvedModule` and `TransformedModule` are not here: the loader takes Track 3's resolver and
 // a `ModuleTransformer` that returns Track 3's transform record (see the package README).
+import type { Pragmas } from './environment.ts'
 import type { IsolationTier } from './isolation.ts'
 import type { FormatMapperMiss, ModulePolicy } from './policy/module.ts'
 import type { Resolver } from './resolve.ts'
@@ -275,6 +276,40 @@ export type ModuleMocksFactory = (context: ModuleMocksContext) => ModuleMockRegi
 export type ModuleScopeValues = (from: ModuleId) => Readonly<Record<string, unknown>>
 
 /**
+ * Where a file's isolation tier can come from (T2.11): the project's setting, the file's own
+ * `@provino-isolate` docblock pragma, and a tier learned from an earlier run. The project's setting
+ * is the floor: a file may raise its tier and never lowers it.
+ * @public
+ */
+export interface TierSources {
+  /** The project's tier: its config, else the policy's default for its environment. */
+  readonly configured: IsolationTier
+  /** The file's docblock pragmas (`Pragmas`): `provino-isolate` names a tier. */
+  readonly docblock?: Pragmas
+  /** The tier an earlier run's leak report earned the file (the results cache's `FileHistory.tier`). */
+  readonly learned?: IsolationTier
+}
+
+/**
+ * Which of `TierSources` a file's tier came from: the project's `config`, the `docblock`, or what
+ * the run `learned`. When two name the same tier, the one that comes first in that list.
+ * @public
+ */
+export type TierSource = 'config' | 'docblock' | 'learned'
+
+/**
+ * The tier `tierFor` chose, and what it had to say about the sources. `process` means a fresh
+ * worker for the file, which the coordinator decides (the pool key), not the loader.
+ * @public
+ */
+export interface TierChoice {
+  readonly tier: IsolationTier
+  readonly source: TierSource
+  /** A pragma value that names no tier: the file keeps the tier the other sources gave it. */
+  readonly warnings: readonly string[]
+}
+
+/**
  * Options for one test file's registry. The `process` tier is a pool decision (Track 9), so it
  * never reaches the loader.
  * @public
@@ -381,12 +416,8 @@ export interface FileRegistry extends Disposable {
 export interface Loader extends Disposable {
   readonly engine: EngineKind
   createFileRegistry(testFile: string, options: FileRegistryOptions): FileRegistry
-  /** Reads `@provino-isolate` / `@jest-environment`; never lowers the configured tier. */
-  tierFor(
-    testFile: string,
-    configured: IsolationTier,
-    docblock: Readonly<Record<string, string>>,
-  ): IsolationTier
+  /** The tier a file runs at: `tierFor` of `@provino/loader`. */
+  tierFor(testFile: string, sources: TierSources): TierChoice
   /** Every compiled script, for V8 coverage. Returns an unsubscribe function. */
   onModuleCompiled(listener: (event: CompiledModuleEvent) => void): () => void
   getSourceMap(id: ModuleId): SourceMapV3 | null

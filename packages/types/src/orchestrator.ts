@@ -18,6 +18,12 @@ import type { FileTask, SerializedError, SuiteTask, TaskId, TestTask } from './r
 export interface WorkerKey {
   readonly project: string
   readonly pool: PoolKind
+  /**
+   * The isolation tier the worker is started at: the project's, or the higher one a file's
+   * docblock or history asks for (T2.11). A file that needs another tier gets a worker of its own
+   * key. `process` is one file per worker: the pool stops the worker once the file is done.
+   */
+  readonly isolation: IsolationTier
   readonly environment: string
   readonly environmentOptionsHash: string
   readonly execArgvHash: string
@@ -390,6 +396,18 @@ export interface FileHistory {
   readonly failed: boolean
   readonly tests: number
   readonly at: number
+  /**
+   * A hash of what the file's last passing run read (its module closure, the config, the Node and
+   * Provino versions). Room for the per-file result cache (IDEAS I2); nothing writes it yet.
+   */
+  readonly inputsHash?: string
+  /** The tier an earlier run's leak report earned the file (`tierFor`'s `learned`; IDEAS I1). Nothing writes it yet. */
+  readonly tier?: IsolationTier
+  /**
+   * Which functions each test ran, by test id (IDEAS I6, function-level impact). Room for it;
+   * nothing writes it yet.
+   */
+  readonly coverage?: Readonly<Record<string, readonly string[]>>
 }
 
 /**
