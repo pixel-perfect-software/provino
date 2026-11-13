@@ -68,7 +68,8 @@ export interface ResolvedGlobalSetup {
   readonly teardown: readonly string[]
   /**
    * What the function is called with under the `global-and-project-config` signature (Jest's two
-   * configs, as JSON); absent for a project whose dialect passes none.
+   * configs, as the reader built them: they stay in the coordinator, so they are not JSON); absent
+   * for a project whose dialect passes none.
    */
   readonly args?: NeutralProject['globalSetupArgs']
 }

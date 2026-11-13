@@ -1,9 +1,12 @@
 // The evidence for the `orchestrator`, `report` and `coverage` slices and the dialects' global
 // names (T1.7). Black-box runs show exit codes, where files run and what the default reporter
 // prints; `policy/defaults` holds the config defaults no run shows (D27).
+import { isDeepStrictEqual } from 'node:util'
+import { globalSetupFailure as jestGlobalSetupFailure } from '@provino/dialect-jest/global-setup'
 import { jestEnvironmentConditions } from '@provino/dialect-jest/runtime'
 import { vitestEnvironmentConditions } from '@provino/dialect-vitest/runtime'
-import type { EnvironmentRequest } from '@provino/types'
+import { globalSetupFailure as neutralGlobalSetupFailure } from '@provino/policy/behaviours'
+import type { EnvironmentRequest, GlobalSetupFailure } from '@provino/types'
 import type { Golden } from '../../golden.ts'
 import { type Claims, each, golden, own, pending } from '../evidence.ts'
 import { capturedFile, observation, observedOf, oneOf, statusOf } from '../observe.ts'
@@ -72,6 +75,41 @@ const CONDITIONS_BY_RUNNER: Readonly<
     fn: vitestEnvironmentConditions,
     token: 'import',
   },
+}
+
+/** What the setup of each `cli/global-setup-throws*` fixture throws, as that fixture's `setup.ts` does. */
+const THROWN_BY_FIXTURE: Readonly<Record<string, () => unknown>> = {
+  'cli/global-setup-throws': () => new Error('setup failed'),
+  'cli/global-setup-throws-typeerror': () =>
+    new TypeError('setup failed\nsecond line of the message'),
+  'cli/global-setup-throws-object': () => ({
+    code: 42,
+    detail: { list: ['a', 'b'], deeper: { deepest: { gone: true } } },
+  }),
+  'cli/global-setup-throws-string': () => 'setup gave up',
+}
+
+/** The behaviours a `globalSetup.failure` ref can name, by the module it is in. */
+const FAILURES: readonly { readonly module: string; readonly fn: GlobalSetupFailure }[] = [
+  { module: import.meta.resolve('@provino/dialect-jest/global-setup'), fn: jestGlobalSetupFailure },
+  { module: import.meta.resolve('@provino/policy/behaviours'), fn: neutralGlobalSetupFailure },
+]
+
+/**
+ * Whether the ref (the dialect's `globalSetup.failure`) reports what the fixture's setup throws as
+ * Jest's CLI printed it: the class and the message of the error the behaviour returns are the
+ * golden's whole stderr, which `keepLines` cut to the lines that are no stack frame.
+ */
+const failureMatches = (g: Golden, value: unknown): boolean => {
+  const ref = value as { readonly module?: unknown; readonly export?: unknown } | null
+  const failure = FAILURES.find(
+    (known) => known.module === ref?.module && ref?.export === 'globalSetupFailure',
+  )
+  const thrown = THROWN_BY_FIXTURE[g.suite]
+  if (thrown === undefined) throw new Error(`no setup is known for ${g.suite}`)
+  if (failure === undefined) return false
+  const reported = failure.fn(thrown(), { hook: 'globalSetup', path: '<root>/setup.ts' })
+  return `${reported.name}: ${reported.message}` === String(observedOf(g).stderr ?? '')
 }
 
 const conditionsMatch = (g: Golden, value: unknown): boolean => {
@@ -231,11 +269,9 @@ export const orchestratorClaims: Claims = {
             .map((line) => line.slice(word.length + 1))
         const setups = named('setup')
         const teardowns = named('teardown')
-        const same = (a: readonly string[], b: readonly string[]): boolean =>
-          a.length === b.length && a.every((item, i) => item === b[i])
         return oneOf(text, [
-          ['in-order', same(setups, teardowns)],
-          ['reverse', same(setups.toReversed(), teardowns)],
+          ['in-order', isDeepStrictEqual(setups, teardowns)],
+          ['reverse', isDeepStrictEqual(setups.toReversed(), teardowns)],
         ])
       },
     }),
@@ -244,58 +280,20 @@ export const orchestratorClaims: Claims = {
       "Vitest's global setup runs with its config reader; its source closes the projects last to first",
     ),
   ),
-  // The line Jest prints for a setup that throws, with the hook, the path and the reason as slots.
-  'orchestrator.globalSetup.failureMessage': each(
-    golden('cli/global-setup-throws', {
-      read: (g) => {
-        const stderr = String(observedOf(g).stderr ?? '')
-        const line = stderr.split('\n').find((text) => text.includes('Got error running'))
-        if (line === undefined) throw new Error(`${g.suite} (${g.runner}) printed no failure line`)
-        return line
-          .replace(/^Error: /, '')
-          .replace('globalSetup', '{hook}')
-          .replace('<root>/setup.ts', '{path}')
-          .replace('setup failed', '{message}')
-      },
-    }),
+  // What a hook that throws is reported as. Jest's behaviour is held to the four recordings of a
+  // setup that throws an Error, a TypeError whose message runs over two lines, an object and a
+  // string: the header Jest's CLI printed (the class, then the message) is what the behaviour's
+  // error says. A flip to the neutral behaviour words it differently, so it fails every one.
+  'orchestrator.globalSetup.failure': each(
+    [
+      golden('cli/global-setup-throws', { matches: failureMatches }),
+      golden('cli/global-setup-throws-typeerror', { matches: failureMatches }),
+      golden('cli/global-setup-throws-object', { matches: failureMatches }),
+      golden('cli/global-setup-throws-string', { matches: failureMatches }),
+    ],
     pending(
       'T11.16',
-      "Vitest's global setup runs with its config reader; its source rethrows the setup's own error",
-    ),
-  ),
-  // How a thrown value that is no Error is printed in that line. Jest's is `core.formatValue`'s
-  // function (pretty-format, three levels deep); `own` pins the ref, and provino's test holds the
-  // printed text to the recordings.
-  'orchestrator.globalSetup.formatThrown': each(
-    own(
-      'packages/provino/test/global-setup.test.ts',
-      'cli/global-setup-throws-object',
-      {
-        module: import.meta.resolve('@provino/dialect-jest/runtime'),
-        export: 'formatValue',
-      },
-      '`cli/global-setup-throws-object` and `-string` (Jest 30.5.2) hold the text: `Object {` with one property to a line, a string in double quotes',
-    ),
-    pending(
-      'T11.16',
-      "Vitest's global setup runs with its config reader; the neutral printer stands until a recording shows what it prints for a thrown non-Error",
-    ),
-  ),
-  // What a hook is called with that JSON can't carry. Jest's rebuilds `testPathPatterns` as the
-  // `TestPathPatterns` object Jest 30 passes; provino's test holds every member to the recordings.
-  'orchestrator.globalSetup.reviveArgs': each(
-    own(
-      'packages/provino/test/global-setup.test.ts',
-      'cli/global-setup-test-path-patterns',
-      {
-        module: import.meta.resolve('@provino/dialect-jest/runtime'),
-        export: 'reviveGlobalSetupArgs',
-      },
-      '`cli/global-setup-test-path-patterns` and `-no-test-path-patterns` (Jest 30.5.2) hold the object: its class names, own keys and every member the hook can call',
-    ),
-    pending(
-      'T11.16',
-      "Vitest's hooks take a project, not the two configs; the neutral identity stands until its config reader builds them",
+      "Vitest's global setup runs with its config reader; its source rethrows the setup's own error, and no recording shows it yet",
     ),
   ),
 }

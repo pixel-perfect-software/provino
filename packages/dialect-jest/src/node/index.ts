@@ -44,6 +44,7 @@ export {
   JEST_CONFIG_EXT_ORDER,
   resolveJestConfigPath,
 } from './find.ts'
+export { jestRunGlobalHooks } from './global-hooks.ts'
 export { inlineProjectOptions, loadJestConfig, readJestConfigFile } from './load.ts'
 export {
   groupJestOptions,

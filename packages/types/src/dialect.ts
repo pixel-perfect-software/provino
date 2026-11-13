@@ -143,7 +143,8 @@ export interface NeutralProject {
   readonly globalTeardown: readonly string[]
   /**
    * What a global setup or teardown function receives under the policy's
-   * `global-and-project-config` signature (Jest's `GlobalConfig` and `ProjectConfig`), as JSON.
+   * `global-and-project-config` signature (Jest's `GlobalConfig` and `ProjectConfig`, as the
+   * reader holds them). It stays in the coordinator, where the hook runs, so it need not be JSON.
    * Absent when neither the project nor the run has a global setup or teardown, or for a
    * signature that takes the project. A project with no hook of its own still has it when the run
    * has one (Jest's root `globalSetup` with `projects`): that hook is called with the config of the

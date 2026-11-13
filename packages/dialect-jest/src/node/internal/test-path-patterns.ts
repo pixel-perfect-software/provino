@@ -1,24 +1,11 @@
-// `orchestrator.globalSetup.reviveArgs` for Jest (T9.15): what Jest's global hooks are called with
-// that JSON can't carry. In Jest 30 `globalConfig.testPathPatterns` is a `TestPathPatterns`
-// (jest-pattern 30.5.2), not an array: a hook may call `isSet()`, `toPretty()` or `toExecutor()` on
-// it. The reader gives the patterns as an array of strings (it has to be JSON), and this rebuilds the
-// object, with the same public members, in the coordinator where the hook runs, so it needs no
-// runtime dependency on jest-pattern. Recorded: `cli/global-setup-test-path-patterns` and
-// `cli/global-setup-no-test-path-patterns` (class names, own keys, every member's answer).
+// What Jest 30 hands a global hook as `globalConfig.testPathPatterns` (T9.15): a `TestPathPatterns`
+// (jest-pattern 30.5.2), not an array. A hook may call `isSet()`, `toPretty()` or `toExecutor()` on
+// it. The reader builds this one object, with the same public members, where the hook runs (the
+// coordinator, so it never crosses to a worker) and with no runtime dependency on jest-pattern.
+// Recorded: `cli/global-setup-test-path-patterns` and `cli/global-setup-no-test-path-patterns`
+// (class names, own keys, every member's answer).
 import { isAbsolute, relative, sep } from 'node:path'
-import type { ReviveGlobalSetupArgs } from '@provino/types'
-
-/** jest-regex-util 30.5.2's `replacePathSepForRegex`: a regular expression's `/` as this platform's separator. */
-function replacePathSepForRegex(text: string): string {
-  if (sep === '\\') {
-    return text.replaceAll(
-      /(\/|(.)?\\(?![$()*+.?[\\\]^{|}]))/g,
-      (_match, _group: unknown, before: string | undefined) =>
-        before !== undefined && before !== '' && before !== '\\' ? `${before}\\\\` : '\\\\',
-    )
-  }
-  return text
-}
+import { replacePathSepForRegex } from '../paths.ts'
 
 /** What a `TestPathPatterns` executor needs: the directory a pattern is read relative to. */
 interface ExecutorOptions {
@@ -69,8 +56,11 @@ class TestPathPatternsExecutor {
   }
 }
 
-/** jest-pattern's `TestPathPatterns`: the command line's test path patterns. */
-class TestPathPatterns {
+/**
+ * jest-pattern's `TestPathPatterns`: the command line's test path patterns.
+ * @internal
+ */
+export class TestPathPatterns {
   readonly patterns: string[]
 
   constructor(patterns: string[]) {
@@ -97,23 +87,5 @@ class TestPathPatterns {
   /** For Jest's serializers. */
   toJSON(): { readonly patterns: string[]; readonly type: 'TestPathPatterns' } {
     return { patterns: this.patterns, type: 'TestPathPatterns' }
-  }
-}
-
-/**
- * The configs Jest's global hooks get: the reader's JSON, with `globalConfig.testPathPatterns`
- * made the `TestPathPatterns` object Jest 30 passes.
- * @public
- */
-export const reviveGlobalSetupArgs: ReviveGlobalSetupArgs = ({ globalConfig, projectConfig }) => {
-  const patterns = globalConfig.testPathPatterns
-  return {
-    globalConfig: {
-      ...globalConfig,
-      testPathPatterns: new TestPathPatterns(
-        Array.isArray(patterns) ? patterns.map((pattern) => String(pattern)) : [],
-      ),
-    },
-    projectConfig,
   }
 }

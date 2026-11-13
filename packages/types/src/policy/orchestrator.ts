@@ -1,7 +1,6 @@
 import type { JsonValue } from '../clone-safe.ts'
 import type { IsolationTier } from '../isolation.ts'
 import type { Behaviour } from './behaviour.ts'
-import type { FormatValue } from './core.ts'
 
 /**
  * Worker pool kinds (Track 9): child processes, worker threads, or in the coordinator's own
@@ -29,24 +28,28 @@ export type EnvironmentConditions = (env: EnvironmentRequest) => readonly string
 
 /**
  * The two configs a global setup or teardown function is called with under the
- * `global-and-project-config` signature, as the dialect's config reader gave them (JSON).
+ * `global-and-project-config` signature, as the dialect's config reader built them (Jest's
+ * `GlobalConfig` and `ProjectConfig`). They are coordinator-local: a hook runs in the coordinator
+ * and these never cross to a worker, so they are not JSON and may hold what the hook should see (a
+ * class instance, a function).
  * @public
  */
 export interface GlobalSetupArgs {
-  readonly globalConfig: Readonly<Record<string, JsonValue>>
-  readonly projectConfig: Readonly<Record<string, JsonValue>>
-}
-
-/**
- * Turns the JSON a config reader gave a global hook into what the hook is called with: what JSON
- * can't carry (a class instance Jest builds in its global config) is rebuilt here, in the
- * coordinator, since it never crosses to a worker.
- * @public
- */
-export type ReviveGlobalSetupArgs = (args: GlobalSetupArgs) => {
   readonly globalConfig: object
   readonly projectConfig: object
 }
+
+/**
+ * What a global hook that throws, or is no function, is reported as: the `Error` this returns,
+ * whatever the hook threw. `hook` is the one that failed and `path` its module. A reporter prints
+ * the error's `name` and `message` as the header and the `    at ` lines of its `stack` as the
+ * frames. The function may return the thrown error itself, rewritten.
+ * @public
+ */
+export type GlobalSetupFailure = (
+  thrown: unknown,
+  context: { readonly hook: 'globalSetup' | 'globalTeardown'; readonly path: string },
+) => Error
 
 /**
  * The `orchestrator` slice, read by `@provino/orchestrator` (Track 9): discovery, scheduling,
@@ -150,25 +153,14 @@ export interface OrchestratorPolicy {
      */
     readonly teardownOrder: 'in-order' | 'reverse'
     /**
-     * The text of the error a hook that throws raises. `{hook}` is `globalSetup` or
-     * `globalTeardown`, `{path}` the module's path and `{message}` the error's message. Jest:
-     * `Jest: Got error running {hook} - {path}, reason: {message}` (recorded by
-     * `cli/global-setup-throws`). Vitest raises the error as it is: `{message}`.
+     * What a hook that throws, or is no function, is reported as. Jest: the thrown `Error` with
+     * its message rewritten in place to `Jest: Got error running {hook} - {path}, reason:
+     * {message}` (its class and frames kept); for a value that is no `Error`, or whose message
+     * can't be rewritten, a new `Error` with that text, the value printed by pretty-format three
+     * levels deep (recorded by `cli/global-setup-throws`, `-typeerror`, `-object` and `-string`).
+     * Neutral: an `Error` that names the hook and the path, with the thrown error as its `cause`.
+     * Vitest: the neutral behaviour, until T11.16 records what its source raises.
      */
-    readonly failureMessage: string
-    /**
-     * Prints a value a hook threw that is no `Error`, in the failure message's `{message}`. Jest:
-     * pretty-format with `maxDepth: 3` (`runGlobalHook`; recorded by
-     * `cli/global-setup-throws-object` and `-string`). Vitest: the neutral printer, with no
-     * recording until T11.16.
-     */
-    readonly formatThrown: Behaviour<FormatValue>
-    /**
-     * Rebuilds what JSON can't carry in the two configs a `global-and-project-config` hook is
-     * called with. Jest: `globalConfig.testPathPatterns`, an object with `TestPathPatterns`'
-     * members (recorded by `cli/global-setup-test-path-patterns`). Vitest: the neutral identity,
-     * since its hooks take no configs.
-     */
-    readonly reviveArgs: Behaviour<ReviveGlobalSetupArgs>
+    readonly failure: Behaviour<GlobalSetupFailure>
   }
 }

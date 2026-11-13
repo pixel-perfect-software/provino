@@ -79,9 +79,9 @@ export type {
   EnvironmentConditions,
   EnvironmentRequest,
   GlobalSetupArgs,
+  GlobalSetupFailure,
   OrchestratorPolicy,
   PoolKind,
-  ReviveGlobalSetupArgs,
 } from './orchestrator.ts'
 export type { ReportPolicy } from './report.ts'
 export type {

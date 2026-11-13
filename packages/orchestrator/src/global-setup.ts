@@ -8,12 +8,12 @@
 // file to run. A teardown runs after the run, in the order the policy says.
 // `provide` collects the values workers get (`WorkerInit.provided`, read by `inject` once T11.16
 // builds it); `onTestsRerun` is kept for the watch loop (T9.11).
-import type { ResolvedProject } from '@provino/config'
+import { interopDefault, type ResolvedGlobalSetup, type ResolvedProject } from '@provino/config'
 import type { CoordinatorLoader } from '@provino/loader'
 import { callBehaviour, createBehaviourLoader } from '@provino/policy'
 import type { GlobalSetupContext, ProvidedContext } from '@provino/types'
 import { OrchestratorError } from './errors.ts'
-import { messageOf } from './util.ts'
+import { ABORTED, isRecord, messageOf, raceAbort } from './util.ts'
 
 /** One step to run after the run: a teardown module to import and call, or a function a setup returned. */
 interface TeardownStep {
@@ -41,81 +41,28 @@ export interface GlobalSetupRun {
 }
 
 /**
- * Whether an error's `message` can be rewritten: Jest rewrites it in place to say which hook failed,
- * and keeps the error (its class and stack); one it can't rewrite is reported as a new `Error`.
- */
-function hasWritableMessage(error: Error): boolean {
-  return (
-    Object.getOwnPropertyDescriptor(error, 'message')?.writable === true ||
-    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(error), 'message')?.writable === true
-  )
-}
-
-/**
- * What a hook threw, as the failure's `{message}`: an error's own message when it can be rewritten,
- * else the value as the policy's `formatThrown` prints it (Jest: pretty-format, three levels deep).
- */
-async function thrownText(project: ResolvedProject, cause: unknown): Promise<string> {
-  if (cause instanceof Error && hasWritableMessage(cause)) return cause.message
-  try {
-    return await callBehaviour(
-      createBehaviourLoader(),
-      project.policy.orchestrator.globalSetup.formatThrown,
-      cause,
-    )
-  } catch {
-    return messageOf(cause)
-  }
-}
-
-/** The error a failing hook raises: the policy's template with its three slots filled. */
-async function failure(
-  project: ResolvedProject,
-  hook: HookName,
-  path: string,
-  cause: unknown,
-): Promise<OrchestratorError> {
-  const message = await thrownText(project, cause)
-  const text = project.policy.orchestrator.globalSetup.failureMessage.replace(
-    /\{(hook|path|message)\}/g,
-    (_slot, name: string) => (name === 'hook' ? hook : name === 'path' ? path : message),
-  )
-  return new OrchestratorError('ORCH_GLOBAL_SETUP_FAILED', text, { cause })
-}
-
-/**
  * How a failing hook is reported on `stderr`, as Jest's CLI prints the error `runGlobalHook`
- * rewrites: the header (the thrown error's own class, `Error` for a value that is none, then the
- * message, which may run over several lines), then the frames of what the hook threw, and no other
- * line of its stack.
+ * rewrites: the header (the reported error's class, then its message, which may run over several
+ * lines), then the frames of what the hook threw, and no other line of its stack. The policy's
+ * `globalSetup.failure` made that error: a stack with no frame of ours is its to keep.
  * @internal
  */
 export function hookFailureReport(error: OrchestratorError): string {
   const { cause } = error
-  const thrown = cause instanceof Error && hasWritableMessage(cause) ? cause : undefined
-  const frames = (thrown?.stack ?? '').split('\n').filter((line) => /^\s+at /.test(line))
-  return `${[`${thrown?.name ?? 'Error'}: ${error.message}`, ...frames].join('\n')}\n`
+  if (!(cause instanceof Error)) return `${error.message}\n`
+  const frames = (cause.stack ?? '').split('\n').filter((line) => /^\s+at /.test(line))
+  return `${[`${cause.name}: ${cause.message}`, ...frames].join('\n')}\n`
 }
 
 function isHook(value: unknown): value is Hook {
   return typeof value === 'function'
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null
-}
-
-/**
- * The function a module's exports give. A default export that is a function; one that is an
- * object with `__esModule` (a CommonJS file compiled from ES syntax, read under an `import`
- * interop that keeps `module.exports` whole) gives its own `default`.
- */
+/** The function a module's `default` export gives, unwrapped as a compiled CommonJS file needs. */
 function defaultFunction(namespace: unknown): Hook | undefined {
   if (!isRecord(namespace)) return undefined
-  const value = namespace.default
-  if (isHook(value)) return value
-  if (isRecord(value) && value.__esModule === true && isHook(value.default)) return value.default
-  return undefined
+  const value = interopDefault(namespace.default)
+  return isHook(value) ? value : undefined
 }
 
 function named(namespace: unknown, key: string): Hook | undefined {
@@ -130,10 +77,7 @@ function named(namespace: unknown, key: string): Hook | undefined {
  * absolute.
  * @public
  */
-export interface RunGlobalHooks {
-  readonly setup: readonly string[]
-  readonly teardown: readonly string[]
-}
+export type RunGlobalHooks = Pick<ResolvedGlobalSetup, 'setup' | 'teardown'>
 
 /**
  * The hooks of `key` across `projects`, each distinct path once, in project order, with the first
@@ -182,41 +126,9 @@ export interface GlobalSetupOptions {
   readonly forceSignal?: AbortSignal | undefined
 }
 
-/** What `unlessAborted` resolves with when a signal came first. */
-const ABORTED: unique symbol = Symbol('aborted')
-
-/**
- * `work`'s outcome, or `ABORTED` as soon as one of `signals` aborts (at once when one already
- * has). A hook that hangs can't be cancelled, so the work is left running; what it throws later is
- * nobody's to report.
- */
-function unlessAborted<T>(
-  work: Promise<T>,
-  signals: readonly (AbortSignal | undefined)[],
-): Promise<T | typeof ABORTED> {
-  work.catch(() => undefined)
-  const live = signals.filter((signal) => signal !== undefined)
-  if (live.some((signal) => signal.aborted)) return Promise.resolve(ABORTED)
-  return new Promise((resolve, reject) => {
-    const onAbort = (): void => {
-      stop()
-      resolve(ABORTED)
-    }
-    const stop = (): void => {
-      for (const signal of live) signal.removeEventListener('abort', onAbort)
-    }
-    for (const signal of live) signal.addEventListener('abort', onAbort, { once: true })
-    work.then(
-      (value) => {
-        stop()
-        resolve(value)
-      },
-      (error: unknown) => {
-        stop()
-        reject(error)
-      },
-    )
-  })
+/** A signal that aborts when any of `signals` that exist does; one that never does for none. */
+function anyOf(...signals: readonly (AbortSignal | undefined)[]): AbortSignal {
+  return AbortSignal.any(signals.filter((signal) => signal !== undefined))
 }
 
 /**
@@ -237,7 +149,6 @@ export async function runGlobalSetup(
   if (setups.length === 0 && teardowns.length === 0) return undefined
 
   const provided: Partial<Record<keyof ProvidedContext, unknown>> = {}
-  const rerun: (() => void | Promise<void>)[] = []
   /** The teardowns of what a setup returned or exported, in the order those setups ran. */
   const returned: TeardownStep[] = []
   const loaders = new Map<ResolvedProject, Promise<CoordinatorLoader>>()
@@ -263,18 +174,6 @@ export async function runGlobalSetup(
     }
   }
 
-  async function importHook(
-    hook: HookName,
-    path: string,
-    project: ResolvedProject,
-  ): Promise<unknown> {
-    try {
-      return await (await loaderOf(project)).import(path)
-    } catch (cause) {
-      throw await failure(project, hook, path, cause)
-    }
-  }
-
   const contextOf = (project: ResolvedProject): GlobalSetupContext => ({
     provide(key, value) {
       try {
@@ -287,13 +186,16 @@ export async function runGlobalSetup(
       }
       provided[key] = value
     },
-    onTestsRerun(callback) {
-      rerun.push(callback)
+    onTestsRerun() {
+      // Kept for the watch loop (T9.11): nothing re-runs yet, so there is nothing to call.
     },
     project: { name: project.name, root: project.rootDir },
   })
 
-  /** Runs `body` as `hook` of `path` would: what it throws becomes the policy's error. */
+  /**
+   * Runs `body` as `hook` of `path` would: what it throws (an import that fails, a module that
+   * isn't a function, the hook itself) is reported as the policy's `globalSetup.failure` says.
+   */
   async function guarded(
     hook: HookName,
     path: string,
@@ -303,36 +205,35 @@ export async function runGlobalSetup(
     try {
       await body()
     } catch (cause) {
-      if (cause instanceof OrchestratorError) throw cause
-      throw await failure(project, hook, path, cause)
+      const reported = await callBehaviour(
+        createBehaviourLoader(),
+        project.policy.orchestrator.globalSetup.failure,
+        cause,
+        { hook, path },
+      )
+      throw new OrchestratorError('ORCH_GLOBAL_SETUP_FAILED', reported.message, {
+        cause: reported,
+      })
     }
   }
 
   /**
-   * What a `global-and-project-config` hook is called with: the reader's two configs as the
-   * policy's `reviveArgs` rebuilds them, once per project, so the setup and the teardown get the
-   * same objects, as Jest passes one `globalConfig` to every hook.
+   * A Jest hook: the module imported and its function called with `(globalConfig, projectConfig)`,
+   * the reader's two configs for the project (the same objects for its setup and its teardown, as
+   * Jest passes one `globalConfig` to every hook), `{}` each when it gave none.
    */
-  const revived = new Map<
-    ResolvedProject,
-    Promise<{ globalConfig: object; projectConfig: object }>
-  >()
-  function argsOf(
-    project: ResolvedProject,
-  ): Promise<{ globalConfig: object; projectConfig: object }> {
-    let args = revived.get(project)
-    if (args === undefined) {
-      args = callBehaviour(
-        createBehaviourLoader(),
-        project.policy.orchestrator.globalSetup.reviveArgs,
-        project.globalSetup?.args ?? { globalConfig: {}, projectConfig: {} },
-      )
-      revived.set(project, args)
-    }
-    return args
+  function callJestHook(hook: HookName, path: string, project: ResolvedProject): Promise<void> {
+    return guarded(hook, path, project, async () => {
+      const fn = defaultFunction(await (await loaderOf(project)).import(path))
+      if (fn === undefined) throw new TypeError(`${hook} file must export a function at ${path}`)
+      const args = project.globalSetup?.args ?? { globalConfig: {}, projectConfig: {} }
+      await fn(args.globalConfig, args.projectConfig)
+    })
   }
 
   const { signal, forceSignal } = options
+  const interrupt = anyOf(signal, forceSignal)
+  const force = anyOf(forceSignal)
 
   /**
    * Runs the steps, each even when an earlier one threw (the first error is then thrown). A step
@@ -347,10 +248,7 @@ export async function runGlobalSetup(
     for (const step of steps) {
       if (forceSignal?.aborted === true) break
       try {
-        const outcome = await unlessAborted(
-          step.run(),
-          patient ? [forceSignal] : [signal, forceSignal],
-        )
+        const outcome = await raceAbort(step.run(), patient ? force : interrupt)
         if (outcome === ABORTED) patient = true
       } catch (error) {
         if (!failed) first = error
@@ -370,18 +268,12 @@ export async function runGlobalSetup(
 
   /** One setup: the module imported, and called as the policy's signature says. */
   async function setUp(path: string, project: ResolvedProject): Promise<void> {
-    const { signature } = project.policy.orchestrator.globalSetup
-    const namespace = await importHook('globalSetup', path, project)
+    if (project.policy.orchestrator.globalSetup.signature === 'global-and-project-config') {
+      await callJestHook('globalSetup', path, project)
+      return
+    }
     await guarded('globalSetup', path, project, async () => {
-      if (signature === 'global-and-project-config') {
-        const fn = defaultFunction(namespace)
-        if (fn === undefined) {
-          throw new TypeError(`globalSetup file must export a function at ${path}`)
-        }
-        const args = await argsOf(project)
-        await fn(args.globalConfig, args.projectConfig)
-        return
-      }
+      const namespace = await (await loaderOf(project)).import(path)
       const fn = defaultFunction(namespace) ?? named(namespace, 'setup')
       const exported = named(namespace, 'teardown')
       if (fn === undefined && exported === undefined) {
@@ -406,7 +298,7 @@ export async function runGlobalSetup(
   try {
     for (const { path, project } of setups) {
       // Each setup is waited for only until a signal comes (a hook that hangs can't be cancelled).
-      const outcome = await unlessAborted(setUp(path, project), [signal, forceSignal])
+      const outcome = await raceAbort(setUp(path, project), interrupt)
       if (outcome === ABORTED) {
         interrupted = true
         break
@@ -423,42 +315,21 @@ export async function runGlobalSetup(
     throw error
   }
 
-  // A run interrupted while setting up tears down what had set up (the functions setups returned);
-  // a teardown module is a Jest hook, whose pairing with a setup is not ours to guess (as when a
-  // setup throws), so none runs. The run itself ends with the signal's reason (`run.ts`).
-  if (interrupted) {
-    return {
-      provided,
-      async teardown() {
-        try {
-          await runTeardowns(ordered(returned))
-        } finally {
-          await disposeLoaders()
-        }
-      },
-    }
-  }
-
   // A Jest teardown module is imported only when the teardown runs, as Jest does.
   const modules: TeardownStep[] = teardowns.map(({ path, project }) => ({
     path,
-    run: () =>
-      guarded('globalTeardown', path, project, async () => {
-        const namespace = await importHook('globalTeardown', path, project)
-        const fn = defaultFunction(namespace)
-        if (fn === undefined) {
-          throw new TypeError(`globalTeardown file must export a function at ${path}`)
-        }
-        const args = await argsOf(project)
-        await fn(args.globalConfig, args.projectConfig)
-      }),
+    run: () => callJestHook('globalTeardown', path, project),
   }))
 
   return {
     provided,
     async teardown() {
       try {
-        await runTeardowns(ordered([...returned, ...modules]))
+        // A run interrupted while setting up tears down what had set up (the functions setups
+        // returned); a teardown module is a Jest hook, whose pairing with a setup is not ours to
+        // guess (as when a setup throws), so none runs. The run itself ends with the signal's
+        // reason (`run.ts`).
+        await runTeardowns(ordered(interrupted ? returned : [...returned, ...modules]))
       } finally {
         await disposeLoaders()
       }

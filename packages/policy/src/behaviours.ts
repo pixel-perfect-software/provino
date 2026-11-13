@@ -6,7 +6,7 @@ import type {
   EnvironmentConditions,
   FormatEachTitle,
   FormatValue,
-  ReviveGlobalSetupArgs,
+  GlobalSetupFailure,
   SnapshotKey,
 } from '@provino/types'
 
@@ -46,11 +46,22 @@ export const formatValue: FormatValue = (value) =>
   inspect(value, { depth: 3, breakLength: Infinity, compact: true })
 
 /**
- * Calls a global hook with the configs as they are (`orchestrator.globalSetup.reviveArgs`): the
- * neutral signature takes none, so there is nothing to rebuild.
+ * Reports a global hook that threw (`orchestrator.globalSetup.failure`): an `Error` that names the
+ * hook and its path and says what the hook threw, with the thrown value as its `cause`. The
+ * header is that message, and the frames below it are the thrown error's own, so none of the
+ * runner's shows.
  * @public
  */
-export const reviveGlobalSetupArgs: ReviveGlobalSetupArgs = (args) => args
+export const globalSetupFailure: GlobalSetupFailure = (thrown, { hook, path }) => {
+  const reason = thrown instanceof Error ? thrown.message : formatValue(thrown)
+  const message = `${hook} ${path} failed: ${reason}`
+  const error = new Error(message, { cause: thrown })
+  const frames = (thrown instanceof Error ? (thrown.stack ?? '') : '')
+    .split('\n')
+    .filter((line) => /^\s+at /.test(line))
+  error.stack = [`Error: ${message}`, ...frames].join('\n')
+  return error
+}
 
 /**
  * Names the `count`-th snapshot of a test: `` `${fullName} ${count}` ``.

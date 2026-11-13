@@ -236,16 +236,68 @@ test('globalSetup and globalTeardown reach the neutral project with the two conf
     'setup.js': '',
     'teardown.js': '',
   })
-  const { neutral } = await readNeutral(root)
+  const { neutral, resolved } = await readNeutral(root)
   const [project] = neutral.value
   assert.deepEqual(project?.globalSetup, [join(root, 'setup.js')])
   assert.deepEqual(project?.globalTeardown, [join(root, 'teardown.js')])
   // It is applied now: no "not applied" warning for either key.
   assert.ok(!neutral.diagnostics.some((d) => /globalS|globalT/.test(d.message)))
   const args = project?.globalSetupArgs
-  assert.equal(args?.globalConfig.rootDir, root)
-  assert.equal(args?.projectConfig.rootDir, root)
-  assert.deepEqual(args?.projectConfig.testMatch, ['**/*.spec.ts'])
+  assert.ok(args !== undefined)
+  assert.equal(Reflect.get(args.globalConfig, 'rootDir'), root)
+  assert.equal(Reflect.get(args.projectConfig, 'rootDir'), root)
+  assert.deepEqual(Reflect.get(args.projectConfig, 'testMatch'), ['**/*.spec.ts'])
+  // The project's config is Jest's own normalized object, not a copy of it.
+  assert.equal(args.projectConfig, resolved.value.configs[0])
+})
+
+test('a hook is called with the configs as they are: nothing is lost to JSON, and the run’s global config is built once (T9.15)', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = {
+  globalSetup: '<rootDir>/setup.js',
+  projects: ['<rootDir>/one', '<rootDir>/two'],
+}
+`,
+    'setup.js': '',
+    'one/jest.config.js': `module.exports = {
+  displayName: 'one',
+  transform: { '\\\\.ts$': ['<rootDir>/t.js', { fn: () => 1, keep: 'yes' }] },
+}
+`,
+    'one/t.js': '',
+    'two/jest.config.js': "module.exports = { displayName: 'two' }\n",
+  })
+  const { neutral, resolved } = await readNeutral(root)
+  const [one, two] = neutral.value
+  assert.ok(one?.globalSetupArgs !== undefined && two?.globalSetupArgs !== undefined)
+  // A function in a transformer's options reaches the hook, and no warning says it was left out.
+  const transform = Reflect.get(one.globalSetupArgs.projectConfig, 'transform') as [
+    string,
+    string,
+    { fn(): number; keep: string },
+  ][]
+  assert.equal(transform[0]?.[2].fn(), 1)
+  assert.ok(!neutral.diagnostics.some((d) => /^(projectConfig|globalConfig)/.test(d.key ?? '')))
+  assert.ok(
+    !neutral.diagnostics.some(
+      (d) => d.code === 'JEST_CONFIG_NOT_SERIALIZABLE' && /global/.test(d.message),
+    ),
+  )
+  // One global config for every project, with `testPathPatterns` as Jest 30's object.
+  assert.equal(one.globalSetupArgs.globalConfig, two.globalSetupArgs.globalConfig)
+  const { globalConfig } = one.globalSetupArgs
+  assert.equal(Reflect.get(globalConfig, 'rootDir'), resolved.value.globalConfig.rootDir)
+  const patterns = Reflect.get(globalConfig, 'testPathPatterns') as {
+    constructor: { name: string }
+    isSet(): boolean
+    toPretty(): string
+  }
+  assert.equal(patterns.constructor.name, 'TestPathPatterns')
+  assert.equal(patterns.isSet(), resolved.value.globalConfig.testPathPatterns.length > 0)
+  assert.equal(patterns.toPretty(), resolved.value.globalConfig.testPathPatterns.join('|'))
+  // Reading again builds another one: it is per read, not a module-level singleton.
+  const again = (await readNeutral(root)).neutral.value[0]?.globalSetupArgs?.globalConfig
+  assert.notEqual(again, globalConfig)
 })
 
 test('the root config’s hooks, with projects, leave every project the two configs a hook is called with, though a project has no hook of its own', async () => {
@@ -269,45 +321,29 @@ test('the root config’s hooks, with projects, leave every project the two conf
   assert.deepEqual(two?.globalSetup, [])
   for (const project of [one, two]) {
     const args = project?.globalSetupArgs
-    assert.equal(args?.globalConfig.globalSetup, join(root, 'root-setup.js'))
+    assert.ok(args !== undefined)
+    assert.equal(Reflect.get(args.globalConfig, 'globalSetup'), join(root, 'root-setup.js'))
     assert.equal(
-      args?.projectConfig.rootDir,
+      Reflect.get(args.projectConfig, 'rootDir'),
       project === one ? join(root, 'one') : join(root, 'two'),
     )
   }
 })
 
-test('a value in the configs that is no JSON is left out of a hook’s arguments with a warning that names it, and only when there is a hook', async () => {
+test('a value in a transformer’s options that is no JSON is still dropped, with a warning, from the worker’s copy; a project with no hook carries no hook arguments', async () => {
   const transform = `transform: { '\\\\.ts$': ['<rootDir>/t.js', { fn: () => 1, keep: 'yes' }] },`
-  const withHook = tree({
-    'jest.config.js': `module.exports = {
-  globalSetup: '<rootDir>/setup.js',
-  ${transform}
-}
-`,
-    'setup.js': '',
-    't.js': '',
-  })
-  const hooked = (await readNeutral(withHook)).neutral
-  const keys = hooked.diagnostics.map((d) => `${d.code} ${d.key}`)
-  // Named for the hook's copy of the config as well as for the transformer's.
-  assert.ok(
-    keys.includes('JEST_CONFIG_NOT_SERIALIZABLE projectConfig.transform[0][2].fn'),
-    keys.join('\n'),
-  )
-  const warning = hooked.diagnostics.find((d) => d.key === 'projectConfig.transform[0][2].fn')
-  assert.match(warning?.message ?? '', /global setup or teardown/)
-  const args = hooked.value[0]?.globalSetupArgs
-  assert.deepEqual(args?.projectConfig.transform, [
-    ['\\.ts$', join(withHook, 't.js'), { keep: 'yes' }],
-  ])
-
   const noHook = tree({
     'jest.config.js': `module.exports = { ${transform} }\n`,
     't.js': '',
   })
   const quiet = (await readNeutral(noHook)).neutral
-  assert.ok(!quiet.diagnostics.some((d) => /^(projectConfig|globalConfig)/.test(d.key ?? '')))
+  // The transformer's options cross to a worker, so only their JSON does: the function is named.
+  assert.ok(
+    quiet.diagnostics.some(
+      (d) => d.code === 'JEST_CONFIG_NOT_SERIALIZABLE' && d.key === 'transform["\\.ts$"].fn',
+    ),
+    quiet.diagnostics.map((d) => `${d.code} ${d.key}`).join('\n'),
+  )
   assert.equal(quiet.value[0]?.globalSetupArgs, undefined)
 })
 

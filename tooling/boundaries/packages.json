@@ -343,6 +343,14 @@
       ],
       "slices": "all"
     },
+    "@provino/dialect-jest/global-setup": {
+      "dir": "packages/dialect-jest/src/global-setup",
+      "layer": 5,
+      "runsIn": "coordinator",
+      "deps": ["@provino/types"],
+      "slices": "all",
+      "note": "T9.15: how a Jest global hook's failure is reported, loaded by the coordinator through a behaviour ref. A leaf of its own so the coordinator never imports ./runtime (about 57 ms before the first worker)."
+    },
     "@provino/dialect-jest/runtime": {
       "dir": "packages/dialect-jest/src/runtime",
       "layer": 5,

@@ -6,12 +6,10 @@ import type {
   ConfigReadOutcome,
   ConfigSource,
   Dialect,
-  FormatValue,
   GlobalSetupArgs,
-  JsonValue,
+  GlobalSetupFailure,
   NeutralProject,
   OrchestratorPolicy,
-  ReviveGlobalSetupArgs,
   SerializedProjectConfig,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
@@ -62,40 +60,42 @@ expectTypeOf<NeutralProject['cacheDirectory']>().toEqualTypeOf<string | undefine
 const pattern: RegExp = project.aliases[0]?.pattern ?? /x/
 void pattern
 
-// What a global setup or teardown is called with (T9.15): two configs as JSON, so they cross to
-// a worker, and absent when the project has no hooks.
+// What a global setup or teardown is called with (T9.15): the two configs the reader built. A hook
+// runs in the coordinator, so they never cross to a worker: objects, not JSON. Absent when the
+// project has no hooks.
 expectTypeOf<NeutralProject['globalSetup']>().toEqualTypeOf<readonly string[]>()
-expectTypeOf<NonNullable<NeutralProject['globalSetupArgs']>['globalConfig']>().toExtend<
-  Readonly<Record<string, JsonValue>>
->()
-expectTypeOf<NonNullable<NeutralProject['globalSetupArgs']>['projectConfig']>().toExtend<
-  Readonly<Record<string, JsonValue>>
->()
-const hookArgs: NeutralProject['globalSetupArgs'] = {
-  // @ts-expect-error a global config is JSON: no function in it
-  globalConfig: { f: () => 1 },
+expectTypeOf<NeutralProject['globalSetupArgs']>().toEqualTypeOf<GlobalSetupArgs | undefined>()
+expectTypeOf<GlobalSetupArgs['globalConfig']>().toEqualTypeOf<object>()
+expectTypeOf<GlobalSetupArgs['projectConfig']>().toEqualTypeOf<object>()
+// A function or a class instance in them is kept: nothing is lost to JSON on the way to a hook.
+const hookArgs: GlobalSetupArgs = {
+  globalConfig: { run: () => 1, patterns: new Map<string, string>() },
   projectConfig: {},
 }
+// @ts-expect-error a hook is given both configs
+const oneConfig: GlobalSetupArgs = { globalConfig: {} }
+// @ts-expect-error a config is an object, not text
+const textConfig: GlobalSetupArgs = { globalConfig: 'rootDir', projectConfig: {} }
 void hookArgs
-
-// What the policy does with those args and a hook's failure (T9.15): `reviveArgs` turns the JSON a
-// reader gave into what the hook is called with, `formatThrown` prints a thrown value that is no
-// Error. Both are behaviours, so a dialect gives them as a `ModuleRef`.
-expectTypeOf<ReviveGlobalSetupArgs>().parameter(0).toEqualTypeOf<GlobalSetupArgs>()
-expectTypeOf<ReviveGlobalSetupArgs>().returns.toEqualTypeOf<{
-  readonly globalConfig: object
-  readonly projectConfig: object
-}>()
-expectTypeOf<NeutralProject['globalSetupArgs']>().toEqualTypeOf<GlobalSetupArgs | undefined>()
-expectTypeOf<OrchestratorPolicy['globalSetup']['formatThrown']>().toEqualTypeOf<
-  Behaviour<FormatValue>
->()
-expectTypeOf<OrchestratorPolicy['globalSetup']['reviveArgs']>().toEqualTypeOf<
-  Behaviour<ReviveGlobalSetupArgs>
->()
-// @ts-expect-error a revival gives both configs back, not one
-const oneConfig: ReviveGlobalSetupArgs = (args) => ({ globalConfig: args.globalConfig })
-// @ts-expect-error a thrown value is printed as text, not returned as it is
-const notText: Behaviour<FormatValue> = (value: unknown) => value
 void oneConfig
-void notText
+void textConfig
+
+// What a hook that throws is reported as (T9.15): one behaviour, so a dialect gives it as a
+// `ModuleRef`. It is given what was thrown, the hook and the module, and returns the error to report.
+expectTypeOf<GlobalSetupFailure>().parameter(0).toEqualTypeOf<unknown>()
+expectTypeOf<GlobalSetupFailure>()
+  .parameter(1)
+  .toEqualTypeOf<{ readonly hook: 'globalSetup' | 'globalTeardown'; readonly path: string }>()
+expectTypeOf<GlobalSetupFailure>().returns.toEqualTypeOf<Error>()
+expectTypeOf<OrchestratorPolicy['globalSetup']['failure']>().toEqualTypeOf<
+  Behaviour<GlobalSetupFailure>
+>()
+// @ts-expect-error the error to report is an Error, not text
+const reportedAsText: GlobalSetupFailure = (thrown) => String(thrown)
+const unknownHook: GlobalSetupFailure = (_thrown, { hook }) => {
+  // @ts-expect-error a hook is globalSetup or globalTeardown, not another name
+  const isSetup = hook === 'setup'
+  return new Error(isSetup ? 'a' : 'b')
+}
+void reportedAsText
+void unknownHook

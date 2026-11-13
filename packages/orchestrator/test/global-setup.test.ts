@@ -21,7 +21,7 @@ const JEST_HOOKS: NonNullable<PolicyOverrides['orchestrator']> = {
   globalSetup: {
     signature: 'global-and-project-config',
     teardownOrder: 'in-order',
-    failureMessage: 'Hook {hook} at {path} said: {message}',
+    // `failure` stays the neutral behaviour: `<hook> <path> failed: <message>`.
   },
 }
 
@@ -168,7 +168,7 @@ describe('Jest’s signature: fn(globalConfig, projectConfig)', () => {
     )
   })
 
-  it('fails the run with the policy’s text when a setup throws: no file runs, reporters hear nothing, the cause is kept', async () => {
+  it('fails the run as the policy’s failure says when a setup throws: no file runs, reporters hear nothing, the cause is kept', async () => {
     const p = await makeProject({
       'setup.ts': "module.exports = async function setup() { throw new Error('setup failed') }",
       'teardown.ts': `module.exports = async () => { ${note('teardown ran')} }`,
@@ -188,12 +188,16 @@ describe('Jest’s signature: fn(globalConfig, projectConfig)', () => {
     })
     assert.ok(error instanceof OrchestratorError)
     assert.equal(error.code, 'ORCH_GLOBAL_SETUP_FAILED')
-    assert.equal(error.message, `Hook globalSetup at ${p.path('setup.ts')} said: setup failed`)
-    assert.equal((error.cause as Error).message, 'setup failed')
+    assert.equal(error.message, `globalSetup ${p.path('setup.ts')} failed: setup failed`)
+    // The cause is the error the policy returned, which keeps what the hook threw as its own.
+    const reported = error.cause
+    assert.ok(reported instanceof Error)
+    assert.equal(reported.message, error.message)
+    assert.equal((reported.cause as Error).message, 'setup failed')
     assert.deepEqual(trace, [], 'no run:start, no file, and Jest runs no teardown here')
   })
 
-  it('refuses a module that does not export a function, by the same text', async () => {
+  it('refuses a module that does not export a function, worded the same way', async () => {
     const p = await makeProject({
       'setup.ts': 'module.exports = { not: "a function" }',
       'a.test.js': "test('a', () => {})",
@@ -206,7 +210,7 @@ describe('Jest’s signature: fn(globalConfig, projectConfig)', () => {
       traced((t) => runAll([project], t)),
       {
         code: 'ORCH_GLOBAL_SETUP_FAILED',
-        message: `Hook globalSetup at ${p.path('setup.ts')} said: globalSetup file must export a function at ${p.path('setup.ts')}`,
+        message: `globalSetup ${p.path('setup.ts')} failed: globalSetup file must export a function at ${p.path('setup.ts')}`,
       },
     )
   })
@@ -237,10 +241,7 @@ describe('Jest’s signature: fn(globalConfig, projectConfig)', () => {
       return undefined
     })
     assert.ok(error instanceof OrchestratorError)
-    assert.equal(
-      error.message,
-      `Hook globalTeardown at ${p.path('down-bad.ts')} said: teardown failed`,
-    )
+    assert.equal(error.message, `globalTeardown ${p.path('down-bad.ts')} failed: teardown failed`)
     assert.ok(trace.includes('run:end interrupted'), trace.join(', '))
     assert.ok(trace.indexOf('run:end interrupted') < trace.indexOf('teardown bad'))
     assert.ok(trace.includes('teardown good'), 'the teardown after the one that threw still ran')
@@ -403,13 +404,16 @@ const HANG = 'await new Promise(() => {})'
 const abortNow = ';(globalThis as any).__abort()'
 const forceNow = ';(globalThis as any).__force()'
 
-describe('what a hook is called with, and how its failure is worded', () => {
-  /** The error a run of a Jest-signature project whose setup throws `thrown` fails with. */
-  async function failedWith(thrown: string, extraFiles: Record<string, string> = {}) {
+describe('what a hook is called with, and how its failure is reported', () => {
+  /**
+   * The error a run of a Jest-signature project whose setup throws `thrown` fails with, under
+   * the neutral `failure` behaviour, or under the one `failureSource` writes into the project.
+   */
+  async function failedWith(thrown: string, failureSource?: string) {
     const p = await makeProject({
       'setup.ts': `module.exports = async () => { ${thrown} }`,
       'a.test.js': "test('a', () => {})",
-      ...extraFiles,
+      ...(failureSource === undefined ? {} : { 'failure.ts': failureSource }),
     })
     const project = withHooks(
       runtimeProject(p.dir, {
@@ -417,9 +421,9 @@ describe('what a hook is called with, and how its failure is worded', () => {
           orchestrator: {
             globalSetup: {
               ...JEST_HOOKS.globalSetup,
-              failureMessage: 'Got error running {hook} - {path}, reason: {message}',
-              // The policy's printer: this module's `format`, which the test writes.
-              formatThrown: { module: p.path('format.ts'), export: 'format' },
+              ...(failureSource === undefined
+                ? {}
+                : { failure: { module: p.path('failure.ts'), export: 'failure' } }),
             },
           },
         },
@@ -435,68 +439,86 @@ describe('what a hook is called with, and how its failure is worded', () => {
     return assert.fail('the run did not fail')
   }
 
-  const FORMAT = {
-    'format.ts': 'export const format = (value: unknown) => "<" + JSON.stringify(value) + ">"',
-  }
+  // The policy's behaviour, written as the project would supply it: it is given what was thrown,
+  // the hook and the module, and its error is what the run fails with. Its stack is the header
+  // alone, as the dialects' do for a value that is no Error.
+  const FAILURE = [
+    'export const failure = (thrown: unknown, context: { hook: string; path: string }) => {',
+    "  const error = new Error(context.hook + ' at ' + context.path + ' threw <' + JSON.stringify(thrown) + '>')",
+    "  error.stack = 'Error: ' + error.message",
+    '  return error',
+    '}',
+  ].join('\n')
 
-  it('puts a value that is no Error through the policy’s formatThrown, in the message', async () => {
-    const { error, path } = await failedWith("throw { code: 42, nested: { list: ['a'] } }", FORMAT)
+  it('fails with the error the policy’s failure makes of what the hook threw, and the hook and path it names', async () => {
+    const { error, path } = await failedWith("throw { code: 42, nested: { list: ['a'] } }", FAILURE)
+    assert.equal(error.code, 'ORCH_GLOBAL_SETUP_FAILED')
     assert.equal(
       error.message,
-      `Got error running globalSetup - ${path}, reason: <{"code":42,"nested":{"list":["a"]}}>`,
+      `globalSetup at ${path} threw <{"code":42,"nested":{"list":["a"]}}>`,
     )
     assert.equal(
       hookFailureReport(error),
       `Error: ${error.message}\n`,
-      'no stack of its own to show',
+      'the policy’s error has no stack of its own to show',
     )
-    const { error: text } = await failedWith("throw 'plain'", FORMAT)
-    assert.match(text.message, /reason: <"plain">$/)
+    const { error: text } = await failedWith("throw 'plain'", FAILURE)
+    assert.match(text.message, /threw <"plain">$/)
   })
 
-  it('keeps an Error’s own class and message, and shows only its frames: a message that runs over lines is not repeated', async () => {
-    const { error, path } = await failedWith("throw new TypeError('bad\\nsecond line')", FORMAT)
-    assert.equal(error.message, `Got error running globalSetup - ${path}, reason: bad\nsecond line`)
+  it('prints the reported error’s class and message, then only its frames: a message that runs over lines is not repeated', async () => {
+    // The neutral behaviour keeps the thrown error's frames under its own header.
+    const { error, path } = await failedWith("throw new TypeError('bad\\nsecond line')")
+    assert.equal(error.message, `globalSetup ${path} failed: bad\nsecond line`)
     const lines = hookFailureReport(error).split('\n')
-    assert.equal(lines[0], `TypeError: Got error running globalSetup - ${path}, reason: bad`)
+    assert.equal(lines[0], `Error: globalSetup ${path} failed: bad`)
     assert.equal(lines[1], 'second line')
+    const frames = lines.slice(2, -1)
+    assert.ok(frames.length > 0, lines.join('\n'))
     assert.ok(
-      lines.slice(2, -1).every((line) => /^\s+at /.test(line)),
+      frames.every((line) => /^\s+at /.test(line)),
       lines.join('\n'),
     )
     assert.equal(lines.filter((line) => line === 'second line').length, 1)
   })
 
-  it('hands the hook what the policy’s reviveArgs makes of the reader’s JSON', async () => {
+  it('names the reported error’s own class in the header when the policy keeps the thrown error', async () => {
+    const keeping = 'export const failure = (thrown: unknown) => thrown as Error'
+    const { error } = await failedWith("throw new RangeError('out of range')", keeping)
+    const [header, ...rest] = hookFailureReport(error).split('\n')
+    assert.equal(header, 'RangeError: out of range')
+    assert.ok(rest.slice(0, -1).every((line) => /^\s+at /.test(line)))
+  })
+
+  it('hands the hook the reader’s two configs as they are, the same objects to a setup and its teardown', async () => {
     const p = await makeProject({
-      'revive.ts':
-        'export const revive = (args: { globalConfig: object; projectConfig: object }) => ({ globalConfig: { ...args.globalConfig, revived: { isSet: () => true } }, projectConfig: args.projectConfig })',
-      'setup.ts': `module.exports = async (globalConfig: { rootDir: string; revived: { isSet(): boolean } }) => { ;(globalThis as any).__trace.push('seen ' + globalConfig.rootDir + ' ' + globalConfig.revived.isSet()) }`,
-      'teardown.ts': `module.exports = async (globalConfig: { revived: unknown }) => { ;(globalThis as any).__trace.push('teardown ' + typeof globalConfig.revived) }`,
+      'setup.ts': [
+        'module.exports = async (globalConfig: { rootDir: string; patterns: { isSet(): boolean } }) => {',
+        "  ;(globalThis as any).__trace.push('seen ' + globalConfig.rootDir + ' ' + globalConfig.patterns.isSet())",
+        '  ;(globalThis as any).__seen = globalConfig',
+        '}',
+      ].join('\n'),
+      'teardown.ts': `module.exports = async (globalConfig: object) => { ;(globalThis as any).__trace.push('teardown ' + (globalConfig === (globalThis as any).__seen)) }`,
       'a.test.js': "test('a', () => {})",
     })
-    const project = withHooks(
-      runtimeProject(p.dir, {
-        policy: {
-          orchestrator: {
-            globalSetup: {
-              ...JEST_HOOKS.globalSetup,
-              reviveArgs: { module: p.path('revive.ts'), export: 'revive' },
-            },
-          },
-        },
-      }),
-      {
-        setup: [p.path('setup.ts')],
-        teardown: [p.path('teardown.ts')],
-        args: { globalConfig: { rootDir: '/the/root' }, projectConfig: {} },
+    const project = withHooks(runtimeProject(p.dir, { policy: { orchestrator: JEST_HOOKS } }), {
+      setup: [p.path('setup.ts')],
+      teardown: [p.path('teardown.ts')],
+      // Not JSON: a function and a class instance reach the hook whole.
+      args: {
+        globalConfig: { rootDir: '/the/root', patterns: { isSet: () => true } },
+        projectConfig: new (class ProjectConfig {})(),
       },
-    )
-    const [, trace] = await traced((t) => runAll([project], t))
-    assert.deepEqual(
-      trace.filter((step) => /seen|teardown/.test(step)),
-      ['seen /the/root true', 'teardown object'],
-    )
+    })
+    try {
+      const [, trace] = await traced((t) => runAll([project], t))
+      assert.deepEqual(
+        trace.filter((step) => /seen|teardown/.test(step)),
+        ['seen /the/root true', 'teardown true'],
+      )
+    } finally {
+      Reflect.deleteProperty(globalThis, '__seen')
+    }
   })
 })
 
