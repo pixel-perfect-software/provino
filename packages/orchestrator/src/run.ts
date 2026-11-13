@@ -745,9 +745,15 @@ export async function runProjects(
 
     // Jest's order: the files are known, the setup runs, then the reporters hear the run start. A
     // project with no file to run has no setup (Jest's `allTests` only holds projects with tests).
-    globalSetup = await runGlobalSetup(sequencedProjects(found), {
-      hooks: options.globalSetup,
-    })
+    // A run that was interrupted before this point sets nothing up: the pool never starts a file,
+    // and the run ends with the signal's reason, as it would one moment later.
+    if (signal?.aborted !== true) {
+      globalSetup = await runGlobalSetup(sequencedProjects(found), {
+        hooks: options.globalSetup,
+        signal,
+        forceSignal: options.forceSignal,
+      })
+    }
     provided = globalSetup?.provided ?? {}
 
     announced = true

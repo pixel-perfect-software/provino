@@ -126,6 +126,52 @@ function distinctHooks(
 export interface GlobalSetupOptions {
   /** The run's own hooks (Jest's root `globalSetup` and `globalTeardown`). */
   readonly hooks?: RunGlobalHooks | undefined
+  /**
+   * The run's `signal` (Ctrl+C, SIGTERM). A setup that is still running when it aborts is given
+   * up on, not waited for: the run ends interrupted, and what had set up is torn down. A teardown
+   * running when it aborts is given up on too, and the next one starts; one that begins after it
+   * was already aborted (the run was interrupted) gets to run, unless `forceSignal` aborts.
+   */
+  readonly signal?: AbortSignal | undefined
+  /** The second Ctrl+C: no hook is waited for any longer, a teardown that hangs included. */
+  readonly forceSignal?: AbortSignal | undefined
+}
+
+/** What `unlessAborted` resolves with when a signal came first. */
+const ABORTED: unique symbol = Symbol('aborted')
+
+/**
+ * `work`'s outcome, or `ABORTED` as soon as one of `signals` aborts (at once when one already
+ * has). A hook that hangs can't be cancelled, so the work is left running; what it throws later is
+ * nobody's to report.
+ */
+function unlessAborted<T>(
+  work: Promise<T>,
+  signals: readonly (AbortSignal | undefined)[],
+): Promise<T | typeof ABORTED> {
+  work.catch(() => undefined)
+  const live = signals.filter((signal) => signal !== undefined)
+  if (live.some((signal) => signal.aborted)) return Promise.resolve(ABORTED)
+  return new Promise((resolve, reject) => {
+    const onAbort = (): void => {
+      stop()
+      resolve(ABORTED)
+    }
+    const stop = (): void => {
+      for (const signal of live) signal.removeEventListener('abort', onAbort)
+    }
+    for (const signal of live) signal.addEventListener('abort', onAbort, { once: true })
+    work.then(
+      (value) => {
+        stop()
+        resolve(value)
+      },
+      (error: unknown) => {
+        stop()
+        reject(error)
+      },
+    )
+  })
 }
 
 /**
@@ -217,12 +263,26 @@ export async function runGlobalSetup(
     }
   }
 
+  const { signal, forceSignal } = options
+
+  /**
+   * Runs the steps, each even when an earlier one threw (the first error is then thrown). A step
+   * that is still running when the run's signal aborts is given up on and the next one starts
+   * (the signal means "stop waiting"); one that begins after the run was already interrupted is
+   * given its time, and only the force signal cuts a hanging one short, and the rest.
+   */
   async function runTeardowns(steps: readonly TeardownStep[]): Promise<void> {
     let first: unknown
     let failed = false
+    let patient = signal?.aborted === true
     for (const step of steps) {
+      if (forceSignal?.aborted === true) break
       try {
-        await step.run()
+        const outcome = await unlessAborted(
+          step.run(),
+          patient ? [forceSignal] : [signal, forceSignal],
+        )
+        if (outcome === ABORTED) patient = true
       } catch (error) {
         if (!failed) first = error
         failed = true
@@ -239,39 +299,49 @@ export async function runGlobalSetup(
       : steps
   }
 
+  /** One setup: the module imported, and called as the policy's signature says. */
+  async function setUp(path: string, project: ResolvedProject): Promise<void> {
+    const { signature } = project.policy.orchestrator.globalSetup
+    const namespace = await importHook('globalSetup', path, project)
+    await guarded('globalSetup', path, project, async () => {
+      if (signature === 'global-and-project-config') {
+        const fn = defaultFunction(namespace)
+        if (fn === undefined) {
+          throw new TypeError(`globalSetup file must export a function at ${path}`)
+        }
+        const args = project.globalSetup?.args
+        await fn(args?.globalConfig ?? {}, args?.projectConfig ?? {})
+        return
+      }
+      const fn = defaultFunction(namespace) ?? named(namespace, 'setup')
+      const exported = named(namespace, 'teardown')
+      if (fn === undefined && exported === undefined) {
+        throw new TypeError(`globalSetup file must export a function, setup or teardown at ${path}`)
+      }
+      const result: unknown = fn === undefined ? undefined : await fn(contextOf(project))
+      const teardown = typeof result === 'function' ? result : exported
+      if (teardown !== undefined) {
+        returned.push({
+          path,
+          run: () =>
+            guarded('globalTeardown', path, project, async () => {
+              await teardown()
+            }),
+        })
+      }
+    })
+  }
+
+  /** A signal came while setting up: no more setups, and no teardown module (see below). */
+  let interrupted = false
   try {
     for (const { path, project } of setups) {
-      const { signature } = project.policy.orchestrator.globalSetup
-      const namespace = await importHook('globalSetup', path, project)
-      await guarded('globalSetup', path, project, async () => {
-        if (signature === 'global-and-project-config') {
-          const fn = defaultFunction(namespace)
-          if (fn === undefined) {
-            throw new TypeError(`globalSetup file must export a function at ${path}`)
-          }
-          const args = project.globalSetup?.args
-          await fn(args?.globalConfig ?? {}, args?.projectConfig ?? {})
-          return
-        }
-        const fn = defaultFunction(namespace) ?? named(namespace, 'setup')
-        const exported = named(namespace, 'teardown')
-        if (fn === undefined && exported === undefined) {
-          throw new TypeError(
-            `globalSetup file must export a function, setup or teardown at ${path}`,
-          )
-        }
-        const result: unknown = fn === undefined ? undefined : await fn(contextOf(project))
-        const teardown = typeof result === 'function' ? result : exported
-        if (teardown !== undefined) {
-          returned.push({
-            path,
-            run: () =>
-              guarded('globalTeardown', path, project, async () => {
-                await teardown()
-              }),
-          })
-        }
-      })
+      // Each setup is waited for only until a signal comes (a hook that hangs can't be cancelled).
+      const outcome = await unlessAborted(setUp(path, project), [signal, forceSignal])
+      if (outcome === ABORTED) {
+        interrupted = true
+        break
+      }
     }
   } catch (error) {
     // What had set up is torn down; the setup's own error is the one to report.
@@ -282,6 +352,22 @@ export async function runGlobalSetup(
     }
     await disposeLoaders()
     throw error
+  }
+
+  // A run interrupted while setting up tears down what had set up (the functions setups returned);
+  // a teardown module is a Jest hook, whose pairing with a setup is not ours to guess (as when a
+  // setup throws), so none runs. The run itself ends with the signal's reason (`run.ts`).
+  if (interrupted) {
+    return {
+      provided,
+      async teardown() {
+        try {
+          await runTeardowns(ordered(returned))
+        } finally {
+          await disposeLoaders()
+        }
+      },
+    }
   }
 
   // A Jest teardown module is imported only when the teardown runs, as Jest does.

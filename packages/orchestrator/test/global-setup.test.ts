@@ -216,11 +216,16 @@ describe('Jest’s signature: fn(globalConfig, projectConfig)', () => {
       setup: [],
       teardown: [p.path('down-bad.ts'), p.path('down-good.ts')],
     })
+    // The run is interrupted once it has started (a signal before that sets nothing up).
     const abort = new AbortController()
-    abort.abort()
     const [error, trace] = await traced(async (t) => {
       try {
-        await runAll([project], t, abort.signal)
+        await runAll([project], t, abort.signal, {
+          bus: createReporterBus([
+            reporterOf(t),
+            { name: 'interrupt', 'run:start': () => abort.abort() },
+          ]),
+        })
       } catch (caught) {
         return caught
       }
@@ -371,6 +376,119 @@ describe('the run’s own hooks and the order of the projects (Jest’s runGloba
         '  config second',
       ],
     )
+  })
+})
+
+/** The controllers a hook reaches as `__abort()` and `__force()`, so it can interrupt its own run. */
+async function withSignals<T>(
+  body: (signals: { abort: AbortController; force: AbortController }) => Promise<T>,
+): Promise<T> {
+  const signals = { abort: new AbortController(), force: new AbortController() }
+  Reflect.set(globalThis, '__abort', () => signals.abort.abort('SIGINT'))
+  Reflect.set(globalThis, '__force', () => signals.force.abort('SIGINT'))
+  try {
+    return await body(signals)
+  } finally {
+    Reflect.deleteProperty(globalThis, '__abort')
+    Reflect.deleteProperty(globalThis, '__force')
+  }
+}
+
+const HANG = 'await new Promise(() => {})'
+const abortNow = ';(globalThis as any).__abort()'
+const forceNow = ';(globalThis as any).__force()'
+
+describe('a signal while global hooks run (Ctrl+C, SIGTERM)', () => {
+  it('sets nothing up when the run was interrupted before its setup', async () => {
+    const p = await makeProject({
+      'setup.ts': `module.exports = async () => { ${note('setup ran')} }`,
+      'teardown.ts': `module.exports = async () => { ${note('teardown ran')} }`,
+      'a.test.js': "__trace.push('file a')\ntest('a', () => {})",
+    })
+    const project = withHooks(runtimeProject(p.dir, { policy: { orchestrator: JEST_HOOKS } }), {
+      setup: [p.path('setup.ts')],
+      teardown: [p.path('teardown.ts')],
+    })
+    const abort = new AbortController()
+    abort.abort('SIGTERM')
+    const [, trace] = await traced((t) => runAll([project], t, abort.signal))
+    assert.deepEqual(
+      trace,
+      ['run:start', 'run:end terminated'],
+      'no hook, no file; the signal’s reason',
+    )
+  })
+
+  it('stops waiting for a setup that hangs, ends the run with the signal’s reason and tears down what had set up', {
+    timeout: 60_000,
+  }, async () => {
+    const p = await makeProject({
+      'one.ts': `export default () => () => { ${note('teardown one')} }`,
+      'hang.ts': `export default async () => { ${note('setup hang')}; ${abortNow}; ${HANG} }`,
+      'never.ts': `export default () => { ${note('setup never')} }`,
+      'down.ts': `module.exports = async () => { ${note('teardown module')} }`,
+      'a.test.js': "__trace.push('file a')\ntest('a', () => {})",
+    })
+    const project = withHooks(runtimeProject(p.dir), {
+      setup: [p.path('one.ts'), p.path('hang.ts'), p.path('never.ts')],
+      teardown: [p.path('down.ts')],
+    })
+    const [, trace] = await traced((t) =>
+      withSignals(({ abort }) => runAll([project], t, abort.signal)),
+    )
+    assert.deepEqual(trace, ['setup hang', 'run:start', 'run:end interrupted', 'teardown one'])
+  })
+
+  it('stops waiting for a teardown that hangs when the signal comes, and runs the next one', {
+    timeout: 60_000,
+  }, async () => {
+    const p = await makeProject({
+      'hang.ts': `module.exports = async () => { ${note('teardown hang')}; ${abortNow}; ${HANG} }`,
+      'good.ts': `module.exports = async () => { ${note('teardown good')} }`,
+      'a.test.js': "test('a', () => {})",
+    })
+    const project = withHooks(runtimeProject(p.dir, { policy: { orchestrator: JEST_HOOKS } }), {
+      setup: [],
+      teardown: [p.path('hang.ts'), p.path('good.ts')],
+    })
+    const [, trace] = await traced((t) =>
+      withSignals(({ abort }) => runAll([project], t, abort.signal)),
+    )
+    assert.deepEqual(trace, ['run:start', 'run:end passed', 'teardown hang', 'teardown good'])
+  })
+
+  it('gives a teardown its time after the run was interrupted, until the force signal, which also skips the rest', {
+    timeout: 60_000,
+  }, async () => {
+    const p = await makeProject({
+      'slow.ts': `module.exports = async () => { ${note('teardown slow start')}; await new Promise((resolve) => setTimeout(resolve, 50)); ${note('teardown slow end')} }`,
+      'hang.ts': `module.exports = async () => { ${note('teardown hang')}; ${forceNow}; ${HANG} }`,
+      'skipped.ts': `module.exports = async () => { ${note('teardown skipped')} }`,
+      'a.test.js': "test('a', () => {})",
+    })
+    const project = withHooks(runtimeProject(p.dir, { policy: { orchestrator: JEST_HOOKS } }), {
+      setup: [],
+      teardown: [p.path('slow.ts'), p.path('hang.ts'), p.path('skipped.ts')],
+    })
+    const [, trace] = await traced((t) =>
+      withSignals(({ abort, force }) => {
+        // Interrupted as the run starts; the force signal comes from the hanging teardown.
+        return runAll([project], t, abort.signal, {
+          forceSignal: force.signal,
+          bus: createReporterBus([
+            reporterOf(t),
+            { name: 'interrupt', 'run:start': () => abort.abort('SIGINT') },
+          ]),
+        })
+      }),
+    )
+    assert.deepEqual(trace, [
+      'run:start',
+      'run:end interrupted',
+      'teardown slow start',
+      'teardown slow end',
+      'teardown hang',
+    ])
   })
 })
 
