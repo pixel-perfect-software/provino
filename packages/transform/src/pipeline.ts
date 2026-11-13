@@ -82,9 +82,11 @@ export interface PipelineOptions {
    */
   readonly runnerForm?: boolean
   /**
-   * Instruments a file that is requested with `instrument: true` (Istanbul coverage, B23b). Run
-   * after TypeScript is stripped and before the hoister and the module-runner rewrite. Without
-   * one, `instrument` changes nothing.
+   * Instruments a file that is requested with `instrument: true` (Istanbul coverage, B23b, U6): after
+   * TypeScript is stripped (or after the project's transformer, unless it reported `canInstrument`
+   * and was given `instrument: true`), before the hoister and the module-runner rewrite, with the
+   * input map the earlier steps composed. Its `name` is part of the cache fingerprint. Without one,
+   * a request with `instrument: true` on the Oxc path is `TRANSFORM_OPTION_UNSUPPORTED`.
    */
   readonly instrumenter?: CoverageInstrumenter
 }
@@ -278,6 +280,7 @@ export const createPipeline: CreatePipeline = (options) => {
     hoist: options.hoist,
     transformers: options.transformers?.fingerprint ?? null,
     runnerForm: options.runnerForm === true,
+    instrumenter: options.instrumenter?.name ?? null,
   })
   const cache = options.cache === false ? undefined : createTransformCache(options.cache.dir)
 
@@ -319,6 +322,24 @@ export const createPipeline: CreatePipeline = (options) => {
   }
 
   /**
+   * Instruments `code` when the request asks for it (U6): the stripped code, or a transformer's
+   * output, goes to the instrumenter with the map the earlier steps composed to the source; its
+   * step map joins the list. Runs before the hoister, as `babel-plugin-istanbul` runs in Jest's
+   * own transform (the hoister's factory rule allows the `cov_*` names it writes).
+   */
+  function applyInstrument(
+    code: string,
+    request: TransformRequest,
+    maps: (SourceMapV3 | null)[],
+  ): string {
+    const { instrumenter } = options
+    if (!request.instrument || instrumenter === undefined) return code
+    const result = instrumenter.instrument(code, request.filename, composeMaps(maps))
+    maps.push(result.map)
+    return result.code
+  }
+
+  /**
    * The record for a file a user transformer produced (T3.8). The output is what Jest would run
    * (CommonJS: `supportsStaticESM` is false), so the format comes from its own syntax. Our hoister
    * runs on it unless the output carries one of the host's markers: a transformer that hoisted
@@ -333,10 +354,15 @@ export const createPipeline: CreatePipeline = (options) => {
     const { filename } = request
     const maps: (SourceMapV3 | null)[] = [source.map]
     const diagnostics: TransformDiagnostic[] = []
-    const alreadyHoisted = host.hoistedMarkers.some((marker) => source.code.includes(marker))
+    // Jest's ScriptTransformer: a transformer that says it can instrument does it itself, given
+    // `instrument: true`; otherwise the instrumenter runs on its output.
+    const instrumented = source.canInstrument
+      ? source.code
+      : applyInstrument(source.code, request, maps)
+    const alreadyHoisted = host.hoistedMarkers.some((marker) => instrumented.includes(marker))
     const { code, staticMocks, lateDeps } = alreadyHoisted
-      ? { code: source.code, staticMocks: [], lateDeps: [] }
-      : applyHoist(source.code, request, request.source, maps, diagnostics)
+      ? { code: instrumented, staticMocks: [], lateDeps: [] }
+      : applyHoist(instrumented, request, request.source, maps, diagnostics)
     const lang = /\.[cm]?[jt]sx$/.test(filename) ? 'jsx' : 'js'
     const facts = moduleFacts(filename, code, lang, 'unambiguous')
     const format = formatOf(facts, false)
@@ -423,10 +449,10 @@ export const createPipeline: CreatePipeline = (options) => {
         `no transform handles ${request.filename}`,
       )
     }
-    if (request.instrument) {
+    if (request.instrument && options.instrumenter === undefined) {
       throw new TransformError(
         'TRANSFORM_OPTION_UNSUPPORTED',
-        'coverage instrumentation is not supported yet (U6, with Track 8).',
+        'coverage instrumentation needs an `instrumenter` option (U6, B23b).',
       )
     }
     const { filename, source } = request
@@ -458,6 +484,7 @@ export const createPipeline: CreatePipeline = (options) => {
       for (const error of result.errors) diagnostics.push(diagnostic(source, error))
     }
 
+    code = applyInstrument(code, request, maps)
     const hoisted = applyHoist(code, request, source, maps, diagnostics)
     code = hoisted.code
     const { staticMocks, lateDeps } = hoisted
