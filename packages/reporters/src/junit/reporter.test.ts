@@ -147,6 +147,39 @@ describe('the junit reporter', () => {
     assert.ok((await validate(text)).ok, 'valid')
   })
 
+  test('keeps each test’s console writes together and in order, and a write outside any test on the suite', async () => {
+    const out = output()
+    const bus = createReporterBus([junitReporter({ report: REPORT, stream: out })])
+    await playRun(bus, [
+      {
+        path: 'c.test.ts',
+        console: [{ text: 'file level\n' }],
+        tests: [
+          {
+            path: ['a'],
+            console: [
+              { text: 'one\n' },
+              { stream: 'stderr', level: 'warn', text: 'warned\n' },
+              { text: 'two\n' },
+              { text: 'three\n' },
+            ],
+          },
+          { path: ['b'], console: [{ text: 'other\n' }] },
+        ],
+      },
+    ])
+    const text = out.text()
+    assert.match(
+      text,
+      /<testcase name="a"[^>]*>\s*<system-out>one\ntwo\nthree\n<\/system-out>\s*<system-err>warned\n<\/system-err>\s*<\/testcase>/,
+    )
+    assert.match(
+      text,
+      /<testcase name="b"[^>]*>\s*<system-out>other\n<\/system-out>\s*<\/testcase>/,
+    )
+    assert.match(text, /<\/testcase>\s*<system-out>file level\n<\/system-out>\s*<\/testsuite>/)
+  })
+
   test('writes the document to outputFile, atomically, and creates its directory', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'provino-junit-'))
     try {

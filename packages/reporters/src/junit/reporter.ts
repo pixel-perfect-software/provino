@@ -87,8 +87,13 @@ function suiteOf(
   const fileConsole: { stream: string; text: string }[] = []
   for (const event of entry?.console ?? []) {
     const own = event.taskId === null ? undefined : entry?.tests.get(event.taskId)
-    if (own === undefined) fileConsole.push(event)
-    else byTest.set(own.id, [...(byTest.get(own.id) ?? []), event])
+    if (own === undefined) {
+      fileConsole.push(event)
+      continue
+    }
+    const list = byTest.get(own.id)
+    if (list === undefined) byTest.set(own.id, [event])
+    else list.push(event)
   }
 
   let failures = 0
