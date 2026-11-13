@@ -108,9 +108,10 @@ export interface E {
     moduleMocks(): ModuleMockRegistry;
     registry(): FileRegistry;
     readonly seed: number;
+    setDefaultRetry(retry: DefaultRetry | undefined): void;
     setDefaultTimeout(ms: number | undefined): void;
     timers(): object;
-    readonly timersPolicy: q;
+    readonly timersPolicy: J;
 }
 
 // @public
@@ -139,17 +140,10 @@ export interface f {
 }
 
 // @public
-export interface G extends TaskBase {
+export interface G {
     // (undocumented)
-    readonly children: readonly TaskId[];
-    // (undocumented)
-    readonly concurrent: boolean;
-    // (undocumented)
-    readonly each: boolean;
-    // (undocumented)
-    readonly shuffle: boolean;
-    // (undocumented)
-    readonly type: "suite";
+    readonly messages: SnapshotMessages;
+    serialize(value: unknown, options: SnapshotSerializeOptions): string;
 }
 
 // @public
@@ -180,7 +174,7 @@ export interface H {
     readonly snapshots?: SnapshotRunSummary;
     readonly snapshotsFail?: boolean;
     // (undocumented)
-    readonly unhandled: readonly SerializedError[];
+    readonly unhandled: readonly U[];
 }
 
 // @public
@@ -197,7 +191,21 @@ export type i = <const N extends string>(reporter: z & {
 };
 
 // @public
-export type J = (port: WorkerPort) => void | Promise<void>;
+export interface J {
+    readonly advanceToNextTimerHonorsSteps: boolean;
+    readonly enableGlobally: boolean;
+    readonly facadeReturns: "lifecycle" | "all";
+    readonly fakeTemporal: boolean;
+    readonly legacyAvailable: boolean;
+    readonly loopLimit: number;
+    readonly messages: {
+        readonly notFaked: string;
+    };
+    readonly notFaked: "warn" | "throw";
+    readonly optionNames: "do-not-fake" | "to-fake";
+    readonly setSystemTimeWithoutFakes: "warn-noop" | "fake-date-only";
+    readonly toFakeDefault: "all" | "all-but-microtasks";
+}
 
 // @public
 export interface j {
@@ -231,20 +239,17 @@ export interface j {
 }
 
 // @public
-export interface K {
+export interface K extends TaskBase {
     // (undocumented)
-    annotate(message: string, kind?: string): Promise<void>;
+    readonly children: readonly TaskId[];
     // (undocumented)
-    onTestFailed(fn: (ctx: K) => void | Promise<void>, timeoutMs?: number): void;
+    readonly concurrent: boolean;
     // (undocumented)
-    onTestFinished(fn: (ctx: K) => void | Promise<void>, timeoutMs?: number): void;
-    readonly signal: AbortSignal;
+    readonly each: boolean;
     // (undocumented)
-    skip(note?: string): never;
+    readonly shuffle: boolean;
     // (undocumented)
-    skip(condition: boolean, note?: string): void;
-    // (undocumented)
-    readonly task: Readonly<TestTask>;
+    readonly type: "suite";
 }
 
 // @public
@@ -319,19 +324,19 @@ export type p = "worker" | "context";
 
 // @public
 export interface q {
-    readonly advanceToNextTimerHonorsSteps: boolean;
-    readonly enableGlobally: boolean;
-    readonly facadeReturns: "lifecycle" | "all";
-    readonly fakeTemporal: boolean;
-    readonly legacyAvailable: boolean;
-    readonly loopLimit: number;
-    readonly messages: {
-        readonly notFaked: string;
-    };
-    readonly notFaked: "warn" | "throw";
-    readonly optionNames: "do-not-fake" | "to-fake";
-    readonly setSystemTimeWithoutFakes: "warn-noop" | "fake-date-only";
-    readonly toFakeDefault: "all" | "all-but-microtasks";
+    // (undocumented)
+    annotate(message: string, kind?: string): Promise<void>;
+    // (undocumented)
+    onTestFailed(fn: (ctx: q) => void | Promise<void>, timeoutMs?: number): void;
+    // (undocumented)
+    onTestFinished(fn: (ctx: q) => void | Promise<void>, timeoutMs?: number): void;
+    readonly signal: AbortSignal;
+    // (undocumented)
+    skip(note?: string): never;
+    // (undocumented)
+    skip(condition: boolean, note?: string): void;
+    // (undocumented)
+    readonly task: Readonly<TestTask>;
 }
 
 // @public
@@ -381,7 +386,31 @@ export interface t {
 }
 
 // @public
-export type U = (fullName: string, count: number) => string;
+export interface U {
+    readonly __record?: never;
+    // (undocumented)
+    readonly cause?: U;
+    // (undocumented)
+    readonly code?: string;
+    readonly diff?: {
+        readonly expected: string;
+        readonly actual: string;
+    };
+    // (undocumented)
+    readonly errors?: readonly U[];
+    // (undocumented)
+    readonly location?: SourceLocation;
+    readonly matcherResult?: {
+        readonly name: string;
+        readonly pass: boolean;
+    };
+    // (undocumented)
+    readonly message: string;
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly stack?: string;
+}
 
 // @public
 export type u = (env: EnvironmentRequest) => readonly string[];
@@ -406,11 +435,7 @@ export interface V {
 export type v = (this: TesterContext, a: unknown, b: unknown, customTesters: v[]) => boolean | undefined;
 
 // @public
-export interface W {
-    // (undocumented)
-    readonly messages: SnapshotMessages;
-    serialize(value: unknown, options: SnapshotSerializeOptions): string;
-}
+export type W = (fullName: string, count: number) => string;
 
 // @public
 export type w = (miss: MapperMiss) => string;
@@ -427,6 +452,9 @@ export interface x {
     readonly promiseMatchers: MatcherSet;
     readonly utils: object;
 }
+
+// @public
+export type Y = (port: WorkerPort) => void | Promise<void>;
 
 // @public
 export interface y {
@@ -452,7 +480,7 @@ export interface y {
 
 // @public
 export interface z extends ReporterHandlers {
-    readonly lastError?: () => SerializedError | undefined;
+    readonly lastError?: () => U | undefined;
     // (undocumented)
     readonly name: string;
 }

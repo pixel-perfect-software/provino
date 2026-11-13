@@ -5,6 +5,7 @@ import type { HoistPolicy } from './hoist.ts'
 import type { FileRegistry, ModuleMockRegistry } from './loader.ts'
 import type { MockPolicy, ModuleRef, PolicyOverrides, TimersPolicy } from './policy/index.ts'
 import type { CliDialect } from './run-request.ts'
+import type { DefaultRetry } from './runtime/context.ts'
 
 /**
  * Dialect option types by dialect name. Each dialect package augments it:
@@ -299,6 +300,11 @@ export interface GlobalsHost {
    * ends (`Runtime.setDefaultTimeout`).
    */
   setDefaultTimeout(ms: number | undefined): void
+  /**
+   * Sets the retry that every test with none of its own gets, until the file that is running ends
+   * (`Runtime.setDefaultRetry`). `undefined` clears it.
+   */
+  setDefaultRetry(retry: DefaultRetry | undefined): void
 }
 
 /**

@@ -132,12 +132,11 @@ describe('retry.keepEarlierErrors', () => {
 })
 
 describe('retry.timing', () => {
-  test('deferred fails a test that has a retry with CORE_NOT_IMPLEMENTED, without running it', async () => {
-    const run = await runScript(flaky(0, { retry: 1 }), { retry: { timing: 'deferred' } })
-    assert.equal(run.states.flaky, 'fail')
-    assert.equal(run.results.flaky?.errors[0]?.code, 'CORE_NOT_IMPLEMENTED')
-    assert.deepEqual(run.trace, [])
-    assert.deepEqual(lifecycle(eventLog(run)), ['test-start flaky', 'test-end flaky fail'])
+  test('deferred runs a test that has a retry, and retries it after the others (retry-timing.test.ts)', async () => {
+    const run = await runScript(flaky(1, { retry: 1 }), { retry: { timing: 'deferred' } })
+    assert.equal(run.states.flaky, 'pass')
+    assert.deepEqual(run.trace, ['call 1', 'call 2'])
+    assert.equal(run.results.flaky?.attempts, 2)
   })
 
   test('deferred leaves a test with no retry alone', async () => {

@@ -10,7 +10,17 @@ const error: SerializedError = { name: 'Error', message: 'x' }
 function coreRun(overrides: Partial<CoreRun> = {}): CoreRun {
   return {
     trace: [],
-    tests: [{ path: ['t'], dupIndex: 0, status: 'passed', location: null, errors: [] }],
+    tests: [
+      {
+        path: ['t'],
+        dupIndex: 0,
+        status: 'passed',
+        location: null,
+        errors: [],
+        attempts: 1,
+        retryErrors: [],
+      },
+    ],
     fileStatus: 'passed',
     fileErrors: [],
     collectionErrors: [],
@@ -59,7 +69,17 @@ test('assertFileOutcome refuses a file error the golden lacks and one it has tha
 
 test('assertFileOutcome refuses errors on the wrong tests', () => {
   const failing = coreRun({
-    tests: [{ path: ['t'], dupIndex: 0, status: 'passed', location: null, errors: [error] }],
+    tests: [
+      {
+        path: ['t'],
+        dupIndex: 0,
+        status: 'passed',
+        location: null,
+        errors: [error],
+        attempts: 1,
+        retryErrors: [],
+      },
+    ],
   })
   assert.throws(() => assertFileOutcome(failing, goldenFile()), /which carry errors/)
 })
@@ -77,7 +97,17 @@ test('assertFileOutcome leaves the file error alone when a golden test failed', 
   })
   assertFileOutcome(
     coreRun({
-      tests: [{ path: ['t'], dupIndex: 0, status: 'failed', location: null, errors: [error] }],
+      tests: [
+        {
+          path: ['t'],
+          dupIndex: 0,
+          status: 'failed',
+          location: null,
+          errors: [error],
+          attempts: 1,
+          retryErrors: [],
+        },
+      ],
       fileErrors: [error],
     }),
     failed,

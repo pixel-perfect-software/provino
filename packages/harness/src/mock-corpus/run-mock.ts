@@ -116,6 +116,7 @@ export function unusedJestHost(
     seed: 0,
     environmentTornDown: () => false,
     setDefaultTimeout: () => {},
+    setDefaultRetry: () => {},
   }
 }
 

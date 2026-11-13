@@ -3,6 +3,7 @@
 // `SerializedError` names.
 import type {
   CloneSafe,
+  DefaultRetry,
   Dialect,
   Environment,
   EnvironmentRef,
@@ -166,6 +167,17 @@ expectTypeOf(host.expect).toEqualTypeOf<object>()
 expectTypeOf(host.registry).toEqualTypeOf<() => FileRegistry>()
 expectTypeOf(host.mocks).toEqualTypeOf<() => object>()
 expectTypeOf(host.mockPolicy).toEqualTypeOf<MockPolicy>()
+// The retry a file sets for its tests (`jest.retryTimes`), or none: all four fields, so a dialect
+// decides each one.
+expectTypeOf(host.setDefaultRetry).toEqualTypeOf<(retry: DefaultRetry | undefined) => void>()
+expectTypeOf<DefaultRetry>().toEqualTypeOf<{
+  readonly count: number
+  readonly delay: number
+  readonly immediate: boolean
+  readonly logErrors: boolean
+}>()
+// @ts-expect-error a retry with no `logErrors` is incomplete
+host.setDefaultRetry({ count: 1, delay: 0, immediate: false })
 expectTypeOf<GlobalsFactory>().returns.toEqualTypeOf<Readonly<Record<string, unknown>>>()
 expectTypeOf<ReturnType<GlobalsFactory>>().toEqualTypeOf<Readonly<Record<string, unknown>>>()
 

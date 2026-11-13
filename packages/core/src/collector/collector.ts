@@ -25,6 +25,7 @@ import {
   TEST_FILE_FRAMES,
 } from './location.ts'
 import { isOpen, newSuiteNode } from './nodes.ts'
+import { normalizeRetry, type RetryOption } from './retry.ts'
 
 /**
  * The options tests and describes both take as their second argument (Vitest's options object).
@@ -32,7 +33,7 @@ import { isOpen, newSuiteNode } from './nodes.ts'
  */
 export interface CommonOptions {
   readonly timeout?: number
-  readonly retry?: number
+  readonly retry?: RetryOption
   readonly repeats?: number
   readonly concurrent?: boolean
   readonly skip?: boolean
@@ -184,7 +185,7 @@ export class Collector {
       concurrent: spec.flags.concurrent ?? spec.options.concurrent ?? inherited.concurrent ?? false,
       expectFail: spec.flags.fails === true || spec.options.fails === true,
       timeoutMs: timeout,
-      retry: spec.options.retry ?? inherited.retry ?? 0,
+      retry: normalizeRetry(spec.options.retry ?? inherited.retry),
       repeats: spec.options.repeats ?? inherited.repeats ?? 0,
       tags: mergeTags(inherited.tags, spec.options.tags),
       meta: { ...inherited.meta, ...spec.options.meta },

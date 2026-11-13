@@ -471,7 +471,7 @@ function toTasks(
       concurrent: node.concurrent,
       expectFail: node.expectFail,
       timeoutMs: node.timeoutMs ?? testTimeoutMs,
-      retry: node.retry,
+      retry: node.retry?.count ?? 0,
       repeats: node.repeats,
     }
     node.task = test

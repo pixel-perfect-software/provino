@@ -10,6 +10,7 @@
 // `status.expectFail: 'attempt'`, the reversal of a `.fails` test's result.
 import type {
   CorePolicy,
+  DefaultRetry,
   EventSink,
   FileTask,
   FormatValue,
@@ -29,6 +30,7 @@ import type {
   TestTask,
 } from '@provino/types'
 import { CALLER_FRAMES, captureSite, parseSite, TEST_FILE_FRAMES } from '../collector/location.ts'
+import { passesCondition, type RetryCondition, retryCount, retryDelay } from '../collector/retry.ts'
 import { newStore, runInStore, setRunningFrame } from '../current/current-test.ts'
 import type { ProcessErrors } from '../errors/process-errors.ts'
 import { CoreError, serializeError } from '../errors.ts'
@@ -70,6 +72,17 @@ export interface ExecutorConfig {
   readonly locations: boolean
   /** The timeout a test or hook with none of its own gets, when the file set one (`jest.setTimeout`). */
   readonly defaults: TimeoutDefaults
+  /** The retry a test with none of its own gets, when the file set one (`jest.retryTimes`). */
+  readonly retryDefaults: RetryDefaults
+}
+
+/**
+ * A retry set while a file runs, for every test that declares none (`jest.retryTimes`). A suite
+ * reads it when it starts running, after its `beforeAll` hooks (jest-circus reads the global in
+ * `_runTestsForDescribeBlockOnce`); a retry reads `logErrors` when it happens.
+ */
+export interface RetryDefaults {
+  value: DefaultRetry | undefined
 }
 
 /**
@@ -111,6 +124,36 @@ export type Outcome = 'pass' | 'fail' | 'skip' | 'todo'
 interface FileRun {
   readonly file: FileState
   readonly fileId: TaskId
+}
+
+/** What a test is retried with. */
+interface RetryPlan {
+  readonly count: number
+  /** Milliseconds to wait before each retry. */
+  readonly delay: number
+  readonly condition: RetryCondition | undefined
+  /** Retry after the suite's other tests, not at once (`retry.timing`). */
+  readonly deferred: boolean
+}
+
+/** What a test's attempts have left so far. */
+interface Progress {
+  readonly start: number
+  /** The errors of the attempts that were retried, when the result keeps them. */
+  readonly retryErrors: unknown[]
+  /** The errors of the attempt that ended the test. */
+  readonly failures: unknown[]
+  attempts: number
+  repeatIndex: number
+  skipped: AttemptState['skipped']
+  /** Milliseconds the test has taken itself: set once its retries wait for other tests. */
+  elapsed: number | undefined
+}
+
+/** A test whose first attempt failed and whose retries wait for the end of its suite. */
+interface ParkedTest {
+  /** Runs the retries (in `scope`, sequentially) and ends the test. */
+  resume(scope: Scope): Promise<Outcome>
 }
 
 /** What a suite passes to its children. */
@@ -346,27 +389,47 @@ export class Executor {
   }
 
   async #runChildren(run: FileRun, suite: SuiteNode, scope: Scope): Promise<Outcome[]> {
+    // jest-circus reads `jest.retryTimes` here, once the suite's `beforeAll` hooks are done.
+    const retry = this.#config.retryDefaults.value
     const outcomes: Outcome[] = []
+    const parked: Array<{ readonly at: number; readonly test: ParkedTest }> = []
+    const take = (result: Outcome | ParkedTest): void => {
+      if (typeof result === 'string') {
+        outcomes.push(result)
+        return
+      }
+      parked.push({ at: outcomes.length, test: result })
+      outcomes.push('fail')
+    }
     for (const group of this.#groups(suite.children)) {
       if (!group.concurrent) {
-        for (const node of group.nodes) outcomes.push(await this.#runChild(run, node, scope))
+        for (const node of group.nodes) take(await this.#runChild(run, node, scope, retry))
         continue
       }
       const limiter = createLimiter(this.#policy.maxConcurrency)
       const inner: Scope = { ...scope, concurrent: true }
       setRunningFrame(undefined)
-      outcomes.push(
-        ...(await Promise.all(
-          group.nodes.map((node) => limiter.run(() => this.#runChild(run, node, inner))),
-        )),
+      const results = await Promise.all(
+        group.nodes.map((node) => limiter.run(() => this.#runChild(run, node, inner, retry))),
       )
+      for (const result of results) take(result)
+    }
+    // The retries that waited for the end of the suite (`retry.timing: 'deferred'`), in the order
+    // the tests failed, one at a time, before the suite's `afterAll` hooks.
+    for (const { at, test } of parked) {
+      outcomes[at] = await test.resume({ ...scope, concurrent: false })
     }
     return outcomes
   }
 
-  #runChild(run: FileRun, node: SuiteNode | TestNode, scope: Scope): Promise<Outcome> {
+  #runChild(
+    run: FileRun,
+    node: SuiteNode | TestNode,
+    scope: Scope,
+    retry: DefaultRetry | undefined,
+  ): Promise<Outcome | ParkedTest> {
     if (node.type !== 'test') return this.#runSuite(run, node, scope)
-    return this.#tests.run(() => this.#runTest(run, node, scope))
+    return this.#tests.run(() => this.#runTest(run, node, scope, retry))
   }
 
   /**
@@ -425,7 +488,12 @@ export class Executor {
 
   // ---- tests --------------------------------------------------------------------------------
 
-  async #runTest(run: FileRun, test: TestNode, scope: Scope): Promise<Outcome> {
+  async #runTest(
+    run: FileRun,
+    test: TestNode,
+    scope: Scope,
+    fileRetry: DefaultRetry | undefined,
+  ): Promise<Outcome | ParkedTest> {
     const start = this.#now()
     this.#lastTestId = test.id
     this.#emit({ type: 'test-start', id: test.id, t: start })
@@ -435,54 +503,131 @@ export class Executor {
       this.#endTask('test-end', test.id, test.mode, start, [], extra)
       return test.mode
     }
-    if (
-      test.blocked !== undefined ||
-      (test.retry > 0 && this.#policy.retry.timing === 'deferred')
-    ) {
-      const error =
-        test.blocked ??
-        new CoreError('CORE_NOT_IMPLEMENTED', 'Deferred retries (`retry.timing`) arrive with T5.10')
-      this.#endTask('test-end', test.id, 'fail', start, [error])
+    if (test.blocked !== undefined) {
+      this.#endTask('test-end', test.id, 'fail', start, [test.blocked])
       return 'fail'
     }
-    const retryErrors: unknown[] = []
-    const failures: unknown[] = []
-    let attempts = 0
-    let repeatIndex = 0
-    let skipped: AttemptState['skipped']
-    for (let repeat = 0; repeat <= test.repeats && skipped === undefined; repeat++) {
-      repeatIndex = repeat
-      for (let attempt = 0; attempt <= test.retry; attempt++) {
-        attempts++
-        const result = await this.#runAttempt(run, test, attempt, repeat, scope)
-        const errors = result.errors
-        // A skip that nothing failed after ends the test; a failure outranks it.
-        skipped = errors.length === 0 ? result.skipped : undefined
-        const willRetry = errors.length > 0 && attempt < test.retry
-        this.#emit({
-          type: 'test-attempt-end',
-          id: test.id,
-          attempt,
-          repeat,
-          state: errors.length > 0 ? 'fail' : skipped === undefined ? 'pass' : 'skip',
-          errors: errors.map(serializeError),
-          willRetry,
-          t: this.#now(),
-        })
-        if (errors.length === 0) break
-        if (willRetry) {
-          if (this.#policy.retry.keepEarlierErrors) retryErrors.push(...errors)
-        } else {
-          failures.push(...errors)
+    const plan = this.#retryPlan(test, fileRetry)
+    const progress: Progress = {
+      start,
+      retryErrors: [],
+      failures: [],
+      attempts: 0,
+      repeatIndex: 0,
+      skipped: undefined,
+      elapsed: undefined,
+    }
+    for (let repeat = 0; repeat <= test.repeats && progress.skipped === undefined; repeat++) {
+      progress.repeatIndex = repeat
+      if (await this.#runAttempts(run, test, scope, plan, progress, { repeat, from: 0 })) {
+        // The first attempt failed and the retries wait for the end of the suite. Time the test
+        // from here on by its own attempts, not by the tests that run in between.
+        progress.elapsed = this.#now() - start
+        return {
+          resume: (resumeScope) =>
+            this.#tests.run(() => this.#resume(run, test, resumeScope, plan, progress)),
         }
       }
     }
+    return this.#finishTest(test, progress)
+  }
+
+  /** What a test is retried with: its own `retry`, else the file's default, and when. */
+  #retryPlan(test: TestNode, fileRetry: DefaultRetry | undefined): RetryPlan {
+    const own = test.retry
+    const count = own?.count ?? retryCount(fileRetry?.count)
+    return {
+      count,
+      delay: own?.delay ?? retryDelay(fileRetry?.delay),
+      condition: own?.condition,
+      // Neither runner combines the two, so a repeating test keeps its retries at once.
+      deferred:
+        count > 0 &&
+        test.repeats === 0 &&
+        this.#policy.retry.timing === 'deferred' &&
+        fileRetry?.immediate !== true,
+    }
+  }
+
+  /**
+   * The attempts of one repeat from attempt `from`. Returns `true` when it stopped after a failed
+   * attempt that the plan retries later (`deferred`), `false` when the repeat is over.
+   */
+  async #runAttempts(
+    run: FileRun,
+    test: TestNode,
+    scope: Scope,
+    plan: RetryPlan,
+    progress: Progress,
+    at: { readonly repeat: number; readonly from: number },
+  ): Promise<boolean> {
+    const { repeat, from } = at
+    for (let attempt = from; attempt <= plan.count; attempt++) {
+      const attemptStart = this.#now()
+      progress.attempts++
+      const result = await this.#runAttempt(run, test, attempt, repeat, scope)
+      const errors = result.errors
+      // A skip that nothing failed after ends the test; a failure outranks it.
+      progress.skipped = errors.length === 0 ? result.skipped : undefined
+      let conditionFailure: unknown
+      let willRetry = errors.length > 0 && attempt < plan.count
+      if (willRetry && plan.condition !== undefined) {
+        try {
+          willRetry = passesCondition(plan.condition, serializeError(errors.at(-1)))
+        } catch (error) {
+          // A condition that throws is a failure of the test; nothing is retried on its word.
+          willRetry = false
+          conditionFailure = error
+        }
+      }
+      this.#emit({
+        type: 'test-attempt-end',
+        id: test.id,
+        attempt,
+        repeat,
+        state: errors.length > 0 ? 'fail' : progress.skipped === undefined ? 'pass' : 'skip',
+        errors: errors.map(serializeError),
+        willRetry,
+        t: this.#now(),
+      })
+      if (progress.elapsed !== undefined) progress.elapsed += this.#now() - attemptStart
+      if (errors.length === 0) return false
+      if (!willRetry) {
+        progress.failures.push(...errors)
+        if (conditionFailure !== undefined) progress.failures.push(conditionFailure)
+        return false
+      }
+      if (this.#recordsEarlierErrors()) progress.retryErrors.push(...errors)
+      if (plan.deferred && from === 0) return true
+      await this.#wait(plan.delay, progress)
+    }
+    return false
+  }
+
+  /** The retries of a test whose first attempt failed, once its suite has run its other tests. */
+  async #resume(
+    run: FileRun,
+    test: TestNode,
+    scope: Scope,
+    plan: RetryPlan,
+    progress: Progress,
+  ): Promise<Outcome> {
+    await this.#wait(plan.delay, progress)
+    await this.#runAttempts(run, test, scope, plan, progress, { repeat: 0, from: 1 })
+    return this.#finishTest(test, progress)
+  }
+
+  /** Ends a test with what its attempts left, and returns its outcome. */
+  #finishTest(test: TestNode, progress: Progress): Outcome {
+    const { start, failures, retryErrors, attempts, repeatIndex, skipped, elapsed } = progress
+    const timing = elapsed === undefined ? {} : { durationMs: elapsed }
     if (skipped !== undefined && failures.length === 0) {
       this.#endTask('test-end', test.id, 'skip', start, [], {
         skipReason: 'dynamic',
         ...(skipped.note === undefined ? {} : { note: skipped.note }),
         attempts,
         repeatIndex,
+        ...timing,
       })
       return 'skip'
     }
@@ -491,8 +636,24 @@ export class Executor {
       retryErrors,
       attempts,
       repeatIndex,
+      ...timing,
     })
     return outcome
+  }
+
+  /** Whether the errors of an attempt that is retried stay on the test's result. */
+  #recordsEarlierErrors(): boolean {
+    return (
+      this.#policy.retry.keepEarlierErrors || this.#config.retryDefaults.value?.logErrors === true
+    )
+  }
+
+  /** Waits `ms` before a retry, on the runtime's timers (never the test's fake ones). */
+  async #wait(ms: number, progress: Progress): Promise<void> {
+    if (ms <= 0) return
+    const start = this.#now()
+    await new Promise<void>((resolve) => this.#config.timers.setTimeout(resolve, ms))
+    if (progress.elapsed !== undefined) progress.elapsed += this.#now() - start
   }
 
   async #runAttempt(
@@ -1108,6 +1269,8 @@ export interface ResultExtra {
   readonly retryErrors?: readonly unknown[]
   readonly attempts?: number
   readonly repeatIndex?: number
+  /** A duration of the task's own, where the time between its start and end is not all its. */
+  readonly durationMs?: number
 }
 
 /** A task's (or a file's) result, its errors serialized. */
@@ -1120,7 +1283,7 @@ export function taskResult(
 ): TaskResult {
   return {
     state,
-    durationMs: end - start,
+    durationMs: extra.durationMs ?? end - start,
     startTime: start,
     errors: errors.map(serializeError),
     retryErrors: (extra.retryErrors ?? []).map(serializeError),

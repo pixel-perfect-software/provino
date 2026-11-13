@@ -500,6 +500,14 @@ export type DataOnly<T> = T extends AnyFunction ? never : T extends ModuleRef ? 
 export type DeepPartial<T> = T extends PolicyAtom ? T : string extends keyof T ? T : { readonly [K in keyof T]?: DeepPartial<T[K]>; };
 
 // @public
+export interface DefaultRetry {
+    readonly count: number;
+    readonly delay: number;
+    readonly immediate: boolean;
+    readonly logErrors: boolean;
+}
+
+// @public
 export type DefineEnvironment = <const Name extends string, Options = Record<string, never>, G extends object = typeof globalThis>(environment: Environment<Name, Options, G>) => Environment<Name, Options, G>;
 
 // @public
@@ -1067,6 +1075,7 @@ export interface GlobalsHost {
     moduleMocks(): ModuleMockRegistry;
     registry(): FileRegistry;
     readonly seed: number;
+    setDefaultRetry(retry: DefaultRetry | undefined): void;
     setDefaultTimeout(ms: number | undefined): void;
     timers(): object;
     readonly timersPolicy: TimersPolicy;

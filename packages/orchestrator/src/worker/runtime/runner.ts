@@ -523,6 +523,7 @@ export function createRuntimeRunner(): WorkerRunner {
       seed: config.seed,
       environmentTornDown: () => (fileScope.getStore() ?? fallback)?.tornDown ?? true,
       setDefaultTimeout: (ms) => coreRuntime.setDefaultTimeout(ms),
+      setDefaultRetry: (retry) => coreRuntime.setDefaultRetry(retry),
     }
     // The scope also serves the imports (`@jest/globals`); the bindings a module's wrapper declares
     // are `config.loader.moduleScope`, which is empty when `injectGlobals` is off.

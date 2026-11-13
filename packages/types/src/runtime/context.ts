@@ -33,6 +33,23 @@ export interface Frame {
 }
 
 /**
+ * The retry a file sets for every test that declares none of its own (Jest's `jest.retryTimes`):
+ * the runtime reads it when a suite starts running, so it covers tests registered before the call
+ * and after it.
+ * @public
+ */
+export interface DefaultRetry {
+  /** Retries after the first attempt; 0 (or a number below 1) is none. */
+  readonly count: number
+  /** Milliseconds to wait before each retry. */
+  readonly delay: number
+  /** Retry a failed test at once, even where the policy's `retry.timing` is `deferred`. */
+  readonly immediate: boolean
+  /** Keep the errors of the attempts that were retried on the result (`logErrorsBeforeRetry`). */
+  readonly logErrors: boolean
+}
+
+/**
  * The current-test lookup, backed by AsyncLocalStorage. Mocks and timers (attribution), lazy
  * values and expect state read it.
  * @public
