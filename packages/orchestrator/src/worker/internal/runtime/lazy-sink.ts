@@ -10,7 +10,7 @@ import type { EventSink, LazyEvaluation, RuntimeEvent, TaskId } from '@provino/t
  */
 export interface LazyReport {
   readonly sink: EventSink
-  /** The lazy values the latest failed attempt of `testId` evaluated; the latest call wins. */
+  /** The lazy values the latest failed attempt of `testId` evaluated (none: empty); the latest call wins. */
   record(testId: TaskId, lazies: readonly LazyEvaluation[]): void
 }
 
@@ -24,7 +24,10 @@ export function lazyReportSink(next: EventSink): LazyReport {
   const held = new Map<TaskId, readonly LazyEvaluation[]>()
   return {
     record(testId, lazies) {
-      held.set(testId, lazies)
+      // An empty list is the latest attempt saying it evaluated none: it replaces an earlier
+      // attempt's list rather than leaving it to be attached to this one.
+      if (lazies.length === 0) held.delete(testId)
+      else held.set(testId, lazies)
     },
     sink: {
       emit(event: RuntimeEvent): void {

@@ -68,6 +68,16 @@ describe('lazyReportSink', () => {
     assert.equal(next.events[1], end)
   })
 
+  it('drops an earlier attempt’s values when a later failed attempt recorded none', () => {
+    const next = collect()
+    const report = lazyReportSink(next.sink)
+    report.record(id('t1'), lazies)
+    report.record(id('t1'), [])
+    report.sink.emit(testEnd('t1', 'fail'))
+    const [event] = next.events
+    assert.equal(event?.type === 'test-end' && 'lazies' in event.result, false)
+  })
+
   it('keeps only the latest recording of a test', () => {
     const next = collect()
     const report = lazyReportSink(next.sink)

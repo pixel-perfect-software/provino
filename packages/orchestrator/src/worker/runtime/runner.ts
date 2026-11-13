@@ -503,9 +503,12 @@ export function createRuntimeRunner(): WorkerRunner {
     coreRuntime.onAfterTryTask(({ test, failed }) => {
       if (!failed) return
       const frame = coreRuntime.lazyHost.current()
-      if (frame?.kind !== 'test') return
-      const lazies = lazyRuntime.evaluatedLazies(frame.run)
-      if (lazies.length > 0) lazyReport.record(test.id, lazies)
+      // Every failed attempt records, an empty list included, so an earlier attempt's values are
+      // never shown for a later one that evaluated none.
+      lazyReport.record(
+        test.id,
+        frame?.kind === 'test' ? lazyRuntime.evaluatedLazies(frame.run) : [],
+      )
     })
 
     // The snapshot slice's behaviours, once: every file's state is built from them.
