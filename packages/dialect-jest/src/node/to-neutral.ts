@@ -65,6 +65,7 @@ function jsonObject(
   value: unknown,
   key: string,
   diagnostics: Diagnostic[],
+  carriedTo = 'a test worker',
 ): Readonly<Record<string, JsonValue>> {
   const dropped: string[] = []
   const json = toJson(value ?? {}, key, dropped)
@@ -73,7 +74,7 @@ function jsonObject(
       level: 'warning',
       code: 'JEST_CONFIG_NOT_SERIALIZABLE',
       key: path,
-      message: `Jest config value "${path}" can't be carried to a test worker (only JSON values can), so it is left out.`,
+      message: `Jest config value "${path}" can't be carried to ${carriedTo} (only JSON values can), so it is left out.`,
     })
   }
   if (typeof json !== 'object' || json === null || isJsonArray(json)) return {}
@@ -111,6 +112,9 @@ function isDefaultTransform(transform: JestProjectConfig['transform']): boolean 
     Object.keys(only[2] ?? {}).length === 0
   )
 }
+
+/** What a value that is no JSON can't be handed to, in the warning that names it. */
+const HOOK_TARGET = 'a global setup or teardown, which is called with the config as JSON'
 
 /** What `jestProjectToNeutral` needs besides the normalized config. */
 export interface ToNeutralOptions {
@@ -237,6 +241,11 @@ export function jestProjectToNeutral(
       },
     },
   }
+  const hasGlobalHooks =
+    project.globalSetup !== undefined ||
+    project.globalTeardown !== undefined ||
+    globalConfig.globalSetup !== undefined ||
+    globalConfig.globalTeardown !== undefined
   const neutral: NeutralProject = {
     name: project.displayName?.name ?? '',
     rootDir: project.rootDir,
@@ -261,21 +270,19 @@ export function jestProjectToNeutral(
     setupFilesAfterEnv: [...project.setupFilesAfterEnv],
     globalSetup: project.globalSetup === undefined ? [] : [project.globalSetup],
     globalTeardown: project.globalTeardown === undefined ? [] : [project.globalTeardown],
-    // `fn(globalConfig, projectConfig)`: Jest's own two configs as JSON (what a clone can carry:
-    // a normalized config holds only data, a global one may name reporters or projects as objects).
+    // `fn(globalConfig, projectConfig)`: Jest's own two configs as JSON (what a clone can carry).
     // The run's own hooks (the root config's, with `projects`) are called with the first project's
-    // config, whichever project that is: every project keeps the two.
-    ...(project.globalSetup === undefined &&
-    project.globalTeardown === undefined &&
-    globalConfig.globalSetup === undefined &&
-    globalConfig.globalTeardown === undefined
-      ? {}
-      : {
+    // config, whichever project that is: every project keeps the two. A value that is no JSON (a
+    // function in a transformer's options, a `Date`) is left out, and a warning names it, but only
+    // for a run that has a hook to be called with it.
+    ...(hasGlobalHooks
+      ? {
           globalSetupArgs: {
-            globalConfig: jsonObject(globalConfig, 'globalConfig', []),
-            projectConfig: jsonObject(project, 'projectConfig', []),
+            globalConfig: jsonObject(globalConfig, 'globalConfig', diagnostics, HOOK_TARGET),
+            projectConfig: jsonObject(project, 'projectConfig', diagnostics, HOOK_TARGET),
           },
-        }),
+        }
+      : {}),
     environment: {
       name: environment,
       // One shape for every environment: the adapter's class (absent for the built-in `node`) and
