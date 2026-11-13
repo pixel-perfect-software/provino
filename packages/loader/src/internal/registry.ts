@@ -155,6 +155,13 @@ export class Registry {
    * file loaded. `null` outside `beginFile`/`endFile`.
    */
   #touched: Set<ModuleId> | null = null
+  /**
+   * The user modules each module loaded through an edge its static deps don't name (a
+   * `require(variable)`, a runtime `import()`), by importing module, noted while a file is being
+   * counted (`#touched` is set). Under `none` a later file finds the importer evaluated, not
+   * evaluated again, so what it loaded then is what `loadedByFile` follows for it.
+   */
+  readonly #dynamicLoads = new Map<ModuleId, Set<ModuleId>>()
 
   constructor(state: Records, base: Map<ModuleId, Instance> = new Map()) {
     this.#state = state
@@ -207,18 +214,35 @@ export class Registry {
     const live = new Set(this.loaded())
     const seen = new Set<ModuleId>(touched)
     const queue = [...touched]
+    const reach = (target: ModuleId): void => {
+      if (seen.has(target) || !live.has(target)) return
+      seen.add(target)
+      queue.push(target)
+    }
     for (let at = 0; at < queue.length; at++) {
       const id = queue[at]
       if (id === undefined) continue
       for (const edge of userEdgesOf(this.#state, id) ?? []) {
-        if (edge.target === null) continue
-        const target = toModuleId(edge.target)
-        if (seen.has(target) || !live.has(target)) continue
-        seen.add(target)
-        queue.push(target)
+        if (edge.target !== null) reach(toModuleId(edge.target))
       }
+      for (const target of this.#dynamicLoads.get(id) ?? []) reach(target)
     }
     return [...seen]
+  }
+
+  /**
+   * Notes that `importer` loaded the user module `id` through an edge that can be dynamic. Only
+   * while a file is counted: a registry of any other tier is the file's own and never asks.
+   */
+  #noteLoad(importer: string, id: ModuleId): void {
+    if (this.#touched === null) return
+    const key = toModuleId(importer)
+    let loads = this.#dynamicLoads.get(key)
+    if (loads === undefined) {
+      loads = new Set()
+      this.#dynamicLoads.set(key, loads)
+    }
+    loads.add(id)
   }
 
   /**
@@ -351,6 +375,7 @@ export class Registry {
     if (mocked !== REAL) return (await this.#settleFor(mocked, specifier, 'async')) as object
     const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#externalAsync(found)
+    this.#noteLoad(importer, found.id)
     const record = recordFor(this.#state, found.id, false)
     await linkAsync(this.#state, record)
     return this.#evaluateForImport(record)
@@ -371,6 +396,7 @@ export class Registry {
     }
     const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#requireExternal(found)
+    this.#noteLoad(importer, found.id)
     const dep = recordFor(this.#state, found.id, false)
     linkSync(this.#state, dep)
     return this.#requireRecord(dep)
@@ -395,6 +421,7 @@ export class Registry {
     if (mocked !== REAL) return this.#settleFor(mocked, specifier, 'sync')
     const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#externalImport(found)
+    this.#noteLoad(record.path, found.id)
     const dep = recordFor(this.#state, found.id, false)
     linkSync(this.#state, dep)
     return this.#importRecord(dep, 'sync')
