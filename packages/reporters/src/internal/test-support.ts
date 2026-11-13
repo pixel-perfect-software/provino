@@ -5,6 +5,7 @@ import type {
   FileInfo,
   FileResult,
   FileTask,
+  OpenHandle,
   Reporter,
   ReporterBus,
   RunEnvironment,
@@ -323,9 +324,16 @@ export async function playRun(
     readonly snapshots?: SnapshotRunSummary
     /** The run's end reason; default `failed` when a file failed, else `passed`. */
     readonly reason?: RunSummary['reason']
+    /** Files announced at `run:start` that never ran (a run that bailed). */
+    readonly notRun?: readonly string[]
+    /** What `detectOpenHandles` found, for the summary. */
+    readonly openHandles?: readonly OpenHandle[]
   } = {},
 ): Promise<RunSummary> {
-  const infos = files.map((spec) => fileInfo(spec.path, spec.project ?? ''))
+  const infos = [
+    ...files.map((spec) => fileInfo(spec.path, spec.project ?? '')),
+    ...(options.notRun ?? []).map((path) => fileInfo(path, '')),
+  ]
   await bus.emit(
     'run:start',
     { root: '/project', projects: [''], startTime: 0, watch: false },
@@ -340,6 +348,7 @@ export async function playRun(
     unhandled: options.unhandled ?? [],
     durationMs: options.durationMs ?? 1234,
     ...(options.snapshots === undefined ? {} : { snapshots: options.snapshots }),
+    ...(options.openHandles === undefined ? {} : { openHandles: options.openHandles }),
   }
   await bus.emit('run:end', summary)
   return summary

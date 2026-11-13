@@ -12,9 +12,43 @@ export const ExitCode = {
   Pass: 0,
   TestFailure: 1,
   UsageError: 2,
+  /** 128 plus SIGHUP's number. */
+  Sighup: 129,
+  /** 128 plus SIGINT's number. */
   Sigint: 130,
+  /** 128 plus SIGTERM's number. */
   Sigterm: 143,
 } as const
+
+/**
+ * The signals that end a run, and what each means: how the run's summary says so (`reason`) and
+ * the exit code of a process it ends. A run's `signal` is aborted with one of these names as the
+ * reason (any other reason, or none, is SIGINT's), and the bin handles exactly these.
+ * @public
+ */
+export const RUN_SIGNALS: {
+  readonly SIGINT: { readonly reason: 'interrupted'; readonly exitCode: 130 }
+  readonly SIGTERM: { readonly reason: 'terminated'; readonly exitCode: 143 }
+  readonly SIGHUP: { readonly reason: 'hangup'; readonly exitCode: 129 }
+} = {
+  SIGINT: { reason: 'interrupted', exitCode: ExitCode.Sigint },
+  SIGTERM: { reason: 'terminated', exitCode: ExitCode.Sigterm },
+  SIGHUP: { reason: 'hangup', exitCode: ExitCode.Sighup },
+}
+
+/**
+ * The name of a signal that ends a run.
+ * @public
+ */
+export type RunSignal = keyof typeof RUN_SIGNALS
+
+/**
+ * Whether `value` is the name of a signal that ends a run: what an aborted `signal`'s reason says.
+ * @public
+ */
+export function isRunSignal(value: unknown): value is RunSignal {
+  return typeof value === 'string' && Object.hasOwn(RUN_SIGNALS, value)
+}
 
 /**
  * What `exitCodeFor` reads besides the summary.
@@ -32,8 +66,8 @@ export interface ExitCodeOptions {
 /**
  * The exit code of a finished run, the first of these that applies:
  *
- * 1. an interrupted run: `ExitCode.Sigint` (the summary doesn't say which signal; SIGTERM
- *    handling is T9.10's);
+ * 1. a run a signal ended (`RUN_SIGNALS`): interrupted, `ExitCode.Sigint` (130); terminated,
+ *    `ExitCode.Sigterm` (143); hung up, `ExitCode.Sighup` (129);
  * 2. no files ran, and `passWithNoTests` is off: `exitCodes.noTests`;
  * 3. a file failed: `exitCodes.failure`;
  * 4. the run's snapshots fail it: obsolete snapshots that the policy's `snapshot.obsolete` says
@@ -45,7 +79,9 @@ export interface ExitCodeOptions {
  */
 export function exitCodeFor(summary: RunSummary, options: ExitCodeOptions): number {
   const { orchestrator } = options.policy
-  if (summary.reason === 'interrupted') return ExitCode.Sigint
+  for (const { reason, exitCode } of Object.values(RUN_SIGNALS)) {
+    if (summary.reason === reason) return exitCode
+  }
   const passWithNoTests = options.passWithNoTests ?? orchestrator.passWithNoTests
   if (summary.files.length === 0 && !passWithNoTests) return orchestrator.exitCodes.noTests
   if (summary.files.some((file) => file.state === 'fail')) return orchestrator.exitCodes.failure

@@ -4,6 +4,7 @@
 // events and output always arrive first. The runtime that actually runs a file is the runner's
 // (U1, B10); this file knows nothing about tests. On `stop` it lets the runner tear down, then
 // sends `stopped`.
+import { getHeapStatistics } from 'node:v8'
 import { isMainThread } from 'node:worker_threads'
 import { createRpc, type RpcOptions, serializeError } from '@provino/rpc'
 import type {
@@ -335,11 +336,15 @@ export function startWorker(
 }
 
 /**
- * RSS in a fork; `heapUsed + external` in a thread or inline, where RSS is the whole process's.
+ * RSS in a fork, where the process is the worker's own. In a thread or inline RSS is the whole
+ * process's, and `external` and `arrayBuffers` are no better: they count what the isolate has
+ * reserved, not what it holds (oxc-parser's raw transfer buffer is a 6 GiB `ArrayBuffer` of
+ * virtual memory, so a thread with a RSS of 150 MB reads about 6.4 GB of `external`). So the
+ * thread's own isolate heap, `used_heap_size`: what jest-worker reads as
+ * `process.memoryUsage().heapUsed` in a thread or a child.
  */
 function measureMemory(init: WorkerInit | undefined): number {
   const pool = init?.key.pool ?? (isMainThread ? 'forks' : 'threads')
   if (pool === 'forks') return process.memoryUsage.rss()
-  const { heapUsed, external } = process.memoryUsage()
-  return heapUsed + external
+  return getHeapStatistics().used_heap_size
 }

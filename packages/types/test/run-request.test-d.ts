@@ -24,6 +24,11 @@ void badMode
 const badWorkers: RunRequest = { ...minimal, maxWorkers: 'all' }
 void badWorkers
 
+// The lifecycle flags are config keys the reader merges, not request fields.
+// @ts-expect-error `bail` is read from the merged config, not carried by the request
+const noBail: RunRequest = { ...minimal, bail: { count: 1 } }
+void noBail
+
 // A filter is a kind and a value; a `file.ts:12` filter carries its line.
 expectTypeOf<{ kind: 'regex'; value: string }>().toExtend<FileFilter>()
 expectTypeOf<{ kind: 'pathLine'; value: string; line: number }>().toExtend<FileFilter>()

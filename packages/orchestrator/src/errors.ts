@@ -11,6 +11,8 @@ export type OrchestratorErrorCode =
   | 'ORCH_NOT_IMPLEMENTED'
   /** The test name pattern isn't a valid regular expression. */
   | 'ORCH_BAD_PATTERN'
+  /** A pool or run option has a value that makes no sense (a `maxFilesPerWorker` of 0, a negative deadline). */
+  | 'ORCH_BAD_OPTION'
   /** `runProjects` was given no project. */
   | 'ORCH_NO_PROJECTS'
   /** A worker sent an event the coordinator can't place (a task id it never announced). */

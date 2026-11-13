@@ -15,10 +15,12 @@ export interface FileFilter {
 /**
  * What a command line asks a run to be. Each dialect's CLI parses its own flags into one of these
  * (Track 11 F5), and `provino` layers it over a project: a field that is absent leaves the
- * project's own setting.
+ * project's own setting. A flag that is also a config key (`bail`, `forceExit`,
+ * `detectOpenHandles`) is not here: the dialect's config reader merges it into the project's
+ * settings, and that is the one place a run reads it.
  *
  * A flag the dialect understands but the coordinator has no backend for yet (`--watch`,
- * `--coverage`, `--bail`) is not here: the parser reports it as an `error` diagnostic naming the
+ * `--coverage`, `--shard`) is not here: the parser reports it as an `error` diagnostic naming the
  * flag and the task that will build it, so nothing is silently ignored.
  * @public
  */

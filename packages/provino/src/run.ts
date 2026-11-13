@@ -9,7 +9,11 @@ import { executeProject } from './internal/execute.ts'
 import { UsageError } from './internal/usage-error.ts'
 import type { RunOptions, RunResult } from './types.ts'
 
-/** The pool options a run overrides: only the ones given, so the policy's defaults stand. */
+/**
+ * The pool options a run overrides: only the ones given, so the policy's defaults stand. A limit
+ * that makes no sense (`workerMemoryLimit`, `maxFilesPerWorker`, `fileTimeoutMs`, `bail`) is the
+ * orchestrator's to refuse (`ORCH_BAD_OPTION`, exit 2); `maxWorkers` it would only round.
+ */
 function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']> {
   if (
     options.maxWorkers !== undefined &&
@@ -19,9 +23,19 @@ function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']
       `maxWorkers must be a whole number of at least 1 (got ${String(options.maxWorkers)})`,
     )
   }
+  const { workerMemoryLimit, maxFilesPerWorker, fileTimeoutMs } = options
   return {
     ...(options.pool === undefined ? {} : { kind: options.pool }),
     ...(options.maxWorkers === undefined ? {} : { maxWorkers: options.maxWorkers }),
+    ...(fileTimeoutMs === undefined ? {} : { fileTimeoutMs }),
+    ...(workerMemoryLimit === undefined && maxFilesPerWorker === undefined
+      ? {}
+      : {
+          recycle: {
+            ...(workerMemoryLimit === undefined ? {} : { memoryLimitBytes: workerMemoryLimit }),
+            ...(maxFilesPerWorker === undefined ? {} : { maxFilesPerWorker }),
+          },
+        }),
   }
 }
 
@@ -53,6 +67,9 @@ async function execute(
     update: options.updateSnapshot,
     passWithNoTests: options.passWithNoTests,
     signal: options.signal,
+    forceSignal: options.forceSignal,
+    ...(options.bail === undefined || options.bail === 0 ? {} : { bail: { count: options.bail } }),
+    ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
   })
 }
 
@@ -65,7 +82,8 @@ async function execute(
  * The config file is loaded, the Jest dialect and the Node environment are the built-ins it can
  * name, and every reporter is built from `reporters` or the policy's defaults. Bad input (no
  * config file, a config that doesn't load or fails its checks, an unknown dialect, a `maxWorkers`
- * or reporter that makes no sense, a test name pattern that isn't a regular expression) does not
+ * or reporter that makes no sense, a `bail` that isn't a whole number of at least 0, a test name
+ * pattern that isn't a regular expression, a limit the orchestrator refuses) does not
  * reject: the message goes to `stderr` and the result is exit code 2 with a `null` summary. Any
  * other error is a bug and rejects.
  * @public

@@ -126,7 +126,8 @@ test('R6 measures the 5 Jest repositories, each by exactly one subject, styled-c
     ],
   )
   assert.ok(styled?.subjects[1]?.argv.includes('--forceExit'))
-  assert.equal(styled?.subjects[1]?.provinoRefuses?.[0]?.flag, '--forceExit')
+  // --forceExit is built (T9.10, B21a): provino jest no longer refuses it, so the subject lists no refusal.
+  assert.equal(styled?.subjects[1]?.provinoRefuses, undefined)
 })
 
 test('every package manager is pinned to an exact version, so no install falls back to a default', async () => {
@@ -245,9 +246,9 @@ test('the parser refuses an argv the harness cannot use', async () => {
   )
   rejects(
     await edited((draft) => {
-      subjectOf(draft, 'swr').argv.push('--bail')
+      subjectOf(draft, 'swr').argv.push('--watch')
     }),
-    /must list --bail/,
+    /must list --watch/,
   )
   rejects(
     await edited((draft) => {

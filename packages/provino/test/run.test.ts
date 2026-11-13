@@ -137,6 +137,45 @@ describe('run()', () => {
       }
     })
 
+    it('a bail that is not a whole number of at least 0', async () => {
+      const project = await makeProject({ 'tests/a.test.js': passing('a') })
+      for (const bail of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+        const ran = await runProject(project, { bail })
+        assert.equal(ran.exitCode, 2, String(bail))
+        assert.equal(ran.summary, null)
+        assert.match(ran.stderr, /bail\.count .*must be a whole number of at least 1/)
+        assert.doesNotMatch(ran.stderr, /PASS|FAIL/, 'no file ran')
+      }
+    })
+
+    it('a worker limit or a file deadline that makes no sense, said by the orchestrator, with nothing run', async () => {
+      const project = await makeProject({ 'tests/a.test.js': passing('a') })
+      for (const [options, pattern] of [
+        [{ workerMemoryLimit: -1 }, /recycle\.memoryLimitBytes .*must be a number of bytes/],
+        [{ workerMemoryLimit: Number.NaN }, /recycle\.memoryLimitBytes/],
+        [
+          { maxFilesPerWorker: 0 },
+          /recycle\.maxFilesPerWorker .*must be a whole number of at least 1/,
+        ],
+        [{ maxFilesPerWorker: 1.5 }, /recycle\.maxFilesPerWorker/],
+        [{ fileTimeoutMs: 0 }, /fileTimeoutMs .*must be a number of milliseconds above 0/],
+        [{ fileTimeoutMs: Number.POSITIVE_INFINITY }, /fileTimeoutMs/],
+      ] as const) {
+        const ran = await runProject(project, options)
+        assert.equal(ran.exitCode, 2, JSON.stringify(options))
+        assert.equal(ran.summary, null)
+        assert.match(ran.stderr, pattern)
+        assert.doesNotMatch(ran.stderr, /PASS|FAIL/, 'no file ran')
+      }
+    })
+
+    it('a bail of 0 is off, not an error', async () => {
+      const project = await makeProject({ 'tests/a.test.js': failing('a') })
+      const ran = await runProject(project, { bail: 0 })
+      assert.equal(ran.exitCode, 1, ran.stderr)
+      assert.equal(ran.summary?.reason, 'failed')
+    })
+
     it('a reporter that is not a built-in or a reporter', async () => {
       const project = await makeProject({ 'tests/a.test.js': passing('a') })
       // @ts-expect-error "verbose" is not a reporter name
@@ -511,15 +550,23 @@ describe('run()', () => {
     })
   })
 
-  it('stops with exit code 130 and no files reported when the signal has aborted', async () => {
-    const project = await makeProject({
-      'tests/a.test.js': passing('a'),
-      'tests/b.test.js': passing('b'),
-    })
-    const ran = await runProject(project, { signal: AbortSignal.abort() })
+  // What a signal that has aborted the run means: the bin's own exit code for it, from a library call too.
+  for (const [what, signal, reason, exitCode] of [
+    ['with no reason', AbortSignal.abort(), 'interrupted', 130],
+    ['for SIGINT', AbortSignal.abort('SIGINT'), 'interrupted', 130],
+    ['for SIGTERM', AbortSignal.abort('SIGTERM'), 'terminated', 143],
+    ['for SIGHUP', AbortSignal.abort('SIGHUP'), 'hangup', 129],
+  ] as const) {
+    it(`stops with exit code ${exitCode} and no files reported when the signal has aborted ${what}`, async () => {
+      const project = await makeProject({
+        'tests/a.test.js': passing('a'),
+        'tests/b.test.js': passing('b'),
+      })
+      const ran = await runProject(project, { signal })
 
-    assert.equal(ran.exitCode, 130)
-    assert.equal(ran.summary?.reason, 'interrupted')
-    assert.deepEqual(ran.summary?.files, [])
-  })
+      assert.equal(ran.exitCode, exitCode)
+      assert.equal(ran.summary?.reason, reason)
+      assert.deepEqual(ran.summary?.files, [])
+    })
+  }
 })

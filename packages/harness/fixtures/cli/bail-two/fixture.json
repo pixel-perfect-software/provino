@@ -1,0 +1,9 @@
+{
+  "description": "The config's bail: 2 (T9.10): the count is failed tests across files. One failing test in the first file does not end the run; the second file's makes two, and the run ends there with exit code 1, the third file never started. One Jest worker; the file sizes order the files a, b, c. A black-box run.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1, "bail": 2 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Test Suites|Tests):|^(PASS|FAIL) "
+  }
+}

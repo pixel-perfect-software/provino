@@ -19,6 +19,9 @@ import { messageOf } from '../util.ts'
 /** Track 9: the wait between SIGTERM and SIGKILL. */
 const KILL_GRACE_MS = 500
 
+/** Track 9: how long a new worker may take to say `ready`. */
+const DEFAULT_START_TIMEOUT_MS = 30_000
+
 /** Track 9: how long `terminate(false)` waits after `stop` before SIGTERM. */
 const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000
 
@@ -91,8 +94,9 @@ export function connect(
   const teardownTimeoutMs = teardownTimeoutOf(options)
   const exitListeners = new Set<(exit: WorkerExit) => void>()
   let exit: WorkerExit | undefined
-  /** Set when the transport killed the worker after a timeout, which is then its exit. */
+  /** Set when the worker is killed after a timeout, which is then its exit. */
   let timedOut: WorkerExit | undefined
+  const startTimeoutMs = options.startTimeoutMs ?? DEFAULT_START_TIMEOUT_MS
   const { promise: exited, resolve: resolveExited } = Promise.withResolvers<void>()
 
   spawned.onExit((raw) => {
@@ -123,15 +127,16 @@ export function connect(
         exitListeners.delete(listener)
       }
     },
-    async terminate(force) {
+    async terminate(force, timeout) {
       if (exit !== undefined) return
+      if (timeout !== undefined) timedOut ??= { type: 'timeout', ...timeout }
       if (force) {
         spawned.kill('SIGKILL')
         return await exited
       }
       spawned.link.send({ t: 'stop' })
       if (await settlesWithin(exited, teardownTimeoutMs)) return
-      timedOut ??= { type: 'timeout', phase: 'stop' }
+      timedOut ??= { type: 'timeout', phase: 'stop', limitMs: teardownTimeoutMs }
       spawned.kill('SIGTERM')
       if (await settlesWithin(exited, KILL_GRACE_MS)) return
       spawned.kill('SIGKILL')
@@ -144,9 +149,9 @@ export function connect(
     spawned,
     transport,
     init,
-    options.startTimeoutMs ?? 30_000,
+    startTimeoutMs,
     () => {
-      timedOut ??= { type: 'timeout', phase: 'start' }
+      timedOut ??= { type: 'timeout', phase: 'start', limitMs: startTimeoutMs }
     },
     signal,
   )
@@ -274,7 +279,9 @@ export function describeExit(exit: WorkerExit): string {
     case 'oom':
       return `out of memory at its ${exit.limitMb} MB limit`
     case 'timeout':
-      return `timed out during ${exit.phase}`
+      return exit.phase === 'file'
+        ? `killed for running past its deadline of ${exit.limitMs} ms`
+        : `timed out during ${exit.phase} (${exit.limitMs} ms)`
     default:
       return exit satisfies never
   }
@@ -301,6 +308,20 @@ export async function settlesWithin(
   } finally {
     clearTimeout(timer)
   }
+}
+
+/**
+ * V8's default old-generation heap limit in MB, which a worker without a limit of its own shares
+ * with this process. `node:v8` is read here, on the one path that needs it (an out-of-memory exit).
+ */
+export function defaultHeapLimitMb(): number {
+  const { getHeapStatistics } = process.getBuiltinModule('node:v8')
+  return Math.round(getHeapStatistics().heap_size_limit / (1024 * 1024))
+}
+
+/** A worker that ran out of memory under `limitMb`, V8's default when no limit is known. */
+export function oomExit(limitMb?: number): WorkerExit {
+  return { type: 'oom', limitMb: limitMb ?? defaultHeapLimitMb() }
 }
 
 /** The entry as a URL string, which `import()`, `fork` arguments and `workerData` all carry. */

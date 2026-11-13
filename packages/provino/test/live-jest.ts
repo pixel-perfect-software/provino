@@ -9,7 +9,8 @@ import { Writable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { viewOfNormalized } from './support.ts'
 
-const JEST: string = createRequire(
+/** Real Jest 30.5.2's bin, from the Jest the harness installs: the oracle. */
+export const JEST: string = createRequire(
   fileURLToPath(new URL('../../harness/package.json', import.meta.url)),
 ).resolve('jest/bin/jest')
 
@@ -42,15 +43,36 @@ class Sink extends Writable {
 /** The harness's transformer, which strips types for real Jest as the recorder does. */
 const TRANSFORMER = fileURLToPath(new URL('../../harness/src/jest-transform.ts', import.meta.url))
 
-function runJest(cwd: string, out: string): Promise<number | null> {
+/**
+ * The environment of a live Jest run: this process's, with colour off, as the harness's recorder
+ * runs it (`runnerEnv`: `NO_COLOR=1`, no `FORCE_COLOR`), so every golden and every live run is
+ * read under the same conditions. Provino prints no colour (`--colors` is read but not applied).
+ * Jest does: `@babel/code-frame`, behind the code frame of an error or an open handle, highlights it
+ * whenever picocolors says colours are supported, which a set `CI` is enough for (GitHub's
+ * runners set it), a TTY or `FORCE_COLOR` too, whatever the stream is.
+ */
+export function noColorEnv(): NodeJS.ProcessEnv {
+  const { FORCE_COLOR: _force, ...rest } = process.env
+  return { ...rest, NO_COLOR: '1' }
+}
+
+/** Runs real Jest with `args` in `cwd`: its exit code and its stderr, where it prints its report. */
+export function runJest(
+  cwd: string,
+  args: readonly string[],
+): Promise<{ readonly code: number | null; readonly stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(
-      process.execPath,
-      [JEST, '--no-cache', '--ci', '-c', 'jest.live.json', '--json', `--outputFile=${out}`],
-      { cwd, stdio: 'ignore' },
-    )
+    const child = spawn(process.execPath, [JEST, ...args], {
+      cwd,
+      env: noColorEnv(),
+      stdio: ['ignore', 'ignore', 'pipe'],
+    })
+    let stderr = ''
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString()
+    })
     child.once('error', reject)
-    child.once('close', resolve)
+    child.once('close', (code) => resolve({ code, stderr }))
   })
 }
 
@@ -64,7 +86,14 @@ export async function liveJest(cwd: string): Promise<Statuses> {
     join(cwd, 'jest.live.json'),
     JSON.stringify({ ...config, transform: { '\\.[cm]?ts$': TRANSFORMER } }),
   )
-  await runJest(cwd, out)
+  await runJest(cwd, [
+    '--no-cache',
+    '--ci',
+    '-c',
+    'jest.live.json',
+    '--json',
+    `--outputFile=${out}`,
+  ])
   const report = JSON.parse(await readFile(out, 'utf8')) as {
     testResults: { name: string; assertionResults: { fullName: string; status: string }[] }[]
   }

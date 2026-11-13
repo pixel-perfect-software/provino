@@ -29,8 +29,15 @@ export interface WorkerKey {
  * @public
  */
 export interface RecyclePolicy {
-  /** RSS (forks) or heapUsed + external (threads), checked after each file. */
+  /**
+   * RSS (forks) or the isolate's used heap (threads), checked after each file with the
+   * `fileDone.memoryBytes` the worker measured: a worker over it is stopped and a new one serves
+   * the next file. `0` replaces the worker after every file (Jest's `workerIdleMemoryLimit: 0`).
+   * An inline worker is never replaced for memory (what it measures is the coordinator's own).
+   * Absent: no check.
+   */
   readonly memoryLimitBytes?: number
+  /** A worker is replaced after this many files. Absent: never. */
   readonly maxFilesPerWorker?: number
   /**
    * Recycle after a file whose teardown reported leaked handles (Track 2), or globals its
@@ -54,6 +61,12 @@ export interface PoolOptions {
   /** Then SIGTERM, then SIGKILL after 500 ms. */
   readonly teardownTimeoutMs: number
   readonly startTimeoutMs: number
+  /**
+   * The longest one file may run. A worker still on a file after this is killed (SIGKILL), and
+   * the file fails with `WorkerExit` `{ type: 'timeout', phase: 'file', limitMs }`. Absent: no deadline
+   * (a test's own timeout cannot stop a synchronous loop).
+   */
+  readonly fileTimeoutMs?: number
 }
 
 /**
@@ -64,7 +77,12 @@ export type WorkerExit =
   | { readonly type: 'signal'; readonly signal: NodeJS.Signals; readonly likelyOom: boolean }
   | { readonly type: 'exit'; readonly code: number }
   | { readonly type: 'oom'; readonly limitMb: number }
-  | { readonly type: 'timeout'; readonly phase: 'start' | 'stop' | 'idle' }
+  | {
+      readonly type: 'timeout'
+      readonly phase: 'start' | 'stop' | 'idle' | 'file'
+      /** The wait that ran out, in ms: the start timeout, the teardown timeout or `fileTimeoutMs`. */
+      readonly limitMs: number
+    }
 
 /**
  * Data too big to structured-clone: a JSON string, a temp file, or transferred bytes.
@@ -140,8 +158,10 @@ export interface CoordinatorMethods {
 export interface WorkerMethods {
   /**
    * The worker's memory in bytes, measured by the worker itself (a parent can't read a forked
-   * child's RSS): RSS in a fork, `heapUsed + external` in a thread or inline, where RSS is the
-   * whole process's. `fileDone.memoryBytes` uses the same measure.
+   * child's RSS): RSS in a fork; in a thread or inline, where RSS is the whole process's and
+   * `external` counts what the isolate has reserved (a 6 GiB `ArrayBuffer` of oxc-parser's), the
+   * isolate's used heap (`v8.getHeapStatistics().used_heap_size`). `fileDone.memoryBytes` uses
+   * the same measure.
    */
   memoryUsage(): number
 }
@@ -275,8 +295,15 @@ export interface Transport {
   /**
    * Ends the worker. Graceful: send `stop`, wait the teardown timeout, then SIGTERM, then SIGKILL
    * after 500 ms. `force`: kill at once. Resolves once the worker has exited.
+   *
+   * `timeout` says the pool is ending the worker because a wait of its own ran out (a file past
+   * its deadline): the worker's exit is then `{ type: 'timeout', phase, limitMs }`, whatever signal
+   * ended it, unless another timeout was already the reason.
    */
-  terminate(force: boolean): Promise<void>
+  terminate(
+    force: boolean,
+    timeout?: { readonly phase: 'file'; readonly limitMs: number },
+  ): Promise<void>
 }
 
 /**
@@ -328,6 +355,15 @@ export interface TransportFactory {
    * supported; use forks or threads.
    */
   readonly maxWorkers?: number
+  /**
+   * Whether its workers run in this process (the inline transport). A kill can then only close
+   * the worker's link, not end the worker: the pool stops waiting for one once its force signal
+   * comes, and gives up on the file it is running. Its memory is the coordinator's own, so a
+   * worker is never replaced for holding too much (`RecyclePolicy.memoryLimitBytes`); the file
+   * count and a leak still replace it. Omitted: its workers are processes or threads that a kill
+   * ends.
+   */
+  readonly sharesProcess?: boolean
   /**
    * Starts a worker and resolves once it is ready. Aborting `signal` while it starts kills the
    * worker and rejects, so a pool that is closing does not wait for a start.
@@ -427,10 +463,12 @@ export interface FileResult {
 }
 
 /**
- * Why a run ended.
+ * Why a run ended: every file passed, a file failed (or `bail` ended the run), the run was
+ * interrupted (SIGINT: exit code 130), it was terminated (SIGTERM: 143), or the terminal went away
+ * (SIGHUP: 129, `hangup`).
  * @public
  */
-export type RunEndReason = 'passed' | 'failed' | 'interrupted'
+export type RunEndReason = 'passed' | 'failed' | 'interrupted' | 'terminated' | 'hangup'
 
 /**
  * What a worker reports about one test file's snapshots when the file ends.
@@ -468,6 +506,23 @@ export interface SnapshotRunSummary {
 }
 
 /**
+ * A resource that was still open, and keeping the process from exiting, after the run's last file
+ * (`detectOpenHandles`): what kind it is and the stack that created it.
+ * @public
+ */
+export interface OpenHandle {
+  /** What kind of resource: `Timeout`, `Immediate`, `TCPSERVERWRAP`... (the async resource's type). */
+  readonly type: string
+  /**
+   * The creating stack, innermost frame first, as `at ...` lines: the frames of the user's code
+   * (Node's own and Provino's are left out).
+   */
+  readonly frames: readonly string[]
+  /** A few lines of source around the innermost frame, with a caret under the column; absent if it can't be read. */
+  readonly codeFrame?: string
+}
+
+/**
  * A finished run.
  * @public
  */
@@ -485,6 +540,8 @@ export interface RunSummary {
    * `snapshots` by one policy.
    */
   readonly snapshotsFail?: boolean
+  /** What `detectOpenHandles` found still open after the last file; absent when it was off or found none. */
+  readonly openHandles?: readonly OpenHandle[]
 }
 
 /**
@@ -498,7 +555,9 @@ export interface ReporterEvents {
   'file:queued': [file: FileInfo]
   /**
    * A worker took the file. Every `file:start` is followed by exactly one `file:end`, and a
-   * `file:end` never comes without its `file:start`. A file whose worker failed to start gets
+   * `file:end` never comes without its `file:start`, with one exception: a run that ends by `bail`
+   * kills the files still running and, as Jest does, reports them no further (they get no
+   * `file:end` and are not in the summary). A file whose worker failed to start gets
    * `file:start` just before its `file:end`, with the id of the worker whose failed start its
    * error is (for the files left when the pool gave up, the last one). A file that was never
    * started (the run was aborted before) gets neither event.

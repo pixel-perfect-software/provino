@@ -30,6 +30,12 @@ export interface ExecuteOptions {
   readonly fileFilters?: readonly FileFilter[]
   readonly passWithNoTests?: boolean | undefined
   readonly signal?: AbortSignal | undefined
+  /** The second Ctrl+C: kills the workers at once. */
+  readonly forceSignal?: AbortSignal | undefined
+  /** End the run once this many tests have failed. */
+  readonly bail?: { readonly count: number }
+  /** Report the handles still open after the run; runs in band. */
+  readonly detectOpenHandles?: boolean
 }
 
 /**
@@ -56,6 +62,9 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
     ...(options.update === true ? { update: true } : {}),
     ...(options.fileFilters === undefined ? {} : { fileFilters: options.fileFilters }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
+    ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
+    ...(options.bail === undefined ? {} : { bail: options.bail }),
+    ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
   })
 
   // A reporter that failed (a JSON file that couldn't be written) fails the run. The default

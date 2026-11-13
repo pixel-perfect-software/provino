@@ -116,7 +116,7 @@ describe('app-500 in one inline worker', () => {
       { type: 'exit', code: 9 },
       { type: 'signal', signal: 'SIGKILL', likelyOom: false },
       { type: 'oom', limitMb: 512 },
-      { type: 'timeout', phase: 'stop' },
+      { type: 'timeout', phase: 'stop', limitMs: 10_000 },
     ] as const) {
       assert.equal(meetsBar({ ...passing, exit }, 8), false, JSON.stringify(exit))
     }
