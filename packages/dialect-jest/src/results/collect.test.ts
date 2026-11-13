@@ -9,6 +9,7 @@ import type {
   RunSummary,
   SerializedError,
   TaskId,
+  TaskResult,
   TestTask,
 } from '@provino/types'
 import { createJestResults, type ProjectConfigLike } from './collect.ts'
@@ -53,7 +54,7 @@ function testOf(file: string, name: string): TestTask {
   }
 }
 
-function resultOf(state: 'pass' | 'fail' | 'skip', errors: SerializedError[] = []) {
+function resultOf(state: 'pass' | 'fail' | 'skip', errors: SerializedError[] = []): TaskResult {
   return {
     state,
     durationMs: 3,
@@ -64,7 +65,7 @@ function resultOf(state: 'pass' | 'fail' | 'skip', errors: SerializedError[] = [
     repeatIndex: 0,
     assertions: 1,
     passingAssertions: state === 'pass' ? 1 : 0,
-  } as const
+  }
 }
 
 const SUMMARY: RunSummary = { reason: 'failed', files: [], unhandled: [], durationMs: 5 }
@@ -190,6 +191,139 @@ describe('createJestResults', () => {
     assert.equal(results.aggregated().success, true)
     assert.equal(results.aggregated().numTotalTestSuites, 0)
     assert.deepEqual(results.aggregated().testResults, [])
+  })
+
+  /** Plays one file: its tests (with each one's result), the file's unhandled errors, its end. */
+  async function playFile(
+    results: ReturnType<typeof createJestResults>,
+    file: FileInfo,
+    tests: readonly { task: TestTask; result: ReturnType<typeof resultOf> }[],
+    options: {
+      unhandled?: { ownerId: TaskId | null; error: SerializedError }[]
+      retried?: Record<string, SerializedError[]>
+    } = {},
+  ): Promise<void> {
+    const { reporter } = results
+    const root: FileTask = {
+      type: 'file',
+      id: file.fileId,
+      parentId: null,
+      fileId: file.fileId,
+      name: file.path,
+      mode: 'run',
+      location: null,
+      tags: [],
+      meta: {},
+      path: file.path,
+      projectName: 'p',
+      children: tests.map((entry) => entry.task.id),
+    }
+    await reporter['file:start']?.(file, 1)
+    await reporter['file:collected']?.(file, {
+      type: 'file-collect-end',
+      fileId: file.fileId,
+      tasks: [root, ...tests.map((entry) => entry.task)],
+      errors: [],
+      t: 0,
+    })
+    for (const { task, result } of tests) {
+      await reporter['task:start']?.(task, { type: 'test-start', id: task.id, t: 0 })
+      for (const error of options.retried?.[task.id] ?? []) {
+        await reporter['test:attempt-end']?.(task, {
+          type: 'test-attempt-end',
+          id: task.id,
+          attempt: 1,
+          errors: [error],
+          willRetry: true,
+          t: 0,
+        } as never)
+      }
+      await reporter['task:end']?.(task, { type: 'test-end', id: task.id, result, t: 0 })
+    }
+    for (const entry of options.unhandled ?? []) {
+      await reporter.unhandled?.(file, {
+        type: 'unhandled-error',
+        ownerId: entry.ownerId,
+        lastTestId: null,
+        origin: 'uncaught-exception',
+        error: entry.error,
+        t: 0,
+      } as never)
+    }
+    await reporter['file:end']?.({
+      file,
+      state: tests.some((entry) => entry.result.state === 'fail') ? 'fail' : 'pass',
+      durationMs: 1,
+      errors: [],
+    })
+  }
+
+  const fresh = () =>
+    createJestResults({ globalConfig: { noStackTrace: true }, projectConfigs: [config] })
+  const retry = (message: string): SerializedError => ({
+    name: 'Error',
+    message,
+    stack: `Error: ${message}\n    at t (/proj/a.test.ts:2:3)`,
+  })
+
+  it('fills retryReasons and retryMessages only when the result kept the earlier errors (logErrorsBeforeRetry)', async () => {
+    for (const keeps of [false, true]) {
+      const results = fresh()
+      const task = testOf('a.test.ts', 'flaky')
+      await playFile(
+        results,
+        infoOf('a.test.ts'),
+        [
+          {
+            task,
+            result: {
+              ...resultOf('pass'),
+              attempts: 2,
+              retryErrors: keeps ? [retry('first')] : [],
+            },
+          },
+        ],
+        { retried: { [task.id]: [retry('first')] } },
+      )
+      const [assertion] = results.testResultOf(id('a.test.ts'))?.testResults ?? []
+      assert.equal(assertion?.retryReasons?.length, keeps ? 1 : 0, `keeps ${keeps}`)
+      assert.equal(assertion?.retryMessages?.length, keeps ? 1 : 0, `keeps ${keeps}`)
+    }
+  })
+
+  it('pairs retryMessages with the test that was retried when two tests share a full name', async () => {
+    const results = fresh()
+    const first = { ...testOf('a.test.ts', 'same'), id: id('a.test.ts:same#0') }
+    const second = { ...testOf('a.test.ts', 'same'), id: id('a.test.ts:same#1') }
+    await playFile(results, infoOf('a.test.ts'), [
+      { task: first, result: resultOf('pass') },
+      { task: second, result: { ...resultOf('pass'), retryErrors: [retry('only the second')] } },
+    ])
+    const [one, two] = results.testResultOf(id('a.test.ts'))?.testResults ?? []
+    assert.deepEqual(one?.retryMessages, [])
+    assert.equal(two?.retryMessages?.length, 1)
+    assert.match(two?.retryMessages?.[0] ?? '', /only the second/)
+  })
+
+  it('charges an unhandled error to the running file only when it is the file’s or one of its tests’', async () => {
+    const results = fresh()
+    const other = testOf('b.test.ts', 'elsewhere')
+    const own = testOf('a.test.ts', 'here')
+    await playFile(results, infoOf('a.test.ts'), [{ task: own, result: resultOf('pass') }], {
+      unhandled: [{ ownerId: other.id, error: retry('belongs to b') }],
+    })
+    const stray = results.testResultOf(id('a.test.ts'))
+    assert.equal(stray?.testExecError, undefined)
+    assert.equal(results.aggregated().numRuntimeErrorTestSuites, 0)
+
+    const mine = fresh()
+    await playFile(mine, infoOf('a.test.ts'), [{ task: own, result: resultOf('pass') }], {
+      unhandled: [
+        { ownerId: own.id, error: retry('in a test') },
+        { ownerId: null, error: retry('in the run') },
+      ],
+    })
+    assert.ok(mine.testResultOf(id('a.test.ts'))?.testExecError !== undefined)
   })
 
   it('formats a file that could not load with Jest’s text', async () => {
