@@ -149,6 +149,31 @@ describe('resolution', () => {
     )
     assert.equal(got, 3)
   })
+
+  test('a key read from suites in turn, and in a second file, resolves in each one', async () => {
+    // The handle's getter caches the last suite a key resolved in: switching suites, and a new
+    // file defining the same key, must each resolve again.
+    const w = createWorld()
+    const seen: unknown[] = []
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('k', () => 'top')
+        w.test('t1', () => void seen.push($.k))
+        w.describe('d', () => {
+          $.override('k', () => 'inner')
+          w.test('t2', () => void seen.push($.k))
+        })
+        w.test('t3', () => void seen.push($.k))
+      }),
+    )
+    passed(
+      await w.runFile('b.test.ts', () => {
+        const $ = w.lazy.let('k', () => 'second file')
+        w.test('t4', () => void seen.push($.k))
+      }),
+    )
+    assert.deepEqual(seen, ['top', 'inner', 'top', 'second file'])
+  })
 })
 
 describe('async and errors', () => {

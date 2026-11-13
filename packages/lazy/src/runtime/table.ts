@@ -123,9 +123,22 @@ export function settle(entry: LazyEntry): LazyEntry {
 
 /** The entry that answers `key` for `suite`: its own, else the nearest outer suite's. */
 export function resolveEntry(suite: SuiteHandle, key: string): LazyEntry {
-  let cache = suite.slots.get(RESOLVED) as Map<string, LazyEntry> | undefined
-  const hit = cache?.get(key)
-  if (hit !== undefined) return hit
+  // The cached hit is the read path's: kept small for V8 to inline; the walk is `resolveCold`.
+  const cache = suite.slots.get(RESOLVED) as Map<string, LazyEntry> | undefined
+  if (cache !== undefined) {
+    const hit = cache.get(key)
+    if (hit !== undefined) return hit
+  }
+  return resolveCold(suite, key, cache)
+}
+
+/** The first resolution of `key` for `suite`: walks outward, settles the entry and caches it. */
+function resolveCold(
+  suite: SuiteHandle,
+  key: string,
+  known: Map<string, LazyEntry> | undefined,
+): LazyEntry {
+  let cache = known
   for (let s: SuiteHandle | undefined = suite; s !== undefined; s = s.parent) {
     const found = (s.slots.get(TABLE) as SuiteTable | undefined)?.get(key)
     if (found !== undefined) {

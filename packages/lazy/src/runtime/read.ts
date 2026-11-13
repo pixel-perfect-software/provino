@@ -270,11 +270,22 @@ function checkReader(engine: Engine, entry: LazyEntry, reader: EvalFrame, chaine
   }
 }
 
-/** The map a value is memoized in. */
+/** The map a value is memoized in. Small enough to inline into `readFrom`; hooks go cold. */
 function memoOf(engine: Engine, entry: LazyEntry, frame: LazyFrame): Map<symbol, unknown> {
-  if (entry.scope === 'worker') return engine.host.workerSlots
-  if (entry.scope === 'file') return frame.file.slots
-  if (frame.kind === 'test') return frame.run.slots
+  const scope = entry.scope
+  if (scope === 'test') {
+    return frame.kind === 'test' ? frame.run.slots : hookMemo(engine, entry, frame)
+  }
+  if (scope === 'file') return frame.file.slots
+  return engine.host.workerSlots
+}
+
+/** A test-scoped value read in a suite hook: `readInBeforeAll` decides. */
+function hookMemo(
+  engine: Engine,
+  entry: LazyEntry,
+  frame: Extract<LazyFrame, { kind: 'suite' }>,
+): Map<symbol, unknown> {
   if (engine.policy.readInBeforeAll === 'error') {
     throw new LazyError(
       'LAZY_SCOPE',
@@ -433,12 +444,45 @@ export function readFrom(
   key: string,
   from: EvalFrame | null,
 ): unknown {
-  const entry = resolveEntry(suite, key)
-  const top = engine.stack.length === 0 ? null : (engine.stack[engine.stack.length - 1] ?? null)
-  if (from !== null) checkReader(engine, entry, from, true)
-  else if (top !== null) checkReader(engine, entry, top, false)
+  return readEntry(engine, frame, resolveEntry(suite, key), from)
+}
+
+/**
+ * Reads a resolved entry. The hot path, kept small for V8 to inline: a memoized value read
+ * outside any evaluation is one memo lookup and a state check. Everything else is in `readCold`.
+ */
+export function readEntry(
+  engine: Engine,
+  frame: LazyFrame,
+  entry: LazyEntry,
+  from: EvalFrame | null,
+): unknown {
+  if (from !== null || engine.stack.length !== 0) checkRead(engine, entry, from)
   const memo = memoOf(engine, entry, frame)
   const cell = memo.get(entry.memo) as Cell | undefined
+  if (cell !== undefined && cell.state === OK) return cell.value
+  return readCold(engine, entry, frame, from, memo, cell)
+}
+
+/** The scope and cycle checks for a read made while a definition runs. */
+function checkRead(engine: Engine, entry: LazyEntry, from: EvalFrame | null): void {
+  if (from !== null) {
+    checkReader(engine, entry, from, true)
+    return
+  }
+  const top = engine.stack[engine.stack.length - 1]
+  if (top !== undefined) checkReader(engine, entry, top, false)
+}
+
+/** Every read that is not a memoized value: a first read, a memoized error, a pending or cycle. */
+function readCold(
+  engine: Engine,
+  entry: LazyEntry,
+  frame: LazyFrame,
+  from: EvalFrame | null,
+  memo: Map<symbol, unknown>,
+  cell: Cell | undefined,
+): unknown {
   if (cell !== undefined) {
     if (cell.state === OK) return cell.value
     if (cell.state === ERR) throw noteReuse(engine, entry, frame, from, cell.value)
