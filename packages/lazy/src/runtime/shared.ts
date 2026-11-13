@@ -12,7 +12,7 @@ import type {
   Values,
 } from '../types.ts'
 import type { AnyLazy } from './handle.ts'
-import { captureSite, formatSite } from './site.ts'
+import { captureSite, formatSite, takeSiteVia } from './site.ts'
 import type { Engine } from './state.ts'
 
 const BODY: unique symbol = Symbol.for('provino.lazy.shared.body') as never
@@ -97,13 +97,13 @@ export function createShared(
   }
 
   function includeExamples(group: unknown, $: unknown, ...args: unknown[]): void {
-    collecting(includeExamples, 'includeExamples')
+    collecting(takeSiteVia(includeExamples), 'includeExamples')
     const body = bodyOf(group, 'includeExamples', 'sharedExamples')
     body(...([makeHandle(keysOf($)), ...args] as never[]))
   }
 
   function itBehavesLike(group: unknown, $: unknown, ...args: unknown[]): void {
-    collecting(itBehavesLike, 'itBehavesLike')
+    collecting(takeSiteVia(itBehavesLike), 'itBehavesLike')
     const body = bodyOf(group, 'itBehavesLike', 'sharedExamples')
     const name = (group as { name: string }).name
     describe(`behaves like ${name}`, () => {
@@ -116,14 +116,15 @@ export function createShared(
   }
 
   function includeContext($: unknown, context: unknown): unknown {
-    collecting(includeContext, 'includeContext')
+    const via = takeSiteVia(includeContext)
+    collecting(via, 'includeContext')
     const body = bodyOf(context, 'includeContext', 'sharedContext')
     const keys = keysOf($)
     const out: unknown = body(...([makeHandle(keys)] as never[]))
     if (out === null || typeof out !== 'object') {
       throw new LazyError(
         'LAZY_INVALID',
-        `the shared context's body must return the handle it chained its keys on (includeContext at ${formatSite(captureSite(includeContext))}).`,
+        `the shared context's body must return the handle it chained its keys on (includeContext at ${formatSite(captureSite(via))}).`,
       )
     }
     return makeHandle([...new Set([...keys, ...Object.keys(out)])])

@@ -3,6 +3,7 @@
 // slot once, so the handles it returns keep that runtime.
 import type { TestRunHandle } from '@provino/types'
 import { LazyError } from './errors.ts'
+import { setSiteVia } from './runtime/site.ts'
 import { currentLazyRuntime, type LazyRuntime } from './slot.ts'
 import type {
   ContextOutput,
@@ -77,7 +78,9 @@ export function itBehavesLike<R, A extends unknown[]>(
   $: NoInfer<Values<R>>,
   ...args: NoInfer<A>
 ): void {
-  runtime().itBehavesLike(group, $, ...args)
+  const rt = runtime()
+  setSiteVia(itBehavesLike)
+  rt.itBehavesLike(group, $, ...args)
 }
 
 /**
@@ -89,7 +92,9 @@ export function includeExamples<R, A extends unknown[]>(
   $: NoInfer<Values<R>>,
   ...args: NoInfer<A>
 ): void {
-  runtime().includeExamples(group, $, ...args)
+  const rt = runtime()
+  setSiteVia(includeExamples)
+  rt.includeExamples(group, $, ...args)
 }
 
 /**
@@ -115,7 +120,9 @@ export function includeContext<
   R,
   A,
 >($: Lazy<T, L, W, E>, context: SharedContext<R, A>): Lazy<Omit<T, keyof A> & A, L, W, E> {
-  return runtime().includeContext($, context)
+  const rt = runtime()
+  setSiteVia(includeContext)
+  return rt.includeContext($, context)
 }
 
 /**
