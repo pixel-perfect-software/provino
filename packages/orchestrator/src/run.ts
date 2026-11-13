@@ -13,6 +13,7 @@ import type {
   OpenHandle,
   PoolKind,
   PoolOptions,
+  ProvidedContext,
   RecyclePolicy,
   ReporterBus,
   RunEndReason,
@@ -34,6 +35,7 @@ import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
 import { OrchestratorError } from './errors.ts'
 import { isRunSignal, RUN_SIGNALS } from './exit-code.ts'
 import { fileIdOf, relativePosix } from './file-id.ts'
+import { type GlobalSetupRun, runGlobalSetup } from './global-setup.ts'
 import { configHash, hashOf, workerKeyOf } from './key.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
@@ -479,6 +481,15 @@ export async function runProjects(
   }
 
   const unhandled: SerializedError[] = []
+  /** What global setup's `provide` collected: every worker starts with it (`WorkerInit.provided`). */
+  let provided: Readonly<Partial<ProvidedContext>> = {}
+  /** Global setup, once it has run (T9.15): its teardown comes after the run, whatever ends it. */
+  let globalSetup: GlobalSetupRun | undefined
+  /** The run ended in an error, so a failing teardown must not replace it. */
+  let thrown = false
+  /** What a failing teardown threw after a run that ended well; thrown once the run is over. */
+  let teardownError: unknown
+  let ended: RunSummary | undefined
   /** Per worker, the file it ran last and when that file's `file:end` has been emitted. */
   const lastFile = new Map<number, { readonly info: FileInfo; readonly ended: Promise<void> }>()
   // Nothing starts until a file is run, but this is where a bad option throws (`recycle`, the
@@ -495,7 +506,7 @@ export async function runProjects(
         key: workerKey,
         workerId,
         isolation: member.project.isolation,
-        provided: {},
+        provided,
         config: member.project.config,
       }
     },
@@ -725,6 +736,13 @@ export async function runProjects(
       ),
     )
 
+    // Jest's order: the files are known, the setup runs, then the reporters hear the run start. A
+    // project with no file to run has no setup (Jest's `allTests` only holds projects with tests).
+    globalSetup = await runGlobalSetup(
+      found.filter((entry) => entry.discovered.length > 0).map((entry) => entry.member.project),
+    )
+    provided = globalSetup?.provided ?? {}
+
     announced = true
     await bus.emit(
       'run:start',
@@ -759,8 +777,9 @@ export async function runProjects(
     const summary = summarize(cut ? cutShort() : failed ? 'failed' : 'passed', openHandles)
     await bus.emit('run:end', summary)
     pruneTransformCaches()
-    return summary
+    ended = summary
   } catch (error) {
+    thrown = true
     await pool.close()
     // The hook that tracks resources is process-wide: it must not outlive the run.
     handles?.dispose()
@@ -776,7 +795,19 @@ export async function runProjects(
       }
     }
     throw error
+  } finally {
+    // After the reporters have the summary (or the run failed), in the policy's order. A teardown
+    // that throws fails a run that didn't; after a failure it is only a line on `stderr`.
+    try {
+      await globalSetup?.teardown()
+    } catch (error) {
+      if (thrown) stderr.write(`Provino: global teardown failed: ${messageOf(error)}\n`)
+      else teardownError = error
+    }
   }
+  if (teardownError !== undefined) throw teardownError
+  if (ended === undefined) throw new Error('the run ended without a summary')
+  return ended
 }
 
 /**

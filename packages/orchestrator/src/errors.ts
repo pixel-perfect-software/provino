@@ -17,6 +17,8 @@ export type OrchestratorErrorCode =
   | 'ORCH_NO_PROJECTS'
   /** A worker sent an event the coordinator can't place (a task id it never announced). */
   | 'ORCH_BAD_EVENT'
+  /** A global setup or teardown hook threw, or isn't a function (T9.15); the `cause` is what it threw. */
+  | 'ORCH_GLOBAL_SETUP_FAILED'
 
 /**
  * A coordinator error with a stable code. For `ORCH_WORKER_EXITED` the `cause` is the
