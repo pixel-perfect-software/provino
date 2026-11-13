@@ -3,6 +3,7 @@
 // `none` shares one instance map across the worker. Mocks (T2.5 + T4.8, B13c) reach every edge
 // through the file's module-mock registry. `realm` (T2.8), leak restore (T2.7), docblock
 // escalation (T2.11) and the native engine (T2.10) arrive with their tasks.
+import { fileURLToPath } from 'node:url'
 import type {
   CreateLoader,
   FileRegistry,
@@ -16,7 +17,7 @@ import { LoaderError } from './errors.ts'
 import { conditionsOf } from './graph/conditions.ts'
 import { saveGraph } from './internal/inline.ts'
 import { loaderMessage } from './internal/messages.ts'
-import { createRecords, resolveOrMissing } from './internal/records.ts'
+import { createRecords, resolveOrMissing, toModuleId } from './internal/records.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
 import { tierFor } from './tier.ts'
 
@@ -179,6 +180,20 @@ export const createLoader: CreateLoader = (options) => {
       }
     },
     getSourceMap: (id) => state.records.get(id)?.map ?? null,
+    compiledModule: (url) => {
+      // V8 reports a vm script by the `file:` URL of its filename; a path is accepted too.
+      const path = url.startsWith('file:') ? fileURLToPath(url) : url
+      const record = state.records.get(toModuleId(path))
+      if (record === undefined || record.wrapperLength === null) return null
+      return {
+        path: record.path,
+        // What V8 compiled after the wrapper (the hashbang a comment, the same length).
+        code: record.source.startsWith('#!') ? `//${record.source.slice(2)}` : record.source,
+        wrapperLength: record.wrapperLength,
+        map: record.map,
+        transformKey: record.transformKey,
+      }
+    },
     [Symbol.dispose]: () => {
       // Once per worker, with everything its files scanned.
       saveGraph(state.inline)

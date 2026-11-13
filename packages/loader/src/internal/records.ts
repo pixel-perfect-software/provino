@@ -94,6 +94,10 @@ export interface ModuleRecord {
    * none gets no outer function and pays nothing.
    */
   scope: readonly string[] | null
+  /** The transform cache key of this module's variant (coverage maps V8's scripts by it); empty for JSON. */
+  transformKey: string
+  /** Characters the wrapper put before the body, once compiled (the same in both modes). */
+  wrapperLength: number | null
 }
 
 /** The wrapper parameters, in order. ESM gets Vite's linkers and the late import; CJS gets Node's wrapper. */
@@ -342,6 +346,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   // A node_modules file only gets here when a mock made it inline (T2.6), or `inline` names it.
   const thirdParty = isThirdParty(path, state.options.inline ?? [])
   let record: ModuleRecord
+  let transformKeyOf = ''
   if (path.endsWith('.json')) {
     record = makeRecord(id, 'json', text, () => null, [], [], false, false)
   } else if (/\.(?:wasm|node)$/.test(path)) {
@@ -352,8 +357,9 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       source: text,
       role: thirdParty ? 'dependency' : isTest ? 'test' : 'source',
       consumer: 'import',
-      instrument: false,
+      instrument: !isTest && state.options.shouldInstrument?.(path) === true,
     })
+    transformKeyOf = transformed.cacheKey
     const error = transformed.diagnostics.find((diagnostic) => diagnostic.severity === 'error')
     if (error !== undefined) {
       const where = error.loc === undefined ? '' : `:${error.loc.line}:${error.loc.column}`
@@ -406,6 +412,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       )
     }
   }
+  if (!path.endsWith('.json')) record.transformKey = transformKeyOf
   state.records.set(id, record)
   state.asyncGraphsStale = true
   return record
@@ -442,6 +449,8 @@ function makeRecord(
     compiledSync: null,
     compiledAsync: null,
     scope: null,
+    transformKey: '',
+    wrapperLength: null,
   }
 }
 
@@ -590,12 +599,14 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
   let head = ''
   if (record.format === 'esm') {
     if (mode === 'sync') {
+      // Spaces in place of the `await`, not a removal: every column, and so every V8 coverage
+      // offset, is the same in both modes (B23b, T2.9).
       body = body
-        .replaceAll('await __vite_ssr_import__(', '__vite_ssr_import__(')
-        .replaceAll(`await ${LATE_IMPORT}(`, `${LATE_IMPORT}(`)
+        .replaceAll('await __vite_ssr_import__(', '      __vite_ssr_import__(')
+        .replaceAll(`await ${LATE_IMPORT}(`, `      ${LATE_IMPORT}(`)
     }
     head = "'use strict';"
-    inner = `${mode === 'async' ? 'async ' : ''}function (${ESM_PARAMS}) {`
+    inner = `${mode === 'async' ? 'async ' : '      '}function (${ESM_PARAMS}) {`
   } else {
     inner = `function (${CJS_PARAMS}${record.dynamicImport ? `, ${DYNAMIC_IMPORT}` : ''}) {`
   }
@@ -615,6 +626,7 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
   const fn = compiled as Compiled
   if (mode === 'sync') record.compiledSync = fn
   else record.compiledAsync = fn
+  record.wrapperLength = prefix.length
   for (const listener of state.listeners) {
     listener({
       id: record.id,
@@ -624,6 +636,7 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
         return record.map
       },
       thirdParty: record.thirdParty,
+      transformKey: record.transformKey,
     })
   }
   return fn

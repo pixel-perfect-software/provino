@@ -143,6 +143,12 @@ export interface LoaderOptions {
   readonly leaks?: LeakOptions
   /** The dialect's per-module bindings (B13c Gap 2). None by default. */
   readonly moduleScope?: ModuleScopeNames
+  /**
+   * Whether the transformer instruments the user module at this absolute path (Istanbul coverage,
+   * B23b): the loader asks it for each module it transforms, and passes the answer as the
+   * request's `instrument` flag. Never asked for a test file. Absent: nothing is instrumented.
+   */
+  readonly shouldInstrument?: (path: string) => boolean
 }
 
 /**
@@ -349,8 +355,8 @@ export interface CompiledModuleEvent {
   readonly wrapperColumnOffset: number
   readonly map: SourceMapV3 | null
   readonly thirdParty: boolean
-  /** The transform cache key of this exact variant of the module (set by B23b Phase 3, T2.9). */
-  readonly transformKey?: string
+  /** The transform cache key of this exact variant of the module; empty for a JSON module. */
+  readonly transformKey: string
 }
 
 /**
@@ -439,8 +445,8 @@ export interface Loader extends Disposable {
   onModuleCompiled(listener: (event: CompiledModuleEvent) => void): () => void
   getSourceMap(id: ModuleId): SourceMapV3 | null
   /**
-   * The compiled module V8 knows by this script URL, or `null`. Absent from a loader that does not
-   * report coverage (B23b Phase 3, T2.9, builds it).
+   * The compiled module V8 knows by this script URL (the module's path), or `null` for one that
+   * was never compiled in this worker. Absent from a loader that does not report coverage.
    */
   compiledModule?(url: string): CompiledModuleInfo | null
 }

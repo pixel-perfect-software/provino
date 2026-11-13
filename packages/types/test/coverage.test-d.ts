@@ -29,6 +29,8 @@ const config: SerializedCoverageConfig = {
   includeRoot: true,
   force: [],
   testFiles: [],
+  testRegex: [],
+  testIgnorePatterns: [],
   excludePatterns: [],
   excludePaths: [],
 }

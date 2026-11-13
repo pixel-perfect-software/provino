@@ -10,8 +10,16 @@
 // module-mock registry (`jest.mock` in a global setup is out of scope, as in Jest, where it
 // doesn't apply) and no per-module bindings: a module that names `jest` sees the global of that
 // name, which a coordinator doesn't have.
-import type { FileRegistry, Loader, ModulePolicy, SerializedLoaderConfig } from '@provino/types'
-import { createProjectLoader } from './project.ts'
+import { readFileSync } from 'node:fs'
+import type {
+  FileRegistry,
+  Loader,
+  ModulePolicy,
+  Pipeline,
+  SerializedLoaderConfig,
+  SourceMapV3,
+} from '@provino/types'
+import { buildProjectLoader, type ProjectCoverage } from './project.ts'
 
 /**
  * A loader for modules the coordinator runs itself.
@@ -24,6 +32,12 @@ export interface CoordinatorLoader extends Disposable {
    * itself is never mocked. A module imported twice is evaluated once.
    */
   import<T = unknown>(file: string): Promise<T>
+  /**
+   * `file` (an absolute path) transformed as a worker transforms a covered file: through the
+   * project's transform with the instrumenter, before the module-runner rewrite. For files the
+   * tests never loaded. Needs the loader to have been created with `coverage`.
+   */
+  transformForCoverage(file: string): { readonly code: string; readonly map: SourceMapV3 | null }
   /** Forgets every module; further imports start over. */
   dispose(): void
 }
@@ -48,18 +62,35 @@ export async function createCoordinatorLoader(
   root: string,
   config: SerializedLoaderConfig,
   policy: ModulePolicy,
+  options: { readonly coverage?: ProjectCoverage } = {},
 ): Promise<CoordinatorLoader> {
   // With no mocks there is nothing for the inlining walk to find, so the lexer and the graph stay off.
-  const loader: Loader = await createProjectLoader(root, withoutMocks(config), {
-    ...policy,
-    mocksReachShared: false,
-  })
+  const built: { readonly loader: Loader; readonly pipeline: Pipeline } = await buildProjectLoader(
+    root,
+    withoutMocks(config),
+    { ...policy, mocksReachShared: false },
+    options,
+  )
+  const { loader, pipeline } = built
   const registries: FileRegistry[] = []
   const coordinator: CoordinatorLoader = {
     import: <T>(file: string) => {
       const registry = loader.createFileRegistry(file, { tier: 'none' })
       registries.push(registry)
       return registry.import<T>(file)
+    },
+    transformForCoverage: (file) => {
+      if (options.coverage === undefined) {
+        throw new Error('transformForCoverage needs a loader created with `coverage`')
+      }
+      const record = pipeline.transform({
+        filename: file,
+        source: readFileSync(file, 'utf8'),
+        role: 'source',
+        consumer: 'import',
+        instrument: true,
+      })
+      return { code: record.code, map: record.map }
     },
     dispose: () => {
       for (const registry of registries.splice(0)) registry.dispose()
