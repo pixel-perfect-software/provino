@@ -15,6 +15,7 @@ import {
   type BuildOptions,
   type FileEvents,
   finishAggregated,
+  type RunEnd,
   type TestRecord,
   testsInOrder,
   toAssertionResult,
@@ -125,6 +126,8 @@ export function createJestResults<Config extends ProjectConfigLike>(
   const now = options.now ?? Date.now
   const { globalConfig, projectConfigs } = options
   let aggregated = makeEmptyAggregatedTestResult()
+  /** How the run ended, kept for `reportersFailed`. */
+  let ended: Pick<RunEnd, 'reason' | 'snapshots'> | undefined
   aggregated.success = false
   const files = new Map<TaskId, MutableFile>()
   const results = new Map<TaskId, TestResult>()
@@ -174,6 +177,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
     'run:start': (_info, all) => {
       aggregated = makeEmptyAggregatedTestResult()
       aggregated.success = false
+      ended = undefined
       aggregated.numTotalTestSuites = all.length
       aggregated.startTime = now()
       files.clear()
@@ -305,11 +309,11 @@ export function createJestResults<Config extends ProjectConfigLike>(
       contextOf(config)
     },
     'run:end': (summary) => {
-      finishAggregated(aggregated, {
-        reason: summary.reason,
-        snapshots: summary.snapshots,
-        reporterFailed: false,
-      })
+      ended = { reason: summary.reason, snapshots: summary.snapshots }
+      finishAggregated(aggregated, { ...ended, reporterFailed: false })
+      // Jest computes `success` only after the dispatcher has run `onRunComplete` (TestScheduler.ts
+      // L338-L352, L486-L491): a reporter hears `false`. `reportersFailed` settles it.
+      aggregated.success = false
       aggregated.openHandles = (summary.openHandles ?? []).map((handle) =>
         Object.assign(new Error(handle.type), {
           stack: [`Error: ${handle.type}`, ...handle.frames].join('\n'),
@@ -364,7 +368,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
       }
     },
     reportersFailed: (failed) => {
-      if (failed) aggregated.success = false
+      if (ended !== undefined) finishAggregated(aggregated, { ...ended, reporterFailed: failed })
     },
   }
 }

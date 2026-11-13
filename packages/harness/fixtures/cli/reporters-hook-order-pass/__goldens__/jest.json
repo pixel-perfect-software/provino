@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/reporters-hook-order-pass",
+  "files": [
+    {
+      "file": "a.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "a.test.ts",
+            "path": [
+              "passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "b.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "b.test.ts",
+            "path": [
+              "passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "HOOK constructor options={} firstRun=true\nHOOK onRunStart suites=2 estimatedTime=0 showStatus=false\nHOOK onTestFileResult a.test.ts failing=0 skipped=false console=none aggregateFailed=0\nHOOK onTestFileResult b.test.ts failing=0 skipped=false console=none aggregateFailed=0\nHOOK onRunComplete contexts=1 failed=0 passed=2 success=false"
+  }
+}

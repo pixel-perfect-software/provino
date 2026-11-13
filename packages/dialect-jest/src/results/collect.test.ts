@@ -188,7 +188,12 @@ describe('createJestResults', () => {
       [],
     )
     await results.reporter['run:end']?.({ ...SUMMARY, reason: 'passed', files: [] })
+    // A reporter's `onRunComplete` hears `success: false` (Jest computes it afterwards); settled here.
+    assert.equal(results.aggregated().success, false)
+    results.reportersFailed(false)
     assert.equal(results.aggregated().success, true)
+    results.reportersFailed(true)
+    assert.equal(results.aggregated().success, false)
     assert.equal(results.aggregated().numTotalTestSuites, 0)
     assert.deepEqual(results.aggregated().testResults, [])
   })

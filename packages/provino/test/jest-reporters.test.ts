@@ -2,8 +2,9 @@
 // printed for the same project (`cli/reporters-*`): the hooks a reporter class gets and in which
 // order, `reporters: ['summary']` and a `summaryThreshold`, and a reporter module that can't load.
 import assert from 'node:assert/strict'
-import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
 import { loadFixture, materialize } from './recorded.ts'
 import { spawnCli } from './support.ts'
@@ -94,6 +95,30 @@ describe('provino jest hosts Jest reporter classes as Jest does (cli/reporters-h
       await project.dispose()
     }
   })
+})
+
+describe('the arguments of the hooks follow Jest’s run (cli/reporters-hook-*)', () => {
+  for (const [id, what] of [
+    [
+      'cli/reporters-hook-order-pass',
+      'onRunComplete hears success=false on a passing run (Jest computes it afterwards), and the run exits 0',
+    ],
+    [
+      'cli/reporters-hook-status-workers',
+      'showStatus is true for three files and two workers',
+    ],
+    [
+      'cli/reporters-hook-status-one-file',
+      'showStatus is false for one file, though there are two workers (shouldRunInBand)',
+    ],
+  ] as const) {
+    it(`${what} (${id})`, async () => {
+      const run = await provinoOn(id)
+      assert.ok(run.expected.length >= 2, 'the recording kept lines')
+      assert.deepEqual(run.lines, run.expected, run.stderr)
+      assert.equal(run.code, run.expectedCode, run.stderr)
+    })
+  }
 })
 
 describe('provino jest names the built-in reporters as Jest does', () => {
@@ -191,5 +216,45 @@ describe('an error a reporter throws is printed when no text reporter is there t
     )
     assert.equal(run.code, 1, run.stderr)
     assert.equal(run.stderr.split('hook nope').length - 1, 1, run.stderr)
+  })
+})
+
+describe('the default reporter is verbose when a project that runs is verbose (TestScheduler.ts L384-L385)', () => {
+  const tree = {
+    'package.json': '{"type":"commonjs"}\n',
+    'jest.config.json': JSON.stringify({
+      projects: [
+        { displayName: 'loud', rootDir: '<rootDir>/loud', verbose: true },
+        { displayName: 'quiet', rootDir: '<rootDir>/quiet' },
+      ],
+    }),
+    'loud/a.test.js': "test('loud one', () => {})\ntest('loud two', () => {})\n",
+    'quiet/b.test.js': "test('quiet one', () => {})\ntest('quiet two', () => {})\n",
+    // Two files, so Jest's single-file rule does not list the tests.
+    'quiet/c.test.js': "test('quiet three', () => {})\n",
+  } as const
+
+  async function run(...extra: string[]): Promise<string> {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'provino-verbose-')))
+    try {
+      for (const [name, text] of Object.entries(tree)) {
+        await mkdir(dirname(join(root, name)), { recursive: true })
+        await writeFile(join(root, name), text)
+      }
+      const ended = await spawnCli(['jest', '--ci', ...extra], { cwd: root })
+      return ended.stderr
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  }
+
+  it('lists the tests when both projects run', async () => {
+    assert.match(await run(), /✓ loud one/)
+  })
+
+  it('does not when the verbose project is left out of the run', async () => {
+    const stderr = await run('--selectProjects', 'quiet')
+    assert.match(stderr, /PASS/)
+    assert.doesNotMatch(stderr, /✓/)
   })
 })

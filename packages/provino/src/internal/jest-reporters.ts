@@ -34,10 +34,27 @@ export interface JestReporterSetup {
    * error that ended Jest's run).
    */
   readonly announceThrown: boolean
+  /** Whether `default` is the verbose reporter: `tests.some(t => t.context.config.verbose)`. */
+  readonly verbose: boolean
 }
 
 /** The built-ins that print what a reporter threw (they hear it as an `error` event). */
 const TEXT_REPORTERS: ReadonlySet<string> = new Set(['default', 'verbose', 'agent', 'dot'])
+
+/**
+ * `shouldRunInBand` (jest-core `testSchedulerHelper.ts`): `-i` and `--detectOpenHandles` run in
+ * band, `workerIdleMemoryLimit` forces workers, and otherwise one worker or one file does. The
+ * rule for up to 20 files that ran fast last time needs Jest's timings cache, which Provino has
+ * not: a first Jest run has none either (DIVERGENCES).
+ */
+function runsInBand(globalConfig: JestGlobalConfig, fileCount: number | undefined): boolean {
+  if (globalConfig.runInBand || globalConfig.detectOpenHandles) return true
+  if (globalConfig.watch || globalConfig.watchAll) return false
+  return (
+    globalConfig.workerIdleMemoryLimit === undefined &&
+    (globalConfig.maxWorkers <= 1 || (fileCount !== undefined && fileCount <= 1))
+  )
+}
 
 /** Jest's default `summaryThreshold` (`SummaryReporter.ts`). */
 const DEFAULT_SUMMARY_THRESHOLD = 20
@@ -50,16 +67,37 @@ const DEFAULT_SUMMARY_THRESHOLD = 20
  */
 export async function setUpJestReporters(options: {
   readonly globalConfig: JestGlobalConfig
+  /** The projects of the run. */
   readonly configs: readonly JestProjectConfig[]
+  /** How many files each project of `configs` runs, in order; asked only when the answer matters. */
+  readonly filesPerProject: () => Promise<readonly number[]>
   readonly results: JestResults<JestProjectConfig>
   readonly output: OutputEnvironment
   readonly env: Environment
 }): Promise<JestReporterSetup> {
   const { globalConfig, results } = options
-  const plan = jestReporterPlan(globalConfig, options.configs, {
+  const environment = {
     agent: options.output.agent !== undefined,
     githubActions: options.output.githubActions,
-  })
+  }
+  let configs = options.configs
+  let plan = jestReporterPlan(globalConfig, configs, environment)
+  // Jest reads `verbose` from the projects that have a test, and `onRunStart`'s `showStatus` from
+  // `shouldRunInBand`; finding the files costs a discovery, so it is done only when a class hears
+  // `showStatus` or the projects disagree on `verbose`.
+  const mixedVerbose =
+    configs.some((config) => config.verbose === true) &&
+    !configs.every((config) => config.verbose === true)
+  const hostsClasses = plan.steps.some((step) => step.kind === 'custom' || step.name === 'github-actions')
+  let fileCount: number | undefined
+  if (mixedVerbose || hostsClasses) {
+    const counts = await options.filesPerProject()
+    fileCount = counts.reduce((sum, count) => sum + count, 0)
+    configs = configs.filter((_, index) => (counts[index] ?? 0) > 0)
+    plan = jestReporterPlan(globalConfig, configs, environment)
+  }
+  const verbose =
+    globalConfig.verbose === true || configs.some((config) => config.verbose === true)
   let entries: Awaited<ReturnType<typeof loadJestReporters>>
   try {
     entries = await loadJestReporters(plan)
@@ -70,7 +108,7 @@ export async function setUpJestReporters(options: {
     results,
     globalConfig,
     entries,
-    showStatus: globalConfig.maxWorkers > 1,
+    showStatus: !runsInBand(globalConfig, fileCount),
   })
   const afterUpdate = globalConfig.updateSnapshot === 'all'
   const noteHooks = {
@@ -111,6 +149,7 @@ export async function setUpJestReporters(options: {
       reporters,
       // The summary reporter is a text reporter: it prints what a reporter threw.
       announceThrown: false,
+      verbose,
       text: {
         ...noteHooks,
         separateSummary: true,
@@ -140,6 +179,7 @@ export async function setUpJestReporters(options: {
   return {
     reporters,
     announceThrown,
+    verbose,
     text: {
       ...noteHooks,
       failureText: (file) => results.testResultOf(file.file.fileId)?.failureMessage ?? undefined,

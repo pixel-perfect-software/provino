@@ -164,6 +164,14 @@ function presentation(
   }
 }
 
+/** Jest's `verbose`: the global config's, or that of any of the projects that run. */
+function selectedVerbose(
+  globalConfig: JestGlobalConfig,
+  configs: readonly JestProjectConfig[],
+): boolean {
+  return globalConfig.verbose === true || configs.some((config) => config.verbose === true)
+}
+
 /** The shard the global config holds (`--shard`), as the coordinator takes it. */
 function shardOf(globalConfig: JestGlobalConfig): ShardSpec | undefined {
   const { shard } = globalConfig
@@ -258,13 +266,13 @@ function takeTimingsFlags(args: readonly string[]): {
   return { rest, timingsFile, updateTimings }
 }
 
-/** Every project's test files, once each, sorted by path; only shard `sharding.shard`'s when it names one. */
-async function listFiles(
+/** Each project's selected test files (the filters applied, then the shard), one list per project. */
+async function selectedPerProject(
   projects: readonly ResolvedProject[],
   request: RunRequest,
   cwd: string,
   sharding: ShardRequest & { readonly runRoot: string },
-): Promise<readonly string[]> {
+): Promise<readonly (readonly { readonly path: string }[])[]> {
   const selected = await Promise.all(
     projects.map(async (project) =>
       selectFiles(await discoverProject(project), request.fileFilters, {
@@ -275,23 +283,32 @@ async function listFiles(
   )
   const [first] = projects
   const { shard } = sharding
-  const perProject =
-    shard === undefined || first === undefined
-      ? selected
-      : shardFiles(
-          projects.map((project, index) => ({
-            rootDir: project.rootDir,
-            files: selected[index] ?? [],
-          })),
-          {
-            shard,
-            fallback: first.policy.orchestrator.shard.fallback,
-            runRoot: sharding.runRoot,
-            timings: await readTimings(
-              resolve(cwd, sharding.timingsFile ?? join(sharding.runRoot, TIMINGS_FILE_NAME)),
-            ),
-          },
-        )
+  return shard === undefined || first === undefined
+    ? selected
+    : shardFiles(
+        projects.map((project, index) => ({
+          rootDir: project.rootDir,
+          files: selected[index] ?? [],
+        })),
+        {
+          shard,
+          fallback: first.policy.orchestrator.shard.fallback,
+          runRoot: sharding.runRoot,
+          timings: await readTimings(
+            resolve(cwd, sharding.timingsFile ?? join(sharding.runRoot, TIMINGS_FILE_NAME)),
+          ),
+        },
+      )
+}
+
+/** Every project's test files, once each, sorted by path; only shard `sharding.shard`'s when it names one. */
+async function listFiles(
+  projects: readonly ResolvedProject[],
+  request: RunRequest,
+  cwd: string,
+  sharding: ShardRequest & { readonly runRoot: string },
+): Promise<readonly string[]> {
+  const perProject = await selectedPerProject(projects, request, cwd, sharding)
   return [...new Set(perProject.flatMap((files) => files.map((file) => file.path)))].sort()
 }
 
@@ -410,14 +427,16 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     // `--collectTests` (runJest.ts L334-L367) runs no global setup and no reporter: the collector
     // alone hears the run, whose files report what their tests would do.
     const collecting = read.globalConfig.collectTests
+    // The projects of the run (`--selectProjects` and `--ignoreProjects` applied), in `projects`' order.
+    const selectedConfigs = neutrals.flatMap((neutral) => {
+      const config = read.configs[read.neutral.indexOf(neutral)]
+      return config === undefined ? [] : [config]
+    })
     const newResults = (): ReturnType<typeof createJestResults<JestProjectConfig>> =>
       createJestResults({
         ...(collecting ? { collectOnly: true } : {}),
         globalConfig: read.globalConfig,
-        projectConfigs: neutrals.flatMap((neutral) => {
-          const config = read.configs[read.neutral.indexOf(neutral)]
-          return config === undefined ? [] : [config]
-        }),
+        projectConfigs: selectedConfigs,
       })
     const results =
       collecting || read.globalConfig.json || read.globalConfig.testResultsProcessor !== undefined
@@ -432,7 +451,16 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
         ? undefined
         : await setUpJestReporters({
             globalConfig: read.globalConfig,
-            configs: read.configs,
+            configs: selectedConfigs,
+            // Jest decides from the tests it will run (`tests.some(...)`, `shouldRunInBand`).
+            filesPerProject: async () => {
+              const files = await selectedPerProject(projects, request, cwd, {
+                shard: shardOf(read.globalConfig),
+                timingsFile,
+                runRoot: read.globalConfig.rootDir,
+              })
+              return files.map((list) => list.length)
+            },
             results: reporterResults,
             output: outputFor({ env, stderr, ci: read.globalConfig.ci, colour: request.colour }),
             env,
@@ -461,7 +489,13 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
               }),
       ...(reporterResults === undefined ? {} : { leadingReporters: [reporterResults.reporter] }),
       env: io.env ?? process.env,
-      display: presentation(read, request),
+      display: presentation(
+        {
+          verbose: setup?.verbose ?? selectedVerbose(read.globalConfig, selectedConfigs),
+          globalConfig: read.globalConfig,
+        },
+        request,
+      ),
       pool: {
         ...(request.workerThreads === true ? { kind: 'threads' as const } : {}),
         maxWorkers: read.globalConfig.maxWorkers,
