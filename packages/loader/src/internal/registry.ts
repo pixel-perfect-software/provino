@@ -26,6 +26,7 @@ import {
   externalKey,
   type Found,
   linkAsync,
+  linkedPathsOf,
   linkSync,
   type ModuleRecord,
   preloadAsync,
@@ -222,9 +223,10 @@ export class Registry {
     for (let at = 0; at < queue.length; at++) {
       const id = queue[at]
       if (id === undefined) continue
-      for (const edge of userEdgesOf(this.#state, id) ?? []) {
-        if (edge.target !== null) reach(toModuleId(edge.target))
-      }
+      // The targets the record linked, not a new resolve of each specifier: the walk runs once per
+      // file over every module the file reaches.
+      const record = this.#state.records.get(id)
+      if (record !== undefined) for (const path of linkedPathsOf(record)) reach(toModuleId(path))
       for (const target of this.#dynamicLoads.get(id) ?? []) reach(target)
     }
     return [...seen]
