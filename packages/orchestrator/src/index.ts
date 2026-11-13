@@ -36,6 +36,7 @@ export {
   type RunSignal,
 } from './exit-code.ts'
 export { fileIdOf, relativePosix } from './file-id.ts'
+export type { RunGlobalHooks } from './global-setup.ts'
 export { sameWorkerKey, type WorkerKeyInput, workerKeyOf } from './key.ts'
 export {
   collectOpenHandles,

@@ -136,6 +136,13 @@ test('global setup and teardown reach the resolved project, with the arguments a
     ci: false,
   })
   assert.equal(none.globalSetup, undefined)
+  // No hook of its own, but the run has one (Jest's root `globalSetup`): the args stay, for it.
+  const argsOnly = await resolveNeutralProject(neutral({ globalSetupArgs: args }), {
+    dialect: reader,
+    environments: ENVIRONMENTS,
+    ci: false,
+  })
+  assert.deepEqual(argsOnly.globalSetup, { setup: [], teardown: [], args })
 })
 
 test('a relative global setup path is refused', async () => {

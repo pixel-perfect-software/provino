@@ -2,6 +2,7 @@ import type { ResolvedProject } from '@provino/config'
 import {
   exitCodeFor,
   OrchestratorError,
+  type RunGlobalHooks,
   type RunProjectOptions,
   runProjects,
 } from '@provino/orchestrator'
@@ -41,6 +42,8 @@ export interface ExecuteOptions {
   readonly bail?: { readonly count: number }
   /** Report the handles still open after the run; runs in band. */
   readonly detectOpenHandles?: boolean
+  /** The run's own global hooks (Jest's root `globalSetup` and `globalTeardown`). */
+  readonly globalSetup?: RunGlobalHooks
 }
 
 /**
@@ -109,5 +112,6 @@ function run(
     ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
     ...(options.bail === undefined ? {} : { bail: options.bail }),
     ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
+    ...(options.globalSetup === undefined ? {} : { globalSetup: options.globalSetup }),
   })
 }

@@ -3,8 +3,9 @@
 // file would, and calls it as the policy's `globalSetup.signature` says: `(globalConfig,
 // projectConfig)` (Jest), or `(context)` with a returned or exported teardown (Vitest).
 //
-// Setup runs once per distinct path, project by project in the config's order, and only for a
-// project that has a file to run. A teardown runs after the run, in the order the policy says.
+// Setup runs once per distinct path, project by project in the order Jest's sequenced list reaches
+// them, then the run's own hooks (Jest's root `globalSetup`), and only for a project that has a
+// file to run. A teardown runs after the run, in the order the policy says.
 // `provide` collects the values workers get (`WorkerInit.provided`, read by `inject` once T11.16
 // builds it); `onTestsRerun` is kept for the watch loop (T9.11).
 import type { ResolvedProject } from '@provino/config'
@@ -79,12 +80,27 @@ function named(namespace: unknown, key: string): Hook | undefined {
 }
 
 /**
+ * The hooks the run itself names, beside the projects' own: Jest's root `globalSetup` and
+ * `globalTeardown`, which a config with `projects` keeps in its global config. Every path is
+ * absolute.
+ * @public
+ */
+export interface RunGlobalHooks {
+  readonly setup: readonly string[]
+  readonly teardown: readonly string[]
+}
+
+/**
  * The hooks of `key` across `projects`, each distinct path once, in project order, with the first
- * project that names it (its config and transform are the ones the module is loaded with).
+ * project that names it (its config and transform are the ones the module is loaded with), then
+ * the run's own, each path not yet seen once, with the first project: Jest's `runGlobalHook` adds
+ * `globalConfig[moduleName]` to the set of the projects' paths and, when no project names it,
+ * calls it with the first test's config.
  */
 function distinctHooks(
   projects: readonly ResolvedProject[],
   key: 'setup' | 'teardown',
+  runHooks: RunGlobalHooks | undefined,
 ): { readonly path: string; readonly project: ResolvedProject }[] {
   const seen = new Set<string>()
   const hooks: { path: string; project: ResolvedProject }[] = []
@@ -95,22 +111,38 @@ function distinctHooks(
       hooks.push({ path, project })
     }
   }
+  const [first] = projects
+  if (first !== undefined) {
+    for (const path of runHooks?.[key] ?? []) {
+      if (seen.has(path)) continue
+      seen.add(path)
+      hooks.push({ path, project: first })
+    }
+  }
   return hooks
 }
 
+/** What `runGlobalSetup` takes besides the projects. */
+export interface GlobalSetupOptions {
+  /** The run's own hooks (Jest's root `globalSetup` and `globalTeardown`). */
+  readonly hooks?: RunGlobalHooks | undefined
+}
+
 /**
- * Runs the global setup of `projects`, which are the ones that have a file to run. Resolves with
- * `undefined` when none has a setup or a teardown. A hook that throws rejects with
- * `ORCH_GLOBAL_SETUP_FAILED` after the teardowns of what had set up already ran (a function a
- * setup returned; a teardown module is a Jest hook, whose pairing with a setup is not ours to
- * guess, and Jest runs none then).
+ * Runs the global setup of `projects`, which are the ones that have a file to run, in the order
+ * Jest's sequencer reaches them (the first project's config decides a path several share, and
+ * the run's own hooks). Resolves with `undefined` when none has a setup or a teardown. A hook
+ * that throws rejects with `ORCH_GLOBAL_SETUP_FAILED` after the teardowns of what had set up
+ * already ran (a function a setup returned; a teardown module is a Jest hook, whose pairing with
+ * a setup is not ours to guess, and Jest runs none then).
  * @internal
  */
 export async function runGlobalSetup(
   projects: readonly ResolvedProject[],
+  options: GlobalSetupOptions = {},
 ): Promise<GlobalSetupRun | undefined> {
-  const setups = distinctHooks(projects, 'setup')
-  const teardowns = distinctHooks(projects, 'teardown')
+  const setups = distinctHooks(projects, 'setup', options.hooks)
+  const teardowns = distinctHooks(projects, 'teardown', options.hooks)
   if (setups.length === 0 && teardowns.length === 0) return undefined
 
   const provided: Partial<Record<keyof ProvidedContext, unknown>> = {}

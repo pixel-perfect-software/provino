@@ -248,6 +248,35 @@ test('globalSetup and globalTeardown reach the neutral project with the two conf
   assert.deepEqual(args?.projectConfig.testMatch, ['**/*.spec.ts'])
 })
 
+test('the root config’s hooks, with projects, leave every project the two configs a hook is called with, though a project has no hook of its own', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = {
+  globalSetup: '<rootDir>/root-setup.js',
+  globalTeardown: '<rootDir>/root-teardown.js',
+  projects: ['<rootDir>/one', '<rootDir>/two'],
+}
+`,
+    'root-setup.js': '',
+    'root-teardown.js': '',
+    'one/jest.config.js':
+      "module.exports = { displayName: 'one', globalSetup: '<rootDir>/own.js' }\n",
+    'one/own.js': '',
+    'two/jest.config.js': "module.exports = { displayName: 'two' }\n",
+  })
+  const { neutral } = await readNeutral(root)
+  const [one, two] = neutral.value
+  assert.deepEqual(one?.globalSetup, [join(root, 'one/own.js')])
+  assert.deepEqual(two?.globalSetup, [])
+  for (const project of [one, two]) {
+    const args = project?.globalSetupArgs
+    assert.equal(args?.globalConfig.globalSetup, join(root, 'root-setup.js'))
+    assert.equal(
+      args?.projectConfig.rootDir,
+      project === one ? join(root, 'one') : join(root, 'two'),
+    )
+  }
+})
+
 test('a project with no global setup or teardown carries no hook arguments', async () => {
   const { neutral } = await readNeutral(tree({ 'jest.config.js': 'module.exports = {}\n' }))
   const [project] = neutral.value

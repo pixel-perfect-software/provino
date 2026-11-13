@@ -337,9 +337,19 @@ export async function resolveNeutralProject(
   )
 }
 
-/** The project's global hooks, or `undefined` when it has none. */
+/**
+ * The project's global hooks, or `undefined` when it has none and no args either: a project with
+ * no hook of its own keeps the args when the run has one (Jest's root `globalSetup`), since that
+ * hook is called with the config of the first project.
+ */
 function globalSetupOf(neutral: NeutralProject): ResolvedGlobalSetup | undefined {
-  if (neutral.globalSetup.length === 0 && neutral.globalTeardown.length === 0) return undefined
+  if (
+    neutral.globalSetup.length === 0 &&
+    neutral.globalTeardown.length === 0 &&
+    neutral.globalSetupArgs === undefined
+  ) {
+    return undefined
+  }
   return {
     setup: neutral.globalSetup,
     teardown: neutral.globalTeardown,

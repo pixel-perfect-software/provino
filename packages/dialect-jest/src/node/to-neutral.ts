@@ -263,7 +263,12 @@ export function jestProjectToNeutral(
     globalTeardown: project.globalTeardown === undefined ? [] : [project.globalTeardown],
     // `fn(globalConfig, projectConfig)`: Jest's own two configs as JSON (what a clone can carry:
     // a normalized config holds only data, a global one may name reporters or projects as objects).
-    ...(project.globalSetup === undefined && project.globalTeardown === undefined
+    // The run's own hooks (the root config's, with `projects`) are called with the first project's
+    // config, whichever project that is: every project keeps the two.
+    ...(project.globalSetup === undefined &&
+    project.globalTeardown === undefined &&
+    globalConfig.globalSetup === undefined &&
+    globalConfig.globalTeardown === undefined
       ? {}
       : {
           globalSetupArgs: {

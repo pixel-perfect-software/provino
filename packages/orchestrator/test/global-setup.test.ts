@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ResolvedGlobalSetup, ResolvedProject } from '@provino/config'
-import { OrchestratorError, runProjects } from '@provino/orchestrator'
+import { OrchestratorError, type RunProjectOptions, runProjects } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { PolicyOverrides, Reporter } from '@provino/types'
 import { Collect, runtimeProject, trackedProjects } from './support.ts'
@@ -50,6 +50,7 @@ async function runAll(
   projects: readonly ResolvedProject[],
   trace: string[],
   signal?: AbortSignal,
+  extra: Partial<RunProjectOptions> = {},
 ): Promise<void> {
   await runProjects(projects, {
     bus: createReporterBus([reporterOf(trace)]),
@@ -57,6 +58,7 @@ async function runAll(
     cache: false,
     pool: { kind: 'inline' },
     ...(signal === undefined ? {} : { signal }),
+    ...extra,
   })
 }
 
@@ -232,6 +234,143 @@ describe('Jest’s signature: fn(globalConfig, projectConfig)', () => {
     assert.ok(trace.includes('run:end interrupted'), trace.join(', '))
     assert.ok(trace.indexOf('run:end interrupted') < trace.indexOf('teardown bad'))
     assert.ok(trace.includes('teardown good'), 'the teardown after the one that threw still ran')
+  })
+})
+
+/** A Jest-style hook that notes `what` with the name of the project config it was called with. */
+const noting = (what: string): string =>
+  `module.exports = async (_global: object, project: { name: string }) => { ${note(what)} ;(globalThis as any).__trace.push('  config ' + project.name) }`
+
+describe('the run’s own hooks and the order of the projects (Jest’s runGlobalHook)', () => {
+  it('runs the run’s hooks after the projects’, a path a project names once, the first project’s config for the rest', async () => {
+    const p = await makeProject({
+      'own.ts': noting('setup own'),
+      'root.ts': noting('setup root'),
+      'down-own.ts': noting('teardown own'),
+      'down-root.ts': noting('teardown root'),
+      'big.test.js': `// the larger file, so the first project is first in the sequenced list\ntest('big', () => {})`,
+      'small.test.js': "test('small', () => {})",
+    })
+    const first = withHooks(
+      runtimeProject(p.dir, {
+        name: 'first',
+        include: ['big.test.js'],
+        policy: { orchestrator: JEST_HOOKS },
+      }),
+      {
+        setup: [p.path('own.ts')],
+        teardown: [p.path('down-own.ts')],
+        args: { globalConfig: {}, projectConfig: { name: 'first' } },
+      },
+    )
+    // No hook of its own: still carries the args, which the run's hook is called with when this
+    // project is the first one.
+    const second = withHooks(
+      runtimeProject(p.dir, {
+        name: 'second',
+        include: ['small.test.js'],
+        policy: { orchestrator: JEST_HOOKS },
+      }),
+      {
+        setup: [],
+        teardown: [],
+        args: { globalConfig: {}, projectConfig: { name: 'second' } },
+      },
+    )
+    const [, trace] = await traced((t) =>
+      runAll([first, second], t, undefined, {
+        globalSetup: {
+          setup: [p.path('root.ts'), p.path('own.ts')],
+          teardown: [p.path('down-own.ts'), p.path('down-root.ts')],
+        },
+      }),
+    )
+    assert.deepEqual(
+      trace.filter((step) => /setup|teardown|config/.test(step)),
+      [
+        'setup own',
+        '  config first',
+        'setup root',
+        '  config first',
+        'teardown own',
+        '  config first',
+        'teardown root',
+        '  config first',
+      ],
+    )
+  })
+
+  it('does not run the run’s hooks when no project has a file', async () => {
+    const p = await makeProject({
+      'root.ts': noting('setup root'),
+      'a.test.js': 'test("a", () => {})',
+    })
+    const project = withHooks(
+      runtimeProject(p.dir, {
+        include: ['nothing/**/*.test.js'],
+        policy: { orchestrator: JEST_HOOKS },
+      }),
+      { setup: [], teardown: [], args: { globalConfig: {}, projectConfig: {} } },
+    )
+    const [, trace] = await traced((t) =>
+      runAll([project], t, undefined, {
+        globalSetup: { setup: [p.path('root.ts')], teardown: [] },
+      }),
+    )
+    assert.deepEqual(
+      trace.filter((step) => step.includes('setup')),
+      [],
+    )
+  })
+
+  it('sets up in the order the sequenced list reaches the projects, which the larger test file decides, not the config’s', async () => {
+    const p = await makeProject({
+      'shared.ts': noting('setup shared'),
+      'two.ts': noting('setup two'),
+      'down-shared.ts': noting('teardown shared'),
+      'down-two.ts': noting('teardown two'),
+      'small.test.js': "test('small', () => {})",
+      'large.test.js': `// the larger file: Jest's sequencer, with no history, runs the larger file first\ntest('large', () => {})`,
+    })
+    const first = withHooks(
+      runtimeProject(p.dir, {
+        name: 'first',
+        include: ['small.test.js'],
+        policy: { orchestrator: JEST_HOOKS },
+      }),
+      {
+        setup: [p.path('shared.ts')],
+        teardown: [p.path('down-shared.ts')],
+        args: { globalConfig: {}, projectConfig: { name: 'first' } },
+      },
+    )
+    const second = withHooks(
+      runtimeProject(p.dir, {
+        name: 'second',
+        include: ['large.test.js'],
+        policy: { orchestrator: JEST_HOOKS },
+      }),
+      {
+        setup: [p.path('two.ts'), p.path('shared.ts')],
+        teardown: [p.path('down-two.ts'), p.path('down-shared.ts')],
+        args: { globalConfig: {}, projectConfig: { name: 'second' } },
+      },
+    )
+    const [, trace] = await traced((t) => runAll([first, second], t))
+    assert.deepEqual(
+      trace.filter((step) => /setup|teardown|config/.test(step)),
+      [
+        // The second project's hooks, in its own order, then the first's that it didn't name.
+        'setup two',
+        '  config second',
+        'setup shared',
+        '  config second',
+        'teardown two',
+        '  config second',
+        'teardown shared',
+        '  config second',
+      ],
+    )
   })
 })
 

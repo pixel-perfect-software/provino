@@ -291,6 +291,20 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       // (and `--bail=2` is false, as in Jest 30.5.2, so a count is always the config's).
       ...(read.globalConfig.bail > 0 ? { bail: { count: read.globalConfig.bail } } : {}),
       ...(read.globalConfig.detectOpenHandles ? { detectOpenHandles: true } : {}),
+      // The root config's hooks, which Jest runs beside the projects' own (`runGlobalHook`).
+      ...(read.globalConfig.globalSetup === undefined &&
+      read.globalConfig.globalTeardown === undefined
+        ? {}
+        : {
+            globalSetup: {
+              setup:
+                read.globalConfig.globalSetup === undefined ? [] : [read.globalConfig.globalSetup],
+              teardown:
+                read.globalConfig.globalTeardown === undefined
+                  ? []
+                  : [read.globalConfig.globalTeardown],
+            },
+          }),
       ...(io.signal === undefined ? {} : { signal: io.signal }),
       ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
     })

@@ -104,6 +104,34 @@ describe('provino jest against the recorded Jest 30.5.2 runs', () => {
       await project.dispose()
     }
   })
+
+  // The recorder reserves `projects`, so these recordings named them on the command line: the same
+  // projects, as a key of the config the fixture's own overlay (the root's hooks) is already in.
+  for (const [id, projects] of [
+    ['cli/global-setup-root-projects', ['p1', 'p2']],
+    ['cli/global-setup-sequence', ['a', 'b', 'c']],
+  ] as const) {
+    it(`${id}: order.txt is Jest's: the root's hook after the projects', in the sequenced order, with the first project's config`, async () => {
+      const fixture = await loadFixture(id)
+      const project = await materialize(fixture)
+      try {
+        const config = join(project.root, 'jest.config.json')
+        const base = JSON.parse(await readFile(config, 'utf8')) as Record<string, unknown>
+        await writeFile(
+          config,
+          JSON.stringify({ ...base, projects: projects.map((name) => `<rootDir>/${name}`) }),
+        )
+        const ended = await spawnCli(['jest', `--config=${config}`], { cwd: project.root })
+        assert.equal(ended.code, fixture.golden.observed?.exitCode, ended.stderr)
+        assert.equal(
+          await readOrEmpty(join(project.root, 'order.txt')),
+          recordedFile(fixture.golden, 'order.txt'),
+        )
+      } finally {
+        await project.dispose()
+      }
+    })
+  }
 })
 
 // ---- transformed setup files, against real Jest run beside it ----

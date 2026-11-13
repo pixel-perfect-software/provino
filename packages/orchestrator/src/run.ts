@@ -35,7 +35,7 @@ import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
 import { OrchestratorError } from './errors.ts'
 import { isRunSignal, RUN_SIGNALS } from './exit-code.ts'
 import { fileIdOf, relativePosix } from './file-id.ts'
-import { type GlobalSetupRun, runGlobalSetup } from './global-setup.ts'
+import { type GlobalSetupRun, type RunGlobalHooks, runGlobalSetup } from './global-setup.ts'
 import { configHash, hashOf, workerKeyOf } from './key.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
@@ -178,6 +178,13 @@ export interface RunProjectOptions {
   readonly detectOpenHandles?: boolean
   /** `RunInfo.root` of a run over several projects (Jest's config `rootDir`). Default: the first project's root. */
   readonly root?: string
+  /**
+   * Hooks of the run itself, beside the projects': Jest's root `globalSetup` and
+   * `globalTeardown`, which a config with `projects` keeps in its global config (T9.15). Each runs
+   * after the projects' own, once per path no project names, with the config of the first project
+   * in the sequenced order. They run only when some project has a file to run.
+   */
+  readonly globalSetup?: RunGlobalHooks
 }
 
 /**
@@ -738,9 +745,9 @@ export async function runProjects(
 
     // Jest's order: the files are known, the setup runs, then the reporters hear the run start. A
     // project with no file to run has no setup (Jest's `allTests` only holds projects with tests).
-    globalSetup = await runGlobalSetup(
-      found.filter((entry) => entry.discovered.length > 0).map((entry) => entry.member.project),
-    )
+    globalSetup = await runGlobalSetup(sequencedProjects(found), {
+      hooks: options.globalSetup,
+    })
     provided = globalSetup?.provided ?? {}
 
     announced = true
@@ -808,6 +815,38 @@ export async function runProjects(
   if (teardownError !== undefined) throw teardownError
   if (ended === undefined) throw new Error('the run ended without a summary')
   return ended
+}
+
+/**
+ * The projects that have a file to run, in the order Jest's one sorted list of every project's
+ * files reaches them (`allTests` after `sequencer.sort`, which `runGlobalHook` reads): the run's
+ * global setup follows it, and so does which project's config a hook several share gets. The
+ * queue itself goes project by project; this order is only for the hooks.
+ */
+function sequencedProjects(
+  found: readonly { readonly member: Member; readonly discovered: readonly DiscoveredFile[] }[],
+): SeededProject[] {
+  const withFiles = found.filter((entry) => entry.discovered.length > 0)
+  const [first] = withFiles
+  if (first === undefined) return []
+  const inputs: ScheduleInput[] = withFiles.flatMap(({ member, discovered }) =>
+    discovered.map((file): ScheduleInput => {
+      const history = member.cache?.get(member.cacheProject, file.relativePath)
+      return {
+        path: file.relativePath,
+        project: member.identity,
+        sizeBytes: file.sizeBytes,
+        ...(history === undefined ? {} : { history }),
+      }
+    }),
+  )
+  const sorted = createHistorySequencer({
+    unknownFirst: first.member.project.policy.orchestrator.sequence.unknownFirst,
+  }).sort(inputs)
+  const byIdentity = new Map(withFiles.map(({ member }) => [member.identity, member.project]))
+  return [...new Set(sorted.map((input) => input.project))].flatMap(
+    (identity) => byIdentity.get(identity) ?? [],
+  )
 }
 
 /**
