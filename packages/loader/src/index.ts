@@ -7,6 +7,7 @@ export type { LoaderErrorCode } from './errors.ts'
 export { LoaderError, ModuleNotFoundError } from './errors.ts'
 export { createLoader } from './loader.ts'
 export { createProjectLoader } from './project.ts'
+export { installSourceMappedStacks } from './stacks.ts'
 export {
   ISOLATE_PRAGMA,
   isIsolationTier,
