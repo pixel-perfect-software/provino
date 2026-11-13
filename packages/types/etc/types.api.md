@@ -173,7 +173,19 @@ export interface CompiledModuleEvent {
     readonly scriptUrl: string;
     // (undocumented)
     readonly thirdParty: boolean;
+    readonly transformKey?: string;
     readonly wrapperColumnOffset: number;
+}
+
+// @public
+export interface CompiledModuleInfo {
+    readonly code: string;
+    readonly map: SourceMapV3 | null;
+    // (undocumented)
+    readonly path: string;
+    // (undocumented)
+    readonly transformKey: string;
+    readonly wrapperLength: number;
 }
 
 // @public
@@ -393,6 +405,7 @@ export interface CoverageInstrumenter {
     instrument(code: string, filename: string, inputMap: SourceMapV3 | null): {
         code: string;
         map: SourceMapV3 | null;
+        coverage?: IstanbulFileCoverageData;
     };
     // (undocumented)
     readonly name: string;
@@ -430,8 +443,16 @@ export interface CoverageOptions {
 export interface CoveragePolicy {
     readonly globThresholdScope: "per-file" | "aggregate";
     readonly includeUntestedByDefault: boolean;
+    readonly istanbulVariable: string;
     readonly reportsDirectory: string;
     readonly thresholdGrouping: "first-match" | "all-files";
+    readonly thresholdMessages: {
+        readonly belowMinimum: string;
+        readonly aboveMaximumUncovered: string;
+        readonly notFound: string;
+    };
+    readonly v8Conversion: "v8-to-istanbul" | "ast";
+    readonly v8HitCounts: boolean;
 }
 
 // @public
@@ -448,10 +469,17 @@ export interface CoverageProvider {
 
 // @beta
 export interface CoverageSummary {
+    readonly map: Readonly<Record<string, IstanbulFileCoverageData>>;
     // (undocumented)
     readonly thresholdFailures: readonly string[];
     // (undocumented)
     readonly totals: { readonly [M in CoverageMetric]: CoverageTotals; };
+}
+
+// @public
+export interface CoverageThresholdGroup extends MetricThresholds {
+    // (undocumented)
+    readonly name: string;
 }
 
 // @public
@@ -1182,6 +1210,54 @@ export type IsolationMode = IsolationTier | "runner-default";
 export type IsolationTier = "none" | "registry" | "realm" | "process";
 
 // @public
+export interface IstanbulFileCoverageData {
+    // (undocumented)
+    readonly b: Readonly<Record<string, readonly number[]>>;
+    // (undocumented)
+    readonly branchMap: Readonly<Record<string, {
+        readonly loc?: IstanbulRange;
+        readonly type: string;
+        readonly locations: readonly IstanbulRange[];
+        readonly line?: number;
+    }>>;
+    // (undocumented)
+    readonly _coverageSchema?: string;
+    // (undocumented)
+    readonly f: Readonly<Record<string, number>>;
+    // (undocumented)
+    readonly fnMap: Readonly<Record<string, {
+        readonly name: string;
+        readonly decl: IstanbulRange;
+        readonly loc: IstanbulRange;
+        readonly line?: number;
+    }>>;
+    // (undocumented)
+    readonly hash?: string;
+    // (undocumented)
+    readonly inputSourceMap?: SourceMapV3;
+    // (undocumented)
+    readonly path: string;
+    // (undocumented)
+    readonly s: Readonly<Record<string, number>>;
+    // (undocumented)
+    readonly statementMap: Readonly<Record<string, IstanbulRange>>;
+}
+
+// @public
+export interface IstanbulRange {
+    // (undocumented)
+    readonly end: {
+        readonly line: number;
+        readonly column: number | null;
+    };
+    // (undocumented)
+    readonly start: {
+        readonly line: number;
+        readonly column: number | null;
+    };
+}
+
+// @public
 export interface JestAsyncTransformer<Config = unknown> extends Omit<JestSyncTransformer<Config>, "process" | "processAsync"> {
     // (undocumented)
     process?(source: string, path: string, options: JestTransformOptions<Config>): JestTransformedSource;
@@ -1383,6 +1459,7 @@ export interface LoadActualOptions {
 
 // @public
 export interface Loader extends Disposable {
+    compiledModule?(url: string): CompiledModuleInfo | null;
     // (undocumented)
     createFileRegistry(testFile: string, options: FileRegistryOptions): FileRegistry;
     // (undocumented)
@@ -1885,6 +1962,7 @@ export interface NeutralProject {
     // (undocumented)
     readonly aliases: readonly NeutralAlias[];
     readonly cacheDirectory?: string;
+    readonly coverage?: SerializedCoverageConfig;
     // (undocumented)
     readonly discovery: NeutralDiscovery;
     readonly environment: {
@@ -2395,6 +2473,16 @@ export type RpcReply<Methods> = {
 export type RpcSchema<Methods> = { readonly [K in keyof Methods]: Methods[K] extends ((...args: infer A) => infer R) ? [A] extends [CloneSafe<A>] ? [Awaited<R>] extends [CloneSafe<Awaited<R>>] ? Methods[K] : never : never : never; };
 
 // @public
+export interface RunCoverageOptions {
+    readonly directory: string;
+    // (undocumented)
+    readonly provider: "v8" | "istanbul";
+    readonly reporters: readonly (string | readonly [string, Readonly<Record<string, JsonValue>>])[];
+    readonly thresholds: readonly CoverageThresholdGroup[];
+    readonly watermarks: { readonly [M in CoverageMetric]: readonly [number, number]; };
+}
+
+// @public
 export type RunEndReason = "passed" | "failed" | "interrupted" | "terminated" | "hangup";
 
 // @public
@@ -2631,6 +2719,19 @@ export interface Sequencer {
 }
 
 // @public
+export interface SerializedCoverageConfig {
+    readonly excludePaths: readonly string[];
+    readonly excludePatterns: readonly string[];
+    readonly force: readonly string[];
+    readonly include: readonly string[];
+    readonly includeRoot: boolean;
+    // (undocumented)
+    readonly provider: "v8" | "istanbul";
+    readonly root: string;
+    readonly testFiles: readonly string[];
+}
+
+// @public
 export interface SerializedError {
     readonly __record?: never;
     // (undocumented)
@@ -2692,6 +2793,7 @@ export type SerializedPolicy = { readonly [K in SliceName]: DataOnly<PolicySlice
 // @public
 export interface SerializedProjectConfig {
     readonly ci: boolean;
+    readonly coverage?: SerializedCoverageConfig;
     // (undocumented)
     readonly environment: EnvironmentRef;
     readonly environmentResolver?: ModuleRef<EnvironmentResolver>;
@@ -3309,7 +3411,7 @@ export interface WatchPlugin {
 // @public
 export type WorkerEvent = RuntimeEvent | {
     readonly type: "coverage";
-    readonly fileId: TaskId;
+    readonly fileId: TaskId | null;
     readonly payload: BulkPayload;
     readonly t: number;
 } | {

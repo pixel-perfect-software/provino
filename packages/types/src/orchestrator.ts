@@ -136,7 +136,8 @@ export type WorkerEvent =
   | RuntimeEvent
   | {
       readonly type: 'coverage'
-      readonly fileId: TaskId
+      /** The file the data is of, or `null` for a worker's data taken once at the end. */
+      readonly fileId: TaskId | null
       readonly payload: BulkPayload
       readonly t: number
     }

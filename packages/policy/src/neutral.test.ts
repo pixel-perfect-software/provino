@@ -45,6 +45,17 @@ const pinned: Readonly<Record<string, unknown>> = {
     byEnvironment: { jsdom: 'realm', 'happy-dom': 'realm' },
   },
   'orchestrator.bail': { checkAfter: 'test' },
+  // B23b: V8 coverage goes through the AST converter (built in B25) and counts no calls.
+  'coverage.v8Conversion': 'ast',
+  'coverage.v8HitCounts': false,
+  'coverage.istanbulVariable': '__coverage__',
+  'coverage.thresholdMessages': {
+    belowMinimum:
+      'Coverage for {metric} ({actual}%) does not meet "{name}" threshold ({threshold}%)',
+    aboveMaximumUncovered:
+      'Uncovered count for {metric} ({actual}) exceeds {name} threshold ({threshold})',
+    notFound: 'Coverage data for {path} was not found.',
+  },
 }
 
 function read(path: string): unknown {

@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { findPackageJSON } from 'node:module'
 import { dirname } from 'node:path'
 import type {
+  CoverageInstrumenter,
   HoistPolicy,
   Pipeline,
   SourceMapV3,
@@ -80,6 +81,12 @@ export interface PipelineOptions {
    * cache, so a warm run skips that step. The loader sets it; the strip-only benches don't.
    */
   readonly runnerForm?: boolean
+  /**
+   * Instruments a file that is requested with `instrument: true` (Istanbul coverage, B23b). Run
+   * after TypeScript is stripped and before the hoister and the module-runner rewrite. Without
+   * one, `instrument` changes nothing.
+   */
+  readonly instrumenter?: CoverageInstrumenter
 }
 
 /**
