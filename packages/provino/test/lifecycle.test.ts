@@ -43,12 +43,21 @@ interface Live {
   readonly exited: Promise<{ code: number | null; signal: NodeJS.Signals | null }>
 }
 
-function startCli(args: readonly string[], cwd: string, deadlineMs = 60_000): Live {
-  const child = spawn(process.execPath, ['--conditions=provino-source', CLI, ...args], {
-    cwd,
-    detached: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
+function startCli(
+  args: readonly string[],
+  cwd: string,
+  deadlineMs = 60_000,
+  nodeArgs: readonly string[] = [],
+): Live {
+  const child = spawn(
+    process.execPath,
+    ['--conditions=provino-source', ...nodeArgs, CLI, ...args],
+    {
+      cwd,
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  )
   let out = ''
   let err = ''
   child.stdout.on('data', (chunk: Buffer) => {
@@ -153,6 +162,76 @@ describe('exit codes through the bin (provino run)', () => {
       await assertNoChild(live, pids)
     } finally {
       killGroup(live.pgid)
+    }
+  })
+
+  it('129 for SIGHUP while a file runs: handled like SIGTERM, the worker is killed and nothing is left', async () => {
+    const project = await makeProject((dir) => ({
+      'tests/hang.test.js': hanging(join(dir, 'workers.pids')),
+    }))
+    const pidFile = project.path('workers.pids')
+    const live = startCli(['run', '--config', project.config, '--maxWorkers', '1'], project.dir)
+    try {
+      const pids = await untilNoted(pidFile)
+      // Node's default action for SIGHUP would end the bin at once and leave the worker, which is in
+      // a synchronous loop, running.
+      live.child.kill('SIGHUP')
+      const ended = await live.exited
+      assert.deepEqual(ended, { code: 129, signal: null }, live.stderr())
+      assert.match(live.stderr(), /Interrupted/)
+      await assertNoChild(live, pids)
+    } finally {
+      killGroup(live.pgid)
+    }
+  })
+
+  it('a second signal after SIGHUP is the force: the bin is gone within 1 s, with 129, and no child survives', async () => {
+    const project = await makeProject((dir) => ({
+      'tests/hang.test.js': hanging(join(dir, 'workers.pids')),
+    }))
+    const pidFile = project.path('workers.pids')
+    const live = startCli(['run', '--config', project.config, '--maxWorkers', '1'], project.dir)
+    try {
+      const pids = await untilNoted(pidFile)
+      live.child.kill('SIGHUP')
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      const second = Date.now()
+      live.child.kill('SIGHUP')
+      const ended = await live.exited
+      assert.deepEqual(ended, { code: 129, signal: null }, live.stderr())
+      assert.ok(Date.now() - second < 1000, 'the bin ended within the grace')
+      await assertNoChild(live, pids)
+    } finally {
+      killGroup(live.pgid)
+    }
+  })
+
+  it('130 for SIGINT when the run is left with nothing to hold the event loop open, not Node’s 13 for an unsettled await', async () => {
+    // The bin's `main` is replaced (a resolve hook) by one that says "ready" and never settles, with
+    // no handle: what a reporter promise that never settles looks like once the workers are gone.
+    const project = await makeProject({ 'tests/a.test.js': passing('a') })
+    const preload = fileURLToPath(new URL('./fixtures/unsettled-main/preload.ts', import.meta.url))
+    for (const [signal, code] of [
+      ['SIGINT', 130],
+      ['SIGTERM', 143],
+      ['SIGHUP', 129],
+    ] as const) {
+      const live = startCli(['run', '--config', project.config], project.dir, 60_000, [
+        '--import',
+        preload,
+      ])
+      try {
+        const deadline = Date.now() + 30_000
+        while (!live.stdout().includes('ready')) {
+          if (Date.now() > deadline) assert.fail(`the bin never started:\n${live.stderr()}`)
+          await new Promise((resolve) => setTimeout(resolve, 25))
+        }
+        live.child.kill(signal)
+        const ended = await live.exited
+        assert.deepEqual(ended, { code, signal: null }, `${signal}: ${live.stderr()}`)
+      } finally {
+        killGroup(live.pgid)
+      }
     }
   })
 

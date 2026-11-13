@@ -16,6 +16,12 @@ function flushed(stream: NodeJS.WriteStream): Promise<void> {
 }
 
 const signals = handleSignals(process, {
+  // The exit code is set as the signal lands, not once `main` returns: if the run is left with
+  // nothing to hold the event loop open (a reporter that never settles), Node ends the process on
+  // the unsettled `await` below with its own code, 13, and this is what it ends with instead.
+  onFirst: (exitCode) => {
+    process.exitCode = exitCode
+  },
   // The second Ctrl+C: the workers are killed now; the process follows within the grace.
   onForce: () => {
     setTimeout(() => process.exit(signals.exitCode() ?? 1), FORCE_GRACE_MS).unref()
@@ -31,7 +37,7 @@ const code = await main(process.argv.slice(2), {
   },
 })
 signals.dispose()
-// A run the user cut short ends with the signal's code (130, 143) even when it had nothing left to
+// A run the user cut short ends with the signal's code (130, 143, 129) even when it had nothing left to
 // interrupt: Ctrl+C while the workers were still stopping is still a Ctrl+C.
 const finalCode = signals.exitCode() ?? code
 process.exitCode = finalCode
@@ -41,6 +47,7 @@ process.exitCode = finalCode
 // keep the event loop alive.
 process.once('SIGINT', () => process.exit(130))
 process.once('SIGTERM', () => process.exit(143))
+process.once('SIGHUP', () => process.exit(129))
 
 // `--forceExit`: end the process now, as Jest does, once what the run printed has been written. A
 // run that wasn't asked to leaves the exit to the event loop: with forks or threads the pool has
