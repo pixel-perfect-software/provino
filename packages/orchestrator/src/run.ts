@@ -818,7 +818,6 @@ export async function runProjects(
         ? undefined
         : shardFiles(
             everyFile.map(({ member, discovered }) => ({
-              key: member.identity,
               rootDir: member.project.rootDir,
               files: discovered,
             })),

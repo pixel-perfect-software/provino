@@ -262,7 +262,6 @@ async function listFiles(
       ? selected
       : shardFiles(
           projects.map((project, index) => ({
-            key: String(index),
             rootDir: project.rootDir,
             files: selected[index] ?? [],
           })),

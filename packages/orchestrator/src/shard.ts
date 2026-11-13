@@ -165,12 +165,13 @@ export function shardInputs(
 }
 
 /**
- * One project's discovered files, for `shardFiles`: `key` names the project among the run's (two
- * projects may share a name), `rootDir` is what a file's path is relative to.
+ * One project's discovered files, for `shardFiles`: `rootDir` is what a file's path is relative to.
+ * The members' order is the config's, and a project's place in it is what breaks a tie between
+ * two files of one relative path: a name or an identity can't (an unnamed project's identity holds
+ * the run's random seed, so each shard's machine would break the tie its own way).
  * @public
  */
 export interface ShardMember {
-  readonly key: string
   readonly rootDir: string
   readonly files: readonly DiscoveredFile[]
 }
@@ -191,7 +192,9 @@ export function shardFiles(
     readonly timings?: TimingsFile | undefined
   },
 ): DiscoveredFile[][] {
-  const inputs = members.flatMap((member) =>
+  // Zero-padded, so the tie-break compares as numbers: Jest keeps tied files in project order.
+  const keyOf = (index: number): string => String(index).padStart(8, '0')
+  const inputs = members.flatMap((member, index) =>
     member.files.map((file): ScheduleInput => {
       const timingMs =
         options.timings?.files[
@@ -199,7 +202,7 @@ export function shardFiles(
         ]
       return {
         path: file.relativePath,
-        project: member.key,
+        project: keyOf(index),
         sizeBytes: file.sizeBytes,
         ...(timingMs === undefined ? {} : { timingMs }),
       }
@@ -210,7 +213,7 @@ export function shardFiles(
       (input) => `${input.project}\0${input.path}`,
     ),
   )
-  return members.map((member) =>
-    member.files.filter((file) => kept.has(`${member.key}\0${file.relativePath}`)),
+  return members.map((member, index) =>
+    member.files.filter((file) => kept.has(`${keyOf(index)}\0${file.relativePath}`)),
   )
 }

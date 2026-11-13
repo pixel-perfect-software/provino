@@ -129,6 +129,45 @@ describe('--shard in the coordinator', () => {
     )
   })
 
+  it('cuts the same way in every process when projects have no name and share relative paths', async () => {
+    // Unnamed projects get the identity `#<hash of their config>`, and a config with no seed of its
+    // own (a Jest config with no `--seed` draws one per process) holds the run's random seed, so the
+    // identity differs on every shard's machine. A tie between two files of one relative path must
+    // not break on it, or shard 1 and shard 2 can both take the same project's copy and the other
+    // copy runs nowhere. Each shard is a separate `runProjects` call here, which draws its own seed
+    // as a separate process would.
+    const files = { 'a.test.js': passing('a'), 'b.test.js': passing('b') }
+    const one = await makeProject(files)
+    const two = await makeProject(files)
+    const unseeded = (dir: string): ReturnType<typeof runtimeProject> => {
+      const { config, ...project } = runtimeProject(dir, { name: '' })
+      const { seed: _seed, ...withoutSeed } = config
+      return { ...project, config: withoutSeed }
+    }
+    const projects = [unseeded(one.dir), unseeded(two.dir)]
+    const expected = ['one/a.test.js', 'one/b.test.js', 'two/a.test.js', 'two/b.test.js']
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const seen: string[] = []
+      // Three shards of the four files [a, a, b, b]: both pairs of equal paths are split across shards.
+      for (const index of [1, 2, 3]) {
+        const summary = await runProjects(projects, {
+          bus: createReporterBus([]),
+          cache: false,
+          stderr: new Collect(),
+          pool: { kind: 'inline' },
+          shard: { index, count: 3 },
+        })
+        // The first project's files have no `runPath` (it is the run's root); the second's do.
+        seen.push(
+          ...summary.files.map(
+            (file) => `${file.file.runPath === undefined ? 'one' : 'two'}/${file.file.path}`,
+          ),
+        )
+      }
+      assert.deepEqual(seen.toSorted(), expected, `attempt ${attempt}`)
+    }
+  })
+
   it('refuses a shard that is not index of count, and a timings file that is not one, before anything runs', async () => {
     const made = await makeProject(FILES)
     const project = runtimeProject(made.dir)
