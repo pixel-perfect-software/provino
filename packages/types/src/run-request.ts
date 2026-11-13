@@ -15,7 +15,9 @@ export interface FileFilter {
 /**
  * What a command line asks a run to be. Each dialect's CLI parses its own flags into one of these
  * (Track 11 F5), and `provino` layers it over a project: a field that is absent leaves the
- * project's own setting.
+ * project's own setting. A flag that is also a config key (`bail`, `forceExit`,
+ * `detectOpenHandles`) is not here: the dialect's config reader merges it into the project's
+ * settings, and that is the one place a run reads it.
  *
  * A flag the dialect understands but the coordinator has no backend for yet (`--watch`,
  * `--coverage`, `--shard`) is not here: the parser reports it as an `error` diagnostic naming the
@@ -46,16 +48,6 @@ export interface RunRequest {
   readonly cache?: boolean
   /** `-c`, `--config`: a path, or a JSON text where the dialect accepts one. */
   readonly configPath?: string
-  /**
-   * `--bail`: the run ends once this many tests have failed (when it is checked, after each file
-   * or after each test, is the dialect's `orchestrator.bail.checkAfter`). Absent when not given;
-   * a count of 0 (`--bail=0`, `--no-bail`) is also absent here.
-   */
-  readonly bail?: { readonly count: number }
-  /** `--forceExit`: the process exits when the run is over, whatever a test left open. */
-  readonly forceExit?: boolean
-  /** `--detectOpenHandles`: run in band and report what is still open at the end (and where it was created). */
-  readonly detectOpenHandles?: boolean
 }
 
 /**

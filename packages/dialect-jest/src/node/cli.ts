@@ -392,9 +392,6 @@ export function jestArgvToRunRequest(argv: JestArgv): RunRequest {
   const maxWorkers = maxWorkersOf(argv.maxWorkers)
   const configPath = last(argv.config)
   const flag = (value: unknown): value is boolean => typeof value === 'boolean'
-  // `--bail` is a boolean flag in Jest 30.5.2 (`--bail=1` parses as `false`, as `--no-bail`): a count
-  // of more than one comes only from the config's `bail`, which the config reader reads.
-  const bail = argv.bail === true ? { count: 1 } : undefined
   return {
     mode,
     json: mode === 'list-files' && isGiven(argv.json),
@@ -408,9 +405,6 @@ export function jestArgvToRunRequest(argv: JestArgv): RunRequest {
     ...(flag(argv.passWithNoTests) ? { passWithNoTests: argv.passWithNoTests } : {}),
     ...(flag(argv.cache) ? { cache: argv.cache } : {}),
     ...(configPath === undefined ? {} : { configPath: String(configPath) }),
-    ...(bail === undefined ? {} : { bail }),
-    ...(argv.forceExit === true ? { forceExit: true } : {}),
-    ...(argv.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
   }
 }
 

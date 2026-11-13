@@ -55,7 +55,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     alias: 'b',
     description: 'Exit the test suite immediately after `n` number of failing tests.',
-    support: 'request',
+    support: 'config',
   },
   cache: {
     type: 'boolean',
@@ -196,7 +196,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Print out remaining open handles preventing Jest from exiting at the end of a test run. Implies `runInBand`.',
-    support: 'request',
+    support: 'config',
   },
   errorOnDeprecated: {
     type: 'boolean',
@@ -229,7 +229,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Force Jest to exit after all tests have completed running. This is useful when resources set up by test code cannot be adequately cleaned up.',
-    support: 'request',
+    support: 'config',
   },
   globalSetup: {
     type: 'string',

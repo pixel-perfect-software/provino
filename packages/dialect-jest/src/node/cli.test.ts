@@ -996,7 +996,7 @@ describe('the options table', () => {
   it('classifies every option once, and counts the classes', (t) => {
     const counts = Object.fromEntries(supports)
     t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
-    assert.deepEqual(counts, { request: 17, config: 50, accepted: 7, warn: 10, refuse: 21 })
+    assert.deepEqual(counts, { request: 14, config: 53, accepted: 7, warn: 10, refuse: 21 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'
       assert.equal(option.owner !== undefined, needsOwner, name)
@@ -1012,13 +1012,10 @@ describe('the options table', () => {
     assert.deepEqual(
       named('request'),
       [
-        'bail',
         'cache',
         'ci',
         'clearCache',
         'config',
-        'detectOpenHandles',
-        'forceExit',
         'listTests',
         'maxWorkers',
         'passWithNoTests',
@@ -1296,7 +1293,6 @@ describe('the run request', () => {
       inBand: true,
       ci: true,
       passWithNoTests: true,
-      bail: { count: 1 },
     })
     assert.deepEqual(request(['--listTests', '--json', '-c', 'jest.config.ts', '--no-cache']), {
       mode: 'list-files',
@@ -1308,19 +1304,17 @@ describe('the run request', () => {
     })
   })
 
-  it('carries --bail, --forceExit and --detectOpenHandles (T9.10)', () => {
-    assert.deepEqual(request(['--bail']).bail, { count: 1 })
-    assert.deepEqual(request(['-b']).bail, { count: 1 })
-    assert.equal(request(['--forceExit']).forceExit, true)
-    assert.equal(request(['--detectOpenHandles']).detectOpenHandles, true)
-    // Jest 30.5.2's --bail is a boolean flag: `--bail=2` parses as false, so the flag names no count
-    // (a count comes from the config's `bail`; the request has none).
-    for (const line of [['--bail=2'], ['--no-bail'], ['--bail=false']]) {
-      assert.equal('bail' in request(line), false, line.join(' '))
-    }
-    for (const key of ['forceExit', 'detectOpenHandles'] as const) {
-      assert.equal(key in request([`--no-${key}`]), false, key)
-      assert.equal(key in request([]), false, key)
+  it('leaves --bail, --forceExit and --detectOpenHandles to the config they are keys of (T9.10)', () => {
+    // They are in the argv (the reader merges them into the global config, where a run reads them
+    // together with the config's own), and the request has no field for them.
+    for (const [line, key] of [
+      [['--bail'], 'bail'],
+      [['-b'], 'bail'],
+      [['--forceExit'], 'forceExit'],
+      [['--detectOpenHandles'], 'detectOpenHandles'],
+    ] as const) {
+      assert.equal(parseJestCli([...line]).argv[key], true, line.join(' '))
+      assert.deepEqual(request([...line]), request([]), line.join(' '))
     }
   })
 
