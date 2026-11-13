@@ -167,8 +167,10 @@ export function snapshotLine(snapshots: SnapshotRunSummary | undefined): string 
 
 /**
  * Jest's summary (`getSummary` in `@jest/reporters`): a count of zero is left out, `total` apart.
- * When fewer files ended than were queued (a run that bailed), the suites' total reads
- * `1 of 3 total`, as Jest's does.
+ * The suites' total reads `N of M total` whenever the suites that ran (failed plus passed: a
+ * skipped file is not one that ran) differ from the files queued, as Jest's does. That is a run
+ * that bailed (`1 of 3 total`) and a run with a skipped file (`1 skipped, 1 passed, 1 of 2 total`,
+ * and `1 skipped, 0 of 1 total` for a project whose only file is skipped).
  */
 export function summaryLines(
   files: FileCounts,
@@ -177,11 +179,13 @@ export function summaryLines(
   snapshots?: string,
   queued = 0,
 ): string {
+  const ran = files.failed + files.passed
+  const suitesTotal = Math.max(queued, files.total)
   const suites = [
     ...(files.failed > 0 ? [part(files.failed, 'failed')] : []),
     ...(files.skipped > 0 ? [part(files.skipped, 'skipped')] : []),
     ...(files.passed > 0 ? [part(files.passed, 'passed')] : []),
-    queued > files.total ? `${files.total} of ${queued} total` : part(files.total, 'total'),
+    ran === suitesTotal ? part(suitesTotal, 'total') : `${ran} of ${suitesTotal} total`,
   ]
   const counted = [
     ...(tests.failed > 0 ? [part(tests.failed, 'failed')] : []),

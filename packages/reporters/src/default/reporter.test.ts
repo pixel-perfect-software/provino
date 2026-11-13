@@ -340,8 +340,31 @@ describe('the default reporter', () => {
       { path: 'ran.test.ts', tests: [{ path: ['t'] }] },
     ])
     assert.match(text, /^SKIP skipped\.test\.ts\nPASS ran\.test\.ts/)
-    assert.match(text, /Test Suites: 1 skipped, 1 passed, 2 total/)
+    // Jest's suites that ran are the failed and the passed: the skipped file is not one (recorded:
+    // `cli/skipped-file`, `1 skipped, 1 passed, 1 of 2 total`).
+    assert.match(text, /Test Suites: 1 skipped, 1 passed, 1 of 2 total/)
     assert.match(text, /Tests: {7}1 skipped, 1 passed, 2 total/)
+  })
+
+  test('counts no suite as run when the only file is skipped (cli/skipped-file-alone)', async () => {
+    const text = await report([
+      { path: 'skipped.test.ts', state: 'skip', tests: [{ path: ['t'], state: 'skip' }] },
+    ])
+    assert.match(text, /Test Suites: 1 skipped, 0 of 1 total/)
+  })
+
+  test('reads a skipped file and a bail together: the suites that ran out of those queued', async () => {
+    const out = output()
+    const bus = createReporterBus([defaultReporter({ stream: out, report: JESTLIKE })])
+    await playRun(
+      bus,
+      [
+        { path: 'a.test.ts', state: 'skip', tests: [{ path: ['t'], state: 'skip' }] },
+        { path: 'b.test.ts', tests: [{ path: ['fails'], state: 'fail' }] },
+      ],
+      { notRun: ['c.test.ts'] },
+    )
+    assert.match(out.text(), /Test Suites: 1 failed, 1 skipped, 1 of 3 total/)
   })
 
   test('counts only the tests that ended', async () => {

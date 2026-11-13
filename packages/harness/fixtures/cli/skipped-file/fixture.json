@@ -1,0 +1,9 @@
+{
+  "description": "A file whose every test is skipped (T9.10, B21a review): Jest marks the suite skipped (jest-runner's `skipped = testCount === numPendingTests`) and prints no result for it, and its summary counts it as `skipped` but not as a suite that ran, so the total reads `1 skipped, 1 passed, 1 of 2 total` (getSummary's `suitesRun` is failed + passed). A black-box run with the default reporter; one worker.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Test Suites|Tests):|^(PASS|FAIL|SKIP) "
+  }
+}

@@ -295,6 +295,36 @@ describe('--bail against Jest 30.5.2', () => {
   })
 })
 
+describe('a skipped file against Jest 30.5.2', () => {
+  for (const [id, name] of [
+    ['cli/skipped-file', 'a skipped file is not a suite that ran: 1 of 2 total'],
+    [
+      'cli/skipped-file-alone',
+      'a project whose only file is skipped has run no suite: 0 of 1 total',
+    ],
+  ] as const) {
+    it(`${name} (${id})`, async () => {
+      const run = await runFixture(id)
+      try {
+        const golden = run.fixture.golden.observed
+        assert.equal(run.code, golden?.exitCode, run.stderr)
+        const expected = golden?.stderr ?? ''
+        // The summary, line for line: the suites line is the one that is easy to get wrong.
+        const summary = expected.split('\n').filter((l) => /^(Test Suites|Tests):/.test(l))
+        assert.equal(summary.length, 2)
+        for (const line of summary) {
+          assert.ok(run.stderr.split('\n').includes(line), `stderr has "${line}":\n${run.stderr}`)
+        }
+        for (const [state, path] of goldenFileLines(expected)) {
+          assert.match(run.stderr, new RegExp(`^${state} ${path.replace('.', '\\.')}`, 'm'))
+        }
+      } finally {
+        await run.dispose()
+      }
+    })
+  }
+})
+
 /** Everything from the open-handle header on, with Jest's frame function names (`Object.setInterval`) made one. */
 function handlesBlock(stderr: string): string {
   const from = stderr.indexOf('Jest has detected the following')
