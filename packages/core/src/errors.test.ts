@@ -116,6 +116,52 @@ describe('serializeError of a failed assertion’s matcherResult', () => {
   })
 })
 
+describe('serializeError details (Jest’s failureDetails)', () => {
+  test('an assertion error carries its matcherResult as JSON', () => {
+    const matcherResult = {
+      actual: 1,
+      expected: 2,
+      message: 'expect(received).toBe(expected)',
+      name: 'toBe',
+      pass: false,
+    }
+    const error = Object.assign(new Error('expected'), { matcherResult })
+    assert.deepEqual(serializeError(error).details, { matcherResult })
+  })
+
+  test('a bigint reads as its literal', () => {
+    const error = Object.assign(new Error('big'), { matcherResult: { actual: 10n, pass: false } })
+    assert.deepEqual(serializeError(error).details, {
+      matcherResult: { actual: '10n', pass: false },
+    })
+  })
+
+  test('a cyclic value has none', () => {
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
+    const serialized = serializeError(Object.assign(new Error('loop'), { cyclic }))
+    assert.equal('details' in serialized, false)
+    assert.equal(serialized.message, 'loop')
+  })
+
+  test('a plain error and a thrown string have none (Jest’s JSON for them is {})', () => {
+    assert.equal('details' in serializeError(new Error('plain')), false)
+    assert.equal('details' in serializeError('thrown'), false)
+    assert.equal('details' in serializeError({ a: 1 }), false)
+  })
+
+  test('an error-like object is its own fields', () => {
+    assert.deepEqual(serializeError({ message: 'm', code: 3 }).details, { message: 'm', code: 3 })
+  })
+
+  test('only the top-level error has them, not a cause', () => {
+    const cause = Object.assign(new Error('inner'), { extra: 1 })
+    const serialized = serializeError(new Error('outer', { cause }))
+    assert.equal('details' in serialized, false)
+    assert.equal('details' in (serialized.cause ?? {}), false)
+  })
+})
+
 describe('serializeError of a cause chain', () => {
   test('serializes each cause in turn', () => {
     const error = new Error('outer', {
@@ -271,11 +317,15 @@ describe('serializeError of a value that is not an error', () => {
   })
 
   test('an error from another realm (anything with a message and a stack) keeps its name', () => {
-    const foreign = {
-      name: 'TypeError',
-      message: 'from a vm',
-      stack: 'TypeError: from a vm\n  at x',
-    }
+    // Non-enumerable, as an `Error`'s own fields are (an enumerable field is a `details` entry).
+    const foreign = Object.defineProperties(
+      {},
+      {
+        name: { value: 'TypeError' },
+        message: { value: 'from a vm' },
+        stack: { value: 'TypeError: from a vm\n  at x' },
+      },
+    ) as { stack: string }
     assert.deepEqual(serializeError(foreign), {
       name: 'TypeError',
       message: 'from a vm',

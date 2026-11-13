@@ -1,6 +1,6 @@
 // Error classes and `serializeError` (Track 5 §Module boundaries → `errors/`). Messages that differ
 // between Jest and Vitest are not reproduced here; the dialects own exact text (T5.7, B14).
-import type { SerializedError } from '@provino/types'
+import type { JsonValue, SerializedError } from '@provino/types'
 
 /**
  * Stable codes for `CoreError`.
@@ -103,7 +103,37 @@ interface Walk {
  * @public
  */
 export function serializeError(value: unknown): SerializedError {
-  return serialize(value, 0, { seen: new Set(), count: 0 })
+  const serialized = serialize(value, 0, { seen: new Set(), count: 0 })
+  const details = detailsOf(value)
+  return details === undefined ? serialized : { ...serialized, details }
+}
+
+/**
+ * The JSON of what was thrown, as Jest's `failureDetails[i]` has it in its `--json` output
+ * (`jest-circus` `_getError` then `JSON.stringify`): an error-like value (a string `stack` or a
+ * truthy `message`) is its own enumerable properties, which is where an assertion error's
+ * `matcherResult` lives (`actual`, `expected`, `message`, `name`, `pass`); anything else is
+ * wrapped in a fresh error that has none. A `bigint` reads as its literal (`1n`), as
+ * `serializeToJSON` renders it. Left out (`undefined`) when the JSON is `{}`, which a reader takes
+ * for the default, and when it can't be made (a cyclic value, a throwing getter).
+ */
+function detailsOf(value: unknown): JsonValue | undefined {
+  try {
+    if (!isErrorShaped(value)) return undefined
+    const json = JSON.stringify(value, (_key, inner: unknown) =>
+      typeof inner === 'bigint' ? `${inner}n` : inner,
+    )
+    if (json === undefined || json === '{}') return undefined
+    return JSON.parse(json) as JsonValue
+  } catch {
+    return undefined
+  }
+}
+
+/** Jest's `_getError` test: `typeof error.stack === 'string' || error.message`. */
+function isErrorShaped(value: unknown): value is object {
+  if (typeof value !== 'object' || value === null) return false
+  return typeof read(value, 'stack') === 'string' || Boolean(read(value, 'message'))
 }
 
 function serialize(value: unknown, depth: number, walk: Walk): SerializedError {

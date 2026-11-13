@@ -79,6 +79,21 @@ describe('runProjects over forks', () => {
     assert.equal(summary.reason, 'passed')
     assert.equal(summary.files.length, 5)
     assert.ok(summary.files.every((file) => file.state === 'pass'))
+    // Each file knows its project's place in the config, even when two projects share a name.
+    assert.deepEqual(
+      summary.files.map((file) => [file.file.project, file.file.projectIndex]),
+      [
+        ['alpha', 0],
+        ['alpha', 0],
+        ['alpha', 0],
+        ['beta', 1],
+        ['beta', 1],
+      ],
+    )
+    assert.ok(
+      summary.files.every((file) => !('snapshot' in file)),
+      'a runner that kept no snapshot state reports none',
+    )
     // One run for every project.
     assert.deepEqual(seen.runStarts, [{ projects: ['alpha', 'beta'], files: 5 }])
     assert.deepEqual(seen.runEnds, ['passed'])

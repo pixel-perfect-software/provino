@@ -456,6 +456,12 @@ export interface FileInfo {
   readonly path: string
   readonly project: string
   /**
+   * The project's place among the run's projects (0-based, the config's order). Set by the
+   * coordinator, so a reporter can tell two projects of the same name apart and find the project's
+   * own config.
+   */
+  readonly projectIndex?: number
+  /**
    * POSIX, relative to the run's root. Set only when that differs from `path`: a run of several
    * projects whose roots differ (Jest's `projects`), where two projects can have a file with the
    * same `path`.
@@ -488,6 +494,11 @@ export interface FileResult {
   /** Set when the worker died owning this file. */
   readonly workerExit?: WorkerExit
   readonly errors: readonly SerializedError[]
+  /**
+   * What the file's snapshot state ended with (the worker's `fileDone.snapshot`); absent when the
+   * runner kept none, the file never collected its tests, or it has no result of its own.
+   */
+  readonly snapshot?: SnapshotFileReport
 }
 
 /**
