@@ -230,6 +230,28 @@ export function spawnCli(args: readonly string[], options: CliOptions = {}): Pro
   return startCli(args, options).result()
 }
 
+/**
+ * `text` without the lines Node itself writes to a child's stderr before the program's own output:
+ * Node 22's type-stripping warning with its `--trace-warnings` hint (CI's 22.15 leg runs with
+ * `--experimental-strip-types`), and the sandbox's `failed to copy trust settings` error. A test
+ * that compares where the output begins reads it through this.
+ */
+export function withoutNodeNoise(text: string): string {
+  return text
+    .split('\n')
+    .filter(
+      (line) =>
+        !/^\(node:\d+\) ExperimentalWarning: Type Stripping is an experimental feature/.test(
+          line,
+        ) &&
+        !/^\(Use `node --trace-warnings \.\.\.` to show where the warning was created\)$/.test(
+          line,
+        ) &&
+        !/^ERROR: failed to copy trust settings/.test(line),
+    )
+    .join('\n')
+}
+
 /** One file of a `normalized-json` run, as the tests assert on it. */
 export interface NormalizedFileView {
   readonly status: unknown

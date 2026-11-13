@@ -17,7 +17,7 @@ import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { loadFixture, materialize, underRoot } from './recorded.ts'
-import { spawnCli } from './support.ts'
+import { spawnCli, withoutNodeNoise } from './support.ts'
 
 /** What a fixture's golden says its run wrote to `name`. */
 function recordedFile(
@@ -84,7 +84,7 @@ describe('provino jest against the recorded Jest 30.5.2 runs', () => {
           { cwd: project.root },
         )
         assert.equal(ended.code, fixture.golden.observed?.exitCode, ended.stderr)
-        const printed = underRoot(ended.stderr, project.root)
+        const printed = underRoot(withoutNodeNoise(ended.stderr), project.root)
           .split('\n')
           .filter((line) => /^(?!\s*at ).+/.test(line))
         // A message line printed again as a frame would be a second copy here.
@@ -184,7 +184,7 @@ describe('provino jest against the recorded Jest 30.5.2 runs', () => {
           { cwd: project.root },
         )
         assert.equal(ended.code, fixture.golden.observed?.exitCode, ended.stderr)
-        const printed = underRoot(ended.stderr, project.root)
+        const printed = underRoot(withoutNodeNoise(ended.stderr), project.root)
           .split('\n')
           .filter((line) => keep.test(line))
         assert.deepEqual(printed, String(fixture.golden.observed?.stderr).split('\n'))
