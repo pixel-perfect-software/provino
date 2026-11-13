@@ -83,8 +83,14 @@ export const jestPolicy: PolicyOverrides = {
     doneDeprecatedMessage: null,
     // research: track-01 L191 (`none`)
     eachTitleTruncate: null,
-    // research: track-05 L319
-    retry: { timing: 'deferred', logErrorsBeforeRetry: false, keepEarlierErrors: false },
+    // research: track-05 L319. `functionCondition` is the neutral `call`: Jest's `jest.retryTimes`
+    // has no `condition`, so nothing reads it here (its claim is `own`).
+    retry: {
+      timing: 'deferred',
+      logErrorsBeforeRetry: false,
+      keepEarlierErrors: false,
+      functionCondition: 'call',
+    },
     // research: track-01 L193
     allowOnly: 'always',
     // research: track-05 L317

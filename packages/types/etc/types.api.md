@@ -360,6 +360,7 @@ export interface CorePolicy {
         readonly timing: "deferred" | "immediate";
         readonly logErrorsBeforeRetry: boolean;
         readonly keepEarlierErrors: boolean;
+        readonly functionCondition: "call" | "ignore-warn";
     };
     readonly status: {
         readonly todoUnderSkip: "skipped" | "todo";

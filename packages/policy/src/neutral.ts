@@ -48,7 +48,13 @@ export const neutralPolicy: Policy = deepFreeze({
     formatEachTitle: moduleRef<FormatEachTitle>(BEHAVIOURS, 'formatEachTitle'),
     formatValue: moduleRef<FormatValue>(BEHAVIOURS, 'formatValue'),
     eachTitleTruncate: null,
-    retry: { timing: 'immediate', logErrorsBeforeRetry: true, keepEarlierErrors: true },
+    // A function `retry.condition` is called: a condition the user wrote is never silently dropped.
+    retry: {
+      timing: 'immediate',
+      logErrorsBeforeRetry: true,
+      keepEarlierErrors: true,
+      functionCondition: 'call',
+    },
     // A `.only` committed by mistake must not shrink a CI run.
     allowOnly: 'not-in-ci',
     maxConcurrency: 5,

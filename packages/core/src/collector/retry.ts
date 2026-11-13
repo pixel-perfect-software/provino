@@ -5,7 +5,9 @@ import { CoreError } from '../errors.ts'
 
 /**
  * Decides whether a failed attempt is retried: a `RegExp` is tested against the last error's
- * message, a function is called with the error (Vitest's `retry.condition`).
+ * message, a function is called with the error (Vitest's `retry.condition`). Under the policy's
+ * `retry.functionCondition: 'ignore-warn'` (Vitest's dialect) a function is not called: Vitest
+ * 5.0.5 never calls it, so every failure retries.
  * @public
  */
 export type RetryCondition = RegExp | ((error: SerializedError) => boolean)

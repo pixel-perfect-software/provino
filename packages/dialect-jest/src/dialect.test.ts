@@ -165,6 +165,8 @@ test('every module gets its own jest, built by the runtime factory, whether or n
 test('values that equal the neutral ones are not divergences', () => {
   const paths = new Set(diffPolicy(neutralPolicy, resolved).map((row) => row.path))
   for (const path of [
+    // Jest has no `retry.condition`, so it keeps the neutral `call`.
+    'core.retry.functionCondition',
     'core.maxConcurrency',
     'snapshot.dirName',
     'orchestrator.unhandledErrors',

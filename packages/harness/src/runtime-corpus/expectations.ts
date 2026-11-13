@@ -53,19 +53,11 @@ export const RETRY_LOG_FIXTURES: ReadonlySet<string> = new Set(['runtime/retry-l
 
 /**
  * The trace core gives where the real runner has a bug that core does not copy (D7), by
- * `fixture (profile)`. Vitest 5.0.5 never calls a function given as `retry.condition`: a failed
- * test is retried on every failure, so its golden has all three attempts of both tests. Core calls
- * it: the condition is asked after each failed attempt but the last, and `false` ends the retries.
+ * `fixture (profile)`. (Vitest 5.0.5 never calls a function given as `retry.condition` and retries
+ * every failure; that is not declared here: the Vitest dialect's `retry.functionCondition` is
+ * `ignore-warn`, which keeps that outcome, D7, and `runtime/retry-condition-function` holds it.)
  */
 export const DECLARED_TRACES: Readonly<Record<string, readonly string[]>> = {
-  'runtime/retry-condition-function (vitest)': [
-    'function says yes #1',
-    'condition asked: always',
-    'function says yes #2',
-    'condition asked: always',
-    'function says yes #3',
-    'function says no #1',
-  ],
   // Vitest tests the user's `g` or `y` RegExp itself, so its `lastIndex` carries: the same failure is
   // retried once and then not, and a RegExp shared by two tests carries it from one to the other
   // (`shared next` is not retried at all, after a test that matched it once). Core tests a copy.

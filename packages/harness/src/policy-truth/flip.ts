@@ -20,6 +20,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'core.asyncDescribe': ['throw', 'await'],
   'core.nonPromiseReturn': ['fail', 'ignore'],
   'core.retry.timing': ['deferred', 'immediate'],
+  'core.retry.functionCondition': ['call', 'ignore-warn'],
   'core.allowOnly': ['always', 'not-in-ci'],
   'core.unawaitedAsyncAssertion': ['ignore', 'fail'],
   'core.collect.describeBody': ['immediate', 'deferred'],

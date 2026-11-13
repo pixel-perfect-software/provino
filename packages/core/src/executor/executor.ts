@@ -124,6 +124,8 @@ export type Outcome = 'pass' | 'fail' | 'skip' | 'todo'
 interface FileRun {
   readonly file: FileState
   readonly fileId: TaskId
+  /** Whether the file has had the warning for an ignored function `retry.condition` (once a file). */
+  warnedIgnoredCondition: boolean
 }
 
 /** What a test is retried with. */
@@ -244,7 +246,7 @@ export class Executor {
    * is returned. The file's own teardowns (`FileHandle.teardowns`) are the caller's to run.
    */
   async runFile(file: FileState): Promise<Outcome> {
-    const run: FileRun = { file, fileId: file.root.id }
+    const run: FileRun = { file, fileId: file.root.id, warnedIgnoredCondition: false }
     this.#filePath = file.path
     return this.#runSuite(run, file.root, { attached: [], skipHooks: false, concurrent: false })
   }
@@ -574,12 +576,21 @@ export class Executor {
       // retried: another attempt meets the same error, and Jest (`handleRetry`) skips it.
       let willRetry = errors.length > 0 && attempt < plan.count && scope.attached.length === 0
       if (willRetry && plan.condition !== undefined) {
-        try {
-          willRetry = passesCondition(plan.condition, serializeError(errors.at(-1)))
-        } catch (error) {
-          // A condition that throws is a failure of the test; nothing is retried on its word.
-          willRetry = false
-          conditionFailure = error
+        if (
+          typeof plan.condition === 'function' &&
+          this.#policy.retry.functionCondition === 'ignore-warn'
+        ) {
+          // Vitest never calls it, and calling it could turn a green suite red (D7): keep the
+          // outcome, retry the failure, and say how to get what the user wrote.
+          this.#warnIgnoredCondition(run, test)
+        } else {
+          try {
+            willRetry = passesCondition(plan.condition, serializeError(errors.at(-1)))
+          } catch (error) {
+            // A condition that throws is a failure of the test; nothing is retried on its word.
+            willRetry = false
+            conditionFailure = error
+          }
         }
       }
       this.#emit({
@@ -604,6 +615,23 @@ export class Executor {
       await this.#wait(plan.delay, progress)
     }
     return false
+  }
+
+  /**
+   * Warns, once a file, that a function `retry.condition` is not called under
+   * `retry.functionCondition: 'ignore-warn'` (a D7 keep-the-outcome warning). The console is the
+   * one the worker captured, as the fake clock's warnings are.
+   */
+  #warnIgnoredCondition(run: FileRun, test: TestNode): void {
+    if (run.warnedIgnoredCondition) return
+    run.warnedIgnoredCondition = true
+    globalThis.console.warn(
+      `The function given as the retry.condition of "${test.fullName.join(this.#policy.nameSeparator)}" ` +
+        'is not called: Vitest 5.0 never calls a function condition and retries every failure, and so ' +
+        'does this mode, so the outcome of a suite that passes there does not change. Pass a RegExp ' +
+        '(tested against the error message) to limit the retries, or use the neutral mode, which ' +
+        'calls the function.',
+    )
   }
 
   /** The retries of a test whose first attempt failed, once its suite has run its other tests. */

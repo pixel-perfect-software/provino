@@ -50,7 +50,15 @@ export const vitestPolicy: PolicyOverrides = {
       'formatEachTitle',
     ),
     eachTitleTruncate: VITEST_EACH_TITLE_TRUNCATE,
-    retry: { timing: 'immediate', logErrorsBeforeRetry: true, keepEarlierErrors: true },
+    // `functionCondition`: Vitest 5.0.5 never calls a function `retry.condition` and retries every
+    // failure (runtime corpus `retry-condition-function` agrees). Honouring it here could turn a
+    // green suite red, so this dialect keeps the outcome and warns (D7); neutral calls it.
+    retry: {
+      timing: 'immediate',
+      logErrorsBeforeRetry: true,
+      keepEarlierErrors: true,
+      functionCondition: 'ignore-warn',
+    },
     allowOnly: 'not-in-ci',
     maxConcurrency: 5,
     unawaitedAsyncAssertion: 'fail',
