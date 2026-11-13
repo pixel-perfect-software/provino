@@ -36,7 +36,7 @@ if (command === 'hygiene') {
     if (!isSection(name)) usage(`unknown section "${name}" (${SECTIONS.join(', ')})`)
     return name
   })
-  const results = hygiene({
+  const results = await hygiene({
     root: ROOT,
     base: values.base,
     updateApi: values['update-api'],

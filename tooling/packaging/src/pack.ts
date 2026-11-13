@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs'
-import { runCommand } from './exec.ts'
+import { type CommandResult, runCommand, runCommandAsync } from './exec.ts'
 import type { WorkspacePackage } from './workspace.ts'
 
 /** A package packed to a tarball. */
@@ -24,17 +24,22 @@ export function pnpm(): { readonly command: string; readonly prefix: readonly st
   return { command: 'pnpm', prefix: [] }
 }
 
-/**
- * Packs one package with `pnpm pack`, never `npm pack`: only pnpm rewrites `workspace:` and
- * `catalog:` versions and applies `publishConfig` (D75). The package must be built.
- * @internal
- */
-export function packPackage(pkg: WorkspacePackage, outDir: string): PackedPackage {
+/** The `pnpm pack` command line for one package, and where it runs. */
+function packCommand(
+  pkg: WorkspacePackage,
+  outDir: string,
+): { command: string; args: string[]; options: { cwd: string } } {
   mkdirSync(outDir, { recursive: true })
   const { command, prefix } = pnpm()
-  const result = runCommand(command, [...prefix, 'pack', '--pack-destination', outDir, '--json'], {
-    cwd: pkg.dir,
-  })
+  return {
+    command,
+    args: [...prefix, 'pack', '--pack-destination', outDir, '--json'],
+    options: { cwd: pkg.dir },
+  }
+}
+
+/** What `pnpm pack --json` printed, as a `PackedPackage`; anything else is an error naming the package. */
+function packed(pkg: WorkspacePackage, result: CommandResult): PackedPackage {
   if (result.status !== 0) {
     // `error` is set when pnpm could not start or was killed for outrunning its deadline.
     throw new Error(`pnpm pack failed in ${pkg.rel}:\n${result.output}`, { cause: result.error })
@@ -60,6 +65,28 @@ export function packPackage(pkg: WorkspacePackage, outDir: string): PackedPackag
       )
     : []
   return { name, version, tarball: filename, files: paths }
+}
+
+/**
+ * Packs one package with `pnpm pack`, never `npm pack`: only pnpm rewrites `workspace:` and
+ * `catalog:` versions and applies `publishConfig` (D75). The package must be built.
+ * @internal
+ */
+export function packPackage(pkg: WorkspacePackage, outDir: string): PackedPackage {
+  const { command, args, options } = packCommand(pkg, outDir)
+  return packed(pkg, runCommand(command, args, options))
+}
+
+/**
+ * `packPackage` beside other work: packs in `outDir` are distinct files, so several run at once.
+ * @internal
+ */
+export async function packPackageAsync(
+  pkg: WorkspacePackage,
+  outDir: string,
+): Promise<PackedPackage> {
+  const { command, args, options } = packCommand(pkg, outDir)
+  return packed(pkg, await runCommandAsync(command, args, options))
 }
 
 /**

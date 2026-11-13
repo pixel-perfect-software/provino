@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { type ApiEntry, extract, publicApiChanged, reportBlocks } from './api-reports.ts'
-import { attwTarball, publintTarball } from './lint-pack.ts'
-import { packPackage } from './pack.ts'
+import { attwTarball, lintPackAsync, publintTarball } from './lint-pack.ts'
+import { packPackage, packPackageAsync } from './pack.ts'
 import { readManifest } from './package-json.ts'
 import type { WorkspacePackage } from './workspace.ts'
 
@@ -164,5 +164,30 @@ describe('publint and attw gate (T1.6)', () => {
     )
     const packed = packPackage(pkg, out)
     assert.equal(publintTarball(packed, pkg.dir)?.tool, 'publint')
+  })
+
+  test('the async path hygiene takes finds what the sync one does', async () => {
+    const clean = plantedPackage(
+      { ...good, name: '@provino/planted-async-good' },
+      {
+        'dist/index.js': 'export const a = 1\n',
+        'dist/index.d.ts': 'export declare const a: 1\n',
+      },
+    )
+    assert.deepEqual(await lintPackAsync(await packPackageAsync(clean, out), clean.dir), [])
+    const broken = plantedPackage(
+      {
+        ...good,
+        name: '@provino/planted-async-require-only',
+        exports: { '.': { types: './dist/index.d.ts', require: './dist/index.cjs' } },
+      },
+      { 'dist/index.cjs': 'exports.a = 1\n', 'dist/index.d.ts': 'export declare const a: 1\n' },
+    )
+    const packed = packPackage(broken, out)
+    const sync = [publintTarball(packed, broken.dir), attwTarball(packed, broken.dir)].filter(
+      (problem) => problem !== undefined,
+    )
+    assert.ok(sync.length > 0)
+    assert.deepEqual(await lintPackAsync(await packPackageAsync(broken, out), broken.dir), sync)
   })
 })

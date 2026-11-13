@@ -3,48 +3,59 @@ import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, test } from 'node:test'
-import { runCommand } from './exec.ts'
+import { runCommand, runCommandAsync } from './exec.ts'
 import { packPackage } from './pack.ts'
 import { readManifest } from './package-json.ts'
 
-describe('runCommand', () => {
-  test('keeps stdout and stderr apart, and joins them as output', () => {
-    const result = runCommand(
-      process.execPath,
-      ['-e', "process.stdout.write('out'); process.stderr.write('err')"],
-      { cwd: tmpdir() },
-    )
-    assert.equal(result.status, 0)
-    assert.equal(result.stdout, 'out')
-    assert.equal(result.stderr, 'err')
-    assert.equal(result.output, 'outerr')
-    assert.equal(result.error, undefined)
-  })
+// The sync and the async run are one contract: the same result for the same command.
+const RUNS = {
+  runCommand: async (...args: Parameters<typeof runCommand>) => runCommand(...args),
+  runCommandAsync,
+} as const
 
-  test('a command that cannot be started says so, and is not an empty or "nullnull" result', () => {
-    const result = runCommand('provino-no-such-command', ['--x'], { cwd: tmpdir() })
-    assert.equal(result.status, null)
-    assert.equal(result.error?.code, 'ENOENT')
-    assert.match(result.output, /provino-no-such-command: spawnSync provino-no-such-command ENOENT/)
-    assert.doesNotMatch(result.output, /null/)
-  })
-
-  test('a command that outruns its deadline is killed, and says so', () => {
-    const result = runCommand(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], {
-      cwd: tmpdir(),
-      timeoutMs: 300,
+for (const [name, run] of Object.entries(RUNS)) {
+  describe(name, () => {
+    test('keeps stdout and stderr apart, and joins them as output', async () => {
+      const result = await run(
+        process.execPath,
+        ['-e', "process.stdout.write('out'); process.stderr.write('err')"],
+        { cwd: tmpdir() },
+      )
+      assert.equal(result.status, 0)
+      assert.equal(result.stdout, 'out')
+      assert.equal(result.stderr, 'err')
+      assert.equal(result.output, 'outerr')
+      assert.equal(result.error, undefined)
     })
-    assert.equal(result.status, null)
-    assert.equal(result.error?.code, 'ETIMEDOUT')
-    assert.match(result.output, /did not end within 300 ms and was killed/)
-  })
 
-  test('a failing exit status is a status, not an error', () => {
-    const result = runCommand(process.execPath, ['-e', 'process.exit(3)'], { cwd: tmpdir() })
-    assert.equal(result.status, 3)
-    assert.equal(result.error, undefined)
+    test('a command that cannot be started says so, and is not an empty or "nullnull" result', async () => {
+      const result = await run('provino-no-such-command', ['--x'], { cwd: tmpdir() })
+      assert.equal(result.status, null)
+      assert.equal(result.error?.code, 'ENOENT')
+      assert.match(
+        result.output,
+        /provino-no-such-command: spawn(?:Sync)? provino-no-such-command ENOENT/,
+      )
+      assert.doesNotMatch(result.output, /null/)
+    })
+
+    test('a command that outruns its deadline is killed, and says so', async () => {
+      const result = await run(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], {
+        cwd: tmpdir(),
+        timeoutMs: 300,
+      })
+      assert.equal(result.status, null)
+      assert.equal(result.error?.code, 'ETIMEDOUT')
+      assert.match(result.output, /did not end within 300 ms and was killed/)
+    })
+
+    test('a failing exit status is a status, not an error', async () => {
+      const result = await run(process.execPath, ['-e', 'process.exit(3)'], { cwd: tmpdir() })
+      assert.equal(result.status, 3)
+      assert.equal(result.error, undefined)
+    })
   })
-})
+}
 
 describe('packPackage reads pnpm pack --json from stdout only', () => {
   /** A package, and a stand-in for pnpm that writes `stderr` and the JSON `stdout`. */

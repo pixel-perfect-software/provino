@@ -19,9 +19,10 @@ import {
 import { fileAt, resolveBase } from './git.ts'
 import { installScriptProblems } from './install-scripts.ts'
 import { runKnip } from './knip.ts'
-import { lintPacks } from './lint-pack.ts'
-import { packAll } from './pack.ts'
+import { lintPackAsync } from './lint-pack.ts'
+import { packPackageAsync } from './pack.ts'
 import { runtimeDependencyNames } from './package-json.ts'
+import { CONCURRENCY, mapPool } from './pool.ts'
 import { lintReleaseWorkflow } from './release-lint.ts'
 import {
   publicPackages,
@@ -30,18 +31,15 @@ import {
   type WorkspacePackage,
 } from './workspace.ts'
 
-/** The checks `pnpm hygiene` runs, in order. */
-export const SECTIONS = [
-  'install-scripts',
-  'changeset-config',
-  'umbrella-deps',
-  'release',
-  'packs',
-  'api',
-  'knip',
-] as const
-
-export type Section = (typeof SECTIONS)[number]
+/** A check of `pnpm hygiene`: the keys of `RUNNERS`, below. */
+export type Section =
+  | 'install-scripts'
+  | 'changeset-config'
+  | 'umbrella-deps'
+  | 'release'
+  | 'packs'
+  | 'knip'
+  | 'api'
 
 /** What one section found. Empty `problems` means it passed. */
 export interface SectionResult {
@@ -117,78 +115,112 @@ export function umbrellaDependencyProblems(
   ]
 }
 
-function runSection(section: Section, options: HygieneOptions, workDir: string): SectionResult {
-  const { root } = options
-  const problems: string[] = []
-  const notes: string[] = []
-  const packages = readWorkspacePackages(root)
-  switch (section) {
-    case 'install-scripts': {
-      problems.push(...installScriptProblems(packages))
-      notes.push(`${packages.length} package.json files checked`)
-      break
-    }
-    case 'changeset-config': {
-      problems.push(...checkChangesetIgnore(readChangesetConfig(root).ignore, packages))
-      break
-    }
-    case 'umbrella-deps': {
-      problems.push(...umbrellaDependencyProblems(packages))
-      break
-    }
-    case 'release': {
-      const template = readFileSync(join(root, RELEASE_TEMPLATE), 'utf8')
-      for (const problem of lintReleaseWorkflow(template, { draft: true })) {
-        problems.push(`${RELEASE_TEMPLATE}: ${problem}`)
-      }
-      if (existsSync(join(root, RELEASE_WORKFLOW))) {
-        const text = readFileSync(join(root, RELEASE_WORKFLOW), 'utf8')
-        for (const problem of lintReleaseWorkflow(text, { draft: /\bDRAFT\b/.test(text) })) {
-          problems.push(`${RELEASE_WORKFLOW}: ${problem}`)
-        }
-      } else {
-        notes.push(`${RELEASE_WORKFLOW} does not exist yet (B21h adds it from the template)`)
-      }
-      break
-    }
-    case 'packs': {
-      const packs = packAll(publicPackages(root), join(workDir, 'packs'))
-      for (const problem of lintPacks(packs, root)) {
-        problems.push(`${problem.tool} failed on ${problem.name}:\n${problem.output.trim()}`)
-      }
-      notes.push(`${packs.length} packs checked with publint and attw (--profile esm-only)`)
-      break
-    }
-    case 'api': {
-      const extractions = apiEntries(packages).map((entry) => extract(entry, join(workDir, 'api')))
-      for (const { entry, errors } of extractions) {
-        for (const error of errors)
-          problems.push(`${entry.pkg.manifest.name} (${entry.name}): ${error}`)
-      }
-      const usable = extractions.filter((extraction) => extraction.errors.length === 0)
-      const differences = reportDifferences(usable)
-      if (options.updateApi) {
-        writeReports(differences)
-        notes.push(`${differences.length} API reports rewritten`)
-      } else {
-        for (const { entry } of differences) {
-          problems.push(
-            `${entry.pkg.rel}/${entry.report} is out of date: run \`pnpm hygiene:update-api\` and commit it`,
-          )
-        }
-      }
-      problems.push(...changesetProblems(options, usable))
-      notes.push(`${extractions.length} API reports for ${SEMVER_PACKAGES.length} packages`)
-      break
-    }
-    case 'knip': {
-      const result = runKnip(root)
-      if (!result.ok) problems.push(`knip found problems:\n${result.output.trim()}`)
-      break
-    }
-  }
-  return { section, problems, notes }
+/** What a section found, before it is named. */
+interface SectionParts {
+  readonly problems: readonly string[]
+  readonly notes: readonly string[]
 }
+
+/** What every section is given: the options, the workspace (read once) and a scratch directory. */
+interface SectionContext {
+  readonly options: HygieneOptions
+  readonly packages: readonly WorkspacePackage[]
+  readonly workDir: string
+}
+
+type SectionRunner = (context: SectionContext) => SectionParts | Promise<SectionParts>
+
+/** Lets the event loop run: the in-process API Extractor yields between entries so children progress. */
+const turn = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
+
+/**
+ * The checks, by section. The order is the order they are reported in, and the order they start
+ * in: `packs` and `knip` wait on child processes, so they start before `api`, which works in this
+ * process, and the three overlap.
+ */
+const RUNNERS: Readonly<Record<Section, SectionRunner>> = {
+  'install-scripts': ({ packages }) => ({
+    problems: installScriptProblems(packages),
+    notes: [`${packages.length} package.json files checked`],
+  }),
+  'changeset-config': ({ options, packages }) => ({
+    problems: checkChangesetIgnore(readChangesetConfig(options.root).ignore, packages),
+    notes: [],
+  }),
+  'umbrella-deps': ({ packages }) => ({
+    problems: umbrellaDependencyProblems(packages),
+    notes: [],
+  }),
+  release: ({ options }) => {
+    const problems: string[] = []
+    const notes: string[] = []
+    const template = readFileSync(join(options.root, RELEASE_TEMPLATE), 'utf8')
+    for (const problem of lintReleaseWorkflow(template, { draft: true })) {
+      problems.push(`${RELEASE_TEMPLATE}: ${problem}`)
+    }
+    if (existsSync(join(options.root, RELEASE_WORKFLOW))) {
+      const text = readFileSync(join(options.root, RELEASE_WORKFLOW), 'utf8')
+      for (const problem of lintReleaseWorkflow(text, { draft: /\bDRAFT\b/.test(text) })) {
+        problems.push(`${RELEASE_WORKFLOW}: ${problem}`)
+      }
+    } else {
+      notes.push(`${RELEASE_WORKFLOW} does not exist yet (B21h adds it from the template)`)
+    }
+    return { problems, notes }
+  },
+  // Pack, then publint and attw, one package at a time per lane, a few lanes at once. The results
+  // come back in package order, so the report reads the same as when they ran one after another.
+  packs: async ({ options, workDir }) => {
+    const found = await mapPool(publicPackages(options.root), CONCURRENCY, async (pkg) =>
+      lintPackAsync(await packPackageAsync(pkg, join(workDir, 'packs')), options.root),
+    )
+    return {
+      problems: found.flat().map((problem) => {
+        return `${problem.tool} failed on ${problem.name}:\n${problem.output.trim()}`
+      }),
+      notes: [`${found.length} packs checked with publint and attw (--profile esm-only)`],
+    }
+  },
+  knip: async ({ options }) => {
+    const result = await runKnip(options.root)
+    return {
+      problems: result.ok ? [] : [`knip found problems:\n${result.output.trim()}`],
+      notes: [],
+    }
+  },
+  api: async ({ options, packages, workDir }) => {
+    const problems: string[] = []
+    const notes: string[] = []
+    const extractions: Extraction[] = []
+    for (const entry of apiEntries(packages)) {
+      extractions.push(extract(entry, join(workDir, 'api')))
+      await turn()
+    }
+    for (const { entry, errors } of extractions) {
+      for (const error of errors) {
+        problems.push(`${entry.pkg.manifest.name} (${entry.name}): ${error}`)
+      }
+    }
+    const usable = extractions.filter((extraction) => extraction.errors.length === 0)
+    const differences = reportDifferences(usable)
+    if (options.updateApi) {
+      writeReports(differences)
+      notes.push(`${differences.length} API reports rewritten`)
+    } else {
+      for (const { entry } of differences) {
+        problems.push(
+          `${entry.pkg.rel}/${entry.report} is out of date: run \`pnpm hygiene:update-api\` and commit it`,
+        )
+      }
+    }
+    problems.push(...changesetProblems(options, usable))
+    notes.push(`${extractions.length} API reports for ${SEMVER_PACKAGES.length} packages`)
+    return { problems, notes }
+  },
+}
+
+/** The checks `pnpm hygiene` runs, in the order they are reported. */
+export const SECTIONS: readonly Section[] = Object.keys(RUNNERS) as Section[]
 
 /**
  * A `@public` signature changed since the base, with no changeset added since it naming the
@@ -229,21 +261,29 @@ function readCommitted(root: string, entry: Extraction['entry']): string | undef
 }
 
 /**
- * Runs the sections and returns what each found. A section that throws is a failure of that
- * section, not of the run: every section reports.
+ * Runs the sections together and returns what each found, in section order. A section that
+ * throws is a failure of that section, not of the run: every section reports.
  * @internal
  */
-export function hygiene(options: HygieneOptions): readonly SectionResult[] {
+export async function hygiene(options: HygieneOptions): Promise<readonly SectionResult[]> {
   const workDir = mkdtempSync(join(tmpdir(), 'provino-hygiene-'))
   try {
-    return SECTIONS.filter((section) => options.only?.includes(section) ?? true).map((section) => {
-      try {
-        return runSection(section, options, workDir)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        return { section, problems: [`could not run: ${message}`], notes: [] }
-      }
-    })
+    const context: SectionContext = {
+      options,
+      packages: readWorkspacePackages(options.root),
+      workDir,
+    }
+    const selected = SECTIONS.filter((section) => options.only?.includes(section) ?? true)
+    return await Promise.all(
+      selected.map(async (section): Promise<SectionResult> => {
+        try {
+          return { section, ...(await RUNNERS[section](context)) }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          return { section, problems: [`could not run: ${message}`], notes: [] }
+        }
+      }),
+    )
   } finally {
     rmSync(workDir, { recursive: true, force: true })
   }

@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -28,27 +28,100 @@ export interface CommandResult {
 export function runCommand(
   command: string,
   args: readonly string[],
-  options: { readonly cwd: string; readonly timeoutMs?: number; readonly env?: NodeJS.ProcessEnv },
+  options: CommandOptions,
 ): CommandResult {
-  const { FORCE_COLOR: _color, ...inherited } = options.env ?? process.env
   const timeoutMs = options.timeoutMs ?? 300_000
   const result = spawnSync(command, [...args], {
-    cwd: options.cwd,
-    env: { ...inherited, NO_COLOR: '1' },
+    ...spawnOptions(options),
     encoding: 'utf8',
     timeout: timeoutMs,
     maxBuffer: 64 * 1024 * 1024,
-    stdio: ['ignore', 'pipe', 'pipe'],
   })
   // A command that never started has no streams at all (`null`, not empty strings).
-  const stdout = result.stdout ?? ''
-  const stderr = result.stderr ?? ''
-  const error = result.error as CommandResult['error']
+  return finished(
+    command,
+    timeoutMs,
+    result.status,
+    result.stdout ?? '',
+    result.stderr ?? '',
+    result.error as CommandResult['error'],
+  )
+}
+
+/**
+ * `runCommand` that doesn't hold the process: the same result, for commands that can run beside
+ * each other (a pool of `pnpm pack`s, a lint beside the API Extractor).
+ * @internal
+ */
+export function runCommandAsync(
+  command: string,
+  args: readonly string[],
+  options: CommandOptions,
+): Promise<CommandResult> {
+  const timeoutMs = options.timeoutMs ?? 300_000
+  return new Promise((resolve) => {
+    const child = spawn(command, [...args], spawnOptions(options))
+    let stdout = ''
+    let stderr = ''
+    let error: CommandResult['error']
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+      stdout += chunk
+    })
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
+      stderr += chunk
+    })
+    const deadline = setTimeout(() => {
+      error = Object.assign(new Error(`${command} ETIMEDOUT`), { code: 'ETIMEDOUT' })
+      child.kill('SIGKILL')
+    }, timeoutMs)
+    child.once('error', (cause: CommandResult['error']) => {
+      error ??= cause
+    })
+    // `close`, not `exit`: the streams have ended, so nothing the command wrote is lost.
+    child.once('close', (status) => {
+      clearTimeout(deadline)
+      // As `spawnSync` has it: no status when the command never ran or was killed for its deadline.
+      resolve(
+        finished(command, timeoutMs, error === undefined ? status : null, stdout, stderr, error),
+      )
+    })
+  })
+}
+
+/** What `runCommand` takes: where to run, how long to wait, and the environment. */
+interface CommandOptions {
+  readonly cwd: string
+  readonly timeoutMs?: number
+  readonly env?: NodeJS.ProcessEnv
+}
+
+/** `FORCE_COLOR` is dropped and `NO_COLOR` set, so the output is plain text. */
+function spawnOptions(options: CommandOptions): {
+  cwd: string
+  env: NodeJS.ProcessEnv
+  stdio: ['ignore', 'pipe', 'pipe']
+} {
+  const { FORCE_COLOR: _color, ...inherited } = options.env ?? process.env
+  return {
+    cwd: options.cwd,
+    env: { ...inherited, NO_COLOR: '1' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }
+}
+
+function finished(
+  command: string,
+  timeoutMs: number,
+  status: number | null,
+  stdout: string,
+  stderr: string,
+  error: CommandResult['error'],
+): CommandResult {
   const reason =
     error === undefined
       ? ''
       : `\n${command}: ${error.code === 'ETIMEDOUT' ? `did not end within ${timeoutMs} ms and was killed` : error.message}\n`
-  return { status: result.status, stdout, stderr, output: `${stdout}${stderr}${reason}`, error }
+  return { status, stdout, stderr, output: `${stdout}${stderr}${reason}`, error }
 }
 
 /**
