@@ -183,38 +183,41 @@ export function publicApiChanged(before: string | undefined, after: string | und
   return old.size !== now.size || [...now].some((text) => !old.has(text))
 }
 
-/** An entry whose generated report differs from the committed one. */
-export interface ReportDifference {
+/**
+ * The committed report of an entry (`etc/` in its package), or `undefined` when none is committed
+ * yet.
+ * @internal
+ */
+export function readCommittedReport(entry: ApiEntry): string | undefined {
+  const path = join(entry.pkg.dir, entry.report)
+  return existsSync(path) ? readFileSync(path, 'utf8') : undefined
+}
+
+/** An entry's report as API Extractor generates it now, beside the one on disk. */
+export interface ReportState {
   readonly entry: ApiEntry
-  /** The committed report (`undefined` when none is committed yet). */
-  readonly committed: string | undefined
   readonly current: string
-  /** Whether a `@public` declaration changed: that needs a changeset. */
-  readonly publicChanged: boolean
+  /** `undefined` when no report is committed yet. */
+  readonly committed: string | undefined
 }
 
 /**
- * The entries whose report on disk (`etc/`) is not what API Extractor generates now.
+ * The state of each entry's report, reading each committed report once. An extraction that made
+ * no report is left out.
  * @internal
  */
-export function reportDifferences(extractions: readonly Extraction[]): readonly ReportDifference[] {
-  return extractions.flatMap(({ entry, report }) => {
-    if (report === undefined) return []
-    const path = join(entry.pkg.dir, entry.report)
-    const committed = existsSync(path) ? readFileSync(path, 'utf8') : undefined
-    if (committed === report) return []
-    return [
-      { entry, committed, current: report, publicChanged: publicApiChanged(committed, report) },
-    ]
-  })
+export function reportStates(extractions: readonly Extraction[]): readonly ReportState[] {
+  return extractions.flatMap(({ entry, report }) =>
+    report === undefined ? [] : [{ entry, current: report, committed: readCommittedReport(entry) }],
+  )
 }
 
 /**
- * Writes each generated report over the committed one.
+ * Writes each state's generated report over the committed one.
  * @internal
  */
-export function writeReports(differences: readonly ReportDifference[]): void {
-  for (const { entry, current } of differences) {
+export function writeReports(states: readonly ReportState[]): void {
+  for (const { entry, current } of states) {
     const path = join(entry.pkg.dir, entry.report)
     mkdirSync(join(entry.pkg.dir, 'etc'), { recursive: true })
     writeFileSync(path, current)

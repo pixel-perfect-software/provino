@@ -35,23 +35,23 @@ export function changesetsSince(root: string, base: string): readonly Changeset[
     .map((file) => parseChangeset(file, readFileSync(join(root, file), 'utf8')))
 }
 
-/** A package whose `@public` API changed since the base, with the reports that show it. */
-export interface PublicChange {
-  readonly package: string
-  readonly reports: readonly string[]
-}
-
 /**
- * The packages that changed a `@public` signature and have no changeset naming them. One
- * changeset may name several packages, and any bump level counts.
+ * A problem for each package that changed a `@public` signature (`changed`: package → the reports
+ * that show it) and has no changeset naming it. One changeset may name several packages, and any
+ * bump level counts.
  * @internal
  */
 export function missingChangesets(
-  changes: readonly PublicChange[],
+  changed: ReadonlyMap<string, readonly string[]>,
   changesets: readonly Changeset[],
 ): readonly string[] {
   const covered = new Set(changesets.flatMap((changeset) => Object.keys(changeset.bumps)))
-  return changes.filter((change) => !covered.has(change.package)).map((change) => change.package)
+  return [...changed]
+    .filter(([name]) => !covered.has(name))
+    .map(
+      ([name, reports]) =>
+        `${name} changed a @public signature (${reports.join(', ')}) with no changeset: run \`pnpm changeset\` and name it`,
+    )
 }
 
 /** What `.changeset/config.json` says that this repo depends on. */

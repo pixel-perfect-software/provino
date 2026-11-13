@@ -6,14 +6,14 @@ import {
   type Extraction,
   extract,
   publicApiChanged as publicChange,
-  reportDifferences,
+  type ReportState,
+  reportStates,
   writeReports,
 } from './api-reports.ts'
 import {
   changesetsSince,
   checkChangesetIgnore,
   missingChangesets,
-  type PublicChange,
   readChangesetConfig,
 } from './changesets.ts'
 import { fileAt, resolveBase } from './git.ts'
@@ -202,7 +202,8 @@ const RUNNERS: Readonly<Record<Section, SectionRunner>> = {
       }
     }
     const usable = extractions.filter((extraction) => extraction.errors.length === 0)
-    const differences = reportDifferences(usable)
+    const states = reportStates(usable)
+    const differences = states.filter((state) => state.committed !== state.current)
     if (options.updateApi) {
       writeReports(differences)
       notes.push(`${differences.length} API reports rewritten`)
@@ -213,7 +214,7 @@ const RUNNERS: Readonly<Record<Section, SectionRunner>> = {
         )
       }
     }
-    problems.push(...changesetProblems(options, usable))
+    problems.push(...publicChangeProblems(options, states))
     notes.push(`${extractions.length} API reports for ${SEMVER_PACKAGES.length} packages`)
     return { problems, notes }
   },
@@ -224,42 +225,25 @@ export const SECTIONS: readonly Section[] = Object.keys(RUNNERS) as Section[]
 
 /**
  * A `@public` signature changed since the base, with no changeset added since it naming the
- * package. The changed signature is the difference between the report at `base` and the one the
- * extraction produced now (what `--update-api` would commit).
+ * package. The changed signature is the difference between the report at `base` and the one that
+ * will be committed: the one just generated under --update-api, else the one on disk (a stale one
+ * is its own problem, reported by the caller).
  */
-function changesetProblems(
+function publicChangeProblems(
   options: HygieneOptions,
-  extractions: readonly Extraction[],
+  states: readonly ReportState[],
 ): readonly string[] {
   const base = resolveBase(options.root, options.base)
   const changed = new Map<string, string[]>()
-  for (const { entry, report } of extractions) {
+  for (const { entry, current, committed } of states) {
     const before = fileAt(options.root, base, `${entry.pkg.rel}/${entry.report}`)
-    // What will be committed: the report just generated under --update-api, else the one on disk
-    // (a stale one is its own problem above).
-    const now = options.updateApi ? report : readCommitted(options.root, entry)
-    if (publicChange(before, now)) {
-      changed.set(entry.pkg.manifest.name, [
-        ...(changed.get(entry.pkg.manifest.name) ?? []),
-        entry.report,
-      ])
+    if (publicChange(before, options.updateApi ? current : committed)) {
+      const name = entry.pkg.manifest.name
+      changed.set(name, [...(changed.get(name) ?? []), entry.report])
     }
   }
-  const changes: PublicChange[] = [...changed].map(([name, reports]) => ({
-    package: name,
-    reports,
-  }))
-  return missingChangesets(changes, changesetsSince(options.root, base)).map((name) => {
-    const reports = changed.get(name)?.join(', ') ?? ''
-    return `${name} changed a @public signature (${reports}) with no changeset: run \`pnpm changeset\` and name it`
-  })
+  return missingChangesets(changed, changesetsSince(options.root, base))
 }
-
-function readCommitted(root: string, entry: Extraction['entry']): string | undefined {
-  const path = join(root, entry.pkg.rel, entry.report)
-  return existsSync(path) ? readFileSync(path, 'utf8') : undefined
-}
-
 /**
  * Runs the sections together and returns what each found, in section order. A section that
  * throws is a failure of that section, not of the run: every section reports.

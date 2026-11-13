@@ -37,10 +37,7 @@ export function resolveBase(root: string, ref: string): string {
  * @internal
  */
 export function fileAt(root: string, ref: string, path: string): string | undefined {
-  const result = runCommand('git', ['show', `${ref}:${path}`], { cwd: root })
-  if (result.error !== undefined)
-    throw new Error(`git show failed\n${result.output}`, { cause: result.error })
-  return result.status === 0 ? result.stdout : undefined
+  return git(root, ['show', `${ref}:${path}`])
 }
 
 /**

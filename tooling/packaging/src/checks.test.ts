@@ -236,14 +236,19 @@ describe('changesets (T1.6)', () => {
   })
 
   test('a changed @public signature with no changeset naming its package is missing one', () => {
-    const changes = [
-      { package: 'provino', reports: ['etc/provino.api.md'] },
-      { package: '@provino/types', reports: ['etc/types.api.md'] },
-    ]
-    assert.deepEqual(missingChangesets(changes, []), ['provino', '@provino/types'])
+    const changes = new Map([
+      ['provino', ['etc/provino.api.md', 'etc/provino-node.api.md']],
+      ['@provino/types', ['etc/types.api.md']],
+    ])
+    assert.deepEqual(missingChangesets(changes, []), [
+      'provino changed a @public signature (etc/provino.api.md, etc/provino-node.api.md) with no changeset: run `pnpm changeset` and name it',
+      '@provino/types changed a @public signature (etc/types.api.md) with no changeset: run `pnpm changeset` and name it',
+    ])
     assert.deepEqual(
       missingChangesets(changes, [parseChangeset('x.md', '---\n"provino": patch\n---\n')]),
-      ['@provino/types'],
+      [
+        '@provino/types changed a @public signature (etc/types.api.md) with no changeset: run `pnpm changeset` and name it',
+      ],
     )
     assert.deepEqual(
       missingChangesets(changes, [
