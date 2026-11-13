@@ -372,7 +372,7 @@
     },
     {
       "name": "boundary-loader",
-      "comment": "@provino/loader (layer 3, runs in worker) may import only: @provino/loader/graph, @provino/mock, @provino/policy, @provino/resolver, @provino/transform, @provino/types.",
+      "comment": "@provino/loader (layer 3, runs in both) may import only: @provino/loader/graph, @provino/policy, @provino/resolver, @provino/transform, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/loader/(?!(?:src/graph|test)/)"
@@ -389,8 +389,6 @@
           "^@provino/resolver$",
           "^packages/transform/",
           "^@provino/transform$",
-          "^packages/mock/",
-          "^@provino/mock$",
           "^packages/loader/src/graph/",
           "^@provino/loader/graph$"
         ]
@@ -524,7 +522,7 @@
     },
     {
       "name": "boundary-orchestrator",
-      "comment": "@provino/orchestrator (layer 5, runs in coordinator) may import only: @provino/config, @provino/coverage/node, @provino/policy, @provino/reporters, @provino/resolver, @provino/rpc, @provino/snapshot/node, @provino/types.",
+      "comment": "@provino/orchestrator (layer 5, runs in coordinator) may import only: @provino/config, @provino/coverage/node, @provino/loader, @provino/policy, @provino/reporters, @provino/resolver, @provino/rpc, @provino/snapshot/node, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/orchestrator/(?!(?:src/worker|test)/)"
@@ -548,7 +546,9 @@
           "^packages/snapshot/src/node/",
           "^@provino/snapshot/node$",
           "^packages/coverage/src/node/",
-          "^@provino/coverage/node$"
+          "^@provino/coverage/node$",
+          "^packages/loader/(?!(?:src/graph|test)/)",
+          "^@provino/loader$"
         ]
       }
     },
@@ -1228,7 +1228,7 @@
     },
     {
       "name": "boundary-loader-test",
-      "comment": "@provino/loader/test (layer 3, runs in dev) may import only: @provino/loader, @provino/loader/graph, @provino/mock, @provino/policy, @provino/resolver, @provino/transform, @provino/types.",
+      "comment": "@provino/loader/test (layer 3, runs in dev) may import only: @provino/loader, @provino/loader/graph, @provino/policy, @provino/resolver, @provino/transform, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/loader/test/"
@@ -1248,9 +1248,7 @@
           "^packages/resolver/",
           "^@provino/resolver$",
           "^packages/transform/",
-          "^@provino/transform$",
-          "^packages/mock/",
-          "^@provino/mock$"
+          "^@provino/transform$"
         ]
       }
     },

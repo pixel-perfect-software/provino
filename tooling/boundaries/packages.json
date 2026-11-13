@@ -218,17 +218,17 @@
     "@provino/loader": {
       "dir": "packages/loader",
       "layer": 3,
-      "runsIn": "worker",
+      "runsIn": "both",
       "deps": [
         "@provino/types",
         "@provino/policy",
         "@provino/resolver",
         "@provino/transform",
-        "@provino/mock",
         "@provino/loader/graph"
       ],
       "slices": ["module"],
-      "neutral": true
+      "neutral": true,
+      "note": "Both halves (U5, D74): the worker's per-file engine, and the coordinator-mode loader that imports a global setup module (createCoordinatorLoader). It may not import @provino/mock (a worker package): the worker supplies the module-mock registry."
     },
     "@provino/core": {
       "dir": "packages/core",
@@ -295,7 +295,8 @@
         "@provino/reporters",
         "@provino/resolver",
         "@provino/snapshot/node",
-        "@provino/coverage/node"
+        "@provino/coverage/node",
+        "@provino/loader"
       ],
       "slices": "all",
       "neutral": true

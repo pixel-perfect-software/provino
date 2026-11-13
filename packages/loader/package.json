@@ -42,8 +42,5 @@
     "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*",
     "es-module-lexer": "catalog:"
-  },
-  "devDependencies": {
-    "@provino/mock": "workspace:*"
   }
 }

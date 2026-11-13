@@ -10,7 +10,7 @@ import {
   loaderFor,
   VITESTISH,
   writeTree,
-} from './internal/test-support.ts'
+} from './test-support.ts'
 
 const g = globalThis as { __count?: number; __fail?: boolean; __order?: string[] }
 

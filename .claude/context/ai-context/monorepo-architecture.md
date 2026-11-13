@@ -23,7 +23,7 @@ Dependencies point **down** the layers only. Same-layer edges are allowed only w
 | 2 | `@provino/mock` | worker | `fn`, `spyOn`, module-mock registry | types, policy |
 | 2 | `@provino/timers` | worker | Fake timers | types, policy |
 | 2 | `@provino/expect` | worker | `expect`, matchers, asymmetric matchers | types, policy, snapshot `/runtime` |
-| 3 | `@provino/loader` | worker | Loader engines, isolation tiers, `registerHooks` glue | types, policy, resolver, transform, mock |
+| 3 | `@provino/loader` | both | Loader engines, isolation tiers, `registerHooks` glue; coordinator mode (U5, D74) loads a global setup module in the coordinator. The worker supplies the module-mock registry, so the loader never imports `@provino/mock` | types, policy, resolver, transform |
 | 3 | `@provino/core` | worker | Collector, executor, hooks, context, **definition table and `fixtures.compile`** (§6), current-test ALS | types, policy |
 | 3 | `@provino/env-node`, `-jsdom`, `-happy-dom` | worker | `Environment` implementations | types |
 | 4 | `@provino/lazy` | worker | Lazy variables, built on core's public API through `LazyHost`; core never imports lazy | types, core |
