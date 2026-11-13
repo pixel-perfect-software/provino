@@ -2,5 +2,16 @@
   "$schema": "./node_modules/@pixel-perfect-software/always-up-to-date/schema/config.schema.json",
   "beyondRange": "minor",
   "cooldown": "7 days",
-  "rules": {}
+  "rules": {
+    "vitest": "hold",
+    "@vitest/*": "hold",
+    "jest": "hold",
+    "jest-*": "hold",
+    "@jest/*": "hold",
+    "babel-jest": "hold",
+    "babel-plugin-jest-hoist": "hold",
+    "expect": "hold",
+    "pretty-format": "hold",
+    "@sinonjs/fake-timers": "hold"
+  }
 }

@@ -203,6 +203,9 @@ catalogs:
     '@jridgewell/trace-mapping':
       specifier: 0.3.31
       version: 0.3.31
+    '@oxc-project/types':
+      specifier: 0.157.0
+      version: 0.157.0
     '@pixel-perfect-software/always-up-to-date':
       specifier: 4.1.1
       version: 4.1.1
@@ -234,14 +237,14 @@ catalogs:
       specifier: 6.0.2
       version: 6.0.2
     '@vitest/expect':
-      specifier: 5.1.0
-      version: 5.1.0
+      specifier: 5.0.5
+      version: 5.0.5
     '@vitest/mocker':
-      specifier: 5.1.0
-      version: 5.1.0
+      specifier: 5.0.5
+      version: 5.0.5
     '@vitest/spy':
-      specifier: 5.1.0
-      version: 5.1.0
+      specifier: 5.0.5
+      version: 5.0.5
     babel-jest:
       specifier: 30.5.2
       version: 30.5.2
@@ -354,8 +357,8 @@ catalogs:
       specifier: npm:typescript@5.9.3
       version: 5.9.3
     vitest:
-      specifier: 5.1.0
-      version: 5.1.0
+      specifier: 5.0.5
+      version: 5.0.5
     zod:
       specifier: 4.6.7
       version: 4.6.7
@@ -459,7 +462,7 @@ importers:
         version: 30.0.0
       '@vitest/spy':
         specifier: 'catalog:'
-        version: 5.1.0
+        version: 5.0.5
       date-fns:
         specifier: 'catalog:'
         version: 4.4.0
@@ -495,7 +498,7 @@ importers:
         version: 30.5.1
       vitest:
         specifier: 'catalog:'
-        version: 5.1.0(@edge-runtime/vm@5.0.0)(@types/node@22.20.5)(happy-dom@21.0.4)(jsdom@30.1.3)(vite@8.3.5(@types/node@22.20.5))
+        version: 5.0.5(@edge-runtime/vm@5.0.0)(@types/node@22.20.5)(happy-dom@21.0.4)(jsdom@30.1.3)(vite@8.3.5(@types/node@22.20.5))
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -621,7 +624,7 @@ importers:
     devDependencies:
       vitest:
         specifier: 'catalog:'
-        version: 5.1.0(@edge-runtime/vm@5.0.0)(@types/node@22.20.5)(happy-dom@21.0.4)(jsdom@30.1.3)(vite@8.3.5(@types/node@22.20.5))
+        version: 5.0.5(@edge-runtime/vm@5.0.0)(@types/node@22.20.5)(happy-dom@21.0.4)(jsdom@30.1.3)(vite@8.3.5(@types/node@22.20.5))
 
   packages/env-jsdom:
     dependencies:
@@ -684,7 +687,7 @@ importers:
         version: link:../policy
       '@vitest/expect':
         specifier: 'catalog:'
-        version: 5.1.0
+        version: 5.0.5
       expect:
         specifier: 'catalog:'
         version: 30.5.2
@@ -754,7 +757,7 @@ importers:
         version: link:../transform
       '@vitest/mocker':
         specifier: 'catalog:'
-        version: 5.1.0(vite@8.3.5(@types/node@22.20.5))
+        version: 5.0.5(vite@8.3.5(@types/node@22.20.5))
       babel-jest:
         specifier: 'catalog:'
         version: 30.5.2(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1)
@@ -787,7 +790,7 @@ importers:
         version: link:../provino
       vitest:
         specifier: 'catalog:'
-        version: 5.1.0(@edge-runtime/vm@5.0.0)(@types/node@22.20.5)(happy-dom@21.0.4)(jsdom@30.1.3)(vite@8.3.5(@types/node@22.20.5))
+        version: 5.0.5(@edge-runtime/vm@5.0.0)(@types/node@22.20.5)(happy-dom@21.0.4)(jsdom@30.1.3)(vite@8.3.5(@types/node@22.20.5))
 
   packages/loader:
     dependencies:
@@ -975,7 +978,7 @@ importers:
         version: 0.157.0
       oxc-walker:
         specifier: 'catalog:'
-        version: 1.1.1(@oxc-project/types@0.156.0)(oxc-parser@0.157.0)(rolldown@1.2.16)
+        version: 1.1.1(@oxc-project/types@0.157.0)(oxc-parser@0.157.0)(rolldown@1.2.16)
     devDependencies:
       '@babel/core':
         specifier: 'catalog:'
@@ -995,6 +998,9 @@ importers:
       '@jridgewell/trace-mapping':
         specifier: 'catalog:'
         version: 0.3.31
+      '@oxc-project/types':
+        specifier: 'catalog:'
+        version: 0.157.0
       '@swc/core':
         specifier: 'catalog:'
         version: 1.16.22
@@ -2773,11 +2779,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@vitest/expect@5.1.0':
-    resolution: {integrity: sha512-Okx71SHCjnfax7YLaxcJzZINi71BF2S5FezzQipheEQsiBAB0dhRBwuQ7uCJUH0/eGAT6HgAtmVVzrEZo6Qmcw==}
+  '@vitest/expect@5.0.5':
+    resolution: {integrity: sha512-mDBbYrXKpc+4TcSDwBW6adCMtPnide6Z1g8bI6gL0tY+nhdBxtGoOFW/kMrLDt6lJg3xjEUBkrY9yIPlgzpuig==}
 
-  '@vitest/mocker@5.1.0':
-    resolution: {integrity: sha512-5umB9/jlWcqVS6fsrFmv5Gdnpu6wAUio/lEOwAmvB7v+lFo/IW2B9FhAD0p19GCULTgMzLCdUmuCDCnAzWgppQ==}
+  '@vitest/mocker@5.0.5':
+    resolution: {integrity: sha512-xLL3lkDegJZw+MGoGaCCsFayDZthGgpAtr3Vziyfc4p7xH89K7KRPcRBBh/kEYm0Aqkt5DtTmkYpBtRV/FrHZg==}
     peerDependencies:
       msw: ^2.4.9 || ^3.0.0
       vite: ^6.0.0 || ^7.0.0 || ^8.0.0
@@ -2787,14 +2793,14 @@ packages:
       vite:
         optional: true
 
-  '@vitest/pretty-format@5.1.0':
-    resolution: {integrity: sha512-IRx5mc30CrFzyMNni6SZKQ1r53kv049Mcvvk0WbWcD6PUz/bFjG4zYv0KosQAeonPpGp5WxqYBMqdSOfJfvVWw==}
+  '@vitest/pretty-format@5.0.5':
+    resolution: {integrity: sha512-24sSdIlMA9DVPXnYiB9siwU0bTd887Y9jX3+vabztCSsvHwo7ipvJ/a2L3Rljw8+2rK1f5fCj3h5U9I/Jsqgbw==}
 
-  '@vitest/spy@5.1.0':
-    resolution: {integrity: sha512-2DPO5OMHWKrBngC+fCmTQqemNF0gidRhp3lxbBmRhW+M1XJrfgPpqNqWVevXtn2f2ufD5ZaR1B6B641aAlcX5A==}
+  '@vitest/spy@5.0.5':
+    resolution: {integrity: sha512-lwJRExuH417257Q5wv9QYugN9IMJkoxcrKrYxGPQkBzl7wlNpTUxD/5yNX4ESKVUIShKPgkGchYPFMWOOk0wzw==}
 
-  '@vitest/utils@5.1.0':
-    resolution: {integrity: sha512-V+qgCwkvVw+s1t1S5TaoBHsLi5Sz/YmohCMoOu0mZ8ZQst2bKhRYARAQucWpVg8D0mv0x5MHcWXY5QdOsoiGBQ==}
+  '@vitest/utils@5.0.5':
+    resolution: {integrity: sha512-/rBu7gzLDQI/SC79Tn98b5DwOgaHU/Gt4I9OVeP3YofzNaYtbImRCOJQmT1S6vOJg9gEIlWC+r3QxKkjuSa1nQ==}
 
   '@yuku-toolchain/darwin-arm64@0.25.0':
     resolution: {integrity: sha512-21QMCgP74cgSrgxIgw/SS5uMnn7cFHwgjNEBZYgO1HxpdjG4ULenXyUY92xRReuAJZdbRyz6OGwtYi6lDKumSw==}
@@ -4566,20 +4572,20 @@ packages:
       yaml:
         optional: true
 
-  vitest@5.1.0:
-    resolution: {integrity: sha512-MzmNFnrwa8v8lF1bLxw3UJ4EREwVOVb75VqJZmUDRjJ6EluK/x9th7qTbaeDk41WxE1GxWqmTXcdsfobfH5sOA==}
+  vitest@5.0.5:
+    resolution: {integrity: sha512-cPODOMF8YnkiiYtDdHo6n4wWmBrOBBbOIYH2d33M4l3CdNn72h+qMmO6uXffUN6A5AZFXNND/d+krS9mgkXRfg==}
     engines: {node: ^22.12.0 || ^24.0.0 || >=26.0.0}
     hasBin: true
     peerDependencies:
       '@edge-runtime/vm': '*'
       '@opentelemetry/api': ^1.9.0
       '@types/node': ^22.0.0 || >=24.0.0
-      '@vitest/browser-playwright': 5.1.0
-      '@vitest/browser-preview': 5.1.0
+      '@vitest/browser-playwright': 5.0.5
+      '@vitest/browser-preview': 5.0.5
       '@vitest/browser-webdriverio': ^5.0.0-beta.5 || >=5.0.0
-      '@vitest/coverage-istanbul': 5.1.0
-      '@vitest/coverage-v8': 5.1.0
-      '@vitest/ui': 5.1.0
+      '@vitest/coverage-istanbul': 5.0.5
+      '@vitest/coverage-v8': 5.0.5
+      '@vitest/ui': 5.0.5
       happy-dom: '*'
       jsdom: '*'
       vite: ^6.4.0 || ^7.0.0 || ^8.0.0
@@ -6251,33 +6257,33 @@ snapshots:
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
 
-  '@vitest/expect@5.1.0':
+  '@vitest/expect@5.0.5':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@types/chai': 5.2.3
-      '@vitest/spy': 5.1.0
-      '@vitest/utils': 5.1.0
+      '@vitest/spy': 5.0.5
+      '@vitest/utils': 5.0.5
       chai: 6.3.0
       tinyrainbow: 3.2.0
 
-  '@vitest/mocker@5.1.0(vite@8.3.5(@types/node@22.20.5))':
+  '@vitest/mocker@5.0.5(vite@8.3.5(@types/node@22.20.5))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
-      '@vitest/spy': 5.1.0
+      '@vitest/spy': 5.0.5
       estree-walker: 3.0.3
       magic-string: 1.4.5
     optionalDependencies:
       vite: 8.3.5(@types/node@22.20.5)
 
-  '@vitest/pretty-format@5.1.0':
+  '@vitest/pretty-format@5.0.5':
     dependencies:
       tinyrainbow: 3.2.0
 
-  '@vitest/spy@5.1.0': {}
+  '@vitest/spy@5.0.5': {}
 
-  '@vitest/utils@5.1.0':
+  '@vitest/utils@5.0.5':
     dependencies:
-      '@vitest/pretty-format': 5.1.0
+      '@vitest/pretty-format': 5.0.5
       convert-source-map: 2.0.0
       tinyrainbow: 3.2.0
 
@@ -7726,9 +7732,9 @@ snapshots:
       '@oxc-transform/binding-win32-ia32-msvc': 0.157.0
       '@oxc-transform/binding-win32-x64-msvc': 0.157.0
 
-  oxc-walker@1.1.1(@oxc-project/types@0.156.0)(oxc-parser@0.157.0)(rolldown@1.2.16):
+  oxc-walker@1.1.1(@oxc-project/types@0.157.0)(oxc-parser@0.157.0)(rolldown@1.2.16):
     optionalDependencies:
-      '@oxc-project/types': 0.156.0
+      '@oxc-project/types': 0.157.0
       oxc-parser: 0.157.0
       rolldown: 1.2.16
 
@@ -8232,10 +8238,10 @@ snapshots:
       '@types/node': 22.20.5
       fsevents: 2.3.3
 
-  vitest@5.1.0(@edge-runtime/vm@5.0.0)(@types/node@22.20.5)(happy-dom@21.0.4)(jsdom@30.1.3)(vite@8.3.5(@types/node@22.20.5)):
+  vitest@5.0.5(@edge-runtime/vm@5.0.0)(@types/node@22.20.5)(happy-dom@21.0.4)(jsdom@30.1.3)(vite@8.3.5(@types/node@22.20.5)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.1.0(vite@8.3.5(@types/node@22.20.5))
+      '@vitest/mocker': 5.0.5(vite@8.3.5(@types/node@22.20.5))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
