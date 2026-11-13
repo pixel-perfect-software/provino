@@ -43,6 +43,19 @@ class Sink extends Writable {
 /** The harness's transformer, which strips types for real Jest as the recorder does. */
 const TRANSFORMER = fileURLToPath(new URL('../../harness/src/jest-transform.ts', import.meta.url))
 
+/**
+ * The environment of a live Jest run: this process's, with colour off, as the harness's recorder
+ * runs it (`runnerEnv`: `NO_COLOR=1`, no `FORCE_COLOR`), so every golden and every live run is
+ * read under the same conditions. Provino prints no colour (`--colors` is read but not applied).
+ * Jest does: `@babel/code-frame`, behind the code frame of an error or an open handle, highlights it
+ * whenever picocolors says colours are supported, which a set `CI` is enough for (GitHub's
+ * runners set it), a TTY or `FORCE_COLOR` too, whatever the stream is.
+ */
+export function noColorEnv(): NodeJS.ProcessEnv {
+  const { FORCE_COLOR: _force, ...rest } = process.env
+  return { ...rest, NO_COLOR: '1' }
+}
+
 /** Runs real Jest with `args` in `cwd`: its exit code and its stderr, where it prints its report. */
 export function runJest(
   cwd: string,
@@ -51,6 +64,7 @@ export function runJest(
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [JEST, ...args], {
       cwd,
+      env: noColorEnv(),
       stdio: ['ignore', 'ignore', 'pipe'],
     })
     let stderr = ''

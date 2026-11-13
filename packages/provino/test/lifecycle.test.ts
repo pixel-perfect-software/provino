@@ -413,7 +413,8 @@ describe('--detectOpenHandles against Jest 30.5.2', () => {
       ].join('\n'),
     })
     const args = ['--detectOpenHandles', '--forceExit', '--ci', '--watchman=false']
-    const provino = await spawnCli(['jest', ...args], { cwd: project.dir })
+    // Both under `NO_COLOR`: with `CI` set (GitHub's runners) live Jest highlights the code frame.
+    const provino = await spawnCli(['jest', ...args], { cwd: project.dir, env: { NO_COLOR: '1' } })
     const jest = (await runJest(project.dir, args)).stderr
     assert.equal(handlesBlock(provino.stderr), handlesBlock(jest))
     assert.match(provino.stderr, /following 2 open handles/, 'two handles, as Jest counts them')
