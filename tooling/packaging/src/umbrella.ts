@@ -127,6 +127,13 @@ const BIN_LIGHT = new RegExp(
 const LOADING =
   /[\\/]packages[\\/](?:transform|resolver|loader)[\\/]src[\\/](?!v8cache[\\/]|cache[\\/]store\.ts$)/
 
+/**
+ * The coverage package (B23b): the Istanbul instrumenter, the collectors and the filter, with the
+ * parser and the code writer they import. A worker loads it only when its project asks for
+ * coverage, so it is a chunk no other code reaches without a dynamic import.
+ */
+const COVERAGE = /[\\/]packages[\\/]coverage[\\/]src[\\/]/
+
 /** A source file of a workspace package. */
 const SHARED = /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/
 
@@ -244,6 +251,13 @@ export function umbrellaConfig(dir: string): UserConfig[] {
               name: 'loading',
               test: LOADING,
               priority: 3,
+              includeDependenciesRecursively: false,
+            },
+            // Taken first: with coverage off, no worker loads it.
+            {
+              name: 'coverage',
+              test: COVERAGE,
+              priority: 4,
               includeDependenciesRecursively: false,
             },
             {

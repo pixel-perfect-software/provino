@@ -49,6 +49,7 @@
   "dependencies": {
     "@provino/config": "workspace:*",
     "@provino/core": "workspace:*",
+    "@provino/coverage": "workspace:*",
     "@provino/expect": "workspace:*",
     "@provino/loader": "workspace:*",
     "@provino/mock": "workspace:*",

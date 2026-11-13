@@ -46,6 +46,8 @@ export interface FileDispatchOptions {
   readonly file: FileInfo
   /** Called for every unhandled error of the file, as it arrives. */
   readonly onUnhandled: (error: SerializedError) => void
+  /** Called with each `coverage` event of the file (B23b); without it they are dropped. */
+  readonly onCoverage?: (event: CoverageEvent) => void
   /** Called after each test of the file ends as `fail`, once reporters have heard of it. */
   readonly onTestFailed?: () => void
   /**
@@ -54,6 +56,9 @@ export interface FileDispatchOptions {
    */
   readonly depsTable?: () => DepsTable
 }
+
+/** The `coverage` arm of a worker's events. */
+type CoverageEvent = Extract<WorkerEvent, { readonly type: 'coverage' }>
 
 function badEvent(event: WorkerEvent, why: string): OrchestratorError {
   return new OrchestratorError('ORCH_BAD_EVENT', `A worker sent a ${event.type} event ${why}`)
@@ -68,7 +73,7 @@ function badEvent(event: WorkerEvent, why: string): OrchestratorError {
  * @public
  */
 export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
-  const { bus, file, onUnhandled, onTestFailed, depsTable } = options
+  const { bus, file, onUnhandled, onTestFailed, onCoverage, depsTable } = options
   const nodes = new Map<TaskId, TaskNode>()
   let result: TaskResult | undefined
   let tests = 0
@@ -106,7 +111,9 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
   async function dispatch(event: WorkerEvent): Promise<void> {
     switch (event.type) {
       case 'file-collect-start':
+        return
       case 'coverage':
+        onCoverage?.(event)
         return
       case 'deps':
         // The worker's table takes the event in even when nothing reads the list yet: the next
@@ -180,6 +187,8 @@ export interface IdleDispatchOptions {
   /** The file a worker ran last, if any: what its late output is shown under. */
   readonly fileOf: (workerId: number) => FileInfo | undefined
   readonly onUnhandled: (error: SerializedError) => void
+  /** Called with each `coverage` event a stopping worker sends (V8's one take); without it they are dropped. */
+  readonly onCoverage?: (workerId: number, event: CoverageEvent) => void
 }
 
 /**
@@ -192,7 +201,7 @@ export interface IdleDispatchOptions {
 export function createIdleDispatch(
   options: IdleDispatchOptions,
 ): (workerId: number, events: readonly WorkerEvent[]) => Promise<void> {
-  const { bus, fileOf, onUnhandled } = options
+  const { bus, fileOf, onUnhandled, onCoverage } = options
   return async (workerId, events) => {
     const last = fileOf(workerId)
     for (const event of events) {
@@ -205,6 +214,8 @@ export function createIdleDispatch(
           await bus.emit('unhandled', null, event)
           break
         case 'coverage':
+          onCoverage?.(workerId, event)
+          break
         case 'deps':
           break
         default:

@@ -34,7 +34,11 @@ import {
   type StateSource,
   snapshotRegistry,
 } from '@provino/expect'
-import { createProjectLoader, installSourceMappedStacks } from '@provino/loader'
+import {
+  createProjectLoader,
+  installSourceMappedStacks,
+  type ProjectCoverage,
+} from '@provino/loader'
 import {
   createMockRegistry,
   createModuleMockRegistry,
@@ -50,6 +54,7 @@ import {
 } from '@provino/snapshot/runtime'
 import { createFakeClock, type FakeClock, type FakeTimersConfig } from '@provino/timers'
 import type {
+  CoverageCollector,
   EnvironmentInstance,
   EnvironmentRef,
   EnvironmentResolver,
@@ -66,12 +71,16 @@ import type {
   ModuleScopeValues,
   Policy,
   Pragmas,
+  RawCoverage,
   ResolveSnapshotPath,
   RuntimeEvent,
+  SerializedCoverageConfig,
   SnapshotFileReport,
   SnapshotKey,
   SnapshotPlugin,
   SnapshotPrinter,
+  TaskId,
+  WorkerEvent,
 } from '@provino/types'
 import { WorkerError } from '../errors.ts'
 import { parseProjectConfig } from '../internal/runtime/config.ts'
@@ -161,6 +170,71 @@ interface Booted {
   unmapStacks: (() => void) | undefined
   /** What every file's snapshot state is built from: the policy's behaviours, loaded once. */
   snapshots: SnapshotBehaviours
+  /** The worker's coverage collector, when the project asks for coverage (B23b, T8.8). */
+  coverage: WorkerCoverage | undefined
+}
+
+/** A worker's coverage: its provider's collector, and what the loader needs to instrument. */
+interface WorkerCoverage {
+  readonly provider: SerializedCoverageConfig['provider']
+  readonly collector: CoverageCollector
+  /** Istanbul only: the instrumenter and the filter the project loader is built with. */
+  readonly project: ProjectCoverage | undefined
+}
+
+/**
+ * Loads the coverage runtime and starts the provider, when the project asks for coverage: nothing
+ * of `@provino/coverage` is imported otherwise. V8's profiler starts here, before the project's
+ * loader is made, and `loader` is read only when a take happens.
+ */
+async function startCoverage(
+  config: SerializedCoverageConfig | undefined,
+  policy: Policy,
+  workerId: number,
+  loader: () => Loader | undefined,
+): Promise<WorkerCoverage | undefined> {
+  if (config === undefined) return undefined
+  const runtime = await import('@provino/coverage/runtime')
+  const include = runtime.createCoverageFilter(config)
+  if (config.provider === 'v8') {
+    const collector = runtime.createV8Collector({
+      workerId,
+      loader: {
+        compiledModule: (url) => loader()?.compiledModule?.(url) ?? null,
+      },
+      include,
+      callCount: policy.coverage.v8HitCounts,
+    })
+    await collector.start()
+    return { provider: 'v8', collector, project: undefined }
+  }
+  const variable = policy.coverage.istanbulVariable
+  const { istanbulInstrumenter } = await runtime.loadInstrumenter()
+  return {
+    provider: 'istanbul',
+    collector: runtime.createIstanbulCollector({ workerId, variable }),
+    project: {
+      instrumenter: istanbulInstrumenter({ coverageVariable: variable }),
+      shouldInstrument: include,
+    },
+  }
+}
+
+/** Takes the collector's coverage and sends it to the coordinator as a `coverage` event. */
+async function sendCoverage(
+  collector: CoverageCollector,
+  sink: { emit(event: WorkerEvent): void },
+  fileId: TaskId | null,
+  testFile?: string,
+): Promise<void> {
+  const raw: RawCoverage = await collector.take(testFile)
+  if (raw.kind === 'istanbul' && Object.keys(raw.data).length === 0) return
+  sink.emit({
+    type: 'coverage',
+    fileId,
+    payload: { type: 'json', json: JSON.stringify(raw) },
+    t: performance.now(),
+  })
 }
 
 /** The snapshot slice's behaviours, loaded by ref when the worker starts (B17b). */
@@ -331,6 +405,8 @@ async function writableUnlessAborted(
 export function createRuntimeRunner(): WorkerRunner {
   /** What `boot` has built so far; `stop` takes it all and leaves it empty. */
   let parts: Partial<Booted> = {}
+  /** The loader V8's one take, made while `stop` has already emptied `parts`, still reads. */
+  let coverageLoader: Loader | undefined
   /**
    * The lifetime of the worker: what a worker-scoped environment's `signal` is. It outlives the
    * first file, whose own signal belongs to that file's run, and `stop` aborts it.
@@ -370,8 +446,20 @@ export function createRuntimeRunner(): WorkerRunner {
     // A SerializedPolicy is a Policy whose behaviour keys are all refs: nothing to deserialize.
     const policy: Policy = config.policy
     const behaviours = createBehaviourLoader()
-    parts.loader = await createProjectLoader(config.rootDir, config.loader, policy.module)
+    parts.coverage = await startCoverage(
+      config.coverage,
+      policy,
+      context.init.workerId,
+      () => coverageLoader,
+    )
+    parts.loader = await createProjectLoader(
+      config.rootDir,
+      config.loader,
+      policy.module,
+      parts.coverage?.project === undefined ? {} : { coverage: parts.coverage.project },
+    )
     // A frame in a module the loader ran is reported where it is in the file as written.
+    coverageLoader = parts.loader
     parts.unmapStacks = installSourceMappedStacks(parts.loader)
 
     // `process` is the pool's business (a new process per file) and runs as `registry`.
@@ -780,6 +868,16 @@ export function createRuntimeRunner(): WorkerRunner {
       // next file, as with Vitest's `isolate: false`: only the file registry goes.
       // What the file loaded, read before the registry's disposal empties it (U5: the `deps` event).
       const deps = registry.loadedModules()
+      // Istanbul's counters are taken now, while the file's modules and environment are alive and
+      // before the next file starts counting (V8's are taken once, when the worker stops).
+      const coverage = worker.coverage
+      if (coverage !== undefined && coverage.provider === 'istanbul') {
+        errors.push(
+          ...(await runAll([
+            () => sendCoverage(coverage.collector, context.sink, job.fileId, job.file),
+          ])),
+        )
+      }
       let leaked: readonly string[] = []
       const teardownEnvironment = async (): Promise<void> => {
         // The environment reports a global it couldn't remove instead of throwing (D22).
@@ -840,7 +938,21 @@ export function createRuntimeRunner(): WorkerRunner {
           const { instance, name } = torn.workerEnvironment
           leaked = leakedGlobalsOf(await instance.teardown(), name)
         },
+        // V8's one take, while the loader still knows its modules.
+        async () => {
+          const coverage = torn.coverage
+          if (coverage === undefined) return
+          try {
+            if (coverage.provider === 'v8')
+              await sendCoverage(coverage.collector, context.sink, null)
+          } finally {
+            await coverage.collector.stop()
+          }
+        },
         () => torn.loader?.[Symbol.dispose](),
+        () => {
+          coverageLoader = undefined
+        },
         () => torn.unmapStacks?.(),
         () => torn.slot?.uninstall(),
         // Last: the worker environment's teardown ran with its signal still live.

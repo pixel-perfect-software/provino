@@ -31,6 +31,7 @@ import type {
   WorkerKey,
 } from '@provino/types'
 import { cacheDirectories, createResultsCache, type ResultsCache } from './cache.ts'
+import type { RawCoverageStore } from './coverage-store.ts'
 import { createDepsTable, type DepsTable } from './deps-table.ts'
 import { type DiscoveredFile, discoverFiles } from './discover.ts'
 import { discoverByRules } from './discover-rules.ts'
@@ -222,6 +223,11 @@ export interface RunProjectOptions {
    * in the sequenced order. They run only when some project has a file to run.
    */
   readonly globalSetup?: RunGlobalHooks
+  /**
+   * Where the `coverage` events of the run's workers are kept (B23b): Istanbul's per file as each
+   * ends, V8's once per worker as it stops. Without it they are dropped.
+   */
+  readonly coverageStore?: RawCoverageStore
 }
 
 /**
@@ -608,6 +614,9 @@ export async function runProjects(
       bus,
       fileOf: (workerId) => lastFile.get(workerId)?.info,
       onUnhandled: (error) => void unhandled.push(error),
+      ...(options.coverageStore === undefined
+        ? {}
+        : { onCoverage: (workerId, event) => options.coverageStore?.add(workerId, event) }),
     })
     return async (workerId, events) => {
       // A worker is retired once its last file is done, and its stop-time events must still follow
@@ -681,6 +690,9 @@ export async function runProjects(
       bus,
       file: entry.info,
       onUnhandled: (error) => void unhandled.push(error),
+      ...(options.coverageStore === undefined
+        ? {}
+        : { onCoverage: (event) => options.coverageStore?.add(takenBy, event) }),
       onTestFailed: () => {
         failedInFile++
         if (bailAfter === 'test') countFailed(1)
