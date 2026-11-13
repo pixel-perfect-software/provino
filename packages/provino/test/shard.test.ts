@@ -10,6 +10,7 @@ import { type RunOptions, type RunResult, run } from 'provino/node'
 import { loadFixture, materialize } from './recorded.ts'
 import {
   Collect,
+  jestConfigJson,
   passing,
   QUIET_ENV,
   spawnCli,
@@ -318,5 +319,31 @@ describe('provino run --shard and --update-timings (the bin)', () => {
     assert.equal(ended.code, 0, ended.stderr)
     const written = JSON.parse(await readFile(target, 'utf8')) as { files: Record<string, number> }
     assert.equal(Object.keys(written.files).length, 6)
+  })
+})
+
+describe('provino jest takes --timings and --update-timings out of the command line, and only those', () => {
+  it('refuses a --timings with no path: nothing, another flag or an empty value', async () => {
+    const project = await makeProject(FILES)
+    const config = jestConfigJson(project.dir)
+    for (const args of [['--timings'], ['--timings', '--ci'], ['--timings=']]) {
+      const ended = await spawnCli(['jest', '--config', config, ...args], { cwd: project.dir })
+      assert.equal(ended.code, 1, `${args.join(' ')}: ${ended.stderr}`)
+      assert.match(ended.stderr, /--timings needs the path of a timings file/)
+      assert.doesNotMatch(ended.stderr, /PASS/)
+    }
+  })
+
+  it('leaves what follows -- alone: a path pattern named like the flag is a pattern', async () => {
+    const project = await makeProject(FILES)
+    const ended = await spawnCli(
+      ['jest', '--config', jestConfigJson(project.dir), '--', '--update-timings'],
+      { cwd: project.dir },
+    )
+    // No file matches the pattern `--update-timings`, so Jest has nothing to run (exit 1) and the
+    // timings file is not written.
+    assert.equal(ended.code, 1, ended.stderr)
+    assert.doesNotMatch(ended.stderr, /PASS/)
+    await assert.rejects(readFile(project.path('provino.timings.json'), 'utf8'), { code: 'ENOENT' })
   })
 })

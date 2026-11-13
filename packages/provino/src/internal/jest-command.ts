@@ -213,7 +213,9 @@ interface ShardRequest {
 
 /**
  * Takes Provino's own `--timings <file>` / `--timings=<file>` and `--update-timings` out of a
- * `provino jest` command line, since Jest's parser would refuse them as unknown flags.
+ * `provino jest` command line, since Jest's parser would refuse them as unknown flags. Everything
+ * after a `--` is Jest's (a path pattern named like a flag is a pattern), and a `--timings` whose
+ * value is missing, empty or another flag is a usage error, so it never takes the next flag.
  */
 function takeTimingsFlags(args: readonly string[]): {
   readonly rest: readonly string[]
@@ -223,16 +225,25 @@ function takeTimingsFlags(args: readonly string[]): {
   const rest: string[] = []
   let timingsFile: string | undefined
   let updateTimings = false
+  // `--timings=-x` names a file called `-x`; the next argument of `--timings x` that starts with `-` is a flag.
+  const needsPath = (value: string | undefined, spaced: boolean): string => {
+    if (value === undefined || value === '' || (spaced && value.startsWith('-'))) {
+      throw new UsageError('--timings needs the path of a timings file')
+    }
+    return value
+  }
   for (let index = 0; index < args.length; index++) {
     const arg = args[index] as string
+    if (arg === '--') {
+      rest.push(...args.slice(index))
+      break
+    }
     if (arg === '--update-timings') {
       updateTimings = true
     } else if (arg === '--timings') {
-      const value = args[++index]
-      if (value === undefined) throw new UsageError('--timings needs the path of a timings file')
-      timingsFile = value
+      timingsFile = needsPath(args[++index], true)
     } else if (arg.startsWith('--timings=')) {
-      timingsFile = arg.slice('--timings='.length)
+      timingsFile = needsPath(arg.slice('--timings='.length), false)
     } else {
       rest.push(arg)
     }
