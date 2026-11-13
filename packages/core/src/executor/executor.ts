@@ -21,8 +21,10 @@ import type {
   RuntimeHookKind,
   SkipReason,
   SourceLocation,
+  SuiteHandle,
   SuiteTask,
   TaskId,
+  TaskInfo,
   TaskResult,
   TaskState,
   TestContext,
@@ -711,26 +713,18 @@ export class Executor {
     const controller = new AbortController()
     const teardowns: Array<() => unknown> = []
     // The handle and the context read the attempt through getters, so they can be part of it.
-    const handle: TestRunHandle = {
-      test: { suite: test.parent.handle },
-      ctx: {
-        task: {
-          name: test.name,
-          fullName: test.fullName.join(this.#policy.nameSeparator),
-          file: run.file.relativePath,
-          retry: attempt,
-          repeat,
-        },
+    const handle = new RunHandle(
+      test.parent.handle,
+      {
+        name: test.name,
+        fullName: test.fullName.join(this.#policy.nameSeparator),
+        file: run.file.relativePath,
+        retry: attempt,
+        repeat,
       },
-      slots: new Map(),
-      signal: controller.signal,
-      get state(): 'running' | 'cleanup' | 'done' {
-        return state.state
-      },
-      addTeardown(fn: () => unknown): void {
-        teardowns.push(fn)
-      },
-    }
+      controller.signal,
+      teardowns,
+    )
     const frame: Frame = { test: task, hook: null, fileId: run.fileId, attempt, repeat }
     const state: AttemptState = {
       test,
@@ -749,6 +743,7 @@ export class Executor {
       skipped: undefined,
       deadline: undefined,
     }
+    handle.attempt = state
     this.#config.runs.set(state.ctx, handle)
     this.#running.set(test.id, state)
     const store = newStore({ frame, lazy: state.lazy, attempt: state })
@@ -1343,6 +1338,39 @@ export function taskResult(
 }
 
 /** A suite's outcome, from its own errors and its children's outcomes. */
+/**
+ * One attempt's `TestRunHandle`. A class, so every handle shares one `state` getter: a literal with
+ * an accessor gives each attempt a map of its own, which cost about 0.3 µs per attempt (T5.14).
+ * `addTeardown` stays an own function, callable detached, as the literal's method was.
+ */
+class RunHandle implements TestRunHandle {
+  readonly test: { readonly suite: SuiteHandle }
+  readonly ctx: { readonly task: TaskInfo }
+  readonly slots: Map<symbol, unknown> = new Map()
+  readonly signal: AbortSignal
+  readonly addTeardown: (fn: () => unknown) => void
+  /** The attempt this handle reports on; set once the attempt holding the handle exists. */
+  attempt: AttemptState | undefined = undefined
+
+  constructor(
+    suite: SuiteHandle,
+    task: TaskInfo,
+    signal: AbortSignal,
+    teardowns: Array<() => unknown>,
+  ) {
+    this.test = { suite }
+    this.ctx = { task }
+    this.signal = signal
+    this.addTeardown = (fn) => {
+      teardowns.push(fn)
+    }
+  }
+
+  get state(): 'running' | 'cleanup' | 'done' {
+    return this.attempt?.state ?? 'running'
+  }
+}
+
 function suiteOutcome(
   suite: SuiteNode,
   errors: readonly unknown[],
