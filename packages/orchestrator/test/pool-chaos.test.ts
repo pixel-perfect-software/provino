@@ -73,7 +73,10 @@ function sources(kind: PoolKindUnderTest): Record<string, string> {
   }
   files['oom.test.js'] =
     "test('runs out of memory', () => { const hold = []; for (;;) hold.push(new Array(2_000_000).fill(0)) })\n"
-  files['hang.test.js'] = "test('hangs', () => { for (;;) {} })\n"
+  // Busy for 120 s, past the file deadline, then done: a worker a killed test run leaves behind
+  // ends by itself instead of spinning a core.
+  files['hang.test.js'] =
+    "test('hangs', () => { const end = Date.now() + 120_000; while (Date.now() < end) {} })\n"
   return files
 }
 

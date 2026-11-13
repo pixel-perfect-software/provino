@@ -46,7 +46,9 @@ const failing = (count: number): string =>
     '\n',
   )
 const passing = (extra = ''): string => `${extra}test('passes', () => { expect(1).toBe(1) })\n`
-const hanging = "test('hangs', () => { for (;;) {} })\n"
+/** A synchronous busy loop, bounded at 120 s so a worker a killed test run leaves behind ends. */
+const BUSY = 'const end = Date.now() + 120_000; while (Date.now() < end) {}'
+const hanging = `test('hangs', () => { ${BUSY} })\n`
 
 /** What happened to a file, `file:start` and `file:end`, in the order the bus heard it. */
 const eventsOf = (seen: readonly Seen[], path: string): string[] =>
@@ -163,7 +165,7 @@ describe('bail, checked after each file (Jest)', () => {
     const hangsOnceRunning = [
       "test('hangs', () => {",
       `  require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'started')`,
-      '  for (;;) {}',
+      `  ${BUSY}`,
       '})',
       '',
     ].join('\n')
