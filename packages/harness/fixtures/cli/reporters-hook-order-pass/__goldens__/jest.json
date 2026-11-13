@@ -68,6 +68,6 @@
   "success": true,
   "observed": {
     "exitCode": 0,
-    "stderr": "HOOK constructor options={} firstRun=true\nHOOK onRunStart suites=2 estimatedTime=0 showStatus=false\nHOOK onTestFileResult a.test.ts failing=0 skipped=false console=none aggregateFailed=0\nHOOK onTestFileResult b.test.ts failing=0 skipped=false console=none aggregateFailed=0\nHOOK onRunComplete contexts=1 failed=0 passed=2 success=false"
+    "stderr": "HOOK constructor options={} firstRun=true\nHOOK onRunStart suites=2 estimatedTime=0 showStatus=false\nHOOK onRunComplete contexts=1 failed=0 passed=2 success=false"
   }
 }

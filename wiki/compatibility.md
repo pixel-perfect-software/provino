@@ -47,7 +47,7 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | Coverage: `--coverage`, `--collectCoverage` | The flags are refused (exit 1). `collectCoverage: true` in the config warns, and the run goes ahead without coverage | Planned |
 | Watch mode: `--watch`, `--watchAll` | Refused | Planned |
 | A Jest reporter's own copy of Jest's frames | A report that embeds each failure's raw stack (jest-html-reporters, jest-sonar-reporter, jest-junit without `noStackTrace`) holds Provino's frames in place of `jest-circus`'s, with the project's frames in Jest's layout | Not planned |
-| `github-actions` with `silent: false` | The result tree it adds is not printed | Planned |
+| `github-actions` with `silent: false` | Refused by name (the result tree it adds is not printed) | Planned |
 | Orphan `.snap` files | Not removed, and `snapshot.filesRemovedList` stays empty | Planned |
 | Run only what changed: `--onlyChanged`, `--changedSince`, `--lastCommit`, `--changedFilesWithAncestor`, `--findRelatedTests`, `--onlyFailures` | Refused | Not yet planned |
 | Random order: `--randomize`, `--seed`, `--showSeed` | Refused | Not yet planned |

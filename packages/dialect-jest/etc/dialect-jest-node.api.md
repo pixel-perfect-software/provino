@@ -723,7 +723,7 @@ export interface JestReporterHostOptions<Config extends ProjectConfigLike> {
 // @public
 export interface JestReporterInstance {
     // (undocumented)
-    readonly getLastError?: () => Error | undefined;
+    readonly getLastError?: () => unknown;
     // (undocumented)
     readonly onRunComplete?: (contexts: Set<TestContext>, aggregated: AggregatedResult) => Promise<void> | void;
     // (undocumented)
@@ -832,6 +832,7 @@ export function jestRunGlobalHooks(globalConfig: JestGlobalConfig): {
 export function jestRunSummaryLine(globalConfig: Pick<JestGlobalConfig, "findRelatedTests" | "nonFlagArgs" | "onlyChanged" | "runTestsByPath" | "silent" | "testNamePattern" | "testPathPatterns">, run: {
     readonly interrupted: boolean;
     readonly contextCount: number;
+    readonly watch?: boolean;
 }, style: TextStyle): string | undefined;
 
 // @public

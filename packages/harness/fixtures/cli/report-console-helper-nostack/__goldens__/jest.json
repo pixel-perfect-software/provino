@@ -20,7 +20,7 @@
           "errors": [],
           "passingAssertions": 1,
           "location": {
-            "line": 3,
+            "line": 4,
             "column": 1
           }
         }
@@ -68,6 +68,6 @@
   "success": true,
   "observed": {
     "exitCode": 0,
-    "stderr": "  ● Console\n    console.error\n      from the helper\n      at exports.complain (helper.cjs:2:11)\n    console.warn\n      a direct warning\n      at Object.warn (console-helper.test.ts:5:11)\n    console.log\n      plain\n      at Object.log (console-helper.test.ts:6:11)"
+    "stderr": "  ● Console\n    console.error\n      from the helper\n      at exports.complain (helper.cjs:2:11)\n    console.warn\n      a direct warning\n      at Object.warn (console-helper.test.ts:6:11)\n    console.log\n      plain\n      at Object.log (console-helper.test.ts:7:11)"
   }
 }
