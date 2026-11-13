@@ -5,7 +5,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import type { FileHistory } from '@provino/types'
-import { createResultsCache, defaultCacheDir, transformCacheDir } from './cache.ts'
+import {
+  createResultsCache,
+  defaultCacheDir,
+  isProvinoCacheDir,
+  transformCacheDir,
+} from './cache.ts'
 
 const made: string[] = []
 after(async () => {
@@ -314,4 +319,32 @@ it('an explicit cacheDirectory moves both caches to <cacheDirectory>/provino (D7
     transformCacheDir(join('root', 'app')),
     join('root', 'app', 'node_modules', '.cache', 'provino', 't'),
   )
+})
+
+describe('isProvinoCacheDir', () => {
+  const TAG =
+    'Signature: 8a477f597d28d172789f06886806bc55\n# This file is a cache directory tag created by Provino.\n'
+
+  it('knows the directory by its results file or by the tag of what it holds: itself, the transform cache or the compile cache', async () => {
+    for (const where of ['', 't', 'compile']) {
+      const dir = await scratch()
+      assert.equal(isProvinoCacheDir(dir), false, 'an empty directory is nobody’s')
+      await mkdir(join(dir, where), { recursive: true })
+      await writeFile(join(dir, where, 'CACHEDIR.TAG'), TAG)
+      assert.equal(isProvinoCacheDir(dir), true, `a tag in ${where || 'the directory'}`)
+    }
+    const withResults = await scratch()
+    await writeFile(join(withResults, 'results.json'), '{}')
+    assert.equal(isProvinoCacheDir(withResults), true)
+  })
+
+  it('does not take another tool’s tag, in any of the three places', async () => {
+    const dir = await scratch()
+    await mkdir(join(dir, 'compile'))
+    await writeFile(
+      join(dir, 'compile', 'CACHEDIR.TAG'),
+      'Signature: 8a477f597d28d172789f06886806bc55\n# by someone else\n',
+    )
+    assert.equal(isProvinoCacheDir(dir), false)
+  })
 })

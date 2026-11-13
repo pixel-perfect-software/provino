@@ -34,7 +34,8 @@ export function defaultCacheDir(rootDir: string, cacheDirectory?: string): strin
 
 /**
  * Whether `directory` is a Provino cache directory: it holds the `CACHEDIR.TAG` Provino writes
- * (here or in its transform cache's `t`), or the results cache's `results.json`. `--clearCache`
+ * (here, in its transform cache's `t` or in the bin's compile cache's `compile`), or the results
+ * cache's `results.json`. `--clearCache`
  * removes only such a directory: `<cacheDirectory>/provino` can be a directory the user already had.
  * @public
  */
@@ -42,7 +43,8 @@ export function isProvinoCacheDir(directory: string): boolean {
   return (
     existsSync(join(directory, FILE_NAME)) ||
     hasProvinoTag(directory) ||
-    hasProvinoTag(join(directory, 't'))
+    hasProvinoTag(join(directory, 't')) ||
+    hasProvinoTag(join(directory, 'compile'))
   )
 }
 
