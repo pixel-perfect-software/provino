@@ -88,7 +88,9 @@ export async function setUpJestReporters(options: {
   const mixedVerbose =
     configs.some((config) => config.verbose === true) &&
     !configs.every((config) => config.verbose === true)
-  const hostsClasses = plan.steps.some((step) => step.kind === 'custom' || step.name === 'github-actions')
+  const hostsClasses = plan.steps.some(
+    (step) => step.kind === 'custom' || step.name === 'github-actions',
+  )
   let fileCount: number | undefined
   if (mixedVerbose || hostsClasses) {
     const counts = await options.filesPerProject()
@@ -96,8 +98,7 @@ export async function setUpJestReporters(options: {
     configs = configs.filter((_, index) => (counts[index] ?? 0) > 0)
     plan = jestReporterPlan(globalConfig, configs, environment)
   }
-  const verbose =
-    globalConfig.verbose === true || configs.some((config) => config.verbose === true)
+  const verbose = globalConfig.verbose === true || configs.some((config) => config.verbose === true)
   let entries: Awaited<ReturnType<typeof loadJestReporters>>
   try {
     entries = await loadJestReporters(plan)
@@ -137,7 +138,9 @@ export async function setUpJestReporters(options: {
   }
   // After every hosted class has seen a file, its console buffer is freed.
   if (release !== undefined) reporters.push(release)
-  const announceThrown = !reporters.some((reporter) => typeof reporter === 'string' && TEXT_REPORTERS.has(reporter))
+  const announceThrown = !reporters.some(
+    (reporter) => typeof reporter === 'string' && TEXT_REPORTERS.has(reporter),
+  )
   if (plan.summary !== undefined) {
     const threshold = plan.summary.options.summaryThreshold
     if (threshold && typeof threshold !== 'number') {

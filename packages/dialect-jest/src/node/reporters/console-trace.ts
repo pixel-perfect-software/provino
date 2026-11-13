@@ -4,7 +4,7 @@
 // `jest-message-util` loads the first time an entry is rendered, through a synchronous
 // `createRequire`, since a reporter's text is built without waiting.
 import { createRequire } from 'node:module'
-import type { StackTraceConfig } from '../../results/failure-message.ts'
+import { hideProvinoFrames, type StackTraceConfig } from '../../results/failure-message.ts'
 
 type MessageUtil = typeof import('jest-message-util')
 
@@ -22,7 +22,9 @@ export function jestConsoleTrace(
 ): string {
   loaded ??= createRequire(import.meta.url)('jest-message-util') as MessageUtil
   const loud = level === 'warn' || level === 'error'
-  return loaded.formatStackTrace(origin, config as Parameters<MessageUtil['formatStackTrace']>[1], {
+  // The worker's frame lines start at `at`; the filter and `jest-message-util` read indented ones.
+  const stack = hideProvinoFrames(origin.replace(/^\s*at /, '    at '))
+  return loaded.formatStackTrace(stack, config as Parameters<MessageUtil['formatStackTrace']>[1], {
     noCodeFrame: !loud,
     noStackTrace: loud ? (globalConfig.noStackTrace ?? false) : true,
   })

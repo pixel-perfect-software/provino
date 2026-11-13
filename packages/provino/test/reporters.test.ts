@@ -69,6 +69,18 @@ describe('provino jest prints what Jest 30.5.2 printed (the lines each recording
       'cli/report-verbose',
       '--verbose: each test under its describe titles, console before the header',
     ],
+    [
+      'cli/report-console-helper',
+      'a console.error from a helper: code frame and every frame outside Jest; warn likewise, log its first frame',
+    ],
+    [
+      'cli/report-console-helper-nostack',
+      '--noStackTrace keeps the first frame of a warn or error entry and prints no code frame',
+    ],
+    [
+      'cli/report-console-helper-verbose',
+      '--verbose: the title at 2 spaces, the frames still at 6',
+    ],
     ['cli/report-silent', '--silent: the same headers and totals, and no console output'],
     [
       'cli/report-single-file',

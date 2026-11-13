@@ -117,7 +117,7 @@ describe('the default reporter: console output', () => {
     assert.match(text, new RegExp(`${ESC}\\[2mconsole\\.log${ESC}\\[22m`))
   })
 
-  test('prints the origin’s top frame under an entry when the worker gave one; none of a warn’s under noStackTrace', async () => {
+  test('prints the origin’s top frame under an entry when the worker gave one, under noStackTrace too (Jest keeps the first path line)', async () => {
     const withOrigin: FileSpec = {
       path: 'origin.test.ts',
       tests: [
@@ -143,7 +143,7 @@ describe('the default reporter: console output', () => {
     assert.doesNotMatch(text, /y\.ts/)
     const quiet = await written(defaultReporter, [withOrigin], { noStackTrace: true })
     assert.match(quiet, /at Object\.log/)
-    assert.doesNotMatch(quiet, /at Object\.warn/)
+    assert.match(quiet, /at Object\.warn/)
   })
 })
 

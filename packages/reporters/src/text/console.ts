@@ -25,10 +25,18 @@ function originFrame(origin: string | null): string | undefined {
     .find((line) => line.startsWith('at '))
 }
 
-/** A frame with the path of a file under `root` made relative to it. */
+/** `formatStackTrace`'s `STACK_INDENT`: the frames sit at 6 spaces whatever the title's indent. */
+const STACK_INDENT = 6
+
+/**
+ * A frame with the path of a file under `root` made relative to it, as Jest's `formatPath` does
+ * (`at f (/root/a.ts:1:1)` and `at /root/a.ts:1:1`). The root is matched where the path starts,
+ * never inside another path (`/app` in `/home/u/app/x.ts`, or in `file:///work/app/x.ts`).
+ */
 function relativeFrame(frame: string | undefined, root: string | undefined): string | undefined {
   if (frame === undefined || root === undefined || root === '') return frame
-  return frame.replace(`${root.replace(/\/$/, '')}/`, '')
+  const prefix = root.replace(/\/$/, '').replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
+  return frame.replace(new RegExp(`^(at |at [^(]*\\()${prefix}/`), '$1')
 }
 
 /** `console.log`, or `process.stdout` for a write that did not go through `console`. */
@@ -40,7 +48,10 @@ function entryTitle(entry: ConsoleEntry): string {
 export interface ConsoleFormat {
   /** Spaces before each title: 4 under the default reporter, 2 under `--verbose`. */
   readonly titleIndent: number
-  /** Keep the `at` line of a `warn` or `error` entry; Jest's `--noStackTrace` leaves it out. */
+  /**
+   * Jest's `--noStackTrace`. It does not hide the `at` line: `removeInternalStackEntries` keeps the
+   * first path line of every entry (recorded: `cli/report-console-helper-nostack`).
+   */
   readonly stackTrace: boolean
   /** Paths under this directory are shown relative to it, as Jest's `formatPath` does. */
   readonly root?: string
@@ -74,11 +85,11 @@ export function consoleEntries(
       ].join('\n')
     }
     const frame = relativeFrame(originFrame(entry.origin), format.root)
-    const showFrame = frame !== undefined && (colour === undefined || format.stackTrace)
+    const showFrame = frame !== undefined
     return [
       `${pad}${(colour ?? style.dim)(entryTitle(entry))}`,
       colour === undefined ? message : colour(message),
-      ...(showFrame ? ['', style.dim(`${pad}  ${frame}`)] : []),
+      ...(showFrame ? ['', style.dim(`${' '.repeat(STACK_INDENT)}${frame}`)] : []),
     ].join('\n')
   })
   return `${blocks.join('\n\n')}\n`

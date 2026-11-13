@@ -125,7 +125,8 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
       used = true
       // Only the outermost call (the user's) gives the site: a method that prints through
       // others keeps it.
-      if (outer === null && options.origin?.() === true) site = callSite(call, name)
+      if (outer === null && options.origin?.() === true)
+        site = callSite(call, name === 'warn' || name === 'error')
       try {
         return Reflect.apply(inner[name] as Methods[string], inner, args)
       } finally {
@@ -199,33 +200,38 @@ function patch(
 }
 
 /**
- * The call site of a console method as Jest's `BufferedConsole` keeps it: one `at …` line with
- * the console method's name where V8 would name the calling function (`at Object.log (file:4:11)`,
- * `at log (file:1:26)`, `at K.info [as m] (file:2:25)`) and the position of the call. `below` is
- * the method's own front function, whose frame and those above it are left out. `null` when the
- * frame can't be read.
+ * The call site of a console method as Jest's `BufferedConsole` keeps it: for `log` and the other
+ * quiet kinds the one `at …` line of the call (Jest prints only the first frame of those); for
+ * `warn` and `error` (`all`), whose text Jest prints with a code frame and every frame outside
+ * Jest, the whole stack (V8's default depth of 10, as Jest's `ErrorWithStack` captures). Frames
+ * are named as the worker's stack formatter names them (`at Object.log (file:4:11)` under the Jest
+ * dialect: DV88).
+ * `below` is the method's own front function, whose frame and those above it are left out. `null`
+ * when the frame can't be read: reading `.stack` runs the user's `Error.prepareStackTrace`, which
+ * may throw or return something that is no string (`callsites` and `depd` do).
  */
-function callSite(below: (...args: never[]) => unknown, method: string): string | null {
-  const holder: { stack?: string } = {}
+function callSite(below: (...args: never[]) => unknown, all: boolean): string | null {
+  const holder: { stack?: unknown } = {}
   const limit = Error.stackTraceLimit
-  Error.stackTraceLimit = 1
+  let stack: unknown
   try {
+    Error.stackTraceLimit = all ? Math.max(10, limit) : 1
     Error.captureStackTrace(holder, below)
+    stack = holder.stack
+  } catch {
+    return null
   } finally {
     Error.stackTraceLimit = limit
   }
-  const frame = holder.stack?.split('\n').find((line) => line.trimStart().startsWith('at '))
+  if (typeof stack !== 'string') return null
+  const lines = stack.split('\n').filter((line) => line.trimStart().startsWith('at '))
+  const frame = lines[0]
   if (frame === undefined) return null
-  const text = frame.trim().slice(3)
-  const open = text.indexOf(' (')
-  const place = open === -1 ? text : text.slice(open + 2).replace(/\)$/, '')
+  // The frame as V8 (and the worker's source-mapped formatter, DV88) names it, as Jest keeps it.
+  const first = frame.trim()
+  const place = first
+    .slice(first.indexOf(' (') === -1 ? 3 : first.indexOf(' (') + 2)
+    .replace(/\)$/, '')
   if (!/:\d+:\d+$/.test(place)) return null
-  const name = open === -1 ? '' : text.slice(0, open)
-  const dot = name.lastIndexOf('.')
-  const own = dot === -1 ? name : name.slice(dot + 1)
-  const label =
-    dot === -1
-      ? method
-      : `${name.slice(0, dot)}.${method}${own !== '<anonymous>' && own !== method ? ` [as ${own}]` : ''}`
-  return `at ${label} (${place})`
+  return all ? [first, ...lines.slice(1)].join('\n') : first
 }

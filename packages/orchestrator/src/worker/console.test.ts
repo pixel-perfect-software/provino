@@ -53,22 +53,56 @@ describe('console call sites (orchestrator.consoleOrigin: stack)', () => {
     assert.equal(events[0]?.origin, null)
   })
 
-  it('keeps the call site as one `at` line named as Jest names it, with the call’s position', () => {
+  it('keeps the first frame of a log, as V8 names it, with the call’s position', () => {
     const { c, events } = located(true)
-    // The frame's name is the console method with the calling function's receiver (Jest's
-    // BufferedConsole, recorded in cli/report-default): `Object.log` for an anonymous caller.
     c.console.log('a')
     const origin = events[0]?.origin ?? ''
-    assert.match(origin, /^at (?:\w+\.)?log \(.*console\.test\.ts:\d+:\d+\)$/)
+    assert.match(origin, /^at .*console\.test\.ts:\d+:\d+\)?$/)
     assert.equal(origin.includes('\n'), false)
   })
 
-  it('names the method for each level, and keeps the site of the user’s call for a method that prints through others', () => {
+  it('keeps the whole stack of a warn or an error, which Jest prints with a code frame and every frame', () => {
     const { c, events } = located(true)
+    function helper(): void {
+      c.console.error('e')
+    }
+    helper()
     c.console.warn('w')
+    const lines = (events[0]?.origin ?? '').split('\n').map((line) => line.trim())
+    assert.match(lines[0] ?? '', /^at helper \(.*console\.test\.ts:\d+:\d+\)$/)
+    assert.ok(lines.length > 1, 'the caller of the helper is there too')
+    assert.ok(lines.every((line) => line.startsWith('at ')))
+    assert.ok((events[1]?.origin ?? '').split('\n').length > 1)
+  })
+
+  it('keeps the site of the user’s call for a method that prints through others', () => {
+    const { c, events } = located(true)
     c.console.table([{ a: 1 }])
-    assert.match(events[0]?.origin ?? '', /warn \(.*console\.test\.ts/)
-    assert.match(events[1]?.origin ?? '', /table \(.*console\.test\.ts/)
+    assert.match(events[0]?.origin ?? '', /console\.test\.ts/)
+  })
+
+  it('keeps no origin, and does not throw in the user’s call, when Error.prepareStackTrace does not give a string', () => {
+    const { c, events } = located(true)
+    const original = Error.prepareStackTrace
+    try {
+      Error.prepareStackTrace = (_error, frames) => frames
+      c.console.log('a')
+      c.console.warn('b')
+      Error.prepareStackTrace = () => {
+        throw new Error('broken formatter')
+      }
+      c.console.error('c')
+    } finally {
+      Error.prepareStackTrace = original
+    }
+    assert.deepEqual(
+      events.map((event) => [event.text, event.origin]),
+      [
+        ['a\n', null],
+        ['b\n', null],
+        ['c\n', null],
+      ],
+    )
   })
 
   it('leaves a direct stream write with no origin', () => {

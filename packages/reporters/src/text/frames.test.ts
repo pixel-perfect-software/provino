@@ -58,7 +58,10 @@ test('the built umbrella of a checkout is Provino’s, a test or fixture under p
   const packages = '/work/provino/packages/'
   assert.equal(isProvinoFrame(`at run (${packages}provino/dist/worker/a.js:1:1)`, packages), true)
   assert.equal(isProvinoFrame(`at t (${packages}provino/test/run.test.ts:1:1)`, packages), false)
-  assert.equal(isProvinoFrame(`at f (${packages}harness/fixtures/a/b.test.ts:1:1)`, packages), false)
+  assert.equal(
+    isProvinoFrame(`at f (${packages}harness/fixtures/a/b.test.ts:1:1)`, packages),
+    false,
+  )
 })
 
 test('an install’s frames are Provino’s whatever the checkout is', () => {
@@ -66,6 +69,9 @@ test('an install’s frames are Provino’s whatever the checkout is', () => {
     isProvinoFrame('at r (/app/node_modules/provino/dist/worker/jest-runtime.js:1:1)', undefined),
     true,
   )
-  assert.equal(isProvinoFrame('at r (/app/node_modules/@provino/core/dist/a.js:1:1)', undefined), true)
+  assert.equal(
+    isProvinoFrame('at r (/app/node_modules/@provino/core/dist/a.js:1:1)', undefined),
+    true,
+  )
   assert.equal(isProvinoFrame('at r (/app/src/provino/dist/a.js:1:1)', undefined), false)
 })

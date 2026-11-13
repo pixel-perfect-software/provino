@@ -10,6 +10,6 @@
   "run": {
     "argv": { "jest": ["--verbose"] },
     "capture": ["exitCode", "stderr"],
-    "keepLines": "^(PASS|FAIL) |^ +(✓|✕|○|✎) |^ +(math|nested|group)$|^ +console\\.|^ {4}(from the test|a warning)$|^(Test Suites|Tests):|^Ran all test suites|^Snapshot Summary$|^ › |^ +[↳•] "
+    "keepLines": "^(PASS|FAIL) |^ +(✓|✕|○|✎) |^ +(math|nested|group)$|^ +console\\.|^ {4}(from the test|a warning)$|^ {6}at Object\\.(log|warn) |^(Test Suites|Tests):|^Ran all test suites|^Snapshot Summary$|^ › |^ +[↳•] "
   }
 }

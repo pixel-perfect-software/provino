@@ -283,9 +283,7 @@ export function createJestReporterHost<Config extends ProjectConfigLike>(
         // Jest keeps any truthy value (`ReporterDispatcher.getErrors`).
         const error = instance?.getLastError?.()
         if (!error) return undefined
-        return error instanceof Error
-          ? serialize(error)
-          : { name: 'Error', message: String(error) }
+        return error instanceof Error ? serialize(error) : { name: 'Error', message: String(error) }
       },
     }
   })

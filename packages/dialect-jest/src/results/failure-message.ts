@@ -68,7 +68,10 @@ export function isProvinoFrame(frame: string, packages: string | undefined): boo
  * same way, in `removeInternalStackEntries`), so the text under a failure is the user's code.
  * @internal
  */
-export function hideProvinoFrames(stack: string, packages: string | undefined = PROVINO_PACKAGES): string {
+export function hideProvinoFrames(
+  stack: string,
+  packages: string | undefined = PROVINO_PACKAGES,
+): string {
   return stack
     .split('\n')
     .filter((line) => !/^\s+at /.test(line) || !isProvinoFrame(line, packages))
@@ -98,7 +101,7 @@ export async function formatTestFailures(
   // The package types `AssertionResult` from `@jest/types`, a structural twin of ours.
   const shown = assertionResults.map((result) => ({
     ...result,
-    failureMessages: result.failureMessages.map(hideProvinoFrames),
+    failureMessages: result.failureMessages.map((message) => hideProvinoFrames(message)),
   }))
   return util.formatResultsErrors(
     shown as unknown as Parameters<MessageUtil['formatResultsErrors']>[0],

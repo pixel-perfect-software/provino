@@ -103,10 +103,7 @@ describe('the arguments of the hooks follow Jest’s run (cli/reporters-hook-*)'
       'cli/reporters-hook-order-pass',
       'onRunComplete hears success=false on a passing run (Jest computes it afterwards), and the run exits 0',
     ],
-    [
-      'cli/reporters-hook-status-workers',
-      'showStatus is true for three files and two workers',
-    ],
+    ['cli/reporters-hook-status-workers', 'showStatus is true for three files and two workers'],
     [
       'cli/reporters-hook-status-one-file',
       'showStatus is false for one file, though there are two workers (shouldRunInBand)',
@@ -150,7 +147,8 @@ async function runWithConfig(
     const path = join(project.root, 'jest.config.json')
     const base = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
     await writeFile(path, JSON.stringify({ ...base, ...overrides }))
-    for (const [name, text] of Object.entries(files)) await writeFile(join(project.root, name), text)
+    for (const [name, text] of Object.entries(files))
+      await writeFile(join(project.root, name), text)
     const ended = await spawnCli(['jest', `--config=${path}`, '--ci'], { cwd: project.root })
     return { code: ended.code, stderr: ended.stderr, stdout: ended.stdout }
   } finally {
