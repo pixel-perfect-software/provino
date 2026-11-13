@@ -913,7 +913,9 @@ export async function runProjects(
     await Promise.all([pool.close(), writeCache()])
     // A `-t` run executes only the matching tests of each file, so its durations are not the files'.
     const partial = options.testNamePattern !== undefined && options.testNamePattern !== ''
-    if (options.timings?.update === true && partial) {
+    if (options.timings?.update === true && options.collectOnly === true) {
+      // Nothing ran: a collect-only pass's durations are not the files' and would skew the shards.
+    } else if (options.timings?.update === true && partial) {
       stderr.write(
         'Provino: not updating the timings file: -t runs only some of each file’s tests, so the times are not the files’ times\n',
       )
