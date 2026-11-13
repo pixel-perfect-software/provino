@@ -30,7 +30,7 @@ export interface WorkerKey {
  */
 export interface RecyclePolicy {
   /**
-   * RSS (forks) or heapUsed + external (threads), checked after each file with the
+   * RSS (forks) or the isolate's used heap (threads), checked after each file with the
    * `fileDone.memoryBytes` the worker measured: a worker over it is stopped and a new one serves
    * the next file. `0` replaces the worker after every file (Jest's `workerIdleMemoryLimit: 0`).
    * An inline worker is never replaced for memory (what it measures is the coordinator's own).
@@ -158,8 +158,10 @@ export interface CoordinatorMethods {
 export interface WorkerMethods {
   /**
    * The worker's memory in bytes, measured by the worker itself (a parent can't read a forked
-   * child's RSS): RSS in a fork, `heapUsed + external` in a thread or inline, where RSS is the
-   * whole process's. `fileDone.memoryBytes` uses the same measure.
+   * child's RSS): RSS in a fork; in a thread or inline, where RSS is the whole process's and
+   * `external` counts what the isolate has reserved (a 6 GiB `ArrayBuffer` of oxc-parser's), the
+   * isolate's used heap (`v8.getHeapStatistics().used_heap_size`). `fileDone.memoryBytes` uses
+   * the same measure.
    */
   memoryUsage(): number
 }

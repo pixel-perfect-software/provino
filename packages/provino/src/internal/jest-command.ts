@@ -98,8 +98,9 @@ function environmentsFor(request: RunRequest, project: NeutralProject): typeof J
  * what jest-config's `stringToBytes` does (`'512MB'`, `'50%'` and `0.2` are bytes by now), and
  * jest-runner hands the number to jest-worker as it is: `0` replaces a child process after every
  * file, any other is a count of bytes. Absent: the pool's own default limit. A divergence
- * (DIVERGENCES, B21a): jest-worker compares the child's `heapUsed`, the pool compares its RSS
- * (`heapUsed + external` for a thread), so Provino recycles a little earlier.
+ * (DIVERGENCES, B21a): jest-worker compares the child's `heapUsed`, the pool compares a forked
+ * child's RSS (a thread's used heap, as jest-worker does), so Provino recycles a little earlier
+ * under forks.
  * @internal
  */
 export function workerRecycle(limit: number | undefined): {

@@ -9,6 +9,7 @@ import { describe, it } from 'node:test'
 import {
   createResultsCache,
   defaultCacheDir,
+  defaultWorkerMemoryLimit,
   ExitCode,
   exitCodeFor,
   fileIdOf,
@@ -611,6 +612,42 @@ describe('runProject over an inline worker that holds more memory than the limit
       .filter((entry) => entry.name === 'file:start')
       .map((entry) => entry.detail.workerId)
     assert.deepEqual(workers, [1, 1, 1], 'one inline worker took every file')
+  })
+})
+
+describe('runProject over real threads under the default memory limit', () => {
+  it('reuses a healthy worker for every file: a thread is measured by its own heap, not by the process-wide `external`', async () => {
+    // A thread's `process.memoryUsage().external` counts ArrayBuffers the whole run reserves (oxc's
+    // raw transfer buffer alone is about 6 GiB), so `heapUsed + external` put every thread over
+    // the default limit, and every file got a fresh thread. jest-worker reads `heapUsed`.
+    const p = await makeProject({
+      'a.test.js': passing('a'),
+      'b.test.js': passing('b'),
+      'c.test.js': passing('c'),
+      'd.test.js': passing('d'),
+    })
+    // The default is a quarter of the memory over the workers, never under 512 MiB. A container
+    // with 1 GiB to give is that floor however many workers there are, on any machine.
+    const project = runtimeProject(p.dir)
+    const original = process.constrainedMemory
+    process.constrainedMemory = () => 1024 * 1024 * 1024
+    let result: Awaited<ReturnType<typeof run>>
+    try {
+      assert.equal(defaultWorkerMemoryLimit(1), 512 * 1024 * 1024, 'the default is the floor')
+      result = await run(project, { pool: { kind: 'threads', maxWorkers: 1 } })
+    } finally {
+      process.constrainedMemory = original
+    }
+    const { summary, seen } = result
+    assert.deepEqual(
+      summary.files.map((file) => file.state),
+      ['pass', 'pass', 'pass', 'pass'],
+    )
+    const workers = seen
+      .filter((entry) => entry.name === 'file:start')
+      .map((entry) => entry.detail.workerId)
+    assert.equal(workers.length, 4)
+    assert.equal(new Set(workers).size, 1, `one thread took every file, got ${workers.join(', ')}`)
   })
 })
 
