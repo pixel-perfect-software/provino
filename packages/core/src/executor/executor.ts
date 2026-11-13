@@ -734,7 +734,7 @@ export class Executor {
     const frame: Frame = { test: task, hook: null, fileId: run.fileId, attempt, repeat }
     const state: AttemptState = {
       test,
-      ctx: createTestContext(task, () => state, this.#contextEnv),
+      ctx: createTestContext(task, () => state, controller.signal, this.#contextEnv),
       thisArg: this.#policy.firstArg === 'context' ? undefined : Object.create(null),
       run: handle,
       lazy: { kind: 'test', run: handle, suite: test.parent.handle, file: run.file.handle },
