@@ -6,18 +6,27 @@ function git(root: string, args: readonly string[]): string | undefined {
 }
 
 /**
- * The commit `ref` names, or an error that says what to pass. A missing base fails the check:
- * a hygiene run that can't tell what changed must not pass for lack of an answer.
+ * Where this branch left `ref`: the merge base of `ref` and HEAD. Not `ref`'s tip: on a stacked
+ * branch whose parent has moved on, the tip holds other PRs' API reports and changesets, and
+ * measuring against it blames their changes on this branch (and lets a changeset a release has
+ * since consumed count as this branch's). A missing ref, or one with no common history, fails the
+ * check: a hygiene run that can't tell what changed must not pass for lack of an answer.
  * @internal
  */
 export function resolveBase(root: string, ref: string): string {
-  const sha = git(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])?.trim()
-  if (sha === undefined || sha === '') {
+  const tip = git(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])?.trim()
+  if (tip === undefined || tip === '') {
     throw new Error(
       `cannot resolve the base "${ref}": fetch it, or pass --base <ref> (the branch this one will merge into)`,
     )
   }
-  return sha
+  const base = git(root, ['merge-base', tip, 'HEAD'])?.trim()
+  if (base === undefined || base === '') {
+    throw new Error(
+      `the base "${ref}" has no common history with HEAD: pass --base <ref> for the branch this one will merge into`,
+    )
+  }
+  return base
 }
 
 /**
