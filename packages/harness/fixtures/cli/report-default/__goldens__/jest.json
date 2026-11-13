@@ -1,0 +1,244 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/report-default",
+  "files": [
+    {
+      "file": "console.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "console.test.ts",
+            "path": [
+              "logs and warns"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "fails.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "fails.test.ts",
+            "path": [
+              "group",
+              "fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 2\nReceived: 1",
+              "matcher": "toBe",
+              "userFrame": "<root>/fails.test.ts:3:15"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fails.test.ts",
+            "path": [
+              "group",
+              "passes after"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "passes.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "passes.test.ts",
+            "path": [
+              "math",
+              "adds"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "passes.test.ts",
+            "path": [
+              "math",
+              "nested",
+              "subtracts"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 7,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "passes.test.ts",
+            "path": [
+              "stands alone"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 13,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "skipped.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "skipped.test.ts",
+            "path": [
+              "runs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "skipped.test.ts",
+            "path": [
+              "is skipped"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "skipped.test.ts",
+            "path": [
+              "is planned"
+            ],
+            "dupIndex": 0
+          },
+          "status": "todo",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 9,
+            "column": 4
+          }
+        }
+      ]
+    },
+    {
+      "file": "snapshot.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "snapshot.test.ts",
+            "path": [
+              "matches a stored snapshot"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toMatchSnapshot()\n\nSnapshot name: `matches a stored snapshot 1`\n\n- Snapshot  - 1\n+ Received  + 1\n\n  {\n-   \"value\": \"old\",\n+   \"value\": \"new\",\n  }",
+              "matcher": "toMatchSnapshot",
+              "userFrame": "<root>/snapshot.test.ts:2:28"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 1,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 1,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 1,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/snapshot.test.ts.snap",
+        "sha256": "f756e16883de124a052dfa9aad1bd59fca5e29cdeddeccee22751bec410b2155"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "PASS ./passes.test.ts\nFAIL ./fails.test.ts\nPASS ./skipped.test.ts\nPASS ./console.test.ts\n  ● Console\n    console.log\n      from the test\n    console.warn\n      a warning\nFAIL ./snapshot.test.ts\nTest Suites: 2 failed, 3 passed, 5 total\nTests:       2 failed, 1 skipped, 1 todo, 6 passed, 10 total\nSnapshots:   1 failed, 1 total"
+  }
+}

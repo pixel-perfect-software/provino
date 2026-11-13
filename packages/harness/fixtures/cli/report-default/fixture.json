@@ -1,0 +1,14 @@
+{
+  "description": "The default reporter's text under Jest 30.5.2 (T9.7, B21c): a file's PASS and FAIL header (`./` before a root-level path, no timing), no line for a skipped file, a console block under its own bullet (the message lines; the `at` line and the blank lines around it are left out), the summary and the exit code. One file each passes, fails, skips and has a todo, logs to the console, and fails a stored snapshot. One Jest worker, `--ci`, the default reporter. A black-box run; the kept lines are the ones `provino jest` is held to (`provino`'s `reporters.test.ts`).",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "__snapshots__/snapshot.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`matches a stored snapshot 1`] = `\n{\n  \"value\": \"old\",\n}\n`;\n"
+    }
+  },
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^  ● Console$|^ {4}console\\.|^ {6}(from the test|a warning)$"
+  }
+}

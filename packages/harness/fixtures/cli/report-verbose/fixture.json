@@ -1,0 +1,15 @@
+{
+  "description": "--verbose under Jest 30.5.2 (T9.7, B21c): each file's tests listed under their describe titles with a mark (check, cross, circle for skipped, pencil for todo; skipped and todo tests after the others), a blank line after the list, and the console blocks printed as they happen, before the file's header. The same project as report-default. The kept lines are the header, the test lines, the titles, the console lines (without the `at` line) and the totals. One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "__snapshots__/snapshot.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`matches a stored snapshot 1`] = `\n{\n  \"value\": \"old\",\n}\n`;\n"
+    }
+  },
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--verbose"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^ +(✓|✕|○|✎) |^ +(math|nested|group)$|^ +console\\.|^ {4}(from the test|a warning)$|^(Test Suites|Tests):"
+  }
+}

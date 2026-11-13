@@ -1,0 +1,15 @@
+{
+  "description": "--silent under Jest 30.5.2 (T9.7, B21c): the tests' console output is not printed at all (no Console bullet, no console.log or console.warn block), while the headers and the totals are the same as report-default's. The same project; one Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "__snapshots__/snapshot.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`matches a stored snapshot 1`] = `\n{\n  \"value\": \"old\",\n}\n`;\n"
+    }
+  },
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--silent"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^  ● Console$|^ {4}console\\.|^ {6}(from the test|a warning)$"
+  }
+}
