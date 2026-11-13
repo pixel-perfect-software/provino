@@ -2,6 +2,7 @@
 // blocks `dot` ends with). Jest's wording where it was recorded from Jest 30.5.2 (`cli/report-*`:
 // the header line, the verbose list, the console block, the totals), Provino's own elsewhere (the
 // failure message, which has Provino's frames).
+import { fileURLToPath } from 'node:url'
 import type {
   FileInfo,
   OpenHandle,
@@ -100,11 +101,42 @@ function header(error: SerializedError): string {
 
 /**
  * The directory that holds Provino's own packages when this code runs from a workspace checkout
- * (`<repo>/packages/`); `undefined` from an install, where Provino sits under `node_modules` and
- * its frames are hidden as a dependency's are (D104: both runners hide their own internals).
+ * (`<repo>/packages/`, from the built umbrella's `packages/provino/dist` as well as a package's
+ * `src`); `undefined` from an install, where Provino sits under `node_modules` and its frames are
+ * hidden as a dependency's are (D104: both runners hide their own internals). Decoded, as stack
+ * frames are: `import.meta.url` is percent-encoded.
  */
-const PROVINO_PACKAGES: string | undefined =
-  /^file:\/\/(.*\/packages\/)reporters\/(?:src|dist)\//.exec(import.meta.url)?.[1]
+const PROVINO_PACKAGES: string | undefined = (() => {
+  try {
+    const path = fileURLToPath(import.meta.url).replaceAll('\\', '/')
+    return /^(.*\/packages\/)[^/]+\/(?:src|dist)\//.exec(path)?.[1]
+  } catch {
+    return undefined
+  }
+})()
+
+/**
+ * Whether a frame is in one of Provino's own packages: `<packages>/<name>/src|dist/` of this
+ * checkout (a test, a fixture or a project that sits under `packages/` is the user's), or an
+ * installed `node_modules/provino` or `node_modules/@provino/<name>`. `file://` frames keep their
+ * percent-encoding, so both the line and its decoded form are looked at.
+ * @internal
+ */
+export function isProvinoFrame(frame: string, packages: string | undefined): boolean {
+  let decoded = frame
+  try {
+    decoded = decodeURI(frame)
+  } catch {
+    // A literal `%` that is no escape: the line as it is.
+  }
+  for (const text of new Set([frame, decoded].map((line) => line.replaceAll('\\', '/')))) {
+    if (/\/node_modules\/(?:provino|@provino\/[^/]+)\//.test(text)) return true
+    if (packages === undefined) continue
+    const at = text.indexOf(packages)
+    if (at !== -1 && /^[^/]+\/(?:src|dist)\//.test(text.slice(at + packages.length))) return true
+  }
+  return false
+}
 
 /**
  * Whether a frame is Node's or a dependency's, as Jest's `removeInternalStackEntries` has it:
@@ -114,7 +146,7 @@ function isLibraryFrame(frame: string): boolean {
   return (
     frame.includes('node:') ||
     frame.includes('node_modules') ||
-    (PROVINO_PACKAGES !== undefined && frame.includes(PROVINO_PACKAGES))
+    isProvinoFrame(frame, PROVINO_PACKAGES)
   )
 }
 

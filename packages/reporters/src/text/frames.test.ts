@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { error } from '../internal/test-support.ts'
-import { formatError, frames } from './format.ts'
+import { formatError, frames, isProvinoFrame } from './format.ts'
 
 /** `<repo>/packages/`, where this checkout's packages are. */
 const PACKAGES = fileURLToPath(new URL('../../../', import.meta.url))
@@ -43,4 +43,29 @@ test('a user’s own packages/core/src file is not Provino’s', () => {
     'at helper (/work/monorepo/packages/core/src/helper.ts:9:3)',
   ])
   assert.match(formatError(error('boom', { stack })), /helper\.ts:9:3/)
+})
+
+test('a checkout under a path with a space is found through the percent-encoded frame', () => {
+  const packages = '/work/my app/provino/packages/'
+  assert.equal(
+    isProvinoFrame(`at run (file:///work/my%20app/provino/packages/core/src/x.ts:1:1)`, packages),
+    true,
+  )
+  assert.equal(isProvinoFrame(`at run (${packages}core/src/x.ts:1:1)`, packages), true)
+})
+
+test('the built umbrella of a checkout is Provino’s, a test or fixture under packages/ is not', () => {
+  const packages = '/work/provino/packages/'
+  assert.equal(isProvinoFrame(`at run (${packages}provino/dist/worker/a.js:1:1)`, packages), true)
+  assert.equal(isProvinoFrame(`at t (${packages}provino/test/run.test.ts:1:1)`, packages), false)
+  assert.equal(isProvinoFrame(`at f (${packages}harness/fixtures/a/b.test.ts:1:1)`, packages), false)
+})
+
+test('an install’s frames are Provino’s whatever the checkout is', () => {
+  assert.equal(
+    isProvinoFrame('at r (/app/node_modules/provino/dist/worker/jest-runtime.js:1:1)', undefined),
+    true,
+  )
+  assert.equal(isProvinoFrame('at r (/app/node_modules/@provino/core/dist/a.js:1:1)', undefined), true)
+  assert.equal(isProvinoFrame('at r (/app/src/provino/dist/a.js:1:1)', undefined), false)
 })
