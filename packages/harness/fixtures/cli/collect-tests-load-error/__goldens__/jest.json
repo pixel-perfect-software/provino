@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/collect-tests-load-error",
+  "files": [
+    {
+      "file": "broken.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    cannot load this file",
+        "userFrame": "<root>/broken.test.ts:1:7"
+      },
+      "tests": []
+    },
+    {
+      "file": "ok.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "ok.test.ts",
+            "path": [
+              "fine"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "Test results written to: .harness-out/jest.json",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 1,
+        "numFailedTests": 0,
+        "numPassedTestSuites": 1,
+        "numPassedTests": 1,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 1,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 1,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [],
+            "coverage": {},
+            "endTime": "<time>",
+            "message": "  ● Test suite failed to run\n\n    cannot load this file\n\n    > 1 | throw new Error('cannot load this file')\n        |       ^\n      2 |\n\n<frames>\n",
+            "name": "<root>/broken.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "fine",
+                "invocations": 0,
+                "location": null,
+                "numPassingAsserts": 0,
+                "retryReasons": [],
+                "startAt": null,
+                "status": "passed",
+                "title": "fine",
+                "wouldRun": true
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/ok.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

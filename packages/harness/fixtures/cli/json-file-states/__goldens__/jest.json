@@ -258,7 +258,7 @@
             "assertionResults": [],
             "coverage": {},
             "endTime": "<time>",
-            "message": "  ● Test suite failed to run\n\n    cannot load this file\n\n    > 1 | throw new Error('cannot load this file')\n        |       ^\n      2 |\n<frames>\n",
+            "message": "  ● Test suite failed to run\n\n    cannot load this file\n\n    > 1 | throw new Error('cannot load this file')\n        |       ^\n      2 |\n\n<frames>\n",
             "name": "<root>/import-fails.test.ts",
             "startTime": "<time>",
             "status": "failed",

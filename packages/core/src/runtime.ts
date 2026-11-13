@@ -88,6 +88,12 @@ export interface RunFileOptions {
    * computed id.
    */
   readonly fileId?: TaskId
+  /**
+   * Collect the file and report each test's final mode without running anything: no hook and no
+   * test body runs, and each test ends once as `queued` (it would run), `skip` or `todo`. Only
+   * `true` is accepted; any other value fails the file (`CORE_INVALID_ARGUMENT`).
+   */
+  readonly collectOnly?: true
 }
 
 /**
@@ -225,7 +231,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
    * is not a valid regular expression, throws a `CORE_INVALID_ARGUMENT` naming the option.
    */
   function finalizeOptionsFor(relativePath: string, fileOptions: RunFileOptions): FinalizeOptions {
-    const { testNamePattern, testIds, lines, fileId } = fileOptions
+    const { testNamePattern, testIds, lines, fileId, collectOnly } = fileOptions
     const invalid = (option: string, reason: string, cause?: unknown): CoreError =>
       new CoreError(
         'CORE_INVALID_ARGUMENT',
@@ -261,6 +267,9 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
         'fileId',
         `expected a non-empty string, got ${fileId === '' ? 'an empty string' : describeType(fileId)}`,
       )
+    }
+    if (collectOnly !== undefined && collectOnly !== true) {
+      throw invalid('collectOnly', `expected true, got ${describeType(collectOnly)}`)
     }
     return {
       ...finalizeOptions,
@@ -341,7 +350,10 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       if (collected) {
         // circus's `run_start`: from here a call to `setDefaultTimeout` changes nothing.
         defaults.ms = requestedTimeout
-        outcome = await executor.runFile(file)
+        outcome =
+          fileOptions.collectOnly === true
+            ? executor.collectFile(file)
+            : await executor.runFile(file)
       }
     } catch (error) {
       file.errors.push(error)

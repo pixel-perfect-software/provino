@@ -22,7 +22,7 @@ import {
   toAssertionResult,
   toTestResult,
 } from './build.ts'
-import { makeEmptyAggregatedTestResult } from './helpers.ts'
+import { addResult, makeEmptyAggregatedTestResult } from './helpers.ts'
 
 const id = (name: string): TaskId => name as TaskId
 const OPTIONS: BuildOptions = { locations: true, displayName: undefined }
@@ -78,7 +78,7 @@ const failure = (message: string, details?: SerializedError['details']): Seriali
 })
 
 function events(
-  tests: readonly { task: TestTask; result?: TaskResult; retried?: SerializedError[] }[],
+  tests: readonly { task: TestTask; result?: TaskResult }[],
   patch: Partial<FileEvents> = {},
   fileResult: Partial<FileResult> = {},
 ): FileEvents {
@@ -104,7 +104,6 @@ function events(
         task: entry.task,
         result: entry.result,
         startedAt: 100,
-        retried: entry.retried ?? [],
       },
     ]),
   )
@@ -137,7 +136,7 @@ describe('toAssertionResult', () => {
     ]
     for (const [state, status, duration] of cases) {
       const built = toAssertionResult(
-        { task: test('t', 'file'), result: result(state), startedAt: 7, retried: [] },
+        { task: test('t', 'file'), result: result(state), startedAt: 7 },
         OPTIONS,
       )
       assert.equal(built.status, status, state)
@@ -150,7 +149,7 @@ describe('toAssertionResult', () => {
 
   it('splits the full name, joins it with a space and gives the location (or none)', () => {
     const task = test('t', 'file', {}, ['outer', 'inner', 'works'])
-    const record = { task, result: result('pass'), startedAt: null, retried: [] }
+    const record = { task, result: result('pass'), startedAt: null }
     const built = toAssertionResult(record, OPTIONS)
     assert.deepEqual(built.ancestorTitles, ['outer', 'inner'])
     assert.equal(built.title, 'works')
@@ -165,7 +164,7 @@ describe('toAssertionResult', () => {
       test('r2', 'file', { each: true }, ['suite', 'row 2']),
     ]
     const built = rows.map((task) =>
-      toAssertionResult({ task, result: result('pass'), startedAt: 1, retried: [] }, OPTIONS),
+      toAssertionResult({ task, result: result('pass'), startedAt: 1 }, OPTIONS),
     )
     assert.deepEqual(
       built.map((entry) => entry.location),
@@ -185,9 +184,9 @@ describe('toAssertionResult', () => {
           errors: [failure('boom', matcher)],
           passingAssertions: 2,
           attempts: 3,
+          retryErrors: [failure('first'), failure('second')],
         }),
         startedAt: 1,
-        retried: [failure('first'), failure('second')],
       },
       OPTIONS,
     )
@@ -207,7 +206,6 @@ describe('toAssertionResult', () => {
         task: test('t', 'file'),
         result: result('fail', { errors: [failure('plain')] }),
         startedAt: 1,
-        retried: [],
       },
       OPTIONS,
     )
@@ -309,6 +307,39 @@ describe('toTestResult', () => {
     assert.deepEqual(built.testResults, [])
   })
 
+  it('a crashed file is Jest’s buildFailureTestResult: no counts, no tests, even for tests that ended', () => {
+    const built = toTestResult(
+      events(
+        [
+          { task: test('a', 'file'), result: result('pass') },
+          { task: test('b', 'file'), result: result('fail', { errors: [failure('x')] }) },
+          { task: test('c', 'file') },
+        ],
+        {},
+        {
+          state: 'fail',
+          workerExit: { type: 'exit', code: 1 },
+          errors: [{ name: 'WorkerCrash', message: 'the worker exited' }],
+        },
+      ),
+      OPTIONS,
+    )
+    assert.deepEqual(
+      [built.numPassingTests, built.numFailingTests, built.numPendingTests, built.numTodoTests],
+      [0, 0, 0, 0],
+    )
+    assert.deepEqual(built.testResults, [])
+    assert.equal(built.testExecError?.message, 'the worker exited')
+    assert.equal(built.testFilePath, '/a.test.ts')
+    assert.equal(built.skipped, false)
+    const run = makeEmptyAggregatedTestResult()
+    addResult(run, built)
+    assert.deepEqual(
+      [run.numFailedTests, run.numTotalTests, run.numRuntimeErrorTestSuites],
+      [0, 0, 1],
+    )
+  })
+
   it('a file with no test fails with Jest’s message', () => {
     const built = toTestResult(events([], {}, { state: 'fail' }), OPTIONS)
     assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
@@ -350,6 +381,89 @@ describe('toTestResult', () => {
       unmatched: 3,
       updated: 4,
     })
+  })
+})
+
+describe('a collect-only file (--collectTests)', () => {
+  const collect: BuildOptions = { ...OPTIONS, collectOnly: true }
+
+  it('reports a queued test as passed with wouldRun, and nothing a run would know', () => {
+    const built = toTestResult(
+      events([
+        { task: test('a', 'file'), result: result('queued', { attempts: 0 }) },
+        { task: test('b', 'file'), result: result('skip') },
+        { task: test('c', 'file'), result: result('todo') },
+      ]),
+      collect,
+    )
+    assert.deepEqual(
+      built.testResults.map((entry) => [entry.status, entry.wouldRun]),
+      [
+        ['passed', true],
+        ['pending', undefined],
+        ['todo', undefined],
+      ],
+    )
+    for (const entry of built.testResults) {
+      assert.deepEqual(
+        [entry.duration, entry.invocations, entry.location, entry.startAt, entry.numPassingAsserts],
+        [null, 0, null, null, 0],
+      )
+      assert.equal('retryMessages' in entry, false)
+    }
+    assert.deepEqual(
+      [built.numPassingTests, built.numPendingTests, built.numTodoTests, built.skipped],
+      [1, 1, 1, false],
+    )
+  })
+
+  it('fails a file with no test, as TestScheduler.onResult does, whatever state it ended in', () => {
+    const built = toTestResult(events([]), collect)
+    assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
+    assert.deepEqual(built.testResults, [])
+  })
+
+  it('ignores the errors circus files under unhandledErrors when tests were collected', () => {
+    const built = toTestResult(
+      events(
+        [{ task: test('a', 'file'), result: result('queued', { attempts: 0 }) }],
+        {},
+        { state: 'fail', errors: [failure('Invalid: beforeEach() may not be used')] },
+      ),
+      collect,
+    )
+    assert.equal(built.testExecError, undefined)
+    assert.equal(built.numPassingTests, 1)
+    // ...and a file whose describe holds only hooks collected no test: "must contain a test".
+    const hooksOnly = events([], {}, { state: 'fail', errors: [failure('Invalid: beforeEach()')] })
+    const suite = { ...test('s', 'file'), type: 'suite', children: [] } as unknown as TaskNode
+    const empty = toTestResult({ ...hooksOnly, tree: [...(hooksOnly.tree ?? []), suite] }, collect)
+    assert.equal(empty.testExecError?.message, NO_TESTS_MESSAGE)
+  })
+
+  it('sets skipped, displayName and perfStats on the collected result, as runTest.ts does', () => {
+    const pending = toTestResult(
+      events([{ task: test('a', 'file'), result: result('skip') }], {
+        startedAt: 100,
+        endedAt: 130,
+      }),
+      { ...collect, displayName: { name: 'p', color: 'white' } },
+    )
+    assert.equal(pending.skipped, true)
+    assert.deepEqual(pending.displayName, { name: 'p', color: 'white' })
+    assert.deepEqual(
+      [pending.perfStats.start, pending.perfStats.end, pending.perfStats.runtime],
+      [100, 130, 30],
+    )
+    assert.equal(pending.perfStats.slow, false)
+  })
+
+  it('keeps a file that could not load as a runtime error', () => {
+    const built = toTestResult(
+      events([], { tree: undefined }, { state: 'fail', errors: [failure('cannot load')] }),
+      collect,
+    )
+    assert.equal(built.testExecError?.message, 'cannot load')
   })
 })
 

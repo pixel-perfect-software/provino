@@ -140,6 +140,21 @@ describe('Jest’s signature: fn(globalConfig, projectConfig)', () => {
     }
   })
 
+  it('runs no setup and no teardown when the run only collects (--collectTests)', async () => {
+    const p = await makeProject({
+      'setup.ts': `module.exports = async () => { ${note('setup')} }`,
+      'teardown.ts': `module.exports = async () => { ${note('teardown')} }`,
+      'a.test.js': "__trace.push('file a')\ntest('a', () => { __trace.push('body') })",
+    })
+    const project = withHooks(runtimeProject(p.dir, { policy: { orchestrator: JEST_HOOKS } }), {
+      setup: [p.path('setup.ts')],
+      teardown: [p.path('teardown.ts')],
+    })
+    const [, trace] = await traced((t) => runAll([project], t, undefined, { collectOnly: true }))
+    // The file is imported (its top level runs); no hook and no body does.
+    assert.deepEqual(trace, ['run:start', 'file a', 'run:end passed'])
+  })
+
   it('leaves a project with no test file out: its setup never runs', async () => {
     const p = await makeProject({
       'quiet.ts': `module.exports = async () => { ${note('quiet setup')} }`,
