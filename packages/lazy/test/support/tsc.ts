@@ -1,0 +1,140 @@
+// Runs a TypeScript compiler over a throwaway project inside this package, so `@provino/lazy`
+// resolves through the package's own `exports` (the `provino-source` condition) as it does for
+// the real type tests.
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+/** The two compilers every type check runs on. */
+export type Compiler = 'typescript' | 'typescript-5.9'
+export const COMPILERS: readonly Compiler[] = ['typescript', 'typescript-5.9']
+
+const here = dirname(fileURLToPath(import.meta.url))
+// Scratch projects go under the package's gitignored `node_modules/.cache`: Biome, knip, dependency-cruiser
+// and `tsc -b` never crawl it, so parallel Turbo tasks never see a directory that is about to vanish.
+const scratchRoot = resolve(here, '../../node_modules/.cache')
+
+/** One compiler error: its code and its whole message, continuation lines joined by a space. */
+export interface Diagnostic {
+  readonly file: string
+  readonly line: number
+  readonly column: number
+  readonly code: string
+  readonly message: string
+}
+
+export interface TscResult {
+  readonly diagnostics: readonly Diagnostic[]
+  readonly stdout: string
+  readonly status: number | null
+}
+
+/** The `bin/tsc` of a compiler, found in the nearest `node_modules` above this file. */
+export function compilerBin(compiler: Compiler): string {
+  let dir = here
+  for (;;) {
+    const candidate = join(dir, 'node_modules', compiler, 'bin', 'tsc')
+    if (existsSync(candidate)) {
+      return candidate
+    }
+    const parent = dirname(dir)
+    if (parent === dir) {
+      throw new Error(
+        `the ${compiler} compiler is not installed (looked for node_modules/${compiler}/bin/tsc above ${here})`,
+      )
+    }
+    dir = parent
+  }
+}
+
+const DIAGNOSTIC_LINE = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.*)$/
+/** A global error (a missing `types` entry, a bad option) has no file or position: its line is 0. */
+const GLOBAL_DIAGNOSTIC_LINE = /^error (TS\d+): (.*)$/
+
+/** Reads `tsc --pretty false` output: an error line, then indented lines that continue it. */
+export function parseDiagnostics(output: string): Diagnostic[] {
+  const found: Array<{ -readonly [K in keyof Diagnostic]: Diagnostic[K] }> = []
+  for (const line of output.split('\n')) {
+    const match = DIAGNOSTIC_LINE.exec(line)
+    if (match !== null) {
+      found.push({
+        file: match[1] ?? '',
+        line: Number(match[2]),
+        column: Number(match[3]),
+        code: match[4] ?? '',
+        message: match[5] ?? '',
+      })
+    } else if (GLOBAL_DIAGNOSTIC_LINE.test(line)) {
+      const global = GLOBAL_DIAGNOSTIC_LINE.exec(line)
+      found.push({
+        file: '',
+        line: 0,
+        column: 0,
+        code: global?.[1] ?? '',
+        message: global?.[2] ?? '',
+      })
+    } else if (/^\s+\S/.test(line)) {
+      const last = found.at(-1)
+      if (last !== undefined) {
+        last.message = `${last.message} ${line.trim()}`
+      }
+    }
+  }
+  return found
+}
+
+/**
+ * Compiles `files` (name to source, written side by side in a temporary directory under `node_modules/.cache/`)
+ * with the strict options of `tsconfig.base.json`, no emit, and returns what the compiler said.
+ */
+export function compileFiles(
+  compiler: Compiler,
+  files: Readonly<Record<string, string>>,
+  extraArgs: readonly string[] = [],
+): TscResult {
+  mkdirSync(scratchRoot, { recursive: true })
+  const dir = mkdtempSync(join(scratchRoot, 'provino-lazy-tsc-'))
+  try {
+    for (const [name, source] of Object.entries(files)) {
+      writeFileSync(join(dir, name), source)
+    }
+    writeFileSync(
+      join(dir, 'tsconfig.json'),
+      JSON.stringify({
+        extends: '../../../../../tsconfig.base.json',
+        compilerOptions: {
+          noEmit: true,
+          rootDir: '../../../..',
+          composite: false,
+          declaration: false,
+          declarationMap: false,
+          emitDeclarationOnly: false,
+          isolatedDeclarations: false,
+        },
+        include: Object.keys(files),
+      }),
+    )
+    const run = spawnSync(
+      process.execPath,
+      [compilerBin(compiler), '-p', join(dir, 'tsconfig.json'), '--pretty', 'false', ...extraArgs],
+      { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
+    )
+    if (run.error !== undefined) {
+      throw run.error
+    }
+    const diagnostics = parseDiagnostics(run.stdout)
+    if (run.status !== 0 && diagnostics.length === 0) {
+      throw new Error(
+        `${compiler} exited ${run.status} with no diagnostic it could read\nstdout: ${run.stdout}\nstderr: ${run.stderr}`,
+      )
+    }
+    return {
+      diagnostics,
+      stdout: run.stdout,
+      status: run.status,
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "@provino/lazy",
+  "version": "0.0.0",
+  "description": "Provino's lazy variables: RSpec-style values defined with lazy.let, typed by chaining, memoized per test.",
+  "homepage": "https://github.com/pixel-perfect-software/provino#readme",
+  "bugs": {
+    "url": "https://github.com/pixel-perfect-software/provino/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pixel-perfect-software/provino.git",
+    "directory": "packages/lazy"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\"",
+    "typeperf": "node --conditions=provino-source test/support/typeperf-cli.ts"
+  },
+  "dependencies": {
+    "@provino/types": "workspace:*"
+  },
+  "devDependencies": {
+    "expect-type": "catalog:",
+    "typescript": "catalog:",
+    "typescript-5.9": "catalog:"
+  }
+}
