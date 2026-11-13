@@ -1,7 +1,7 @@
-// T9.6's order: Jest's `TestSequencer.sort` (jest-test-sequencer), with a total order. Sharding is
-// not built (T9.6, B21).
+// T9.6's order: Jest's `TestSequencer.sort` (jest-test-sequencer), with a total order, and the
+// shard (`shard.ts`).
 import type { Sequencer } from '@provino/types'
-import { OrchestratorError } from './errors.ts'
+import { shardInputs } from './shard.ts'
 import { byText } from './util.ts'
 
 /**
@@ -14,6 +14,11 @@ export interface HistorySequencerOptions {
    * .unknownFirst`; Jest runs them first). Either way, files with no history go largest first.
    */
   readonly unknownFirst: boolean
+  /**
+   * How `shard` splits the files when none has a time (`orchestrator.shard.fallback`). With a time
+   * for any file, every dialect cuts contiguous slices of the path-sorted files by predicted time.
+   */
+  readonly shardFallback: 'sha1-slice' | 'path-slice'
 }
 
 /**
@@ -27,11 +32,14 @@ export interface HistorySequencerOptions {
  * 5. finally, its path sorts first (then its project). Jest's comparator has no such step, so
  *    equal files fall wherever the engine's sort leaves them; here they never do.
  *
- * `sort` returns a new array. `shard` is not built yet.
+ * `sort` returns a new array. `shard` is `sha1Shard` (Jest's split) or `sliceShard` (path order,
+ * contiguous cuts by predicted time; by file count when no file has a time), as the options say.
+ * It is pure in its arguments: the same files, shard and timings give the same files on every
+ * machine.
  * @public
  */
 export function createHistorySequencer(options: HistorySequencerOptions): Sequencer {
-  const { unknownFirst } = options
+  const { unknownFirst, shardFallback } = options
   return {
     sort(files) {
       return files.toSorted((a, b) => {
@@ -52,11 +60,6 @@ export function createHistorySequencer(options: HistorySequencerOptions): Sequen
         return byText(a.path, b.path) || byText(a.project, b.project)
       })
     },
-    shard() {
-      throw new OrchestratorError(
-        'ORCH_NOT_IMPLEMENTED',
-        'Sharding (--shard) is not built yet; it arrives with T9.6',
-      )
-    },
+    shard: (files, shard) => shardInputs(files, shard, shardFallback),
   }
 }

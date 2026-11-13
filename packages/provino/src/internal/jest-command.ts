@@ -3,7 +3,7 @@
 // as `provino run`, and ended with Jest's exit codes.
 import { existsSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { type ResolvedProject, resolveNeutralProject } from '@provino/config'
 import {
   createJestConfigReader,
@@ -20,14 +20,18 @@ import {
   discoverProject,
   ExitCode,
   isProvinoCacheDir,
+  readTimings,
+  type ShardSpec,
   selectFiles,
+  shardFiles,
+  TIMINGS_FILE_NAME,
 } from '@provino/orchestrator'
 import type { TextSink } from '@provino/reporters'
 import type { ConfigSource, Diagnostic, NeutralProject, RunRequest } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
 import { JEST_BUILT_INS, JEST_ENVIRONMENT, NODE_ENVIRONMENT } from './built-ins.ts'
 import { usageMessage } from './describe.ts'
-import { executeProject } from './execute.ts'
+import { executeProject, timingsOf } from './execute.ts'
 import type { DisplayOptions } from './reporters.ts'
 import {
   chooseProjects,
@@ -155,6 +159,12 @@ function presentation(
   }
 }
 
+/** The shard the global config holds (`--shard`), as the coordinator takes it. */
+function shardOf(globalConfig: JestGlobalConfig): ShardSpec | undefined {
+  const { shard } = globalConfig
+  return shard === undefined ? undefined : { index: shard.shardIndex, count: shard.shardCount }
+}
+
 /** The projects of the config the request names (or the one found from `cwd`), unresolved. */
 async function readProjects(
   argv: JestArgv,
@@ -191,13 +201,53 @@ async function readProjects(
   }
 }
 
-/** Every project's test files, once each, sorted by path. */
+/**
+ * `--shard` and the timings file, for the commands that take them: Jest's `--shard=i/n`, and
+ * Provino's `--timings <file>` and `--update-timings`, which Jest has no flag for.
+ */
+interface ShardRequest {
+  readonly shard: ShardSpec | undefined
+  readonly timingsFile: string | undefined
+  readonly updateTimings: boolean
+}
+
+/**
+ * Takes Provino's own `--timings <file>` / `--timings=<file>` and `--update-timings` out of a
+ * `provino jest` command line, since Jest's parser would refuse them as unknown flags.
+ */
+function takeTimingsFlags(args: readonly string[]): {
+  readonly rest: readonly string[]
+  readonly timingsFile: string | undefined
+  readonly updateTimings: boolean
+} {
+  const rest: string[] = []
+  let timingsFile: string | undefined
+  let updateTimings = false
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index] as string
+    if (arg === '--update-timings') {
+      updateTimings = true
+    } else if (arg === '--timings') {
+      const value = args[++index]
+      if (value === undefined) throw new UsageError('--timings needs the path of a timings file')
+      timingsFile = value
+    } else if (arg.startsWith('--timings=')) {
+      timingsFile = arg.slice('--timings='.length)
+    } else {
+      rest.push(arg)
+    }
+  }
+  return { rest, timingsFile, updateTimings }
+}
+
+/** Every project's test files, once each, sorted by path; only shard `request.shard`'s when it names one. */
 async function listFiles(
   projects: readonly ResolvedProject[],
   request: RunRequest,
   cwd: string,
+  sharding: ShardRequest & { readonly runRoot: string },
 ): Promise<readonly string[]> {
-  const perProject = await Promise.all(
+  const selected = await Promise.all(
     projects.map(async (project) =>
       selectFiles(await discoverProject(project), request.fileFilters, {
         rootDir: project.rootDir,
@@ -205,6 +255,26 @@ async function listFiles(
       }),
     ),
   )
+  const [first] = projects
+  const { shard } = sharding
+  const perProject =
+    shard === undefined || first === undefined
+      ? selected
+      : shardFiles(
+          projects.map((project, index) => ({
+            key: String(index),
+            rootDir: project.rootDir,
+            files: selected[index] ?? [],
+          })),
+          {
+            shard,
+            fallback: first.policy.orchestrator.shard.fallback,
+            runRoot: sharding.runRoot,
+            timings: await readTimings(
+              resolve(cwd, sharding.timingsFile ?? join(sharding.runRoot, TIMINGS_FILE_NAME)),
+            ),
+          },
+        )
   return [...new Set(perProject.flatMap((files) => files.map((file) => file.path)))].sort()
 }
 
@@ -219,7 +289,8 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
   const { stdout, stderr, cwd } = io
   const usage = jestExitCode('usage', ExitCode.UsageError)
   try {
-    const parsed = jestCli.parse(args)
+    const { rest, timingsFile, updateTimings } = takeTimingsFlags(args)
+    const parsed = jestCli.parse(rest)
     if (report(parsed.diagnostics, stderr)) return usage
     const request = jestCli.toRunRequest(parsed.argv)
     const read = await readProjects(parsed.argv, request, cwd)
@@ -275,7 +346,13 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       return ExitCode.Pass
     }
     if (request.mode === 'list-files') {
-      const files = await listFiles(projects, request, cwd)
+      const sharding = {
+        shard: shardOf(read.globalConfig),
+        timingsFile,
+        updateTimings,
+        runRoot: read.globalConfig.rootDir,
+      }
+      const files = await listFiles(projects, request, cwd, sharding)
       if (!request.json) {
         await stdout.write(files.map((file) => `${file}\n`).join(''))
         return ExitCode.Pass
@@ -306,6 +383,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       return passWithNoTests ? ExitCode.Pass : jestExitCode('noTests', ExitCode.TestFailure)
     }
     const runHooks = jestRunGlobalHooks(read.globalConfig)
+    const shard = shardOf(read.globalConfig)
     const result = await executeProject({
       project,
       others,
@@ -329,6 +407,9 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       // (and `--bail=2` is false, as in Jest 30.5.2, so a count is always the config's).
       ...(read.globalConfig.bail > 0 ? { bail: { count: read.globalConfig.bail } } : {}),
       ...(read.globalConfig.detectOpenHandles ? { detectOpenHandles: true } : {}),
+      // Jest's `--shard=i/n` (validated by the config reader, as Jest's `normalize` does).
+      ...(shard === undefined ? {} : { shard }),
+      ...timingsOf({ timingsFile, updateTimings }),
       // The root config's hooks, which Jest runs beside the projects' own (`runGlobalHook`).
       ...(runHooks === undefined ? {} : { globalSetup: runHooks }),
       ...(io.signal === undefined ? {} : { signal: io.signal }),

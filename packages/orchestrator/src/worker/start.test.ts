@@ -48,6 +48,7 @@ const init: WorkerInit = {
   key: {
     project: 't',
     pool: 'inline',
+    isolation: 'registry',
     environment: 'node',
     environmentOptionsHash: '',
     execArgvHash: '',

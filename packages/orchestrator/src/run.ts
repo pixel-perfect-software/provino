@@ -3,6 +3,7 @@
 import { totalmem } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pruneTransformCache, type ResolvedProject, withTransformCache } from '@provino/config'
+import { readIsolatePragma, tierFor } from '@provino/loader'
 import { serializeError } from '@provino/rpc'
 import { resolveUpdateMode } from '@provino/snapshot/node'
 import type {
@@ -10,6 +11,7 @@ import type {
   FileInfo,
   FileJob,
   FileResult,
+  IsolationTier,
   OpenHandle,
   PoolKind,
   PoolOptions,
@@ -23,6 +25,7 @@ import type {
   SerializedProjectConfig,
   TaskResult,
   TaskState,
+  TimingsFile,
   WorkerEvent,
   WorkerExit,
   WorkerKey,
@@ -36,20 +39,22 @@ import { OrchestratorError } from './errors.ts'
 import { isRunSignal, RUN_SIGNALS } from './exit-code.ts'
 import { fileIdOf, relativePosix } from './file-id.ts'
 import { type GlobalSetupRun, type RunGlobalHooks, runGlobalSetup } from './global-setup.ts'
-import { configHash, hashOf, workerKeyOf } from './key.ts'
+import { configHash, hashOf, type WorkerKeyInput, workerKeyOf } from './key.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
 import { selectFiles } from './select.ts'
 import { createHistorySequencer } from './sequencer.ts'
+import { checkShard, type ShardSpec, shardFiles } from './shard.ts'
 import {
   mergedSnapshots,
   type SnapshotMember,
   snapshotMember,
   snapshotsFailRun,
 } from './snapshot-members.ts'
+import { mergeTimings, readTimings, TIMINGS_FILE_NAME, writeTimings } from './timings.ts'
 import { transportFor } from './transport/for-kind.ts'
 import { describeExit } from './transport/shared.ts'
-import { messageOf } from './util.ts'
+import { BATCH, mapInBatches, messageOf } from './util.ts'
 
 /** Track 9: how long a worker may take to say `ready`, and to stop before it is killed. */
 const START_TIMEOUT_MS = 30_000
@@ -179,6 +184,30 @@ export interface RunProjectOptions {
   /** `RunInfo.root` of a run over several projects (Jest's config `rootDir`). Default: the first project's root. */
   readonly root?: string
   /**
+   * Run only shard `index` of `count` of the files (`--shard=index/count`, 1-based): after the file
+   * filters, across every project, as Jest shards one list. With any time in the timings file, the
+   * shard is a contiguous run of the path-sorted files cut by predicted time; with none, the first
+   * project's `orchestrator.shard.fallback` splits them (Jest's sha1 split under the Jest dialect).
+   * The results cache is untouched by what the shard leaves out.
+   */
+  readonly shard?: ShardSpec
+  /**
+   * The committed timings file (`provino.timings.json`, T9.6): what `shard` cuts by, and what
+   * `update` writes. Read only when the run shards or updates.
+   */
+  readonly timings?: {
+    /** Where it is. Default: `provino.timings.json` in the run's root. */
+    readonly file?: string
+    /**
+     * Write each file this run ran, with its time, into the file after the run (`--update-timings`),
+     * keeping every other entry, and dropping the entries of files that no longer exist when the run
+     * saw every file (no shard, no file filter). A run that is cut short writes the files that
+     * ended. A file that already is there but isn't a timings file is replaced, unless the run also
+     * shards.
+     */
+    readonly update?: boolean
+  }
+  /**
    * Hooks of the run itself, beside the projects': Jest's root `globalSetup` and
    * `globalTeardown`, which a config with `projects` keeps in its global config (T9.15). Each runs
    * after the projects' own, once per path no project names, with the config of the first project
@@ -270,6 +299,10 @@ interface QueuedFile {
   readonly member: Member
   readonly info: FileInfo
   readonly file: DiscoveredFile
+  /** The worker key this file's worker has: its project's, at the file's isolation tier. */
+  readonly key: WorkerKey
+  /** The path `provino.timings.json` knows the file by: relative to the run's root. */
+  readonly timingsPath: string
 }
 
 /**
@@ -322,7 +355,10 @@ interface Member {
   /** What the project's files reported, its update mode and its policy. */
   readonly snapshots: SnapshotMember
   readonly cache: ResultsCache | undefined
-  readonly key: WorkerKey
+  /** What the project's workers are keyed by, before the isolation tier of a file is added. */
+  readonly keyInput: Omit<WorkerKeyInput, 'isolation'>
+  /** The worker key of each tier a file of this project runs at. */
+  readonly keys: Map<IsolationTier, WorkerKey>
 }
 
 /**
@@ -392,6 +428,7 @@ export async function runProjects(
     )
   }
   const bailAfter = orchestrator.bail.checkAfter
+  if (options.shard !== undefined) checkShard(options.shard)
 
   const caches = new Map<string, ResultsCache>()
   const cacheFor = (project: ResolvedProject): ResultsCache | undefined => {
@@ -450,13 +487,14 @@ export async function runProjects(
         project.policy.snapshot,
       ),
       cache: cacheFor(project),
-      key: workerKeyOf({
+      keyInput: {
         project: identity,
         pool: kind,
         environment: project.environment,
         environmentOptions: project.config.environment.options,
         execArgv: execArgv ?? process.execArgv,
-      }),
+      },
+      keys: new Map(),
     }
   })
   const byIdentity = new Map(members.map((member) => [member.identity, member]))
@@ -517,7 +555,7 @@ export async function runProjects(
       return {
         key: workerKey,
         workerId,
-        isolation: member.project.isolation,
+        isolation: workerKey.isolation,
         // What global setup's `provide` collected; a worker starts only once setup has run.
         provided: globalSetup?.provided ?? {},
         config: member.project.config,
@@ -565,6 +603,8 @@ export async function runProjects(
 
   /** The result of each queued file that has one. */
   const results = new Map<QueuedFile, FileResult>()
+  /** The time of each file that ran to its end, by the path the timings file knows it by (`--update-timings`). */
+  const measured = new Map<string, number>()
   let queue: readonly QueuedFile[] = []
   let interrupted = false
   let announced = false
@@ -648,7 +688,7 @@ export async function runProjects(
     const ended = Promise.withResolvers<void>()
     try {
       const outcome = await pool.run({
-        key: member.key,
+        key: entry.key,
         job,
         onStart: async (workerId) => {
           takenBy = workerId
@@ -700,6 +740,9 @@ export async function runProjects(
         })
       }
       results.set(entry, result)
+      // A time is a measurement only when the file ran to its end: a crash, a kill and a failed
+      // start say nothing about how long it takes.
+      if (outcome.type === 'done') measured.set(entry.timingsPath, result.durationMs)
       await bus.emit('file:end', result)
     } finally {
       ended.resolve()
@@ -718,6 +761,29 @@ export async function runProjects(
   }
 
   /**
+   * `--update-timings`: this run's file times into the timings file. Like the results cache it is a
+   * convenience a failing disk must not turn into a failed run, so a failure is a line on `stderr`.
+   * The file is read again here, so a run that wrote in the meantime keeps its entries.
+   */
+  async function writeTimingsFile(
+    file: string,
+    seen: ReadonlySet<string> | undefined,
+  ): Promise<void> {
+    try {
+      let existing: TimingsFile | undefined
+      try {
+        existing = await readTimings(file)
+      } catch (error) {
+        // A file this run replaces: say so, and write the new one.
+        stderr.write(`Provino: replacing the timings file: ${messageOf(error)}\n`)
+      }
+      await writeTimings(file, mergeTimings(existing, measured, seen))
+    } catch (error) {
+      stderr.write(`Provino: could not write the timings file: ${messageOf(error)}\n`)
+    }
+  }
+
+  /**
    * Eviction by size is the coordinator's, after the run (Track 3 R5). It runs once the reporters
    * have the summary, so nothing waits on it, and it skips a directory no worker wrote to.
    */
@@ -730,7 +796,13 @@ export async function runProjects(
 
   try {
     const cwd = resolve(options.cwd ?? process.cwd())
-    const found = await Promise.all(
+    const runRoot = options.root ?? first.rootDir
+    const { shard } = options
+    const timingsFile = resolve(cwd, options.timings?.file ?? join(runRoot, TIMINGS_FILE_NAME))
+    // A shard cuts by the timings file, so a file that is there and wrong stops the run: shards that
+    // read it differently would drop test files between them.
+    const timings = shard === undefined ? undefined : await readTimings(timingsFile)
+    const everyFile = await Promise.all(
       members.map(async (member) => {
         const everything = await discoverProject(member.project)
         const discovered = selectFiles(everything, options.fileFilters ?? [], {
@@ -740,7 +812,28 @@ export async function runProjects(
         return { member, everything, discovered }
       }),
     )
-    const runRoot = options.root ?? first.rootDir
+    // Jest shards the one list of every project's files, after the file filters.
+    const shards =
+      shard === undefined
+        ? undefined
+        : shardFiles(
+            everyFile.map(({ member, discovered }) => ({
+              key: member.identity,
+              rootDir: member.project.rootDir,
+              files: discovered,
+            })),
+            { shard, fallback: orchestrator.shard.fallback, runRoot, timings },
+          )
+    const found = everyFile.map((entry, index) => ({
+      ...entry,
+      discovered: shards?.[index] ?? entry.discovered,
+    }))
+    // Each file's worker key: its project's at the tier its docblock or history asks for (T2.11).
+    const keys = await Promise.all(
+      found.map(({ member, discovered }) =>
+        keysOf(member, discovered, (warning) => stderr.write(`Provino: warning: ${warning}\n`)),
+      ),
+    )
     const info: RunInfo = {
       root: runRoot,
       projects: projects.map((project) => project.name),
@@ -758,8 +851,8 @@ export async function runProjects(
 
     // Project by project, in the config's order: workers change project only at a boundary.
     queue = qualifyDuplicatePaths(
-      found.flatMap(({ member, everything, discovered }) =>
-        planQueue(member, everything, discovered, runRoot),
+      found.flatMap(({ member, everything, discovered }, index) =>
+        planQueue(member, everything, discovered, runRoot, keys[index] ?? new Map()),
       ),
     )
 
@@ -793,6 +886,22 @@ export async function runProjects(
     await Promise.all(running)
     // The history is complete; writing it overlaps the workers' shutdown.
     await Promise.all([pool.close(), writeCache()])
+    if (options.timings?.update === true) {
+      // Dropping the entries of files that are gone is only right for a run that saw every file.
+      const sawAll = shard === undefined && (options.fileFilters ?? []).length === 0
+      await writeTimingsFile(
+        timingsFile,
+        sawAll
+          ? new Set(
+              found.flatMap(({ member, everything }) =>
+                everything.map((file) =>
+                  relativePosix(runRoot, join(member.project.rootDir, file.relativePath)),
+                ),
+              ),
+            )
+          : undefined,
+      )
+    }
     // After the last worker has stopped: what it could not clean up is what is left.
     const openHandles = (await handles?.collect()) ?? []
     handles = undefined
@@ -844,6 +953,7 @@ export async function runProjects(
 function sequencerFor(project: ResolvedProject) {
   return createHistorySequencer({
     unknownFirst: project.policy.orchestrator.sequence.unknownFirst,
+    shardFallback: project.policy.orchestrator.shard.fallback,
   })
 }
 
@@ -896,6 +1006,47 @@ function sequencedProjects(
   )
 }
 
+/** The worker key of `member`'s files at `tier`: made once per tier. */
+function keyFor(member: Member, tier: IsolationTier): WorkerKey {
+  let key = member.keys.get(tier)
+  if (key === undefined) {
+    key = workerKeyOf({ ...member.keyInput, isolation: tier })
+    member.keys.set(tier, key)
+  }
+  return key
+}
+
+/**
+ * Each file's worker key, by its path: the project's isolation tier, raised by what the file's
+ * docblock asks for (`@provino-isolate`) or an earlier run learned (the results cache's `tier`),
+ * never lowered (`tierFor`, T2.11). A pragma that names no tier is a warning, and the file keeps its
+ * tier. A project that already runs every file as `process` reads no docblock.
+ */
+async function keysOf(
+  member: Member,
+  discovered: readonly DiscoveredFile[],
+  warn: (warning: string) => void,
+): Promise<Map<string, WorkerKey>> {
+  const { isolation } = member.project
+  const keys = new Map<string, WorkerKey>()
+  const choices = await mapInBatches(discovered, BATCH, async (file) => {
+    const docblock = isolation === 'process' ? undefined : await readIsolatePragma(file.path)
+    const learned = member.cache?.get(member.cacheProject, file.relativePath)?.tier
+    return tierFor(file.relativePath, {
+      configured: isolation,
+      ...(docblock === undefined ? {} : { docblock }),
+      ...(learned === undefined ? {} : { learned }),
+    })
+  })
+  for (const [index, file] of discovered.entries()) {
+    const choice = choices[index]
+    if (choice === undefined) continue
+    for (const warning of choice.warnings) warn(warning)
+    keys.set(file.relativePath, keyFor(member, choice.tier))
+  }
+  return keys
+}
+
 /**
  * Prunes the cache's history of files the project no longer has, and returns the files in the
  * order they should run. `everything` is the project's whole file set (discovery is unfiltered),
@@ -908,6 +1059,7 @@ function planQueue(
   everything: readonly DiscoveredFile[],
   discovered: readonly DiscoveredFile[],
   runRoot: string,
+  keys: ReadonlyMap<string, WorkerKey>,
 ): QueuedFile[] {
   const { project, cache, cacheProject } = member
   cache?.prune(cacheProject, new Set(everything.map((file) => file.relativePath)))
@@ -917,6 +1069,8 @@ function planQueue(
     entries.set(file.relativePath, {
       member,
       file,
+      key: keys.get(file.relativePath) ?? keyFor(member, project.isolation),
+      timingsPath: runPath,
       info: {
         fileId: fileIdOf(member.identity, file.relativePath),
         path: file.relativePath,

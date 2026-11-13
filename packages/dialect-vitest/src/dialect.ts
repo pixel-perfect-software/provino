@@ -185,6 +185,7 @@ export const vitestPolicy: PolicyOverrides = {
     environmentPragmas: ['vitest-environment', 'jest-environment'],
     pool: { default: 'forks' },
     runInBand: { auto: false },
+    // Vitest 5.0.5's `BaseSequencer.shard` (read from its source, not recorded: T11.16).
     shard: { fallback: 'sha1-slice' },
     sequence: { unknownFirst: true },
     globalSetup: {

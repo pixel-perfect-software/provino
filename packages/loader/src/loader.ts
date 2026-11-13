@@ -18,6 +18,7 @@ import { saveGraph } from './internal/inline.ts'
 import { loaderMessage } from './internal/messages.ts'
 import { createRecords, resolveOrMissing } from './internal/records.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
+import { tierFor } from './tier.ts'
 
 function notYet(what: string, task: string): LoaderError {
   return new LoaderError('LOADER_NOT_IMPLEMENTED', `${what} is not implemented yet (${task}).`)
@@ -170,8 +171,7 @@ export const createLoader: CreateLoader = (options) => {
   const loader: Loader = {
     engine: 'runner',
     createFileRegistry: fileRegistry,
-    // Escalation by `@provino-isolate` is T2.11; until then the configured tier stands.
-    tierFor: (_testFile, configured) => configured,
+    tierFor,
     onModuleCompiled: (listener) => {
       state.listeners.add(listener)
       return () => {

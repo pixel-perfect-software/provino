@@ -48,6 +48,7 @@ import {
 import type {
   FileFilter,
   FileHistory,
+  IsolationTier,
   OpenHandle,
   PoolKind,
   PoolOptions,
@@ -240,11 +241,16 @@ createResultsCache()
 
 // ---- The sequencer.
 expectTypeOf(createHistorySequencer).returns.toEqualTypeOf<Sequencer>()
-createHistorySequencer({ unknownFirst: true })
+createHistorySequencer({ unknownFirst: true, shardFallback: 'sha1-slice' })
+createHistorySequencer({ unknownFirst: false, shardFallback: 'path-slice' })
 // @ts-expect-error unknownFirst has no default: it is the dialect's policy
-createHistorySequencer({})
+createHistorySequencer({ shardFallback: 'sha1-slice' })
+// @ts-expect-error neither has the shard fallback
+createHistorySequencer({ unknownFirst: true })
 // @ts-expect-error a boolean
-createHistorySequencer({ unknownFirst: 'yes' })
+createHistorySequencer({ unknownFirst: 'yes', shardFallback: 'sha1-slice' })
+// @ts-expect-error the fallback is one of the two splits
+createHistorySequencer({ unknownFirst: true, shardFallback: 'random' })
 
 // ---- The pool.
 expectTypeOf(createPool).parameters.toEqualTypeOf<[PoolOptions, PoolDeps]>()
@@ -334,6 +340,7 @@ expectTypeOf(sameWorkerKey).returns.toEqualTypeOf<boolean>()
 workerKeyOf({
   project: 'web',
   pool: 'forks',
+  isolation: 'registry',
   environment: 'node',
   environmentOptions: { url: 'http://localhost' },
   execArgv: [],
@@ -341,25 +348,36 @@ workerKeyOf({
 workerKeyOf({
   project: 'web',
   pool: 'forks',
+  isolation: 'registry',
   environment: 'node',
   environmentOptions: {},
   execArgv: [],
   env: { TZ: 'UTC' },
 })
 expectTypeOf<Parameters<typeof workerKeyOf>[0]['pool']>().toEqualTypeOf<PoolKind>()
+expectTypeOf<Parameters<typeof workerKeyOf>[0]['isolation']>().toEqualTypeOf<IsolationTier>()
 const keyInput = {
   project: 'p',
   pool: 'forks',
+  isolation: 'registry',
   environment: 'node',
   environmentOptions: {},
   execArgv: [],
 } as const
 // @ts-expect-error the pool is a kind
 workerKeyOf({ ...keyInput, pool: 'processes' })
+// @ts-expect-error the isolation is a tier
+workerKeyOf({ ...keyInput, isolation: 'jail' })
 // @ts-expect-error environment options are JSON values: a function can't be hashed or cloned
 workerKeyOf({ ...keyInput, environmentOptions: { f: () => {} } })
 // @ts-expect-error execArgv is part of the key
-workerKeyOf({ project: 'p', pool: 'forks', environment: 'node', environmentOptions: {} })
+workerKeyOf({
+  project: 'p',
+  pool: 'forks',
+  isolation: 'registry',
+  environment: 'node',
+  environmentOptions: {},
+})
 
 // ---- Dispatch.
 expectTypeOf(createFileDispatch).returns.toEqualTypeOf<FileDispatch>()

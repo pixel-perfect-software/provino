@@ -157,9 +157,9 @@ test('provinoRefuses is what provino jest itself refuses on the subject, by the 
   // A flag is named as the parser names it, with its value split off.
   rejects(
     await edited((draft) => {
-      subjectOf(draft, 'mobx').argv.push('--shard=1/2')
+      subjectOf(draft, 'mobx').argv.push('--changedSince=main')
     }),
-    /must list --shard:/,
+    /must list --changedSince:/,
   )
   rejects(
     await edited((draft) => {

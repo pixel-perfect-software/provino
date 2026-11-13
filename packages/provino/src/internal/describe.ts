@@ -44,10 +44,13 @@ export function usageMessage(error: unknown): string | undefined {
     return `Provino: ${describeError(error)}`
   }
   // These messages already say what is wrong: the pattern error carries the regular expression's
-  // own complaint, and an option error names the option and the value it got.
+  // own complaint, an option error names the option and the value it got, and a timings error
+  // names the file and what is wrong with it.
   if (
     error instanceof OrchestratorError &&
-    (error.code === 'ORCH_BAD_PATTERN' || error.code === 'ORCH_BAD_OPTION')
+    (error.code === 'ORCH_BAD_PATTERN' ||
+      error.code === 'ORCH_BAD_OPTION' ||
+      error.code === 'ORCH_BAD_TIMINGS')
   ) {
     return `Provino: ${error.message}`
   }

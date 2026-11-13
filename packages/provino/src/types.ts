@@ -119,6 +119,17 @@ export interface RunOptions {
    * none (a test's own timeout can't stop a synchronous loop).
    */
   readonly fileTimeoutMs?: number
+  /**
+   * Run only shard `index` of `count` of the test files (`--shard=2/5`, 1-based). With a timings
+   * file (`provino.timings.json`, or `timingsFile`) the shards are contiguous runs of the
+   * path-sorted files cut by predicted time; without one, the dialect's split (Jest's sha1 split
+   * under the Jest dialect, path-sorted slices by count otherwise).
+   */
+  readonly shard?: { readonly index: number; readonly count: number }
+  /** The timings file `shard` cuts by and `updateTimings` writes. Default: `provino.timings.json` in the project root. */
+  readonly timingsFile?: string
+  /** After the run, write each file that ran, with its time, into the timings file (`--update-timings`). */
+  readonly updateTimings?: boolean
 }
 
 /**

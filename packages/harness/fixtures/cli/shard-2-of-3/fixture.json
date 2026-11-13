@@ -1,0 +1,12 @@
+{
+  "description": "--shard=2/3 (T9.6): Jest sorts the files by the sha1 of their path relative to the root, then runs the 2-th contiguous slice of that order; the first length % count slices are one file longer, so 8 files split 3, 3, 2. Applied after the file filters and before the order. A black-box run whose PASS lines name the files of the shard.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--shard=2/3"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^Test Suites:",
+    "sortStdout": true
+  }
+}

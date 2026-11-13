@@ -996,7 +996,7 @@ describe('the options table', () => {
   it('classifies every option once, and counts the classes', (t) => {
     const counts = Object.fromEntries(supports)
     t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
-    assert.deepEqual(counts, { request: 16, config: 57, accepted: 7, warn: 4, refuse: 21 })
+    assert.deepEqual(counts, { request: 16, config: 58, accepted: 7, warn: 4, refuse: 20 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'
       assert.equal(option.owner !== undefined, needsOwner, name)
@@ -1080,7 +1080,7 @@ describe('diagnostics', () => {
   }
 
   it('gives an error diagnostic for each refused flag, naming the task', () => {
-    assert.equal(Object.keys(REFUSED).length, 21)
+    assert.equal(Object.keys(REFUSED).length, 20)
     for (const [name, owner] of Object.entries(REFUSED)) {
       const { diagnostics } = parseJestCli(lineFor(name))
       assert.deepEqual(
@@ -1104,7 +1104,6 @@ describe('diagnostics', () => {
       watchAll: 'T9.11',
       coverage: 'T8.8',
       collectCoverage: 'T8.8',
-      shard: 'T9.6',
       onlyChanged: 'Track 9, no task yet',
       changedSince: 'Track 9, no task yet',
       changedFilesWithAncestor: 'Track 9, no task yet',
@@ -1175,11 +1174,14 @@ describe('diagnostics', () => {
       '1/2',
       '--logHeapUsage',
       '--coverage',
+      '--onlyFailures',
     ])
     assert.deepEqual(
       diagnostics.map((diagnostic) => diagnostic.key),
-      ['--coverage', '--logHeapUsage', '--shard', '--watch'],
+      ['--coverage', '--logHeapUsage', '--onlyFailures', '--watch'],
     )
+    // --shard (T9.6) is applied now, so it says nothing.
+    assert.deepEqual(parseJestCli(['--shard', '1/2']).diagnostics, [])
     assert.deepEqual(parseJestCli(['--listTests', '--json']).diagnostics, [])
     assert.deepEqual(
       parseJestCli(['--listTests', '--json', '--outputFile', 'o.json']).diagnostics,

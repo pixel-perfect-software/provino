@@ -608,8 +608,15 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       } catch (error) {
         report(error)
       }
-      if ((done.leakedGlobals.length > 0 && recycleOnLeak) || worn(slot, done)) retire(slot)
-      else pump()
+      // A `process`-tier file is the only file its worker ever runs (T2.11): a fresh process (or thread)
+      // for it, and none left over for the next file to find.
+      if (
+        slot.key.isolation === 'process' ||
+        (done.leakedGlobals.length > 0 && recycleOnLeak) ||
+        worn(slot, done)
+      ) {
+        retire(slot)
+      } else pump()
       waiter.resolve({ type: 'done', workerId: slot.id, done })
     } catch (error) {
       const exit = workerExitOf(error)

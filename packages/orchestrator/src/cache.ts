@@ -15,9 +15,11 @@ const FILE_NAME = 'results.json'
 
 /**
  * The format version; a file with another one is treated as empty. 2: the project key is the
- * project's name and a hash of its root and globs (1 keyed by the bare name).
+ * project's name and a hash of its root and globs (1 keyed by the bare name). 3: a file's record
+ * may hold an inputs hash, a learned tier and a coverage map (T9.6; nothing writes them yet), so an
+ * older reader would drop them.
  */
-const VERSION = 2
+const VERSION = 3
 
 /**
  * The directory the results cache lives in: `<cacheDirectory>/provino` when the project's config
@@ -97,6 +99,20 @@ export interface ResultsCache {
 
 type Projects = Map<string, Map<string, FileHistory>>
 
+const TIERS: ReadonlySet<unknown> = new Set(['none', 'registry', 'realm', 'process'])
+
+/** `coverage`: test ids to lists of function ids, all text. */
+function isCoverageMap(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    Object.values(value).every(
+      (functions) =>
+        Array.isArray(functions) && functions.every((item) => typeof item === 'string'),
+    )
+  )
+}
+
+/** A record the cache can use: the four numbers and flags, and each optional field right when present. */
 function isHistory(value: unknown): value is FileHistory {
   return (
     isRecord(value) &&
@@ -104,7 +120,10 @@ function isHistory(value: unknown): value is FileHistory {
     Number.isFinite(value.durationMs) &&
     typeof value.failed === 'boolean' &&
     typeof value.tests === 'number' &&
-    typeof value.at === 'number'
+    typeof value.at === 'number' &&
+    (value.inputsHash === undefined || typeof value.inputsHash === 'string') &&
+    (value.tier === undefined || TIERS.has(value.tier)) &&
+    (value.coverage === undefined || isCoverageMap(value.coverage))
   )
 }
 

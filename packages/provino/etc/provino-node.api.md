@@ -38,11 +38,17 @@ export interface RunOptions {
     readonly passWithNoTests?: boolean;
     readonly pool?: PoolKind;
     readonly reporters?: readonly ReporterChoice[];
+    readonly shard?: {
+        readonly index: number;
+        readonly count: number;
+    };
     readonly signal?: AbortSignal;
     readonly stderr?: NodeJS.WritableStream;
     readonly stdout?: TextSink;
     readonly testNamePattern?: string;
+    readonly timingsFile?: string;
     readonly updateSnapshot?: boolean;
+    readonly updateTimings?: boolean;
     readonly workerMemoryLimit?: number;
 }
 

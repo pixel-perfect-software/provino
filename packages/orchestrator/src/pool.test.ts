@@ -211,6 +211,7 @@ const consoleEvent = (file: string): WorkerEvent => ({
 const key = workerKeyOf({
   project: 'p',
   pool: 'inline',
+  isolation: 'registry',
   environment: 'node',
   environmentOptions: {},
   execArgv: [],

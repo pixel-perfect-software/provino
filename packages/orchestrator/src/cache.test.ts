@@ -49,13 +49,13 @@ describe('createResultsCache', () => {
     assert.equal(next.get('other', 'a.test.ts'), undefined)
   })
 
-  it('writes version 2 with the projects keyed by name and path', async () => {
+  it('writes version 3 with the projects keyed by name and path', async () => {
     const dir = await scratch()
     const cache = createResultsCache(dir)
     cache.record('', 'a.test.ts', history(1))
     await cache.write()
     const written: unknown = JSON.parse(await readFile(join(dir, 'results.json'), 'utf8'))
-    assert.deepEqual(written, { version: 2, projects: { '': { 'a.test.ts': history(1) } } })
+    assert.deepEqual(written, { version: 3, projects: { '': { 'a.test.ts': history(1) } } })
   })
 
   it('creates the directory, and leaves no temporary file behind', async () => {
@@ -179,7 +179,7 @@ describe('createResultsCache', () => {
     cache.prune('p', new Set())
     await cache.write()
     const written: unknown = JSON.parse(await readFile(join(dir, 'results.json'), 'utf8'))
-    assert.deepEqual(written, { version: 2, projects: { q: { 'b.test.ts': history(2) } } })
+    assert.deepEqual(written, { version: 3, projects: { q: { 'b.test.ts': history(2) } } })
   })
 
   it('reads the file once: a later change on disk is not seen', async () => {
@@ -205,14 +205,16 @@ describe('createResultsCache', () => {
     const dir = await scratch()
     const entry = { 'a.test.ts': history(1) }
     for (const text of [
-      '{"version":2,"projects":{"p":',
+      '{"version":3,"projects":{"p":',
       '',
       'null',
       '[]',
       JSON.stringify({ version: 1, projects: { p: entry } }),
+      // 2 is the version before a record could hold an inputs hash, a tier and a coverage map.
+      JSON.stringify({ version: 2, projects: { p: entry } }),
       JSON.stringify({ projects: { p: entry } }),
-      JSON.stringify({ version: 2 }),
-      JSON.stringify({ version: 2, projects: [] }),
+      JSON.stringify({ version: 3 }),
+      JSON.stringify({ version: 3, projects: [] }),
     ]) {
       await writeFile(join(dir, 'results.json'), text)
       assert.equal(createResultsCache(dir).get('p', 'a.test.ts'), undefined, text)
@@ -224,7 +226,7 @@ describe('createResultsCache', () => {
     await writeFile(
       join(dir, 'results.json'),
       JSON.stringify({
-        version: 2,
+        version: 3,
         projects: {
           p: {
             'good.test.ts': history(4),
@@ -240,6 +242,44 @@ describe('createResultsCache', () => {
     assert.equal(cache.get('p', 'no-duration.test.ts'), undefined)
     assert.equal(cache.get('p', 'text.test.ts'), undefined)
     assert.equal(cache.get('q', 'x'), undefined)
+  })
+
+  it('keeps a record’s inputs hash, learned tier and coverage map through a round trip', async () => {
+    const dir = await scratch()
+    const full: FileHistory = {
+      ...history(7),
+      inputsHash: 'f'.repeat(40),
+      tier: 'realm',
+      coverage: { 'suite > test': ['fn#1', 'fn#2'] },
+    }
+    const cache = createResultsCache(dir)
+    cache.record('p', 'a.test.ts', full)
+    await cache.write()
+    assert.deepEqual(createResultsCache(dir).get('p', 'a.test.ts'), full)
+  })
+
+  it('drops a record whose optional fields are the wrong type, and keeps its neighbours', async () => {
+    const dir = await scratch()
+    await writeFile(
+      join(dir, 'results.json'),
+      JSON.stringify({
+        version: 3,
+        projects: {
+          p: {
+            'ok.test.ts': history(1),
+            'tier.test.ts': { ...history(2), tier: 'jail' },
+            'hash.test.ts': { ...history(3), inputsHash: 7 },
+            'coverage.test.ts': { ...history(4), coverage: { t: [1] } },
+            'coverage-shape.test.ts': { ...history(5), coverage: ['t'] },
+          },
+        },
+      }),
+    )
+    const cache = createResultsCache(dir)
+    assert.deepEqual(cache.get('p', 'ok.test.ts'), history(1))
+    for (const name of ['tier', 'hash', 'coverage', 'coverage-shape']) {
+      assert.equal(cache.get('p', `${name}.test.ts`), undefined, name)
+    }
   })
 
   it('replaces a corrupt file when it writes', async () => {

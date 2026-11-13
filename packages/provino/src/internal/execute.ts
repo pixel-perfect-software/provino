@@ -6,6 +6,7 @@ import {
   type RunGlobalHooks,
   type RunProjectOptions,
   runProjects,
+  type ShardSpec,
 } from '@provino/orchestrator'
 import { createReporterBus, type Environment } from '@provino/reporters'
 import type { FileFilter, ReporterBus, RunSummary } from '@provino/types'
@@ -49,6 +50,28 @@ export interface ExecuteOptions {
   readonly detectOpenHandles?: boolean
   /** The run's own global hooks (Jest's root `globalSetup` and `globalTeardown`). */
   readonly globalSetup?: RunGlobalHooks
+  /** Run only this shard of the files (`--shard`, 1-based). */
+  readonly shard?: ShardSpec
+  /** The timings file `shard` cuts by, and whether the run writes it (`--update-timings`). */
+  readonly timings?: NonNullable<RunProjectOptions['timings']>
+}
+
+/** The `timings` run option from `timingsFile` and `updateTimings`: only what was given. */
+/**
+ * The `timings` run option from a timings file and `--update-timings`: only what was given.
+ * @internal
+ */
+export function timingsOf(options: {
+  readonly timingsFile?: string | undefined
+  readonly updateTimings?: boolean | undefined
+}): Pick<ExecuteOptions, 'timings'> {
+  if (options.timingsFile === undefined && options.updateTimings !== true) return {}
+  return {
+    timings: {
+      ...(options.timingsFile === undefined ? {} : { file: options.timingsFile }),
+      ...(options.updateTimings === true ? { update: true } : {}),
+    },
+  }
 }
 
 /**
@@ -126,5 +149,7 @@ function run(
     ...(options.bail === undefined ? {} : { bail: options.bail }),
     ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
     ...(options.globalSetup === undefined ? {} : { globalSetup: options.globalSetup }),
+    ...(options.shard === undefined ? {} : { shard: options.shard }),
+    ...(options.timings === undefined ? {} : { timings: options.timings }),
   })
 }
