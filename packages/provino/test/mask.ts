@@ -12,6 +12,17 @@ export type Json =
 
 const FRAME_RUN = /(?:\n\s*at [^\n]*)+/g
 
+function byName(a: Json, b: Json): number {
+  const name = (value: Json): string =>
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    typeof (value as { name?: unknown }).name === 'string'
+      ? (value as { name: string }).name
+      : ''
+  return name(a) < name(b) ? -1 : name(a) > name(b) ? 1 : 0
+}
+
 export function normalizedJson(
   value: Json,
   options: {
@@ -32,7 +43,11 @@ export function normalizedJson(
     if (typeof node === 'number') {
       return key !== undefined && options.timeKeys.includes(key) ? '<time>' : node
     }
-    if (Array.isArray(node)) return node.map((item: Json) => walk(item, key))
+    if (Array.isArray(node)) {
+      const items = node.map((item: Json) => walk(item, key))
+      // Jest lists `testResults` in the order its files finished: a canonical order by file name.
+      return key === 'testResults' ? items.toSorted(byName) : items
+    }
     if (typeof node === 'object' && node !== null) {
       return Object.fromEntries(
         Object.entries(node).map(([name, inner]) => [name, walk(inner, name)]),

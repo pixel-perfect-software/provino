@@ -224,6 +224,16 @@ function sortedJsonArray(lines: readonly string[], stream: string, source: strin
 /** Each run of stack frames (`    at fn (file:1:2)` lines), which differs between machines and runners. */
 const FRAME_RUN = /(?:\n\s*at [^\n]*)+/g
 
+/** Orders two `testResults` entries by their `name` (an entry without one sorts first). */
+function byName(a: JsonValue, b: JsonValue): number {
+  const name = (value: JsonValue): string => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return ''
+    const { name: entry } = value as { readonly [key: string]: JsonValue }
+    return typeof entry === 'string' ? entry : ''
+  }
+  return compareStrings(name(a), name(b))
+}
+
 /**
  * A `json:` capture's value as it is recorded: every string has each of `roots` as `<root>`, each
  * run of stack frames as `\n<frames>` and each `mask` match as `<masked>`; every number under one
@@ -248,7 +258,11 @@ export function normalizedJson(
     if (typeof node === 'number') {
       return key !== undefined && options.timeKeys.includes(key) ? '<time>' : node
     }
-    if (Array.isArray(node)) return node.map((item) => walk(item, key))
+    if (Array.isArray(node)) {
+      const items = node.map((item) => walk(item, key))
+      // Jest lists `testResults` in the order its files finished: a canonical order by file name.
+      return key === 'testResults' ? items.toSorted(byName) : items
+    }
     if (typeof node === 'object' && node !== null) {
       return Object.fromEntries(
         Object.entries(node).map(([name, inner]) => [name, walk(inner, name)]),

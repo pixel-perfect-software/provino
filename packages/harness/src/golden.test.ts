@@ -336,3 +336,28 @@ test('mask applies to streams and files after normalization', () => {
   )
   assert.deepEqual(observed, { stderr: 'at <masked> ok', files: { 'a.txt': 'x <masked>' } })
 })
+
+test('a json: capture lists testResults by file name, whatever order the runner finished them in', () => {
+  const run = (names: string[]): unknown =>
+    observedOf(
+      { capture: ['json:r.json'] },
+      { exitCode: 0, stdout: '', stderr: '' },
+      {
+        'r.json': JSON.stringify({
+          testResults: names.map((name) => ({ name, status: 'passed' })),
+        }),
+      },
+      (text) => text,
+      'fixture.json',
+    )
+  assert.deepEqual(
+    run(['/b.test.ts', '/a.test.ts', '/c.test.ts']),
+    run(['/c.test.ts', '/a.test.ts', '/b.test.ts']),
+  )
+  assert.deepEqual(
+    (run(['/b', '/a']) as { json: Record<string, { testResults: { name: string }[] }> }).json[
+      'r.json'
+    ]?.testResults.map((entry) => entry.name),
+    ['/a', '/b'],
+  )
+})
