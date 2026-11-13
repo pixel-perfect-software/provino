@@ -66,6 +66,8 @@ function fake(
     readonly unkillable?: boolean
     /** The transport kind the factory and its workers report. Default: `'inline'`. */
     readonly kind?: PoolKind
+    /** The factory's `sharesProcess`: its workers run in this process, so a kill can't end one. */
+    readonly sharesProcess?: boolean
   } = {},
 ): Fake {
   const started: number[] = []
@@ -78,6 +80,7 @@ function fake(
   const kind = extra.kind ?? 'inline'
   const factory: TransportFactory = {
     kind,
+    ...(extra.sharesProcess === true ? { sharesProcess: true } : {}),
     async create(init: WorkerInit, signal?: AbortSignal): Promise<Transport> {
       attempts++
       if (extra.createMs !== undefined) {
@@ -960,7 +963,7 @@ describe('cancelling and forcing', () => {
   }, async () => {
     // A worker no stop and no kill ends: what a file that can't be cancelled does to the process
     // that is running it. Only the force signal is allowed to stop waiting for it.
-    const f = fake(() => 'hang', undefined, { unkillable: true })
+    const f = fake(() => 'hang', undefined, { unkillable: true, sharesProcess: true })
     const abort = new AbortController()
     const force = new AbortController()
     const pool = createPool(
@@ -983,7 +986,7 @@ describe('cancelling and forcing', () => {
     assert.equal(f.exited.size, 0, 'the worker is still there: nothing could end it')
   })
 
-  it('a force signal still waits for the exit of a worker that is not inline', async () => {
+  it('a force signal still waits for the exit of a worker that does not share the process', async () => {
     const f = fake(() => 'hang', undefined, { unkillable: true, kind: 'forks' })
     const force = new AbortController()
     const pool = createPool(options(1), deps(f, { forceSignal: force.signal }))

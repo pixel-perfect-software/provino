@@ -43,7 +43,7 @@ import {
   snapshotMember,
   snapshotsFailRun,
 } from './snapshot-members.ts'
-import { type TransportForOptions, transportFor } from './transport/for-kind.ts'
+import { transportFor } from './transport/for-kind.ts'
 import { describeExit } from './transport/shared.ts'
 import { messageOf } from './util.ts'
 
@@ -451,8 +451,22 @@ export async function runProjects(
 
   const startedAt = performance.now()
   const stderr = options.stderr ?? process.stderr
-  // An inline pool runs one worker, whatever is asked for (`TransportFactory.maxWorkers`).
-  const maxWorkers = kind === 'inline' ? 1 : (options.pool?.maxWorkers ?? defaultMaxWorkers())
+  const startTimeoutMs = options.pool?.startTimeoutMs ?? START_TIMEOUT_MS
+  const teardownTimeoutMs = options.pool?.teardownTimeoutMs ?? TEARDOWN_TIMEOUT_MS
+  const factory = transportFor(kind, {
+    entry: options.entry ?? import.meta.resolve('@provino/orchestrator/worker/main'),
+    startTimeoutMs,
+    teardownTimeoutMs,
+    ...(options.stdout === undefined ? {} : { stdout: options.stdout }),
+    ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
+    ...(execArgv === undefined ? {} : { execArgv }),
+    ...(options.pool?.heapLimitMb === undefined ? {} : { memoryLimitMb: options.pool.heapLimitMb }),
+  })
+  // The transport can cap the workers, whatever is asked for: an inline pool runs one.
+  const maxWorkers = Math.min(
+    options.pool?.maxWorkers ?? defaultMaxWorkers(),
+    factory.maxWorkers ?? Number.POSITIVE_INFINITY,
+  )
   const recycle: RecyclePolicy = {
     ...options.pool?.recycle,
     memoryLimitBytes:
@@ -463,18 +477,9 @@ export async function runProjects(
     kind,
     maxWorkers,
     recycle,
-    teardownTimeoutMs: options.pool?.teardownTimeoutMs ?? TEARDOWN_TIMEOUT_MS,
-    startTimeoutMs: options.pool?.startTimeoutMs ?? START_TIMEOUT_MS,
+    teardownTimeoutMs,
+    startTimeoutMs,
     ...(fileTimeoutMs === undefined ? {} : { fileTimeoutMs }),
-  }
-  const transportOptions: TransportForOptions = {
-    entry: options.entry ?? import.meta.resolve('@provino/orchestrator/worker/main'),
-    startTimeoutMs: poolOptions.startTimeoutMs,
-    teardownTimeoutMs: poolOptions.teardownTimeoutMs,
-    ...(options.stdout === undefined ? {} : { stdout: options.stdout }),
-    ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
-    ...(execArgv === undefined ? {} : { execArgv }),
-    ...(options.pool?.heapLimitMb === undefined ? {} : { memoryLimitMb: options.pool.heapLimitMb }),
   }
 
   const unhandled: SerializedError[] = []
@@ -483,7 +488,7 @@ export async function runProjects(
   // Nothing starts until a file is run, but this is where a bad option throws (`recycle`, the
   // transport's own entry), so it comes before `run:start`.
   const pool = createPool(poolOptions, {
-    transport: (poolKind) => transportFor(poolKind, transportOptions),
+    transport: () => factory,
     init: (workerKey, workerId) => {
       // A worker is bound to the project its key names, for its whole life.
       const member = byIdentity.get(workerKey.project)

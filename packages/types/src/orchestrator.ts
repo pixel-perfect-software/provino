@@ -341,6 +341,13 @@ export interface TransportFactory {
    */
   readonly maxWorkers?: number
   /**
+   * Whether its workers run in this process (the inline transport). A kill can then only close
+   * the worker's link, not end the worker: the pool stops waiting for one once its force signal
+   * comes, and gives up on the file it is running. Omitted: its workers are processes or threads
+   * that a kill ends.
+   */
+  readonly sharesProcess?: boolean
+  /**
    * Starts a worker and resolves once it is ready. Aborting `signal` while it starts kills the
    * worker and rejects, so a pool that is closing does not wait for a start.
    */

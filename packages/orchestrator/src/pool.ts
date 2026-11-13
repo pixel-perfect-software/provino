@@ -157,22 +157,25 @@ interface Slot {
   readonly key: WorkerKey
   readonly transport: Transport
   readonly connection: WorkerConnection
+  /** Settles once the worker is gone: it has exited, or, for one that shares the process, the force signal has come. */
+  readonly gone: Promise<unknown>
   /** Where the worker's events go: the running file's handler, or none between files. */
   readonly route: { handler: EventHandler | undefined }
   /** Whether it is running a file. */
   state: 'idle' | 'busy'
-  /** Set once the worker is being stopped; settles when it has exited. */
-  stopped: Promise<void> | undefined
+  /** Set once the worker is being stopped, or waited for after a kill; settles when it is gone. */
+  stopped: Promise<unknown> | undefined
   /** How the worker ended, once the transport reports it (it is gone from then on). */
   exit: WorkerExit | undefined
   /** Whether it was running a file when it ended: that file takes the blame, not the run. */
   diedBusy: boolean
-  /** Whether the pool itself killed it (an abort), so its exit is no news. */
-  killed: boolean
+  /**
+   * Why the pool killed it (`kill`): an abort, or a file past `fileTimeoutMs`. Set, the worker is
+   * dying: it takes no more files and its exit is no news.
+   */
+  killedFor: 'abort' | 'deadline' | undefined
   /** How many files it has run, for `maxFilesPerWorker`. */
   files: number
-  /** Whether the pool killed it for running one file past `fileTimeoutMs`. */
-  timedOut: boolean
 }
 
 interface Waiter {
@@ -180,9 +183,9 @@ interface Waiter {
   readonly resolve: (outcome: PoolOutcome) => void
 }
 
-/** A worker that is alive and not being stopped: one that may take a file. */
+/** A worker that is alive and neither being stopped nor killed: one that may take a file. */
 function usable(slot: Slot): boolean {
-  return slot.exit === undefined && slot.stopped === undefined
+  return slot.exit === undefined && slot.stopped === undefined && slot.killedFor === undefined
 }
 
 /** How a worker killed for running a file past its deadline ended, as the file's outcome says. */
@@ -282,6 +285,8 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   const { maxFilesPerWorker, memoryLimitBytes, fileTimeoutMs } = checkedLimits(options)
   const recycleOnLeak = recycle.onLeak !== false
   const factory = deps.transport(options.kind)
+  // TODO(T5.12): a file that can be cancelled lets a kill end an in-process worker, and this goes.
+  const sharesProcess = factory.sharesProcess === true
   const maxWorkers = Math.min(
     Math.max(1, Math.floor(options.maxWorkers) || 1),
     factory.maxWorkers ?? Number.POSITIVE_INFINITY,
@@ -291,7 +296,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   const waiters: Waiter[] = []
   const spawns = new Set<Promise<void>>()
   /** Every stop under way, so `close` waits for workers that exited before it was called too. */
-  const stops = new Set<Promise<void>>()
+  const stops = new Set<Promise<unknown>>()
   /** The workers still starting, over every key. */
   let spawning = 0
   let nextWorkerId = 1
@@ -303,7 +308,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   const keyStates = new Map<string, { spawning: number; failure?: StartFailure | undefined }>()
   /** How many entries of `keyStates` hold a failure: `pump` scans the waiters only when some do. */
   let failedKeys = 0
-  /** Settles when the force signal comes: what an inline worker's wind-down is no longer waited for after. */
+  /** Settles when the force signal comes: what an in-process worker's wind-down is no longer waited for after. */
   const forced = Promise.withResolvers<'forced'>()
   let draining = false
   /** `cancelQueued` was called: a file asked for after it is not run. */
@@ -331,13 +336,9 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       })
   }
 
-  /**
-   * Ends the worker and waits for its exit. Never rejects. A force signal ends the wait for an
-   * inline worker: it is this process, so there is no child for a kill to end, and what is still
-   * winding down in it is not worth waiting out the teardown timeout for.
-   */
+  /** Ends the worker, gracefully, and waits until it is gone. Never rejects. */
   async function stop(slot: Slot): Promise<void> {
-    const ending = (async (): Promise<void> => {
+    void (async (): Promise<void> => {
       try {
         await slot.transport.terminate(false)
       } catch (error) {
@@ -345,38 +346,33 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         report(error)
         await slot.transport.terminate(true).catch(report)
       }
-      await slot.connection.exited
     })()
-    if (slot.transport.kind === 'inline') await Promise.race([ending, forced.promise])
-    else await ending
+    await slot.gone
   }
 
   /** Notes that `slot` is being stopped, until `stopped` settles: it takes no more files, and `close` waits. */
-  function track(slot: Slot, stopped: Promise<void>): void {
+  function track(slot: Slot, stopped: Promise<unknown>): void {
     slot.stopped = stopped
     stops.add(stopped)
     void stopped.finally(() => stops.delete(stopped))
   }
 
-  /** Stops an idle or finished worker, in the background. */
+  /**
+   * Stops an idle or finished worker, in the background. One that is being killed is not stopped
+   * again, only waited for.
+   */
   function retire(slot: Slot): void {
     if (slot.stopped !== undefined) return
-    track(slot, stop(slot))
+    track(slot, slot.killedFor === undefined ? stop(slot) : slot.gone)
   }
 
   /**
-   * Kills the worker of a file that ran past its deadline. From the moment the deadline fires the
-   * worker is being stopped, so a file that finishes in the same turn (its `fileDone` was already
-   * on the way) keeps its own result and the next file is not sent to a worker that is dying.
+   * Kills the worker, whatever it is doing. From now on it takes no file (so a file that finishes
+   * in the same turn, its `fileDone` already on the way, keeps its own result and the next file is
+   * not sent to a worker that is dying) and its exit is no news.
    */
-  function killPastDeadline(slot: Slot): void {
-    slot.timedOut = true
-    slot.killed = true
-    if (slot.stopped === undefined)
-      track(
-        slot,
-        slot.connection.exited.then(() => undefined),
-      )
+  function kill(slot: Slot, cause: 'abort' | 'deadline'): void {
+    slot.killedFor ??= cause
     void slot.transport.terminate(true)
   }
 
@@ -393,11 +389,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   /** Kills every worker that is still alive, whatever it is doing, and aborts the pool. */
   function forceKill(): void {
     abort()
-    for (const slot of slots) {
-      if (slot.exit !== undefined) continue
-      slot.killed = true
-      void slot.transport.terminate(true)
-    }
+    for (const slot of slots) if (slot.exit === undefined) kill(slot, 'abort')
     forced.resolve('forced')
   }
 
@@ -405,12 +397,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     if (controller.signal.aborted) return
     settleWaiters({ type: 'aborted' })
     // A worker running a file is killed at once; its `run` then rejects, which is `aborted`.
-    for (const slot of slots) {
-      if (slot.state === 'busy') {
-        slot.killed = true
-        void slot.transport.terminate(true)
-      }
-    }
+    for (const slot of slots) if (slot.state === 'busy') kill(slot, 'abort')
     // A worker still starting is killed too, rather than waited for.
     controller.abort()
   }
@@ -421,7 +408,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
    */
   function reportExit(slot: Slot): void {
     const { exit } = slot
-    if (exit === undefined || slot.diedBusy || slot.killed) return
+    if (exit === undefined || slot.diedBusy || slot.killedFor !== undefined) return
     if (exit.type === 'exit' && exit.code === 0) return
     report(
       new OrchestratorError(
@@ -518,14 +505,19 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         key,
         transport,
         connection,
+        // A kill can't end a worker that shares this process: what winds down in it is not waited
+        // for once the force signal has come (without one, nothing races the never-settling promise).
+        gone:
+          sharesProcess && deps.forceSignal !== undefined
+            ? Promise.race([connection.exited, forced.promise])
+            : connection.exited,
         route,
         state: 'idle',
         stopped: undefined,
         exit: undefined,
         diedBusy: false,
-        killed: false,
+        killedFor: undefined,
         files: 0,
-        timedOut: false,
       }
       transport.onExit((exit) => {
         slot.exit = exit
@@ -567,34 +559,43 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     return memoryLimitBytes !== undefined && done.memoryBytes > memoryLimitBytes
   }
 
-  /** Runs the waiter's file on `slot` and resolves the waiter with how it ended. */
-  async function execute(slot: Slot, waiter: Waiter): Promise<void> {
-    const { request } = waiter
-    slot.state = 'busy'
-    slot.route.handler = request.onEvents
+  /**
+   * Sends the file to the worker and resolves with its `fileDone`, or `'forced'` for an inline
+   * worker that was given up on. The deadline and the event route end with the call, before the
+   * pool hands the worker its next file (`pump` may set the route again).
+   */
+  async function send(slot: Slot, request: FileRequest): Promise<FileDone | 'forced'> {
     let deadline: NodeJS.Timeout | undefined
     try {
       await request.onStart?.(slot.id)
       if (fileTimeoutMs !== undefined) {
         // From when the job is sent: `onStart` is the run's own hook and may take a while.
-        deadline = setTimeout(() => killPastDeadline(slot), fileTimeoutMs)
+        deadline = setTimeout(() => kill(slot, 'deadline'), fileTimeoutMs)
       }
       const running = slot.connection.run(request.job)
-      const done =
-        slot.transport.kind === 'inline'
-          ? await Promise.race([running, forced.promise])
-          : await running
+      if (!sharesProcess || deps.forceSignal === undefined) return await running
+      const done = await Promise.race([running, forced.promise])
+      // An inline worker can't be killed from outside: the file is given up on, and its `run`,
+      // which settles whenever the worker ends, is no one's concern any more.
+      if (done === 'forced') running.catch(() => {})
+      return done
+    } finally {
+      clearTimeout(deadline)
+      slot.route.handler = undefined
+    }
+  }
+
+  /** Runs the waiter's file on `slot` and resolves the waiter with how it ended. */
+  async function execute(slot: Slot, waiter: Waiter): Promise<void> {
+    const { request } = waiter
+    slot.state = 'busy'
+    slot.route.handler = request.onEvents
+    try {
+      const done = await send(slot, request)
       if (done === 'forced') {
-        // An inline worker can't be killed from outside: the file is given up on, and its `run`,
-        // which settles whenever the worker ends, is no one's concern any more.
-        running.catch(() => {})
-        clearTimeout(deadline)
-        slot.route.handler = undefined
         waiter.resolve({ type: 'aborted' })
         return
       }
-      clearTimeout(deadline)
-      slot.route.handler = undefined
       slot.state = 'idle'
       slot.files++
       try {
@@ -606,9 +607,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       else pump()
       waiter.resolve({ type: 'done', workerId: slot.id, done })
     } catch (error) {
-      clearTimeout(deadline)
-      slot.route.handler = undefined
-      const exit = slot.timedOut ? FILE_TIMEOUT : workerExitOf(error)
+      const exit = slot.killedFor === 'deadline' ? FILE_TIMEOUT : workerExitOf(error)
       if (controller.signal.aborted) waiter.resolve({ type: 'aborted' })
       else if (exit !== undefined) {
         forget(slot)
