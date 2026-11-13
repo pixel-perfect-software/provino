@@ -1,13 +1,15 @@
-// The bin's compile cache (B21d, T3.7): on in `<cwd>/node_modules/.cache/provino/compile`, inherited
-// by the workers through `NODE_COMPILE_CACHE`, and off whenever coverage is on.
+// The bin's compile cache (B21d, T3.7): on in `<cwd>/node_modules/.cache/provino/compile`, handed to
+// the forked workers for Node's own startup only (no test ever sees `NODE_COMPILE_CACHE`: Jest sets
+// none, D7), and off whenever coverage is on.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { existsSync, readdirSync } from 'node:fs'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { outputFree } from './support.ts'
+import { outputFree, runBuilt, spawnCli, trackedProjects } from './support.ts'
 
 /** The module, loaded by URL: the type-test project includes this directory but not the package's source. */
 const { cachesOff, coverageOn } = (await import(
@@ -28,6 +30,8 @@ interface Seen {
   readonly before: string | null
   readonly after: string | null
   readonly grandchild: string
+  /** What `workerStartupEnv` gives the pool for a forked worker's spawn. */
+  readonly workerEnv: Readonly<Record<string, string>>
   readonly created: boolean
   readonly tagged: boolean
 }
@@ -93,14 +97,15 @@ describe('cachesOff', () => {
 })
 
 describe('enableBinCompileCache (a process of its own each)', () => {
-  it('turns Node’s compile cache on in the project, and gives its workers the directory', async () => {
+  it('turns Node’s compile cache on in the project and offers its directory to the workers, without touching process.env', async () => {
     const cwd = await scratch()
     const { seen } = inChild([cwd, 'run', '--config', 'x'])
     const expected = join(cwd, 'node_modules', '.cache', 'provino', 'compile')
     assert.equal(seen.status, 'enabled')
     assert.equal(seen.before, null)
-    assert.equal(seen.after, expected)
-    assert.equal(seen.grandchild, expected, 'a process the bin starts inherits the directory')
+    assert.equal(seen.after, null, 'the variable is not written: a test must not see it')
+    assert.equal(seen.grandchild, '', 'a process a test starts has none either')
+    assert.deepEqual(seen.workerEnv, { NODE_COMPILE_CACHE: expected })
     assert.equal(seen.created, true)
     assert.equal(seen.tagged, true, 'the directory carries Provino’s CACHEDIR.TAG')
   })
@@ -116,6 +121,7 @@ describe('enableBinCompileCache (a process of its own each)', () => {
       assert.equal(seen.status, 'disabled', JSON.stringify(args))
       assert.equal(seen.after, null)
       assert.equal(seen.grandchild, '')
+      assert.deepEqual(seen.workerEnv, {})
       assert.equal(seen.created, false)
     }
   })
@@ -134,6 +140,7 @@ describe('enableBinCompileCache (a process of its own each)', () => {
     const { seen } = inChild([cwd], { NODE_COMPILE_CACHE: theirs })
     assert.equal(seen.after, theirs)
     assert.equal(seen.grandchild, theirs)
+    assert.deepEqual(seen.workerEnv, {}, 'their variable reaches the workers as it is, and stays')
     assert.equal(seen.created, false, 'nothing is written in the project')
   })
 
@@ -143,4 +150,64 @@ describe('enableBinCompileCache (a process of its own each)', () => {
     assert.equal(seen.status, 'disabled')
     assert.equal(seen.after, null)
   })
+})
+
+describe('the compile cache and the tests the bin runs (D7: Jest sets no such variable)', () => {
+  const makeProject = trackedProjects()
+
+  /** A test file that reads the variable itself, and through a process it starts. */
+  const sees = (expected: string | undefined): string =>
+    [
+      "const { execFileSync } = require('node:child_process')",
+      "test('sees the compile cache variable as the user left it', () => {",
+      `  const expected = ${JSON.stringify(expected)}`,
+      '  expect(process.env.NODE_COMPILE_CACHE).toBe(expected)',
+      "  const child = execFileSync(process.execPath, ['-p', 'String(process.env.NODE_COMPILE_CACHE)'], { encoding: 'utf8' })",
+      '  expect(child.trim()).toBe(String(expected))',
+      '})',
+      '',
+    ].join('\n')
+
+  for (const pool of ['forks', 'inline'] as const) {
+    it(`the built bin, --pool ${pool}: no variable in the test, and Node's cache holds entries`, async () => {
+      const project = await makeProject({ 'tests/env.test.js': sees(undefined) })
+      const ran = runBuilt(['run', '--config', project.config, '--pool', pool], {
+        cwd: project.dir,
+      })
+      assert.equal(ran.status, 0, ran.stderr)
+      const dir = join(project.dir, 'node_modules', '.cache', 'provino', 'compile')
+      const versions = readdirSync(dir).filter((name) => name !== 'CACHEDIR.TAG')
+      assert.equal(versions.length, 1, 'one directory per Node version')
+      assert.ok(
+        readdirSync(join(dir, versions[0] as string)).length > 0,
+        'the compiled chunks were cached',
+      )
+    })
+
+    it(`--pool ${pool}: a test sees no NODE_COMPILE_CACHE, and the cache directory is still written`, async () => {
+      const project = await makeProject({ 'tests/env.test.js': sees(undefined) })
+      const ended = await spawnCli(['run', '--config', project.config, '--pool', pool], {
+        cwd: project.dir,
+      })
+      assert.equal(ended.code, 0, ended.stderr)
+      assert.match(ended.stderr, /PASS tests\/env\.test\.js/)
+      const dir = join(project.dir, 'node_modules', '.cache', 'provino', 'compile')
+      assert.equal(existsSync(dir), true, 'the cache is on')
+      assert.equal(existsSync(join(dir, 'CACHEDIR.TAG')), true)
+    })
+
+    it(`--pool ${pool}: a NODE_COMPILE_CACHE the user set stays, in the test too, and nothing is written in the project`, async () => {
+      const theirs = join(await scratch(), 'theirs')
+      const project = await makeProject({ 'tests/env.test.js': sees(theirs) })
+      const ended = await spawnCli(['run', '--config', project.config, '--pool', pool], {
+        cwd: project.dir,
+        env: { NODE_COMPILE_CACHE: theirs },
+      })
+      assert.equal(ended.code, 0, ended.stderr)
+      assert.equal(
+        existsSync(join(project.dir, 'node_modules', '.cache', 'provino', 'compile')),
+        false,
+      )
+    })
+  }
 })

@@ -61,23 +61,43 @@ export function cachesOff(argv: readonly string[]): boolean {
 /**
  * Turns on Node's compile cache for this process, in `<cwd>/node_modules/.cache/provino/compile`,
  * unless coverage is on (`cacheModeFor`), the command line says `--no-cache` (`cachesOff`) or the
- * user turned it off (`NODE_DISABLE_COMPILE_CACHE`). When it was turned on here and `env` names no
- * `NODE_COMPILE_CACHE` already, that variable is set to the same directory, which the forked
- * workers inherit: `module.enableCompileCache` is for this
- * process only, and a worker starts cold without it. The bin is the one caller; `run()` never does
- * this. It never throws: a cache that can't be turned on costs nothing but the speed-up.
+ * user turned it off (`NODE_DISABLE_COMPILE_CACHE`). It writes nothing to `env`: Jest sets no
+ * `NODE_COMPILE_CACHE`, and a test that reads `process.env` or starts `node` must not see one (D7),
+ * which covers `--pool inline` and `-i`, where the tests run in this process. The forked workers
+ * start cold without it (`module.enableCompileCache` is for this process only), so the directory
+ * is remembered here and `workerStartupEnv` offers it to the pool, which puts it in a fork's spawn
+ * environment only, for Node's own startup, and has the worker remove it before any file loads.
+ * The bin is the one caller; `run()` never does this. It never throws: a cache that can't be turned
+ * on costs nothing but the speed-up.
  * @internal
  */
 export function enableBinCompileCache(
   argv: readonly string[],
-  env: Record<string, string | undefined>,
+  env: Readonly<Record<string, string | undefined>>,
   cwd: string,
 ): NativeCompileCacheResult {
   const dir = join(cwd, 'node_modules', '.cache', 'provino', 'compile')
   const mode = cachesOff(argv) ? 'off' : cacheModeFor({ coverage: coverageOn(argv, env) })
   const result = enableNativeCompileCache(dir, mode)
-  if (result.status === 'enabled' && env.NODE_COMPILE_CACHE === undefined) {
-    env.NODE_COMPILE_CACHE = dir
-  }
+  // `enabled` only when this call did it: a `NODE_COMPILE_CACHE` the user set is `already-enabled`.
+  enabled = result.status === 'enabled' ? dir : undefined
   return result
+}
+
+/** Where `enableBinCompileCache` turned the cache on, when it did: a process-wide fact, like the cache. */
+let enabled: string | undefined
+
+/**
+ * What a forked worker's Node must find in its spawn environment to use the bin's compile cache
+ * (`RunPoolOptions.startupEnv`): `NODE_COMPILE_CACHE`, when `enableBinCompileCache` turned the cache
+ * on here, and nothing when it didn't (a library caller, coverage, `--no-cache`) or when the user
+ * set `NODE_COMPILE_CACHE` themselves: that one reaches the workers, and the tests, as it is.
+ * @internal
+ */
+export function workerStartupEnv(
+  env: Readonly<Record<string, string | undefined>>,
+): Readonly<Record<string, string>> {
+  return enabled === undefined || env.NODE_COMPILE_CACHE !== undefined
+    ? {}
+    : { NODE_COMPILE_CACHE: enabled }
 }

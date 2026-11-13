@@ -83,6 +83,12 @@ export interface RunPoolOptions {
   /** Node flags for the workers (forks and threads). Default: this process's, for the pool key. */
   readonly execArgv?: readonly string[]
   /**
+   * Variables Node reads when a forked worker starts, that no test may see (`NODE_COMPILE_CACHE`,
+   * for the bin's compile cache; Jest sets none): in the fork's spawn environment, removed from its
+   * own `process.env` before any file loads. Forks only. See `ForksTransportOptions.startupEnv`.
+   */
+  readonly startupEnv?: Readonly<Record<string, string>>
+  /**
    * The most one test file may run, in ms. A worker still on a file after it is killed and the
    * file fails with the worker's exit `{ type: 'timeout', phase: 'file' }`. Default: none (Jest
    * has none either: a synchronous loop in a test hangs it too). An inline worker shares this
@@ -519,6 +525,7 @@ export async function runProjects(
     ...(options.stdout === undefined ? {} : { stdout: options.stdout }),
     ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
     ...(execArgv === undefined ? {} : { execArgv }),
+    ...(options.pool?.startupEnv === undefined ? {} : { startupEnv: options.pool.startupEnv }),
     ...(options.pool?.heapLimitMb === undefined ? {} : { memoryLimitMb: options.pool.heapLimitMb }),
   })
   // The transport can cap the workers, whatever is asked for: an inline pool runs one.

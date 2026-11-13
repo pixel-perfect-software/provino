@@ -11,6 +11,7 @@ import {
 import { createReporterBus, type Environment } from '@provino/reporters'
 import type { FileFilter, ReporterBus, RunSummary } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
+import { workerStartupEnv } from './compile-cache.ts'
 import { type DisplayOptions, reportersFor } from './reporters.ts'
 
 /**
@@ -129,10 +130,13 @@ function run(
   projects: readonly ResolvedProject[],
 ): Promise<RunSummary> {
   const { stderr, cwd } = options
+  // The bin's compile cache for the forked workers' own startup, and for them only (see
+  // `workerStartupEnv`); `{}` for a library caller, which turned nothing on.
+  const startupEnv = workerStartupEnv(process.env)
   return runProjects(projects, {
     ...(options.root === undefined ? {} : { root: options.root }),
     bus,
-    pool: options.pool,
+    pool: Object.keys(startupEnv).length === 0 ? options.pool : { ...options.pool, startupEnv },
     // Jest writes all test output to stderr and keeps stdout for `--json`: a worker's own stdout
     // (a direct write to fd 1) goes there too, so it can't land in the middle of a reporter's.
     stdout: stderr,

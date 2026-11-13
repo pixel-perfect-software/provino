@@ -7,7 +7,7 @@ The coordinator (`.`) and the worker entry (`./worker`), as two manifest nodes i
 | File | Node | What it does |
 |---|---|---|
 | `src/transport/shared.ts` | coordinator | `createTransport(kind, options, spawn)`, the one scaffold, and `connect()`: the `ready` → `start` handshake, the start timeout, one exit report, and `terminate` (`stop` → teardown timeout → SIGTERM → 500 ms → SIGKILL) |
-| `src/transport/forks.ts`, `threads.ts`, `inline.ts` | coordinator | Each kind's `spawn`: starting one worker and mapping how it ends to a `WorkerExit`. An inline worker has ended when its entry's `main` has settled **and** the link has closed (see "How a worker runs" 5). The inline factory declares `maxWorkers: 1` |
+| `src/transport/forks.ts`, `threads.ts`, `inline.ts` | coordinator | Each kind's `spawn`: starting one worker and mapping how it ends to a `WorkerExit`. An inline worker has ended when its entry's `main` has settled **and** the link has closed (see "How a worker runs" 5). The inline factory declares `maxWorkers: 1`. **`startupEnv`** (`ForksTransportOptions`, `RunPoolOptions.startupEnv`; forks only): variables for Node's own startup in the child that no test may see (the bin's `NODE_COMPILE_CACHE`). They are added to the child's spawn `env` next to `PROVINO_WORKER_STARTUP_ENV`, the list of their names, which `worker/bootstrap.ts` reads to delete them before any file loads. A thread and an inline worker ignore it (they share the process's environment, which the bin leaves alone), and a variable the caller wants the tests to see belongs in `env` |
 | `src/transport/for-kind.ts` | coordinator | `transportFor(kind, options)` (`@public`): the factory for a pool kind from one options object (`TransportForOptions`, the union of forks' and threads'); `runProject`, the bench and the end-to-end tests use it |
 | `src/connect.ts` | coordinator | `connectWorker`: serves `CoordinatorMethods`, hands packs to `onEvents` in order, acks after it settles, and resolves `run()` on `fileDone` |
 | `src/file-id.ts` | coordinator | `fileIdOf(project, relativePath)` (`@public`): the file ids the coordinator assigns (D23); `relativePosix(rootDir, file)` (`@public`), the one way to make the POSIX relative path both take |
@@ -40,7 +40,7 @@ The coordinator (`.`) and the worker entry (`./worker`), as two manifest nodes i
 | `src/worker/packer.ts` | worker | Packs: 64 events or the end of the macrotask, numbered, cumulative acks, at most 8 in flight; `afterSent` orders `fileDone`/`stopped` behind them |
 | `src/worker/console.ts` | worker | Console capture: a stable front over a replaceable `Console`, plus patched stream `write`s |
 | `src/worker/stdio.ts`, `timers.ts` | worker | The stdio flush (only when bytes are buffered), and timers taken at load |
-| `src/worker/bootstrap.ts` | worker | The fork and thread main. Never imported; the coordinator finds it with `import.meta.resolve('@provino/orchestrator/worker/bootstrap')` |
+| `src/worker/bootstrap.ts` | worker | The fork and thread main. Never imported; the coordinator finds it with `import.meta.resolve('@provino/orchestrator/worker/bootstrap')`. **First, in a fork, it deletes the `startupEnv` variables** (the names in `PROVINO_WORKER_STARTUP_ENV`, then that variable too) from its `process.env`, before it imports the entry: Node has read them at its own startup (`NODE_COMPILE_CACHE`), and no test may see one (D7: Jest sets none). `test/startup-env.test.ts` runs it on real forks: the cache is enabled, and a test file and a process it starts see neither variable |
 
 ## How a worker runs
 
