@@ -1,4 +1,5 @@
 import type {
+  FileInfo,
   FileResult,
   Reporter,
   ReportPolicy,
@@ -124,11 +125,8 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
   const style = createStyle(options.colour === true)
   const stackTrace = options.noStackTrace !== true
   const columns = options.columns ?? DEFAULT_COLUMNS
-  const out = createLiveOutput(stream, {
-    live: options.live === true && traits.live,
-    columns,
-    style,
-  })
+  const live = options.live === true && traits.live
+  const out = createLiveOutput(stream, { live, columns, style })
   const dots = traits.dots ? createDots(stream, columns, style) : undefined
   // Each file's tests, results, console, tree and errors as its events come, until it ends.
   const { record, handlers, release } = createCollector({
@@ -145,8 +143,8 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       options.verbose !== false &&
       files === 1)
   let listing = lists(0)
-  let files = zeroCounts()
-  let tests = zeroCounts()
+  const files = zeroCounts()
+  const tests = zeroCounts()
   /** How many files `run:start` announced; more than `files.total` when the run ended early (bail). */
   let queued = 0
   // Whether the last thing printed ended in a blank line, so the totals don't add a second.
@@ -225,23 +223,29 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
 
     'run:start'(info, announced) {
       collect['run:start'](info, announced)
-      files = zeroCounts()
-      tests = zeroCounts()
+      Object.assign(files, zeroCounts())
+      Object.assign(tests, zeroCounts())
       queued = announced.length
       listing = lists(announced.length)
       dots?.reset()
     },
 
-    async 'file:start'(file) {
-      await out.start(file.fileId, projectLabel(file, displayPath(file.path)))
-    },
+    // Without a block there is nothing to name a running file for: no handler, no label.
+    ...(live
+      ? {
+          async 'file:start'(file: FileInfo) {
+            await out.start(file.fileId, projectLabel(file, displayPath(file.path)))
+          },
+        }
+      : {}),
 
-    async 'task:end'(task, event) {
+    'task:end'(task, event) {
       collect['task:end'](task, event)
-      if (task.type !== 'test' || event.type !== 'test-end') return
+      if (task.type !== 'test' || event.type !== 'test-end') return undefined
       const { state } = event.result
-      tests = tally(tests, state)
-      if (dots !== undefined && state !== 'queued' && state !== 'running') await dots.mark(state)
+      tally(tests, state)
+      if (state === 'queued' || state === 'running') return undefined
+      return dots?.mark(state)
     },
 
     // An error charged to a test after it ended fails that test (and so its file): shown with it.
@@ -252,18 +256,22 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       // Only the first late error moves the test between the counts: it is the failure itself.
       if (entry?.late.get(event.ownerId)?.length !== 1) return
       // Only a test that passed moves from the passed count to the failed one.
-      if (entry.results.get(event.ownerId)?.state === 'pass') tests = passedToFailed(tests)
+      if (entry.results.get(event.ownerId)?.state === 'pass') passedToFailed(tests)
     },
 
     async 'file:end'(result) {
       const { fileId } = result.file
-      files = tally(files, result.state)
+      tally(files, result.state)
       const text = fileText(result, record.files.get(fileId))
       release(fileId)
-      await out.finish(fileId)
-      if (text === undefined) return
-      if (dots === undefined) await print(text)
-      else dots.defer(text)
+      if (dots !== undefined) {
+        await dots.flush()
+        if (text !== undefined) dots.defer(text)
+        return
+      }
+      if (text !== undefined) atBlank = text.endsWith('\n')
+      // The file leaves the block and its text goes above it in one write.
+      await out.finish(fileId, text)
     },
 
     async error(error, origin) {
@@ -303,7 +311,10 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
   }
 }
 
-function zeroCounts(): TestCounts {
+/** A tally the engine adds to as events come. */
+type Counts = { -readonly [K in keyof TestCounts]: TestCounts[K] }
+
+function zeroCounts(): Counts {
   return { failed: 0, skipped: 0, passed: 0, total: 0, todo: 0 }
 }
 
@@ -320,25 +331,30 @@ function suitePath(tasks: readonly TaskNode[], suite: TaskNode): readonly string
 }
 
 /** One more finished file or test in `state`'s bucket. */
-function tally(counts: TestCounts, state: TaskState): TestCounts {
-  const total = counts.total + 1
+function tally(counts: Counts, state: TaskState): void {
   switch (state) {
     case 'pass':
-      return { ...counts, passed: counts.passed + 1, total }
+      counts.passed++
+      break
     case 'fail':
-      return { ...counts, failed: counts.failed + 1, total }
+      counts.failed++
+      break
     case 'skip':
-      return { ...counts, skipped: counts.skipped + 1, total }
+      counts.skipped++
+      break
     case 'todo':
-      return { ...counts, todo: counts.todo + 1, total }
+      counts.todo++
+      break
     case 'queued':
     case 'running':
       // A test that ends in either never ran, so it is not counted.
-      return counts
+      return
   }
+  counts.total++
 }
 
 /** A test counted as passed failed after all: it moves to the failed count, and the total stands. */
-function passedToFailed(counts: TestCounts): TestCounts {
-  return { ...counts, failed: counts.failed + 1, passed: Math.max(0, counts.passed - 1) }
+function passedToFailed(counts: Counts): void {
+  counts.failed++
+  counts.passed = Math.max(0, counts.passed - 1)
 }

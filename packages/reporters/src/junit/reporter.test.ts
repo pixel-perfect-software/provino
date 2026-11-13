@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url'
 import { validateXML } from 'xmllint-wasm'
 import { createReporterBus } from '../bus.ts'
 import {
+  buildFile,
+  collectedEvent,
   error,
   FIXTURE_FILES,
   FIXTURE_SNAPSHOTS,
@@ -15,6 +17,9 @@ import {
   playFixture,
   playRun,
   playThrough,
+  resultOf,
+  testEndEvent,
+  unhandledEvent,
 } from '../internal/test-support.ts'
 import { junitReporter } from './reporter.ts'
 
@@ -185,6 +190,32 @@ describe('the junit reporter', () => {
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
+  })
+
+  test('an error charged to a file after it ended is one of the run’s, since its suite is written', async () => {
+    const out = output()
+    const bus = createReporterBus([junitReporter({ report: JEST_REPORT, stream: out })])
+    const file = buildFile({ path: 'late.test.ts', tests: [{ path: ['t'] }] })
+    await bus.emit('run:start', { root: '/project', projects: [''], startTime: 0, watch: false }, [
+      file.info,
+    ])
+    await bus.emit('file:collected', file.info, collectedEvent(file))
+    for (const { task, spec } of file.tests) {
+      await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+    }
+    await bus.emit('file:end', file.result)
+    await bus.emit('unhandled', file.info, unhandledEvent(error('LATE BOOM')))
+    await bus.emit('run:end', {
+      reason: 'failed',
+      files: [file.result],
+      unhandled: [],
+      durationMs: 1,
+    })
+    const text = out.text()
+    assert.match(text, /<testsuite name="late\.test\.ts" tests="1" failures="0" errors="0"/)
+    assert.match(text, /<testsuite name="Errors outside any test file" tests="1"[^>]*errors="1"/)
+    assert.match(text, /LATE BOOM/)
+    assert.ok((await validate(text)).ok)
   })
 
   test('an error outside any file is a suite of its own', async () => {

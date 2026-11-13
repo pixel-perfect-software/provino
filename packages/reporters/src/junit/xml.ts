@@ -3,8 +3,17 @@
 // character XML 1.0 can't hold (a control character other than tab, line feed and carriage return).
 import { stripVTControlCharacters } from 'node:util'
 
+/**
+ * What `clean` has to touch: every ANSI sequence starts with an escape or the 8-bit CSI character
+ * (which are control characters), and the rest are the characters XML 1.0 forbids. Text with none
+ * of them is returned as it is, after this one test.
+ */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: this is the XML 1.0 character class plus ANSI's starts.
+const NEEDS_CLEANING = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u009B\uFFFE\uFFFF]/
+
 /** `text` without ANSI sequences and without the characters XML 1.0 forbids. */
 export function clean(text: string): string {
+  if (!NEEDS_CLEANING.test(text)) return text
   return stripVTControlCharacters(text).replace(
     // biome-ignore lint/suspicious/noControlCharactersInRegex: this is the XML 1.0 character class.
     /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g,
@@ -45,16 +54,35 @@ export interface Element {
   readonly children?: readonly Element[]
 }
 
-/** The element as indented XML (two spaces a level); an element with no text or children is self-closing. */
-export function write(element: Element, depth = 0): string {
+/**
+ * An element whose children are already written (each by `write` at `depth + 1`): a reporter that
+ * writes a file's suite when the file ends and joins the suites at the end uses this for the
+ * parent. No children is self-closing.
+ */
+export function writeParent(
+  element: Pick<Element, 'name' | 'attributes'>,
+  written: readonly string[],
+  depth = 0,
+): string {
   const pad = '  '.repeat(depth)
   const open = `${pad}<${element.name}${attributes(element.attributes ?? {})}`
+  if (written.length === 0) return `${open}/>`
+  return `${open}>\n${written.join('\n')}\n${pad}</${element.name}>`
+}
+
+/** The element as indented XML (two spaces a level); an element with no text or children is self-closing. */
+export function write(element: Element, depth = 0): string {
   const children = element.children ?? []
   if (children.length > 0) {
-    return `${open}>\n${children.map((child) => write(child, depth + 1)).join('\n')}\n${pad}</${element.name}>`
+    return writeParent(
+      element,
+      children.map((child) => write(child, depth + 1)),
+      depth,
+    )
   }
   if (element.text !== undefined && element.text !== '') {
-    return `${open}>${content(element.text)}</${element.name}>`
+    const pad = '  '.repeat(depth)
+    return `${pad}<${element.name}${attributes(element.attributes ?? {})}>${content(element.text)}</${element.name}>`
   }
-  return `${open}/>`
+  return writeParent(element, [], depth)
 }

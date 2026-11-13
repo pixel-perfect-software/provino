@@ -1,7 +1,7 @@
 // The live view: in a terminal, the files that are running are a block at the bottom of the output
 // (`RUNS  path`, as Jest's status area), redrawn as files start and finish, and erased before any
 // text is written above it. Without a terminal, in CI or under an agent nothing is redrawn: `print`
-// writes its text and `start` and `finish` do nothing.
+// writes its text and `start` and `finish` do nothing but write the text they are given.
 import type { TextSink } from '../sink.ts'
 import { ESC, type Style } from '../style.ts'
 
@@ -26,8 +26,11 @@ export interface LiveOutput {
   print(text: string): Promise<void>
   /** A file started: `label` joins the block. */
   start(id: string, label: string): Promise<void>
-  /** A file ended: it leaves the block. */
-  finish(id: string): Promise<void>
+  /**
+   * A file ended: it leaves the block. `text` (written with its newline) goes above the block in
+   * the same write that erases and redraws it, so the screen is drawn once for a file, not twice.
+   */
+  finish(id: string, text?: string): Promise<void>
   /** Erases the block for good, at the end of the run. */
   close(): Promise<void>
 }
@@ -41,24 +44,35 @@ export function createLiveOutput(
   options: { readonly live: boolean; readonly columns: number; readonly style: Style },
 ): LiveOutput {
   const { live, columns, style } = options
+  /** Each running file's `RUNS …` line, rendered once, when it starts. */
   const running = new Map<string, string>()
-  /** How many lines the block took the last time it was drawn. */
+  /** The block as last drawn, and how many lines it took. */
+  let shown = ''
   let drawn = 0
 
-  function block(): string {
-    const labels = [...running.values()]
-    const lines = labels
-      .slice(0, SHOWN)
-      .map((label) => `${style.badge('RUNS', 'yellow')} ${fit(label, columns - 7)}`)
-    if (labels.length > SHOWN) lines.push(style.dim(`  ... and ${labels.length - SHOWN} more`))
-    drawn = lines.length
-    return lines.map((line) => `${line}\n`).join('')
+  function block(): { readonly text: string; readonly lines: number } {
+    let text = ''
+    let lines = 0
+    for (const line of running.values()) {
+      if (lines === SHOWN) break
+      text += `${line}\n`
+      lines++
+    }
+    if (running.size > SHOWN) {
+      text += `${style.dim(`  ... and ${running.size - SHOWN} more`)}\n`
+      lines++
+    }
+    return { text, lines }
   }
 
+  /** Erases the block, writes `text` and draws the block again; nothing when there is no text and the block is as it was. */
   async function redraw(text = ''): Promise<void> {
-    const before = erase(drawn)
     const after = block()
-    await stream.write(`${before}${text}${after}`)
+    if (text === '' && after.text === shown) return
+    const before = erase(drawn)
+    shown = after.text
+    drawn = after.lines
+    await stream.write(`${before}${text}${after.text}`)
   }
 
   return {
@@ -71,13 +85,16 @@ export function createLiveOutput(
     },
     async start(id, label) {
       if (!live) return
-      running.set(id, label)
+      running.set(id, `${style.badge('RUNS', 'yellow')} ${fit(label, columns - 7)}`)
       await redraw()
     },
-    async finish(id) {
-      if (!live) return
+    async finish(id, text) {
+      if (!live) {
+        if (text !== undefined) await stream.write(`${text}\n`)
+        return
+      }
       running.delete(id)
-      await redraw()
+      await redraw(text === undefined ? '' : `${text}\n`)
     },
     async close() {
       if (!live || drawn === 0) return

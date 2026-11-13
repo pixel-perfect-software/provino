@@ -10,6 +10,7 @@ import {
   collectedEvent,
   error,
   type FileSpec,
+  fileInfo,
   JEST_REPORT,
   NEUTRAL_REPORT,
   output,
@@ -640,6 +641,42 @@ describe('the dot reporter', () => {
     )
   })
 
+  test('holds the marks of a file and writes them when its row is full or the file ends', async () => {
+    const out = output()
+    const bus = createReporterBus([dotReporter({ stream: out, report: REPORT, columns: 3 })])
+    const file = buildFile({
+      path: 'a.test.ts',
+      tests: ['a', 'b', 'c', 'd', 'e'].map((title) => ({ path: [title] })),
+    })
+    await bus.emit('run:start', { root: '/p', projects: [''], startTime: 0, watch: false }, [
+      file.info,
+    ])
+    await bus.emit('file:collected', file.info, collectedEvent(file))
+    for (const { task, spec } of file.tests) {
+      await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+    }
+    // Three marks filled the row: one write for it, and the two after it wait.
+    assert.deepEqual(out.writes(), ['...\n'])
+    await bus.emit('file:end', file.result)
+    assert.deepEqual(out.writes(), ['...\n', '..'])
+  })
+
+  test('writes the marks it holds before an error’s block', async () => {
+    const out = output()
+    const bus = createReporterBus([dotReporter({ stream: out, report: REPORT, columns: 10 })])
+    const file = buildFile({ path: 'a.test.ts', tests: [{ path: ['a'] }, { path: ['b'] }] })
+    await bus.emit('run:start', { root: '/p', projects: [''], startTime: 0, watch: false }, [
+      file.info,
+    ])
+    await bus.emit('file:collected', file.info, collectedEvent(file))
+    for (const { task, spec } of file.tests) {
+      await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+    }
+    assert.deepEqual(out.writes(), [])
+    await bus.emit('error', error('mid-run'), 'coordinator')
+    assert.match(out.text(), /^\.\.\n\n {2}● Run error\n/)
+  })
+
   test('starts its dots over at each run:start', async () => {
     const out = output()
     const reporter = dotReporter({ stream: out, report: REPORT, columns: 3 })
@@ -715,6 +752,46 @@ describe('the live view', () => {
     const after = out.text().slice(out.text().lastIndexOf('RUNS'))
     assert.match(after, new RegExp(`${ESC}\\[1F${ESC}\\[0J`))
     assert.doesNotMatch(after.slice(after.indexOf('Test Suites')), /RUNS/)
+  })
+
+  test('draws a file’s result and the block it leaves in one write, and nothing when the block is as it was', async () => {
+    const out = output()
+    const bus = createReporterBus([defaultReporter({ stream: out, report: REPORT, ...live })])
+    const a = buildFile({ path: 'a.test.ts', tests: [{ path: ['t'] }] })
+    const b = fileInfo('b.test.ts')
+    const c = fileInfo('c.test.ts')
+    await bus.emit('run:start', { root: '/p', projects: [''], startTime: 0, watch: false }, [])
+    for (const info of [a.info, b, c]) await bus.emit('file:start', info, 0)
+    const before = out.writes().length
+    await bus.emit('file:collected', a.info, collectedEvent(a))
+    for (const { task, spec } of a.tests) {
+      await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+    }
+    await bus.emit('file:end', a.result)
+    const after = out.writes().slice(before)
+    assert.equal(after.length, 1, 'one write for the text and the redraw')
+    assert.equal(
+      after[0],
+      `${ESC}[3F${ESC}[0JPASS ./a.test.ts\nRUNS ./b.test.ts\nRUNS ./c.test.ts\n`,
+    )
+    // A file with no text that was never drawn changes nothing on the screen: no write.
+    const quiet = out.writes().length
+    await bus.emit('file:end', {
+      file: fileInfo('never-started.test.ts'),
+      state: 'skip',
+      durationMs: 1,
+      errors: [],
+    })
+    assert.equal(out.writes().length, quiet)
+  })
+
+  test('registers a file:start handler only when it draws the block', () => {
+    const options = { stream: output(), report: REPORT }
+    assert.equal(defaultReporter(options)['file:start'], undefined)
+    assert.equal(defaultReporter({ ...options, live: true })['file:start'] === undefined, false)
+    // The agent and dot reporters never draw it, whatever is asked.
+    assert.equal(agentReporter({ ...options, live: true })['file:start'], undefined)
+    assert.equal(dotReporter({ ...options, live: true })['file:start'], undefined)
   })
 
   test('draws nothing without live, so a pipe never sees an escape sequence', async () => {

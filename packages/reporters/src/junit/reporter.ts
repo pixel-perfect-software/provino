@@ -5,6 +5,7 @@ import type {
   ReportPolicy,
   RunSummary,
   SerializedError,
+  TaskId,
 } from '@provino/types'
 import {
   createCollector,
@@ -17,7 +18,7 @@ import {
 import { writeDocument } from '../internal/write-file.ts'
 import type { TextSink } from '../sink.ts'
 import { formatErrors, projectLabel, seconds, testTitle } from '../text/format.ts'
-import { type Element, write } from './xml.ts'
+import { type Element, write, writeParent } from './xml.ts'
 
 /**
  * Options for `junitReporter`.
@@ -54,8 +55,11 @@ function problem(kind: 'failure' | 'error', errors: readonly SerializedError[]):
   }
 }
 
+const NO_ELEMENTS: readonly Element[] = []
+
 /** Console writes as `system-out` and `system-err` elements: each stream's text in order. */
-function consoleElements(entries: readonly { stream: string; text: string }[]): Element[] {
+function consoleElements(entries: readonly { stream: string; text: string }[]): readonly Element[] {
+  if (entries.length === 0) return NO_ELEMENTS
   const out = entries.filter((entry) => entry.stream === 'stdout').map((entry) => entry.text)
   const err = entries.filter((entry) => entry.stream === 'stderr').map((entry) => entry.text)
   return [
@@ -77,6 +81,12 @@ interface SuiteElement {
   readonly counts: Counts
 }
 
+/** A `<testsuite>` already written as XML, with its counts. */
+interface WrittenSuite {
+  readonly text: string
+  readonly counts: Counts
+}
+
 /** The file's `<testsuite>`, from what the run recorded of it. */
 function suiteOf(
   file: FileInfo,
@@ -90,28 +100,31 @@ function suiteOf(
   let failures = 0
   let skipped = 0
   const cases: Element[] = tests.map((test) => {
-    const outcome = entry === undefined ? undefined : outcomeOf(entry, test)
+    // The outcome (and its errors) is only built for a test that did not simply pass.
+    const ended = entry?.results.get(test.id)
+    const passed = ended?.state === 'pass' && entry?.late.has(test.id) !== true
+    const outcome = passed || entry === undefined ? undefined : outcomeOf(entry, test)
+    const result = passed ? ended : outcome?.result
     const attributes = {
       name: testTitle(options.report, test.fullName),
       classname: file.path,
-      time: seconds(outcome?.result?.durationMs ?? 0),
+      time: seconds(result?.durationMs ?? 0),
     }
     const children: Element[] = []
-    if (outcome?.failed === true) {
+    if (passed) {
+      // Nothing to say but its console output.
+    } else if (outcome?.failed === true) {
       failures++
       children.push(problem('failure', outcome.errors))
-    } else if (outcome?.result === undefined) {
+    } else if (result === undefined) {
       skipped++
       children.push({ name: 'skipped', attributes: { message: 'not run' } })
-    } else if (outcome.result.state === 'skip' || outcome.result.state === 'todo') {
+    } else if (result.state === 'skip' || result.state === 'todo') {
       skipped++
       children.push({
         name: 'skipped',
         attributes: {
-          message:
-            outcome.result.state === 'todo'
-              ? 'todo'
-              : (outcome.result.note ?? outcome.result.skipReason),
+          message: result.state === 'todo' ? 'todo' : (result.note ?? result.skipReason),
         },
       })
     }
@@ -195,39 +208,79 @@ function runErrorSuite(record: RunRecord): SuiteElement | undefined {
  * @public
  */
 export function junitReporter(options: JUnitReporterOptions): Reporter {
-  const { record, handlers } = createCollector(
+  const { record, handlers, release, isReleased } = createCollector(
     options.now === undefined ? {} : { now: options.now },
   )
+  /** Each file's `<testsuite>` as XML, written when the file ended, so its record could go. */
+  const written = new Map<TaskId, WrittenSuite>()
+  const { report } = options
+
+  /** The suite as XML, one level down (a child of `<testsuites>`). */
+  const writeSuite = (suite: SuiteElement): WrittenSuite => ({
+    text: write(suite.element, 1),
+    counts: suite.counts,
+  })
 
   return {
     name: 'junit',
 
     ...handlers,
 
+    'run:start'(info, files) {
+      handlers['run:start'](info, files)
+      written.clear()
+    },
+
+    // The file is over (an event for it after this is dropped): say it once, and free its record.
+    'file:end'(result) {
+      handlers['file:end'](result)
+      const { fileId } = result.file
+      const suite = suiteOf(result.file, result, record.files.get(fileId), {
+        report,
+        timestamp: record.startedAt,
+      })
+      written.set(fileId, writeSuite(suite))
+      release(fileId)
+    },
+
+    // An error charged to a file that has ended can't join its suite: it is one of the run's.
+    unhandled(file, event) {
+      if (file !== null && isReleased(file.fileId)) {
+        record.runErrors.push({ error: event.error, unhandled: true })
+        return
+      }
+      handlers.unhandled(file, event)
+    },
+
     async 'run:end'(summary: RunSummary) {
-      const { report } = options
-      const suites: SuiteElement[] = summary.files.map((result) =>
-        suiteOf(result.file, result, record.files.get(result.file.fileId), {
-          report,
-          timestamp: record.startedAt,
-        }),
+      const suites: WrittenSuite[] = summary.files.map(
+        (result) =>
+          written.get(result.file.fileId) ??
+          writeSuite(
+            suiteOf(result.file, result, record.files.get(result.file.fileId), {
+              report,
+              timestamp: record.startedAt,
+            }),
+          ),
       )
       const runErrors = runErrorSuite(record)
-      if (runErrors !== undefined) suites.push(runErrors)
+      if (runErrors !== undefined) suites.push(writeSuite(runErrors))
       const sum = (pick: (counts: Counts) => number): number =>
         suites.reduce((total, suite) => total + pick(suite.counts), 0)
-      const document: Element = {
-        name: 'testsuites',
-        attributes: {
-          name: options.name ?? 'provino',
-          tests: sum((counts) => counts.tests),
-          failures: sum((counts) => counts.failures),
-          errors: sum((counts) => counts.errors),
-          time: seconds(summary.durationMs),
+      const document = writeParent(
+        {
+          name: 'testsuites',
+          attributes: {
+            name: options.name ?? 'provino',
+            tests: sum((counts) => counts.tests),
+            failures: sum((counts) => counts.failures),
+            errors: sum((counts) => counts.errors),
+            time: seconds(summary.durationMs),
+          },
         },
-        children: suites.map((suite) => suite.element),
-      }
-      await writeDocument(options, `<?xml version="1.0" encoding="UTF-8"?>\n${write(document)}\n`)
+        suites.map((suite) => suite.text),
+      )
+      await writeDocument(options, `<?xml version="1.0" encoding="UTF-8"?>\n${document}\n`)
     },
   }
 }

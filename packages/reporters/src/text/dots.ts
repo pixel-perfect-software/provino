@@ -8,12 +8,17 @@ import type { Style } from '../style.ts'
 
 /** The row of dots a text reporter writes in `dot` mode. */
 export interface Dots {
-  /** Writes the mark for a test that ended in `state`, wrapping at the width. */
-  mark(state: TaskState): Promise<void>
   /**
-   * Before text goes under the dots: ends their row so the text doesn't land in the middle of it.
-   * Returns what that text starts with to leave a blank line under the dots: `'\n'`, or `''` when
-   * the dots are not the last thing written.
+   * Adds the mark for a test that ended in `state` to the row. It is written once the row is full
+   * (the promise), or by `flush`, so a file of many tests is a few writes, not one each.
+   */
+  mark(state: TaskState): Promise<void> | undefined
+  /** Writes the marks held so far (at the end of a file, and before any other write). */
+  flush(): Promise<void>
+  /**
+   * Before text goes under the dots: writes the marks held and ends the row so the text doesn't
+   * land in the middle of it. Returns what that text starts with to leave a blank line under the
+   * dots: `'\n'`, or `''` when the dots are not the last thing written.
    */
   leave(): Promise<string>
   /** Keeps a failed file's text, to print after the dots. */
@@ -26,33 +31,42 @@ export interface Dots {
 
 /** The dots for a stream `columns` wide. */
 export function createDots(stream: TextSink, columns: number, style: Style): Dots {
-  // The characters on the current row, whether the dots are the last thing written, and the
-  // failed files, printed after them.
+  const marks = { pass: style.green('.'), fail: style.red('F'), other: style.yellow('-') }
+  // The marks not written yet, how many characters are on the current row (written or not),
+  // whether the dots are the last thing written, and the failed files, printed after them.
+  let pending = ''
   let row = 0
   let afterDots = false
   let held: string[] = []
 
+  async function flush(): Promise<void> {
+    if (pending === '') return
+    const text = pending
+    pending = ''
+    await stream.write(text)
+  }
+
   return {
-    async mark(state) {
-      const mark =
-        state === 'pass' ? style.green('.') : state === 'fail' ? style.red('F') : style.yellow('-')
+    mark(state) {
+      pending += state === 'pass' ? marks.pass : state === 'fail' ? marks.fail : marks.other
       row++
       afterDots = true
-      if (row >= columns) {
-        row = 0
-        await stream.write(`${mark}\n`)
-      } else {
-        await stream.write(mark)
-      }
+      if (row < columns) return undefined
+      row = 0
+      pending += '\n'
+      return flush()
     },
+
+    flush,
 
     async leave() {
       if (!afterDots) return ''
       afterDots = false
       if (row > 0) {
         row = 0
-        await stream.write('\n')
+        pending += '\n'
       }
+      await flush()
       return '\n'
     },
 
@@ -63,6 +77,7 @@ export function createDots(stream: TextSink, columns: number, style: Style): Dot
     deferred: () => held.join('\n'),
 
     reset() {
+      pending = ''
       row = 0
       afterDots = false
       held = []

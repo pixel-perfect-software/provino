@@ -51,6 +51,12 @@ export function createStyle(enabled: boolean): Style {
   }
   const bold = wrap(1, 22)
   const inverse = wrap(7, 27)
+  const badge = (word: string, colour: keyof typeof COLOURS): string =>
+    `${ESC}[0m${inverse(bold(wrap(COLOURS[colour], 39)(` ${word} `)))}${ESC}[0m`
+  // The three the reporters write for every file are built once.
+  const pass = badge('PASS', 'green')
+  const fail = badge('FAIL', 'red')
+  const runs = badge('RUNS', 'yellow')
   return {
     bold,
     dim: wrap(2, 22),
@@ -58,7 +64,11 @@ export function createStyle(enabled: boolean): Style {
     green: wrap(32, 39),
     yellow: wrap(33, 39),
     magenta: wrap(35, 39),
-    badge: (word, colour) =>
-      `${ESC}[0m${inverse(bold(wrap(COLOURS[colour], 39)(` ${word} `)))}${ESC}[0m`,
+    badge: (word, colour) => {
+      if (word === 'PASS' && colour === 'green') return pass
+      if (word === 'FAIL' && colour === 'red') return fail
+      if (word === 'RUNS' && colour === 'yellow') return runs
+      return badge(word, colour)
+    },
   }
 }

@@ -30,6 +30,8 @@ export interface TestCounts extends FileCounts {
 /** Indents every non-empty line of `text`. */
 export function indent(text: string, spaces: number): string {
   const pad = ' '.repeat(spaces)
+  // Most messages are one line: no split, no join.
+  if (!text.includes('\n')) return text === '' ? text : pad + text
   return text
     .split('\n')
     .map((line) => (line === '' ? line : pad + line))

@@ -10,7 +10,13 @@ import { defaultReporter } from './default/reporter.ts'
 import { dotReporter } from './dot/reporter.ts'
 import { githubActionsReporter } from './github-actions/reporter.ts'
 import { expectGolden } from './internal/golden.ts'
-import { FIXED_ENV, JEST_REPORT, type Output, playFixture } from './internal/test-support.ts'
+import {
+  FIXED_ENV,
+  JEST_REPORT,
+  type Output,
+  output,
+  playFixture,
+} from './internal/test-support.ts'
 import { junitReporter } from './junit/reporter.ts'
 import { jsonReporter, normalizedJsonReporter } from './normalized-json/reporter.ts'
 import { ESC } from './style.ts'
@@ -88,7 +94,7 @@ describe('the file reporters on the fixture run', () => {
     const json = await playFixture((out) => jsonReporter(options(out)))
     const alias = await playFixture((out) => normalizedJsonReporter(options(out)))
     assert.equal(json.text, alias.text)
-    assert.equal(jsonReporter(options({ write: () => undefined, text: () => '' })).name, 'json')
+    assert.equal(jsonReporter(options(output())).name, 'json')
     await expectGolden('json', json.text, 'json')
   })
 

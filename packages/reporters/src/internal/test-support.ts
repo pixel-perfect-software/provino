@@ -416,6 +416,8 @@ export async function playRun(
 export interface Output {
   write(chunk: string): void
   text(): string
+  /** Each write, as it was made. */
+  writes(): readonly string[]
 }
 
 export function output(): Output {
@@ -425,6 +427,7 @@ export function output(): Output {
       chunks.push(chunk)
     },
     text: () => chunks.join(''),
+    writes: () => chunks,
   }
 }
 
