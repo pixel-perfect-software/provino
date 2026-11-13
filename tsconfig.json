@@ -50,6 +50,9 @@
       "path": "packages/mock"
     },
     {
+      "path": "packages/lazy"
+    },
+    {
       "path": "packages/timers"
     },
     {
