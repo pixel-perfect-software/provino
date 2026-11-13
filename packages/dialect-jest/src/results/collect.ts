@@ -3,12 +3,20 @@
 // 30.5.2 L100-L215). Register it before every other reporter, so that by the time one hears
 // `file:end` the file is already in the aggregate.
 import { join } from 'node:path'
-import type { FileInfo, Reporter, SerializedError, TaskId, TaskNode } from '@provino/types'
+import type {
+  FileInfo,
+  Reporter,
+  SerializedError,
+  TaskId,
+  TaskNode,
+  TestTask,
+} from '@provino/types'
 import {
   type BuildOptions,
   type FileEvents,
   finishAggregated,
   type TestRecord,
+  toAssertionResult,
   toTestResult,
 } from './build.ts'
 import {
@@ -18,7 +26,16 @@ import {
   type StackTraceConfig,
 } from './failure-message.ts'
 import { addResult, makeEmptyAggregatedTestResult } from './helpers.ts'
-import type { AggregatedResult, DisplayName, Test, TestContext, TestResult } from './types.ts'
+import type {
+  AggregatedResult,
+  AssertionResult,
+  ConsoleEntry,
+  DisplayName,
+  Test,
+  TestCaseStartInfo,
+  TestContext,
+  TestResult,
+} from './types.ts'
 
 /**
  * What the collector reads of a project's config.
@@ -37,6 +54,10 @@ export interface ProjectConfigLike extends StackTraceConfig {
  */
 export interface GlobalConfigLike {
   readonly noStackTrace: boolean
+  /** `--silent`: no console buffer (`runTest.ts` uses a `NullConsole`). */
+  readonly silent?: boolean | undefined
+  /** `--verbose`: the console prints as it is written, so no buffer is kept. */
+  readonly verbose?: boolean | undefined
 }
 
 /**
@@ -68,6 +89,13 @@ export interface JestResults<Config extends ProjectConfigLike> {
   testOf(file: FileInfo): Test<Config>
   /** The projects that have a file in the run. */
   contexts(): Set<TestContext<Config>>
+  /** A test's result as `onTestCaseResult` gets it (`parseSingleTestResult`), once the test has ended. */
+  assertionOf(
+    test: TestTask,
+    retried?: { readonly attempt: number; readonly errors: readonly SerializedError[] },
+  ): AssertionResult | undefined
+  /** What `onTestCaseStart` gets for a test that has started (`createTestCaseStartInfo`). */
+  startInfoOf(test: TestTask): TestCaseStartInfo
 }
 
 interface MutableFile {
@@ -76,6 +104,8 @@ interface MutableFile {
   tree: readonly TaskNode[] | undefined
   records: Map<TaskId, TestRecord>
   unhandled: SerializedError[]
+  /** The file's `console` calls, as `BufferedConsole` keeps them. */
+  console: ConsoleEntry[]
 }
 
 /**
@@ -111,7 +141,14 @@ export function createJestResults<Config extends ProjectConfigLike>(
   const stateOf = (info: FileInfo): MutableFile => {
     let file = files.get(info.fileId)
     if (file === undefined) {
-      file = { info, startedAt: now(), tree: undefined, records: new Map(), unhandled: [] }
+      file = {
+        info,
+        startedAt: now(),
+        tree: undefined,
+        records: new Map(),
+        unhandled: [],
+        console: [],
+      }
       files.set(info.fileId, file)
     }
     return file
@@ -144,6 +181,19 @@ export function createJestResults<Config extends ProjectConfigLike>(
         tree: undefined,
         records: new Map(),
         unhandled: [],
+        console: [],
+      })
+    },
+    // `BufferedConsole`'s buffer: a call is kept with its call site, under `--silent` or
+    // `--verbose` none is (runTest.ts: a `NullConsole`, a `CustomConsole`). A direct write to a
+    // stream isn't a console call.
+    console: (info, event) => {
+      if (globalConfig.silent === true || globalConfig.verbose === true) return
+      if (event.level === null) return
+      stateOf(info).console.push({
+        message: event.text.replace(/\n$/, ''),
+        origin: event.origin ?? '',
+        type: event.level,
       })
     },
     'file:collected': (info, event) => {
@@ -168,7 +218,10 @@ export function createJestResults<Config extends ProjectConfigLike>(
       const file = files.get(task.fileId)
       const known = file === undefined ? undefined : record(file, task.id)
       if (file === undefined || known === undefined) return
-      file.records.set(task.id, { ...known, result: event.result })
+      // Jest keeps an earlier attempt's error only when the policy keeps them
+      // (`logErrorsBeforeRetry`), which the result's `retryErrors` says.
+      const retried = event.result.retryErrors.length > 0 ? known.retried : []
+      file.records.set(task.id, { ...known, result: event.result, retried })
     },
     unhandled: (info, event) => {
       if (info !== null) stateOf(info).unhandled.push(event.error)
@@ -196,6 +249,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         endedAt: now(),
       }
       const testResult = toTestResult(events, build)
+      testResult.console = file.console.length > 0 ? file.console : undefined
       const stack = { noStackTrace: globalConfig.noStackTrace }
       const retried = [...file.records.values()].filter((entry) => entry.retried.length > 0)
       for (const entry of retried) {
@@ -267,5 +321,46 @@ export function createJestResults<Config extends ProjectConfigLike>(
     testResultOf: (fileId) => results.get(fileId),
     testOf: (info) => ({ context: contextOf(configOf(info)), path: pathOf(info) }),
     contexts: () => new Set(contexts.values()),
+    assertionOf: (test, retried) => {
+      const file = files.get(test.fileId)
+      const known = file === undefined ? undefined : record(file, test.id)
+      if (file === undefined || known === undefined) return undefined
+      const config = configOf(file.info)
+      // An attempt that will be retried: jest-circus reports its `test_done` as a failed test whose
+      // `invocations` is the attempts so far (the hook-order recording).
+      const shown: TestRecord =
+        retried === undefined
+          ? known
+          : {
+              ...known,
+              // `logErrorsBeforeRetry` is off for the attempt that is being retried here.
+              retried: [],
+              result: {
+                state: 'fail',
+                durationMs: 0,
+                startTime: 0,
+                errors: retried.errors,
+                retryErrors: [],
+                attempts: retried.attempt + 1,
+                repeatIndex: 0,
+                assertions: 0,
+                passingAssertions: 0,
+              },
+            }
+      return toAssertionResult(shown, {
+        locations: config.testLocationInResults,
+        displayName: config.displayName,
+      })
+    },
+    startInfoOf: (test) => {
+      const file = files.get(test.fileId)
+      return {
+        ancestorTitles: test.fullName.slice(0, -1),
+        fullName: test.fullName.join(' '),
+        mode: test.mode === 'run' ? undefined : test.mode,
+        startedAt: file?.records.get(test.id)?.startedAt ?? null,
+        title: test.fullName.at(-1) ?? test.name,
+      }
+    },
   }
 }

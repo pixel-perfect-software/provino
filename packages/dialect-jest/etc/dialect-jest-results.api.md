@@ -191,13 +191,20 @@ export function formatTestFailures(assertionResults: readonly AssertionResult[],
 export interface GlobalConfigLike {
     // (undocumented)
     readonly noStackTrace: boolean;
+    readonly silent?: boolean | undefined;
+    readonly verbose?: boolean | undefined;
 }
 
 // @public
 export interface JestResults<Config extends ProjectConfigLike> {
     aggregated(): AggregatedResult;
+    assertionOf(test: TestTask, retried?: {
+        readonly attempt: number;
+        readonly errors: readonly SerializedError[];
+    }): AssertionResult | undefined;
     contexts(): Set<TestContext<Config>>;
     readonly reporter: Reporter;
+    startInfoOf(test: TestTask): TestCaseStartInfo;
     testOf(file: FileInfo): Test<Config>;
     testResultOf(fileId: TaskId): TestResult | undefined;
 }
@@ -315,6 +322,20 @@ export interface Test<Config = unknown> {
     duration?: number;
     // (undocumented)
     path: string;
+}
+
+// @public
+export interface TestCaseStartInfo {
+    // (undocumented)
+    ancestorTitles: string[];
+    // (undocumented)
+    fullName: string;
+    // (undocumented)
+    mode: "skip" | "only" | "todo" | undefined;
+    // (undocumented)
+    startedAt?: number | null;
+    // (undocumented)
+    title: string;
 }
 
 // @public

@@ -118,3 +118,26 @@ expectTypeOf<JestCliSupport>().toEqualTypeOf<
 >()
 // @ts-expect-error not a Jest CLI error code
 void new JestCliError('CONFIG_INVALID', 'x')
+
+// The reporter host: a plan is data, a loaded reporter is a class, and the host makes neutral
+// reporters from them.
+import type {
+  JestLoadedReporter,
+  JestReporterEnvironment,
+  JestReporterPlan,
+  JestReporterStep,
+} from '@provino/dialect-jest/node'
+import {
+  createJestReporterHost,
+  jestReporterPlan,
+  loadJestReporters,
+} from '@provino/dialect-jest/node'
+import type { Reporter } from '@provino/types'
+
+expectTypeOf(jestReporterPlan).returns.toEqualTypeOf<JestReporterPlan>()
+expectTypeOf(jestReporterPlan).parameter(2).toEqualTypeOf<JestReporterEnvironment>()
+expectTypeOf<JestReporterStep['kind']>().toEqualTypeOf<'builtin' | 'custom'>()
+expectTypeOf(loadJestReporters).returns.resolves.toEqualTypeOf<JestLoadedReporter[]>()
+expectTypeOf(createJestReporterHost).returns.toEqualTypeOf<Reporter[]>()
+// @ts-expect-error the plan needs to know whether an agent or GitHub Actions runs the process
+jestReporterPlan({ reporters: undefined }, [{}])

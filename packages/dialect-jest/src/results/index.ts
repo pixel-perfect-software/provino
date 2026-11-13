@@ -44,6 +44,7 @@ export type {
   SnapshotSummary,
   Status,
   Test,
+  TestCaseStartInfo,
   TestContext,
   TestResult,
   TestResultsProcessor,

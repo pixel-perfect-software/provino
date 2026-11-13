@@ -156,7 +156,6 @@ export function jestProjectToNeutral(
     )
   }
   if (globalConfig.collectCoverage) notApplied(diagnostics, 'collectCoverage', 'T8.8')
-  if (globalConfig.reporters !== undefined) notApplied(diagnostics, 'reporters', 'T11.9')
 
   const aliases: NeutralAlias[] = project.moduleNameMapper.map(([pattern, target]) => ({
     pattern,

@@ -23,6 +23,27 @@ export interface StackTraceOptions {
 
 type MessageUtil = typeof import('jest-message-util')
 
+/**
+ * The directory of Provino's own packages when this code runs from a workspace checkout
+ * (`<repo>/packages/`); `undefined` from an install, where Provino sits under `node_modules` and
+ * `jest-message-util` drops its frames as it drops a dependency's.
+ */
+const PROVINO_PACKAGES: string | undefined =
+  /^file:\/\/(.*\/packages\/)dialect-jest\/(?:src|dist)\//.exec(import.meta.url)?.[1]
+
+/**
+ * `stack` without the frames of Provino's own packages (D104: Jest hides its own internals the
+ * same way, in `removeInternalStackEntries`), so the text under a failure is the user's code.
+ */
+export function hideProvinoFrames(stack: string): string {
+  const own = PROVINO_PACKAGES
+  if (own === undefined) return stack
+  return stack
+    .split('\n')
+    .filter((line) => !(/^\s+at /.test(line) && line.includes(own)))
+    .join('\n')
+}
+
 let loaded: Promise<MessageUtil> | undefined
 
 function messageUtil(): Promise<MessageUtil> {
@@ -44,8 +65,12 @@ export async function formatTestFailures(
   if (assertionResults.every((result) => result.failureMessages.length === 0)) return null
   const util = await messageUtil()
   // The package types `AssertionResult` from `@jest/types`, a structural twin of ours.
+  const shown = assertionResults.map((result) => ({
+    ...result,
+    failureMessages: result.failureMessages.map(hideProvinoFrames),
+  }))
   return util.formatResultsErrors(
-    assertionResults as unknown as Parameters<MessageUtil['formatResultsErrors']>[0],
+    shown as unknown as Parameters<MessageUtil['formatResultsErrors']>[0],
     { rootDir: config.rootDir, testMatch: [...config.testMatch] } as Parameters<
       MessageUtil['formatResultsErrors']
     >[1],
@@ -66,7 +91,7 @@ export async function formatFileError(
 ): Promise<string> {
   const util = await messageUtil()
   return util.formatExecError(
-    error,
+    typeof error.stack === 'string' ? { ...error, stack: hideProvinoFrames(error.stack) } : error,
     { rootDir: config.rootDir, testMatch: [...config.testMatch] } as Parameters<
       MessageUtil['formatExecError']
     >[1],
@@ -87,7 +112,7 @@ export async function formatRetryError(
 ): Promise<string> {
   const util = await messageUtil()
   return util.formatErrorStack(
-    stack,
+    hideProvinoFrames(stack),
     { rootDir: config.rootDir, testMatch: [...config.testMatch] } as Parameters<
       MessageUtil['formatErrorStack']
     >[1],
