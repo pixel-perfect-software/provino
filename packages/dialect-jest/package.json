@@ -37,7 +37,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
     "node": "^22.15.0 || >=24"
