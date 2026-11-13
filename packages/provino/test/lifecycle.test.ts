@@ -73,13 +73,16 @@ async function untilNoted(pidFile: string, count = 1, timeoutMs = 30_000): Promi
   }
 }
 
-/** A test file that notes its worker's pid and then loops forever, without yielding. */
+/**
+ * A test file that notes its worker's pid and then loops without yielding, for 120 s: past every
+ * test's deadline, and bounded so a worker that a killed test run leaves behind ends by itself.
+ */
 const hanging = (pidFile: string): string =>
   [
     "const { appendFileSync } = require('node:fs')",
     "test('hangs', () => {",
     `  appendFileSync(${JSON.stringify(pidFile)}, process.pid + '\\n')`,
-    '  for (;;) {}',
+    '  const end = Date.now() + 120_000; while (Date.now() < end) {}',
     '})',
     '',
   ].join('\n')
@@ -117,14 +120,15 @@ describe('exit codes through the bin (provino run)', () => {
     ['SIGTERM', 143],
     ['SIGHUP', 129],
   ] as const) {
-    it(`${code} for ${signal} while a file runs: the worker is killed and nothing is left`, async () => {
+    it(`${code} for ${signal} while two workers are in a synchronous busy loop: both are killed and nothing is left`, async () => {
       const project = await makeProject((dir) => ({
         'tests/hang.test.js': hanging(join(dir, 'workers.pids')),
+        'tests/hang2.test.js': hanging(join(dir, 'workers.pids')),
       }))
       const pidFile = project.path('workers.pids')
-      const live = startGroup(['run', '--config', project.config, '--maxWorkers', '1'], project.dir)
+      const live = startGroup(['run', '--config', project.config, '--maxWorkers', '2'], project.dir)
       try {
-        const pids = await untilNoted(pidFile)
+        const pids = await untilNoted(pidFile, 2)
         // To the bin alone, not its group: it has to clean up its workers itself.
         live.child.kill(signal)
         const ended = await live.exited
@@ -137,36 +141,44 @@ describe('exit codes through the bin (provino run)', () => {
     })
   }
 
-  it('a second SIGHUP is the force: the bin, slow to stop, is gone within 1 s, with 129', async () => {
-    // The bin's `main` is a stand-in that stays up until the force signal (see the SIGINT case
-    // below), so the first signal cannot end the run before the second one lands: no race with the
-    // run finishing by itself.
-    const project = await makeProject({ 'tests/a.test.js': passing('a') })
-    const live = startGroup(
-      ['run', '--config', project.config],
-      project.dir,
-      60_000,
-      ['--import', UNSETTLED_MAIN_PRELOAD],
-      { UNSETTLED_MAIN_HOLD: 'force' },
-    )
-    try {
-      await untilOutput(live, 'ready')
-      live.child.kill('SIGHUP')
-      await untilOutput(live, 'cancelled')
-      const alive = await Promise.race([
-        live.exited.then(() => false),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 300)),
-      ])
-      assert.equal(alive, true, 'one SIGHUP does not end a run that is slow to stop')
-      const second = Date.now()
-      live.child.kill('SIGHUP')
-      const ended = await live.exited
-      assert.deepEqual(ended, { code: 129, signal: null }, live.stderr())
-      assert.ok(Date.now() - second < 1000, 'the bin ended within the grace')
-    } finally {
-      killGroup(live.pgid)
-    }
-  })
+  // The second signal is the force. The bin's `main` is a stand-in that stays up until the force
+  // signal, so the first signal can't end the run before the second lands. With real workers in a
+  // busy loop it can: the first signal already kills them (B21 Choice 3), the run ends at once, and
+  // a second signal that lands in Node's own exit teardown takes the default action, which a test
+  // can't tell from a bug. The kill of a worker stuck in its stop by the force is the orchestrator's
+  // `lifecycle.test.ts` (`stuck-stop-worker.ts`).
+  for (const [signal, code] of [
+    ['SIGINT', 130],
+    ['SIGHUP', 129],
+  ] as const) {
+    it(`a second ${signal} is the force: the bin, slow to stop, is gone within 1 s, with ${code}`, async () => {
+      const project = await makeProject({ 'tests/a.test.js': passing('a') })
+      const live = startGroup(
+        ['run', '--config', project.config],
+        project.dir,
+        60_000,
+        ['--import', UNSETTLED_MAIN_PRELOAD],
+        { UNSETTLED_MAIN_HOLD: 'force' },
+      )
+      try {
+        await untilOutput(live, 'ready')
+        live.child.kill(signal)
+        await untilOutput(live, 'cancelled')
+        const alive = await Promise.race([
+          live.exited.then(() => false),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 300)),
+        ])
+        assert.equal(alive, true, `one ${signal} does not end a run that is slow to stop`)
+        const second = Date.now()
+        live.child.kill(signal)
+        const ended = await live.exited
+        assert.deepEqual(ended, { code, signal: null }, live.stderr())
+        assert.ok(Date.now() - second < 1000, 'the bin ended within the grace')
+      } finally {
+        killGroup(live.pgid)
+      }
+    })
+  }
 
   it('130 for SIGINT when the run is left with nothing to hold the event loop open, not Node’s 13 for an unsettled await', async () => {
     // The bin's `main` is replaced (a resolve hook) by one that says "ready" and never settles, with
@@ -189,29 +201,6 @@ describe('exit codes through the bin (provino run)', () => {
       } finally {
         killGroup(live.pgid)
       }
-    }
-  })
-
-  it('a second Ctrl+C with a worker in a synchronous busy loop: the bin is gone within 1 s, and no child survives', async () => {
-    const project = await makeProject((dir) => ({
-      'tests/hang.test.js': hanging(join(dir, 'workers.pids')),
-      'tests/hang2.test.js': hanging(join(dir, 'workers.pids')),
-    }))
-    const pidFile = project.path('workers.pids')
-    const live = startGroup(['run', '--config', project.config, '--maxWorkers', '2'], project.dir)
-    try {
-      const pids = await untilNoted(pidFile, 2)
-      live.child.kill('SIGINT')
-      await sleep(20)
-      const second = Date.now()
-      live.child.kill('SIGINT')
-      const ended = await live.exited
-      const waited = Date.now() - second
-      assert.deepEqual(ended, { code: 130, signal: null }, live.stderr())
-      assert.ok(waited < 1000, `the bin took ${waited} ms after the second SIGINT`)
-      await assertNoChild(live, pids)
-    } finally {
-      killGroup(live.pgid)
     }
   })
 })
