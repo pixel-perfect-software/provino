@@ -1,16 +1,9 @@
-import { randomBytes } from 'node:crypto'
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
-import type { Reporter, RunEnvironment, TaskId } from '@provino/types'
+import { resolve } from 'node:path'
+import type { Reporter, RunEnvironment } from '@provino/types'
+import { createCollector } from '../internal/collect.ts'
+import { writeAtomically } from '../internal/write-file.ts'
 import type { TextSink } from '../sink.ts'
-import {
-  buildNormalizedRun,
-  type FileRecord,
-  newFileRecord,
-  type RunError,
-  testsInOrder,
-  type UnhandledErrors,
-} from './build.ts'
+import { buildNormalizedRun, type UnhandledErrors } from './build.ts'
 import { readRunEnvironment } from './environment.ts'
 import { normalizeSnapshots } from './snapshots.ts'
 
@@ -55,22 +48,6 @@ function runEnvironment(options: NormalizedJsonReporterOptions): RunEnvironment 
 }
 
 /**
- * Writes `text` to a temp file beside `path` and renames it over `path`, so a reader (or a second
- * run writing the same path) never sees half a file. A failed write removes the temp file.
- */
-async function writeAtomically(path: string, text: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  const temp = `${path}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`
-  try {
-    await writeFile(temp, text)
-    await rename(temp, path)
-  } catch (error) {
-    await rm(temp, { force: true })
-    throw error
-  }
-}
-
-/**
  * The `normalized-json` reporter (U4): collects the run's events and, at `run:end`, writes one
  * `NormalizedRun` (Track 12's result model) to a file or a stream. It is the same model the
  * harness's converters write for Jest and Vitest, so a Provino run diffs against theirs.
@@ -85,78 +62,17 @@ async function writeAtomically(path: string, text: string): Promise<void> {
  */
 export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): Reporter {
   const now = options.now ?? Date.now
-  let files = new Map<TaskId, FileRecord>()
-  let runErrors: RunError[] = []
+  const { record, handlers } = createCollector()
   let startedAt: string | undefined
-  let root = process.cwd()
-
-  function record(fileId: TaskId): FileRecord {
-    let existing = files.get(fileId)
-    if (existing === undefined) {
-      existing = newFileRecord()
-      files.set(fileId, existing)
-    }
-    return existing
-  }
 
   return {
     name: 'normalized-json',
 
-    'run:start'(info) {
-      root = info.root
-      files = new Map()
-      runErrors = []
+    ...handlers,
+
+    'run:start'(info, files) {
+      handlers['run:start'](info, files)
       startedAt = new Date(now()).toISOString()
-    },
-
-    'file:collected'(file, event) {
-      const entry = record(file.fileId)
-      for (const test of testsInOrder(event.tasks)) entry.tests.set(test.id, test)
-    },
-
-    'test:attempt-end'(task, event) {
-      // Every attempt is noted, so a test with no retries reads 0, not "unknown".
-      const entry = record(task.fileId)
-      entry.retries.set(task.id, (entry.retries.get(task.id) ?? 0) + (event.willRetry ? 1 : 0))
-    },
-
-    'task:end'(task, event) {
-      if (task.type === 'suite' && event.type === 'suite-end') {
-        // A suite's own failure (an `afterAll`) is in no test and no file result.
-        const { state, errors } = event.result
-        if (state === 'fail') record(task.fileId).suiteErrors.push(...errors)
-        return
-      }
-      if (task.type !== 'test' || event.type !== 'test-end') return
-      const entry = record(task.fileId)
-      if (!entry.tests.has(task.id)) entry.tests.set(task.id, task)
-      entry.results.set(task.id, event.result)
-    },
-
-    console(file, event) {
-      record(file.fileId).console.push(event)
-    },
-
-    unhandled(file, event) {
-      if (file === null) {
-        runErrors.push({ error: event.error, unhandled: true })
-        return
-      }
-      const entry = record(file.fileId)
-      // An error charged to one of the file's tests is that test's failure.
-      if (event.ownerId !== null && entry.tests.has(event.ownerId)) {
-        entry.late.set(event.ownerId, [...(entry.late.get(event.ownerId) ?? []), event.error])
-      } else {
-        entry.unhandled.push(event.error)
-      }
-    },
-
-    'file:end'(result) {
-      record(result.file.fileId).ended = result
-    },
-
-    error(error) {
-      runErrors.push({ error, unhandled: false })
     },
 
     async 'run:end'(summary) {
@@ -166,13 +82,13 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
         suite: options.suite,
         startedAt: startedAt ?? new Date(now()).toISOString(),
         env: runEnvironment(options),
-        files,
-        runErrors,
+        files: record.files,
+        runErrors: record.runErrors,
         reason: summary.reason,
         unhandledErrors: options.unhandledErrors ?? 'fail-run',
         ...(summary.snapshots === undefined
           ? {}
-          : { snapshots: await normalizeSnapshots(summary.snapshots, root) }),
+          : { snapshots: await normalizeSnapshots(summary.snapshots, record.root) }),
       })
       const text = `${JSON.stringify(run, null, 2)}\n`
       if (options.outputFile !== undefined) {
@@ -183,4 +99,15 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
       }
     },
   }
+}
+
+/**
+ * The `json` reporter: the `NormalizedRun` document, which is Provino's one documented JSON shape
+ * (Track 12's result model; the one `provino-harness` diffs against Jest's and Vitest's). It is
+ * `normalizedJsonReporter` under the name `json`; both names stay. Jest's own `--json` shape is
+ * not it (that is T11.8).
+ * @public
+ */
+export function jsonReporter(options: NormalizedJsonReporterOptions): Reporter {
+  return { ...normalizedJsonReporter(options), name: 'json' }
 }

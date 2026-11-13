@@ -73,8 +73,8 @@ describe('the default reporter', () => {
     assert.equal(
       text,
       lines(
-        'PASS a.test.ts (12 ms)',
-        'PASS b.test.ts (3 ms)',
+        'PASS ./a.test.ts',
+        'PASS ./b.test.ts',
         '',
         'Test Suites: 2 passed, 2 total',
         'Tests:       1 skipped, 1 todo, 3 passed, 5 total',
@@ -88,7 +88,7 @@ describe('the default reporter', () => {
     assert.equal(
       text,
       lines(
-        'PASS empty.test.ts (5 ms)',
+        'PASS ./empty.test.ts',
         '',
         'Test Suites: 1 passed, 1 total',
         'Tests:       0 total',
@@ -174,11 +174,12 @@ describe('the default reporter', () => {
     const text = await report([
       { path: 'a.test.ts', project: 'server', tests: [{ path: ['one'] }] },
       { path: 'b.test.ts', project: 'client', tests: [{ path: ['two'], state: 'fail' }] },
-      { path: 'c.test.ts', tests: [{ path: ['three'], state: 'skip' }] },
+      { path: 'c.test.ts', state: 'skip', tests: [{ path: ['three'], state: 'skip' }] },
     ])
-    assert.match(text, /^PASS server a\.test\.ts \(/m)
-    assert.match(text, /^FAIL client b\.test\.ts$/m)
-    assert.match(text, /^PASS c\.test\.ts \(/m)
+    assert.match(text, /^PASS server \.\/a\.test\.ts$/m)
+    assert.match(text, /^FAIL client \.\/b\.test\.ts$/m)
+    // A file whose every test is skipped prints no line, as Jest's (`cli/skipped-file`).
+    assert.doesNotMatch(text, /c\.test\.ts/)
   })
 
   test('prints a failed test under the policy’s bullet, with its message and stack', async () => {
@@ -203,7 +204,7 @@ describe('the default reporter', () => {
     assert.equal(
       text,
       lines(
-        'FAIL c.test.ts',
+        'FAIL ./c.test.ts',
         '  ● math › adds',
         '',
         '    expected 2',
@@ -228,7 +229,7 @@ describe('the default reporter', () => {
       ],
       { policy: NEUTRAL },
     )
-    assert.match(text, /^FAIL d\.test\.ts\n {2}outer > inner > case\n\n {4}nope\n/)
+    assert.match(text, /^FAIL \.\/d\.test\.ts\n {2}outer > inner > case\n\n {4}nope\n/)
   })
 
   test('shows an error’s name unless the message already starts with it, and its message alone for Error', async () => {
@@ -291,7 +292,7 @@ describe('the default reporter', () => {
     assert.equal(
       text,
       lines(
-        'FAIL broken.test.ts',
+        'FAIL ./broken.test.ts',
         '  ● Test suite failed to run',
         '',
         "    ImportError: Cannot find module './missing.ts'",
@@ -315,7 +316,7 @@ describe('the default reporter', () => {
     ])
     assert.match(
       text,
-      /^FAIL crash\.test\.ts\n {2}● Test suite failed to run\n\n {4}WorkerCrash: the worker was killed by SIGSEGV\n\nPASS fine\.test\.ts/,
+      /^FAIL \.\/crash\.test\.ts\n {2}● Test suite failed to run\n\n {4}WorkerCrash: the worker was killed by SIGSEGV\n\nPASS \.\/fine\.test\.ts/,
     )
     assert.match(text, /Test Suites: 1 failed, 1 passed, 2 total/)
   })
@@ -334,12 +335,14 @@ describe('the default reporter', () => {
     )
   })
 
-  test('prints a skipped file and counts it', async () => {
+  test('prints no line for a skipped file, and counts it', async () => {
     const text = await report([
       { path: 'skipped.test.ts', state: 'skip', tests: [{ path: ['t'], state: 'skip' }] },
       { path: 'ran.test.ts', tests: [{ path: ['t'] }] },
     ])
-    assert.match(text, /^SKIP skipped\.test\.ts\nPASS ran\.test\.ts/)
+    // Jest prints nothing for a suite whose every test is skipped (`cli/skipped-file`).
+    assert.match(text, /^PASS \.\/ran\.test\.ts\n/)
+    assert.doesNotMatch(text, /skipped\.test\.ts/)
     // Jest's suites that ran are the failed and the passed: the skipped file is not one (recorded:
     // `cli/skipped-file`, `1 skipped, 1 passed, 1 of 2 total`).
     assert.match(text, /Test Suites: 1 skipped, 1 passed, 1 of 2 total/)
@@ -385,7 +388,7 @@ describe('the default reporter', () => {
     })
     assert.match(
       text,
-      /PASS a\.test\.ts \(5 ms\)\n\n {2}● Unhandled error\n\n {4}RangeError: unhandled boom\n\nTest Suites:/,
+      /PASS \.\/a\.test\.ts\n\n {2}● Unhandled error\n\n {4}RangeError: unhandled boom\n\nTest Suites:/,
     )
   })
 
@@ -447,8 +450,8 @@ describe('the default reporter', () => {
       { path: 'a.test.ts', tests: [{ path: ['t'] }] },
       { path: 'b.test.ts', tests: [{ path: ['t'] }] },
     ])
-    assert.match(chunks[0] ?? '', /^PASS a\.test\.ts/)
-    assert.match(chunks[1] ?? '', /^PASS b\.test\.ts/)
+    assert.match(chunks[0] ?? '', /^PASS \.\/a\.test\.ts/)
+    assert.match(chunks[1] ?? '', /^PASS \.\/b\.test\.ts/)
     assert.match(chunks[2] ?? '', /Test Suites: 2 passed/)
     assert.equal(chunks.length, 3)
   })
@@ -491,7 +494,7 @@ describe('the default reporter: a suite’s own failure', () => {
       ],
       { policy: NEUTRAL },
     )
-    assert.match(text, /^FAIL suite\.test\.ts$/m)
+    assert.match(text, /^FAIL \.\/suite\.test\.ts$/m)
     assert.match(text, /outer > inner\n/)
     assert.match(text, /AFTERALL EXPLODED/)
     assert.doesNotMatch(text, /Test suite failed to run/)
@@ -525,7 +528,7 @@ describe('the default reporter: an error charged to a test after it ended', () =
       durationMs: 1,
     })
     const text = out.text()
-    assert.match(text, /^FAIL late\.test\.ts$/m)
+    assert.match(text, /^FAIL \.\/late\.test\.ts$/m)
     assert.match(text, /owner\n[\s\S]*LATE BOOM/)
     assert.match(text, /Tests:\s+1 failed, 1 passed, 2 total/)
   })
