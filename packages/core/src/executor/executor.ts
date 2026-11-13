@@ -976,7 +976,7 @@ export class Executor {
               fn,
               arity: test.arity,
               thisArg: attempt.thisArg,
-              args: test.rowArgs ?? [],
+              args: test.rowArgs ?? NO_ARGS,
               contextArgs,
               isTest: true,
             }),
@@ -1000,19 +1000,12 @@ export class Executor {
    * builds one (T5.14). Every reader goes through here, so a context that exists is recorded.
    */
   #contextOf(attempt: AttemptState): TestContext {
-    let ctx = attempt.ctx
-    if (ctx === undefined) {
-      const created = createTestContext(
-        attempt.test.task as TestTask,
-        () => attempt,
-        attempt.controller.signal,
-        this.#contextEnv,
-      )
-      this.#config.runs.set(created, attempt.run)
-      attempt.ctx = created
-      ctx = created
-    }
-    return ctx
+    const existing = attempt.ctx
+    if (existing !== undefined) return existing
+    const created = createTestContext(attempt, this.#contextEnv)
+    this.#config.runs.set(created, attempt.run)
+    attempt.ctx = created
+    return created
   }
 
   /**
@@ -1203,7 +1196,7 @@ export class Executor {
         result = { ok: false, error }
       }
     }
-    this.#emitHook(spec, result)
+    this.#emitHookEnd(spec, result)
     return result
   }
 
@@ -1242,12 +1235,8 @@ export class Executor {
     })
   }
 
-  /** `hook-start` (with the hook's location), or `hook-end` once the call has its `result`. */
-  #emitHook(spec: HookCall, result?: CallResult): void {
-    if (result === undefined) {
-      this.#emitHookStart(spec)
-      return
-    }
+  /** `hook-end`, once the call has its `result`. */
+  #emitHookEnd(spec: HookCall, result: CallResult): void {
     const ownerId = spec.owner.id
     const testId = spec.attempt?.test.id ?? null
     const { kind, ordinal } = spec
@@ -1324,16 +1313,16 @@ export class Executor {
     return {
       timeoutMs: hook.timeoutMs ?? this.#hookTimeout(),
       invoke: async (inner) => {
-        this.#emitHook(spec)
+        this.#emitHookStart(spec)
         try {
           const args =
             attempt === undefined
               ? [inner, taskOf(hook.owner)]
               : [inner, this.#contextOf(attempt), taskOf(attempt.test.parent)]
           await runInStore(store, () => Reflect.apply(hook.fn, undefined, args))
-          this.#emitHook(spec, PASSED)
+          this.#emitHookEnd(spec, PASSED)
         } catch (error) {
-          this.#emitHook(spec, { ok: false, error })
+          this.#emitHookEnd(spec, { ok: false, error })
           throw error
         }
       },
@@ -1411,7 +1400,6 @@ export function taskResult(
   }
 }
 
-/** A suite's outcome, from its own errors and its children's outcomes. */
 /**
  * One attempt's `TestRunHandle`. A class, so every handle shares one `state` getter: a literal with
  * an accessor gives each attempt a map of its own, which cost about 0.3 µs per attempt (T5.14).
@@ -1479,6 +1467,7 @@ class TryInfo implements TryTaskInfo {
   }
 }
 
+/** A suite's outcome, from its own errors and its children's outcomes. */
 function suiteOutcome(
   suite: SuiteNode,
   errors: readonly unknown[],

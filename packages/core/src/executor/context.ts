@@ -41,20 +41,15 @@ interface ContextFields {
 }
 
 /**
- * A context for one test attempt, whose abort signal is `signal`. `attempt` returns the attempt the
- * context belongs to; it is called only once the test runs, so the attempt can hold the context it
- * is built with. Its keys are plain own data properties assigned in order, as Vitest 5.0's
- * `createTestContext` assigns them: writable and configurable (a write to `ctx.task` no longer
- * throws in strict code; the Jest dialect hands no function a context, so nothing there can see
- * it), and cheap to build, which matters once per attempt (T5.14: `Object.defineProperties` cost
- * about 1 µs here).
+ * A context for one test attempt, built the first time something reads it (`Executor.#contextOf`),
+ * once the attempt exists. Its keys are plain own data properties assigned in order, as Vitest
+ * 5.0's `createTestContext` assigns them: writable and configurable (a write to `ctx.task` no
+ * longer throws in strict code; the Jest dialect hands no function a context, so nothing there can
+ * see it), and cheap to build, which matters once per attempt (T5.14: `Object.defineProperties`
+ * cost about 1 µs here).
  */
-export function createTestContext(
-  task: TestTask,
-  attempt: () => AttemptState,
-  signal: AbortSignal,
-  env: ContextEnv,
-): TestContext {
+export function createTestContext(attempt: AttemptState, env: ContextEnv): TestContext {
+  const task = attempt.test.task as TestTask
   const { doneDeprecatedMessage } = env
   const context = (
     doneDeprecatedMessage === null
@@ -75,17 +70,17 @@ export function createTestContext(
     return Promise.resolve()
   }
   context.task = task
-  context.signal = signal
+  context.signal = attempt.controller.signal
   context.skip = (conditionOrNote?: boolean | string, note?: string): void => {
     if (conditionOrNote === false) return
     throw new SkipSignal(typeof conditionOrNote === 'string' ? conditionOrNote : note)
   }
   context.annotate = annotate
   context.onTestFinished = (fn, timeoutMs) => {
-    addCallback(attempt(), 'onTestFinished', fn, timeoutMs)
+    addCallback(attempt, 'onTestFinished', fn, timeoutMs)
   }
   context.onTestFailed = (fn, timeoutMs) => {
-    addCallback(attempt(), 'onTestFailed', fn, timeoutMs)
+    addCallback(attempt, 'onTestFailed', fn, timeoutMs)
   }
   return context as TestContext
 }
