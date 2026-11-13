@@ -27,7 +27,16 @@ import {
 } from './pool.ts'
 
 /** How a fake worker treats a file, by its name. */
-type Plan = 'ok' | 'leak' | 'crash' | 'hang' | 'big' | 'late-console' | 'idle-console'
+type Plan =
+  | 'ok'
+  | 'leak'
+  | 'crash'
+  | 'hang'
+  | 'big'
+  | 'late-console'
+  | 'idle-console'
+  // Never finishes by itself; when it is killed, its `fileDone` (already on the way) arrives first.
+  | 'done-while-killed'
 
 interface Fake {
   readonly factory: TransportFactory
@@ -39,6 +48,8 @@ interface Fake {
   readonly peak: () => number
   /** Files each worker ran, by worker id. */
   readonly ran: Map<number, string[]>
+  /** Ends a worker that `unkillable` kept alive, as the operating system eventually would. */
+  readonly end: (workerId: number) => void
 }
 
 function fake(
@@ -51,16 +62,22 @@ function fake(
     readonly stopExit?: WorkerExit
     /** A worker that never finishes a graceful stop: only a kill ends it. */
     readonly slowStop?: boolean
+    /** A worker that no stop and no kill ends: only `Fake.end` does (code stuck in-process). */
+    readonly unkillable?: boolean
+    /** The transport kind the factory and its workers report. Default: `'inline'`. */
+    readonly kind?: PoolKind
   } = {},
 ): Fake {
   const started: number[] = []
   const exited = new Set<number>()
   const ran = new Map<number, string[]>()
+  const enders = new Map<number, () => void>()
   let attempts = 0
   let running = 0
   let peak = 0
+  const kind = extra.kind ?? 'inline'
   const factory: TransportFactory = {
-    kind: 'inline',
+    kind,
     async create(init: WorkerInit, signal?: AbortSignal): Promise<Transport> {
       attempts++
       if (extra.createMs !== undefined) {
@@ -78,6 +95,7 @@ function fake(
       const exits: ((exit: WorkerExit) => void)[] = []
       let exit: WorkerExit | undefined
       let current: string | undefined
+      let finishInFlight: (() => void) | undefined
       const finish = (workerExit: WorkerExit): void => {
         if (exit !== undefined) return
         exit = workerExit
@@ -88,11 +106,14 @@ function fake(
       const emit = (message: WorkerToCoordinator): void => {
         for (const listener of messages) listener(message)
       }
+      enders.set(init.workerId, () =>
+        finish({ type: 'signal', signal: 'SIGKILL', likelyOom: false }),
+      )
       const transport: Transport = {
-        kind: 'inline',
+        kind,
         pid: undefined,
         send(message: CoordinatorToWorker) {
-          if (message.t === 'stop' && extra.slowStop !== true) {
+          if (message.t === 'stop' && extra.slowStop !== true && extra.unkillable !== true) {
             setImmediate(() => finish(extra.stopExit ?? { type: 'exit', code: 0 }))
           }
           if (message.t !== 'run') return
@@ -102,8 +123,15 @@ function fake(
           peak = Math.max(peak, running)
           ran.set(init.workerId, [...(ran.get(init.workerId) ?? []), job.file])
           const behaviour = plan(job.file)
+          if (behaviour === 'done-while-killed') {
+            finishInFlight = () => {
+              running--
+              current = undefined
+              emit({ t: 'fileDone', seq, memoryBytes: 1, leakedHandles: 0, leakedGlobals: [] })
+            }
+          }
           setImmediate(() => {
-            if (behaviour === 'hang') return
+            if (behaviour === 'hang' || behaviour === 'done-while-killed') return
             if (behaviour === 'crash') {
               finish({ type: 'signal', signal: 'SIGSEGV', likelyOom: false })
               return
@@ -136,7 +164,17 @@ function fake(
         },
         async terminate(force) {
           if (exit !== undefined) return
-          if (force) finish({ type: 'signal', signal: 'SIGKILL', likelyOom: false })
+          if (extra.unkillable === true) {
+            await new Promise<void>((resolve) => exits.push(() => resolve()))
+            return
+          }
+          if (finishInFlight !== undefined) {
+            // The worker finished its file just as it was killed: the message arrives, then the exit.
+            finishInFlight()
+            finishInFlight = undefined
+            await new Promise((resolve) => setImmediate(resolve))
+            finish({ type: 'signal', signal: 'SIGKILL', likelyOom: false })
+          } else if (force) finish({ type: 'signal', signal: 'SIGKILL', likelyOom: false })
           else if (extra.slowStop === true) {
             await new Promise<void>((resolve) => exits.push(() => resolve()))
           } else {
@@ -148,7 +186,7 @@ function fake(
       return transport
     },
   }
-  return { factory, started, exited, peak: () => peak, ran }
+  return { factory, started, exited, peak: () => peak, ran, end: (id) => enders.get(id)?.() }
 }
 
 const consoleEvent = (file: string): WorkerEvent => ({
@@ -837,6 +875,18 @@ describe('the file deadline (T9.5)', () => {
     assert.ok(f.exited.has(1))
   })
 
+  it('keeps the result of a file that finished as the deadline fired, and blames no other file', async () => {
+    const f = fake((file) => (file === 'edge' ? 'done-while-killed' : 'ok'))
+    const pool = createPool(options(1, undefined, { fileTimeoutMs: 20 }), deps(f))
+    const [edge, after] = await Promise.all([pool.run(request('edge')), pool.run(request('after'))])
+    await pool.close()
+    assert.equal(edge.type, 'done', 'the file that finished keeps its result')
+    assert.equal(edge.type === 'done' && edge.workerId, 1)
+    assert.deepEqual(f.ran.get(1), ['edge'], 'the dying worker was given no second file')
+    assert.equal(after.type, 'done', 'the next file is not charged with the deadline')
+    assert.equal(after.type === 'done' && after.workerId, 2, 'a replacement ran it')
+  })
+
   it('does not fire for a file that ends in time, and does not leave a timer behind', async () => {
     const f = fake(() => 'ok')
     const pool = createPool(options(1, undefined, { fileTimeoutMs: 50 }), deps(f))
@@ -903,6 +953,53 @@ describe('cancelling and forcing', () => {
     force.abort()
     await closing
     assert.deepEqual([...f.exited].sort(), [1, 2], 'the force kill ended both at once')
+  })
+
+  it('a force signal gives up on a file an inline worker is stuck in, and does not wait for it to wind down', {
+    timeout: 10_000,
+  }, async () => {
+    // A worker no stop and no kill ends: what a file that can't be cancelled does to the process
+    // that is running it. Only the force signal is allowed to stop waiting for it.
+    const f = fake(() => 'hang', undefined, { unkillable: true })
+    const abort = new AbortController()
+    const force = new AbortController()
+    const pool = createPool(
+      options(1),
+      deps(f, { signal: abort.signal, forceSignal: force.signal }),
+    )
+    const running = pool.run(request('stuck'))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    abort.abort()
+    const closing = pool.close()
+    let settled = false
+    void Promise.all([running, closing]).then(() => {
+      settled = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.equal(settled, false, 'the first abort still waits for the worker')
+    force.abort()
+    assert.deepEqual(await running, { type: 'aborted' })
+    await closing
+    assert.equal(f.exited.size, 0, 'the worker is still there: nothing could end it')
+  })
+
+  it('a force signal still waits for the exit of a worker that is not inline', async () => {
+    const f = fake(() => 'hang', undefined, { unkillable: true, kind: 'forks' })
+    const force = new AbortController()
+    const pool = createPool(options(1), deps(f, { forceSignal: force.signal }))
+    const running = pool.run(request('stuck'))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    const closing = pool.close()
+    force.abort()
+    let settled = false
+    void Promise.all([running, closing]).then(() => {
+      settled = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.equal(settled, false, 'a child that is still alive is waited for')
+    f.end(1)
+    await closing
+    assert.deepEqual(await running, { type: 'aborted' })
   })
 
   it('a force signal already aborted starts no worker', async () => {
