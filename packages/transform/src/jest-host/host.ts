@@ -33,6 +33,11 @@ export interface HostedSource {
    * depends on besides the file's text.
    */
   readonly transformerCacheKey: string | null
+  /**
+   * The transformer's `canInstrument`: it instruments its own output when given `instrument: true`
+   * (babel-jest does, with `babel-plugin-istanbul`), so the pipeline's instrumenter does not run.
+   */
+  readonly canInstrument: boolean
 }
 
 /**
@@ -294,7 +299,12 @@ export async function createJestHost(config: SerializedTransformConfig): Promise
       throw invalidReturn(rule.path)
     }
     const source = processed as unknown as JestTransformedSource
-    return { code: source.code, map: mapOf(source), transformerCacheKey }
+    return {
+      code: source.code,
+      map: mapOf(source),
+      transformerCacheKey,
+      canInstrument: rule.transformer.canInstrument === true,
+    }
   }
 
   function cacheKey(request: TransformRequest): string | null {

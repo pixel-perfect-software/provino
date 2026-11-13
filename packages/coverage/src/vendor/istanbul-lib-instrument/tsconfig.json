@@ -1,0 +1,13 @@
+{
+  "extends": "../../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false,
+    "noImplicitOverride": false,
+    "noImplicitReturns": false,
+    "isolatedDeclarations": false,
+    "rootDir": ".",
+    "outDir": "../../../.tsc/src/vendor/istanbul-lib-instrument"
+  },
+  "include": ["."]
+}
