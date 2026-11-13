@@ -8,7 +8,7 @@ import {
   runProjects,
 } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
-import type { FileFilter, RunSummary } from '@provino/types'
+import type { FileFilter, ReporterBus, RunSummary } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
 import { reportersFor } from './reporters.ts'
 
@@ -90,7 +90,7 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
 
 function run(
   options: ExecuteOptions,
-  bus: ReturnType<typeof createReporterBus>,
+  bus: ReporterBus,
   projects: readonly ResolvedProject[],
 ): Promise<RunSummary> {
   const { stderr, cwd } = options
