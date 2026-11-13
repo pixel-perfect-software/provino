@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/cjs-dynamic-import",
+  "files": [
+    {
+      "file": "dynamic.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "dynamic.test.ts",
+            "path": [
+              "loads a module with import() from a CommonJS file"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TypeError",
+              "message": "TypeError: A dynamic import callback was invoked without --experimental-vm-modules",
+              "userFrame": "<root>/dynamic.test.ts:2:18"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./dynamic.test.ts\n    TypeError: A dynamic import callback was invoked without --experimental-vm-modules\nTests:       1 failed, 1 total"
+  }
+}
