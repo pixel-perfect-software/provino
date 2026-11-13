@@ -10,6 +10,7 @@ import type {
   CompiledModuleEvent,
   HoistPolicy,
   Loader,
+  ModuleId,
   ModulePolicy,
   Resolver,
 } from '@provino/types'
@@ -236,6 +237,37 @@ test('JSON, builtins, import.meta and dynamic import', async () => {
   assert.equal(entry.resolved, `file://${join(root, 'later.ts')}`)
   assert.equal((await entry.loadLater()).late, true)
   assert.deepEqual(registry.require(join(root, 'data.json')), { answer: 42 })
+})
+
+test('a CommonJS file’s import() runs in the registry that evaluated it', async () => {
+  // A `vm` script has no import callback, and one script serves every registry in the worker: the
+  // call reaches its registry through a binding the wrapper takes.
+  const root = writeTree({
+    'counter.mjs': 'export let count = 0\nexport function bump() { return ++count }\n',
+    'loads.cjs':
+      "exports.load = (specifier) => import(specifier)\nexports.counter = () => import('./counter.mjs')\n",
+    'entry.test.ts': '',
+  })
+  interface Loads {
+    readonly load: (specifier: string) => Promise<CounterModule>
+    readonly counter: () => Promise<CounterModule>
+  }
+  const loader = loaderFor(root)
+  const open = () => loader.createFileRegistry(join(root, 'entry.test.ts'), { tier: 'registry' })
+  const first = open()
+  const second = open()
+  const loads = (registry: ReturnType<typeof open>): Loads =>
+    registry.require<Loads>(join(root, 'loads.cjs'))
+
+  const inFirst = await loads(first).counter()
+  assert.equal(inFirst.bump(), 1)
+  assert.equal(inFirst.bump(), 2)
+  const inSecond = await loads(second).counter()
+  assert.equal(inSecond.bump(), 1, 'the other registry has an instance of its own')
+  // Called later, with a computed specifier, from the module's own directory.
+  const again = await loads(first).load('./counter.mjs')
+  assert.equal(again.count, 2, 'the first registry’s instance, whichever way it is reached')
+  assert.equal(loader.getSourceMap(join(root, 'loads.cjs') as ModuleId)?.version, 3)
 })
 
 test('node_modules are shared across registries, user modules are not', async () => {

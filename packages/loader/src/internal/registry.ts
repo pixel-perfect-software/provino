@@ -739,6 +739,9 @@ export class Registry {
           module,
           record.path,
           dirname(record.path),
+          record.dynamicImport
+            ? (specifier: string) => this.importFrom(specifier, record.path)
+            : undefined,
         )
       } else {
         const exports = instance.exports ?? {}

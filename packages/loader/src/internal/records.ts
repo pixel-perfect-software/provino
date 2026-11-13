@@ -66,6 +66,15 @@ export interface ModuleRecord {
    * never hoisted, and reported to coverage as third party.
    */
   readonly thirdParty: boolean
+  /**
+   * A CommonJS module that calls `import()`: its source is the module-runner form, which names the
+   * call `__vite_ssr_dynamic_import__`, and its wrapper takes that binding as a sixth parameter. A
+   * `vm` script has no import callback, so a bare `import()` there fails
+   * (`ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`), and one script is shared by every file's registry,
+   * so the call has to reach the registry that evaluated the module through a binding, as an ES
+   * module's does.
+   */
+  readonly dynamicImport: boolean
   /** Its static subgraph has top-level await, so it evaluates with the async wrapper. */
   asyncGraph: boolean
   /**
@@ -90,6 +99,7 @@ export interface ModuleRecord {
 /** The wrapper parameters, in order. ESM gets Vite's linkers and the late import; CJS gets Node's wrapper. */
 const ESM_PARAMS = `__vite_ssr_exports__, __vite_ssr_import_meta__, __vite_ssr_import__, __vite_ssr_dynamic_import__, __vite_ssr_exportAll__, ${LATE_IMPORT}`
 const CJS_PARAMS = 'exports, require, module, __filename, __dirname'
+const DYNAMIC_IMPORT = '__vite_ssr_dynamic_import__'
 /** What an ES module gets under `ModulePolicy.injectCjsGlobals`, when its source names them. */
 const CJS_GLOBALS: readonly string[] = ['require', '__filename', '__dirname']
 
@@ -376,15 +386,21 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       const requires = transformed.imports
         .filter((entry) => entry.kind === 'require')
         .map((entry) => entry.specifier)
+      // A CommonJS file that calls `import()` keeps its CommonJS form with the call rewritten to a
+      // binding the wrapper takes (`ModuleRecord.dynamicImport`); the runner form of a CommonJS
+      // file is that rewrite and nothing else.
+      const dynamicImport = transformed.imports.some((entry) => entry.kind === 'dynamic')
+      const runner = dynamicImport ? toModuleRunner(path, transformed) : null
       record = makeRecord(
         id,
         'cjs',
-        transformed.code,
-        () => transformed.map,
+        runner?.code ?? transformed.code,
+        () => (runner === null ? transformed.map : runner.map),
         requires,
         [],
         false,
         thirdParty,
+        dynamicImport,
       )
     }
   }
@@ -402,6 +418,7 @@ function makeRecord(
   lateDeps: readonly string[],
   hasTopLevelAwait: boolean,
   thirdParty: boolean,
+  dynamicImport = false,
 ): ModuleRecord {
   return {
     id,
@@ -415,6 +432,7 @@ function makeRecord(
     lateDeps,
     hasTopLevelAwait,
     thirdParty,
+    dynamicImport,
     asyncGraph: hasTopLevelAwait,
     lateGraph: lateDeps.length > 0,
     resolved: new Map(),
@@ -577,7 +595,7 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
     head = "'use strict';"
     inner = `${mode === 'async' ? 'async ' : ''}function (${ESM_PARAMS}) {`
   } else {
-    inner = `function (${CJS_PARAMS}) {`
+    inner = `function (${CJS_PARAMS}${record.dynamicImport ? `, ${DYNAMIC_IMPORT}` : ''}) {`
   }
   const prefix =
     scope.length === 0
