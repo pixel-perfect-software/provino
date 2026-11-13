@@ -176,10 +176,14 @@ describe('the compile cache and the tests the bin runs (D7: Jest sets no such va
       })
       assert.equal(ran.status, 0, ran.stderr)
       const dir = join(project.dir, 'node_modules', '.cache', 'provino', 'compile')
-      const versions = readdirSync(dir).filter((name) => name !== 'CACHEDIR.TAG')
-      assert.equal(versions.length, 1, 'one directory per Node version')
+      // Node's own layout under our directory is not ours to count: Node 26 keeps the bin's
+      // portable cache and the forks' `NODE_COMPILE_CACHE` cache in two directories (the portable
+      // one has no uid suffix), Node 24 in one. What matters is that Node cached chunks there.
+      const cached = readdirSync(dir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => readdirSync(join(dir, entry.name)).length)
       assert.ok(
-        readdirSync(join(dir, versions[0] as string)).length > 0,
+        cached.some((entries) => entries > 0),
         'the compiled chunks were cached',
       )
     })
