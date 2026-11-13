@@ -215,6 +215,11 @@ describe('parseRunArgs', () => {
     usageError(['--config', 'c.mjs', 'file.test.js'], /file\.test\.js/)
     usageError(['--config', 'c.mjs', '--pool', 'cluster'], /--pool/)
     usageError(['--config', 'c.mjs', '--reporter', 'tap'], /unknown reporter "tap"/)
+    // A misspelt name is named as such, not reported as a missing document reporter.
+    usageError(
+      ['--config', 'c.mjs', '--reporter', 'junitt', '--outputFile', 'o.xml'],
+      /unknown reporter "junitt"/,
+    )
     usageError(
       ['--config', 'c.mjs', '--outputFile', 'o.json'],
       /needs --reporter json, normalized-json or junit/,

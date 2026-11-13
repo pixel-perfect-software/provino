@@ -100,21 +100,28 @@ function choiceFor(name: string, outputFile: string | undefined): ReporterChoice
     case 'github-actions':
       return name
     default:
-      throw new UsageError(
-        `unknown reporter "${name}" (use ${BUILT_IN_REPORTERS.join(', ')}) for --reporter`,
-      )
+      throw unknownReporter(name)
   }
+}
+
+/** The error for a `--reporter` name that is no built-in. */
+function unknownReporter(name: string): UsageError {
+  return new UsageError(
+    `unknown reporter "${name}" (use ${BUILT_IN_REPORTERS.join(', ')}) for --reporter`,
+  )
 }
 
 /**
  * `--reporter` names, with `--outputFile` going to the one reporter that writes a document
- * (`json`, `normalized-json` or `junit`).
+ * (`json`, `normalized-json` or `junit`). Every name is checked first, so a misspelt one is
+ * named as such whatever else is wrong.
  */
 function parseReporters(
   names: readonly string[],
   outputFile: string | undefined,
 ): readonly ReporterChoice[] {
   for (const [index, name] of names.entries()) {
+    if (!BUILT_IN_REPORTERS.includes(name)) throw unknownReporter(name)
     if (names.indexOf(name) !== index) {
       throw new UsageError(`--reporter ${name} is given more than once`)
     }
