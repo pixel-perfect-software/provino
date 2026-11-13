@@ -21,10 +21,11 @@ import { UsageError } from './usage-error.ts'
 import { packageVersion } from './version.ts'
 
 /**
- * The reporters `run()` and the command line can name.
+ * The reporters `run()` and the command line can name. A new one goes here, in `reporterFor`'s
+ * switch (which the compiler holds to this list) and in `ReporterChoice`.
  * @internal
  */
-export const BUILT_IN_REPORTERS: readonly string[] = [
+export const BUILT_IN_REPORTERS = [
   'default',
   'verbose',
   'dot',
@@ -33,14 +34,42 @@ export const BUILT_IN_REPORTERS: readonly string[] = [
   'normalized-json',
   'junit',
   'github-actions',
-]
+] as const
+
+/**
+ * A built-in reporter's name.
+ * @internal
+ */
+export type BuiltInReporterName = (typeof BUILT_IN_REPORTERS)[number]
 
 /**
  * The reporters that write a document, to a file or to stdout: they go last, so each sees every
  * other reporter's failure before it writes.
  * @internal
  */
-export const DOCUMENT_REPORTERS: readonly string[] = ['json', 'normalized-json', 'junit']
+export const DOCUMENT_REPORTERS = ['json', 'normalized-json', 'junit'] as const
+
+/**
+ * The name of a reporter that writes a document.
+ * @internal
+ */
+export type DocumentReporterName = (typeof DOCUMENT_REPORTERS)[number]
+
+/**
+ * Whether `name` is a built-in reporter.
+ * @internal
+ */
+export function isBuiltInReporter(name: string): name is BuiltInReporterName {
+  return BUILT_IN_REPORTERS.some((known) => known === name)
+}
+
+/**
+ * Whether `name` is a reporter that writes a document.
+ * @internal
+ */
+export function isDocumentReporter(name: string): name is DocumentReporterName {
+  return DOCUMENT_REPORTERS.some((known) => known === name)
+}
 
 /**
  * What a command line or a config says about how text looks, whatever dialect it came from: Jest's
@@ -211,33 +240,42 @@ function text(reporter: Reporter): Built {
   return { reporter, document: false, toStdout: false }
 }
 
+/** A built-in reporter by name. No `default` arm: a name `BUILT_IN_REPORTERS` gains without one here fails to compile. */
+function builtIn(
+  name: BuiltInReporterName,
+  context: ReporterContext,
+  output: OutputEnvironment,
+): Built {
+  switch (name) {
+    case 'default':
+      return text(defaultReporter(textOptions(context, output)))
+    case 'verbose':
+      return text(verboseReporter(textOptions(context, output)))
+    case 'dot':
+      return text(dotReporter(textOptions(context, output)))
+    case 'agent':
+      return text(agentReporter(textOptions(context, output)))
+    case 'github-actions': {
+      const workspace = (context.env ?? process.env).GITHUB_WORKSPACE
+      return text(
+        githubActionsReporter({
+          stream: context.stderr,
+          report: context.project.policy.report,
+          ...(workspace === undefined || workspace === '' ? {} : { workspace }),
+        }),
+      )
+    }
+    case 'json':
+    case 'normalized-json':
+      return jsonDocument(name, context, undefined)
+    case 'junit':
+      return junitDocument(context, undefined)
+  }
+}
+
 function reporterFor(choice: unknown, context: ReporterContext, output: OutputEnvironment): Built {
   if (typeof choice === 'string') {
-    switch (choice) {
-      case 'default':
-        return text(defaultReporter(textOptions(context, output)))
-      case 'verbose':
-        return text(verboseReporter(textOptions(context, output)))
-      case 'dot':
-        return text(dotReporter(textOptions(context, output)))
-      case 'agent':
-        return text(agentReporter(textOptions(context, output)))
-      case 'github-actions': {
-        const workspace = (context.env ?? process.env).GITHUB_WORKSPACE
-        return text(
-          githubActionsReporter({
-            stream: context.stderr,
-            report: context.project.policy.report,
-            ...(workspace === undefined || workspace === '' ? {} : { workspace }),
-          }),
-        )
-      }
-      case 'json':
-      case 'normalized-json':
-        return jsonDocument(choice, context, undefined)
-      case 'junit':
-        return junitDocument(context, undefined)
-    }
+    if (isBuiltInReporter(choice)) return builtIn(choice, context, output)
   } else if (Array.isArray(choice)) {
     const [name, options, ...rest]: unknown[] = choice
     if (rest.length === 0) {

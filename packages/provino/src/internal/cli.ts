@@ -7,7 +7,12 @@ import type { ReporterChoice, RunOptions } from '../types.ts'
 import { detectProject } from './detect.ts'
 import { runJestCommand } from './jest-command.ts'
 import { quickAnswer } from './quick.ts'
-import { BUILT_IN_REPORTERS, DOCUMENT_REPORTERS } from './reporters.ts'
+import {
+  BUILT_IN_REPORTERS,
+  type BuiltInReporterName,
+  isBuiltInReporter,
+  isDocumentReporter,
+} from './reporters.ts'
 import { USAGE } from './usage.ts'
 import { UsageError } from './usage-error.ts'
 
@@ -85,30 +90,9 @@ function parseWhole(text: string, flag: string, min: 0 | 1 = 1): number {
   return Number(text)
 }
 
-/** One `--reporter` name as the choice it stands for; `outputFile` goes to a document reporter. */
-function choiceFor(name: string, outputFile: string | undefined): ReporterChoice {
-  switch (name) {
-    case 'json':
-    case 'normalized-json':
-      return outputFile === undefined ? name : [name, { outputFile }]
-    case 'junit':
-      return outputFile === undefined ? name : [name, { outputFile }]
-    case 'default':
-    case 'verbose':
-    case 'dot':
-    case 'agent':
-    case 'github-actions':
-      return name
-    default:
-      throw unknownReporter(name)
-  }
-}
-
-/** The error for a `--reporter` name that is no built-in. */
-function unknownReporter(name: string): UsageError {
-  return new UsageError(
-    `unknown reporter "${name}" (use ${BUILT_IN_REPORTERS.join(', ')}) for --reporter`,
-  )
+/** One `--reporter` name as the choice it stands for: a document reporter takes `outputFile`, any other stands for itself. */
+function choiceFor(name: BuiltInReporterName, outputFile: string | undefined): ReporterChoice {
+  return isDocumentReporter(name) && outputFile !== undefined ? [name, { outputFile }] : name
 }
 
 /**
@@ -120,14 +104,20 @@ function parseReporters(
   names: readonly string[],
   outputFile: string | undefined,
 ): readonly ReporterChoice[] {
+  const known: BuiltInReporterName[] = []
   for (const [index, name] of names.entries()) {
-    if (!BUILT_IN_REPORTERS.includes(name)) throw unknownReporter(name)
+    if (!isBuiltInReporter(name)) {
+      throw new UsageError(
+        `unknown reporter "${name}" (use ${BUILT_IN_REPORTERS.join(', ')}) for --reporter`,
+      )
+    }
     if (names.indexOf(name) !== index) {
       throw new UsageError(`--reporter ${name} is given more than once`)
     }
+    known.push(name)
   }
   if (outputFile !== undefined) {
-    const writers = names.filter((name) => DOCUMENT_REPORTERS.includes(name))
+    const writers = known.filter(isDocumentReporter)
     if (writers.length === 0) {
       throw new UsageError('--outputFile needs --reporter json, normalized-json or junit')
     }
@@ -137,9 +127,7 @@ function parseReporters(
       )
     }
   }
-  return names.map((name) =>
-    choiceFor(name, DOCUMENT_REPORTERS.includes(name) ? outputFile : undefined),
-  )
+  return known.map((name) => choiceFor(name, outputFile))
 }
 
 /**
