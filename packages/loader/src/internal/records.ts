@@ -604,7 +604,12 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
       ? `${head}(${inner}`
       : `${head}(function (${scope.join(', ')}) { return ${inner}`
   const suffix = scope.length === 0 ? '\n})' : '\n}})'
-  const compiled: unknown = runInThisContext(`${prefix}${body}${suffix}`, { filename: record.path })
+  // The wrapper opens on the body's first line; the offset takes it back out of that line's
+  // columns, so every frame is a position in the body, which is what the record's map reads.
+  const compiled: unknown = runInThisContext(`${prefix}${body}${suffix}`, {
+    filename: record.path,
+    columnOffset: -prefix.length,
+  })
   if (typeof compiled !== 'function')
     throw new Error(`the wrapper for ${record.path} is not a function`)
   const fn = compiled as Compiled

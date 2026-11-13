@@ -21,6 +21,7 @@ import { installScriptProblems } from './install-scripts.ts'
 import { runKnip } from './knip.ts'
 import { lintPackAsync } from './lint-pack.ts'
 import { packPackageAsync } from './pack.ts'
+import { NOTICES_FILE, noticesCoverageProblems, packContentProblems } from './pack-contents.ts'
 import { runtimeDependencyNames } from './package-json.ts'
 import { CONCURRENCY, mapPool } from './pool.ts'
 import { lintReleaseWorkflow } from './release-lint.ts'
@@ -171,14 +172,24 @@ const RUNNERS: Readonly<Record<Section, SectionRunner>> = {
   // Pack, then publint and attw, one package at a time per lane, a few lanes at once. The results
   // come back in package order, so the report reads the same as when they ran one after another.
   packs: async ({ options, workDir }) => {
-    const found = await mapPool(publicPackages(options.root), CONCURRENCY, async (pkg) =>
-      lintPackAsync(await packPackageAsync(pkg, join(workDir, 'packs')), options.root),
-    )
+    const found = await mapPool(publicPackages(options.root), CONCURRENCY, async (pkg) => {
+      const packed = await packPackageAsync(pkg, join(workDir, 'packs'))
+      return {
+        lint: await lintPackAsync(packed, options.root),
+        contents: packContentProblems(pkg, packed, options.root),
+      }
+    })
     return {
-      problems: found.flat().map((problem) => {
-        return `${problem.tool} failed on ${problem.name}:\n${problem.output.trim()}`
-      }),
-      notes: [`${found.length} packs checked with publint and attw (--profile esm-only)`],
+      problems: [
+        ...found
+          .flatMap(({ lint }) => lint)
+          .map((problem) => `${problem.tool} failed on ${problem.name}:\n${problem.output.trim()}`),
+        ...found.flatMap(({ contents }) => contents),
+        ...noticesCoverageProblems(options.root),
+      ],
+      notes: [
+        `${found.length} packs checked with publint and attw (--profile esm-only), and for README.md, LICENSE and ${NOTICES_FILE}`,
+      ],
     }
   },
   knip: async ({ options }) => {

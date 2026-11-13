@@ -1,11 +1,15 @@
 # @provino/types
 
-Shared types for Provino: the task tree, the runtime events, the wire protocol, the policy slices, dialects, extension contracts and config. **Types only:** the package has no runtime exports. Functions whose signatures live here (`defineHoistPolicy`, `defineEnvironment`, `environment`, `defineReporter`, `inject`, `createLoader`, `createResolver`) are implemented by the package that owns them and typed with the signature from here, e.g. `export const defineReporter: DefineReporter = (reporter) => reporter`.
+Shared types for Provino: the task tree, the runtime events, the wire protocol, the policy slices, dialects, extension contracts and config. **Types only:** the package has no runtime exports. Functions whose signatures live here (`defineHoistPolicy`, `defineEnvironment`, `defineReporter`, `createLoader`, `createResolver`) are implemented by the package that owns them and typed with the signature from here, e.g. `export const defineReporter: DefineReporter = (reporter) => reporter`. A few signatures here describe things that are not built yet: `inject` (the worker-side `inject`) and `LazyHost` (what the lazy variables will need from the executor).
+
+This package is a building block of [Provino](https://github.com/pixel-perfect-software/provino), a test runner that is pre-alpha and not on npm yet. The `provino` package ships every `@provino/*` package inlined in one bundle, so you install `provino`, not this package.
+
+**Versioning:** this package's public API is held to semver before 1.0: its API report is committed in the repository, under `etc/`, and a change to a `@public` signature needs a changeset.
 
 | Area | Module | Owner |
 | --- | --- | --- |
 | Task tree, runtime events, definitions, test context | `src/runtime/` | Track 5 |
-| `LazyHost` (what `@provino/lazy` needs from the executor) | `src/runtime/lazy-host.ts` | Track 6 |
+| `LazyHost` (what the lazy variables will need from the executor; not built yet) | `src/runtime/lazy-host.ts` | Track 6 |
 | Loader and file registries | `src/loader.ts` | Track 2 |
 | Transform records, Jest transformer types | `src/transform.ts` | Track 3 |
 | Resolver | `src/resolve.ts` | Track 3 |
@@ -13,6 +17,8 @@ Shared types for Provino: the task tree, the runtime events, the wire protocol, 
 | Pools, wire protocol, scheduler, reporter bus, global setup | `src/orchestrator.ts` | Track 9 |
 | Result model, benchmark records | `src/result.ts`, `src/bench.ts` | Track 12 |
 | Policy slices, dialects, config, extension contracts, `CloneSafe` | `src/policy/`, `src/dialect.ts`, `src/config.ts`, `src/extensions.ts`, `src/clone-safe.ts` | Track 1 |
+
+The `Track N` labels name sections of Provino's private design notes.
 
 ## One event model
 

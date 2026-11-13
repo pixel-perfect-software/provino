@@ -1,7 +1,7 @@
 {
   "name": "@provino/env-shared",
   "version": "0.0.0",
-  "description": "What DOM environments share: populating a window onto the worker's global and putting the global back exactly as it was.",
+  "description": "Provino's shared DOM environment code: populating a window onto the worker's global and putting the global back exactly as it was.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
     "url": "https://github.com/pixel-perfect-software/provino/issues"
@@ -22,7 +22,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
     "node": "^22.15.0 || >=24"

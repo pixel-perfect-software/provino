@@ -34,7 +34,7 @@ import {
   type StateSource,
   snapshotRegistry,
 } from '@provino/expect'
-import { createProjectLoader } from '@provino/loader'
+import { createProjectLoader, installSourceMappedStacks } from '@provino/loader'
 import {
   createMockRegistry,
   createModuleMockRegistry,
@@ -157,6 +157,8 @@ interface Booted {
   moduleScope: ModuleScopeValues | undefined
   /** Removes the process listeners core charges errors from (`captureProcessErrors`). */
   stopProcessErrors: (() => void) | undefined
+  /** Puts back the `Error.prepareStackTrace` the worker found (`installSourceMappedStacks`). */
+  unmapStacks: (() => void) | undefined
   /** What every file's snapshot state is built from: the policy's behaviours, loaded once. */
   snapshots: SnapshotBehaviours
 }
@@ -369,6 +371,8 @@ export function createRuntimeRunner(): WorkerRunner {
     const policy: Policy = config.policy
     const behaviours = createBehaviourLoader()
     parts.loader = await createProjectLoader(config.rootDir, config.loader, policy.module)
+    // A frame in a module the loader ran is reported where it is in the file as written.
+    parts.unmapStacks = installSourceMappedStacks(parts.loader)
 
     // `process` is the pool's business (a new process per file) and runs as `registry`.
     const tier = context.init.isolation === 'process' ? 'registry' : context.init.isolation
@@ -837,6 +841,7 @@ export function createRuntimeRunner(): WorkerRunner {
           leaked = leakedGlobalsOf(await instance.teardown(), name)
         },
         () => torn.loader?.[Symbol.dispose](),
+        () => torn.unmapStacks?.(),
         () => torn.slot?.uninstall(),
         // Last: the worker environment's teardown ran with its signal still live.
         () => workerLifetime.abort(),
