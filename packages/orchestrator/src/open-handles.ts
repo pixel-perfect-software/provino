@@ -109,10 +109,19 @@ function isUserFile(file: string | undefined, roots: readonly string[]): file is
 }
 
 /**
- * The stack above `above` as structured call sites, innermost first. Reading them costs far less
- * than the stack's text, which only a kept resource needs.
+ * The frame mapper a worker's formatter carries (`MAP_CALL_SITES` in `@provino/loader`'s
+ * `stacks.ts`, a registered symbol so this node never imports the loader): an inline worker runs in
+ * this process, and its formatter maps a frame in a module the loader compiled to its place in the
+ * file as written.
  */
-function callSites(above: (...args: never[]) => unknown): NodeJS.CallSite[] {
+const MAP_CALL_SITES: unique symbol = Symbol.for('provino.mapCallSites')
+
+/**
+ * The stack above `above` as structured call sites, innermost first, each where `.stack` would put
+ * it: mapped through the transform's source map when the formatter it swaps out can map. Reading
+ * them costs far less than the stack's text, which only a kept resource needs.
+ */
+function callSites(above: (...args: never[]) => unknown): readonly NodeJS.CallSite[] {
   const limit = Error.stackTraceLimit
   const prepare = Error.prepareStackTrace
   Error.stackTraceLimit = STACK_LIMIT
@@ -121,7 +130,10 @@ function callSites(above: (...args: never[]) => unknown): NodeJS.CallSite[] {
     const holder: { stack?: NodeJS.CallSite[] } = {}
     Error.captureStackTrace(holder, above)
     // The stack is formatted when it is first read, so it is read while the override is on.
-    return holder.stack ?? []
+    const sites = holder.stack ?? []
+    const map: unknown =
+      typeof prepare === 'function' ? Reflect.get(prepare, MAP_CALL_SITES) : undefined
+    return typeof map === 'function' ? (map as (all: typeof sites) => typeof sites)(sites) : sites
   } finally {
     Error.stackTraceLimit = limit
     Error.prepareStackTrace = prepare

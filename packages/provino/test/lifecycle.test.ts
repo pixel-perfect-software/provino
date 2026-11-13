@@ -385,13 +385,12 @@ describe('--detectOpenHandles against Jest 30.5.2', () => {
       for (const line of expected.slice(0, 2)) {
         assert.ok(lines.includes(line), `stderr has "${line}":\n${run.stderr}`)
       }
-      // The line is Jest's. The column of a TypeScript file is the transformed code's (a tab for
-      // the two spaces of indent: 3:2 for Jest's 3:3), since nothing maps a stack through the
-      // transform's source map yet; the `.js` project below holds the column too.
-      const frame = /at <root>\/(\S+):(\d+):\d+$/.exec(expected[2] ?? '')
+      // The line and the column are Jest's: the frame in the TypeScript file is mapped through the
+      // transform's source map (unmapped, Oxc's tab for the two spaces of indent made it 3:2).
+      const frame = /at <root>\/(\S+):(\d+):(\d+)$/.exec(expected[2] ?? '')
       assert.ok(frame, `the golden's frame: ${expected[2]}`)
       const file = (frame[1] ?? '').replace('.', '\\.')
-      assert.match(run.stderr, new RegExp(`\\(${file}:${frame[2]}:\\d+\\)`))
+      assert.match(run.stderr, new RegExp(`\\(${file}:${frame[2]}:${frame[3]}\\)`))
     } finally {
       await run.dispose()
     }
