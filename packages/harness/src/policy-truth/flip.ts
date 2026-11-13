@@ -75,6 +75,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'orchestrator.watch.initialRun': ['changed', 'all'],
   'orchestrator.globMatchesOn': ['absolute-path', 'root-relative-path'],
   'orchestrator.todoOnlyFile': ['pass', 'skip'],
+  'orchestrator.processObject': ['per-file', 'shared'],
   'orchestrator.unhandledErrors': ['fail-run', 'ignore'],
   'orchestrator.coverageProvider': ['v8', 'istanbul'],
   'orchestrator.isolationDefault.default': ['none', 'registry', 'realm', 'process'],

@@ -1,0 +1,5 @@
+{
+  "description": "What a test file's `process` is: the global, what `require('process')` and `process.getBuiltinModule('process')` return, and the members a runner's copy replaces (`send`, `features.require_module`). Each test's title holds what the file saw.",
+  "runners": ["jest"],
+  "run": { "capture": ["exitCode"] }
+}

@@ -172,6 +172,9 @@ export const vitestPolicy: PolicyOverrides = {
     globMatchesOn: 'root-relative-path',
     // Vitest's rule is not recorded yet (T11.16): a file where nothing ran is skipped.
     todoOnlyFile: 'skip',
+    // Vitest 5.0.5's node environment (`integrations/env/node.ts`) builds no global, so a test sees
+    // its worker's own `process`; not recorded yet (T11.16).
+    processObject: 'shared',
     passWithNoTests: false,
     // `usage` is `cli/unknown-flag`: cac throws on an unknown option and the process exits 1.
     exitCodes: { failure: 1, noTests: 1, unhandled: 1, usage: 1 },

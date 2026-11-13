@@ -1,4 +1,5 @@
 import type { JsonValue } from '../clone-safe.ts'
+import type { ProcessObject } from '../environment.ts'
 import type { IsolationTier } from '../isolation.ts'
 import type { Behaviour } from './behaviour.ts'
 
@@ -125,6 +126,20 @@ export interface OrchestratorPolicy {
   }
   /** Default test environment. Jest: `node`. Vitest: `node`. research: track-01 L232 */
   readonly envDefault: string
+  /**
+   * The `process` a test file sees, which its environment installs. `per-file`: a copy of the
+   * worker's `process` made for the file, as jest-util's `createProcessObject` makes one: the same
+   * members and prototype, but listeners of its own (none when the file starts, and the worker
+   * never emits on it, so an `exit` or `uncaughtException` listener a file adds is never called
+   * and never reaches the next file), a copy of `env` (a change stays in the file, and a child
+   * process started without an `env` option doesn't see it), a `send` that does nothing, and
+   * `getBuiltinModule('process')` the copy. `shared`: the worker's own `process`, so listeners
+   * and `env` changes outlive the file. Jest: `per-file` (recorded: `env/process-per-file-listeners`,
+   * `env/process-per-file-env`, `env/process-setup-listener-per-file`, `env/process-uncaught-listener`,
+   * `env/process-identity`). Vitest: `shared` (its node environment builds no global; it isolates
+   * files by process instead). Neutral: `per-file`.
+   */
+  readonly processObject: ProcessObject
   /**
    * Docblock pragmas that pick a file's environment. Also Track 11's `environmentPragma`.
    * Jest: `['jest-environment']`. Vitest: `['vitest-environment', 'jest-environment']`. research: track-08 L515

@@ -1,0 +1,11 @@
+{
+  "description": "Whose `process` a test file's listeners land on. One worker runs both files (`maxWorkers: 1`; a `workerIdleMemoryLimit` makes Jest use a worker process even so). The first file (the larger, so it runs first) adds an `exit`, an `uncaughtException` and a `SIGINT` listener, and one for an event of its own that it emits; the second reads the counts. Each test's title holds what it saw. The `exit` listener writes `exit-marker.txt`, which the run captures: it is absent when no `exit` event reached that listener before the worker ended.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "workerIdleMemoryLimit": "1GB"
+    }
+  },
+  "run": { "capture": ["exitCode", "file:exit-marker.txt"] }
+}

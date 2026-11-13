@@ -1,0 +1,14 @@
+{
+  "description": "A test that calls `process.exit(3)` in a worker process (`maxWorkers: 1` with a `workerIdleMemoryLimit`, so Jest uses a worker), next to a file that passes. The run captures the exit code and the stderr lines that name the call, the file's header and cause, and the totals.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "workerIdleMemoryLimit": "1GB"
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "process\\.exit called with|child process exceptions|^(PASS|FAIL) |^Tests:"
+  }
+}

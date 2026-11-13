@@ -203,6 +203,29 @@ test('an error event nobody listens for becomes an uncaught exception, and is pr
   })
 })
 
+test('per-file: the file has a process of its own, and an unheard error event still reaches the worker’s', () => {
+  const worker = process
+  guarded(() => {
+    catchingUncaught((seen) => {
+      const instance = jsdomEnvironment.setup(
+        { ...context(), processObject: 'per-file' },
+        prepared,
+      ) as EnvironmentInstance
+      try {
+        assert.notEqual(globalThis.process, worker, 'a copy for the file')
+        assert.equal(globalThis.process.listenerCount('uncaughtException'), 0)
+        const dom = globalThis as unknown as Window & typeof globalThis
+        const error = new Error('boom')
+        dom.dispatchEvent(new dom.ErrorEvent('error', { error, cancelable: true }))
+        assert.deepEqual(seen, [error], 'the runtime listens on the worker’s process')
+      } finally {
+        tearDown(instance)
+      }
+      assert.equal(globalThis.process, worker, 'the worker’s own is back')
+    })
+  })
+})
+
 test('with a listener of its own the error event is the test`s, not the process`s', () => {
   guarded(() => {
     catchingUncaught((seen) => {

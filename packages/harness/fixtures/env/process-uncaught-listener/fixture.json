@@ -1,0 +1,5 @@
+{
+  "description": "Who hears an uncaught exception: the file adds an `uncaughtException` listener to `process`, then a test throws from a timer. The runner charges the error to the test; `heard.txt` (captured) says how many times the file's own listener was called.",
+  "runners": ["jest"],
+  "run": { "capture": ["exitCode", "file:heard.txt"] }
+}

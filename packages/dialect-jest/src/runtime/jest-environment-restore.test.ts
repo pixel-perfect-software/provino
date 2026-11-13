@@ -104,6 +104,38 @@ test('an assignment to a closure-backed accessor (`performance`) does not reach 
   }
 })
 
+test("with processObject per-file, the file sees the class's own `process`, and the next file the worker's", async () => {
+  const worker = process
+  const fileProcess = { env: { FROM_THE_CLASS: '1' } }
+  class WithProcess {
+    readonly global = { process: fileProcess }
+    async setup(): Promise<void> {}
+    async teardown(): Promise<void> {}
+  }
+  const Class = WithProcess as unknown as JestEnvironmentClass
+  const perFile = { ...context(), processObject: 'per-file' } as const
+  const instance = await fromJestEnvironment(Class).setup(perFile, undefined)
+  try {
+    assert.equal(
+      globalThis.process as unknown,
+      fileProcess,
+      "the class's copy, as Jest installs it",
+    )
+  } finally {
+    await instance.teardown()
+  }
+  assert.equal(globalThis.process, worker, 'the worker’s own is back')
+  const shared = await fromJestEnvironment(Class).setup(
+    { ...context(), processObject: 'shared' },
+    undefined,
+  )
+  try {
+    assert.equal(globalThis.process, worker, 'shared: the worker’s own')
+  } finally {
+    await shared.teardown()
+  }
+})
+
 test('a populated key the test made non-configurable is reported, and the rest is restored (D22)', () => {
   // A non-configurable key can never be removed from the real global, so this runs in a child.
   const adapter = new URL('./jest-environment.ts', import.meta.url).href

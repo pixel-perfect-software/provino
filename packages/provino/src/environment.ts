@@ -22,6 +22,7 @@ export type {
   EnvironmentSetupContext,
   EnvironmentTeardownReport,
   Pragmas,
+  ProcessObject,
 } from '@provino/types'
 
 /**

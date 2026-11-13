@@ -1,0 +1,11 @@
+{
+  "description": "Whose `process.env` a test file writes. One worker runs both files (`maxWorkers: 1`; a `workerIdleMemoryLimit` makes Jest use a worker process even so). The first file (the larger, so it runs first) sets a variable, checks what an assigned number reads back as, and starts a `node` child that prints the variable; the second reads the variable. Each test's title holds what it saw.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "workerIdleMemoryLimit": "1GB"
+    }
+  },
+  "run": { "capture": ["exitCode"] }
+}

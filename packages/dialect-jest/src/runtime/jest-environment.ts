@@ -102,6 +102,17 @@ async function setUpJest(
     // Only a window stands in for the global: a Node or edge environment's code must not see one.
     const isWindow = 'document' in environment.global
     populateGlobal(globalThis, environment.global, { selfReferences: isWindow })
+    // Jest's environments give each file a copy of `process` (jest-util's `installCommonGlobals`),
+    // which `populateGlobal` doesn't carry over: the worker already has a `process`. Through the
+    // snapshot's wrapped setter, so teardown puts the worker's back.
+    const fileProcess = (environment.global as { readonly process?: unknown }).process
+    if (
+      context.processObject === 'per-file' &&
+      typeof fileProcess === 'object' &&
+      fileProcess !== null
+    ) {
+      globalThis.process = fileProcess as NodeJS.Process
+    }
   } catch (error) {
     // Jest tears the environment down even when its setup threw: its window, timers and
     // half-defined accessors must not outlive the failed file.

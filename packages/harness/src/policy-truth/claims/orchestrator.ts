@@ -20,6 +20,24 @@ const titleAfter = (g: Golden, prefix: string): string => {
   if (found.length === 0) throw new Error(`${g.suite} (${g.runner}) has no test "${prefix}..."`)
   return found.map((title) => title.slice(prefix.length)).join(', ')
 }
+/**
+ * Which `process` a golden's files saw: `per-file` when every test titled `prefix…` reads
+ * `isolated` (what a file sees when nothing an earlier file did to `process` reached it), else
+ * `shared`. A file that ran first in the worker says so (`the first file ran before, in this
+ * worker: true`), or the reading would say nothing.
+ */
+const processObjectOf = (g: Golden, prefix: string, isolated = '0'): string => {
+  const titles = g.files.flatMap((file) => file.tests.map((test) => test.id.path.join(' ')))
+  const order = titles.filter((title) => title.startsWith('the first file ran before'))
+  if (order.some((title) => !title.endsWith(': true'))) {
+    throw new Error(`${g.suite} (${g.runner}) did not run its files in order in one worker`)
+  }
+  const values = titles
+    .filter((title) => title.startsWith(prefix))
+    .map((t) => t.slice(prefix.length))
+  if (values.length === 0) throw new Error(`${g.suite} (${g.runner}) has no test "${prefix}..."`)
+  return values.every((value) => value === isolated) ? 'per-file' : 'shared'
+}
 /** The default reporter's line naming the failing test. */
 const failureLine = (g: Golden): string => {
   const lines = `${observedOf(g).stdout ?? ''}\n${observedOf(g).stderr ?? ''}`.split('\n')
@@ -213,6 +231,23 @@ export const orchestratorClaims: Claims = {
       read: (g) => (stderrOf(g).includes('PASS ./todo-only.test.ts') ? 'pass' : 'skip'),
     }),
     pending('T11.16', 'no Vitest fixture records what a file of only todo tests ends as'),
+  ),
+  // One worker runs two files: the second sees none of the listeners the first added to
+  // `process`, and not the `env` variable it set; twelve files whose setup file adds an `exit`
+  // listener each count one.
+  'orchestrator.processObject': each(
+    [
+      golden('env/process-per-file-listeners', {
+        read: (g) => processObjectOf(g, 'exit listeners: '),
+      }),
+      golden('env/process-per-file-env', {
+        read: (g) => processObjectOf(g, "the first file's variable: ", 'undefined'),
+      }),
+      golden('env/process-setup-listener-per-file', {
+        read: (g) => processObjectOf(g, 'exit listeners after the setup file: ', '1'),
+      }),
+    ],
+    pending('T11.16', 'no Vitest fixture records which `process` a test file sees'),
   ),
   'orchestrator.exitCodes.failure': golden('orchestrator-exit-codes', { read: exitCode }),
   'orchestrator.exitCodes.noTests': golden('orchestrator-no-tests', { read: exitCode }),
