@@ -137,6 +137,21 @@ describe('run()', () => {
       }
     })
 
+    it('a bail that is not a whole number of at least 0, and a detectOpenHandles that is not a boolean', async () => {
+      const project = await makeProject({ 'tests/a.test.js': passing('a') })
+      for (const bail of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+        const ran = await runProject(project, { bail })
+        assert.equal(ran.exitCode, 2, String(bail))
+        assert.equal(ran.summary, null)
+        assert.match(ran.stderr, /bail must be a whole number/)
+      }
+      // @ts-expect-error detectOpenHandles is a boolean
+      const ran = await runProject(project, { detectOpenHandles: 'yes' })
+      assert.equal(ran.exitCode, 2)
+      assert.equal(ran.summary, null)
+      assert.match(ran.stderr, /detectOpenHandles must be true or false/)
+    })
+
     it('a reporter that is not a built-in or a reporter', async () => {
       const project = await makeProject({ 'tests/a.test.js': passing('a') })
       // @ts-expect-error "verbose" is not a reporter name

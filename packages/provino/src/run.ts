@@ -19,7 +19,15 @@ function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']
       `maxWorkers must be a whole number of at least 1 (got ${String(options.maxWorkers)})`,
     )
   }
-  const { workerMemoryLimit, maxFilesPerWorker, fileTimeoutMs } = options
+  const { workerMemoryLimit, maxFilesPerWorker, fileTimeoutMs, bail, detectOpenHandles } = options
+  if (bail !== undefined && !(Number.isSafeInteger(bail) && bail >= 0)) {
+    throw new UsageError(`bail must be a whole number, 0 (off) or more (got ${String(bail)})`)
+  }
+  if (detectOpenHandles !== undefined && typeof detectOpenHandles !== 'boolean') {
+    throw new UsageError(
+      `detectOpenHandles must be true or false (got ${String(detectOpenHandles)})`,
+    )
+  }
   if (workerMemoryLimit !== undefined && !(workerMemoryLimit >= 0)) {
     throw new UsageError(
       `workerMemoryLimit must be a number of bytes, 0 or more (got ${String(workerMemoryLimit)})`,
@@ -96,7 +104,8 @@ async function execute(
  * The config file is loaded, the Jest dialect and the Node environment are the built-ins it can
  * name, and every reporter is built from `reporters` or the policy's defaults. Bad input (no
  * config file, a config that doesn't load or fails its checks, an unknown dialect, a `maxWorkers`
- * or reporter that makes no sense, a test name pattern that isn't a regular expression) does not
+ * or reporter that makes no sense, a `bail` that isn't a whole number of at least 0, a test name
+ * pattern that isn't a regular expression) does not
  * reject: the message goes to `stderr` and the result is exit code 2 with a `null` summary. Any
  * other error is a bug and rejects.
  * @public
