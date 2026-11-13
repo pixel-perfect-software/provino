@@ -30,6 +30,10 @@ RSpec-style lazy variables (Track 6). Neutral: it reads only `LazyPolicy` and a 
 
 `packages/bench/src/lazy/` (`pnpm bench:lazy check`) runs 35 behaviours under the Jest dialect's whole policy and the neutral one on the real `createRuntime`, 70 checks, 0 failed (T6.5). `behaviours.ts` is the rebuilt Spikes C corpus. It found no `LazyHost` gap in core. Never lower the count.
 
+## Where it is wired (B24d)
+
+The worker (`packages/orchestrator/src/worker/runtime/runner.ts`) installs it after core and before the environment, and `stop` uninstalls it; `provino` re-exports the forwarders. `packages/provino/test/lazy.test.ts` runs it end to end on the built package. User docs: `wiki/lazy-variables.md`.
+
 ## Not built yet
 
-The worker install, the umbrella exports and the docs (B24d); `LazyEvaluation` in `@provino/types`, `LAZY_CHAIN` on thrown values and the reporter block (B24e); the read-cost gate (B24f); `fixtures.compile` (T6.9). B25's T5.9 moves the table into core behind a `LazyHost` method.
+`LazyEvaluation` in `@provino/types`, `LAZY_CHAIN` on thrown values and the reporter block (B24e); the read-cost gate (B24f); `fixtures.compile` (T6.9). B25's T5.9 moves the table into core behind a `LazyHost` method.

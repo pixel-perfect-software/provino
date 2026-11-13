@@ -10,6 +10,7 @@ import {
   describe,
   expect,
   it,
+  lazy,
   type ProvinoWorkerApiError,
   test,
   type WorkerApi,
@@ -25,15 +26,23 @@ import 'provino/globals'
 import { jestDialect } from 'provino/jest'
 import { defaultReporter, defineReporter } from 'provino/reporters'
 
-// The entry is the Jest dialect's test-definition globals, and no more.
+// The entry is the Jest dialect's test-definition globals and the lazy variables, and no more.
 expectTypeOf<keyof typeof import('provino')>().toEqualTypeOf<
   | 'afterAll'
   | 'afterEach'
   | 'beforeAll'
   | 'beforeEach'
   | 'describe'
+  | 'evaluatedLazies'
   | 'expect'
+  | 'includeContext'
+  | 'includeExamples'
   | 'it'
+  | 'itBehavesLike'
+  | 'lazy'
+  | 'LazyError'
+  | 'sharedContext'
+  | 'sharedExamples'
   | 'test'
   | 'ProvinoWorkerApiError'
 >()
@@ -45,6 +54,12 @@ expectTypeOf(beforeAll).toEqualTypeOf<WorkerApi['beforeAll']>()
 expectTypeOf(afterAll).toEqualTypeOf<WorkerApi['afterAll']>()
 expectTypeOf(beforeEach).toEqualTypeOf<WorkerApi['beforeEach']>()
 expectTypeOf(afterEach).toEqualTypeOf<WorkerApi['afterEach']>()
+
+// `lazy` is typed by chaining: a read of a key that was never defined is an error.
+const $lazy = lazy.let('user', () => ({ name: 'Ada' })).let('greeting', ({ user }) => user.name)
+expectTypeOf($lazy.greeting).toEqualTypeOf<string>()
+// @ts-expect-error 'missing' was never defined
+$lazy.missing
 
 // A suite takes a name and a body; a test takes a name and a function.
 describe('suite', () => {

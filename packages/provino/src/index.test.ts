@@ -13,6 +13,19 @@ const NAMES = [
   'expect',
 ]
 
+/** Provino's stateless extras: the lazy-variable forwarders, and the error the entry throws. */
+const EXTRAS = [
+  'LazyError',
+  'ProvinoWorkerApiError',
+  'evaluatedLazies',
+  'includeContext',
+  'includeExamples',
+  'itBehavesLike',
+  'lazy',
+  'sharedContext',
+  'sharedExamples',
+]
+
 /** Installs `value` as the global `name` for one test, and puts back what was there. */
 function install(name: string, value: unknown): void {
   const before = Object.getOwnPropertyDescriptor(globalThis, name)
@@ -29,7 +42,7 @@ afterEach(() => {
 
 describe('the provino entry binds late to the worker globals (T1.10)', () => {
   test('exports the Jest dialect test-definition API, and no engine of its own', () => {
-    assert.deepEqual(Object.keys(api).sort(), [...NAMES, 'ProvinoWorkerApiError'].sort())
+    assert.deepEqual(Object.keys(api).sort(), [...NAMES, ...EXTRAS].sort())
   })
 
   test('outside a worker, each export throws one error that names it and says why', () => {

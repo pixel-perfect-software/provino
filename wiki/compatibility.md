@@ -59,7 +59,7 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | Jest's `Ran all test suites.` line and snapshot summary block | Not printed | Planned |
 | Legacy fake timers | `legacyFakeTimers: true` throws when a test installs the timers, with a hint to use the modern ones. `jest.runAllImmediates` throws | Not planned |
 | `provino vitest` | Refused | Next |
-| RSpec-style lazy variables | Not built | Planned |
+| RSpec-style lazy variables | A Provino extra, not a Jest feature: `import { lazy } from 'provino'` in a test file. It is never a global, and works with `injectGlobals: false` ([lazy variables](lazy-variables.md)) | Built |
 
 ## Checking discovery against Jest's
 
