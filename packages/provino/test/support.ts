@@ -2,6 +2,7 @@
 // committed, D13), a collecting stream, and a deadline for child processes.
 import assert from 'node:assert/strict'
 import { type ChildProcess, spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { mkdtempSync, realpathSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -9,6 +10,7 @@ import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
 import { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { killGroup } from './sweep.ts'
 
 /** A writable that keeps everything written to it. */
 export class Collect extends Writable {
@@ -128,47 +130,104 @@ export interface Spawned {
   readonly stderr: string
 }
 
+/** What `startCli` and `spawnCli` take. */
+export interface CliOptions {
+  /** Where the bin runs. Default: the temp dir. */
+  readonly cwd?: string
+  /** A process still running after this is killed (with its group, when `detached`). Default 90 s. */
+  readonly deadlineMs?: number
+  /** In a process group of its own, so a sweep can tell what it left behind. */
+  readonly detached?: boolean
+  /** Added to this process's environment. */
+  readonly env?: Readonly<Record<string, string>>
+  /** Node flags before the bin (`--import <preload>`). */
+  readonly nodeArgs?: readonly string[]
+}
+
+/** A bin process that is running, and how to follow it. */
+export interface LiveCli {
+  readonly child: ChildProcess
+  /** The process group the bin leads when it is `detached`: what a sweep looks at. */
+  readonly pgid: number
+  stdout(): string
+  stderr(): string
+  /** Resolves when the process has exited (it is killed after the deadline, so it always does). */
+  readonly exited: Promise<{ readonly code: number | null; readonly signal: NodeJS.Signals | null }>
+  /**
+   * Resolves with everything it wrote once its stdio has closed too, or rejects when the deadline
+   * had to kill it.
+   */
+  result(): Promise<Spawned>
+}
+
+/** How a child process ended, and what it wrote. */
+export interface Spawned {
+  readonly code: number | null
+  readonly signal: NodeJS.Signals | null
+  readonly stdout: string
+  readonly stderr: string
+}
+
 /**
- * Runs `provino <args>` as a child process (from `cwd`, default the temp dir) and resolves when it
- * has exited on its own. A process still running after `deadlineMs` is killed and rejects, so a
- * `provino` that does not end cannot hang the suite.
+ * Starts `provino <args>` as a child process. A process still running after the deadline is killed
+ * (with its whole group when it is `detached`), so a `provino` that does not end cannot hang the
+ * suite.
  */
-export function spawnCli(
-  args: readonly string[],
-  options: { readonly cwd?: string; readonly deadlineMs?: number } = {},
-): Promise<Spawned> {
-  const { cwd = tmpdir(), deadlineMs = 90_000 } = options
-  return new Promise((resolve, reject) => {
-    const child: ChildProcess = spawn(
-      process.execPath,
-      ['--conditions=provino-source', CLI, ...args],
-      { cwd, stdio: ['ignore', 'pipe', 'pipe'] },
-    )
-    let stdout = ''
-    let stderr = ''
-    child.stdout?.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString()
-    })
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString()
-    })
-    const deadline = setTimeout(() => {
-      child.kill('SIGKILL')
-      reject(
-        new Error(
-          `provino did not exit within ${deadlineMs} ms\nstdout: ${stdout}\nstderr: ${stderr}`,
-        ),
-      )
-    }, deadlineMs)
-    child.once('error', (error) => {
-      clearTimeout(deadline)
-      reject(error)
-    })
-    child.once('close', (code, signal) => {
-      clearTimeout(deadline)
-      resolve({ code, signal, stdout, stderr })
-    })
+export function startCli(args: readonly string[], options: CliOptions = {}): LiveCli {
+  const { cwd = tmpdir(), deadlineMs = 90_000, detached = false, env = {}, nodeArgs = [] } = options
+  const child = spawn(
+    process.execPath,
+    ['--conditions=provino-source', ...nodeArgs, CLI, ...args],
+    { cwd, detached, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...env } },
+  )
+  let stdout = ''
+  let stderr = ''
+  child.stdout?.on('data', (chunk: Buffer) => {
+    stdout += chunk.toString()
   })
+  child.stderr?.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString()
+  })
+  const pgid = child.pid as number
+  let overran = false
+  const deadline = setTimeout(() => {
+    overran = true
+    if (detached) killGroup(pgid)
+    else child.kill('SIGKILL')
+  }, deadlineMs)
+  const exited = once(child, 'exit').then(([code, signal]) => {
+    clearTimeout(deadline)
+    return { code: code as number | null, signal: signal as NodeJS.Signals | null }
+  })
+  return {
+    child,
+    pgid,
+    stdout: () => stdout,
+    stderr: () => stderr,
+    exited,
+    result: () =>
+      new Promise((resolve, reject) => {
+        child.once('error', (error) => {
+          clearTimeout(deadline)
+          reject(error)
+        })
+        child.once('close', (code, signal) => {
+          clearTimeout(deadline)
+          if (overran) {
+            reject(
+              new Error(
+                `provino did not exit within ${deadlineMs} ms\nstdout: ${stdout}\nstderr: ${stderr}`,
+              ),
+            )
+          } else resolve({ code, signal, stdout, stderr })
+        })
+      }),
+  }
+}
+
+/** Runs `provino <args>` as a child process and resolves when it has exited on its own. */
+export function spawnCli(args: readonly string[], options: CliOptions = {}): Promise<Spawned> {
+  return startCli(args, options).result()
 }
 
 /** One file of a `normalized-json` run, as the tests assert on it. */

@@ -1,13 +1,16 @@
 // "No child survives" (T9.5, T9.10): what is left of a process group after the process that led it
-// is gone. A copy of `@provino/orchestrator`'s `test/sweep.ts` (the two packages' test nodes cannot
-// share a file; the orchestrator's `sweep.test.ts` tests it). Two sweeps, because the first needs
-// `ps` and this sandbox, like some CI images, may not allow it:
+// is gone. A copy of `@provino/orchestrator`'s `test/sweep.ts` (its `sweep.test.ts` tests it): the
+// two test projects can't share a file, because `pnpm boundaries` allows a package only another's
+// public entry, and the type-test project refuses a relative import across projects (TS2878). Two
+// sweeps, because the first needs `ps` and this sandbox, like some CI images, may not allow it:
 //
 // - `psSweep`: `ps -axo pid=,pgid=`, the processes whose group is the one asked about. The same
 //   command runs on macOS and on Linux. `undefined` when `ps` cannot run.
 // - `groupAlive`: `kill(-pgid, 0)`, which fails with ESRCH exactly when no process is left in the
 //   group. It needs no `ps`.
+import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { setTimeout as sleep } from 'node:timers/promises'
 
 /**
  * The pids in the output of `ps -axo pid=,pgid=` (one `pid pgid` pair per line, padded the way
@@ -59,12 +62,26 @@ export async function sweep(pgid: number, settleMs = 500): Promise<Sweep> {
   do {
     result = { ps: psSweep(pgid), alive: groupAlive(pgid) }
     if (!result.alive && (result.ps === undefined || result.ps.length === 0)) break
-    await new Promise((resolve) => setTimeout(resolve, 25))
+    await sleep(25)
   } while (Date.now() < deadline)
   if (result.ps === undefined && process.env.CI !== undefined && process.env.CI !== '') {
     throw new Error('`ps` cannot run here, and in CI the sweep must: the check would be skipped')
   }
   return result
+}
+
+/**
+ * Asserts nothing of the group is left: not by `kill(-pgid, 0)`, and not by `ps` where it runs
+ * (elsewhere it warns, naming `label`, that only the probe swept the group).
+ */
+export async function assertGroupEmpty(pgid: number, label: string): Promise<void> {
+  const swept = await sweep(pgid)
+  assert.equal(swept.alive, false, 'kill(-pgid, 0): nothing is left in the process group')
+  if (swept.ps === undefined) {
+    console.warn(`${label}: \`ps\` cannot run here; only the kill(-pgid, 0) probe swept the group`)
+  } else {
+    assert.deepEqual(swept.ps, [], 'ps: no process of the group is left')
+  }
 }
 
 /** Kills everything left in the group (a failed check must not leave processes behind). */

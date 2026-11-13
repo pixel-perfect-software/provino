@@ -7,17 +7,12 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, sep } from 'node:path'
 import { Writable } from 'node:stream'
 import { after, describe, it } from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { JEST } from './live-jest.ts'
 import { spawnCli, viewOfNormalized } from './support.ts'
-
-const JEST: string = createRequire(
-  fileURLToPath(new URL('../../harness/package.json', import.meta.url)),
-).resolve('jest/bin/jest')
 
 /**
  * `runJestCommand`, loaded by URL: the type-test project includes this directory but not the

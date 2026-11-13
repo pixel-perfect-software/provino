@@ -8,73 +8,35 @@
 // `provino jest` keeps Jest's exit codes: `jest-exit-codes.test.ts` holds the seven cases against
 // their goldens (7/7), and the usage-error case below puts Jest's 1 beside `provino run`'s 2 (D76).
 import assert from 'node:assert/strict'
-import { type ChildProcess, spawn } from 'node:child_process'
-import { once } from 'node:events'
-import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
+import { runJest } from './live-jest.ts'
 import { loadFixture, materialize, type RecordedFixture, underRoot } from './recorded.ts'
 import {
-  CLI,
   failing,
   isRunning,
+  type LiveCli,
   notedPids,
   passing,
   spawnCli,
+  startCli,
   trackedProjects,
 } from './support.ts'
-import { killGroup, sweep } from './sweep.ts'
+import { assertGroupEmpty, killGroup } from './sweep.ts'
 
 const makeProject = trackedProjects()
 
-/** Real Jest 30.5.2, the oracle the recorded fixtures came from. */
-const JEST: string = createRequire(
-  fileURLToPath(new URL('../../harness/package.json', import.meta.url)),
-).resolve('jest/bin/jest')
-
-/** A bin process in a group of its own, so a sweep can tell what it left behind. */
-interface Live {
-  readonly child: ChildProcess
-  readonly pgid: number
-  stdout(): string
-  stderr(): string
-  /** Resolves when the process has exited (it is killed, with its group, after `deadlineMs`). */
-  readonly exited: Promise<{ code: number | null; signal: NodeJS.Signals | null }>
-}
-
-function startCli(
+/** The bin in a process group of its own, so a sweep can tell what it left behind. */
+function startGroup(
   args: readonly string[],
   cwd: string,
   deadlineMs = 60_000,
   nodeArgs: readonly string[] = [],
   env: Readonly<Record<string, string>> = {},
-): Live {
-  const child = spawn(
-    process.execPath,
-    ['--conditions=provino-source', ...nodeArgs, CLI, ...args],
-    {
-      cwd,
-      detached: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, ...env },
-    },
-  )
-  let out = ''
-  let err = ''
-  child.stdout.on('data', (chunk: Buffer) => {
-    out += chunk.toString()
-  })
-  child.stderr.on('data', (chunk: Buffer) => {
-    err += chunk.toString()
-  })
-  const pgid = child.pid as number
-  const deadline = setTimeout(() => killGroup(pgid), deadlineMs)
-  const exited = once(child, 'exit').then(([code, signal]) => {
-    clearTimeout(deadline)
-    return { code: code as number | null, signal: signal as NodeJS.Signals | null }
-  })
-  return { child, pgid, stdout: () => out, stderr: () => err, exited }
+): LiveCli {
+  return startCli(args, { cwd, deadlineMs, nodeArgs, env, detached: true })
 }
 
 /** A preload that swaps the bin's `main` for one that never settles (`fixtures/unsettled-main/`). */
@@ -83,11 +45,20 @@ const UNSETTLED_MAIN_PRELOAD: string = fileURLToPath(
 )
 
 /** Waits until the process has written `text` to its stdout. */
-async function untilOutput(live: Live, text: string, timeoutMs = 30_000): Promise<void> {
+async function untilOutput(live: LiveCli, text: string, timeoutMs = 30_000): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (!live.stdout().includes(text)) {
     if (Date.now() > deadline) assert.fail(`no "${text}" in time:\n${live.stderr()}`)
-    await new Promise((resolve) => setTimeout(resolve, 25))
+    await sleep(25)
+  }
+}
+
+/** Waits until the process has written `text` to its stderr. */
+async function untilStderr(live: LiveCli, text: string, timeoutMs = 30_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!live.stderr().includes(text)) {
+    if (Date.now() > deadline) assert.fail(`no "${text}" on stderr in time:\n${live.stderr()}`)
+    await sleep(25)
   }
 }
 
@@ -98,7 +69,7 @@ async function untilNoted(pidFile: string, count = 1, timeoutMs = 30_000): Promi
     const pids = [...(await notedPids(pidFile))]
     if (pids.length >= count) return pids
     if (Date.now() > deadline) throw new Error(`no ${count} pids noted in ${pidFile} in time`)
-    await new Promise((resolve) => setTimeout(resolve, 25))
+    await sleep(25)
   }
 }
 
@@ -114,15 +85,9 @@ const hanging = (pidFile: string): string =>
   ].join('\n')
 
 /** Nothing of the group is left, and no noted worker is running. */
-async function assertNoChild(live: Live, pids: readonly number[]): Promise<void> {
+async function assertNoChild(live: LiveCli, pids: readonly number[]): Promise<void> {
   for (const pid of pids) assert.equal(isRunning(pid), false, `worker ${pid} is still running`)
-  const swept = await sweep(live.pgid)
-  assert.equal(swept.alive, false, 'kill(-pgid, 0): nothing is left in the process group')
-  if (swept.ps === undefined) {
-    console.warn('lifecycle: `ps` cannot run here; only the kill(-pgid, 0) probe swept the group')
-  } else {
-    assert.deepEqual(swept.ps, [], 'ps: no process of the group is left')
-  }
+  await assertGroupEmpty(live.pgid, 'lifecycle')
 }
 
 describe('exit codes through the bin (provino run)', () => {
@@ -145,68 +110,39 @@ describe('exit codes through the bin (provino run)', () => {
     assert.equal(jest.code, 1, jest.stderr)
   })
 
-  it('130 for SIGINT while a file runs: the worker is killed and nothing is left', async () => {
-    const project = await makeProject((dir) => ({
-      'tests/hang.test.js': hanging(join(dir, 'workers.pids')),
-    }))
-    const pidFile = project.path('workers.pids')
-    const live = startCli(['run', '--config', project.config, '--maxWorkers', '1'], project.dir)
-    try {
-      const pids = await untilNoted(pidFile)
-      // To the bin alone, not its group: it has to clean up its workers itself.
-      live.child.kill('SIGINT')
-      const ended = await live.exited
-      assert.deepEqual(ended, { code: 130, signal: null }, live.stderr())
-      assert.match(live.stderr(), /Interrupted/)
-      await assertNoChild(live, pids)
-    } finally {
-      killGroup(live.pgid)
-    }
-  })
-
-  it('143 for SIGTERM while a file runs', async () => {
-    const project = await makeProject((dir) => ({
-      'tests/hang.test.js': hanging(join(dir, 'workers.pids')),
-    }))
-    const pidFile = project.path('workers.pids')
-    const live = startCli(['run', '--config', project.config, '--maxWorkers', '1'], project.dir)
-    try {
-      const pids = await untilNoted(pidFile)
-      live.child.kill('SIGTERM')
-      const ended = await live.exited
-      assert.deepEqual(ended, { code: 143, signal: null }, live.stderr())
-      await assertNoChild(live, pids)
-    } finally {
-      killGroup(live.pgid)
-    }
-  })
-
-  it('129 for SIGHUP while a file runs: handled like SIGTERM, the worker is killed and nothing is left', async () => {
-    const project = await makeProject((dir) => ({
-      'tests/hang.test.js': hanging(join(dir, 'workers.pids')),
-    }))
-    const pidFile = project.path('workers.pids')
-    const live = startCli(['run', '--config', project.config, '--maxWorkers', '1'], project.dir)
-    try {
-      const pids = await untilNoted(pidFile)
-      // Node's default action for SIGHUP would end the bin at once and leave the worker, which is in
-      // a synchronous loop, running.
-      live.child.kill('SIGHUP')
-      const ended = await live.exited
-      assert.deepEqual(ended, { code: 129, signal: null }, live.stderr())
-      assert.match(live.stderr(), /Interrupted/)
-      await assertNoChild(live, pids)
-    } finally {
-      killGroup(live.pgid)
-    }
-  })
+  // SIGHUP is handled like SIGTERM: Node's default action would end the bin at once and leave a
+  // worker that is in a synchronous loop running.
+  for (const [signal, code] of [
+    ['SIGINT', 130],
+    ['SIGTERM', 143],
+    ['SIGHUP', 129],
+  ] as const) {
+    it(`${code} for ${signal} while a file runs: the worker is killed and nothing is left`, async () => {
+      const project = await makeProject((dir) => ({
+        'tests/hang.test.js': hanging(join(dir, 'workers.pids')),
+      }))
+      const pidFile = project.path('workers.pids')
+      const live = startGroup(['run', '--config', project.config, '--maxWorkers', '1'], project.dir)
+      try {
+        const pids = await untilNoted(pidFile)
+        // To the bin alone, not its group: it has to clean up its workers itself.
+        live.child.kill(signal)
+        const ended = await live.exited
+        assert.deepEqual(ended, { code, signal: null }, live.stderr())
+        assert.match(live.stderr(), /Interrupted/)
+        await assertNoChild(live, pids)
+      } finally {
+        killGroup(live.pgid)
+      }
+    })
+  }
 
   it('a second SIGHUP is the force: the bin, slow to stop, is gone within 1 s, with 129', async () => {
     // The bin's `main` is a stand-in that stays up until the force signal (see the SIGINT case
     // below), so the first signal cannot end the run before the second one lands: no race with the
     // run finishing by itself.
     const project = await makeProject({ 'tests/a.test.js': passing('a') })
-    const live = startCli(
+    const live = startGroup(
       ['run', '--config', project.config],
       project.dir,
       60_000,
@@ -241,7 +177,7 @@ describe('exit codes through the bin (provino run)', () => {
       ['SIGTERM', 143],
       ['SIGHUP', 129],
     ] as const) {
-      const live = startCli(['run', '--config', project.config], project.dir, 60_000, [
+      const live = startGroup(['run', '--config', project.config], project.dir, 60_000, [
         '--import',
         UNSETTLED_MAIN_PRELOAD,
       ])
@@ -262,11 +198,11 @@ describe('exit codes through the bin (provino run)', () => {
       'tests/hang2.test.js': hanging(join(dir, 'workers.pids')),
     }))
     const pidFile = project.path('workers.pids')
-    const live = startCli(['run', '--config', project.config, '--maxWorkers', '2'], project.dir)
+    const live = startGroup(['run', '--config', project.config, '--maxWorkers', '2'], project.dir)
     try {
       const pids = await untilNoted(pidFile, 2)
       live.child.kill('SIGINT')
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      await sleep(20)
       const second = Date.now()
       live.child.kill('SIGINT')
       const ended = await live.exited
@@ -279,22 +215,6 @@ describe('exit codes through the bin (provino run)', () => {
     }
   })
 })
-
-/** Real Jest's stderr for `args` in `cwd`. */
-function liveJestStderr(cwd: string, args: readonly string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [JEST, ...args], {
-      cwd,
-      stdio: ['ignore', 'ignore', 'pipe'],
-    })
-    let text = ''
-    child.stderr.on('data', (chunk: Buffer) => {
-      text += chunk.toString()
-    })
-    child.once('error', reject)
-    child.once('close', () => resolve(text))
-  })
-}
 
 /** A recorded Jest fixture as a project, run through `provino jest`. */
 async function runFixture(
@@ -407,7 +327,7 @@ describe('--bail against Jest 30.5.2', () => {
     try {
       const args = [`--config=${join(project.root, 'jest.config.json')}`, '--bail=2', '--ci']
       const provino = await spawnCli(['jest', ...args], { cwd: project.root })
-      const jest = await liveJestStderr(project.root, ['--watchman=false', ...args])
+      const jest = (await runJest(project.root, ['--watchman=false', ...args])).stderr
       const summary = (text: string): string[] =>
         text.split('\n').filter((line) => /^(Test Suites|Tests):/.test(line))
       assert.deepEqual(summary(provino.stderr), summary(jest))
@@ -494,7 +414,7 @@ describe('--detectOpenHandles against Jest 30.5.2', () => {
     })
     const args = ['--detectOpenHandles', '--forceExit', '--ci', '--watchman=false']
     const provino = await spawnCli(['jest', ...args], { cwd: project.dir })
-    const jest = await liveJestStderr(project.dir, args)
+    const jest = (await runJest(project.dir, args)).stderr
     assert.equal(handlesBlock(provino.stderr), handlesBlock(jest))
     assert.match(provino.stderr, /following 2 open handles/, 'two handles, as Jest counts them')
   })
@@ -543,15 +463,12 @@ describe('--forceExit against Jest 30.5.2', () => {
     assert.match(forced.stderr, /Test Suites: 1 passed, 1 total/)
     assert.match(forced.stderr, /force exiting/i)
 
-    const held = startCli(['run', '--config', project.config, '--pool', 'inline'], project.dir)
+    const held = startGroup(['run', '--config', project.config, '--pool', 'inline'], project.dir)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 4000))
-      assert.equal(
-        held.child.exitCode,
-        null,
-        'without --forceExit the interval holds the process up',
-      )
-      assert.match(held.stderr(), /Test Suites: 1 passed, 1 total/, 'though the run itself is over')
+      // The run is over once its summary is out; a process with nothing holding it open ends then.
+      await untilStderr(held, 'Test Suites: 1 passed, 1 total')
+      const ended = await Promise.race([held.exited.then(() => true), sleep(500).then(() => false)])
+      assert.equal(ended, false, 'without --forceExit the interval holds the process up')
     } finally {
       killGroup(held.pgid)
       await held.exited

@@ -9,7 +9,8 @@ import { Writable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { viewOfNormalized } from './support.ts'
 
-const JEST: string = createRequire(
+/** Real Jest 30.5.2's bin, from the Jest the harness installs: the oracle. */
+export const JEST: string = createRequire(
   fileURLToPath(new URL('../../harness/package.json', import.meta.url)),
 ).resolve('jest/bin/jest')
 
@@ -42,15 +43,22 @@ class Sink extends Writable {
 /** The harness's transformer, which strips types for real Jest as the recorder does. */
 const TRANSFORMER = fileURLToPath(new URL('../../harness/src/jest-transform.ts', import.meta.url))
 
-function runJest(cwd: string, out: string): Promise<number | null> {
+/** Runs real Jest with `args` in `cwd`: its exit code and its stderr, where it prints its report. */
+export function runJest(
+  cwd: string,
+  args: readonly string[],
+): Promise<{ readonly code: number | null; readonly stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(
-      process.execPath,
-      [JEST, '--no-cache', '--ci', '-c', 'jest.live.json', '--json', `--outputFile=${out}`],
-      { cwd, stdio: 'ignore' },
-    )
+    const child = spawn(process.execPath, [JEST, ...args], {
+      cwd,
+      stdio: ['ignore', 'ignore', 'pipe'],
+    })
+    let stderr = ''
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString()
+    })
     child.once('error', reject)
-    child.once('close', resolve)
+    child.once('close', (code) => resolve({ code, stderr }))
   })
 }
 
@@ -64,7 +72,14 @@ export async function liveJest(cwd: string): Promise<Statuses> {
     join(cwd, 'jest.live.json'),
     JSON.stringify({ ...config, transform: { '\\.[cm]?ts$': TRANSFORMER } }),
   )
-  await runJest(cwd, out)
+  await runJest(cwd, [
+    '--no-cache',
+    '--ci',
+    '-c',
+    'jest.live.json',
+    '--json',
+    `--outputFile=${out}`,
+  ])
   const report = JSON.parse(await readFile(out, 'utf8')) as {
     testResults: { name: string; assertionResults: { fullName: string; status: string }[] }[]
   }
