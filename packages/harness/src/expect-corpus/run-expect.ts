@@ -26,7 +26,7 @@ import type {
   TestTask,
 } from '@provino/types'
 import { installGlobals } from '../internal/globals.ts'
-import { unusedJestHost } from '../mock-corpus/run-mock.ts'
+import { unusedJestHost } from '../internal/unused-jest-host.ts'
 import { type Reported, reported } from '../runtime-corpus/run-core.ts'
 
 /** One failure of a test: what Jest's JSON holds for it. */

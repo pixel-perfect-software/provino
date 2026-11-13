@@ -13,7 +13,7 @@ import { createFakeClock, createTimerMembers, type FakeClock } from '@provino/ti
 import type { CorePolicy, MockPolicy, RuntimeEvent, TimersPolicy } from '@provino/types'
 import { installGlobals } from '../internal/globals.ts'
 import '../internal/observe-setup.ts'
-import { unusedJestHost } from '../mock-corpus/run-mock.ts'
+import { unusedJestHost } from '../internal/unused-jest-host.ts'
 import { type CoreRun, summarizeRun } from '../runtime-corpus/run-core.ts'
 
 /** Which test-object name the file under test sees. */

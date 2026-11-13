@@ -5,6 +5,7 @@
 import { pathToFileURL } from 'node:url'
 import { createRuntime, type Runtime } from '@provino/core'
 import { jestGlobals } from '@provino/dialect-jest/runtime'
+import { createMockRegistry } from '@provino/mock'
 import { createBehaviourLoader, neutralPolicy } from '@provino/policy'
 import type {
   CorePolicy,
@@ -19,6 +20,7 @@ import type {
   TestTask,
 } from '@provino/types'
 import { installGlobals } from '../internal/globals.ts'
+import { unusedJestHost } from '../internal/unused-jest-host.ts'
 
 /**
  * A task state as the result model names it. `no-result` is a task the core never reported an
@@ -221,20 +223,8 @@ export function summarizeRun(
 
 /** `jest` for a runtime fixture: the Jest dialect's real `jest.retryTimes` over `runtime`. */
 function jestOverRuntime(runtime: Runtime): unknown {
-  const unused = (what: string) => (): never => {
-    throw new Error(`a runtime fixture does not use ${what}`)
-  }
   const globals = jestGlobals({
-    api: runtime.api,
-    expect: unused('expect') as never,
-    registry: unused('the module registry'),
-    mocks: unused('mocks'),
-    moduleMocks: unused('module mocks'),
-    mockPolicy: neutralPolicy.mock,
-    timers: unused('the fake clock'),
-    timersPolicy: neutralPolicy.timers,
-    seed: 0,
-    environmentTornDown: () => false,
+    ...unusedJestHost(runtime.api, createMockRegistry(), neutralPolicy.mock, 'a runtime fixture'),
     setDefaultTimeout: (ms) => runtime.setDefaultTimeout(ms),
     setDefaultRetry: (retry) => runtime.setDefaultRetry(retry),
   })
