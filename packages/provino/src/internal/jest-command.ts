@@ -386,6 +386,11 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     const [project, ...others] = projects
     if (project === undefined) {
       if (!noneSelected) throw new UsageError('the config has no project to run')
+      if (read.globalConfig.collectTests) {
+        // runJest.ts L333-L339: with no test, `--collectTests` says so on stdout and exits 0.
+        await stdout.write('No tests found.\n')
+        return ExitCode.Pass
+      }
       // A selection that left no project: Jest runs nothing and says there are no tests.
       const passWithNoTests = read.globalConfig.passWithNoTests
       const message = noProjectsMessage({
@@ -479,7 +484,8 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       if (collecting && !read.globalConfig.json) {
         const style = styleFor({
           env: io.env ?? process.env,
-          stderr,
+          // chalk 4 follows stdout's terminal, also for what `--useStderr` sends to stderr.
+          stream: stdout,
           ci: read.globalConfig.ci,
           colour: request.colour,
         })
