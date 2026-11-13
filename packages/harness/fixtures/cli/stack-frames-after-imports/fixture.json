@@ -1,0 +1,15 @@
+{
+  "description": "Where a failure's stack frames point in a TypeScript test file shaped like a real project's: `jest.mock` of a `moduleNameMapper` alias (`@/utils/logger`) on line 1, then 16 lines of imports (a multi-line one, a type import, the mocked module by its relative path, which `pnpm boundaries` can resolve), then the tests. Jest 30.5.2 reports every frame at its place in the file as written, mapped through the transform's source map: a throw in a test body, a rejection built in a `setTimeout` callback, a failed `toBe`, and two failed `test.each` rows. The kept lines are each failure's title and the `at` lines that name the test file (the code frame Jest prints is built from the first of them; the recorder's normalization drops code frames). A black-box run, read by `provino`'s `stack-frames.test.ts`, which holds `provino jest`'s frames to them under its own transform, @swc/jest and the recorder's transformer.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "moduleNameMapper": { "^@/(.*)$": "<rootDir>/src/$1" }
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^  ● |^ +at .*\\bframes\\.test\\.ts:\\d+:\\d+\\)?$"
+  }
+}
