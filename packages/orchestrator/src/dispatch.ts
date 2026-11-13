@@ -27,8 +27,6 @@ export interface FileDispatch {
   readonly result: TaskResult | undefined
   /** How many tests the file collected (`file-collect-end`). */
   readonly tests: number
-  /** How many of its tests have ended as `fail` so far (`test-end`): what `--bail` counts. */
-  readonly failedTests: number
 }
 
 /**
@@ -61,7 +59,6 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
   const nodes = new Map<TaskId, TaskNode>()
   let result: TaskResult | undefined
   let tests = 0
-  let failedTests = 0
 
   function node(event: WorkerEvent, id: TaskId): TaskNode {
     const found = nodes.get(id)
@@ -109,10 +106,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
         return await bus.emit('task:end', suiteOrTest(event, event.id), event)
       case 'test-end': {
         await bus.emit('task:end', suiteOrTest(event, event.id), event)
-        if (event.result.state === 'fail') {
-          failedTests++
-          onTestFailed?.()
-        }
+        if (event.result.state === 'fail') onTestFailed?.()
         return
       }
       case 'hook-start':
@@ -144,9 +138,6 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
     },
     get tests() {
       return tests
-    },
-    get failedTests() {
-      return failedTests
     },
   }
 }

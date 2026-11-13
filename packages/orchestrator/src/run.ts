@@ -547,6 +547,11 @@ export async function runProjects(
   /** What an aborted `signal` means: SIGTERM (143) when it says so, else an interruption (130). */
   const cutShort = (): 'interrupted' | 'terminated' =>
     signal?.reason === 'SIGTERM' ? 'terminated' : 'interrupted'
+  /** Adds failed tests to the run's count, and ends the run if that reaches `bail.count`. */
+  function countFailed(count: number): void {
+    failedTests += count
+    checkBail()
+  }
   /** Reached `bail.count`: no more files start, and under Jest's rule the running ones are killed. */
   function checkBail(): void {
     if (bail === undefined || bailed || failedTests < bail.count) return
@@ -581,19 +586,16 @@ export async function runProjects(
   /** One file, from its turn in the queue to its `file:end`. */
   async function runFile(entry: QueuedFile): Promise<void> {
     const { member } = entry
+    /** This file's failed tests: added to the run's count as they fail, or when the file ends. */
+    let failedInFile = 0
     const dispatch = createFileDispatch({
       bus,
       file: entry.info,
       onUnhandled: (error) => void unhandled.push(error),
-      // Counted as they fail only when the policy checks after each test; else per file, below.
-      ...(bail === undefined || bailAfter !== 'test'
-        ? {}
-        : {
-            onTestFailed: () => {
-              failedTests++
-              checkBail()
-            },
-          }),
+      onTestFailed: () => {
+        failedInFile++
+        if (bailAfter === 'test') countFailed(1)
+      },
     })
     const job: FileJob = {
       file: entry.file.path,
@@ -617,14 +619,9 @@ export async function runProjects(
         onEvents: dispatch.handle,
         // Jest's rule counts a file's failed tests when the file ends: before its worker takes
         // another file, or `--bail` would start one it is about to give up.
-        ...(bail === undefined || bailAfter !== 'file'
-          ? {}
-          : {
-              onDone: () => {
-                failedTests += dispatch.failedTests
-                checkBail()
-              },
-            }),
+        onDone: () => {
+          if (bailAfter === 'file') countFailed(failedInFile)
+        },
       })
       if (outcome.type === 'aborted') {
         // The run's own bail cut this file short: Jest reports no result for a file it kills, so
