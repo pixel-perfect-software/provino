@@ -1,8 +1,7 @@
 // T9.6's order: Jest's `TestSequencer.sort` (jest-test-sequencer), with a total order, and the
 // shard (`shard.ts`).
 import type { Sequencer } from '@provino/types'
-import { shardInputs } from './shard.ts'
-import { byText } from './util.ts'
+import { byPathThenProject, shardInputs } from './shard.ts'
 
 /**
  * Options for `createHistorySequencer`.
@@ -57,7 +56,7 @@ export function createHistorySequencer(options: HistorySequencerOptions): Sequen
         } else if (a.sizeBytes !== b.sizeBytes) {
           return a.sizeBytes < b.sizeBytes ? 1 : -1
         }
-        return byText(a.path, b.path) || byText(a.project, b.project)
+        return byPathThenProject(a, b)
       })
     },
     shard: (files, shard) => shardInputs(files, shard, shardFallback),

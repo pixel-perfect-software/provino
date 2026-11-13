@@ -64,8 +64,8 @@ export function checkShard(shard: ShardSpec): void {
   }
 }
 
-/** Path, then project: a total order, so no input order changes a shard. */
-function byPathThenProject(a: ScheduleInput, b: ScheduleInput): number {
+/** Path, then project: a total order, so no input order changes a shard (or a sort: the sequencer ends on it too). */
+export function byPathThenProject(a: ScheduleInput, b: ScheduleInput): number {
   return byText(a.path, b.path) || byText(a.project, b.project)
 }
 
