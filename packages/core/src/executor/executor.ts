@@ -570,7 +570,9 @@ export class Executor {
       // A skip that nothing failed after ends the test; a failure outranks it.
       progress.skipped = errors.length === 0 ? result.skipped : undefined
       let conditionFailure: unknown
-      let willRetry = errors.length > 0 && attempt < plan.count
+      // A test that had errors before it ran (a `beforeAll` failure attached to it) is never
+      // retried: another attempt meets the same error, and Jest (`handleRetry`) skips it.
+      let willRetry = errors.length > 0 && attempt < plan.count && scope.attached.length === 0
       if (willRetry && plan.condition !== undefined) {
         try {
           willRetry = passesCondition(plan.condition, serializeError(errors.at(-1)))

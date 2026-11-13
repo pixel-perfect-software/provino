@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import type { DefaultRetry } from '@provino/types'
 import FakeTimers from '@sinonjs/fake-timers'
+import type { RetryOption } from '../collector/retry.ts'
 import {
   clockOptions,
   eventLog,
@@ -477,5 +478,84 @@ describe('retry condition', () => {
     assert.deepEqual(run.trace, ['a#1'])
     assert.equal(run.states.a, 'fail')
     assert.ok(run.errors.a?.includes('condition broke'))
+  })
+})
+
+// Jest's `handleRetry` (jest-circus run.ts) returns for a test that had errors before it ran,
+// deferred or `retryImmediately` alike; recorded as `runtime/retry-before-all-error`. An attached
+// `beforeAll` error meets every attempt again, so no policy retries it.
+describe('a test with errors before it ran (an attached beforeAll error)', () => {
+  /** A `beforeAll` that throws, then a test with `retry`, tracing the hook and the body. */
+  const afterFailedBeforeAll =
+    (options: { retry?: RetryOption }): Script =>
+    ({ describe, test, beforeAll }, step, runtime) => {
+      runtime.setDefaultRetry(retryTimes(2))
+      describe('d', () => {
+        beforeAll(() => {
+          step('beforeAll')
+          throw new Error('beforeAll failed')
+        })
+        test('t', options, () => step('body'))
+      })
+    }
+
+  for (const [label, overrides] of [
+    ['deferred', DEFERRED],
+    ['immediate', { retry: { timing: 'immediate' } }],
+  ] as const) {
+    test(`is not retried under ${label} timing: one attempt, no willRetry, the beforeAll error is its failure`, async () => {
+      const run = await runScript(afterFailedBeforeAll({}), overrides)
+      assert.deepEqual(run.trace, ['beforeAll'])
+      assert.equal(run.results['d > t']?.attempts, 1)
+      assert.equal(run.states['d > t'], 'fail')
+      assert.deepEqual(run.errors['d > t'], ['beforeAll failed'])
+      assert.ok(!eventLog(run).some((line) => line.includes('will-retry')))
+    })
+
+    test(`is not retried under ${label} timing with a retry option of its own`, async () => {
+      const run = await runScript(afterFailedBeforeAll({ retry: 3 }), overrides)
+      assert.deepEqual(run.trace, ['beforeAll'])
+      assert.equal(run.results['d > t']?.attempts, 1)
+    })
+  }
+
+  test('its retry condition is never asked', async () => {
+    const asked: string[] = []
+    const run = await runScript(
+      afterFailedBeforeAll({
+        retry: {
+          count: 2,
+          condition: (error) => {
+            asked.push(error.message)
+            return true
+          },
+        },
+      }),
+      DEFERRED,
+    )
+    assert.equal(run.results['d > t']?.attempts, 1)
+    assert.deepEqual(asked, [])
+  })
+
+  test('a sibling describe whose beforeAll passed still retries its failing test', async () => {
+    const run = await runScript(({ describe, test, beforeAll }, step, runtime) => {
+      runtime.setDefaultRetry(retryTimes(2))
+      describe('broken', () => {
+        beforeAll(() => {
+          throw new Error('beforeAll failed')
+        })
+        test('t', () => step('broken body'))
+      })
+      describe('fine', () => {
+        let calls = 0
+        test('t', () => {
+          step(`fine#${++calls}`)
+          if (calls === 1) throw new Error('first attempt fails')
+        })
+      })
+    }, DEFERRED)
+    assert.deepEqual(run.trace, ['fine#1', 'fine#2'])
+    assert.equal(run.results['broken > t']?.attempts, 1)
+    assert.equal(run.results['fine > t']?.attempts, 2)
   })
 })
