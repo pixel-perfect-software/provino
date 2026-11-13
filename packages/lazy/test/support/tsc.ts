@@ -11,7 +11,9 @@ export type Compiler = 'typescript' | 'typescript-5.9'
 export const COMPILERS: readonly Compiler[] = ['typescript', 'typescript-5.9']
 
 const here = dirname(fileURLToPath(import.meta.url))
-const testDir = resolve(here, '..')
+// Scratch projects go under the package's gitignored `node_modules/.cache`: Biome, knip, dependency-cruiser
+// and `tsc -b` never crawl it, so parallel Turbo tasks never see a directory that is about to vanish.
+const scratchRoot = resolve(here, '../../node_modules/.cache')
 
 /** One compiler error: its code and its whole message, continuation lines joined by a space. */
 export interface Diagnostic {
@@ -47,6 +49,8 @@ export function compilerBin(compiler: Compiler): string {
 }
 
 const DIAGNOSTIC_LINE = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.*)$/
+/** A global error (a missing `types` entry, a bad option) has no file or position: its line is 0. */
+const GLOBAL_DIAGNOSTIC_LINE = /^error (TS\d+): (.*)$/
 
 /** Reads `tsc --pretty false` output: an error line, then indented lines that continue it. */
 export function parseDiagnostics(output: string): Diagnostic[] {
@@ -61,6 +65,15 @@ export function parseDiagnostics(output: string): Diagnostic[] {
         code: match[4] ?? '',
         message: match[5] ?? '',
       })
+    } else if (GLOBAL_DIAGNOSTIC_LINE.test(line)) {
+      const global = GLOBAL_DIAGNOSTIC_LINE.exec(line)
+      found.push({
+        file: '',
+        line: 0,
+        column: 0,
+        code: global?.[1] ?? '',
+        message: global?.[2] ?? '',
+      })
     } else if (/^\s+\S/.test(line)) {
       const last = found.at(-1)
       if (last !== undefined) {
@@ -72,7 +85,7 @@ export function parseDiagnostics(output: string): Diagnostic[] {
 }
 
 /**
- * Compiles `files` (name to source, written side by side in a temporary directory under `test/`)
+ * Compiles `files` (name to source, written side by side in a temporary directory under `node_modules/.cache/`)
  * with the strict options of `tsconfig.base.json`, no emit, and returns what the compiler said.
  */
 export function compileFiles(
@@ -80,19 +93,19 @@ export function compileFiles(
   files: Readonly<Record<string, string>>,
   extraArgs: readonly string[] = [],
 ): TscResult {
-  const dir = mkdtempSync(join(testDir, '.tsc-'))
+  mkdirSync(scratchRoot, { recursive: true })
+  const dir = mkdtempSync(join(scratchRoot, 'provino-lazy-tsc-'))
   try {
-    mkdirSync(dir, { recursive: true })
     for (const [name, source] of Object.entries(files)) {
       writeFileSync(join(dir, name), source)
     }
     writeFileSync(
       join(dir, 'tsconfig.json'),
       JSON.stringify({
-        extends: '../../../../tsconfig.base.json',
+        extends: '../../../../../tsconfig.base.json',
         compilerOptions: {
           noEmit: true,
-          rootDir: '../../..',
+          rootDir: '../../../..',
           composite: false,
           declaration: false,
           declarationMap: false,
@@ -110,8 +123,14 @@ export function compileFiles(
     if (run.error !== undefined) {
       throw run.error
     }
+    const diagnostics = parseDiagnostics(run.stdout)
+    if (run.status !== 0 && diagnostics.length === 0) {
+      throw new Error(
+        `${compiler} exited ${run.status} with no diagnostic it could read\nstdout: ${run.stdout}\nstderr: ${run.stderr}`,
+      )
+    }
     return {
-      diagnostics: parseDiagnostics(run.stdout),
+      diagnostics,
       stdout: run.stdout,
       status: run.status,
     }

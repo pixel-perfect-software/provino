@@ -168,6 +168,15 @@ lazy.let('constructor', () => 1)
 // @ts-expect-error TS2345 'toJSON' is reserved and cannot be a lazy key
 lazy.eager('toJSON', () => 1)
 
+// A key that is not a literal would skip the reserved and re-declare checks and add an index signature
+declare const wideKey: string
+// @ts-expect-error TS2345 lazy keys must be string literals
+lazy.let('x', () => 1).let(wideKey, () => 'q')
+// @ts-expect-error TS2345 lazy keys must be string literals
+lazy.eager(wideKey, () => 1)
+// @ts-expect-error TS2345 Argument of type 'string' is not assignable to parameter of type
+$.override(wideKey, () => ada)
+
 // $.from(ctx)
 expectTypeOf($.from(testCtx)).toEqualTypeOf<{ readonly user: User; readonly cart: Cart }>()
 // @ts-expect-error TS2345 Argument of type 'number' is not assignable to parameter
