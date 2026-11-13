@@ -36,6 +36,52 @@ function stream(): WritableLike & { readonly through: string[] } {
 const brief = (events: readonly ConsoleEvent[]) =>
   events.map(({ stream, level, text, taskId }) => ({ stream, level, text, taskId }))
 
+describe('console call sites (orchestrator.consoleOrigin: stack)', () => {
+  function located(on: boolean) {
+    const events: ConsoleEvent[] = []
+    const c = createConsoleCapture({
+      emit: (event) => events.push(event),
+      currentTaskId: () => null,
+      origin: () => on,
+    })
+    return { c, events }
+  }
+
+  it('keeps no origin unless asked', () => {
+    const { c, events } = located(false)
+    c.console.log('a')
+    assert.equal(events[0]?.origin, null)
+  })
+
+  it('keeps the call site as one `at` line named as Jest names it, with the call’s position', () => {
+    const { c, events } = located(true)
+    // The frame's name is the console method with the calling function's receiver (Jest's
+    // BufferedConsole, recorded in cli/report-default): `Object.log` for an anonymous caller.
+    c.console.log('a')
+    const origin = events[0]?.origin ?? ''
+    assert.match(origin, /^at (?:\w+\.)?log \(.*console\.test\.ts:\d+:\d+\)$/)
+    assert.equal(origin.includes('\n'), false)
+  })
+
+  it('names the method for each level, and keeps the site of the user’s call for a method that prints through others', () => {
+    const { c, events } = located(true)
+    c.console.warn('w')
+    c.console.table([{ a: 1 }])
+    assert.match(events[0]?.origin ?? '', /warn \(.*console\.test\.ts/)
+    assert.match(events[1]?.origin ?? '', /table \(.*console\.test\.ts/)
+  })
+
+  it('leaves a direct stream write with no origin', () => {
+    const { c, events } = located(true)
+    const out = stream()
+    const installed = c.install({ stdout: out, stderr: stream() })
+    ;(out as { write(chunk: string): boolean }).write('raw')
+    installed.restore()
+    assert.equal(events[0]?.level, null)
+    assert.equal(events[0]?.origin, null)
+  })
+})
+
 describe('createConsoleCapture', () => {
   it('records each call with its level, stream and Node’s formatting', () => {
     const { c, events } = capture()

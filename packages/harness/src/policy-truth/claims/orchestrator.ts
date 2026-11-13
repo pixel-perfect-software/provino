@@ -232,6 +232,14 @@ export const orchestratorClaims: Claims = {
     }),
     pending('T11.16', 'no Vitest fixture records what a file of only todo tests ends as'),
   ),
+  // Jest's console entries keep the call site, and its text prints it under each entry.
+  'orchestrator.consoleOrigin': each(
+    golden('cli/report-default', {
+      read: (g) =>
+        /\n {6}at Object\.log \(console\.test\.ts:4:11\)/.test(stderrOf(g)) ? 'stack' : 'none',
+    }),
+    pending('T11.16', 'no Vitest fixture records a console call site'),
+  ),
   // One worker runs two files: the second sees none of the listeners the first added to
   // `process`, and not the `env` variable it set; twelve files whose setup file adds an `exit`
   // listener each count one.

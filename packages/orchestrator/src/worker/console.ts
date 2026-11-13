@@ -26,6 +26,11 @@ export interface ConsoleCaptureOptions {
   readonly currentTaskId: () => TaskId | null
   /** The event clock. Default `performance.now`, core's clock. */
   readonly now?: () => number
+  /**
+   * Whether a console call keeps its call site as the event's `origin` (`orchestrator.consoleOrigin`
+   * is `stack`). Read at each call, since the policy arrives with the worker's init. Default: no.
+   */
+  readonly origin?: () => boolean
 }
 
 /**
@@ -69,6 +74,9 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
   /** The console method being called through the capture's console, innermost call first. */
   let level: string | null = null
 
+  /** The call site of the console method being called, kept until its text is recorded. */
+  let site: string | null = null
+
   const record = (stream: 'stdout' | 'stderr', text: string, from: string | null): void => {
     if (text === '') return
     options.emit({
@@ -77,7 +85,7 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
       stream,
       level: from,
       text,
-      origin: null,
+      origin: from === null ? null : site,
       t: now(),
     })
   }
@@ -110,16 +118,22 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
   const methods = front as unknown as Methods
   for (const [name, method] of Object.entries(inner)) {
     if (typeof method !== 'function') continue
-    methods[name] = (...args: unknown[]): unknown => {
+    const call = (...args: unknown[]): unknown => {
       const outer = level
+      const outerSite = site
       level = name
       used = true
+      // Only the outermost call (the user's) gives the site: a method that prints through
+      // others keeps it.
+      if (outer === null && options.origin?.() === true) site = callSite(call, name)
       try {
         return Reflect.apply(inner[name] as Methods[string], inner, args)
       } finally {
         level = outer
+        site = outerSite
       }
     }
+    methods[name] = call
   }
 
   return {
@@ -182,4 +196,36 @@ function patch(
       else delete (stream as Partial<WritableLike>).write
     },
   }
+}
+
+/**
+ * The call site of a console method as Jest's `BufferedConsole` keeps it: one `at …` line with
+ * the console method's name where V8 would name the calling function (`at Object.log (file:4:11)`,
+ * `at log (file:1:26)`, `at K.info [as m] (file:2:25)`) and the position of the call. `below` is
+ * the method's own front function, whose frame and those above it are left out. `null` when the
+ * frame can't be read.
+ */
+function callSite(below: (...args: never[]) => unknown, method: string): string | null {
+  const holder: { stack?: string } = {}
+  const limit = Error.stackTraceLimit
+  Error.stackTraceLimit = 1
+  try {
+    Error.captureStackTrace(holder, below)
+  } finally {
+    Error.stackTraceLimit = limit
+  }
+  const frame = holder.stack?.split('\n').find((line) => line.trimStart().startsWith('at '))
+  if (frame === undefined) return null
+  const text = frame.trim().slice(3)
+  const open = text.indexOf(' (')
+  const place = open === -1 ? text : text.slice(open + 2).replace(/\)$/, '')
+  if (!/:\d+:\d+$/.test(place)) return null
+  const name = open === -1 ? '' : text.slice(0, open)
+  const dot = name.lastIndexOf('.')
+  const own = dot === -1 ? name : name.slice(dot + 1)
+  const label =
+    dot === -1
+      ? method
+      : `${name.slice(0, dot)}.${method}${own !== '<anonymous>' && own !== method ? ` [as ${own}]` : ''}`
+  return `at ${label} (${place})`
 }
