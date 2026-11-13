@@ -1872,6 +1872,10 @@ export interface NeutralProject {
     };
     readonly fakeTimers?: Readonly<Record<string, JsonValue>>;
     readonly globalSetup: readonly string[];
+    readonly globalSetupArgs?: {
+        readonly globalConfig: Readonly<Record<string, JsonValue>>;
+        readonly projectConfig: Readonly<Record<string, JsonValue>>;
+    };
     // (undocumented)
     readonly globalTeardown: readonly string[];
     readonly globalValues?: Readonly<Record<string, JsonValue>>;
@@ -2010,6 +2014,8 @@ export interface OrchestratorPolicy {
     };
     readonly globalSetup: {
         readonly signature: "global-and-project-config" | "project-with-teardown";
+        readonly teardownOrder: "in-order" | "reverse";
+        readonly failureMessage: string;
     };
     readonly globMatchesOn: "absolute-path" | "root-relative-path";
     readonly include: readonly string[];
