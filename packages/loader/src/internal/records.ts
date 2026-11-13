@@ -357,7 +357,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       source: text,
       role: thirdParty ? 'dependency' : isTest ? 'test' : 'source',
       consumer: 'import',
-      instrument: !isTest && state.options.shouldInstrument?.(path) === true,
+      instrument: state.options.shouldInstrument?.(path) === true,
     })
     transformKeyOf = transformed.cacheKey
     const error = transformed.diagnostics.find((diagnostic) => diagnostic.severity === 'error')
