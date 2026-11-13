@@ -4,6 +4,10 @@
 import assert from 'node:assert/strict'
 import { ChildProcess, spawn } from 'node:child_process'
 import { once } from 'node:events'
+import { readFileSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
@@ -13,7 +17,16 @@ import {
   type WorkerConnection,
 } from '@provino/orchestrator'
 import type { PoolKind, Transport, WorkerExit, WorkerInit } from '@provino/types'
-import { Collect, fixture, forceKilled, initFor, job, KINDS, methods } from './support.ts'
+import {
+  Collect,
+  fixture,
+  forceKilled,
+  initFor,
+  isRunning,
+  job,
+  KINDS,
+  methods,
+} from './support.ts'
 
 async function start(
   kind: PoolKind,
@@ -150,6 +163,25 @@ for (const kind of ['forks', 'threads'] as const) {
     })
   })
 }
+
+describe('forks transport, a grandchild that holds the stderr pipe', () => {
+  it('reports a clean exit at once, not after the grace a held pipe would cost', async () => {
+    const pidFile = join(tmpdir(), `provino-grandchild-${process.pid}`)
+    const { transport, connection } = await start('forks', 'grandchild-worker.ts')
+    const grandchild = Number(readFileSync(pidFile, 'utf8'))
+    try {
+      const started = performance.now()
+      await transport.terminate(false)
+      assert.deepEqual(await connection.exited, { type: 'exit', code: 0 })
+      // Waiting for the pipe would cost the transport's 1 s grace (`DISCONNECT_GRACE_MS`).
+      assert.ok(performance.now() - started < 1000, 'the exit did not wait for the pipe to close')
+      assert.equal(isRunning(grandchild), true, 'the grandchild still holds the pipe')
+    } finally {
+      process.kill(grandchild, 'SIGKILL')
+      await rm(pidFile, { force: true })
+    }
+  })
+})
 
 describe('forks transport, escalation', () => {
   it('sends SIGKILL 500 ms after a SIGTERM the worker ignores', async () => {

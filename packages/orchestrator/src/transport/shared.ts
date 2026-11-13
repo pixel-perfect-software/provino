@@ -310,6 +310,20 @@ export async function settlesWithin(
   }
 }
 
+/**
+ * V8's default old-generation heap limit in MB, which a worker without a limit of its own shares
+ * with this process. `node:v8` is read here, on the one path that needs it (an out-of-memory exit).
+ */
+export function defaultHeapLimitMb(): number {
+  const { getHeapStatistics } = process.getBuiltinModule('node:v8')
+  return Math.round(getHeapStatistics().heap_size_limit / (1024 * 1024))
+}
+
+/** A worker that ran out of memory under `limitMb`, V8's default when no limit is known. */
+export function oomExit(limitMb?: number): WorkerExit {
+  return { type: 'oom', limitMb: limitMb ?? defaultHeapLimitMb() }
+}
+
 /** The entry as a URL string, which `import()`, `fork` arguments and `workerData` all carry. */
 function entryHref(entry: string | URL): string {
   if (entry instanceof URL) return entry.href

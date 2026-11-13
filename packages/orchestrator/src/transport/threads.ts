@@ -1,6 +1,5 @@
 // Opt-in `pool: 'threads'` (Track 9 §Pool 1): about 35 MiB less per worker, a clean OOM through
 // `resourceLimits`, and no isolation from a native fault, which ends the whole process.
-import { getHeapStatistics } from 'node:v8'
 import { Worker } from 'node:worker_threads'
 import { workerLink } from '@provino/rpc'
 import type {
@@ -9,7 +8,13 @@ import type {
   WorkerExit,
   WorkerToCoordinator,
 } from '@provino/types'
-import { createTransport, forwardStdio, printError, type TransportOptions } from './shared.ts'
+import {
+  createTransport,
+  forwardStdio,
+  oomExit,
+  printError,
+  type TransportOptions,
+} from './shared.ts'
 
 /**
  * Options for `threadsTransport`.
@@ -40,11 +45,7 @@ export function threadExit(
   outOfMemory: boolean,
   limitMb: number | undefined,
 ): WorkerExit {
-  if (!outOfMemory) return { type: 'exit', code }
-  return {
-    type: 'oom',
-    limitMb: limitMb ?? Math.round(getHeapStatistics().heap_size_limit / (1024 * 1024)),
-  }
+  return outOfMemory ? oomExit(limitMb) : { type: 'exit', code }
 }
 
 /**
