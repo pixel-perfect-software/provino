@@ -120,3 +120,29 @@ test('a relative setup file, a missing one, a missing root, an unknown environme
     'CONFIG_UNKNOWN_ENVIRONMENT',
   )
 })
+
+test('global setup and teardown reach the resolved project, with the arguments a hook is called with (T9.15)', async () => {
+  const setup = await temp.write('gs.js', '')
+  const teardown = await temp.write('gt.js', '')
+  const args = { globalConfig: { rootDir: temp.dir }, projectConfig: { rootDir: temp.dir } }
+  const resolved = await resolveNeutralProject(
+    neutral({ globalSetup: [setup], globalTeardown: [teardown], globalSetupArgs: args }),
+    { dialect: reader, environments: ENVIRONMENTS, ci: false },
+  )
+  assert.deepEqual(resolved.globalSetup, { setup: [setup], teardown: [teardown], args })
+  const none = await resolveNeutralProject(neutral(), {
+    dialect: reader,
+    environments: ENVIRONMENTS,
+    ci: false,
+  })
+  assert.equal(none.globalSetup, undefined)
+})
+
+test('a relative global setup path is refused', async () => {
+  const options = { dialect: reader, environments: ENVIRONMENTS, ci: false }
+  const relative = await rejectsWith(
+    resolveNeutralProject(neutral({ globalSetup: ['./gs.js'] }), options),
+    'CONFIG_INVALID',
+  )
+  assert.match(relative.message, /globalSetup must hold absolute paths/)
+})

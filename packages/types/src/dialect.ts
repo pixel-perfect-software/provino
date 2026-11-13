@@ -132,9 +132,18 @@ export interface NeutralProject {
   readonly setupFiles: readonly string[]
   /** Absolute paths, run after it (Jest's `setupFilesAfterEnv`, Vitest's `setupFiles`). */
   readonly setupFilesAfterEnv: readonly string[]
-  /** Absolute paths, or `[]`. */
+  /** Absolute paths, or `[]`. Run in the coordinator, once per distinct path (T9.15). */
   readonly globalSetup: readonly string[]
   readonly globalTeardown: readonly string[]
+  /**
+   * What a global setup or teardown function receives under the policy's
+   * `global-and-project-config` signature (Jest's `GlobalConfig` and `ProjectConfig`), as JSON.
+   * Absent when there is no global setup or teardown, or for a signature that takes the project.
+   */
+  readonly globalSetupArgs?: {
+    readonly globalConfig: Readonly<Record<string, JsonValue>>
+    readonly projectConfig: Readonly<Record<string, JsonValue>>
+  }
   /** The environment's neutral name (`node`, `jsdom`), or an absolute path to a custom one. */
   readonly environment: {
     readonly name: string

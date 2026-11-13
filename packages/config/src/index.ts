@@ -6,6 +6,7 @@ export { hasProvinoTag } from '@provino/transform'
 export { ConfigError, type ConfigErrorCode, type ConfigIssue, formatConfigIssue } from './errors.ts'
 export { importConfigModule, loadConfigFile, loadProject } from './load.ts'
 export {
+  type ResolvedGlobalSetup,
   type ResolvedProject,
   type ResolveNeutralProjectOptions,
   type ResolveProjectOptions,

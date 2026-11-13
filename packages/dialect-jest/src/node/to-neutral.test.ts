@@ -225,6 +225,36 @@ test('keys read but not applied yet warn, naming the task (gap 9)', async () => 
   assert.equal(environment?.options.module, environment?.name)
 })
 
+test('globalSetup and globalTeardown reach the neutral project with the two configs a hook is called with (T9.15)', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = {
+  globalSetup: '<rootDir>/setup.js',
+  globalTeardown: './teardown.js',
+  testMatch: ['**/*.spec.ts'],
+}
+`,
+    'setup.js': '',
+    'teardown.js': '',
+  })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.deepEqual(project?.globalSetup, [join(root, 'setup.js')])
+  assert.deepEqual(project?.globalTeardown, [join(root, 'teardown.js')])
+  // It is applied now: no "not applied" warning for either key.
+  assert.ok(!neutral.diagnostics.some((d) => /globalS|globalT/.test(d.message)))
+  const args = project?.globalSetupArgs
+  assert.equal(args?.globalConfig.rootDir, root)
+  assert.equal(args?.projectConfig.rootDir, root)
+  assert.deepEqual(args?.projectConfig.testMatch, ['**/*.spec.ts'])
+})
+
+test('a project with no global setup or teardown carries no hook arguments', async () => {
+  const { neutral } = await readNeutral(tree({ 'jest.config.js': 'module.exports = {}\n' }))
+  const [project] = neutral.value
+  assert.deepEqual(project?.globalSetup, [])
+  assert.equal(project?.globalSetupArgs, undefined)
+})
+
 test('fakeTimers: enableGlobally is the timers policy, the rest are the defaults of every install', async () => {
   const root = tree({
     'jest.config.js': `module.exports = {

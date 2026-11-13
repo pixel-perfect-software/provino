@@ -57,6 +57,23 @@ export type UnseededProjectConfig = Omit<SerializedProjectConfig, 'seed'> & {
 }
 
 /**
+ * A project's global setup and teardown (T9.15): modules the coordinator imports and calls, as the
+ * policy's `globalSetup.signature` says. Every path is absolute.
+ * @public
+ */
+export interface ResolvedGlobalSetup {
+  /** The setup modules, in the order they run. */
+  readonly setup: readonly string[]
+  /** The teardown modules. */
+  readonly teardown: readonly string[]
+  /**
+   * What the function is called with under the `global-and-project-config` signature (Jest's two
+   * configs, as JSON); absent for a project whose dialect passes none.
+   */
+  readonly args?: NeutralProject['globalSetupArgs']
+}
+
+/**
  * A project, resolved: the choices config and policy made, and the config its workers get.
  * @public
  */
@@ -85,6 +102,8 @@ export interface ResolvedProject {
   readonly config: UnseededProjectConfig
   /** The cache directory the project's config sets itself (D70), or absent for the default. */
   readonly cacheDirectory?: string
+  /** Global setup and teardown the coordinator runs for this project (T9.15); absent for none. */
+  readonly globalSetup?: ResolvedGlobalSetup
 }
 
 /**
@@ -281,6 +300,8 @@ export async function resolveNeutralProject(
   for (const [key, paths] of [
     ['setupFiles', neutral.setupFiles],
     ['setupFilesAfterEnv', neutral.setupFilesAfterEnv],
+    ['globalSetup', neutral.globalSetup],
+    ['globalTeardown', neutral.globalTeardown],
   ] as const) {
     const relative = paths.find((path) => !isAbsolute(path))
     if (relative !== undefined) {
@@ -305,6 +326,7 @@ export async function resolveNeutralProject(
       discovery: neutral.discovery,
       transform: resolveTransforms(neutral),
       cacheDirectory: neutral.cacheDirectory,
+      globalSetup: globalSetupOf(neutral),
       aliases: neutral.aliases,
       globalValues: neutral.globalValues,
       fakeTimers: neutral.fakeTimers,
@@ -313,6 +335,16 @@ export async function resolveNeutralProject(
     },
     { environments: options.environments, ci: options.ci },
   )
+}
+
+/** The project's global hooks, or `undefined` when it has none. */
+function globalSetupOf(neutral: NeutralProject): ResolvedGlobalSetup | undefined {
+  if (neutral.globalSetup.length === 0 && neutral.globalTeardown.length === 0) return undefined
+  return {
+    setup: neutral.globalSetup,
+    teardown: neutral.globalTeardown,
+    ...(neutral.globalSetupArgs === undefined ? {} : { args: neutral.globalSetupArgs }),
+  }
 }
 
 /** A project after its input is read: what `finishProject` builds the rest from. */
@@ -336,6 +368,8 @@ interface ProjectInput {
   readonly transform?: SerializedTransformConfig | undefined
   /** The cache directory the config sets itself (D70); a neutral project's only. */
   readonly cacheDirectory?: string | undefined
+  /** Global setup and teardown (T9.15); a neutral project's only. */
+  readonly globalSetup?: ResolvedGlobalSetup | undefined
   /** Name-mapping rules and resolver keys (T3.3); none for a `provino.config.*` project. */
   readonly aliases?: readonly NeutralAlias[] | undefined
   readonly resolution?: NeutralResolution | undefined
@@ -476,5 +510,6 @@ async function finishProject(
     isolation,
     config,
     ...(input.cacheDirectory === undefined ? {} : { cacheDirectory: input.cacheDirectory }),
+    ...(input.globalSetup === undefined ? {} : { globalSetup: input.globalSetup }),
   }
 }

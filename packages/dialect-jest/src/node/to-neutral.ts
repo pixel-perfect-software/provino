@@ -154,8 +154,6 @@ export function jestProjectToNeutral(
       '; snapshots stay beside the test file',
     )
   }
-  if (project.globalSetup !== undefined) notApplied(diagnostics, 'globalSetup', 'Track 9')
-  if (project.globalTeardown !== undefined) notApplied(diagnostics, 'globalTeardown', 'Track 9')
   if (globalConfig.collectCoverage) notApplied(diagnostics, 'collectCoverage', 'T8.8')
   if (globalConfig.reporters !== undefined) notApplied(diagnostics, 'reporters', 'T11.9')
 
@@ -263,6 +261,16 @@ export function jestProjectToNeutral(
     setupFilesAfterEnv: [...project.setupFilesAfterEnv],
     globalSetup: project.globalSetup === undefined ? [] : [project.globalSetup],
     globalTeardown: project.globalTeardown === undefined ? [] : [project.globalTeardown],
+    // `fn(globalConfig, projectConfig)`: Jest's own two configs as JSON (what a clone can carry:
+    // a normalized config holds only data, a global one may name reporters or projects as objects).
+    ...(project.globalSetup === undefined && project.globalTeardown === undefined
+      ? {}
+      : {
+          globalSetupArgs: {
+            globalConfig: jsonObject(globalConfig, 'globalConfig', []),
+            projectConfig: jsonObject(project, 'projectConfig', []),
+          },
+        }),
     environment: {
       name: environment,
       // One shape for every environment: the adapter's class (absent for the built-in `node`) and
