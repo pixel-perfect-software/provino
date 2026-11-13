@@ -981,6 +981,9 @@ importers:
 
   packages/provino:
     dependencies:
+      '@istanbuljs/schema':
+        specifier: 'catalog:'
+        version: 0.1.6
       '@jest/expect-utils':
         specifier: 'catalog:'
         version: 30.5.2
@@ -990,6 +993,9 @@ importers:
       '@jridgewell/remapping':
         specifier: 'catalog:'
         version: 2.3.5
+      '@jridgewell/trace-mapping':
+        specifier: 'catalog:'
+        version: 0.3.31
       '@sinonjs/fake-timers':
         specifier: 'catalog:'
         version: 15.4.0
@@ -999,6 +1005,9 @@ importers:
       es-module-lexer:
         specifier: 'catalog:'
         version: 3.0.4
+      istanbul-lib-coverage:
+        specifier: 'catalog:'
+        version: 3.2.2
       jest-matcher-utils:
         specifier: 'catalog:'
         version: 30.5.2
