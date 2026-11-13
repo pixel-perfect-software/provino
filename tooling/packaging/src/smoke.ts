@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runCommand } from './exec.ts'
@@ -52,6 +60,23 @@ export interface SmokeResult {
   readonly ok: boolean
   /** The directory the smoke ran in, when it was kept. */
   readonly kept: string | undefined
+}
+
+/**
+ * Moves this install's Oxc binding packages (`@oxc-parser/binding-<platform>` and the transform's
+ * and resolver's) out of pnpm's store directory, as if the optional dependencies were never
+ * installed. Returns the package names it moved, as `@oxc-parser+binding-<platform>` directory names.
+ */
+function removeOxcBindings(app: string): readonly string[] {
+  const store = join(app, 'node_modules', '.pnpm')
+  const moved: string[] = []
+  for (const name of readdirSync(store)) {
+    const match = /^(@oxc-(?:parser|transform|resolver))\+(binding-[^@]+)@/.exec(name)
+    if (match === null) continue
+    renameSync(join(store, name), join(store, `_removed_${name}`))
+    moved.push(`${match[1]}+${match[2]}`)
+  }
+  return moved
 }
 
 /**
@@ -114,6 +139,29 @@ export function installSmoke(options: {
       suite.status === 0 && /Tests:\s+3 passed, 3 total/.test(suite.output),
       suite.output,
     )
+    if (suite.status === 0) {
+      // T10.3, Provino's half: take this platform's Oxc binding packages out of the install (what
+      // `npm i --omit=optional` or a stale lockfile leaves). --version and --help still answer, and
+      // a run ends as one message naming the packages, with no stack.
+      const removed = removeOxcBindings(app)
+      step('Oxc bindings removed from the install', removed.length === 3, removed.join('\n'))
+      const still = run(['exec', 'provino', '--version'])
+      step(
+        'provino --version with no Oxc binding',
+        still.status === 0 && still.output.trim().split('\n').at(-1) === expected,
+        still.output,
+      )
+      const failed = run(['exec', 'provino', 'jest', '--ci'])
+      step(
+        'provino jest with no Oxc binding: one message, exit 1, no stack',
+        failed.status !== 0 &&
+          removed.every((name) => failed.output.includes(name.replace('+', '/'))) &&
+          !/\n\s+at |Cannot find native binding/.test(
+            failed.output.replace(/^ERR_PNPM.*\n?/gm, ''),
+          ),
+        failed.output,
+      )
+    }
   } finally {
     if (!options.keep) rmSync(work, { recursive: true, force: true })
   }

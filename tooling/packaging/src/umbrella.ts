@@ -63,13 +63,18 @@ const COORDINATOR = new RegExp(
     'reporters[\\/]src[\\/]',
     'config[\\/]src[\\/]',
     'snapshot[\\/]src[\\/]node[\\/]',
-    'provino[\\/]src[\\/]',
+    // provino's own files, but not the three the bin answers --version and --help from.
+    'provino[\\/]src[\\/](?!internal[\\/](?:usage|version|native-binding)\\.ts)',
     'policy[\\/]src[\\/]dialect\\.ts',
     'dialect-jest[\\/]src[\\/](?:dialect|expect-policy|hoist-policy|mock-policy)\\.ts',
   ]
     .map((alternative) => `[\\/]packages[\\/]${alternative}`)
     .join('|'),
 )
+
+/** The three files the bin answers `--version` and `--help` from, before it imports the rest. */
+const BIN_LIGHT =
+  /[\\/]packages[\\/]provino[\\/]src[\\/]internal[\\/](?:usage|version|native-binding)\.ts$/
 
 /** A source file of a workspace package. */
 const SHARED = /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/
@@ -170,7 +175,15 @@ export function umbrellaConfig(dir: string): UserConfig[] {
               // Only the coordinator's own files: what they import (rpc, transform, policy) is shared.
               includeDependenciesRecursively: false,
             },
-            { name: 'shared', test: SHARED, minShareCount: 2, priority: 1 },
+            {
+              name: 'shared',
+              test: (id: string) => SHARED.test(id) && !BIN_LIGHT.test(id),
+              minShareCount: 2,
+              priority: 1,
+              // A module the test leaves out (the bin's three) stays out, and is not pulled in as a
+              // dependency of one the test takes.
+              includeDependenciesRecursively: false,
+            },
           ],
         },
       },
