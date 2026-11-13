@@ -264,6 +264,29 @@ describe('--bail against Jest 30.5.2', () => {
     })
   }
 
+  it('a file that fails to load is not a failed test: it does not count, and the later files run (cli/bail-on-load-error)', async () => {
+    const run = await runFixture('cli/bail-on-load-error')
+    try {
+      const golden = run.fixture.golden.observed
+      assert.equal(run.code, golden?.exitCode, run.stderr)
+      const expected = golden?.stderr ?? ''
+      const files = goldenFileLines(expected)
+      assert.deepEqual(
+        files.map(([state, path]) => `${state} ${path}`),
+        ['FAIL a-throws.test.ts', 'PASS b-passes.test.ts', 'PASS c-passes.test.ts'],
+        'Jest ran all three: the load failure is not a failed test',
+      )
+      for (const [state, path] of files) {
+        assert.match(run.stderr, new RegExp(`^${state} ${path.replace('.', '\\.')}`, 'm'))
+      }
+      for (const line of expected.split('\n').filter((l) => /^(Test Suites|Tests):/.test(l))) {
+        assert.ok(run.stderr.split('\n').includes(line), `stderr has "${line}":\n${run.stderr}`)
+      }
+    } finally {
+      await run.dispose()
+    }
+  })
+
   it('without a bail the same project runs every file (the control)', async () => {
     const fixture = await loadFixture('cli/bail-one')
     const project = await materialize(fixture)
