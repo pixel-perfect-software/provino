@@ -404,7 +404,7 @@ describe('lazy variables on the built package', () => {
     assert.equal(view.files.size, 1)
   })
 
-  test('provino jest with testEnvironment jsdom: the project\'s own jest-environment-jsdom (D44)', async () => {
+  test("provino jest with testEnvironment jsdom: the project's own jest-environment-jsdom (D44)", async () => {
     const dir = await project({ 'tests/dom.test.ts': DOM }, ',"testEnvironment":"jsdom"')
     symlinkSync(
       dirname(require.resolve('jest-environment-jsdom/package.json')),

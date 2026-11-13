@@ -186,7 +186,7 @@ async function builtProject(): Promise<string> {
   return dir
 }
 
-describe('`import \'provino\'` alone', () => {
+describe("`import 'provino'` alone", () => {
   test('statically imports no engine chunk: dist/index.js reaches only the lazy-api leaf', () => {
     const source = readFileSync(join(PACKAGE, 'dist', 'index.js'), 'utf8')
     const imports = [...source.matchAll(/^import [^\n]*? from "([^"]+)"/gm)].map((m) => m[1])
@@ -212,7 +212,10 @@ describe('`import \'provino\'` alone', () => {
       .flatMap((file) => readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean))
       .map((line) => line.split('\t')[1] ?? '')
       .filter((url) => url.includes('/dist/'))
-    assert.ok(loaded.some((url) => url.endsWith('/dist/index.js')), loaded.join('\n'))
+    assert.ok(
+      loaded.some((url) => url.endsWith('/dist/index.js')),
+      loaded.join('\n'),
+    )
     assert.deepEqual(
       loaded.filter((url) => /\/dist\/(?:shared|loading|coordinator)\.js/.test(url)),
       [],
