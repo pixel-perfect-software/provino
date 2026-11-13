@@ -1,7 +1,7 @@
 {
   "name": "@provino/dialect-vitest",
   "version": "0.0.0",
-  "description": "Provino's Vitest 5.0 dialect: Vitest's policy values and API, so a Vitest project runs on Provino unchanged.",
+  "description": "Provino's Vitest 5.0 dialect: Vitest's policy values, hoisting rules and title formatting. Not wired into a run yet: `provino vitest` is not available.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
     "url": "https://github.com/pixel-perfect-software/provino/issues"

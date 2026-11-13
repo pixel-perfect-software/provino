@@ -1,7 +1,16 @@
 {
   "name": "provino",
   "version": "0.0.0",
-  "description": "A fast, type-safe test runner for JavaScript and TypeScript. A drop-in replacement for Jest and Vitest, with RSpec-style lazy variables built in.",
+  "description": "A test runner for JavaScript and TypeScript that runs Jest projects with Jest's config, command line, matchers and snapshots. Pre-alpha: Vitest support and lazy variables are not built yet.",
+  "keywords": [
+    "test",
+    "testing",
+    "test-runner",
+    "jest",
+    "typescript",
+    "snapshot",
+    "mock"
+  ],
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
     "url": "https://github.com/pixel-perfect-software/provino/issues"
