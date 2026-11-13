@@ -167,6 +167,30 @@ export function jsonFile<A>(
 }
 
 /**
+ * A file-level message without the frames of the runner's own packages. Jest builds the error of an
+ * empty file (`Your test suite must contain at least one test.`) inside `@jest/core`, and which of
+ * its frames the text carries, and how they are indented, differs from run to run (an `emittery`
+ * frame and a native `Array.map` one came and went between two recordings of one fixture), so a
+ * golden that held them drifted without the runner having changed. A frame in `node_modules/`, and
+ * a native one directly after it, is the runner's, never the project's.
+ */
+function withoutRunnerFrames(message: string): string {
+  const kept: string[] = []
+  let afterRunner = false
+  for (const line of message.split('\n')) {
+    const frame = /^\s+at /.test(line)
+    if (frame && line.includes('node_modules/')) {
+      afterRunner = true
+      continue
+    }
+    if (frame && afterRunner && /\((?:<anonymous>|native)\)\s*$/.test(line)) continue
+    afterRunner = false
+    kept.push(line)
+  }
+  return kept.join('\n')
+}
+
+/**
  * A failed file with no tests is `crashed`: a syntax error, a missing import. A failed file whose
  * tests did not fail failed outside them (a hook after the last test), and keeps its status. Both
  * keep the file's message as `fileError`. When a test failed, the message repeats that failure.
@@ -178,7 +202,9 @@ export function assembleFile(raw: RawFile, conversion: Conversion): NormalizedFi
   const status: FileStatus = crashed ? 'crashed' : raw.status
   const failedOutsideTests = raw.status === 'failed' && !tests.some((t) => t.status === 'failed')
   const fileError =
-    failedOutsideTests && raw.message.trim() !== '' ? errorOf(raw.message, conversion) : undefined
+    failedOutsideTests && raw.message.trim() !== ''
+      ? errorOf(withoutRunnerFrames(raw.message), conversion)
+      : undefined
   return {
     file,
     status,
