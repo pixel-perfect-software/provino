@@ -1,9 +1,10 @@
 {
-  "description": "A file with only todo tests, one with a skipped and a todo test, and one whose every test is skipped, next to a passing file (T9.7, B21c, DV50). Jest marks a suite skipped only when every test is pending (jest-runner's `skipped = testCount === numPendingTests`), so the todo-only file and the skip-and-todo one are PASS lines and count as passed suites, and only the all-skipped file prints no line and counts as skipped (`1 skipped, 3 passed, 3 of 4 total`). One Jest worker, the default reporter. A black-box run.",
+  "description": "A file with only todo tests, one with a skipped and a todo test, and one whose every test is skipped, next to a passing file (T9.7, B21c, DV50). Jest marks a suite skipped only when every test is pending (jest-runner's `skipped = testCount === numPendingTests`), so the todo-only file and the skip-and-todo one are PASS lines and count as passed suites, and only the all-skipped file prints no line and counts as skipped (`1 skipped, 3 passed, 3 of 4 total`). One Jest worker, the default reporter. `passes.test.ts` and `todo-only.test.ts` are the same size, so Jest's order for the two (largest first, then the crawl's) differs between a macOS and a Linux checkout: the kept lines are sorted. A black-box run.",
   "runners": ["jest"],
   "config": { "jest": { "maxWorkers": 1 } },
   "run": {
     "capture": ["exitCode", "stderr"],
-    "keepLines": "^(PASS|FAIL|SKIP) |^(Test Suites|Tests):"
+    "keepLines": "^(PASS|FAIL|SKIP) |^(Test Suites|Tests):",
+    "sortStdout": true
   }
 }
