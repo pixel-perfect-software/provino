@@ -4,25 +4,19 @@
 // block); `json`, `junit` and `github-actions` do not, and are held to the same bytes both ways.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import type { Reporter, ReportPolicy } from '@provino/types'
+import type { Reporter } from '@provino/types'
 import { agentReporter } from './agent/reporter.ts'
 import { defaultReporter } from './default/reporter.ts'
 import { dotReporter } from './dot/reporter.ts'
 import { githubActionsReporter } from './github-actions/reporter.ts'
 import { expectGolden } from './internal/golden.ts'
-import { FIXED_ENV, type Output, playFixture } from './internal/test-support.ts'
+import { FIXED_ENV, JEST_REPORT, type Output, playFixture } from './internal/test-support.ts'
 import { junitReporter } from './junit/reporter.ts'
 import { jsonReporter, normalizedJsonReporter } from './normalized-json/reporter.ts'
 import type { TextReporterOptions } from './text/reporter.ts'
 import { verboseReporter } from './verbose/reporter.ts'
 
 /** Jest's values for the `report` slice (the `policy/report-default` golden). */
-const REPORT: ReportPolicy = {
-  displaySeparator: ' › ',
-  defaultReporters: ['default'],
-  failureTitleBullet: '  ● ',
-  resultStatusSkipped: 'pending',
-}
 
 /** The text reporters' two modes: a pipe or a file, and a colour terminal. */
 const MODES = {
@@ -42,7 +36,7 @@ describe('the text reporters on the fixture run', () => {
     for (const [mode, options] of Object.entries(MODES)) {
       test(`${name}, ${mode}`, async () => {
         const { text } = await playFixture((out) =>
-          make({ stream: out, report: REPORT, ...options }),
+          make({ stream: out, report: JEST_REPORT, ...options }),
         )
         await expectGolden(`${name}.${mode}`, text)
       })
@@ -52,7 +46,7 @@ describe('the text reporters on the fixture run', () => {
   test('none of them writes an escape character without colour', async () => {
     for (const [, make] of TEXT) {
       const { text } = await playFixture((out) =>
-        make({ stream: out, report: REPORT, ...MODES.plain }),
+        make({ stream: out, report: JEST_REPORT, ...MODES.plain }),
       )
       assert.doesNotMatch(text, new RegExp(String.fromCharCode(27)))
     }
@@ -62,7 +56,7 @@ describe('the text reporters on the fixture run', () => {
     const lengths = new Map<string, number>()
     for (const [name, make] of TEXT) {
       const { text } = await playFixture((out) =>
-        make({ stream: out, report: REPORT, ...MODES.plain }),
+        make({ stream: out, report: JEST_REPORT, ...MODES.plain }),
       )
       lengths.set(name, text.length)
       if (name === 'agent' || name === 'dot') {
@@ -99,14 +93,14 @@ describe('the file reporters on the fixture run', () => {
 
   test('junit', async () => {
     const { text } = await playFixture((out) =>
-      junitReporter({ stream: out, report: REPORT, now: () => NOW }),
+      junitReporter({ stream: out, report: JEST_REPORT, now: () => NOW }),
     )
     await expectGolden('junit', text, 'xml')
   })
 
   test('github-actions', async () => {
     const { text } = await playFixture((out) =>
-      githubActionsReporter({ stream: out, report: REPORT }),
+      githubActionsReporter({ stream: out, report: JEST_REPORT }),
     )
     await expectGolden('github-actions', text)
   })

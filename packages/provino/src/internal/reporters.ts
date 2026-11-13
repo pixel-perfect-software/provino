@@ -77,15 +77,13 @@ export function isDocumentReporter(name: string): name is DocumentReporterName {
  * @internal
  */
 export interface DisplayOptions {
-  /** List every test (`verbose` in place of `default`). */
-  readonly verbose?: boolean
-  /** Print none of the tests' console output. */
-  readonly silent?: boolean
   /**
-   * `default` lists every test when the run has exactly one test file: Jest's own rule, which
-   * `provino jest` sets (unless `--silent` or `verbose: false`) and `provino run` does not.
+   * `true`: list every test (`verbose` in place of `default`). `false`: Jest's `verbose: false`,
+   * set on purpose, which also turns off the dialect's one-file listing. Unset: neither.
    */
-  readonly verboseForOneFile?: boolean
+  readonly verbose?: boolean
+  /** Print none of the tests' console output (which also turns off the one-file listing). */
+  readonly silent?: boolean
   /** `verbose` lists skipped and todo tests in declaration order. */
   readonly expand?: boolean
   /** Leave the stack frames out of the failure messages. */
@@ -238,7 +236,7 @@ function textOptions(context: ReporterContext, output: OutputEnvironment): TextR
     ...(display?.silent === true ? { silent: true } : {}),
     ...(display?.noStackTrace === true ? { noStackTrace: true } : {}),
     ...(display?.expand === true ? { expand: true } : {}),
-    ...(display?.verboseForOneFile === true ? { verboseForOneFile: true } : {}),
+    ...(display?.verbose === false ? { verbose: false as const } : {}),
   }
 }
 

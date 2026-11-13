@@ -395,6 +395,46 @@ describe('runProject over inline workers', () => {
     assert.equal(summary.reason, 'passed')
   })
 
+  it('ends a file of only todo tests as orchestrator.todoOnlyFile says, and the cache follows', async () => {
+    const files = {
+      'todo.test.js': "test.todo('later')",
+      'all-skipped.test.js': "test.skip('a', () => {})",
+    }
+    const ended = (seen: readonly Seen[]): Map<string, string> =>
+      new Map(
+        seen
+          .filter((entry) => entry.name === 'file:end')
+          .map((entry) => [String(entry.path), String(entry.detail.state)]),
+      )
+    for (const [rule, expected] of [
+      ['pass', 'pass'],
+      ['skip', 'skip'],
+    ] as const) {
+      const p = await makeProject(files)
+      const project = runtimeProject(p.dir, { policy: { orchestrator: { todoOnlyFile: rule } } })
+      const { seen } = await run(project, {
+        defaultCache: true,
+        pool: { kind: 'inline', maxWorkers: 1 },
+      })
+      assert.deepEqual(
+        [...ended(seen)].toSorted(),
+        [
+          ['all-skipped.test.js', 'skip'],
+          ['todo.test.js', expected],
+        ],
+        `todoOnlyFile: ${rule}; a file whose every test is skipped is skipped either way`,
+      )
+      const cache = createResultsCache(defaultCacheDir(p.dir))
+      const key = projectCacheKey(project)
+      assert.equal(cache.get(key, 'todo.test.js') !== undefined, rule === 'pass', 'the cache')
+      assert.equal(
+        cache.get(key, 'all-skipped.test.js'),
+        undefined,
+        'a skipped file is not remembered',
+      )
+    }
+  })
+
   it('rejects an invalid test name pattern before anything starts', async () => {
     const p = await makeProject({ 'a.test.js': passing() })
     const { reporter, seen } = recorder()

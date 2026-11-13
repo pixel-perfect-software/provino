@@ -27,6 +27,8 @@ export interface FileDispatch {
   readonly result: TaskResult | undefined
   /** How many tests the file collected (`file-collect-end`). */
   readonly tests: number
+  /** How many tests ended `todo`. */
+  readonly todo: number
 }
 
 /**
@@ -59,6 +61,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
   const nodes = new Map<TaskId, TaskNode>()
   let result: TaskResult | undefined
   let tests = 0
+  let todo = 0
 
   function node(event: WorkerEvent, id: TaskId): TaskNode {
     const found = nodes.get(id)
@@ -107,6 +110,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
       case 'test-end': {
         await bus.emit('task:end', suiteOrTest(event, event.id), event)
         if (event.result.state === 'fail') onTestFailed?.()
+        else if (event.result.state === 'todo') todo++
         return
       }
       case 'hook-start':
@@ -138,6 +142,9 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
     },
     get tests() {
       return tests
+    },
+    get todo() {
+      return todo
     },
   }
 }

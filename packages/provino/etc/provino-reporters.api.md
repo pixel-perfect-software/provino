@@ -138,7 +138,7 @@ export interface TextReporterOptions {
     readonly silent?: boolean;
     // (undocumented)
     readonly stream: TextSink;
-    readonly verboseForOneFile?: boolean;
+    readonly verbose?: false;
 }
 
 // @public

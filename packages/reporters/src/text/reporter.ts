@@ -35,7 +35,11 @@ import { verboseList } from './verbose.ts'
  */
 export interface TextReporterOptions {
   readonly stream: TextSink
-  /** The `report` slice: the title separator and the failure bullet. */
+  /**
+   * The `report` slice: the title separator, the failure bullet, and whether `default` lists every
+   * test in a run of exactly one test file (`listTestsForSingleFile`, which `silent` and
+   * `verbose: false` turn off, as Jest's `runJest` has it).
+   */
   readonly report: ReportPolicy
   /** ANSI colours. Default `false`. */
   readonly colour?: boolean
@@ -53,12 +57,10 @@ export interface TextReporterOptions {
   /** `verbose`: list skipped and todo tests in declaration order, not after the others (Jest's `--expand`). */
   readonly expand?: boolean
   /**
-   * `default` lists every test, as `verbose` does, when the run has exactly one test file (what
-   * `run:start` announces). That is Jest's rule, which turns `--verbose` on for one file unless
-   * `--silent` or `verbose: false`: the caller applies those two, this only watches the file
-   * count. No effect on `verbose`, `agent` or `dot`. Default `false`.
+   * Jest's `verbose: false`, set on purpose (a `verbose` that is unset is not `false`): it turns
+   * off the policy's `listTestsForSingleFile`. `verbose` itself is the `verbose` reporter's.
    */
-  readonly verboseForOneFile?: boolean
+  readonly verbose?: false
 }
 
 /**
@@ -174,15 +176,6 @@ export function createTextReporter(
   const labelOf = (file: FileInfo): string =>
     file.project === '' ? displayPath(file.path) : `${file.project} ${displayPath(file.path)}`
 
-  /** Jest marks a suite skipped only when every test is skipped: a file with a todo test passed. */
-  function effectiveState(result: FileResult): FileResult['state'] {
-    if (result.state !== 'skip') return result.state
-    const todo = (state.collected.get(result.file.fileId) ?? []).some(
-      (task) => state.results.get(task.id)?.state === 'todo',
-    )
-    return todo ? 'pass' : 'skip'
-  }
-
   return {
     name,
 
@@ -191,7 +184,11 @@ export function createTextReporter(
       state.queued = files.length
       listing =
         mode === 'verbose' ||
-        (mode === 'default' && options.verboseForOneFile === true && files.length === 1)
+        (mode === 'default' &&
+          report.listTestsForSingleFile &&
+          options.silent !== true &&
+          options.verbose !== false &&
+          files.length === 1)
       row = 0
       afterDots = false
       deferred = []
@@ -245,12 +242,11 @@ export function createTextReporter(
 
     async 'file:end'(result) {
       const { fileId } = result.file
-      const effective = effectiveState(result)
-      state.files = tally(state.files, effective)
+      state.files = tally(state.files, result.state)
       const failed = state.failures.get(fileId) ?? []
       const failedSuites = state.suiteFailures.get(fileId) ?? []
       const tasks = state.collected.get(fileId) ?? []
-      const text = fileText(result, effective, failed, failedSuites, tasks)
+      const text = fileText(result, failed, failedSuites, tasks)
       state.failures.delete(fileId)
       state.suiteFailures.delete(fileId)
       state.console.delete(fileId)
@@ -331,16 +327,15 @@ export function createTextReporter(
   /** What a file prints, or `undefined` for none (a skipped file; a passing one under `agent`). */
   function fileText(
     result: FileResult,
-    effective: FileResult['state'],
     failed: readonly FailedTest[],
     failedSuites: readonly FailedTest[],
     tasks: readonly TaskNode[],
   ): string | undefined {
-    if (effective === 'skip') return undefined
-    if (quiet && effective === 'pass') return undefined
+    if (result.state === 'skip') return undefined
+    if (quiet && result.state === 'pass') return undefined
     const shown = labelOf(result.file)
     const header =
-      effective === 'pass'
+      result.state === 'pass'
         ? passLine(shown, result.durationMs, style)
         : failLine(shown, result.durationMs, style)
     const entries = state.console.get(result.file.fileId) ?? []
@@ -363,7 +358,7 @@ export function createTextReporter(
         parts.push(consoleBlock(entries, style, errorFormat.stackTrace !== false))
       }
     }
-    if (effective === 'fail') {
+    if (result.state === 'fail') {
       const blocks = [...failed, ...failedSuites].map((test) =>
         failureBlock(report, test.title, test.errors, style, errorFormat),
       )

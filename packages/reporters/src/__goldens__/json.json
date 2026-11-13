@@ -276,7 +276,7 @@
     },
     {
       "file": "todo-only.test.ts",
-      "status": "skipped",
+      "status": "passed",
       "tests": [
         {
           "id": {

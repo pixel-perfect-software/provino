@@ -8,6 +8,8 @@ import {
   error,
   type FileSpec,
   fileInfo,
+  JEST_REPORT,
+  NEUTRAL_REPORT,
   type Output,
   output,
   playRun,
@@ -18,23 +20,8 @@ import {
 } from '../internal/test-support.ts'
 import { defaultReporter } from './reporter.ts'
 
-/**
- * Jest's values for the `report` slice, as `jestPolicy` has them: the bullet is two spaces, `●`
- * and one space, as the `policy/report-default` golden records it.
- */
-const JESTLIKE: ReportPolicy = {
-  displaySeparator: ' › ',
-  defaultReporters: ['default'],
-  failureTitleBullet: '  ● ',
-  resultStatusSkipped: 'pending',
-}
-
-const NEUTRAL: ReportPolicy = {
-  displaySeparator: ' > ',
-  defaultReporters: ['default'],
-  failureTitleBullet: null,
-  resultStatusSkipped: 'skipped',
-}
+/** Jest's values for the `report` slice, without its one-file listing (that has its own tests). */
+const JESTLIKE: ReportPolicy = { ...JEST_REPORT, listTestsForSingleFile: false }
 
 async function report(
   files: readonly FileSpec[],
@@ -227,7 +214,7 @@ describe('the default reporter', () => {
           tests: [{ path: ['outer', 'inner', 'case'], state: 'fail', errors: [error('nope')] }],
         },
       ],
-      { policy: NEUTRAL },
+      { policy: NEUTRAL_REPORT },
     )
     assert.match(text, /^FAIL \.\/d\.test\.ts\n {2}outer > inner > case\n\n {4}nope\n/)
   })
@@ -492,7 +479,7 @@ describe('the default reporter: a suite’s own failure', () => {
           suiteErrors: [{ path: ['outer', 'inner'], errors: [error('AFTERALL EXPLODED')] }],
         },
       ],
-      { policy: NEUTRAL },
+      { policy: NEUTRAL_REPORT },
     )
     assert.match(text, /^FAIL \.\/suite\.test\.ts$/m)
     assert.match(text, /outer > inner\n/)
@@ -509,7 +496,7 @@ describe('the default reporter: an error charged to a test after it ended', () =
       tests: [{ path: ['owner'] }, { path: ['bystander'] }],
     })
     const out = output()
-    const bus = createReporterBus([defaultReporter({ stream: out, report: NEUTRAL })])
+    const bus = createReporterBus([defaultReporter({ stream: out, report: NEUTRAL_REPORT })])
     await bus.emit('run:start', { root: '/project', projects: [''], startTime: 0, watch: false }, [
       file.info,
     ])
@@ -544,7 +531,7 @@ describe('the default reporter: an error charged to a test after it ended', () =
       ],
     })
     const out = output()
-    const bus = createReporterBus([defaultReporter({ stream: out, report: NEUTRAL })])
+    const bus = createReporterBus([defaultReporter({ stream: out, report: NEUTRAL_REPORT })])
     await bus.emit('run:start', { root: '/project', projects: [''], startTime: 0, watch: false }, [
       file.info,
     ])
@@ -577,7 +564,7 @@ describe('the default reporter: an error charged to a test after it ended', () =
     late: readonly (readonly [number, string])[],
   ): Promise<string> {
     const out = output()
-    const bus = createReporterBus([defaultReporter({ stream: out, report: NEUTRAL })])
+    const bus = createReporterBus([defaultReporter({ stream: out, report: NEUTRAL_REPORT })])
     await bus.emit('run:start', { root: '/project', projects: [''], startTime: 0, watch: false }, [
       file.info,
     ])

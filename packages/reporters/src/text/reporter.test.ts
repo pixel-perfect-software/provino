@@ -10,6 +10,8 @@ import {
   collectedEvent,
   error,
   type FileSpec,
+  JEST_REPORT,
+  NEUTRAL_REPORT,
   output,
   playRun,
   resultOf,
@@ -18,12 +20,8 @@ import {
 import { verboseReporter } from '../verbose/reporter.ts'
 import type { TextReporterOptions } from './reporter.ts'
 
-const REPORT: ReportPolicy = {
-  displaySeparator: ' › ',
-  defaultReporters: ['default'],
-  failureTitleBullet: '  ● ',
-  resultStatusSkipped: 'pending',
-}
+/** Jest's wording, without its one-file listing, which `listTestsForSingleFile` tests apart. */
+const REPORT: ReportPolicy = { ...JEST_REPORT, listTestsForSingleFile: false }
 
 const ESC = String.fromCharCode(27)
 
@@ -152,21 +150,23 @@ describe('the default reporter: console output', () => {
   })
 })
 
+// The orchestrator decides a file's state once (`orchestrator.todoOnlyFile`, DV50): the reporter
+// prints what `FileResult.state` says.
 describe('the default reporter: a skipped or todo-only file (DV50)', () => {
-  test('prints PASS for a file whose tests are only todo, as Jest does', async () => {
+  test('prints PASS for a file whose tests are only todo and that the orchestrator passed', async () => {
     const text = await written(defaultReporter, [
-      { path: 'todo.test.ts', state: 'skip', tests: [{ path: ['later'], state: 'todo' }] },
+      { path: 'todo.test.ts', state: 'pass', tests: [{ path: ['later'], state: 'todo' }] },
     ])
     assert.match(text, /^PASS \.\/todo\.test\.ts\n/)
     assert.match(text, /Test Suites: 1 passed, 1 total/)
     assert.match(text, /Tests: {7}1 todo, 1 total/)
   })
 
-  test('prints PASS for a file with a skipped and a todo test', async () => {
+  test('prints PASS for a file with a skipped and a todo test that the orchestrator passed', async () => {
     const text = await written(defaultReporter, [
       {
         path: 'mixed.test.ts',
-        state: 'skip',
+        state: 'pass',
         tests: [
           { path: ['a'], state: 'skip' },
           { path: ['b'], state: 'todo' },
@@ -175,6 +175,14 @@ describe('the default reporter: a skipped or todo-only file (DV50)', () => {
     ])
     assert.match(text, /^PASS \.\/mixed\.test\.ts\n/)
     assert.match(text, /Test Suites: 1 passed, 1 total/)
+  })
+
+  test('prints nothing for a todo-only file the orchestrator called skipped (the neutral rule)', async () => {
+    const text = await written(defaultReporter, [
+      { path: 'todo.test.ts', state: 'skip', tests: [{ path: ['later'], state: 'todo' }] },
+    ])
+    assert.doesNotMatch(text, /todo\.test\.ts/)
+    assert.match(text, /Test Suites: 1 skipped, 0 of 1 total/)
   })
 
   test('prints nothing for a file whose every test is skipped, and counts it skipped', async () => {
@@ -406,7 +414,7 @@ describe('the verbose reporter', () => {
   })
 })
 
-describe('verboseForOneFile (Jest turns --verbose on for a run of one test file)', () => {
+describe('report.listTestsForSingleFile (Jest turns --verbose on for a run of one test file)', () => {
   const one: FileSpec = {
     path: 'a.test.ts',
     tests: [
@@ -416,9 +424,10 @@ describe('verboseForOneFile (Jest turns --verbose on for a run of one test file)
     console: [{ text: 'hello\n' }],
   }
   const two: FileSpec = { path: 'b.test.ts', tests: [{ path: ['t'] }] }
+  const jest: Partial<TextReporterOptions> = { report: JEST_REPORT }
 
   test('lists the tests of the one file, console first, as verbose does', async () => {
-    const asked = await written(defaultReporter, [one], { verboseForOneFile: true })
+    const asked = await written(defaultReporter, [one], jest)
     const verbose = await written(verboseReporter, [one])
     assert.equal(asked, verbose)
     // The console block first (cli/report-single-file), then the root's own tests, then the suites.
@@ -428,19 +437,30 @@ describe('verboseForOneFile (Jest turns --verbose on for a run of one test file)
     )
   })
 
+  test('does nothing under a policy that is off (the neutral and Vitest value)', async () => {
+    const plain = await written(defaultReporter, [one])
+    assert.doesNotMatch(plain, /✓/)
+    assert.equal(await written(defaultReporter, [one], { report: NEUTRAL_REPORT }), plain)
+  })
+
+  test('is off under silent and under verbose: false, Jest’s two exceptions', async () => {
+    for (const exception of [{ silent: true }, { verbose: false as const }]) {
+      const text = await written(defaultReporter, [one], { ...jest, ...exception })
+      assert.doesNotMatch(text, /✓/, JSON.stringify(exception))
+    }
+  })
+
   test('does nothing for a run of two files, or of none', async () => {
     const plain = await written(defaultReporter, [one, two])
-    assert.equal(await written(defaultReporter, [one, two], { verboseForOneFile: true }), plain)
+    assert.equal(await written(defaultReporter, [one, two], jest), plain)
     assert.doesNotMatch(plain, /✓/)
     const empty = await written(defaultReporter, [])
-    assert.equal(await written(defaultReporter, [], { verboseForOneFile: true }), empty)
+    assert.equal(await written(defaultReporter, [], jest), empty)
   })
 
   test('counts the files run:start announces, so a second file the run never reached still makes two', async () => {
     const out = output()
-    const bus = createReporterBus([
-      defaultReporter({ stream: out, report: REPORT, verboseForOneFile: true }),
-    ])
+    const bus = createReporterBus([defaultReporter({ stream: out, report: JEST_REPORT })])
     await playRun(bus, [one], { notRun: ['never.test.ts'] })
     assert.doesNotMatch(out.text(), /✓/)
   })
@@ -448,15 +468,13 @@ describe('verboseForOneFile (Jest turns --verbose on for a run of one test file)
   test('leaves the dot and agent reporters alone', async () => {
     for (const make of [dotReporter, agentReporter]) {
       const plain = await written(make, [one])
-      assert.equal(await written(make, [one], { verboseForOneFile: true }), plain)
+      assert.equal(await written(make, [one], jest), plain)
     }
   })
 
   test('starts over at each run:start: one file, then two', async () => {
     const out = output()
-    const bus = createReporterBus([
-      defaultReporter({ stream: out, report: REPORT, verboseForOneFile: true }),
-    ])
+    const bus = createReporterBus([defaultReporter({ stream: out, report: JEST_REPORT })])
     await playRun(bus, [one])
     const first = out.text().length
     await playRun(bus, [one, two])

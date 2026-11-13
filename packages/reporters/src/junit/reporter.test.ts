@@ -4,13 +4,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import type { ReportPolicy } from '@provino/types'
 import { validateXML } from 'xmllint-wasm'
 import { createReporterBus } from '../bus.ts'
 import {
   error,
   FIXTURE_FILES,
   FIXTURE_SNAPSHOTS,
+  JEST_REPORT,
   output,
   playFixture,
   playRun,
@@ -18,12 +18,6 @@ import {
 import { junitReporter } from './reporter.ts'
 
 const XSD = fileURLToPath(new URL('./vendor/junit-10.xsd', import.meta.url))
-const REPORT: ReportPolicy = {
-  displaySeparator: ' › ',
-  defaultReporters: ['default'],
-  failureTitleBullet: '  ● ',
-  resultStatusSkipped: 'pending',
-}
 
 const SCHEMA = await readFile(XSD, 'utf8')
 
@@ -42,17 +36,17 @@ async function validate(xml: string): Promise<{ readonly ok: boolean; readonly s
 
 describe('the junit reporter', () => {
   test('is a reporter named junit', () => {
-    assert.equal(junitReporter({ report: REPORT, stream: output() }).name, 'junit')
+    assert.equal(junitReporter({ report: JEST_REPORT, stream: output() }).name, 'junit')
   })
 
   test('the fixture run validates against the Jenkins JUnit XSD', async () => {
-    const { text } = await playFixture((out) => junitReporter({ stream: out, report: REPORT }))
+    const { text } = await playFixture((out) => junitReporter({ stream: out, report: JEST_REPORT }))
     const result = await validate(text)
     assert.ok(result.ok, result.stderr)
   })
 
   test('the validation is real: a document that breaks the schema is refused', async () => {
-    const { text } = await playFixture((out) => junitReporter({ stream: out, report: REPORT }))
+    const { text } = await playFixture((out) => junitReporter({ stream: out, report: JEST_REPORT }))
     // `tests` is required on a testsuite.
     const refused = await validate(text.replace(' tests="3"', ''))
     assert.equal(refused.ok, false)
@@ -70,7 +64,7 @@ describe('the junit reporter', () => {
 
   test('a run with no files is a valid, empty document', async () => {
     const out = output()
-    const bus = createReporterBus([junitReporter({ report: REPORT, stream: out })])
+    const bus = createReporterBus([junitReporter({ report: JEST_REPORT, stream: out })])
     await playRun(bus, [])
     assert.match(
       out.text(),
@@ -80,7 +74,7 @@ describe('the junit reporter', () => {
   })
 
   test('counts: a failed test is a failure, a file that did not run an error, a skipped or todo test skipped', async () => {
-    const { text } = await playFixture((out) => junitReporter({ stream: out, report: REPORT }))
+    const { text } = await playFixture((out) => junitReporter({ stream: out, report: JEST_REPORT }))
     assert.match(
       text,
       /<testsuites name="provino" tests="14" failures="2" errors="1" time="1\.234">/,
@@ -95,7 +89,7 @@ describe('the junit reporter', () => {
   test('escapes names, messages and console text, and drops what XML cannot hold', async () => {
     const out = output()
     const bus = createReporterBus([
-      junitReporter({ report: REPORT, stream: out, name: 'a "b" & <c>' }),
+      junitReporter({ report: JEST_REPORT, stream: out, name: 'a "b" & <c>' }),
     ])
     await playRun(bus, [
       {
@@ -135,7 +129,7 @@ describe('the junit reporter', () => {
 
   test('keeps each test’s console writes together and in order, and a write outside any test on the suite', async () => {
     const out = output()
-    const bus = createReporterBus([junitReporter({ report: REPORT, stream: out })])
+    const bus = createReporterBus([junitReporter({ report: JEST_REPORT, stream: out })])
     await playRun(bus, [
       {
         path: 'c.test.ts',
@@ -170,7 +164,7 @@ describe('the junit reporter', () => {
     const dir = await mkdtemp(join(tmpdir(), 'provino-junit-'))
     try {
       const outputFile = join(dir, 'reports', 'junit.xml')
-      const bus = createReporterBus([junitReporter({ report: REPORT, outputFile })])
+      const bus = createReporterBus([junitReporter({ report: JEST_REPORT, outputFile })])
       await playRun(bus, FIXTURE_FILES.slice(0, 2), { snapshots: FIXTURE_SNAPSHOTS })
       assert.deepEqual(bus.failures(), [])
       const written = await readFile(outputFile, 'utf8')
@@ -187,7 +181,7 @@ describe('the junit reporter', () => {
       // A file where a directory has to be.
       await writeFile(join(dir, 'file'), 'x')
       const bus = createReporterBus([
-        junitReporter({ report: REPORT, outputFile: join(dir, 'file', 'junit.xml') }),
+        junitReporter({ report: JEST_REPORT, outputFile: join(dir, 'file', 'junit.xml') }),
       ])
       await playRun(bus, [])
       assert.equal(bus.failures().length, 1)
@@ -198,7 +192,7 @@ describe('the junit reporter', () => {
 
   test('an error outside any file is a suite of its own', async () => {
     const out = output()
-    const bus = createReporterBus([junitReporter({ report: REPORT, stream: out })])
+    const bus = createReporterBus([junitReporter({ report: JEST_REPORT, stream: out })])
     await bus.emit(
       'run:start',
       { root: '/project', projects: [''], startTime: 0, watch: false },

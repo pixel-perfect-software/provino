@@ -9,6 +9,7 @@ import type {
   OpenHandle,
   Reporter,
   ReporterBus,
+  ReportPolicy,
   RunEnvironment,
   RunSummary,
   RuntimeEventOf,
@@ -24,6 +25,24 @@ import type {
   WorkerExit,
 } from '@provino/types'
 import { createReporterBus } from '../bus.ts'
+
+/** The `report` slice as the Jest dialect has it (`jestPolicy.report`), for tests that need no more than its values. */
+export const JEST_REPORT: ReportPolicy = {
+  displaySeparator: ' › ',
+  defaultReporters: ['default'],
+  failureTitleBullet: '  ● ',
+  listTestsForSingleFile: true,
+  resultStatusSkipped: 'pending',
+}
+
+/** The neutral `report` slice (`neutralPolicy.report`). */
+export const NEUTRAL_REPORT: ReportPolicy = {
+  displaySeparator: ' > ',
+  defaultReporters: ['default'],
+  failureTitleBullet: null,
+  listTestsForSingleFile: false,
+  resultStatusSkipped: 'skipped',
+}
 
 /** The ids are plain text in tests; the brand is what the real coordinator's hash carries. */
 export function taskId(text: string): TaskId {
@@ -532,8 +551,8 @@ export const FIXTURE_FILES: readonly FileSpec[] = [
   },
   {
     path: 'todo-only.test.ts',
-    // The orchestrator calls a file with no test that ran or failed skipped; Jest calls it passed.
-    state: 'skip',
+    // The orchestrator decides it: `orchestrator.todoOnlyFile` is `pass` under Jest (DV50).
+    state: 'pass',
     durationMs: 1,
     tests: [{ path: ['later'], state: 'todo' }],
   },

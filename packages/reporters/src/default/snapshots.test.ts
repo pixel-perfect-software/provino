@@ -2,15 +2,11 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import type { ReportPolicy, SnapshotRunSummary } from '@provino/types'
 import { createReporterBus } from '../bus.ts'
-import { type FileSpec, output, playRun } from '../internal/test-support.ts'
+import { type FileSpec, JEST_REPORT, output, playRun } from '../internal/test-support.ts'
 import { defaultReporter } from './reporter.ts'
 
-const POLICY: ReportPolicy = {
-  displaySeparator: ' › ',
-  defaultReporters: ['default'],
-  failureTitleBullet: '  ● ',
-  resultStatusSkipped: 'pending',
-}
+/** Jest's wording; its one-file listing has its own tests (`text/reporter.test.ts`). */
+const POLICY: ReportPolicy = { ...JEST_REPORT, listTestsForSingleFile: false }
 
 const counters = {
   added: 0,

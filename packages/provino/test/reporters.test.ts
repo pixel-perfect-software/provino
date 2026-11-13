@@ -168,12 +168,11 @@ describe('a run of one test file is verbose under provino jest, as Jest has it (
     assert.doesNotMatch(ours.stderr, /✓/)
   })
 
-  it('is Jest’s alone: provino run lists nothing for one file', async () => {
+  it('is the dialect’s: provino run lists the test of one file under a Jest config (report.listTestsForSingleFile)', async () => {
     const project = await makeProject({ 'tests/a.test.js': passing('only one') })
     const ran = await spawnCli(['run', '--config', project.config], { cwd: project.dir })
     assert.equal(ran.code, 0, ran.stderr)
-    assert.match(ran.stderr, /^PASS tests\/a\.test\.js$/m)
-    assert.doesNotMatch(ran.stderr, /✓/)
+    assert.match(ran.stderr, /^PASS tests\/a\.test\.js\n {2}✓ only one( \(\d+ ms\))?\n\n/m)
   })
 })
 

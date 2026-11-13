@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import type { ReportPolicy } from '@provino/types'
 import { createReporterBus } from '../bus.ts'
 import {
   buildFile,
@@ -8,6 +7,7 @@ import {
   consoleEvent,
   error,
   type FileSpec,
+  JEST_REPORT,
   output,
   playRun,
   resultOf,
@@ -17,13 +17,6 @@ import {
 } from '../internal/test-support.ts'
 import { githubActionsReporter } from './reporter.ts'
 
-const REPORT: ReportPolicy = {
-  displaySeparator: ' › ',
-  defaultReporters: ['default'],
-  failureTitleBullet: '  ● ',
-  resultStatusSkipped: 'pending',
-}
-
 async function annotations(
   files: readonly FileSpec[],
   options: { readonly workspace?: string; readonly unhandled?: Parameters<typeof playRun>[2] } = {},
@@ -32,7 +25,7 @@ async function annotations(
   const bus = createReporterBus([
     githubActionsReporter({
       stream: out,
-      report: REPORT,
+      report: JEST_REPORT,
       ...(options.workspace === undefined ? {} : { workspace: options.workspace }),
     }),
   ])
@@ -52,7 +45,10 @@ const fails = (
 
 describe('the github-actions reporter', () => {
   test('is a reporter named github-actions', () => {
-    assert.equal(githubActionsReporter({ stream: output(), report: REPORT }).name, 'github-actions')
+    assert.equal(
+      githubActionsReporter({ stream: output(), report: JEST_REPORT }).name,
+      'github-actions',
+    )
   })
 
   test('prints nothing for a passing run', async () => {
@@ -203,7 +199,7 @@ describe('the github-actions reporter', () => {
 
   test('annotates an unhandled error from the run, and an error event, with no file', async () => {
     const out = output()
-    const bus = createReporterBus([githubActionsReporter({ stream: out, report: REPORT })])
+    const bus = createReporterBus([githubActionsReporter({ stream: out, report: JEST_REPORT })])
     await bus.emit(
       'run:start',
       { root: '/project', projects: [''], startTime: 0, watch: false },
@@ -228,7 +224,7 @@ describe('the github-actions reporter', () => {
 
   test('forgets a file once it has printed it, and starts over at each run', async () => {
     const out = output()
-    const bus = createReporterBus([githubActionsReporter({ stream: out, report: REPORT })])
+    const bus = createReporterBus([githubActionsReporter({ stream: out, report: JEST_REPORT })])
     await playRun(bus, [fails('a.test.ts')])
     const first = out.text()
     await playRun(bus, [{ path: 'b.test.ts', tests: [{ path: ['t'] }] }])
@@ -237,7 +233,7 @@ describe('the github-actions reporter', () => {
 
   test('annotates an error charged to a file after it ended, on the file, and ignores its late console writes', async () => {
     const out = output()
-    const bus = createReporterBus([githubActionsReporter({ stream: out, report: REPORT })])
+    const bus = createReporterBus([githubActionsReporter({ stream: out, report: JEST_REPORT })])
     const file = buildFile({ path: 'late.test.ts', tests: [{ path: ['t'] }] })
     await bus.emit('run:start', { root: '/project', projects: [''], startTime: 0, watch: false }, [
       file.info,
