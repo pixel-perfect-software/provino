@@ -22,6 +22,7 @@ const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const BIN = join(PACKAGE, 'dist', 'cli.js')
 const BLOCKER = fileURLToPath(new URL('./block-oxc-bindings.ts', import.meta.url))
 const RECORDER = fileURLToPath(new URL('./load-recorder.ts', import.meta.url))
+const WARNING = fileURLToPath(new URL('./emit-type-stripping-warning.ts', import.meta.url))
 /**
  * This machine's Oxc binding suffix, worked out here and not by the code under test (this project
  * has no `src/`, so it cannot import it): `darwin-arm64`, `linux-x64-gnu`, `win32-x64-msvc`.
@@ -38,6 +39,11 @@ const manifest = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8'))
   readonly version: string
 }
 
+/** A child's stderr without this sandbox's per-start certificate noise (it is nowhere else). */
+function quiet(stderr: string): string {
+  return stderr.replace(/^ERROR: failed to copy trust.*\n/gm, '')
+}
+
 function run(args: readonly string[], preloads: readonly string[], env: NodeJS.ProcessEnv = {}) {
   const imports = preloads.map((file) => `--import=${file}`).join(' ')
   const result = spawnSync(process.execPath, [BIN, ...args], {
@@ -46,7 +52,10 @@ function run(args: readonly string[], preloads: readonly string[], env: NodeJS.P
     env: {
       ...process.env,
       ...env,
-      NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} ${imports}`.trim(),
+      // --disable-warning: Node 22 prints an ExperimentalWarning to every child that strips types
+      // (CI's 22.15 leg sets NODE_OPTIONS=--experimental-strip-types), and the tests assert on stderr.
+      NODE_OPTIONS:
+        `${process.env.NODE_OPTIONS ?? ''} ${imports} --disable-warning=ExperimentalWarning`.trim(),
     },
     timeout: 60_000,
   })
@@ -59,7 +68,7 @@ describe('a missing Oxc binding (T10.3)', () => {
     for (const args of [['--version'], ['--help'], ['-h']]) {
       const result = run(args, [RECORDER], { PROVINO_LOAD_LOG: logs })
       assert.equal(result.status, 0, result.stderr)
-      assert.equal(result.stderr.replace(/^ERROR: failed to copy trust.*\n/gm, ''), '')
+      assert.equal(quiet(result.stderr), '')
       assert.ok(
         args[0] === '--version'
           ? result.stdout === `${manifest.version}\n`
@@ -77,6 +86,16 @@ describe('a missing Oxc binding (T10.3)', () => {
     )
   })
 
+  test('a child prints nothing to stderr on the Node whose type stripping is experimental either', () => {
+    // CI's 22.15 leg runs with NODE_OPTIONS=--experimental-strip-types, and Node 22 then writes an
+    // ExperimentalWarning to every child that loads a .ts file; the helper silences that one warning.
+    for (const args of [['--version'], ['--help']]) {
+      const result = run(args, [WARNING])
+      assert.equal(result.status, 0, result.stderr)
+      assert.equal(quiet(result.stderr), '', args.join(' '))
+    }
+  })
+
   test('--version and --help still answer when the bindings are missing', () => {
     for (const args of [['--version'], ['--help']]) {
       const result = run(args, [BLOCKER])
@@ -89,7 +108,7 @@ describe('a missing Oxc binding (T10.3)', () => {
     const triple = platformTriple()
     for (const args of [['jest', '--ci'], ['run', '--config', 'provino.config.mjs'], []]) {
       const result = run(args, [BLOCKER])
-      const stderr = result.stderr.replace(/^ERROR: failed to copy trust.*\n/gm, '')
+      const stderr = quiet(result.stderr)
       assert.equal(result.status, 1, `${args.join(' ')}: ${stderr}`)
       assert.equal(result.stdout, '')
       for (const name of ['parser', 'transform', 'resolver']) {
@@ -106,7 +125,7 @@ describe('a missing Oxc binding (T10.3)', () => {
 
   test("another package's missing binding is not reported as an Oxc one: the error and its stack come through", () => {
     const result = run(['jest', '--ci'], [BLOCKER], { PROVINO_BLOCK: 'other' })
-    const stderr = result.stderr.replace(/^ERROR: failed to copy trust.*\n/gm, '')
+    const stderr = quiet(result.stderr)
     assert.equal(result.status, 1, stderr)
     assert.doesNotMatch(stderr, /^Provino: the native Oxc binding/m)
     assert.match(stderr, /Cannot find native binding/)
