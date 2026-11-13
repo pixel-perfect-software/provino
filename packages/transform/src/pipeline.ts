@@ -86,7 +86,9 @@ export interface PipelineOptions {
    * TypeScript is stripped (or after the project's transformer, unless it reported `canInstrument`
    * and was given `instrument: true`), before the hoister and the module-runner rewrite, with the
    * input map the earlier steps composed. Its `name` is part of the cache fingerprint. Without one,
-   * a request with `instrument: true` on the Oxc path is `TRANSFORM_OPTION_UNSUPPORTED`.
+   * a request with `instrument: true` is `TRANSFORM_OPTION_UNSUPPORTED` (on a transformer's file
+   * too, unless the transformer reports `canInstrument`). A file the instrumenter can't read gets
+   * a `COVERAGE_INSTRUMENT_FAILED` error diagnostic and its code unchanged.
    */
   readonly instrumenter?: CoverageInstrumenter
 }
@@ -331,12 +333,24 @@ export const createPipeline: CreatePipeline = (options) => {
     code: string,
     request: TransformRequest,
     maps: (SourceMapV3 | null)[],
+    diagnostics: TransformDiagnostic[],
   ): string {
     const { instrumenter } = options
     if (!request.instrument || instrumenter === undefined) return code
-    const result = instrumenter.instrument(code, request.filename, composeMaps(maps))
-    maps.push(result.map)
-    return result.code
+    // A file that already failed to parse is not the instrumenter's to report on.
+    if (diagnostics.some((d) => d.severity === 'error')) return code
+    try {
+      const result = instrumenter.instrument(code, request.filename, composeMaps(maps))
+      maps.push(result.map)
+      return result.code
+    } catch (error) {
+      diagnostics.push({
+        severity: 'error',
+        code: 'COVERAGE_INSTRUMENT_FAILED',
+        message: error instanceof Error ? error.message : String(error),
+      })
+      return code
+    }
   }
 
   /**
@@ -352,13 +366,16 @@ export const createPipeline: CreatePipeline = (options) => {
     cacheKey: string,
   ) {
     const { filename } = request
+    if (request.instrument && options.instrumenter === undefined && !source.canInstrument) {
+      throw instrumenterMissing()
+    }
     const maps: (SourceMapV3 | null)[] = [source.map]
     const diagnostics: TransformDiagnostic[] = []
     // Jest's ScriptTransformer: a transformer that says it can instrument does it itself, given
     // `instrument: true`; otherwise the instrumenter runs on its output.
     const instrumented = source.canInstrument
       ? source.code
-      : applyInstrument(source.code, request, maps)
+      : applyInstrument(source.code, request, maps, diagnostics)
     const alreadyHoisted = host.hoistedMarkers.some((marker) => instrumented.includes(marker))
     const { code, staticMocks, lateDeps } = alreadyHoisted
       ? { code: instrumented, staticMocks: [], lateDeps: [] }
@@ -381,8 +398,22 @@ export const createPipeline: CreatePipeline = (options) => {
     } satisfies TransformRecord
   }
 
-  /** A transformer that throws is a `TRANSFORMER_FAILED` error on the record, as for a parse error. */
+  function instrumenterMissing(): TransformError {
+    return new TransformError(
+      'TRANSFORM_OPTION_UNSUPPORTED',
+      'coverage instrumentation needs an `instrumenter` option (U6, B23b).',
+    )
+  }
+
+  /**
+   * A transformer that throws is a `TRANSFORMER_FAILED` error on the record, as for a parse error.
+   * A request the pipeline itself can't serve (no instrumenter) is the caller's error, as on the
+   * Oxc path, so it is thrown.
+   */
   function failedRecord(error: unknown): TransformRecord {
+    if (error instanceof TransformError && error.code === 'TRANSFORM_OPTION_UNSUPPORTED') {
+      throw error
+    }
     return {
       code: '',
       map: null,
@@ -450,10 +481,7 @@ export const createPipeline: CreatePipeline = (options) => {
       )
     }
     if (request.instrument && options.instrumenter === undefined) {
-      throw new TransformError(
-        'TRANSFORM_OPTION_UNSUPPORTED',
-        'coverage instrumentation needs an `instrumenter` option (U6, B23b).',
-      )
+      throw instrumenterMissing()
     }
     const { filename, source } = request
     const config = found.lang === 'js' ? NO_CONFIG : configFor(filename)
@@ -484,7 +512,7 @@ export const createPipeline: CreatePipeline = (options) => {
       for (const error of result.errors) diagnostics.push(diagnostic(source, error))
     }
 
-    code = applyInstrument(code, request, maps)
+    code = applyInstrument(code, request, maps, diagnostics)
     const hoisted = applyHoist(code, request, source, maps, diagnostics)
     code = hoisted.code
     const { staticMocks, lateDeps } = hoisted

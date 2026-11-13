@@ -161,7 +161,13 @@ function host(canInstrument: boolean, map: SourceMapV3 | null) {
       transformerCacheKey: 'key',
       canInstrument,
     }),
-    transformAsync: () => Promise.reject(new Error('sync only')),
+    transformAsync: () =>
+      Promise.resolve({
+        code: '"use strict";\nexports.f = function f() { return 1; };\n',
+        map,
+        transformerCacheKey: 'key',
+        canInstrument,
+      } satisfies HostedSource),
     fingerprint: `fp-${canInstrument}`,
     hoistedMarkers: [],
   }
@@ -198,4 +204,70 @@ test('a transformer file with no `instrument` request is not instrumented either
     request(join(root, 'a.ts'), SOURCE, false),
   )
   assert.equal(calls.length, 0)
+})
+
+test('`instrument` on a transformer file with no instrumenter is TRANSFORM_OPTION_UNSUPPORTED, not a record', async () => {
+  const root = makeRoot()
+  const file = join(root, 'a.ts')
+  const pipeline = createPipeline(options(root, { transformers: host(false, null) }))
+  assert.throws(() => pipeline.transform(request(file, SOURCE, true)), {
+    code: 'TRANSFORM_OPTION_UNSUPPORTED',
+  })
+  await assert.rejects(pipeline.transformAsync(request(file, SOURCE, true)), {
+    code: 'TRANSFORM_OPTION_UNSUPPORTED',
+  })
+})
+
+test('a transformer that can instrument needs no instrumenter', async () => {
+  const root = makeRoot()
+  const file = join(root, 'a.ts')
+  const pipeline = createPipeline(options(root, { transformers: host(true, null) }))
+  assert.deepEqual(pipeline.transform(request(file, SOURCE, true)).diagnostics, [])
+  assert.deepEqual((await pipeline.transformAsync(request(file, SOURCE, true))).diagnostics, [])
+})
+
+/** An instrumenter that cannot read what it is given. */
+function failing(): CoverageInstrumenter {
+  return {
+    name: 'failing:r1',
+    instrument() {
+      throw new Error('could not instrument a.js: unexpected token')
+    },
+  }
+}
+
+test('code the instrumenter cannot read is a COVERAGE_INSTRUMENT_FAILED diagnostic, code unchanged', () => {
+  const root = makeRoot()
+  const source = 'export const a = 1\n'
+  const record = createPipeline(options(root, { instrumenter: failing() })).transform(
+    request(join(root, 'a.js'), source, true),
+  )
+  assert.equal(record.code, source)
+  assert.deepEqual(
+    record.diagnostics.map((d) => [d.severity, d.code]),
+    [['error', 'COVERAGE_INSTRUMENT_FAILED']],
+  )
+  assert.match(record.diagnostics[0]?.message ?? '', /unexpected token/)
+})
+
+test('on a transformer file the same failure blames the instrumenter, not the transformer', () => {
+  const root = makeRoot()
+  const record = createPipeline(
+    options(root, { instrumenter: failing(), transformers: host(false, null) }),
+  ).transform(request(join(root, 'a.ts'), SOURCE, true))
+  assert.deepEqual(
+    record.diagnostics.map((d) => d.code),
+    ['COVERAGE_INSTRUMENT_FAILED'],
+  )
+})
+
+test('a file with a TypeScript parse error is not instrumented', () => {
+  const root = makeRoot()
+  const { instrumenter, calls } = standIn()
+  const record = createPipeline(options(root, { instrumenter })).transform(
+    request(join(root, 'a.ts'), 'export const = ;\n', true),
+  )
+  assert.equal(calls.length, 0)
+  assert.ok(record.diagnostics.some((d) => d.severity === 'error'))
+  assert.ok(record.diagnostics.every((d) => d.code !== 'COVERAGE_INSTRUMENT_FAILED'))
 })

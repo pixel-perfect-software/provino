@@ -79,7 +79,9 @@ describe('readInitialCoverage against istanbul-lib-instrument 6.0.3', () => {
         configFile: false,
         filename: FILE,
         sourceType: 'module',
-        plugins: [[babelPlugin, { compact: false, cwd: '/virtual/project', exclude: [], extension: false }]],
+        plugins: [
+          [babelPlugin, { compact: false, cwd: '/virtual/project', exclude: [], extension: false }],
+        ],
       })?.code
       assert.ok(typeof out === 'string')
       const expected = oracle.readInitialCoverage(out)
