@@ -6,6 +6,7 @@ import type {
   ReportPolicy,
   SerializedError,
   SourceLocation,
+  TaskId,
 } from '@provino/types'
 import { createCollector } from '../internal/collect.ts'
 import type { FileRecord } from '../normalized-json/build.ts'
@@ -68,6 +69,8 @@ function errorLocation(error: SerializedError): SourceLocation | undefined {
 export function githubActionsReporter(options: GitHubActionsReporterOptions): Reporter {
   const { stream, report } = options
   const { record, handlers } = createCollector()
+  // The files that have ended in this run.
+  const ended = new Set<TaskId>()
 
   /** The path GitHub wants: relative to the workspace, with `/`. */
   function repositoryPath(file: string): string {
@@ -118,6 +121,36 @@ export function githubActionsReporter(options: GitHubActionsReporterOptions): Re
 
     ...handlers,
 
+    'run:start'(info, files) {
+      handlers['run:start'](info, files)
+      ended.clear()
+    },
+
+    // A file that has ended has had its record printed and freed: a late event must not make a new one.
+    'file:collected'(file, event) {
+      if (!ended.has(file.fileId)) handlers['file:collected'](file, event)
+    },
+
+    'test:attempt-end'(task, event) {
+      if (!ended.has(task.fileId)) handlers['test:attempt-end'](task, event)
+    },
+
+    'task:end'(task, event) {
+      if (!ended.has(task.fileId)) handlers['task:end'](task, event)
+    },
+
+    // An annotation holds no console output, so none is kept.
+    console() {},
+
+    async unhandled(file, event) {
+      if (file !== null && ended.has(file.fileId)) {
+        // Its annotations are written and its record gone: this one goes out now, on the file.
+        await stream.write(annotation(file.path, [event.error], null, file))
+        return
+      }
+      handlers.unhandled(file, event)
+    },
+
     async 'file:end'(result) {
       handlers['file:end'](result)
       const lines = fileAnnotations(
@@ -126,6 +159,7 @@ export function githubActionsReporter(options: GitHubActionsReporterOptions): Re
         result.errors,
       )
       record.files.delete(result.file.fileId)
+      ended.add(result.file.fileId)
       if (lines.length > 0) await stream.write(lines.join(''))
     },
 

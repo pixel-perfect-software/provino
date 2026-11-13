@@ -2,7 +2,19 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import type { ReportPolicy } from '@provino/types'
 import { createReporterBus } from '../bus.ts'
-import { error, type FileSpec, output, playRun, type TestSpec } from '../internal/test-support.ts'
+import {
+  buildFile,
+  collectedEvent,
+  consoleEvent,
+  error,
+  type FileSpec,
+  output,
+  playRun,
+  resultOf,
+  type TestSpec,
+  testEndEvent,
+  unhandledEvent,
+} from '../internal/test-support.ts'
 import { githubActionsReporter } from './reporter.ts'
 
 const REPORT: ReportPolicy = {
@@ -221,5 +233,32 @@ describe('the github-actions reporter', () => {
     const first = out.text()
     await playRun(bus, [{ path: 'b.test.ts', tests: [{ path: ['t'] }] }])
     assert.equal(out.text(), first)
+  })
+
+  test('annotates an error charged to a file after it ended, on the file, and ignores its late console writes', async () => {
+    const out = output()
+    const bus = createReporterBus([githubActionsReporter({ stream: out, report: REPORT })])
+    const file = buildFile({ path: 'late.test.ts', tests: [{ path: ['t'] }] })
+    await bus.emit('run:start', { root: '/project', projects: [''], startTime: 0, watch: false }, [
+      file.info,
+    ])
+    await bus.emit('file:collected', file.info, collectedEvent(file))
+    const [owner] = file.tests
+    assert.ok(owner !== undefined)
+    await bus.emit('task:end', owner.task, testEndEvent(owner.task, resultOf(owner.spec)))
+    await bus.emit('file:end', file.result)
+    assert.equal(out.text(), '', 'the test passed, so nothing yet')
+    await bus.emit('console', file.info, consoleEvent({ text: 'too late\n' }, owner.task.id))
+    await bus.emit('unhandled', file.info, unhandledEvent(error('LATE BOOM'), owner.task.id))
+    await bus.emit('run:end', {
+      reason: 'failed',
+      files: [file.result],
+      unhandled: [],
+      durationMs: 1,
+    })
+    assert.deepEqual(out.text().split('\n').filter(Boolean), [
+      '::error file=late.test.ts,title=late.test.ts::LATE BOOM',
+    ])
+    assert.deepEqual(bus.failures(), [])
   })
 })
