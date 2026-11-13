@@ -8,6 +8,7 @@ import { createRequire } from 'node:module'
 import { describe, test } from 'node:test'
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping'
 import type { IstanbulFileCoverageData, SourceMapV3 } from '@provino/types'
+import { ownCodeIdentity } from './code-identity.ts'
 import { readInitialCoverage } from './initial-coverage.ts'
 import { istanbulInstrumenter } from './instrument.ts'
 import { CASES } from './test-cases.ts'
@@ -171,6 +172,7 @@ describe('the vendored instrumenter against babel-plugin-istanbul 8.0.0', () => 
       istanbulInstrumenter({ coverageVariable: '__other__' }).name,
     )
     assert.match(istanbulInstrumenter().name, /istanbul-lib-instrument@2\.1\.0/)
+    assert.ok(istanbulInstrumenter().name.includes(ownCodeIdentity()), 'the package code is in it')
   })
 
   test('readInitialCoverage finds what instrumenting recorded', () => {
