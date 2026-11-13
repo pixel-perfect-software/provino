@@ -46,6 +46,7 @@ import type {
   TestNode,
   UserFn,
 } from '../internal/model.ts'
+import type { RunRegistry } from '../internal/run-registry.ts'
 import { type AroundCall, runAround } from './around.ts'
 import { type ContextEnv, createTestContext, SkipSignal } from './context.ts'
 import { type Deadlines, isBounded, type RealTimers, resolveTimeout, sleep } from './deadline.ts'
@@ -63,7 +64,7 @@ export interface ExecutorConfig {
   readonly timers: RealTimers
   readonly now: () => number
   /** Each test context's run, for `LazyHost.runOf`. */
-  readonly runs: WeakMap<object, TestRunHandle>
+  readonly runs: RunRegistry
   /** `CorePolicy.formatValue`, loaded: prints a value inside a message the runtime builds. */
   readonly formatValue: FormatValue
   /** Who an error the code did not handle is charged to (T5.11). */
@@ -156,6 +157,9 @@ interface RetryDecision {
 const RETRY: RetryDecision = Object.freeze({ willRetry: true, conditionFailure: undefined })
 const STOP: RetryDecision = Object.freeze({ willRetry: false, conditionFailure: undefined })
 
+/** No arguments: shared by every call that passes none, since `invoke` only reads them. */
+const NO_ARGS: readonly unknown[] = Object.freeze([])
+
 /** What a test's attempts have left so far. */
 interface Progress {
   readonly start: number
@@ -238,6 +242,10 @@ export class Executor {
   readonly #running = new Map<TaskId, AttemptState>()
   /** What every test context is built from. */
   readonly #contextEnv: ContextEnv
+  /** Reports a `done(reason)` that came after its call was over (`late-done`). */
+  readonly #lateDone: (error: Error) => void
+  /** The `InvokeEnv` of a call outside any test (a suite hook), which is never over. */
+  readonly #outsideTestEnv: InvokeEnv
   /** The test that started last. */
   #lastTestId: TaskId | null = null
   /** The path of the file running now, for the location of a `ctx.annotate` call. */
@@ -251,6 +259,13 @@ export class Executor {
       emit: (event) => config.sink.emit(event),
       now: config.now,
       callerLocation: (entry) => this.#callerLocation(entry),
+    }
+    this.#lateDone = (error) => config.processErrors.report('late-done', error)
+    this.#outsideTestEnv = {
+      policy: config.policy,
+      format: config.formatValue,
+      over: () => false,
+      late: this.#lateDone,
     }
     this.#deadlines = config.deadlines
     const shared = config.policy.concurrency.limitHooks
@@ -742,6 +757,7 @@ export class Executor {
       inCallbacks: false,
       skipped: undefined,
       deadline: undefined,
+      invokeEnv: undefined,
     }
     handle.attempt = state
     this.#config.runs.set(state.ctx, handle)
@@ -944,7 +960,7 @@ export class Executor {
     const contextArgs =
       test.passContext && (test.rowArgs !== undefined || policy.firstArg === 'context')
         ? [attempt.ctx]
-        : []
+        : NO_ARGS
     // Taken before the limiter: time spent waiting for a slot counts against the attempt.
     const ownMs = this.#testTimeout(test)
     const timeoutMs = this.#timeoutFor(attempt, ownMs)
@@ -975,14 +991,23 @@ export class Executor {
     attempt.errors.push(...this.#config.processErrors.take(attempt.frame))
   }
 
-  /** What a user call needs besides the policy: the printer, and what a late `done` does. */
+  /**
+   * What a user call needs besides the policy: the printer, and what a late `done` does. One per
+   * attempt (and one for every call outside a test), built on its first call, not one per call.
+   */
   #invokeEnv(attempt: AttemptState | undefined): InvokeEnv {
-    return {
-      policy: this.#policy,
-      format: this.#config.formatValue,
-      over: () => attempt !== undefined && attempt.state !== 'running',
-      late: (error) => this.#config.processErrors.report('late-done', error),
+    if (attempt === undefined) return this.#outsideTestEnv
+    let env = attempt.invokeEnv
+    if (env === undefined) {
+      env = {
+        policy: this.#policy,
+        format: this.#config.formatValue,
+        over: () => attempt.state !== 'running',
+        late: this.#lateDone,
+      }
+      attempt.invokeEnv = env
     }
+    return env
   }
 
   /** Runs the attempt's `LazyHost` teardowns down to `keep`, last added first. */
@@ -1087,12 +1112,11 @@ export class Executor {
   #callHook(run: FileRun, hook: HookNode, attempt: AttemptState | undefined): Promise<CallResult> {
     const policy = this.#policy
     const byContext = policy.firstArg === 'context'
-    const suiteArg = taskOf(attempt?.test.parent ?? hook.owner)
     const contextArgs = !byContext
-      ? []
+      ? NO_ARGS
       : attempt !== undefined
-        ? [attempt.ctx, suiteArg]
-        : [suiteArg]
+        ? [attempt.ctx, taskOf(attempt.test.parent)]
+        : [taskOf(hook.owner)]
     const thisArg = attempt !== undefined ? attempt.thisArg : byContext ? undefined : {}
     return this.#callUser(
       run,
@@ -1109,7 +1133,7 @@ export class Executor {
           fn: hook.fn,
           arity: hook.arity,
           thisArg,
-          args: [],
+          args: NO_ARGS,
           contextArgs,
           isTest: false,
         }),
@@ -1158,8 +1182,11 @@ export class Executor {
     const hook = { kind, ownerId: owner.id }
     if (attempt !== undefined) {
       // The attempt's frame with this hook: every other field (test, attempt, repeat) carries over.
+      const { test, fileId, attempt: index, repeat } = attempt.frame
       return newStore({
-        frame: { ...attempt.frame, hook },
+        // The attempt's frame with this hook, written out in `Frame`'s key order (a spread is
+        // slower, once per hook call).
+        frame: { test, hook, fileId, attempt: index, repeat },
         lazy: attempt.lazy,
         attempt,
         hook: kind,
