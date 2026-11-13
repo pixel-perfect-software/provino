@@ -1,7 +1,11 @@
-const missing = require('./does-not-exist')
+function load(): never {
+  throw new Error('this file fails as it loads')
+}
+
+load()
 
 describe('never reached', () => {
   it('does not run', () => {
-    expect(missing).toBeDefined()
+    expect(1).toBe(1)
   })
 })

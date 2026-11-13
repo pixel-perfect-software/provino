@@ -1,8 +1,6 @@
 {
   "description": "Third-party reporters beside Jest 30.5.2 on 20 small files (T11.9, B23a): the default reporter, a `summary` with `summaryThreshold: 5`, `github-actions`, jest-junit 17, jest-silent-reporter, jest-html-reporters, vscode-jest 6.4.4's own reporter and jest-sonar-reporter as `testResultsProcessor`, with `maxWorkers: 1`. The files cover a pass, nested describes, failing toBe, toEqual, toThrow and mock counts, skip and todo, each, test.failing, a stored snapshot, console output, a retry, an import failure, an all-skipped file and a failing beforeAll and afterAll. Every stream and report is recorded as the runner wrote it: the work directory as `<root>` and times masked, nothing else. Read by `provino`'s `reporters-third-party.test.ts`. The vscode-jest reporter is UPSTREAM.md's.",
-  "runners": [
-    "jest"
-  ],
+  "runners": ["jest"],
   "env": {
     "GITHUB_ACTIONS": "true"
   },
@@ -47,15 +45,8 @@
   },
   "run": {
     "raw": true,
-    "capture": [
-      "exitCode",
-      "stderr",
-      "stdout",
-      "file:reports/junit.xml"
-    ],
-    "emptyStreams": [
-      "stdout"
-    ],
+    "capture": ["exitCode", "stderr", "stdout", "file:reports/junit.xml"],
+    "emptyStreams": ["stdout"],
     "keepLines": "^(?!ERROR: failed to copy trust settings|\\(node:\\d+\\) |\\(Use `node --trace)",
     "mask": [
       "^Time:.*$",

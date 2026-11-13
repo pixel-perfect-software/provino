@@ -3,7 +3,8 @@ describe('thrown', () => {
     throw new Error('boom')
   })
 
-  it('throws a string', () => {
-    throw 'just a string'
+  it('throws a TypeError', () => {
+    const value = undefined as unknown as { missing: () => void }
+    value.missing()
   })
 })
