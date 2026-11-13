@@ -111,15 +111,14 @@ export function isolatePragmaOf(source: string): Pragmas | undefined {
 export async function readIsolatePragma(path: string): Promise<Pragmas | undefined> {
   try {
     const handle = await open(path, 'r')
-    let text: string
     try {
       const head = Buffer.allocUnsafe(HEAD_BYTES)
       const { bytesRead } = await handle.read(head, 0, HEAD_BYTES, 0)
-      text = head.toString('utf8', 0, bytesRead)
+      const text = head.toString('utf8', 0, bytesRead)
       const trimmed = text.trimStart()
       // Not a comment, or closed inside the head: what the head holds decides.
-      const open = trimmed.startsWith('/*') && !trimmed.includes('*/', 2)
-      if (!open || bytesRead < HEAD_BYTES) return isolatePragmaOf(text)
+      const unclosed = trimmed.startsWith('/*') && !trimmed.includes('*/', 2)
+      if (!unclosed || bytesRead < HEAD_BYTES) return isolatePragmaOf(text)
     } finally {
       await handle.close()
     }
