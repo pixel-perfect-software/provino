@@ -2,9 +2,7 @@
 // run through native Node and through Provino's loader and diffed.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { expectDivergence, expectSame, runBoth } from '../internal/test-support.ts'
-
-const TRACE = 'const trace = globalThis.__trace\n'
+import { expectDivergence, expectSame, runBoth, TRACE } from '../internal/test-support.ts'
 
 test('import-meta-fields: url, filename, dirname and resolve() of a module, and one object per module', async () => {
   await expectSame({

@@ -2,9 +2,7 @@
 // policies, and JSON. Each fixture runs through native Node and through Provino's loader.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { expectDivergence, expectSame, type Fixture } from '../internal/test-support.ts'
-
-const TRACE = 'const trace = globalThis.__trace\n'
+import { expectDivergence, expectSame, type Fixture, TRACE } from '../internal/test-support.ts'
 
 test('require-esm-namespace: require() of an ES module with no default export gives its namespace, evaluated once', async () => {
   await expectSame({

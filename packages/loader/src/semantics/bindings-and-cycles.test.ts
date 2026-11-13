@@ -3,9 +3,7 @@
 // are diffed (`../internal/test-support.ts`). A divergence pins what Provino does and names its id.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { expectDivergence, expectSame } from '../internal/test-support.ts'
-
-const TRACE = 'const trace = globalThis.__trace\n'
+import { expectDivergence, expectSame, TRACE } from '../internal/test-support.ts'
 
 test('live-binding-let: an exported let that a function bumps shows through every import form, and a default export is a snapshot', async () => {
   await expectSame({

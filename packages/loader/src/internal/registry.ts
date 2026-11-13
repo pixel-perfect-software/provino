@@ -742,9 +742,7 @@ export class Registry {
           module,
           record.path,
           dirname(record.path),
-          record.dynamicImport
-            ? (specifier: string) => this.importFrom(specifier, record.path)
-            : undefined,
+          record.dynamicImport ? this.#importFor(record) : undefined,
         )
       } else {
         const exports = instance.exports ?? {}
@@ -752,7 +750,7 @@ export class Registry {
           exports,
           this.#importMeta(record),
           (specifier: string) => this.#importEdge(record, specifier, 'sync'),
-          (specifier: string) => this.importFrom(specifier, record.path),
+          this.#importFor(record),
           (source: unknown) => exportAll(exports, source),
           (specifier: string) => this.#lateImportSync(record, specifier),
         )
@@ -771,6 +769,11 @@ export class Registry {
     }
   }
 
+  /** `import()` as `record`'s code makes it: the registry's `importFrom`, from the record's own path. */
+  #importFor(record: ModuleRecord): (specifier: string) => Promise<object> {
+    return (specifier) => this.importFrom(specifier, record.path)
+  }
+
   #evaluateAsync(record: ModuleRecord): Promise<object> {
     const existing = this.#instances.get(record.id)
     if (existing !== undefined) {
@@ -786,9 +789,9 @@ export class Registry {
           exports,
           this.#importMeta(record),
           (specifier: string) => this.#importEdge(record, specifier, 'async'),
-          (specifier: string) => this.importFrom(specifier, record.path),
+          this.#importFor(record),
           (source: unknown) => exportAll(exports, source),
-          (specifier: string) => this.importFrom(specifier, record.path),
+          this.#importFor(record),
         )
         instance.status = 'done'
         return exports

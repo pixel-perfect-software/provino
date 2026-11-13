@@ -97,9 +97,9 @@ export interface ModuleRecord {
 }
 
 /** The wrapper parameters, in order. ESM gets Vite's linkers and the late import; CJS gets Node's wrapper. */
-const ESM_PARAMS = `__vite_ssr_exports__, __vite_ssr_import_meta__, __vite_ssr_import__, __vite_ssr_dynamic_import__, __vite_ssr_exportAll__, ${LATE_IMPORT}`
-const CJS_PARAMS = 'exports, require, module, __filename, __dirname'
 const DYNAMIC_IMPORT = '__vite_ssr_dynamic_import__'
+const ESM_PARAMS = `__vite_ssr_exports__, __vite_ssr_import_meta__, __vite_ssr_import__, ${DYNAMIC_IMPORT}, __vite_ssr_exportAll__, ${LATE_IMPORT}`
+const CJS_PARAMS = 'exports, require, module, __filename, __dirname'
 /** What an ES module gets under `ModulePolicy.injectCjsGlobals`, when its source names them. */
 const CJS_GLOBALS: readonly string[] = ['require', '__filename', '__dirname']
 
@@ -390,12 +390,12 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       // binding the wrapper takes (`ModuleRecord.dynamicImport`); the runner form of a CommonJS
       // file is that rewrite and nothing else.
       const dynamicImport = transformed.imports.some((entry) => entry.kind === 'dynamic')
-      const runner = dynamicImport ? toModuleRunner(path, transformed) : null
+      const source = dynamicImport ? toModuleRunner(path, transformed) : transformed
       record = makeRecord(
         id,
         'cjs',
-        runner?.code ?? transformed.code,
-        () => (runner === null ? transformed.map : runner.map),
+        source.code,
+        () => source.map,
         requires,
         [],
         false,

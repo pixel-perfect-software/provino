@@ -9,11 +9,9 @@ import {
   expectDivergence,
   expectSame,
   findInstalledAddon,
-  runBoth,
+  TRACE,
   writeTree,
 } from '../internal/test-support.ts'
-
-const TRACE = 'const trace = globalThis.__trace\n'
 
 test('addon-shared: a .node addon is one object for every module and every file registry', async (t) => {
   // An addon that is already installed (oxc-parser's binding), never compiled. `process.dlopen`
@@ -145,13 +143,15 @@ export const result = {
 })
 
 test('failed-esm-entry: an entry whose dependency throws fails with that error, named and coded as Node has it', async () => {
-  const both = await runBoth({
-    entry: 'entry.mjs',
-    files: {
-      'bad.mjs': "throw new TypeError('bad dependency')\n",
-      'entry.mjs': "import './bad.mjs'\nexport const result = 'unreachable'\n",
+  const both = await expectSame(
+    {
+      entry: 'entry.mjs',
+      files: {
+        'bad.mjs': "throw new TypeError('bad dependency')\n",
+        'entry.mjs': "import './bad.mjs'\nexport const result = 'unreachable'\n",
+      },
     },
-  })
-  assert.deepEqual(both.provino, both.native)
+    { throws: true },
+  )
   assert.equal(both.provino.threw?.name, 'TypeError')
 })

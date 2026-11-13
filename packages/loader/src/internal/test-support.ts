@@ -39,6 +39,9 @@ export interface Observation {
   readonly threw?: { readonly name: string; readonly code: unknown; readonly message: string }
 }
 
+/** The first line of a fixture module that appends to the trace both sides observe. */
+export const TRACE = 'const trace = globalThis.__trace\n'
+
 export interface Fixture {
   /** The tree, by path relative to the temp root. */
   readonly files: Readonly<Record<string, string>>
