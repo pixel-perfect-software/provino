@@ -152,3 +152,44 @@ describe('summaryThreshold is checked as Jest checks it (SummaryReporter._valida
     assert.equal(run.code, 1)
   })
 })
+
+describe('an error a reporter throws is printed when no text reporter is there to show it', () => {
+  const FIXTURE = 'cli/reporters-summary-only'
+  const HOOK = "module.exports = class { onRunComplete() { throw new Error('hook nope') } }\n"
+
+  it('prints a constructor error with Jest’s wrapped message and fails the run', async () => {
+    const run = await runWithConfig(
+      FIXTURE,
+      { reporters: ['<rootDir>/throws.cjs'] },
+      {
+        'throws.cjs': "module.exports = class { constructor() { throw new Error('ctor nope') } }\n",
+      },
+    )
+    assert.equal(run.code, 1, run.stderr)
+    assert.match(
+      run.stderr,
+      /An error occurred while adding the reporter at path ".*throws\.cjs"\./,
+    )
+    assert.match(run.stderr, /ctor nope/)
+  })
+
+  it('prints what a hook throws', async () => {
+    const run = await runWithConfig(
+      FIXTURE,
+      { reporters: ['<rootDir>/hook.cjs'] },
+      { 'hook.cjs': HOOK },
+    )
+    assert.equal(run.code, 1, run.stderr)
+    assert.match(run.stderr, /hook nope/)
+  })
+
+  it('leaves it to the default reporter when that is there (no second copy)', async () => {
+    const run = await runWithConfig(
+      FIXTURE,
+      { reporters: ['default', '<rootDir>/hook.cjs'] },
+      { 'hook.cjs': HOOK },
+    )
+    assert.equal(run.code, 1, run.stderr)
+    assert.equal(run.stderr.split('hook nope').length - 1, 1, run.stderr)
+  })
+})

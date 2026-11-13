@@ -29,7 +29,15 @@ import { UsageError } from './usage-error.ts'
 export interface JestReporterSetup {
   readonly reporters: readonly ReporterChoice[]
   readonly text: TextExtras
+  /**
+   * No text reporter will show what a reporter threw, so the run says it (jest-cli prints the
+   * error that ended Jest's run).
+   */
+  readonly announceThrown: boolean
 }
+
+/** The built-ins that print what a reporter threw (they hear it as an `error` event). */
+const TEXT_REPORTERS: ReadonlySet<string> = new Set(['default', 'verbose', 'agent', 'dot'])
 
 /** Jest's default `summaryThreshold` (`SummaryReporter.ts`). */
 const DEFAULT_SUMMARY_THRESHOLD = 20
@@ -91,6 +99,7 @@ export async function setUpJestReporters(options: {
   }
   // After every hosted class has seen a file, its console buffer is freed.
   if (release !== undefined) reporters.push(release)
+  const announceThrown = !reporters.some((reporter) => typeof reporter === 'string' && TEXT_REPORTERS.has(reporter))
   if (plan.summary !== undefined) {
     const threshold = plan.summary.options.summaryThreshold
     if (threshold && typeof threshold !== 'number') {
@@ -100,6 +109,8 @@ export async function setUpJestReporters(options: {
     reporters.push('summary')
     return {
       reporters,
+      // The summary reporter is a text reporter: it prints what a reporter threw.
+      announceThrown: false,
       text: {
         ...noteHooks,
         separateSummary: true,
@@ -128,6 +139,7 @@ export async function setUpJestReporters(options: {
   }
   return {
     reporters,
+    announceThrown,
     text: {
       ...noteHooks,
       failureText: (file) => results.testResultOf(file.file.fileId)?.failureMessage ?? undefined,

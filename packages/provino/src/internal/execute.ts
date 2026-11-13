@@ -40,8 +40,12 @@ export interface ExecuteOptions {
   readonly display?: DisplayOptions
   /** What a dialect adds to the text reporters (its failure text, a summary of its own). */
   readonly text?: TextExtras
-  /** `false`: a reporter that failed is not announced on stderr (Jest prints nothing for `getLastError`); the run still fails. */
-  readonly announceReporterFailures?: false
+  /**
+   * `false`: a reporter that failed is not announced on stderr (Jest prints nothing for
+   * `getLastError`); the run still fails. `'thrown'`: only an error a reporter threw or rejected
+   * with is (Jest's CLI prints it), as nothing else would when no text reporter is registered.
+   */
+  readonly announceReporterFailures?: false | 'thrown'
   readonly pool: NonNullable<RunProjectOptions['pool']>
   /** `false`: neither read nor write the results cache. */
   readonly cache?: false
@@ -91,7 +95,19 @@ export function timingsOf(options: {
  */
 export async function executeProject(options: ExecuteOptions): Promise<RunResult> {
   const { project, cwd, stdout, stderr } = options
+  // What reporters threw (the bus tells every other reporter as an `error` of source `reporter`).
+  const thrown: SerializedError[] = []
   const bus = createReporterBus([
+    ...(options.announceReporterFailures === 'thrown'
+      ? [
+          {
+            name: 'thrown-reporter-errors',
+            error(error: SerializedError, source: string) {
+              if (source === 'reporter') thrown.push(error)
+            },
+          } satisfies Reporter,
+        ]
+      : []),
     ...(options.leadingReporters ?? []),
     ...reportersFor(options.reporters, {
       project,
@@ -122,7 +138,10 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
   // reporter shows such an error itself; the others may not, so it is said here as well.
   const reporterFailures = bus.failures()
   options.onReporterFailures?.(reporterFailures)
-  if (options.announceReporterFailures !== false) {
+  if (options.announceReporterFailures === 'thrown') {
+    // jest-cli prints the stack of the error that ended the run.
+    for (const failure of thrown) stderr.write(`${failure.stack ?? failure.message}\n`)
+  } else if (options.announceReporterFailures !== false) {
     for (const failure of reporterFailures) {
       stderr.write(`Provino: a reporter failed: ${failure.message}\n`)
     }
