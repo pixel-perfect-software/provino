@@ -6,54 +6,15 @@ import { run } from '../run.ts'
 import type { ReporterChoice, RunOptions } from '../types.ts'
 import { detectProject } from './detect.ts'
 import { runJestCommand } from './jest-command.ts'
+import { quickAnswer } from './quick.ts'
 import { BUILT_IN_REPORTERS } from './reporters.ts'
+import { USAGE } from './usage.ts'
 import { UsageError } from './usage-error.ts'
 
 /** What the process exits with for an error that is a bug in Provino. */
 const INTERNAL_ERROR_EXIT = 1
 
 const POOL_KINDS: readonly PoolKind[] = ['forks', 'threads', 'inline']
-
-/**
- * The text `provino --help` prints, and a usage error prints after its message.
- * @internal
- */
-export const USAGE = `Usage: provino <command> [options]
-
-Commands:
-  jest     Run a Jest project with Jest's command line: provino jest [--config <file>] [patterns]
-  vitest   Run a Vitest project (not available yet)
-  run      Run a project from a provino config file: provino run --config <file> [options]
-
-With no command, provino [options] runs provino.config.* if this directory has one, else the Jest
-config found from it; --dialect jest|vitest names the runner and skips that search. provino jest
-takes Jest's own flags; one Provino can't run yet is refused by name, with the task that builds it.
-
-Options of provino run:
-  -c, --config <file>               The config file (required)
-      --maxWorkers <n>              Run at most n workers (default: the cores, less one)
-      --pool <kind>                 forks, threads or inline (default: the dialect's); inline
-                                    runs in this process, so a leaked handle keeps it alive
-      --reporter <name>             default or normalized-json; repeat for several
-      --outputFile <path>           Write the normalized-json reporter's JSON here
-  -t, --testNamePattern <pattern>   Run only the tests whose full name matches
-  -u, --updateSnapshot              Rewrite the snapshots that differ (default: write new ones)
-      --ci                          Treat this as a CI run (default: from the CI variable)
-      --passWithNoTests             Pass when no test files are found
-      --no-cache                    Neither read nor write the results cache or the transform cache
-      --bail[=n]                    End the run once n tests have failed (default 1; 0 is off)
-      --forceExit                   Exit the process when the run is over, whatever a test left open
-      --detectOpenHandles           Report what is still open after the run, and where it was made;
-                                    runs in this process, and slows every timer and socket
-      --workerMemoryLimit <n>       Replace a worker that holds more than n bytes after a file (512MB
-                                    is 512,000,000, 512MiB is 2^29); 0 replaces it after every file
-      --maxFilesPerWorker <n>       Replace a worker after it has run n files
-      --fileTimeout <ms>            Kill a worker that runs one file longer than this, and fail it
-  -h, --help                        Print this text
-
-Ctrl+C (SIGINT) ends the run: no file starts, the running ones are killed, exit code 130. A second
-Ctrl+C kills every worker at once. SIGTERM does the same and exits 143.
-`
 
 /**
  * What a command line asks for.
@@ -269,7 +230,6 @@ export interface CliIo {
 
 /** What `command` and its `args` ask for. */
 function parseCommand(command: string | undefined, args: readonly string[]): RunCommand {
-  if (command === '--help' || command === '-h') return { type: 'help' }
   if (command === undefined) return { type: 'bare', args: [] }
   if (command === 'run') return parseRunArgs(args)
   if (command === 'jest') return { type: 'jest', args }
@@ -372,6 +332,12 @@ function ioOptions(
 export async function main(argv: readonly string[], io: CliIo = {}): Promise<number> {
   const stderr = io.stderr ?? process.stderr
   try {
+    // The first-argument --version, --help and -h: the same answer the bin gives before it imports this.
+    const quick = quickAnswer(argv)
+    if (quick !== undefined) {
+      await (io.stdout ?? process.stdout).write(quick)
+      return ExitCode.Pass
+    }
     const [command, ...args] = argv
     const parsed = parseCommand(command, args)
     if (parsed.type === 'help') return await helpExit(io)

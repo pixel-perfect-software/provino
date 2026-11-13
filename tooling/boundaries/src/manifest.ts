@@ -24,6 +24,11 @@ export interface ManifestNode {
   /** Policy slice names it may import, or `all` when exempt. */
   readonly slices: readonly string[] | 'all'
   readonly neutral: boolean
+  /**
+   * Packages its non-test files may not import at run time (T7.12): names, or `@scope/*`. A type
+   * import is allowed. Empty for most nodes.
+   */
+  readonly bannedPackages: readonly string[]
   readonly compositionRoot: boolean
   /** The package this node is a subpath entry (or the `test/` dir) of, if any. */
   readonly parent: string | undefined
@@ -73,6 +78,7 @@ const NODE_KEYS: ReadonlySet<string> = new Set([
   'deps',
   'slices',
   'neutral',
+  'bannedPackages',
   'compositionRoot',
   'phase',
   'note',
@@ -135,6 +141,8 @@ function parseNode(name: string, value: unknown, names: ReadonlySet<string>): Ma
     deps: texts(node.deps, `${at}.deps`),
     slices: node.slices === 'all' ? 'all' : texts(node.slices, `${at}.slices`),
     neutral: flag(node.neutral, `${at}.neutral`),
+    bannedPackages:
+      node.bannedPackages === undefined ? [] : texts(node.bannedPackages, `${at}.bannedPackages`),
     compositionRoot: flag(node.compositionRoot, `${at}.compositionRoot`),
     parent: parentOf(name, names),
   }
@@ -183,11 +191,15 @@ function checkSubpath(node: ManifestNode, parent: ManifestNode): readonly Proble
       ),
     )
   }
-  if (!isDeepStrictEqual(node.slices, parent.slices) || node.neutral !== parent.neutral) {
+  if (
+    !isDeepStrictEqual(node.slices, parent.slices) ||
+    node.neutral !== parent.neutral ||
+    !isDeepStrictEqual(node.bannedPackages, parent.bannedPackages)
+  ) {
     out.push(
       problem(
         'manifest-subpath',
-        `${node.name}: slices and neutral must match ${parent.name}'s (one lint config per package)`,
+        `${node.name}: slices, neutral and bannedPackages must match ${parent.name}'s (one lint config per package)`,
       ),
     )
   }

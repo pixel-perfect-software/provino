@@ -83,7 +83,10 @@ export interface NormalizeOptions {
   readonly seed?: number
 }
 
-/** One normalized config before the split, with what validation reported. */
+/**
+ * One normalized config before the split, with what validation reported.
+ * @public
+ */
 export interface NormalizedJestOptions {
   readonly options: Readonly<Options>
   /** Whether the config (its preset, or `--cacheDirectory`) named a `cacheDirectory` (D70). */
@@ -121,7 +124,10 @@ export function jestDefaultCacheDirectory(): string {
   return typeof process.getuid === 'function' ? `${base}_${process.getuid().toString(36)}` : base
 }
 
-/** `Defaults.ts`: Jest 30.5's defaults, before normalization. */
+/**
+ * `Defaults.ts`: Jest 30.5's defaults, before normalization.
+ * @public
+ */
 export function jestDefaults(ci: boolean): Readonly<Options> {
   return {
     automock: false,
@@ -1365,7 +1371,10 @@ export function groupJestOptions(options: Readonly<Options>): {
   }
 }
 
-/** `readConfig`'s options beside `NormalizeOptions` (its positional arguments, by name). */
+/**
+ * `readConfig`'s options beside `NormalizeOptions` (its positional arguments, by name).
+ * @public
+ */
 export interface ReadJestConfigOptions extends NormalizeOptions {
   /** Read the config from the path, ignoring `argv.config` (Jest's `skipArgvConfigOption`). */
   readonly skipArgvConfigOption?: boolean
@@ -1377,7 +1386,10 @@ export interface ReadJestConfigOptions extends NormalizeOptions {
   readonly isProjectOptions?: boolean
 }
 
-/** `readConfig`'s result, with the warnings validation produced. */
+/**
+ * `readConfig`'s result, with the warnings validation produced.
+ * @public
+ */
 export interface JestReadOutcome extends JestReadConfig {
   /** Whether the config named a `cacheDirectory` (see `NormalizedJestOptions`). */
   readonly cacheDirectorySet: boolean
@@ -1467,7 +1479,10 @@ async function readOne(
   return normalizeLoadedJestConfig({ options: initial, configPath }, options)
 }
 
-/** `readConfigs`' result, with every project's warnings. */
+/**
+ * `readConfigs`' result, with every project's warnings.
+ * @public
+ */
 export interface JestReadConfigsOutcome {
   readonly globalConfig: JestGlobalConfig
   readonly configs: readonly JestProjectConfig[]

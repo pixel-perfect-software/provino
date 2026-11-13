@@ -3,14 +3,14 @@
 // `jest-snapshot` (`plugins.ts`, `utils.ts` `serialize`, `index.ts`'s messages); Provino does
 // not import `jest-snapshot` at runtime (T7.12's ban), so what it needs is here and in `vendor/`.
 import type { SnapshotMessageInfo, SnapshotMessages, SnapshotPrinter } from '@provino/types'
+import { format, type OptionsReceived, type Plugin, plugins } from 'pretty-format'
 import {
   BOLD_WEIGHT,
   diff,
   matcherHint,
   printDiffOrStringify,
   RECEIVED_COLOR,
-} from 'jest-matcher-utils'
-import { format, type OptionsReceived, type Plugin, plugins } from 'pretty-format'
+} from './vendor/jest-expect/lazy-jest-packages.ts'
 import jestMockSerializer from './vendor/jest-snapshot/mockSerializer.ts'
 
 const {

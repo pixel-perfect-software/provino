@@ -10,7 +10,7 @@
 // not a matcher's, as functions the engine calls. Each expression is Jest's, with the line it
 // comes from.
 import {getType} from '@jest/get-type';
-import * as matcherUtils from 'jest-matcher-utils';
+import {matcherUtilsNamespace as matcherUtils} from './lazy-jest-packages.ts'; // provino: loaded on first use (T7.12), same package and version: see ./lazy-jest-packages.ts
 
 type Call = {
   readonly matcherName: string;

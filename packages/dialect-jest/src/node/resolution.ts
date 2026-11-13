@@ -29,7 +29,10 @@ interface JestResolverCallOptions {
 
 type SyncResolver = (path: string, options: JestResolverCallOptions) => unknown
 
-/** `findNodeModule`'s options. */
+/**
+ * `findNodeModule`'s options.
+ * @public
+ */
 export interface FindNodeModuleOptions {
   readonly basedir: string
   readonly extensions?: readonly string[] | undefined

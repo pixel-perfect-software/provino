@@ -181,6 +181,37 @@ describe('validateManifest', () => {
     )
   })
 
+  test("a subpath entry must carry its package's ban list (T7.12)", () => {
+    const problems = validateManifest(
+      manifest({
+        pkg: node(2, 'both', [], { dir: 'packages/pkg', bannedPackages: ['expect'] }),
+        'pkg/runtime': node(2, 'worker', [], { dir: 'packages/pkg/src/runtime' }),
+      }),
+    )
+    assert.deepEqual(
+      problems.map((p) => p.rule),
+      ['manifest-subpath'],
+    )
+  })
+
+  test('bannedPackages must be a list of names', () => {
+    assert.throws(
+      () => manifest({ a: node(1, 'both', [], { bannedPackages: 'expect' }) }),
+      /nodes\["a"\]\.bannedPackages must be an array/,
+    )
+  })
+
+  test('the real manifest bans the engines Provino replaces from expect and snapshot', async () => {
+    const { nodes } = await loadManifest(MANIFEST_PATH)
+    for (const name of ['@provino/expect', '@provino/snapshot', '@provino/snapshot/runtime']) {
+      assert.deepEqual(
+        nodes.find((n) => n.name === name)?.bannedPackages,
+        ['expect', '@vitest/expect', 'jest-snapshot', '@vitest/snapshot', '@babel/*'],
+        name,
+      )
+    }
+  })
+
   test('malformed fields throw, naming the field', () => {
     assert.throws(() => manifest({ a: node(1, 'nowhere') }), /nodes\["a"\]\.runsIn/)
     assert.throws(() => manifest({ a: node(-1, 'both') }), /nodes\["a"\]\.layer/)

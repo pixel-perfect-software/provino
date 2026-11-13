@@ -18,12 +18,11 @@ import {
   typeEquality,
 } from '@jest/expect-utils';
 import {getType, isPrimitive} from '@jest/get-type';
+import type {MatcherHintOptions} from 'jest-matcher-utils';
 import {
   DIM_COLOR,
   EXPECTED_COLOR,
-  type MatcherHintOptions,
   RECEIVED_COLOR,
-  SUGGEST_TO_CONTAIN_EQUAL,
   ensureExpectedIsNonNegativeInteger,
   ensureNoExpected,
   ensureNumbers,
@@ -35,7 +34,8 @@ import {
   printReceived,
   printWithType,
   stringify,
-} from 'jest-matcher-utils';
+  suggestToContainEqual,
+} from './lazy-jest-packages.ts'; // provino: loaded on first use (T7.12), same package and version: see ./lazy-jest-packages.ts
 import {
   printCloseTo,
   printExpectedConstructorName,
@@ -558,7 +558,7 @@ const matchers: MatchersObject = {
         indexable.some(item =>
           equals(item, expected, [...this.customTesters, iterableEquality]),
         )
-          ? `\n\n${SUGGEST_TO_CONTAIN_EQUAL}`
+          ? `\n\n${suggestToContainEqual()}`
           : '')
       );
     };

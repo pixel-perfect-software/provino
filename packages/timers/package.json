@@ -17,7 +17,8 @@
   "exports": {
     ".": {
       "provino-source": "./src/index.ts",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
   "files": [
@@ -27,6 +28,7 @@
     "node": "^22.15.0 || >=24"
   },
   "scripts": {
+    "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
   },
   "dependencies": {

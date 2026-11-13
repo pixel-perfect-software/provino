@@ -97,6 +97,7 @@
         "packages/rpc/**",
         "packages/transform/**",
         "packages/vitest-compat/**",
+        "tooling/packaging/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
         "!**/src/internal/test-support.ts"

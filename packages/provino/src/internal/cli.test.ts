@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import { Writable } from 'node:stream'
 import { describe, it } from 'node:test'
-import { main, parseRunArgs, USAGE } from './cli.ts'
+import { main, parseRunArgs } from './cli.ts'
+import { USAGE } from './usage.ts'
 import { UsageError } from './usage-error.ts'
+import { packageVersion } from './version.ts'
 
 function usageError(args: readonly string[], message: RegExp): void {
   assert.throws(
@@ -208,6 +210,16 @@ describe('main', () => {
     assert.equal(await main(['--help'], { stdout, stderr }), 0)
     assert.equal(stdout.text, USAGE)
     assert.equal(stderr.text, '')
+  })
+
+  it('prints the package version for --version, to stdout, and passes', async () => {
+    const stdout = new Sink()
+    const stderr = new Sink()
+    assert.equal(await main(['--version'], { stdout, stderr }), 0)
+    assert.equal(stdout.text, `${packageVersion()}\n`)
+    assert.match(stdout.text, /^\d+\.\d+\.\d+\S*\n$/)
+    assert.equal(stderr.text, '')
+    assert.match(USAGE, /--version/)
   })
 
   it('is exit code 2 with the message and the usage text on stderr for bad usage', async () => {

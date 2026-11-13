@@ -150,6 +150,7 @@ export type {
   Realm,
   RegisterMockOptions,
 } from './loader.ts'
+export type { NativeStatus, NativeTriple, NativeUnavailableReason } from './native.ts'
 export type {
   BulkPayload,
   CoordinatorMethods,

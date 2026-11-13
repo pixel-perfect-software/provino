@@ -8,7 +8,17 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.test.ts", "!**/*.test-d.ts"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts",
+        "$TURBO_ROOT$/tooling/packaging/package.json",
+        "$TURBO_ROOT$/tooling/packaging/tsdown.config.ts",
+        "$TURBO_ROOT$/tooling/packaging/tsdown.umbrella.config.ts",
+        "$TURBO_ROOT$/tooling/packaging/src/package-json.ts",
+        "$TURBO_ROOT$/tooling/packaging/src/preset.ts",
+        "$TURBO_ROOT$/tooling/packaging/src/umbrella.ts"
+      ],
       "outputs": ["dist/**"]
     },
     "test": {

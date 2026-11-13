@@ -15,9 +15,40 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./globals": {
+      "provino-source": "./src/globals.ts",
+      "types": "./dist/globals.d.ts",
+      "import": "./dist/globals.js"
+    },
+    "./config": {
+      "provino-source": "./src/config.ts",
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    },
     "./node": {
       "provino-source": "./src/node.ts",
-      "types": "./dist/node.d.ts"
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    },
+    "./reporters": {
+      "provino-source": "./src/reporters.ts",
+      "types": "./dist/reporters.d.ts",
+      "import": "./dist/reporters.js"
+    },
+    "./environment": {
+      "provino-source": "./src/environment.ts",
+      "types": "./dist/environment.d.ts",
+      "import": "./dist/environment.js"
+    },
+    "./jest": {
+      "provino-source": "./src/jest.ts",
+      "types": "./dist/jest.d.ts",
+      "import": "./dist/jest.js"
     },
     "./package.json": {
       "provino-source": "./package.json",
@@ -34,9 +65,34 @@
     "node": "^22.15.0 || >=24"
   },
   "scripts": {
+    "build": "tsdown --config ../../tooling/packaging/tsdown.umbrella.config.ts",
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },
   "dependencies": {
+    "@jest/expect-utils": "catalog:",
+    "@jest/get-type": "catalog:",
+    "@jridgewell/remapping": "catalog:",
+    "@sinonjs/fake-timers": "catalog:",
+    "@standard-schema/spec": "catalog:",
+    "es-module-lexer": "catalog:",
+    "jest-matcher-utils": "catalog:",
+    "jest-message-util": "catalog:",
+    "jest-util": "catalog:",
+    "magic-string": "catalog:",
+    "oxc-parser": "catalog:",
+    "oxc-resolver": "catalog:",
+    "oxc-transform": "catalog:",
+    "oxc-walker": "catalog:",
+    "picomatch": "catalog:",
+    "pretty-format": "catalog:",
+    "tinyglobby": "catalog:"
+  },
+  "publishConfig": {
+    "bin": {
+      "provino": "./dist/cli.js"
+    }
+  },
+  "devDependencies": {
     "@provino/config": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
     "@provino/env-jsdom": "workspace:*",
@@ -44,5 +100,13 @@
     "@provino/orchestrator": "workspace:*",
     "@provino/reporters": "workspace:*",
     "@provino/types": "workspace:*"
+  },
+  "peerDependencies": {
+    "jsdom": ">=26 <31"
+  },
+  "peerDependenciesMeta": {
+    "jsdom": {
+      "optional": true
+    }
   }
 }

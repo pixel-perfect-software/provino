@@ -1,0 +1,38 @@
+# DRAFT of .github/workflows/release.yml (B21e, T10.4). B21h puts it there once Tyler has approved
+# the permissions below; `pnpm hygiene` lints this file now and that one once it exists. It never
+# publishes as written: the publish carries --dry-run, and the first real release is Tyler's.
+#
+# Publishing is npm trusted publishing through pnpm (pnpm 12, checked 2026-11-12 against pnpm's
+# docs and 12.18.0): the run's OIDC token (`id-token: write`) is exchanged by pnpm itself for a
+# short-lived npm credential, so no NPM_TOKEN secret exists and none may be added, and pnpm
+# attaches provenance under it (--provenance says so). `pnpm -r stage publish` packs each public
+# package the way `pnpm pack` does (only pnpm rewrites `workspace:` and `catalog:` versions) and
+# stages it, so nothing goes live until someone runs `pnpm stage approve` with a one-time
+# password. `-r` skips the versions already on the registry (it lists only what would be
+# staged), so a run after the first release stages only the packages that changed; private
+# packages are never published. D75 keeps npm, yarn and bun out of this file.
+name: Release (draft)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm hygiene
+      - run: pnpm -r stage publish --access public --provenance --dry-run
