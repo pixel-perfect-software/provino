@@ -65,6 +65,8 @@ export type TextMode = 'default' | 'verbose' | 'agent' | 'dot'
 
 /** A test, or a suite with errors of its own, that failed; kept until its file ends. */
 interface FailedTest {
+  /** The task that failed: two tests may share a title (`test.each`), never an id. */
+  readonly id: TaskId
   readonly title: string
   readonly errors: readonly SerializedError[]
 }
@@ -196,7 +198,11 @@ export function createTextReporter(
         const { state: suiteState, errors } = event.result
         if (suiteState !== 'fail' || errors.length === 0) return
         const path = suitePath(state.collected.get(task.fileId), task) ?? [task.name]
-        push(state.suiteFailures, task.fileId, { title: testTitle(report, path), errors })
+        push(state.suiteFailures, task.fileId, {
+          id: task.id,
+          title: testTitle(report, path),
+          errors,
+        })
         return
       }
       if (task.type !== 'test' || event.type !== 'test-end') return
@@ -207,7 +213,11 @@ export function createTextReporter(
         await writeDot(testState)
       }
       if (testState !== 'fail') return
-      push(state.failures, task.fileId, { title: testTitle(report, task.fullName), errors })
+      push(state.failures, task.fileId, {
+        id: task.id,
+        title: testTitle(report, task.fullName),
+        errors,
+      })
     },
 
     console(file, event) {
@@ -246,23 +256,25 @@ export function createTextReporter(
         .get(file.fileId)
         ?.find((task) => task.id === event.ownerId && task.type === 'test')
       if (test === undefined || test.type !== 'test') return
-      const title = testTitle(report, test.fullName)
       const ended = state.results.get(test.id)
-      const listed = state.failures.get(file.fileId)?.findIndex((entry) => entry.title === title)
-      if (ended?.state === 'fail' && listed !== undefined && listed >= 0) {
+      const failures = state.failures.get(file.fileId)
+      // By id: tests with one full name (`test.each` with repeated titles) are told apart.
+      const listed = failures?.findIndex((entry) => entry.id === test.id) ?? -1
+      if (ended?.state === 'fail' && failures !== undefined && listed >= 0) {
         // It already failed: the late error joins its entry, and the counts stand.
-        const entry = state.failures.get(file.fileId)?.[listed]
+        const entry = failures[listed]
         if (entry !== undefined) {
-          state.failures.get(file.fileId)?.splice(listed, 1, {
-            title,
-            errors: [...entry.errors, event.error],
-          })
+          failures[listed] = { ...entry, errors: [...entry.errors, event.error] }
         }
         return
       }
       // Only a test that passed moves from the passed count to the failed one.
       if (ended?.state !== 'pass') return
-      push(state.failures, file.fileId, { title, errors: [event.error] })
+      push(state.failures, file.fileId, {
+        id: test.id,
+        title: testTitle(report, test.fullName),
+        errors: [event.error],
+      })
       state.results.set(test.id, { ...ended, state: 'fail' })
       const { passed, failed } = state.tests
       state.tests = { ...state.tests, failed: failed + 1, passed: Math.max(0, passed - 1) }

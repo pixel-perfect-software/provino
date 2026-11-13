@@ -570,4 +570,69 @@ describe('the default reporter: an error charged to a test after it ended', () =
     assert.match(text, /FIRST BOOM[\s\S]*LATE BOOM[\s\S]*LATER BOOM/)
     assert.match(text, /Tests:\s+1 failed, 1 skipped, 1 passed, 3 total/)
   })
+
+  /** Plays `file`'s tests, then each late error as `[test index, text]`, and returns the report. */
+  async function reportLate(
+    file: ReturnType<typeof buildFile>,
+    late: readonly (readonly [number, string])[],
+  ): Promise<string> {
+    const out = output()
+    const bus = createReporterBus([defaultReporter({ stream: out, report: NEUTRAL })])
+    await bus.emit('run:start', { root: '/project', projects: [''], startTime: 0, watch: false }, [
+      file.info,
+    ])
+    await bus.emit('file:collected', file.info, collectedEvent(file))
+    for (const { task, spec } of file.tests) {
+      await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+    }
+    for (const [index, text] of late) {
+      const owner = file.tests[index]
+      assert.ok(owner !== undefined)
+      await bus.emit('unhandled', file.info, unhandledEvent(error(text), owner.task.id))
+    }
+    await bus.emit('file:end', file.result)
+    await bus.emit('run:end', {
+      reason: 'failed',
+      files: [file.result],
+      unhandled: [],
+      durationMs: 1,
+    })
+    return out.text()
+  }
+
+  test('puts a late error under the test it was charged to when two tests share a full name', async () => {
+    const file = buildFile({
+      path: 'twins.test.ts',
+      state: 'fail',
+      tests: [
+        { path: ['each', 'case'], state: 'fail', errors: [error('ERR-A')] },
+        { path: ['each', 'case'], state: 'fail', errors: [error('ERR-B')] },
+      ],
+    })
+    const text = await reportLate(file, [[1, 'LATE-B']])
+    const [, first = '', second = ''] = text.split('each > case\n')
+    assert.match(first, /ERR-A/)
+    assert.doesNotMatch(first, /LATE-B|ERR-B/)
+    assert.match(second, /ERR-B[\s\S]*LATE-B/)
+  })
+
+  test('fails the passed test of two that share a full name, and keeps adding to it', async () => {
+    const file = buildFile({
+      path: 'twins.test.ts',
+      state: 'fail',
+      tests: [
+        { path: ['each', 'case'], state: 'fail', errors: [error('ERR-A')] },
+        { path: ['each', 'case'] },
+      ],
+    })
+    const text = await reportLate(file, [
+      [1, 'LATE-B'],
+      [1, 'LATER-B'],
+    ])
+    const [, first = '', second = ''] = text.split('each > case\n')
+    assert.match(first, /ERR-A/)
+    assert.doesNotMatch(first, /LATE/)
+    assert.match(second, /LATE-B[\s\S]*LATER-B/)
+    assert.match(text, /Tests:\s+2 failed, 2 total/)
+  })
 })
