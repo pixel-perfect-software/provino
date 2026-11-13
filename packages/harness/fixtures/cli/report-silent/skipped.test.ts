@@ -1,4 +1,7 @@
-it('runs', () => {
+const pause = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20))
+
+it('runs', async () => {
+  await pause()
   expect(1).toBe(1)
 })
 
