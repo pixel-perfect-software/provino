@@ -202,13 +202,12 @@ async function readProjects(
 }
 
 /**
- * `--shard` and the timings file, for the commands that take them: Jest's `--shard=i/n`, and
- * Provino's `--timings <file>` and `--update-timings`, which Jest has no flag for.
+ * What `--listTests` needs to apply a shard: Jest's `--shard=i/n` and Provino's `--timings <file>`
+ * (`--update-timings` writes after a run, and a listing has none).
  */
 interface ShardRequest {
   readonly shard: ShardSpec | undefined
   readonly timingsFile: string | undefined
-  readonly updateTimings: boolean
 }
 
 /**
@@ -251,7 +250,7 @@ function takeTimingsFlags(args: readonly string[]): {
   return { rest, timingsFile, updateTimings }
 }
 
-/** Every project's test files, once each, sorted by path; only shard `request.shard`'s when it names one. */
+/** Every project's test files, once each, sorted by path; only shard `sharding.shard`'s when it names one. */
 async function listFiles(
   projects: readonly ResolvedProject[],
   request: RunRequest,
@@ -359,7 +358,6 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       const sharding = {
         shard: shardOf(read.globalConfig),
         timingsFile,
-        updateTimings,
         runRoot: read.globalConfig.rootDir,
       }
       const files = await listFiles(projects, request, cwd, sharding)
