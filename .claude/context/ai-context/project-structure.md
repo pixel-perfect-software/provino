@@ -38,7 +38,7 @@ provino/
 └── .github/workflows/ci.yml      # Node 22.15/24/26 typecheck + test; type tests on TS 7.0.2 and 5.9.3; lint; recorded goldens on every push, bench suites when their inputs change; resolver/transform corpora
 ```
 
-Gitignored build output: `packages/*/.tsc/` (declarations from `tsc -b`; project references need emit), `packages/*/dist/` (tsdown, `pnpm build`) and `.turbo/`. Committed beside the sources: `packages/*/etc/*.api.md` (API Extractor reports of the semver packages), `.changeset/`, `knip.jsonc`.
+Gitignored build output: `packages/*/.tsc/` (declarations from `tsc -b`; project references need emit), `packages/*/dist/` (tsdown, `pnpm build`) and `.turbo/`. Committed beside the sources: `packages/*/etc/*.api.md` (API Extractor reports of the semver packages), `.changeset/`, `knip.ts`.
 
 Planned, not yet created: the other `packages/*` (see `monorepo-architecture.md`), the `provino-site` app (T12.18 places it), `compat/*.snap.md` (T12.20), `crates/provino_native` (Phase 3).
 

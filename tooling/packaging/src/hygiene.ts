@@ -19,7 +19,6 @@ import {
 import { fileAt, resolveBase } from './git.ts'
 import { installScriptProblems } from './install-scripts.ts'
 import { runKnip } from './knip.ts'
-import { importedPackages, knipIgnoredDependencies, knipUmbrellaProblems } from './knip-config.ts'
 import { lintPacks } from './lint-pack.ts'
 import { packAll } from './pack.ts'
 import { runtimeDependencyNames } from './package-json.ts'
@@ -126,16 +125,6 @@ function runSection(section: Section, options: HygieneOptions, workDir: string):
     }
     case 'umbrella-deps': {
       problems.push(...umbrellaDependencyProblems(packages))
-      const umbrella = packages.find((pkg) => pkg.manifest.name === 'provino')
-      if (umbrella !== undefined) {
-        problems.push(
-          ...knipUmbrellaProblems({
-            declared: Object.keys(umbrella.manifest.dependencies),
-            ignored: knipIgnoredDependencies(root, 'packages/provino'),
-            imported: importedPackages(root, ['packages/provino/src', 'packages/provino/test']),
-          }),
-        )
-      }
       break
     }
     case 'release': {

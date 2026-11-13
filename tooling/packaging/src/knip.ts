@@ -7,7 +7,7 @@ export interface KnipResult {
 }
 
 /**
- * Runs knip with the root `knip.jsonc`. Unused files, dependencies, unlisted dependencies and
+ * Runs knip with the root `knip.ts`. Unused files, dependencies, unlisted dependencies and
  * unresolved imports are errors, so a non-zero exit fails hygiene. Unused exports and types are
  * warnings in the config and don't change the exit code.
  * @internal
