@@ -160,6 +160,28 @@ export function assertNoPathLeak(text: string, forbidden: readonly string[], lab
   }
 }
 
+// jest-message-util 30.5.1 (`build/index.js`, `JEST_INTERNALS_IGNORE`): a frame whose path has a
+// directory naming a Jest package (any name containing `jest`, or `@jest/<name>`) directly followed
+// by `build/` or `node_modules/` is Jest's own, and Jest leaves it out of every failure it prints.
+const JEST_INTERNAL_FRAME =
+  /^\s+at(?:.*[/\\])?(?:@jest[/\\][^/\\]+|[^/\\]*jest[^/\\]*)[/\\](?:build|node_modules)[/\\]/
+
+/**
+ * Throws `HARNESS_CHECKOUT_HIDES_JEST_FRAMES` when Jest would take every frame under this checkout's
+ * `node_modules/` for its own: a checkout at `…/b23a-jest-results/` hides the `expect` package's
+ * frames that CI's checkout prints, so a golden recorded there differs from CI's, and `--check`
+ * there agrees with a wrong golden. `repoRoot` is the checkout's real path, as Node prints frames.
+ * @internal
+ */
+export function assertCheckoutKeepsJestFrames(repoRoot: string, label: string): void {
+  const frame = `    at f (${path.join(path.resolve(repoRoot), 'node_modules', 'x', 'index.js')}:1:1)`
+  if (!JEST_INTERNAL_FRAME.test(frame)) return
+  throw new HarnessError(
+    'HARNESS_CHECKOUT_HIDES_JEST_FRAMES',
+    `${label}: Jest 30.5 hides every stack frame under "${repoRoot}/node_modules/", because a directory in that path is named like a Jest package (it contains "jest" and is followed by node_modules/ or build/). A golden recorded here would differ from one recorded in CI's checkout. Record from a checkout whose path has no such directory`,
+  )
+}
+
 /**
  * Writes the golden, or with `check` compares it with the committed one and writes nothing. `diff`
  * is the differing lines, for `drift`.
