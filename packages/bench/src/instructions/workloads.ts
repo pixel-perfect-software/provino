@@ -60,7 +60,11 @@ const SUITE_TESTS: Readonly<Record<'app-50' | 'mock-heavy-50' | 'isolate-heavy',
 /** Hoisting calls the `hoist` leg makes. */
 const HOIST_CALLS = 60
 
-function sortedFiles(dir: string, suffix: string): string[] {
+/**
+ * The files of `dir` ending in `suffix`, sorted, as full paths.
+ * @public
+ */
+export function sortedFiles(dir: string, suffix: string): string[] {
   return readdirSync(dir)
     .filter((name) => name.endsWith(suffix))
     .sort()

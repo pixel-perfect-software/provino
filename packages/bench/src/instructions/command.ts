@@ -4,7 +4,7 @@
 // inputs, count (each leg `--runs` times, interleaved), plant a regression if asked, time each leg
 // natively (`--wall-runs` times, interleaved), T2.12's loader signals, then the record is saved and
 // the summary printed (persistRecord's order).
-import { appendFile, readdir, readFile } from 'node:fs/promises'
+import { appendFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readRunEnvironment, runProcess } from '@provino/harness'
 import type { BenchRecord, BenchResult, RunRef } from '@provino/types'
@@ -23,7 +23,7 @@ import { FIXTURE_FILES } from '../loader/fixture.ts'
 import { persistRecord, prepareOutput } from '../output.ts'
 import { buildRecord, defaultOutPath } from '../report.ts'
 import { median, wallStats } from '../stats.ts'
-import { PACKAGE_DIR } from '../suites.ts'
+import { DEFAULT_PATHS, PACKAGE_DIR } from '../suites.ts'
 import {
   anyRegressed,
   assertBaselineCovers,
@@ -40,7 +40,7 @@ import {
 import { LEGS, type Leg, legOf } from './legs.ts'
 import { assertEmptiable, prepareWork } from './prepare.ts'
 import { runCounted, runPlain, V8_FLAGS, valgrindVersion } from './run.ts'
-import { WORK_PATHS, type WorkloadResult } from './workloads.ts'
+import { sortedFiles, WORK_PATHS, type WorkloadResult } from './workloads.ts'
 
 /**
  * What the command line asks for.
@@ -79,7 +79,7 @@ export interface InstructionsCommand {
 export const DEFAULT_WORK_DIR: string = join(PACKAGE_DIR, '.instructions')
 
 /** The repository root, where `pnpm build` runs. */
-const REPO_ROOT = join(PACKAGE_DIR, '..', '..')
+const REPO_ROOT = DEFAULT_PATHS.repoRoot
 
 /** The plant's target rises, in percent: one over the +1.5% line, one under it. */
 const PLANT_OVER = 2
@@ -102,7 +102,6 @@ interface LegRuns {
 /** The planted check's outcome. */
 interface PlantOutcome {
   readonly leg: Leg
-  readonly base: number
   readonly perIteration: number
   readonly over: LegComparison & { readonly iterations: number }
   readonly under: LegComparison & { readonly iterations: number }
@@ -201,7 +200,6 @@ async function plantRegression(
   }
   return {
     leg,
-    base,
     perIteration,
     over,
     under,
@@ -227,7 +225,8 @@ async function timeLegs(
   return wall
 }
 
-function resultFor(leg: Leg, runs: LegRuns, provinoVersion: string): BenchResult {
+function resultFor(runs: LegRuns, provinoVersion: string): BenchResult {
+  const { leg } = runs
   const neutral = leg.id === 'transform' || leg.id === 'resolve' || leg.id === 'warm'
   const isolated = leg.task === 'T12.13' || leg.id === 'loader-e2e'
   const counted = runs.counts.length > 0
@@ -355,7 +354,7 @@ export async function instructionsCommand(command: InstructionsCommand, io: Io):
   if (command.signals) {
     io.err('[local] T2.12 signals: bench:loader e2e and isolation')
     const fixture = join(command.workDir, WORK_PATHS.loaderFixture)
-    isolation = await measureIsolation(fixture, await fixtureFiles(fixture))
+    isolation = await measureIsolation(fixture, sortedFiles(join(fixture, 'tests'), '.test.ts'))
     e2e = await measureE2e(fixture)
   }
 
@@ -370,7 +369,7 @@ export async function instructionsCommand(command: InstructionsCommand, io: Io):
     ref,
     environment: readRunEnvironment(valgrind === undefined ? {} : { valgrind }),
     machineId: `local-${process.platform}-${process.arch}`,
-    results: runs.map((legRuns) => resultFor(legRuns.leg, legRuns, version)),
+    results: runs.map((legRuns) => resultFor(legRuns, version)),
   })
   const baselineCounts = baseline === undefined ? new Map<string, number>() : countsOf(baseline)
   const comparisons = runs.map(({ leg, counts: legCounts }) =>
@@ -414,13 +413,6 @@ export async function instructionsCommand(command: InstructionsCommand, io: Io):
 function resultNote(compared: boolean, unjudged: readonly string[]): string {
   if (!compared) return ' (nothing was compared)'
   return unjudged.length === 0 ? '' : ` (no baseline count for ${unjudged.join(', ')}: not judged)`
-}
-
-async function fixtureFiles(dir: string): Promise<string[]> {
-  return (await readdir(join(dir, 'tests')))
-    .filter((name) => name.endsWith('.test.ts'))
-    .sort()
-    .map((name) => join(dir, 'tests', name))
 }
 
 /**

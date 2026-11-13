@@ -6,6 +6,7 @@ import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { BenchError } from '../errors.ts'
 import { tsCorpusFiles } from '../generators/ts-corpus.ts'
+import { hasCode } from '../internal/guards.ts'
 import { writeLoaderFixture } from '../loader/fixture.ts'
 import { parseSuiteName, writeSuite } from '../suites.ts'
 import { WORK_PATHS } from './workloads.ts'
@@ -46,7 +47,7 @@ export async function assertEmptiable(work: string): Promise<void> {
   try {
     names = await readdir(work)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    if (hasCode(error, 'ENOENT')) return
     throw error
   }
   if (names.length === 0 || names.includes(WORK_MARKER)) return
