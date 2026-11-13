@@ -446,3 +446,141 @@ describe('the failure chain (T6.10)', () => {
     assert.equal(w.runtime.evaluatedLazies(run)[0]?.failed, true)
   })
 })
+
+describe('what a definition returns is never replaced (review of T6.10)', () => {
+  test('a non-native thenable keeps its identity and methods, and the read never calls its then', async () => {
+    const w = createWorld()
+    let thenCalls = 0
+    const builder = {
+      where: () => 'where',
+      // biome-ignore lint/suspicious/noThenProperty: the point of the test is a custom thenable
+      then(): void {
+        thenCalls++
+      },
+    }
+    let seen: unknown
+    let same = false
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('q', () => builder)
+        w.test('t', () => {
+          seen = $.q
+          const again: unknown = $.q
+          same = seen === again
+        })
+      }),
+    )
+    assert.equal(seen, builder)
+    assert.equal(same, true)
+    assert.equal(thenCalls, 0)
+  })
+
+  test('a Promise subclass keeps its class, and the same value comes back on every read', async () => {
+    const w = createWorld()
+    class Query<T> extends Promise<T> {}
+    let seen: unknown
+    let same = false
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('q', () => Query.resolve(1))
+        w.test('t', () => {
+          seen = $.q
+          const again: unknown = $.q
+          same = seen === again
+        })
+      }),
+    )
+    assert.ok(seen instanceof Query)
+    assert.equal(same, true)
+  })
+
+  test('a native promise is returned as it is, and its rejection still flags the entry', async () => {
+    const w = createWorld()
+    const boom = new Error('rejected')
+    let seen: unknown
+    let promise: Promise<never> | undefined
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('p', () => {
+          promise = Promise.reject(boom)
+          return promise
+        })
+        w.test('t', async () => {
+          seen = $.p
+          await assert.rejects(Promise.resolve($.p), boom)
+        })
+      }),
+    )
+    assert.equal(seen, promise)
+    const run = w.runs[0]
+    assert.ok(run)
+    const [entry] = w.runtime.evaluatedLazies(run)
+    assert.equal(entry?.failed, true)
+    assert.deepEqual(entry?.chain, ['p'])
+  })
+})
+
+describe('the chain of a reused error (review of T6.10)', () => {
+  test('a memoized error read by another lazy in a later test gets that read’s chain', async () => {
+    const w = createWorld()
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy
+          .let(
+            'a',
+            () => {
+              throw new Error('a failed')
+            },
+            { scope: 'file' },
+          )
+          .let('b', ({ a }) => a)
+        for (const name of ['A', 'B']) {
+          w.test(name, () => {
+            try {
+              void (name === 'A' ? $.a : $.b)
+            } catch {
+              // the error is the point
+            }
+          })
+        }
+      }),
+    )
+    const chains = w.runs.map((run) => w.runtime.evaluatedLazies(run).map((e) => [e.key, e.chain]))
+    assert.deepEqual(chains[0], [['a', ['a']]])
+    assert.deepEqual(chains[1], [['b', ['b', 'a']]])
+  })
+
+  test('one error object thrown by two definitions is chained per definition', async () => {
+    const w = createWorld()
+    const shared = new Error('shared')
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy
+          .let('x', () => {
+            throw shared
+          })
+          .let('y', () => {
+            throw shared
+          })
+        w.test('t', () => {
+          for (const read of [() => $.x, () => $.y]) {
+            try {
+              read()
+            } catch {
+              // the error is the point
+            }
+          }
+        })
+      }),
+    )
+    const run = w.runs[0]
+    assert.ok(run)
+    assert.deepEqual(
+      w.runtime.evaluatedLazies(run).map((e) => [e.key, e.chain]),
+      [
+        ['x', ['x']],
+        ['y', ['y']],
+      ],
+    )
+  })
+})

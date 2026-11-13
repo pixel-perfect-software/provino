@@ -64,26 +64,92 @@ interface ChainMark {
   readonly site: SourceLocation
 }
 
-/**
- * Marks a thrown definition value with the chain of lazies being evaluated when it was thrown
- * (outermost first) and returns the keys. The first mark stays: it was made where the value was
- * thrown, deepest. A primitive, or an object that refuses the property, is left unmarked.
- */
-function markChain(error: unknown, path: readonly LazyEntry[]): readonly string[] | undefined {
-  if (error === null || (typeof error !== 'object' && typeof error !== 'function')) return undefined
-  try {
-    const existing: unknown = Reflect.get(error, LAZY_CHAIN)
-    if (Array.isArray(existing)) return (existing as ChainMark[]).map((mark) => mark.key)
-    const marks: ChainMark[] = path.map((entry) => ({ key: entry.key, site: entry.site }))
-    Object.defineProperty(error, LAZY_CHAIN, {
-      value: marks,
-      configurable: true,
-      enumerable: false,
-    })
-    return marks.map((mark) => mark.key)
-  } catch {
-    return undefined
+/** Per test run: the chain each thrown object had in this attempt (a memo outlives the attempt). */
+const CHAINS: unique symbol = Symbol('provino.lazy.chains')
+
+type Chains = WeakMap<object, readonly string[]>
+
+function isObjectLike(value: unknown): value is object {
+  return value !== null && (typeof value === 'object' || typeof value === 'function')
+}
+
+function chainsOf(frame: LazyFrame): Chains | undefined {
+  if (frame.kind !== 'test') return undefined
+  let chains = frame.run.slots.get(CHAINS) as Chains | undefined
+  if (chains === undefined) {
+    chains = new WeakMap()
+    frame.run.slots.set(CHAINS, chains)
   }
+  return chains
+}
+
+/**
+ * The chain of lazies being evaluated when a definition's value was thrown (outermost first),
+ * for this read: a chain this attempt already gave the object stands when it runs through `path`
+ * (the value passing up through its dependents), else `path` is the chain (the same object thrown
+ * by another definition, or a memoized one read again). The object itself gets a `LAZY_CHAIN`
+ * mark the first time, made where it was thrown, deepest, and keeps it. A primitive, or an object
+ * that refuses the property, is left unmarked and has no chain.
+ */
+function markChain(
+  error: unknown,
+  path: readonly LazyEntry[],
+  chains: Chains | undefined,
+): readonly string[] | undefined {
+  if (!isObjectLike(error)) return undefined
+  const own = path.map((entry) => entry.key)
+  const known = chains?.get(error)
+  const keys = known !== undefined && own.every((key, i) => known[i] === key) ? known : own
+  chains?.set(error, keys)
+  try {
+    if (!Array.isArray(Reflect.get(error, LAZY_CHAIN))) {
+      const marks: ChainMark[] = path.map((entry) => ({ key: entry.key, site: entry.site }))
+      Object.defineProperty(error, LAZY_CHAIN, {
+        value: marks,
+        configurable: true,
+        enumerable: false,
+      })
+    }
+  } catch {
+    // an object that refuses the mark still has its chain in the log
+  }
+  return keys
+}
+
+/**
+ * A memoized error read again, returned for the caller to throw: the chain of this read is the lazies being evaluated, then the
+ * memoized definition and what it was waiting on, from the object's own mark.
+ */
+function noteReuse(
+  engine: Engine,
+  entry: LazyEntry,
+  frame: LazyFrame,
+  from: EvalFrame | null,
+  error: unknown,
+): unknown {
+  const chains = chainsOf(frame)
+  if (chains === undefined || !isObjectLike(error)) return error
+  const base = (from === null ? engine.stack : evalPath(from)).map((f) => f.entry.key)
+  let tail: string[] = [entry.key]
+  try {
+    const mark: unknown = Reflect.get(error, LAZY_CHAIN)
+    if (Array.isArray(mark)) {
+      const keys = (mark as ChainMark[]).map((m) => m.key)
+      const at = keys.lastIndexOf(entry.key)
+      if (at >= 0) tail = keys.slice(at)
+    }
+  } catch {
+    // no mark to read
+  }
+  chains.set(error, [...base, ...tail])
+  return error
+}
+
+/** The evaluations a `from` frame is in, outermost first. */
+function evalPath(from: EvalFrame): EvalFrame[] {
+  const path: EvalFrame[] = []
+  for (let f: EvalFrame | null = from; f !== null; f = f.from) path.push(f)
+  return path.reverse()
 }
 
 /** The evaluations in progress down to `frame`, the outermost first. */
@@ -333,19 +399,21 @@ function run(engine: Engine, entry: LazyEntry, frame: LazyFrame, from: EvalFrame
     if (controller !== undefined && entry.timeout !== undefined && isThenable(value)) {
       value = withTimeout(value, entry, entry.timeout, controller)
     }
-    if (isThenable(value)) {
-      // A rejection is marked on its way out; the consumer gets the same error, and a rejection
-      // nobody reads is still unhandled.
+    if (value instanceof Promise) {
+      // The rejection is observed on a side branch: the value stays the one the definition
+      // returned (same object, same class), and the consumer's own handling is untouched. Any
+      // other thenable is not touched at all (calling its `then` could start its work), so its
+      // rejection is not flagged on the log.
       const path = pathTo(engine, evalFrame, from)
-      value = Promise.resolve(value).then(undefined, (error: unknown) => {
-        logged?.fail(markChain(error, path))
-        throw error
+      const chains = chainsOf(frame)
+      Promise.prototype.then.call(value, undefined, (error: unknown): void => {
+        logged?.fail(markChain(error, path, chains))
       })
     }
     outcome = { ok: true, value }
   } catch (error) {
     outcome = { ok: false, value: error }
-    failedChain = markChain(error, pathTo(engine, evalFrame, from))
+    failedChain = markChain(error, pathTo(engine, evalFrame, from), chainsOf(frame))
   } finally {
     engine.stack.pop()
   }
@@ -378,7 +446,7 @@ export function readFrom(
   const cell = memo.get(entry.memo) as Cell | undefined
   if (cell !== undefined) {
     if (cell.state === OK) return cell.value
-    if (cell.state === ERR) throw cell.value
+    if (cell.state === ERR) throw noteReuse(engine, entry, frame, from, cell.value)
     if (cell.state === EAGER_WAIT) throw eagerPending(entry)
     throw cycleFrom(engine, entry, from)
   }
