@@ -1,6 +1,7 @@
 // What the runtime corpus pins beyond the goldens (B07), shared by `runtime-corpus.test.ts` and
 // T1.7's `policy-truth/corpora.ts`, so both hold a run to the same expectations.
 import type { CoreErrorCode } from '@provino/core'
+import type { DeclaredTrace, GoldenExpectations } from './compare.ts'
 
 /**
  * The collection error core reports for each fixture and profile whose golden is a crash (Jest
@@ -43,6 +44,18 @@ export const MESSAGE_FIXTURES: ReadonlySet<string> = new Set([
   'runtime/done-each',
   'runtime/done-hooks',
   'runtime/context-shape',
+  // The retry fixtures: the error each failed test ends with, and under `retry.keepEarlierErrors`
+  // (Vitest) the earlier attempts' errors too, in order and in number.
+  'runtime/retry-before-all-error',
+  'runtime/retry-condition',
+  'runtime/retry-condition-function',
+  'runtime/retry-hooks',
+  'runtime/retry-immediately',
+  'runtime/retry-log-errors',
+  'runtime/retry-order',
+  'runtime/retry-read-time',
+  'runtime/retry-repeats',
+  'runtime/retry-wait',
 ])
 
 /**
@@ -53,32 +66,70 @@ export const RETRY_LOG_FIXTURES: ReadonlySet<string> = new Set(['runtime/retry-l
 
 /**
  * The trace core gives where the real runner has a bug that core does not copy (D7), by
- * `fixture (profile)`. (Vitest 5.0.5 never calls a function given as `retry.condition` and retries
- * every failure; that is not declared here: the Vitest dialect's `retry.functionCondition` is
- * `ignore-warn`, which keeps that outcome, D7, and `runtime/retry-condition-function` holds it.)
+ * `fixture (profile)`: the golden's own trace and the one core gives (see `DeclaredTrace`).
+ * (Vitest 5.0.5 never calls a function given as `retry.condition` and retries every failure; that
+ * is not declared here: the Vitest dialect's `retry.functionCondition` is `ignore-warn`, which keeps
+ * that outcome, D7, and `runtime/retry-condition-function` holds it.)
  */
-export const DECLARED_TRACES: Readonly<Record<string, readonly string[]>> = {
+export const DECLARED_TRACES: Readonly<Record<string, DeclaredTrace>> = {
   // Vitest tests the user's `g` or `y` RegExp itself, so its `lastIndex` carries: the same failure is
   // retried once and then not, and a RegExp shared by two tests carries it from one to the other
   // (`shared next` is not retried at all, after a test that matched it once). Core tests a copy.
-  'runtime/retry-condition-regexp-global (vitest)': [
-    'no flag #1',
-    'no flag #2',
-    'no flag #3',
-    'no flag #4',
-    'global flag #1',
-    'global flag #2',
-    'global flag #3',
-    'global flag #4',
-    'sticky flag #1',
-    'sticky flag #2',
-    'sticky flag #3',
-    'sticky flag #4',
-    'shared first #1',
-    'shared first #2',
-    'shared next #1',
-    'shared next #2',
-    'shared next #3',
-    'shared next #4',
-  ],
+  'runtime/retry-condition-regexp-global (vitest)': {
+    golden: [
+      'no flag #1',
+      'no flag #2',
+      'no flag #3',
+      'no flag #4',
+      'global flag #1',
+      'global flag #2',
+      'sticky flag #1',
+      'sticky flag #2',
+      'shared first #1',
+      'shared first #2',
+      'shared next #1',
+    ],
+    core: [
+      'no flag #1',
+      'no flag #2',
+      'no flag #3',
+      'no flag #4',
+      'global flag #1',
+      'global flag #2',
+      'global flag #3',
+      'global flag #4',
+      'sticky flag #1',
+      'sticky flag #2',
+      'sticky flag #3',
+      'sticky flag #4',
+      'shared first #1',
+      'shared first #2',
+      'shared next #1',
+      'shared next #2',
+      'shared next #3',
+      'shared next #4',
+    ],
+  },
+}
+
+/**
+ * What a run of `fixtureId` under the profile labelled `label` (`fixture (profile)`) is held to
+ * beyond the golden's trace, tests and file status. The one place the sets above are read, for
+ * both the corpus check and T1.7's `corpusProblems`, so a claim over a fixture is judged the way
+ * the check judges it.
+ */
+export function goldenExpectations(
+  fixtureId: string,
+  label: string,
+  testFile: string,
+): GoldenExpectations {
+  const collectionErrorCode = COLLECTION_ERROR_CODES[label]
+  const declaredTrace = DECLARED_TRACES[label]
+  return {
+    testFile,
+    ...(collectionErrorCode === undefined ? {} : { collectionErrorCode }),
+    ...(MESSAGE_FIXTURES.has(fixtureId) ? { compareMessages: true } : {}),
+    ...(RETRY_LOG_FIXTURES.has(fixtureId) ? { retryLog: true } : {}),
+    ...(declaredTrace === undefined ? {} : { declaredTrace }),
+  }
 }

@@ -18,9 +18,7 @@ import { readGolden } from './golden.ts'
 import { assertRunMatchesGolden, testsWithoutLocation } from './runtime-corpus/compare.ts'
 import {
   COLLECTION_ERROR_CODES,
-  DECLARED_TRACES,
-  MESSAGE_FIXTURES,
-  RETRY_LOG_FIXTURES,
+  goldenExpectations,
   UNLOCATED_TESTS,
 } from './runtime-corpus/expectations.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
@@ -81,15 +79,7 @@ for (const fixture of fixtures) {
               fixture.dir,
               corePolicyFor[profile],
             )
-        const collectionErrorCode = COLLECTION_ERROR_CODES[label]
-        const declaredTrace = DECLARED_TRACES[label]
-        assertRunMatchesGolden(run, golden, {
-          testFile,
-          ...(collectionErrorCode === undefined ? {} : { collectionErrorCode }),
-          ...(MESSAGE_FIXTURES.has(fixture.id) ? { compareMessages: true } : {}),
-          ...(RETRY_LOG_FIXTURES.has(fixture.id) ? { retryLog: true } : {}),
-          ...(declaredTrace === undefined ? {} : { declaredTrace }),
-        })
+        assertRunMatchesGolden(run, golden, goldenExpectations(fixture.id, label, testFile))
       })
     }
   })

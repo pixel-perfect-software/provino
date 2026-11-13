@@ -192,9 +192,11 @@ export function summarizeRun(
           task.location === null
             ? null
             : { line: task.location.line, column: task.location.column },
+        // In the order the attempts ran, as Vitest's result lists them: the retried attempts'
+        // errors, then the one that ended the test.
         errors: [
-          ...(result?.errors ?? []),
           ...(options.keepEarlierErrors === true ? (result?.retryErrors ?? []) : []),
+          ...(result?.errors ?? []),
           ...late,
         ],
         attempts: result?.attempts ?? 0,

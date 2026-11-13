@@ -16,9 +16,11 @@ export interface GoldenExpectations {
    */
   readonly collectionErrorCode?: CoreErrorCode
   /**
-   * Also compare each error's text with the golden's. Core's messages are neutral except where a
-   * dialect owns the words (T5.7's `done` errors, the callable context), so only the fixtures
-   * that exercise those ask. A timeout is a timeout: its text is core's.
+   * Also compare each error's text with the golden's, in order and in number (under
+   * `retry.keepEarlierErrors` a test's errors are every attempt's). Core's messages are neutral
+   * except where a dialect owns the words (T5.7's `done` errors, the callable context), so only the
+   * fixtures that exercise those, and the retry fixtures, ask. A timeout is a timeout: its text is
+   * core's.
    */
   readonly compareMessages?: boolean
   /**
@@ -29,10 +31,20 @@ export interface GoldenExpectations {
   readonly retryLog?: boolean
   /**
    * A trace core is declared to give in place of the golden's (the fixture shows a bug in the real
-   * runner that core does not copy, DIVERGENCES). It must differ from the golden's, so a declaration
-   * that no longer holds fails.
+   * runner that core does not copy, DIVERGENCES). Both sides are written out: the golden's trace
+   * must still be the one the declaration was made against (a re-recorded golden can't keep the
+   * exception alive), the declared one must differ from it (a declaration that no longer holds
+   * fails), and core must give the declared one.
    */
-  readonly declaredTrace?: readonly string[]
+  readonly declaredTrace?: DeclaredTrace
+}
+
+/** A declared difference in a fixture's trace. */
+export interface DeclaredTrace {
+  /** The trace the golden holds, which the declaration is a difference from. */
+  readonly golden: readonly string[]
+  /** The trace core gives instead. */
+  readonly core: readonly string[]
 }
 
 /** The golden's text for a Jest or Vitest timeout, which core words its own way. */
@@ -78,12 +90,18 @@ export function assertRunMatchesGolden(
   if (expected.declaredTrace === undefined) {
     assert.deepEqual(run.trace, golden.trace ?? [], 'trace')
   } else {
-    assert.notDeepEqual(
-      expected.declaredTrace,
+    const declared = expected.declaredTrace
+    assert.deepEqual(
       golden.trace ?? [],
+      declared.golden,
+      "the golden's trace is not the one the declaration was made against: re-read the fixture and update the declaration",
+    )
+    assert.notDeepEqual(
+      declared.core,
+      declared.golden,
       'the declared trace now equals the golden: remove the declaration',
     )
-    assert.deepEqual(run.trace, expected.declaredTrace, 'the declared trace')
+    assert.deepEqual(run.trace, declared.core, 'the declared trace')
   }
   assert.deepEqual(
     run.tests.map((t) => ({ path: t.path, dupIndex: t.dupIndex, status: t.status })),

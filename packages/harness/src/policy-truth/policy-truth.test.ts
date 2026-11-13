@@ -482,6 +482,22 @@ describe('the checks catch a wrong value', () => {
     }
   })
 
+  test('a runtime corpus run is judged with the corpus check`s expectations, a declared trace included', async () => {
+    // Core's run of this fixture differs from the Vitest golden by design (D7): it passes only when
+    // `corpusProblems` reads the declaration, as the corpus check does, and fails when the declared
+    // trace is not what core gives (here, a policy that changes the retries).
+    const vitest = { profile: 'vitest', ...SUBJECTS.vitest } as const
+    assert.deepEqual(
+      await corpusProblems('runtime', 'runtime/retry-condition-regexp-global', vitest),
+      [],
+    )
+    const dropsKept = await corpusProblems('runtime', 'runtime/retry-condition-regexp-global', {
+      ...vitest,
+      ...flipped(SUBJECTS.vitest, 'core.retry.keepEarlierErrors', false),
+    })
+    assert.ok(dropsKept.length > 0, 'a policy that drops the kept errors is not what Vitest does')
+  })
+
   test('an error that escapes a corpus run is not one of its problems', async () => {
     const local = captureStrayErrors()
     try {
