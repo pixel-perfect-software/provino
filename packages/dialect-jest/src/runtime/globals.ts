@@ -340,13 +340,16 @@ const TIMER_MEMBER_NAMES = [
  * What `jest.retryTimes(n, options)` sets, read as jest-circus's `_runTestsForDescribeBlockOnce`
  * reads the globals it left: a count and a wait through `Number.parseInt(String(…), 10) || 0`
  * (so `'2'` is 2, `2.9` is 2, and anything that is not a number is 0), the other two by truthiness.
+ * A truthy `retryImmediately` is `timing: 'immediate'` and a truthy `logErrorsBeforeRetry` is
+ * `keepEarlierErrors: true`; a falsy one sets nothing, and the policy's value stands (Jest's own
+ * defaults, `deferred` and dropped, are the Jest dialect's policy).
  */
 function jestDefaultRetry(numRetries: number, options: JestRetryOptions | undefined): DefaultRetry {
   return {
     count: Number.parseInt(String(numRetries), 10) || 0,
     delay: Number.parseInt(String(options?.waitBeforeRetry), 10) || 0,
-    immediate: Boolean(options?.retryImmediately),
-    logErrors: Boolean(options?.logErrorsBeforeRetry),
+    ...(options?.retryImmediately ? ({ timing: 'immediate' } as const) : {}),
+    ...(options?.logErrorsBeforeRetry ? { keepEarlierErrors: true } : {}),
   }
 }
 

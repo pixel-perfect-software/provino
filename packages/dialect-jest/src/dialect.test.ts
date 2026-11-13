@@ -167,6 +167,7 @@ test('values that equal the neutral ones are not divergences', () => {
   for (const path of [
     // Jest has no `retry.condition`, so it keeps the neutral `call`.
     'core.retry.functionCondition',
+    'core.retry.functionConditionWarning',
     'core.maxConcurrency',
     'snapshot.dirName',
     'orchestrator.unhandledErrors',
@@ -235,6 +236,7 @@ test('the keys the dialect leaves to the neutral policy are the ones listed in d
     all.filter((path) => !set.has(path)).sort(),
     [
       'core.orderHooks',
+      'core.retry.functionConditionWarning',
       'snapshot.key',
       'snapshot.serializers',
       'snapshot.resolvePath',

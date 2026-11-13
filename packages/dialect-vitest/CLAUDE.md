@@ -21,7 +21,7 @@ The Vitest 5.0 dialect (B14a: T1.8's Vitest half, T11.1, T11.2). Policy values, 
 
 Every value matches Vitest 5.0.5, and its evidence is in `@provino/harness`'s `src/policy-truth/claims/` (T1.7): a golden recorded from the real Vitest, a corpus check a flipped value fails, our own key with its test (`isolationDefault`, the hoisting `id`, `valueFormatter`: `dialect.test.ts` pins them), a value nothing reads, or `pending` with its owner. `policy-truth.test.ts` there fails when a value and its evidence disagree. A recording overruled the research once: `core.errors.hasAssertionsWhenFailed` is `skip` (Vitest checks `expect.hasAssertions` only on a test that passed, `policy/core-outcomes`).
 
-`core.retry.functionCondition` is `ignore-warn` (D7): Vitest 5.0.5 never calls a function `retry.condition` and retries every failure (`runtime/retry-condition-function`), and honouring it could turn a green suite red, so this dialect keeps that outcome and core warns once a file with a fix hint; the neutral and Jest value, `call`, asks the function.
+`core.retry.functionCondition` is `ignore-warn` (D7): Vitest 5.0.5 never calls a function `retry.condition` and retries every failure (`runtime/retry-condition-function`), and honouring it could turn a green suite red, so this dialect keeps that outcome and core warns once a file, naming the test and then giving the dialect's own `core.retry.functionConditionWarning` (why, and the fix: Provino's text, pinned by `dialect.test.ts`, not a Vitest message); the neutral and Jest value, `call`, asks the function.
 
 `vitest-list` (`sequence.hooks: 'list'`) is a project config, not a dialect: the harness's corpus profiles layer it over `vitestPolicy`.
 

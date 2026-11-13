@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { beforeEach, describe, test } from 'node:test'
 import FakeTimers, { type Clock } from '@sinonjs/fake-timers'
 import { timersOf, trackRefs, watch } from '../internal/test-support.ts'
-import { type DeadlineOptions, withDeadline } from './deadline.ts'
+import { type DeadlineOptions, sleep, withDeadline } from './deadline.ts'
 
 const TIMEOUT = new Error('timed out')
 
@@ -211,5 +211,30 @@ describe('withDeadline and a synchronous overrun', () => {
       options({ catchSyncOverrun: true, timeoutMs: 0 }),
     )
     assert.equal(await pending, 'finished')
+  })
+})
+
+describe('sleep', () => {
+  test('resolves once the wait has passed on the given timers, not before', async () => {
+    const state = watch(sleep(timersOf(clock), 50))
+    await clock.tickAsync(49)
+    assert.equal(state.settled, false)
+    await clock.tickAsync(1)
+    assert.equal(state.settled, true)
+  })
+
+  test('sets no timer for a wait no timer can hold: 0, a negative or NaN one, or one past 2^31-1 ms', async () => {
+    for (const ms of [0, -5, Number.NaN, 2 ** 31, Number.POSITIVE_INFINITY]) {
+      await sleep(timersOf(clock), ms)
+      assert.equal(clock.countTimers(), 0, `${ms}`)
+    }
+  })
+
+  test('waits for the longest wait a timer holds', async () => {
+    const state = watch(sleep(timersOf(clock), 2 ** 31 - 1))
+    await clock.tickAsync(2 ** 31 - 2)
+    assert.equal(state.settled, false)
+    await clock.tickAsync(1)
+    assert.equal(state.settled, true)
   })
 })

@@ -25,7 +25,7 @@ import {
   TEST_FILE_FRAMES,
 } from './location.ts'
 import { isOpen, newSuiteNode } from './nodes.ts'
-import { normalizeRetry, type RetryOption } from './retry.ts'
+import { type RetryOption, retryOf } from './retry.ts'
 
 /**
  * The options tests and describes both take as their second argument (Vitest's options object).
@@ -185,10 +185,7 @@ export class Collector {
       concurrent: spec.flags.concurrent ?? spec.options.concurrent ?? inherited.concurrent ?? false,
       expectFail: spec.flags.fails === true || spec.options.fails === true,
       timeoutMs: timeout,
-      // `null` is not "no option" (`??` would take it for one): it is a wrong one, and throws.
-      retry: normalizeRetry(
-        spec.options.retry === undefined ? inherited.retry : spec.options.retry,
-      ),
+      retry: retryOf(spec.options.retry, inherited.retry, policy.retry),
       repeats: spec.options.repeats ?? inherited.repeats ?? 0,
       tags: mergeTags(inherited.tags, spec.options.tags),
       meta: { ...inherited.meta, ...spec.options.meta },
@@ -227,9 +224,12 @@ export class Collector {
         `A describe body must be a function, got ${typeof spec.body}`,
       )
     }
-    // Its tests read this option again; checking it here puts a wrong one on the describe.
-    normalizeRetry(spec.options.retry)
-    const options = inheritOptions(inherited, spec.options, spec.flags.concurrent)
+    const options = inheritOptions(
+      inherited,
+      spec.options,
+      spec.flags.concurrent,
+      this.#config.policy.retry,
+    )
     const suite = newSuiteNode({
       type: 'suite',
       name: spec.name,
@@ -535,11 +535,13 @@ function inheritOptions(
   inherited: InheritedOptions,
   own: SuiteOptions,
   chainedConcurrent: boolean | undefined,
+  retryPolicy: CorePolicy['retry'],
 ): InheritedOptions {
   return {
     ...modeOptions(inherited, own),
     timeout: own.timeout ?? inherited.timeout,
-    retry: own.retry ?? inherited.retry,
+    // Read here, so a wrong `retry` fails the describe, not each of its tests.
+    retry: retryOf(own.retry, inherited.retry, retryPolicy),
     repeats: own.repeats ?? inherited.repeats,
     concurrent: chainedConcurrent ?? own.concurrent ?? inherited.concurrent,
     tags: mergeTags(inherited.tags, own.tags),

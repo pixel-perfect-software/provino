@@ -1,4 +1,5 @@
 // Track 5 §Types → Test context, current test, `.each`/`.for`.
+import type { CorePolicy } from '../policy/core.ts'
 import type { RuntimeHookKind } from './events.ts'
 import type { TaskId, TestTask } from './tree.ts'
 
@@ -35,7 +36,9 @@ export interface Frame {
 /**
  * The retry a file sets for every test that declares none of its own (Jest's `jest.retryTimes`):
  * the runtime reads it when a suite starts running, so it covers tests registered before the call
- * and after it.
+ * and after it. `timing` and `keepEarlierErrors` are `CorePolicy.retry`'s keys: left out, the
+ * policy's value stands. `timing` is read with `count` and `delay` when a suite starts;
+ * `keepEarlierErrors` when a retry happens.
  * @public
  */
 export interface DefaultRetry {
@@ -43,10 +46,10 @@ export interface DefaultRetry {
   readonly count: number
   /** Milliseconds to wait before each retry. */
   readonly delay: number
-  /** Retry a failed test at once, even where the policy's `retry.timing` is `deferred`. */
-  readonly immediate: boolean
-  /** Keep the errors of the attempts that were retried on the result (`logErrorsBeforeRetry`). */
-  readonly logErrors: boolean
+  /** When a failed test retries, in place of the policy's `retry.timing`. */
+  readonly timing?: CorePolicy['retry']['timing']
+  /** Whether the errors of the attempts that were retried stay on the result, in place of the policy's. */
+  readonly keepEarlierErrors?: boolean
 }
 
 /**

@@ -16,6 +16,7 @@
 //   core.orderHooks (`null`: `hookOrder` decides), snapshot.key (`${name} ${n}`, the neutral
 //   `snapshotKey` function), snapshot.resolvePath (`null`: the default layout; Jest's is the
 //   user's `snapshotResolver`), snapshot.serializers (`[]`: Jest's is the user's list),
+//   core.retry.functionConditionWarning (Jest has no `retry.condition` to warn about),
 //   orchestrator.isolationDefault.byEnvironment (see there).
 import { defineDialect, moduleRef } from '@provino/policy'
 import type {
@@ -25,10 +26,10 @@ import type {
   FormatEachTitle,
   FormatMapperMiss,
   FormatValue,
+  GlobalSetupFailure,
   GlobalsFactory,
   ModuleScopeFactory,
   PolicyOverrides,
-  ReviveGlobalSetupArgs,
   SnapshotPrinterFactory,
 } from '@provino/types'
 import { jestExpectPolicy } from './expect-policy.ts'
@@ -85,10 +86,10 @@ export const jestPolicy: PolicyOverrides = {
     // research: track-01 L191 (`none`)
     eachTitleTruncate: null,
     // research: track-05 L319. `functionCondition` is the neutral `call`: Jest's `jest.retryTimes`
-    // has no `condition`, so nothing reads it here (its claim is `own`).
+    // has no `condition`, so nothing reads it, or `functionConditionWarning` (left at the neutral
+    // text): their claims are `own`.
     retry: {
       timing: 'deferred',
-      logErrorsBeforeRetry: false,
       keepEarlierErrors: false,
       functionCondition: 'call',
     },
@@ -329,22 +330,16 @@ export const jestPolicy: PolicyOverrides = {
     // research: track-09 L559
     sequence: { unknownFirst: true },
     // research: track-09 L564 (the signature); the other two are recorded (`cli/global-setup-projects`,
-    // `cli/global-setup-throws`)
+    // `cli/global-setup-throws` and its three siblings)
     globalSetup: {
       signature: 'global-and-project-config',
       teardownOrder: 'in-order',
-      failureMessage: 'Jest: Got error running {hook} - {path}, reason: {message}',
-      // `runGlobalHook` prints a thrown non-Error with `prettyFormat(error, { maxDepth: 3 })`: the
-      // function `core.formatValue` is (`cli/global-setup-throws-object` and `-string`).
-      formatThrown: moduleRef<FormatValue>(
-        import.meta.resolve('@provino/dialect-jest/runtime'),
-        'formatValue',
-      ),
-      // `globalConfig.testPathPatterns` is a `TestPathPatterns` in Jest 30
-      // (`cli/global-setup-test-path-patterns`); the reader gives an array.
-      reviveArgs: moduleRef<ReviveGlobalSetupArgs>(
-        import.meta.resolve('@provino/dialect-jest/runtime'),
-        'reviveGlobalSetupArgs',
+      // `runGlobalHook` rewrites a thrown Error's message in place and prints anything else with
+      // `prettyFormat(error, { maxDepth: 3 })`. The coordinator loads it, so it is a leaf of its
+      // own and not the worker's whole `/runtime` entry.
+      failure: moduleRef<GlobalSetupFailure>(
+        import.meta.resolve('@provino/dialect-jest/global-setup'),
+        'globalSetupFailure',
       ),
     },
   },

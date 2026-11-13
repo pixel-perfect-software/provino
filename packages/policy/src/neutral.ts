@@ -2,8 +2,8 @@ import type {
   EnvironmentConditions,
   FormatEachTitle,
   FormatValue,
+  GlobalSetupFailure,
   Policy,
-  ReviveGlobalSetupArgs,
   SnapshotKey,
 } from '@provino/types'
 import { deepFreeze } from './internal/objects.ts'
@@ -52,9 +52,10 @@ export const neutralPolicy: Policy = deepFreeze({
     // A function `retry.condition` is called: a condition the user wrote is never silently dropped.
     retry: {
       timing: 'immediate',
-      logErrorsBeforeRetry: true,
       keepEarlierErrors: true,
       functionCondition: 'call',
+      functionConditionWarning:
+        'every failure is retried instead. Pass a RegExp (tested against the error message) to limit the retries.',
     },
     // A `.only` committed by mistake must not shrink a CI run.
     allowOnly: 'not-in-ci',
@@ -231,9 +232,7 @@ export const neutralPolicy: Policy = deepFreeze({
     globalSetup: {
       signature: 'project-with-teardown',
       teardownOrder: 'reverse',
-      failureMessage: '{hook} {path} failed: {message}',
-      formatThrown: moduleRef<FormatValue>(BEHAVIOURS, 'formatValue'),
-      reviveArgs: moduleRef<ReviveGlobalSetupArgs>(BEHAVIOURS, 'reviveGlobalSetupArgs'),
+      failure: moduleRef<GlobalSetupFailure>(BEHAVIOURS, 'globalSetupFailure'),
     },
   },
   report: {

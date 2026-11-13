@@ -204,12 +204,14 @@ test("jest.retryTimes hands core Jest's reading of the file's retry, and replace
     g.jest.retryTimes(Number.NaN, { retryImmediately: 1 as never })
     g.jest.retryTimes(-1)
   }, jestCore)
+  // A truthy `retryImmediately` is `timing`, a truthy `logErrorsBeforeRetry` is `keepEarlierErrors`;
+  // a falsy one leaves the key out, so the policy's value stands.
   assert.deepEqual(seen, [
-    { count: 2, delay: 0, immediate: false, logErrors: false },
-    { count: 3, delay: 250, immediate: true, logErrors: true },
-    { count: 2, delay: 40, immediate: false, logErrors: false },
-    { count: 0, delay: 0, immediate: true, logErrors: false },
-    { count: -1, delay: 0, immediate: false, logErrors: false },
+    { count: 2, delay: 0 },
+    { count: 3, delay: 250, timing: 'immediate', keepEarlierErrors: true },
+    { count: 2, delay: 40 },
+    { count: 0, delay: 0, timing: 'immediate' },
+    { count: -1, delay: 0 },
   ])
   assert.equal(typeof returned[0], 'object', 'retryTimes returns the jest object')
 })

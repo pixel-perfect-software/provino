@@ -53,11 +53,16 @@ export const vitestPolicy: PolicyOverrides = {
     // `functionCondition`: Vitest 5.0.5 never calls a function `retry.condition` and retries every
     // failure (runtime corpus `retry-condition-function` agrees). Honouring it here could turn a
     // green suite red, so this dialect keeps the outcome and warns (D7); neutral calls it.
+    // `functionConditionWarning` is Provino's own text (core names the test before it).
     retry: {
       timing: 'immediate',
-      logErrorsBeforeRetry: true,
       keepEarlierErrors: true,
       functionCondition: 'ignore-warn',
+      functionConditionWarning:
+        'Vitest 5.0 never calls a function condition and retries every failure, and so does this ' +
+        'mode, so the outcome of a suite that passes there does not change. Pass a RegExp (tested ' +
+        'against the error message) to limit the retries, or use the neutral mode, which calls the ' +
+        'function.',
     },
     allowOnly: 'not-in-ci',
     maxConcurrency: 5,
@@ -184,8 +189,8 @@ export const vitestPolicy: PolicyOverrides = {
       signature: 'project-with-teardown',
       // Vitest closes the projects last to first (core.ts); a fixture waits for T11.16
       teardownOrder: 'reverse',
-      // Vitest rethrows the setup's own error as it is; a fixture waits for T11.16
-      failureMessage: '{message}',
+      // `failure` stays the neutral behaviour: Vitest rethrows the setup's own error, which a
+      // recording waits for T11.16 to show.
     },
   },
   report: {

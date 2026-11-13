@@ -19,7 +19,7 @@ import type {
   TestTask,
 } from '@provino/types'
 import type { Site } from '../collector/location.ts'
-import type { RetryOption, RetrySpec } from '../collector/retry.ts'
+import type { RetrySpec } from '../collector/retry.ts'
 
 /** A user function as stored: any function is assignable; it is called with `Reflect.apply`. */
 export type UserFn = AnyFunction
@@ -60,7 +60,8 @@ export interface HookNode {
  */
 export interface InheritedOptions {
   readonly timeout?: number | undefined
-  readonly retry?: RetryOption | undefined
+  /** The `retry` option, read once where it was given (`retryOf`). */
+  readonly retry?: RetrySpec | undefined
   readonly repeats?: number | undefined
   readonly concurrent?: boolean | undefined
   readonly only?: boolean | undefined

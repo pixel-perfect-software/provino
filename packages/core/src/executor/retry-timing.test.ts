@@ -23,8 +23,6 @@ const DEFERRED = { retry: { timing: 'deferred' } } as const
 const retryTimes = (count: number, rest: Partial<DefaultRetry> = {}): DefaultRetry => ({
   count,
   delay: 0,
-  immediate: false,
-  logErrors: false,
   ...rest,
 })
 
@@ -237,9 +235,9 @@ describe('retry.timing: immediate with a file default', () => {
 })
 
 describe('setDefaultRetry (jest.retryTimes)', () => {
-  test('`immediate` retries at once under a deferred policy (retryImmediately)', async () => {
+  test('`timing: immediate` retries at once under a deferred policy (retryImmediately)', async () => {
     const run = await runScript((api, step, runtime) => {
-      runtime.setDefaultRetry(retryTimes(2, { immediate: true }))
+      runtime.setDefaultRetry(retryTimes(2, { timing: 'immediate' }))
       flaky(api, step, 'a', 1)
       api.test('b', () => step('b'))
     }, DEFERRED)
@@ -334,10 +332,67 @@ describe('setDefaultRetry (jest.retryTimes)', () => {
     }
   })
 
-  test('logErrors keeps the retried attempts errors on the result, as Jest logErrorsBeforeRetry does', async () => {
+  test('a file default that sets timing or keepEarlierErrors wins over the policy, both ways', async () => {
+    // `timing: deferred` under an immediate policy: the retry waits for the rest of the describe.
+    const deferred = await runScript(
+      (api, step, runtime) => {
+        runtime.setDefaultRetry(retryTimes(1, { timing: 'deferred' }))
+        flaky(api, step, 'a', 1)
+        api.test('b', () => step('b'))
+      },
+      { retry: { timing: 'immediate' } },
+    )
+    assert.deepEqual(deferred.trace, ['a#1', 'b', 'a#2'])
+    // `keepEarlierErrors: false` under a policy that keeps them: none are kept.
+    const dropped = await runScript(
+      (api, step, runtime) => {
+        runtime.setDefaultRetry(retryTimes(2, { keepEarlierErrors: false }))
+        flaky(api, step, 'a', 2)
+      },
+      { retry: { timing: 'deferred', keepEarlierErrors: true } },
+    )
+    assert.deepEqual(dropped.results.a?.retryErrors, [])
+  })
+
+  test('a file default that leaves timing and keepEarlierErrors out leaves them to the policy', async () => {
+    const run = await runScript(
+      (api, step, runtime) => {
+        runtime.setDefaultRetry(retryTimes(2))
+        flaky(api, step, 'a', 2)
+      },
+      { retry: { timing: 'deferred', keepEarlierErrors: true } },
+    )
+    assert.deepEqual(
+      run.results.a?.retryErrors.map((error) => error.message),
+      ['a fail 1', 'a fail 2'],
+    )
+  })
+
+  test('keepEarlierErrors is read when an attempt fails, not when its suite started (as jest-circus reads logErrorsBeforeRetry when it retries)', async () => {
+    const run = await runScript(
+      ({ test }, step, runtime) => {
+        runtime.setDefaultRetry(retryTimes(1))
+        let calls = 0
+        test('a', () => {
+          step(`a#${++calls}`)
+          if (calls > 1) return
+          runtime.setDefaultRetry(retryTimes(1, { keepEarlierErrors: true }))
+          throw new Error('a fail 1')
+        })
+      },
+      { retry: { timing: 'deferred', keepEarlierErrors: false } },
+    )
+    assert.deepEqual(run.trace, ['a#1', 'a#2'])
+    assert.deepEqual(
+      run.results.a?.retryErrors.map((error) => error.message),
+      ['a fail 1'],
+    )
+  })
+
+  test('keepEarlierErrors keeps the retried attempts errors on the result, as Jest logErrorsBeforeRetry does', async () => {
     const logged = await runScript(
       (api, step, runtime) => {
-        runtime.setDefaultRetry(retryTimes(2, { logErrors: true }))
+        runtime.setDefaultRetry(retryTimes(2, { keepEarlierErrors: true }))
         flaky(api, step, 'a', 2)
       },
       { retry: { timing: 'deferred', keepEarlierErrors: false } },
@@ -348,7 +403,7 @@ describe('setDefaultRetry (jest.retryTimes)', () => {
     )
     const quiet = await runScript(
       (api, step, runtime) => {
-        runtime.setDefaultRetry(retryTimes(2, { logErrors: false }))
+        runtime.setDefaultRetry(retryTimes(2, { keepEarlierErrors: false }))
         flaky(api, step, 'a', 2)
       },
       { retry: { timing: 'deferred', keepEarlierErrors: false } },
@@ -523,7 +578,11 @@ describe('retry condition', () => {
 // called and every failure retries), kept under its dialect because honouring the function could
 // turn a green suite red (D7), with one warning a file.
 describe('retry.functionCondition', () => {
-  const IGNORE = { retry: { functionCondition: 'ignore-warn' } } as const
+  const WHY =
+    'the runner never calls it. Pass a RegExp to limit the retries, or use the neutral mode.'
+  const IGNORE = {
+    retry: { functionCondition: 'ignore-warn', functionConditionWarning: WHY },
+  } as const
 
   /** Two tests that fail every attempt: `no` with a function that says no, `yes` with one that says yes. */
   const twoConditions =
@@ -580,12 +639,13 @@ describe('retry.functionCondition', () => {
     assert.equal(seen.length, 1, 'one warning for the file')
   })
 
-  test('the warning names the test and the fix', async () => {
+  test('the warning names the test and says what the policy gives as the reason and the fix', async () => {
     const seen = await warnings(async () => {
       await runScript(twoConditions([]), IGNORE)
     })
-    assert.match(seen[0] ?? '', /retry\.condition of "no" is not called/)
-    assert.match(seen[0] ?? '', /Pass a RegExp .* or use the neutral mode/)
+    assert.deepEqual(seen, [
+      `The function given as the retry.condition of "no" is not called: ${WHY}`,
+    ])
   })
 
   test('each file gets its own warning', async () => {

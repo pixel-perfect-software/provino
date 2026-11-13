@@ -48,13 +48,19 @@ createRuntime({ ...options, ci: undefined })
 
 // A line filter belongs to one file, so it's a `runFile` option, not a runtime one.
 declare const runtime: Runtime
-// The file's default retry (Jest's `jest.retryTimes`) is all four fields, or `undefined` to clear it.
-runtime.setDefaultRetry({ count: 2, delay: 0, immediate: false, logErrors: true })
+// The file's default retry (Jest's `jest.retryTimes`) is a count and a delay, and may set the
+// policy's `timing` and `keepEarlierErrors`; `undefined` clears it.
+runtime.setDefaultRetry({ count: 2, delay: 0 })
+runtime.setDefaultRetry({ count: 2, delay: 0, timing: 'immediate', keepEarlierErrors: true })
 runtime.setDefaultRetry(undefined)
-// @ts-expect-error every field is required: a missing one is a decision the dialect must make
+// @ts-expect-error the delay is required: a missing one is a decision the dialect must make
 runtime.setDefaultRetry({ count: 2 })
 // @ts-expect-error the count is a number
-runtime.setDefaultRetry({ count: '2', delay: 0, immediate: false, logErrors: false })
+runtime.setDefaultRetry({ count: '2', delay: 0 })
+// @ts-expect-error `timing` is the policy's: `deferred` or `immediate`
+runtime.setDefaultRetry({ count: 2, delay: 0, timing: 'later' })
+// @ts-expect-error `immediate` and `logErrors` are gone: they are `timing` and `keepEarlierErrors`
+runtime.setDefaultRetry({ count: 2, delay: 0, immediate: true, logErrors: false })
 expectTypeOf<Parameters<Runtime['runFile']>[1]>().toEqualTypeOf<RunFileOptions | undefined>()
 expectTypeOf<RunFileOptions['lines']>().toEqualTypeOf<readonly number[] | undefined>()
 void runtime.runFile('/a.test.ts', { lines: [3, 7] })

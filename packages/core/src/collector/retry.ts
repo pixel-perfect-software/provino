@@ -1,6 +1,6 @@
 // A test's `retry` option (T5.10): Vitest 5.0's `retry: number | { count, delay, condition }`,
 // read once at registration into a `RetrySpec` the executor uses.
-import type { SerializedError } from '@provino/types'
+import type { CorePolicy, SerializedError } from '@provino/types'
 import { CoreError } from '../errors.ts'
 
 /**
@@ -25,11 +25,24 @@ export type RetryOption =
       readonly condition?: RetryCondition
     }
 
-/** A `retry` option as the executor reads it: whole numbers, and no optional parts but the condition. */
+/**
+ * A `retry` option as the executor reads it: whole numbers, and a condition resolved against the
+ * policy (`CorePolicy.retry.functionCondition`) into something to ask or something to say.
+ */
 export interface RetrySpec {
   readonly count: number
   readonly delay: number
-  readonly condition: RetryCondition | undefined
+  /**
+   * Whether a failure retries; `undefined` retries every failure. It keeps no state, so any number
+   * of failures and tests can ask it.
+   */
+  readonly condition: ((error: SerializedError) => boolean) | undefined
+  /**
+   * `CorePolicy.retry.functionConditionWarning`, when the option's function `condition` is not
+   * called (`functionCondition: 'ignore-warn'`): `condition` is then `undefined`, every failure
+   * retries, and the executor warns once a file with this text. Otherwise `undefined`.
+   */
+  readonly ignoredFunction: string | undefined
 }
 
 /** A count as a number of retries: a whole number of 1 or more, else none (so `NaN` and `Infinity` too). */
@@ -57,16 +70,53 @@ function invalidRetry(what: string, wanted: string, got: unknown): never {
 }
 
 /**
+ * Resolves a checked condition against the policy. A function is asked as it is, or, under
+ * `ignore-warn`, left unasked with the policy's warning in its place. A `RegExp` is tested against
+ * the error's message, through a copy when it has the `g` or `y` flag. Vitest 5.0.5 tests the
+ * user's own, whose `lastIndex` then carries from one failure to the next (and from one test to
+ * another that shares it), so the same failure is retried once and then not. The copy starts at 0
+ * for each failure, a sticky one anchored at the start of the message as written, and the user's
+ * RegExp is left alone (D7: an order-dependent result is a bug, fixed in every mode).
+ */
+function resolveCondition(
+  condition: RetryCondition | undefined,
+  policy: CorePolicy['retry'],
+): Pick<RetrySpec, 'condition' | 'ignoredFunction'> {
+  if (condition === undefined) return { condition: undefined, ignoredFunction: undefined }
+  if (typeof condition === 'function') {
+    return policy.functionCondition === 'call'
+      ? { condition, ignoredFunction: undefined }
+      : { condition: undefined, ignoredFunction: policy.functionConditionWarning }
+  }
+  if (!condition.global && !condition.sticky) {
+    return { condition: (error) => condition.test(error.message || ''), ignoredFunction: undefined }
+  }
+  const pattern = new RegExp(condition)
+  return {
+    condition(error) {
+      pattern.lastIndex = 0
+      return pattern.test(error.message || '')
+    },
+    ignoredFunction: undefined,
+  }
+}
+
+/**
  * The `RetrySpec` an option stands for; `undefined` (no option) stays `undefined`. The option is
  * checked when a test or describe is registered, not when its first failure asks for a retry: a
  * `retry` that is neither a number nor an object, a `count` or `delay` that is not a number, or a
  * `condition` that is not a `RegExp` or a function throws `CORE_INVALID_ARGUMENT` (the caller's
  * types can be wrong: options cross as plain JavaScript).
  */
-export function normalizeRetry(option: RetryOption | undefined): RetrySpec | undefined {
+export function normalizeRetry(
+  option: RetryOption | undefined,
+  policy: CorePolicy['retry'],
+): RetrySpec | undefined {
   const value: unknown = option
   if (value === undefined) return undefined
-  if (typeof value === 'number') return { count: retryCount(value), delay: 0, condition: undefined }
+  if (typeof value === 'number') {
+    return { count: retryCount(value), delay: 0, condition: undefined, ignoredFunction: undefined }
+  }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     invalidRetry('value', 'a number or an object with `count`, `delay` and `condition`', value)
   }
@@ -83,28 +133,18 @@ export function normalizeRetry(option: RetryOption | undefined): RetrySpec | und
   return {
     count: retryCount(count),
     delay: retryDelay(delay),
-    condition: condition as RetryCondition | undefined,
+    ...resolveCondition(condition as RetryCondition | undefined, policy),
   }
 }
 
 /**
- * Whether `condition` lets a failed attempt retry (Vitest's `passesRetryCondition`): with none,
- * every failure does; a `RegExp` is tested against the last error's message.
- *
- * A `g` or `y` RegExp is tested through a copy. Vitest 5.0.5 tests the user's own, whose
- * `lastIndex` then carries from one failure to the next (and from one test to another that shares
- * it), so the same failure is retried once and then not. The copy starts at 0 each time, a sticky
- * one anchored at the start of the message as written, and the user's RegExp is left alone
- * (D7: an order-dependent result is a bug, fixed in every mode).
+ * A registration's `retry`: its own option, read once, else the spec its suite passes down. An
+ * option that is present is never "no option" (a `null` is a wrong one, and throws).
  */
-export function passesCondition(
-  condition: RetryCondition | undefined,
-  error: SerializedError,
-): boolean {
-  if (condition === undefined) return true
-  if (condition instanceof RegExp) {
-    const pattern = condition.global || condition.sticky ? new RegExp(condition) : condition
-    return pattern.test(error.message || '')
-  }
-  return condition(error)
+export function retryOf(
+  own: RetryOption | undefined,
+  inherited: RetrySpec | undefined,
+  policy: CorePolicy['retry'],
+): RetrySpec | undefined {
+  return own === undefined ? inherited : normalizeRetry(own, policy)
 }
