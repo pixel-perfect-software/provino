@@ -194,28 +194,22 @@ export function createV8Cache(options: V8CacheOptions): V8Cache {
       } catch {
         entry = undefined
       }
-      if (entry === undefined) {
-        const script = new Script(code, { filename })
-        counts.misses++
-        schedule(file, script)
-        return script
-      }
       // An empty, torn or flipped file never reaches V8: it would reject some of them, only when
       // it has not seen this source before in the process, and abort or accept others.
-      const data = opened(entry)
-      if (data === undefined) {
-        const script = new Script(code, { filename })
+      const data = entry === undefined ? undefined : opened(entry)
+      const script =
+        data === undefined
+          ? new Script(code, { filename })
+          : new Script(code, { filename, cachedData: data })
+      if (entry === undefined) {
+        counts.misses++
+      } else if (data === undefined || script.cachedDataRejected === true) {
         counts.rejected++
-        schedule(file, script)
-        return script
-      }
-      const script = new Script(code, { filename, cachedData: data })
-      if (script.cachedDataRejected === true) {
-        counts.rejected++
-        schedule(file, script)
       } else {
         counts.hits++
+        return script
       }
+      schedule(file, script)
       return script
     },
     async flush() {
