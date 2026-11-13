@@ -204,8 +204,16 @@ export interface CoverageInstrumenter {
  */
 export interface SerializedCoverageConfig {
   readonly provider: 'v8' | 'istanbul'
-  /** Absolute; patterns below are relative to it. */
-  readonly root: string
+  /**
+   * Absolute: Jest's `globalRootDir`, the run's root. The include globs match against the path
+   * relative to it, and V8 counts only files whose path begins with it.
+   */
+  readonly globalRoot: string
+  /**
+   * Absolute: this project's `rootDir`. Istanbul instruments no file outside it (Babel's `cwd`).
+   * It differs from `globalRoot` when several projects run in one pool.
+   */
+  readonly projectRoot: string
   /** The include globs (Jest's `collectCoverageFrom`); empty means every file the tests load. */
   readonly include: readonly string[]
   /** Whether the include globs match against the root-relative path. */

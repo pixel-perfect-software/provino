@@ -24,7 +24,8 @@ expectTypeOf<SerializedProjectConfig['coverage']>().toEqualTypeOf<
 
 const config: SerializedCoverageConfig = {
   provider: 'istanbul',
-  root: '/repo',
+  globalRoot: '/repo',
+  projectRoot: '/repo',
   include: ['src/**/*.ts'],
   includeRoot: true,
   force: [],

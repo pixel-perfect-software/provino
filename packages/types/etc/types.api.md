@@ -2726,11 +2726,12 @@ export interface SerializedCoverageConfig {
     readonly excludePaths: readonly string[];
     readonly excludePatterns: readonly string[];
     readonly force: readonly string[];
+    readonly globalRoot: string;
     readonly include: readonly string[];
     readonly includeRoot: boolean;
+    readonly projectRoot: string;
     // (undocumented)
     readonly provider: "v8" | "istanbul";
-    readonly root: string;
     readonly testFiles: readonly string[];
     readonly testIgnorePatterns: readonly string[];
     readonly testRegex: readonly string[];

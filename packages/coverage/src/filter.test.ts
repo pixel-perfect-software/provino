@@ -45,7 +45,8 @@ function babelInstruments(filename: string): boolean {
 
 const CONFIG: SerializedCoverageConfig = {
   provider: 'istanbul',
-  root: ROOT,
+  globalRoot: ROOT,
+  projectRoot: ROOT,
   include: [],
   includeRoot: true,
   force: [],
@@ -59,7 +60,7 @@ const CONFIG: SerializedCoverageConfig = {
 /** Jest's project config for the same settings. */
 function jestConfig(config: SerializedCoverageConfig): Parameters<typeof shouldInstrument>[2] {
   return {
-    rootDir: config.root,
+    rootDir: config.projectRoot,
     forceCoverageMatch: config.force,
     testPathIgnorePatterns: config.testIgnorePatterns,
     testRegex: config.testRegex,
@@ -81,7 +82,7 @@ function jestInstruments(config: SerializedCoverageConfig, path: string): boolea
         collectCoverage: true,
         collectCoverageFrom: [...config.include],
         coverageProvider: 'babel',
-        globalRootDir: config.root,
+        globalRootDir: config.globalRoot,
       },
       jestConfig(config),
     ) && babelInstruments(path)
@@ -123,7 +124,52 @@ test('a file outside the root, and one under node_modules, are not instrumented'
   assert.equal(forced(`${ROOT}/node_modules/dep/index.js`), false)
 })
 
-test('the V8 provider counts a file outside the root', () => {
-  const filter = createCoverageFilter({ ...CONFIG, provider: 'v8' })
-  assert.equal(filter('/virtual/shared/x.ts'), true)
+test('the V8 provider leaves out a file outside the global root, as Jest does', () => {
+  const v8 = { ...CONFIG, provider: 'v8' } as const
+  const filter = createCoverageFilter(v8)
+  assert.equal(filter('/virtual/shared/x.ts'), false)
+  assert.equal(filter(`${ROOT}/src/a.ts`), true)
+  // No `node_modules` step: V8 keeps what `shouldInstrument` passes under the root.
+  const forced = createCoverageFilter({ ...v8, force: ['**/shared/**'] })
+  assert.equal(forced('/virtual/shared/x.ts'), false)
+  // The prefix is raw, with no separator added: a sibling directory that shares it passes.
+  assert.equal(filter(`${ROOT}-linked/src/a.ts`), true)
+  // Jest's V8 collector: the same prefix, then `shouldInstrument`.
+  for (const [, path] of PATHS) {
+    const expected =
+      path.startsWith(v8.globalRoot) &&
+      shouldInstrument(
+        path,
+        {
+          collectCoverage: true,
+          collectCoverageFrom: [],
+          coverageProvider: 'v8',
+          globalRootDir: v8.globalRoot,
+        },
+        jestConfig(v8),
+      )
+    assert.equal(filter(path), expected, path)
+  }
+})
+
+test('several projects: the globs are relative to the global root, Istanbul keeps to the project', () => {
+  const config: SerializedCoverageConfig = {
+    ...CONFIG,
+    globalRoot: ROOT,
+    projectRoot: `${ROOT}/packages/a`,
+    include: ['packages/a/src/**'],
+  }
+  const filter = createCoverageFilter(config)
+  const inside = `${ROOT}/packages/a/src/x.ts`
+  const sibling = `${ROOT}/packages/b/src/x.ts`
+  assert.equal(filter(inside), true)
+  assert.equal(filter(sibling), false)
+  assert.equal(jestInstruments(config, inside), true)
+  assert.equal(jestInstruments(config, sibling), false)
+  // Istanbul's check is the project's: a file of the root outside the project is left alone.
+  const outsideProject = createCoverageFilter({ ...config, include: ['packages/b/src/**'] })
+  assert.equal(outsideProject(sibling), false)
+  // V8's is the global root's, so the same file counts there.
+  const v8 = createCoverageFilter({ ...config, provider: 'v8', include: ['packages/b/src/**'] })
+  assert.equal(v8(sibling), true)
 })

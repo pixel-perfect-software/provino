@@ -269,7 +269,8 @@ function coverageConfig(value: unknown): SerializedCoverageConfig {
   if (typeof coverage.includeRoot !== 'boolean') invalid('coverage.includeRoot', 'a boolean')
   return {
     provider,
-    root: absolutePath(coverage.root, 'coverage.root'),
+    globalRoot: absolutePath(coverage.globalRoot, 'coverage.globalRoot'),
+    projectRoot: absolutePath(coverage.projectRoot, 'coverage.projectRoot'),
     include: texts(coverage.include, 'coverage.include'),
     includeRoot: coverage.includeRoot,
     force: texts(coverage.force, 'coverage.force'),
