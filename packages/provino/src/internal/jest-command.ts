@@ -36,7 +36,8 @@ import type { ReporterChoice } from '../types.ts'
 import { JEST_BUILT_INS, JEST_ENVIRONMENT, NODE_ENVIRONMENT } from './built-ins.ts'
 import { usageMessage } from './describe.ts'
 import { executeProject, timingsOf } from './execute.ts'
-import { type DisplayOptions, styleFor } from './reporters.ts'
+import { setUpJestReporters } from './jest-reporters.ts'
+import { type DisplayOptions, outputFor, styleFor } from './reporters.ts'
 import {
   chooseProjects,
   noProjectsMessage,
@@ -404,17 +405,33 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     // `--collectTests` (runJest.ts L334-L367) runs no global setup and no reporter: the collector
     // alone hears the run, whose files report what their tests would do.
     const collecting = read.globalConfig.collectTests
+    const newResults = (): ReturnType<typeof createJestResults<JestProjectConfig>> =>
+      createJestResults({
+        ...(collecting ? { collectOnly: true } : {}),
+        globalConfig: read.globalConfig,
+        projectConfigs: neutrals.flatMap((neutral) => {
+          const config = read.configs[read.neutral.indexOf(neutral)]
+          return config === undefined ? [] : [config]
+        }),
+      })
     const results =
       collecting || read.globalConfig.json || read.globalConfig.testResultsProcessor !== undefined
-        ? createJestResults({
-            ...(collecting ? { collectOnly: true } : {}),
-            globalConfig: read.globalConfig,
-            projectConfigs: neutrals.flatMap((neutral) => {
-              const config = read.configs[read.neutral.indexOf(neutral)]
-              return config === undefined ? [] : [config]
-            }),
-          })
+        ? newResults()
         : undefined
+    // The reporters (Jest's failure text, the classes a config names) read the same results; a run
+    // that neither writes JSON nor runs a processor keeps its own exit code.
+    const reporterResults = results ?? (collecting ? undefined : newResults())
+    const env = io.env ?? process.env
+    const setup =
+      collecting || io.reporters !== undefined || reporterResults === undefined
+        ? undefined
+        : await setUpJestReporters({
+            globalConfig: read.globalConfig,
+            configs: read.configs,
+            results: reporterResults,
+            output: outputFor({ env, stderr, ci: read.globalConfig.ci, colour: request.colour }),
+            env,
+          })
     const result = await executeProject({
       project,
       others,
@@ -424,10 +441,16 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       stderr,
       ...(collecting
         ? { reporters: [], collectOnly: true }
-        : io.reporters === undefined
-          ? {}
-          : { reporters: io.reporters }),
-      ...(results === undefined ? {} : { leadingReporters: [results.reporter] }),
+        : io.reporters !== undefined
+          ? { reporters: io.reporters }
+          : setup === undefined
+            ? {}
+            : {
+                reporters: setup.reporters,
+                text: setup.text,
+                announceReporterFailures: false as const,
+              }),
+      ...(reporterResults === undefined ? {} : { leadingReporters: [reporterResults.reporter] }),
       env: io.env ?? process.env,
       display: presentation(read, request),
       pool: {

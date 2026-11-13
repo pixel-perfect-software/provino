@@ -15,6 +15,7 @@ export const BUILT_IN_REPORTERS = [
   'normalized-json',
   'junit',
   'github-actions',
+  'summary',
 ] as const
 
 /**

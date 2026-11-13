@@ -12,7 +12,7 @@ import { createReporterBus, type Environment } from '@provino/reporters'
 import type { FileFilter, Reporter, ReporterBus, RunSummary } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
 import { workerStartupEnv } from './compile-cache.ts'
-import { type DisplayOptions, reportersFor } from './reporters.ts'
+import { type DisplayOptions, reportersFor, type TextExtras } from './reporters.ts'
 
 /**
  * What a run of an already-resolved project needs: the part of a run that `run()` (a
@@ -36,6 +36,10 @@ export interface ExecuteOptions {
   readonly env: Environment
   /** How text looks (Jest's `--verbose`, `--silent`, `--expand`, `--noStackTrace`, `--colors`). */
   readonly display?: DisplayOptions
+  /** What a dialect adds to the text reporters (its failure text, a summary of its own). */
+  readonly text?: TextExtras
+  /** `false`: a reporter that failed is not announced on stderr (Jest prints nothing for `getLastError`); the run still fails. */
+  readonly announceReporterFailures?: false
   readonly pool: NonNullable<RunProjectOptions['pool']>
   /** `false`: neither read nor write the results cache. */
   readonly cache?: false
@@ -94,6 +98,7 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
       stderr,
       env: options.env,
       ...(options.display === undefined ? {} : { display: options.display }),
+      ...(options.text === undefined ? {} : { text: options.text }),
     }),
   ])
 
@@ -114,8 +119,10 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
   // A reporter that failed (a JSON file that couldn't be written) fails the run. The default
   // reporter shows such an error itself; the others may not, so it is said here as well.
   const reporterFailures = bus.failures()
-  for (const failure of reporterFailures) {
-    stderr.write(`Provino: a reporter failed: ${failure.message}\n`)
+  if (options.announceReporterFailures !== false) {
+    for (const failure of reporterFailures) {
+      stderr.write(`Provino: a reporter failed: ${failure.message}\n`)
+    }
   }
   return {
     exitCode: exitCodeFor(summary, {

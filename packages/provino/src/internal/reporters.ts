@@ -15,11 +15,12 @@ import {
   type OutputEnvironment,
   type OutputStream,
   type Style,
+  summaryReporter,
   type TextReporterOptions,
   type TextSink,
   verboseReporter,
 } from '@provino/reporters'
-import type { Reporter } from '@provino/types'
+import type { FileResult, Reporter, RunSummary, TextStyle } from '@provino/types'
 import {
   BUILT_IN_REPORTERS,
   type BuiltInReporterName,
@@ -52,6 +53,27 @@ export interface DisplayOptions {
 }
 
 /**
+ * What a dialect adds to the text reporters: its own failure text, and the summary as a reporter
+ * of its own after the others (Jest's `SummaryReporter`).
+ * @internal
+ */
+export interface TextExtras {
+  /** `default`, `verbose` and `agent` print no summary: a `summary` reporter does. */
+  readonly separateSummary?: true
+  /** Text printed in place of Provino's failure blocks for a failed file. */
+  readonly failureText?: (file: FileResult) => string | undefined
+  /** The `summary` reporter's: reprint the failures when more suites than this ran. */
+  readonly failureSummaryThreshold?: number
+  readonly snapshotSummary?: (
+    summary: RunSummary,
+    style: TextStyle,
+  ) => readonly string[] | undefined
+  readonly closingLine?: (summary: RunSummary, style: TextStyle) => string | undefined
+  /** The totals always have a `Snapshots:` line. */
+  readonly snapshotsAlways?: true
+}
+
+/**
  * What the built-in reporters are made from.
  * @internal
  */
@@ -64,6 +86,7 @@ export interface ReporterContext {
   /** What the run reads for the terminal, CI, an agent and colour: resolved by the caller. */
   readonly env: Environment
   readonly display?: DisplayOptions
+  readonly text?: TextExtras
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -125,13 +148,26 @@ export function styleFor(context: {
   readonly ci: boolean
   readonly colour?: boolean | undefined
 }): Style {
-  const output = detectOutput({
+  return createStyle(outputFor(context).colour)
+}
+
+/**
+ * What the run's output looks like to the reporters (a terminal, CI, an agent, colour): the one
+ * `detectOutput` answer from the stream and environment.
+ * @internal
+ */
+export function outputFor(context: {
+  readonly env: Environment
+  readonly stderr: NodeJS.WritableStream
+  readonly ci: boolean
+  readonly colour?: boolean | undefined
+}): OutputEnvironment {
+  return detectOutput({
     env: context.env,
     stream: outputStreamOf(context.stderr),
     ci: context.ci,
     ...(context.colour === undefined ? {} : { colour: context.colour }),
   })
-  return createStyle(output.colour)
 }
 
 /** Where a document reporter's `outputFile` is, checked now so a path that can never be written doesn't cost a whole run. */
@@ -208,6 +244,17 @@ function textOptions(context: ReporterContext, output: OutputEnvironment): TextR
     ...(display?.noStackTrace === true ? { noStackTrace: true } : {}),
     ...(display?.expand === true ? { expand: true } : {}),
     ...(display?.verbose === false ? { verbose: false as const } : {}),
+    ...(display?.verbose === true ? { verboseRun: true as const } : {}),
+    ...(context.text?.separateSummary === true ? { summary: false as const } : {}),
+    ...(context.text?.failureText === undefined ? {} : { failureText: context.text.failureText }),
+    ...(context.text?.failureSummaryThreshold === undefined
+      ? {}
+      : { failureSummaryThreshold: context.text.failureSummaryThreshold }),
+    ...(context.text?.snapshotSummary === undefined
+      ? {}
+      : { snapshotSummary: context.text.snapshotSummary }),
+    ...(context.text?.closingLine === undefined ? {} : { closingLine: context.text.closingLine }),
+    ...(context.text?.snapshotsAlways === true ? { snapshotsAlways: true as const } : {}),
   }
 }
 
@@ -230,6 +277,8 @@ function builtIn(
       return text(dotReporter(textOptions(context, output)))
     case 'agent':
       return text(agentReporter(textOptions(context, output)))
+    case 'summary':
+      return text(summaryReporter(textOptions(context, output)))
     case 'github-actions': {
       const workspace = context.env.GITHUB_WORKSPACE
       return text(

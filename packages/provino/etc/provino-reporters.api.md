@@ -108,34 +108,27 @@ export interface Reporter extends ReporterHandlers {
 }
 
 // @public
-export interface Style {
-    badge(word: string, colour: "green" | "red" | "yellow"): string;
-    // (undocumented)
-    bold(text: string): string;
-    // (undocumented)
-    dim(text: string): string;
-    // (undocumented)
-    green(text: string): string;
-    // (undocumented)
-    magenta(text: string): string;
-    // (undocumented)
-    red(text: string): string;
-    // (undocumented)
-    yellow(text: string): string;
-}
+export type Style = TextStyle;
 
 // @public
 export interface TextReporterOptions {
+    readonly closingLine?: (summary: RunSummary, style: TextStyle) => string | undefined;
     readonly colour?: boolean;
     readonly columns?: number;
     readonly expand?: boolean;
+    readonly failureSummaryThreshold?: number;
+    readonly failureText?: (file: FileResult) => string | undefined;
     readonly live?: boolean;
     readonly noStackTrace?: boolean;
     readonly report: ReportPolicy;
     readonly silent?: boolean;
+    readonly snapshotsAlways?: true;
+    readonly snapshotSummary?: (summary: RunSummary, style: TextStyle) => readonly string[] | undefined;
     // (undocumented)
     readonly stream: TextSink;
+    readonly summary?: false;
     readonly verbose?: false;
+    readonly verboseRun?: true;
 }
 
 // @public

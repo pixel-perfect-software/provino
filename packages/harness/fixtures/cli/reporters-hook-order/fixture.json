@@ -1,0 +1,19 @@
+{
+  "description": "A custom reporter class under Jest 30.5.2 (T11.9, B23a): every hook writes one `HOOK` line to stderr, so the order of the hooks and their arguments are the recording: the constructor with its options and context, `onRunStart` (suites, `estimatedTime`, `showStatus`), `onTestFileStart`, `onTestCaseStart` and `onTestCaseResult` per test (a retried test starts twice and ends once, a skipped test has neither, a todo test only a result), `onTestFileResult` (with the console buffer still there) and `onRunComplete`; `getLastError` returns an error, so the run fails with the tests all green but one. One Jest worker; the reporter is the only one, so Jest prints nothing else. A black-box run.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "hook-reporter.cjs": "const path = require('node:path')\n\n// One stderr line per hook, so the order and the arguments are the recording.\nconst relative = (test) => path.relative(test.context.config.rootDir, test.path)\nconst say = (...parts) => process.stderr.write('HOOK ' + parts.join(' ') + '\\n')\n\nmodule.exports = class HookReporter {\n  constructor(globalConfig, options, context) {\n    this.rootDir = globalConfig.rootDir\n    say('constructor', 'options=' + JSON.stringify(options), 'firstRun=' + context.firstRun)\n  }\n  onRunStart(results, options) {\n    say('onRunStart', 'suites=' + results.numTotalTestSuites, 'estimatedTime=' + options.estimatedTime, 'showStatus=' + options.showStatus)\n  }\n  onTestFileStart(test) {\n    say('onTestFileStart', relative(test))\n  }\n  onTestCaseStart(test, info) {\n    say('onTestCaseStart', relative(test), info.fullName, 'mode=' + info.mode, 'ancestors=' + info.ancestorTitles.length)\n  }\n  onTestCaseResult(test, result) {\n    say('onTestCaseResult', relative(test), result.fullName, result.status, 'invocations=' + result.invocations, 'retryReasons=' + (result.retryReasons || []).length)\n  }\n  onTestFileResult(test, result, results) {\n    say('onTestFileResult', relative(test), 'failing=' + result.numFailingTests, 'skipped=' + result.skipped, 'console=' + (result.console === undefined ? 'none' : result.console.length), 'aggregateFailed=' + results.numFailedTests)\n  }\n  onRunComplete(contexts, results) {\n    say('onRunComplete', 'contexts=' + contexts.size, 'failed=' + results.numFailedTests, 'passed=' + results.numPassedTests, 'success=' + results.success)\n  }\n  getLastError() {\n    return new Error('deliberate reporter error')\n  }\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "reporters": ["<rootDir>/hook-reporter.cjs"]
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^HOOK "
+  }
+}

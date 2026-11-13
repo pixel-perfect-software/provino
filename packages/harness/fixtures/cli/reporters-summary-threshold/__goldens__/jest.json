@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/reporters-summary-threshold",
+  "files": [
+    {
+      "file": "a-pass.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "a-pass.test.ts",
+            "path": [
+              "passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "b-fail.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "b-fail.test.ts",
+            "path": [
+              "fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 2\nReceived: 1",
+              "matcher": "toBe",
+              "userFrame": "<root>/b-fail.test.ts:2:13"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./b-fail.test.ts\n  ● fails\nPASS ./a-pass.test.ts\nSummary of all failing tests\nFAIL ./b-fail.test.ts\n  ● fails\nTest Suites: 1 failed, 1 passed, 2 total\nTests:       1 failed, 1 passed, 2 total\nSnapshots:   0 total"
+  }
+}

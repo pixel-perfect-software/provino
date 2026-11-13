@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/reporters-hook-order",
+  "files": [
+    {
+      "file": "fail.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "fail.test.ts",
+            "path": [
+              "fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 2\nReceived: 1",
+              "matcher": "toBe",
+              "userFrame": "<root>/fail.test.ts:2:13"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "retry.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "retry.test.ts",
+            "path": [
+              "passes on the second attempt"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "retries": 1,
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "retry.test.ts",
+            "path": [
+              "group",
+              "passes at once"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 11,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "skip.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "skip.test.ts",
+            "path": [
+              "runs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "skip.test.ts",
+            "path": [
+              "is skipped"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "skip.test.ts",
+            "path": [
+              "is planned"
+            ],
+            "dupIndex": 0
+          },
+          "status": "todo",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 4
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "HOOK constructor options={} firstRun=true\nHOOK onRunStart suites=3 estimatedTime=0 showStatus=false\nHOOK onTestFileStart retry.test.ts\nHOOK onTestCaseStart retry.test.ts passes on the second attempt mode=undefined ancestors=0\nHOOK onTestCaseResult retry.test.ts passes on the second attempt failed invocations=1 retryReasons=0\nHOOK onTestCaseStart retry.test.ts group passes at once mode=undefined ancestors=1\nHOOK onTestCaseResult retry.test.ts group passes at once passed invocations=1 retryReasons=0\nHOOK onTestCaseStart retry.test.ts passes on the second attempt mode=undefined ancestors=0\nHOOK onTestCaseResult retry.test.ts passes on the second attempt passed invocations=2 retryReasons=0\nHOOK onTestFileResult retry.test.ts failing=0 skipped=false console=1 aggregateFailed=0\nHOOK onTestFileStart skip.test.ts\nHOOK onTestCaseStart skip.test.ts runs mode=undefined ancestors=0\nHOOK onTestCaseResult skip.test.ts runs passed invocations=1 retryReasons=0\nHOOK onTestCaseResult skip.test.ts is planned todo invocations=1 retryReasons=0\nHOOK onTestFileResult skip.test.ts failing=0 skipped=false console=none aggregateFailed=0\nHOOK onTestFileStart fail.test.ts\nHOOK onTestCaseStart fail.test.ts fails mode=undefined ancestors=0\nHOOK onTestCaseResult fail.test.ts fails failed invocations=1 retryReasons=0\nHOOK onTestFileResult fail.test.ts failing=1 skipped=false console=none aggregateFailed=1\nHOOK onRunComplete contexts=1 failed=1 passed=3 success=false"
+  }
+}

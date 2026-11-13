@@ -31,6 +31,7 @@ export interface JUnitChoiceOptions {
  * - `json`, `normalized-json`: the `NormalizedRun` document, on `stdout` or in `outputFile`.
  * - `junit`: JUnit XML, on `stdout` or in `outputFile`.
  * - `github-actions`: error annotations on `stderr`.
+ * - `summary`: the totals alone, on `stderr`.
  * @public
  */
 export type ReporterChoice =
@@ -39,6 +40,7 @@ export type ReporterChoice =
   | 'dot'
   | 'agent'
   | 'github-actions'
+  | 'summary'
   | 'json'
   | 'normalized-json'
   | 'junit'
