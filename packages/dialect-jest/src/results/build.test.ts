@@ -22,7 +22,7 @@ import {
   toAssertionResult,
   toTestResult,
 } from './build.ts'
-import { makeEmptyAggregatedTestResult } from './helpers.ts'
+import { addResult, makeEmptyAggregatedTestResult } from './helpers.ts'
 
 const id = (name: string): TaskId => name as TaskId
 const OPTIONS: BuildOptions = { locations: true, displayName: undefined }
@@ -78,7 +78,7 @@ const failure = (message: string, details?: SerializedError['details']): Seriali
 })
 
 function events(
-  tests: readonly { task: TestTask; result?: TaskResult; retried?: SerializedError[] }[],
+  tests: readonly { task: TestTask; result?: TaskResult }[],
   patch: Partial<FileEvents> = {},
   fileResult: Partial<FileResult> = {},
 ): FileEvents {
@@ -104,7 +104,6 @@ function events(
         task: entry.task,
         result: entry.result,
         startedAt: 100,
-        retried: entry.retried ?? [],
       },
     ]),
   )
@@ -137,7 +136,7 @@ describe('toAssertionResult', () => {
     ]
     for (const [state, status, duration] of cases) {
       const built = toAssertionResult(
-        { task: test('t', 'file'), result: result(state), startedAt: 7, retried: [] },
+        { task: test('t', 'file'), result: result(state), startedAt: 7 },
         OPTIONS,
       )
       assert.equal(built.status, status, state)
@@ -150,7 +149,7 @@ describe('toAssertionResult', () => {
 
   it('splits the full name, joins it with a space and gives the location (or none)', () => {
     const task = test('t', 'file', {}, ['outer', 'inner', 'works'])
-    const record = { task, result: result('pass'), startedAt: null, retried: [] }
+    const record = { task, result: result('pass'), startedAt: null }
     const built = toAssertionResult(record, OPTIONS)
     assert.deepEqual(built.ancestorTitles, ['outer', 'inner'])
     assert.equal(built.title, 'works')
@@ -165,7 +164,7 @@ describe('toAssertionResult', () => {
       test('r2', 'file', { each: true }, ['suite', 'row 2']),
     ]
     const built = rows.map((task) =>
-      toAssertionResult({ task, result: result('pass'), startedAt: 1, retried: [] }, OPTIONS),
+      toAssertionResult({ task, result: result('pass'), startedAt: 1 }, OPTIONS),
     )
     assert.deepEqual(
       built.map((entry) => entry.location),
@@ -185,9 +184,9 @@ describe('toAssertionResult', () => {
           errors: [failure('boom', matcher)],
           passingAssertions: 2,
           attempts: 3,
+          retryErrors: [failure('first'), failure('second')],
         }),
         startedAt: 1,
-        retried: [failure('first'), failure('second')],
       },
       OPTIONS,
     )
@@ -207,7 +206,6 @@ describe('toAssertionResult', () => {
         task: test('t', 'file'),
         result: result('fail', { errors: [failure('plain')] }),
         startedAt: 1,
-        retried: [],
       },
       OPTIONS,
     )
@@ -307,6 +305,39 @@ describe('toTestResult', () => {
     )
     assert.equal(built.testExecError?.message, 'exited')
     assert.deepEqual(built.testResults, [])
+  })
+
+  it('a crashed file is Jest’s buildFailureTestResult: no counts, no tests, even for tests that ended', () => {
+    const built = toTestResult(
+      events(
+        [
+          { task: test('a', 'file'), result: result('pass') },
+          { task: test('b', 'file'), result: result('fail', { errors: [failure('x')] }) },
+          { task: test('c', 'file') },
+        ],
+        {},
+        {
+          state: 'fail',
+          workerExit: { type: 'exit', code: 1 },
+          errors: [{ name: 'WorkerCrash', message: 'the worker exited' }],
+        },
+      ),
+      OPTIONS,
+    )
+    assert.deepEqual(
+      [built.numPassingTests, built.numFailingTests, built.numPendingTests, built.numTodoTests],
+      [0, 0, 0, 0],
+    )
+    assert.deepEqual(built.testResults, [])
+    assert.equal(built.testExecError?.message, 'the worker exited')
+    assert.equal(built.testFilePath, '/a.test.ts')
+    assert.equal(built.skipped, false)
+    const run = makeEmptyAggregatedTestResult()
+    addResult(run, built)
+    assert.deepEqual(
+      [run.numFailedTests, run.numTotalTests, run.numRuntimeErrorTestSuites],
+      [0, 0, 1],
+    )
   })
 
   it('a file with no test fails with Jest’s message', () => {

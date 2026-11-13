@@ -144,6 +144,14 @@ describe('serializeError details (Jest’s failureDetails)', () => {
     assert.equal(serialized.message, 'loop')
   })
 
+  test('details past 64 KiB are dropped, so a huge actual or expected never crosses the thread', () => {
+    const big = (size: number) =>
+      Object.assign(new Error('huge'), { matcherResult: { actual: 'x'.repeat(size), pass: false } })
+    assert.equal('details' in serializeError(big(100_000)), false)
+    assert.equal(serializeError(big(100_000)).message, 'huge')
+    assert.notEqual(serializeError(big(60_000)).details, undefined)
+  })
+
   test('a plain error and a thrown string have none (Jest’s JSON for them is {})', () => {
     assert.equal('details' in serializeError(new Error('plain')), false)
     assert.equal('details' in serializeError('thrown'), false)

@@ -221,15 +221,27 @@ function sortedJsonArray(lines: readonly string[], stream: string, source: strin
   return parsed.toSorted(compareStrings)
 }
 
-/** Each run of stack frames (`    at fn (file:1:2)` lines), which differs between machines and runners. */
-const FRAME_RUN = /(?:\n\s*at [^\n]*)+/g
+/**
+ * Each run of stack frames, which differs between machines and runners. A frame is an indented
+ * `at` line of the V8 grammar, `at name (path:line:col)` or `at path:line:col` (a native frame
+ * reads `(<anonymous>)`, `(native)` or `(index n)` in place of the position), and a run is
+ * frames on consecutive lines: no blank line, and no line of a message that starts with `at `.
+ * Copied in `packages/provino/test/mask.ts`: change both.
+ */
+const FRAME_RUN =
+  /(?:\n[ \t]+at (?:[^\n]* \((?:[^\n]*:\d+:\d+|<anonymous>|native|index \d+)\)|[^\n ]+:\d+:\d+)(?=\n|$))+/g
 
-/** Orders two `testResults` entries by their `name` (an entry without one sorts first). */
+/** Orders two `testResults` entries by their `name`; an entry without a string one is a broken file. */
 function byName(a: JsonValue, b: JsonValue): number {
   const name = (value: JsonValue): string => {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) return ''
-    const { name: entry } = value as { readonly [key: string]: JsonValue }
-    return typeof entry === 'string' ? entry : ''
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      const { name: entry } = value as { readonly [key: string]: JsonValue }
+      if (typeof entry === 'string') return entry
+    }
+    throw new HarnessError(
+      'HARNESS_FIXTURE_BAD_RUN',
+      'a json: capture has a "testResults" entry with no string "name"; it cannot be put in a fixed order',
+    )
   }
   return compareStrings(name(a), name(b))
 }
@@ -348,7 +360,16 @@ export function observedOf(
             parsed.map((entry) => {
               const file = entry.slice('json:'.length)
               const text = files[file] ?? null
-              if (text === null) return [file, null]
+              if (text === null) {
+                // A run that wrote no file would record `null` as the truth and fail later, far
+                // from here: refuse it unless the fixture says that is what the run shows.
+                if (spec.missingJson?.includes(entry) === true) return [file, null]
+                throw new HarnessError(
+                  'HARNESS_FIXTURE_BAD_RUN',
+                  `${source}: "run" captures "json:${file}", which the run did not write (list "json:${file}" in "missingJson" if that is what the run shows)`,
+                  { path: source },
+                )
+              }
               let value: JsonValue
               try {
                 value = JSON.parse(text) as JsonValue

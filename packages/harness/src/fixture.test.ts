@@ -751,6 +751,11 @@ test('run refuses a bad capture, argv, keepLines or sortStdout', () => {
   bad({ capture: ['stdout'], keepLines: 'x', emptyStreams: [] })
   bad({ capture: ['stdout'], keepLines: 'x', emptyStreams: ['stderr'] })
   bad({ capture: ['stdout'], keepLines: 'x', emptyStreams: ['stdout', 'stdout'] })
+  // `missingJson` lists `json:` entries that `capture` lists, once each.
+  bad({ capture: ['json:a.json'], missingJson: [] })
+  bad({ capture: ['json:a.json'], missingJson: ['json:b.json'] })
+  bad({ capture: ['file:a.json'], missingJson: ['file:a.json'] })
+  bad({ capture: ['json:a.json'], missingJson: ['json:a.json', 'json:a.json'] })
 })
 
 test('run.argv refuses an option the recorder or mockCleanup sets, in any spelling', () => {

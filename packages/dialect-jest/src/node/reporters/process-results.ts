@@ -4,6 +4,7 @@
 // says where it wrote them on its output stream.
 import { realpath, writeFile } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
+import { ConfigError } from '@provino/config'
 import {
   type AggregatedResult,
   formatJson,
@@ -39,15 +40,18 @@ export interface ProcessJestResultsOptions {
  */
 export async function processJestResults(options: ProcessJestResultsOptions): Promise<boolean> {
   const { globalConfig } = options
-  let results = options.aggregated
+  // A processor may return nothing at all (Jest types it as `any`): with `--json` that throws
+  // in `formatTestResults`, as in Jest; without it the run is judged successful (jest-cli
+  // `readResultsAndExit`: `!result || result.success`).
+  let results: AggregatedResult | undefined = options.aggregated
   if (globalConfig.testResultsProcessor !== undefined) {
-    const processor = (await requireOrImportModule(
+    const processor = (await loadProcessor(
       globalConfig.testResultsProcessor,
     )) as TestResultsProcessor
-    results = await processor(results)
+    results = await processor(options.aggregated)
   }
   if (globalConfig.json) {
-    const text = serializeToJson(formatJson(results))
+    const text = serializeToJson(formatJson(results as AggregatedResult))
     const { outputFile } = globalConfig
     if (outputFile !== undefined && outputFile !== '') {
       const cwd = await realpath(options.cwd).catch(() => options.cwd)
@@ -58,5 +62,20 @@ export async function processJestResults(options: ProcessJestResultsOptions): Pr
       await options.stdout.write(`${text}\n`)
     }
   }
-  return results.success
+  return !results || results.success
+}
+
+/**
+ * Imports the processor. A module that throws as it loads is the user's own error, which Jest
+ * lets out of `runJest` as it is (exit 1, the stack): the config loader's wrapper is taken off.
+ */
+async function loadProcessor(path: string): Promise<unknown> {
+  try {
+    return await requireOrImportModule(path)
+  } catch (error) {
+    if (error instanceof ConfigError && error.code === 'CONFIG_LOAD_FAILED' && error.cause) {
+      throw error.cause
+    }
+    throw error
+  }
 }
