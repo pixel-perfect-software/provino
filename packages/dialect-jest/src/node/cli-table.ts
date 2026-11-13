@@ -125,10 +125,9 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Forces test results output color highlighting (even if stdout is not a TTY). Set to false if you would like to have no colors.',
-    support: 'warn',
-    owner: 'T9.7',
+    support: 'request',
   },
-  colors: { type: 'boolean', description: 'Alias for `--color`.', support: 'warn', owner: 'T9.7' },
+  colors: { type: 'boolean', description: 'Alias for `--color`.', support: 'request' },
   config: {
     type: 'string',
     alias: 'c',
@@ -207,8 +206,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     alias: 'e',
     description: 'Use this flag to show full diffs instead of a patch.',
-    support: 'warn',
-    owner: 'T9.7',
+    support: 'config',
   },
   filter: {
     type: 'string',
@@ -353,8 +351,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
   noStackTrace: {
     type: 'boolean',
     description: 'Disables stack trace in test results output',
-    support: 'warn',
-    owner: 'T9.7',
+    support: 'config',
   },
   notify: {
     type: 'boolean',
@@ -551,8 +548,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
   silent: {
     type: 'boolean',
     description: 'Prevent tests from printing messages through the console.',
-    support: 'warn',
-    owner: 'T9.7',
+    support: 'config',
   },
   skipFilter: {
     type: 'boolean',
@@ -691,8 +687,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
   verbose: {
     type: 'boolean',
     description: 'Display individual test results with the test suite hierarchy.',
-    support: 'warn',
-    owner: 'T9.7',
+    support: 'config',
   },
   waitForUnhandledRejections: {
     type: 'boolean',

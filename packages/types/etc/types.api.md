@@ -2430,6 +2430,7 @@ export interface RunRef {
 export interface RunRequest {
     readonly cache?: boolean;
     readonly ci?: boolean;
+    readonly colour?: boolean;
     readonly configPath?: string;
     // (undocumented)
     readonly fileFilters: readonly FileFilter[];
