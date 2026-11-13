@@ -14,6 +14,7 @@ import type {
   Resolver,
 } from '@provino/types'
 import { createLoader } from './loader.ts'
+import { tierFor } from './tier.ts'
 
 const roots: string[] = []
 after(() => {
@@ -72,6 +73,22 @@ const COUNTER = {
   'a.test.ts': "export { bump, count } from './counter.ts'\n",
   'b.test.ts': "export { bump, count } from './counter.ts'\n",
 }
+
+test('the loader’s tierFor is the one the coordinator calls', () => {
+  const loader = loaderFor(tmpdir())
+  assert.equal(loader.tierFor, tierFor)
+  assert.deepEqual(
+    loader.tierFor('a.test.ts', {
+      configured: 'registry',
+      docblock: { 'provino-isolate': 'realm' },
+    }),
+    {
+      tier: 'realm',
+      source: 'docblock',
+      warnings: [],
+    },
+  )
+})
 
 test('registry: each file gets fresh user modules; none: the worker shares them', async () => {
   const root = writeTree(COUNTER)

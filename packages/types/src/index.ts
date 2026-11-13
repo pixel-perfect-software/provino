@@ -149,6 +149,9 @@ export type {
   ModuleScopeValues,
   Realm,
   RegisterMockOptions,
+  TierChoice,
+  TierSource,
+  TierSources,
 } from './loader.ts'
 export type { NativeStatus, NativeTriple, NativeUnavailableReason } from './native.ts'
 export type {

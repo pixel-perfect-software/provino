@@ -172,6 +172,7 @@ export async function runWorkerFiles(options: WorkerRunOptions): Promise<WorkerR
     key: {
       project: PROJECT_NAME,
       pool,
+      isolation,
       environment: 'node',
       environmentOptionsHash: '',
       execArgvHash: '',

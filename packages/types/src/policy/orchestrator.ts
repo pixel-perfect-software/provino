@@ -140,8 +140,15 @@ export interface OrchestratorPolicy {
   readonly pool: { readonly default: PoolKind }
   /** Whether small runs go in band automatically. Jest: `true` (≤20 fast files). Vitest: `false`. research: track-09 L556 */
   readonly runInBand: { readonly auto: boolean }
-  /** How files are sharded without timing data. Jest: `sha1-slice`. Vitest: `sha1-slice`. research: track-09 L558 */
-  readonly shard: { readonly fallback: 'sha1-slice' }
+  /**
+   * How `--shard=i/n` splits the files when no file has a time in the timings file. `sha1-slice`:
+   * the files sorted by the sha1 of their path, then contiguous slices by count (Jest's, and
+   * Vitest's by its source). `path-slice`: the files sorted by path, then contiguous slices by
+   * count. With timings, every dialect cuts contiguous slices of the path-sorted files by predicted
+   * time. Jest: `sha1-slice` (recorded: `cli/shard-1-of-3` to `3-of-3`). Vitest: `sha1-slice`
+   * (its source, not recorded). Neutral: `path-slice`. research: track-09 L558
+   */
+  readonly shard: { readonly fallback: 'sha1-slice' | 'path-slice' }
   /** Whether files with no timing history run first. Jest: `true`. Vitest: `true`. research: track-09 L559 */
   readonly sequence: { readonly unknownFirst: boolean }
   /**

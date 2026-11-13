@@ -1,7 +1,7 @@
 // The pool's reuse test (Track 9 §Pool 2): a warm worker takes the next file only when everything
 // that makes a worker what it is matches.
 import { hash } from 'node:crypto'
-import type { JsonValue, PoolKind, WorkerKey } from '@provino/types'
+import type { IsolationTier, JsonValue, PoolKind, WorkerKey } from '@provino/types'
 
 /** JSON with every object's keys sorted, so the same data always gives the same text. */
 export function stableJson(value: JsonValue): string {
@@ -31,6 +31,8 @@ export function hashOf(value: JsonValue): string {
 export interface WorkerKeyInput {
   readonly project: string
   readonly pool: PoolKind
+  /** The isolation tier the worker starts at: the project's, or the higher one a file asks for (T2.11). */
+  readonly isolation: IsolationTier
   /** The environment's name. */
   readonly environment: string
   /** The options the environment gets (`EnvironmentRef.options`). */
@@ -51,6 +53,7 @@ export function workerKeyOf(input: WorkerKeyInput): WorkerKey {
   return {
     project: input.project,
     pool: input.pool,
+    isolation: input.isolation,
     environment: input.environment,
     environmentOptionsHash: hashOf(input.environmentOptions),
     execArgvHash: hashOf([...input.execArgv]),
@@ -66,6 +69,7 @@ export function sameWorkerKey(a: WorkerKey, b: WorkerKey): boolean {
   return (
     a.project === b.project &&
     a.pool === b.pool &&
+    a.isolation === b.isolation &&
     a.environment === b.environment &&
     a.environmentOptionsHash === b.environmentOptionsHash &&
     a.execArgvHash === b.execArgvHash &&
@@ -75,7 +79,7 @@ export function sameWorkerKey(a: WorkerKey, b: WorkerKey): boolean {
 
 /** A string equal for exactly the keys `sameWorkerKey` calls the same, for a `Map`. */
 export function workerKeyId(key: WorkerKey): string {
-  return `${key.project}\0${key.pool}\0${key.environment}\0${key.environmentOptionsHash}\0${key.execArgvHash}\0${key.envHash}`
+  return `${key.project}\0${key.pool}\0${key.isolation}\0${key.environment}\0${key.environmentOptionsHash}\0${key.execArgvHash}\0${key.envHash}`
 }
 
 /** `value` as JSON-like data: regular expressions as their text, sets as sorted lists, functions dropped. */

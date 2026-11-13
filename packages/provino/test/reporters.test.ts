@@ -148,7 +148,11 @@ describe('a run of one test file is verbose under provino jest, as Jest has it (
       'tests/a.test.js': passing('first'),
       'tests/b.test.js': passing('second'),
     })
-    const ran = await spawnCli(['jest', '--config', config(two.dir), 'a.test'], { cwd: two.dir })
+    // `tests/a.test`, not `a.test`: a pattern is a regular expression tried on the absolute path,
+    // and a temp dir that ends in `a` (1 in 62) would match `a/test` for `b.test.js` too.
+    const ran = await spawnCli(['jest', '--config', config(two.dir), 'tests/a.test'], {
+      cwd: two.dir,
+    })
     assert.match(ran.stderr, /^ {2}✓ first( \(\d+ ms\))?$/m)
     assert.doesNotMatch(ran.stderr, /second/)
   })

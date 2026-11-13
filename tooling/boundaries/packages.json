@@ -89,8 +89,16 @@
       "dir": "packages/transform",
       "layer": 2,
       "runsIn": "both",
-      "deps": ["@provino/types", "@provino/resolver"],
+      "deps": ["@provino/types", "@provino/resolver", "@provino/transform/v8cache"],
       "slices": []
+    },
+    "@provino/transform/v8cache": {
+      "dir": "packages/transform/src/v8cache",
+      "layer": 2,
+      "runsIn": "both",
+      "deps": ["@provino/transform"],
+      "slices": [],
+      "note": "The V8 code cache helpers (T3.7): Node built-ins and the transform cache's CACHEDIR.TAG writer only, so the provino bin can import this leaf without loading Oxc."
     },
     "@provino/snapshot": {
       "dir": "packages/snapshot",

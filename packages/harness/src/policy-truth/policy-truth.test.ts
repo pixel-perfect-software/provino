@@ -47,7 +47,6 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   // Behaviour another bundle builds; its first fixture records the value.
   'jest snapshot.inline.formatter': 'T7.11',
   'jest orchestrator.sequence.unknownFirst': 'B21',
-  'jest orchestrator.shard.fallback': 'B21',
   'jest orchestrator.watch.initialRun': 'T9.11',
   'jest report.resultStatusSkipped': 'T11.8',
   'jest coverage.globThresholdScope': 'T8.9',
@@ -64,7 +63,7 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest orchestrator.globalSetup.teardownOrder': 'T11.16',
   'vitest orchestrator.sequence.unknownFirst': 'B21',
   'vitest orchestrator.todoOnlyFile': 'T11.16',
-  'vitest orchestrator.shard.fallback': 'B21',
+  'vitest orchestrator.shard.fallback': 'T11.16',
   'vitest orchestrator.watch.initialRun': 'T9.11',
   'vitest report.listTestsForSingleFile': 'T11.16',
   'vitest report.resultStatusSkipped': 'T11.8',

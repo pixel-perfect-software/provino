@@ -915,12 +915,15 @@ export interface FileHandle {
 export interface FileHistory {
     // (undocumented)
     readonly at: number;
+    readonly coverage?: Readonly<Record<string, readonly string[]>>;
     // (undocumented)
     readonly durationMs: number;
     // (undocumented)
     readonly failed: boolean;
+    readonly inputsHash?: string;
     // (undocumented)
     readonly tests: number;
+    readonly tier?: IsolationTier;
 }
 
 // @beta
@@ -1384,7 +1387,7 @@ export interface Loader extends Disposable {
     // (undocumented)
     getSourceMap(id: ModuleId): SourceMapV3 | null;
     onModuleCompiled(listener: (event: CompiledModuleEvent) => void): () => void;
-    tierFor(testFile: string, configured: IsolationTier, docblock: Readonly<Record<string, string>>): IsolationTier;
+    tierFor(testFile: string, sources: TierSources): TierChoice;
 }
 
 // @public
@@ -2046,7 +2049,7 @@ export interface OrchestratorPolicy {
         readonly unknownFirst: boolean;
     };
     readonly shard: {
-        readonly fallback: "sha1-slice";
+        readonly fallback: "sha1-slice" | "path-slice";
     };
     readonly slowTestThresholdMs: number;
     readonly todoOnlyFile: "pass" | "skip";
@@ -3075,6 +3078,25 @@ export interface TestTask extends TaskBase {
 }
 
 // @public
+export interface TierChoice {
+    // (undocumented)
+    readonly source: TierSource;
+    // (undocumented)
+    readonly tier: IsolationTier;
+    readonly warnings: readonly string[];
+}
+
+// @public
+export type TierSource = "config" | "docblock" | "learned";
+
+// @public
+export interface TierSources {
+    readonly configured: IsolationTier;
+    readonly docblock?: Pragmas;
+    readonly learned?: IsolationTier;
+}
+
+// @public
 export interface TimersPolicy {
     readonly advanceToNextTimerHonorsSteps: boolean;
     readonly enableGlobally: boolean;
@@ -3329,6 +3351,7 @@ export interface WorkerKey {
     readonly environmentOptionsHash: string;
     // (undocumented)
     readonly execArgvHash: string;
+    readonly isolation: IsolationTier;
     // (undocumented)
     readonly pool: PoolKind;
     // (undocumented)

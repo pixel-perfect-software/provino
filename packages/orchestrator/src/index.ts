@@ -64,6 +64,24 @@ export {
 } from './run.ts'
 export { type SelectOptions, selectFiles } from './select.ts'
 export { createHistorySequencer, type HistorySequencerOptions } from './sequencer.ts'
+export {
+  checkShard,
+  predictedWeights,
+  type ShardMember,
+  type ShardSpec,
+  sha1Shard,
+  shardFiles,
+  shardInputs,
+  sliceShard,
+} from './shard.ts'
+export {
+  formatTimings,
+  mergeTimings,
+  parseTimings,
+  readTimings,
+  TIMINGS_FILE_NAME,
+  writeTimings,
+} from './timings.ts'
 export { type TransportForOptions, transportFor } from './transport/for-kind.ts'
 export { type ForksTransportOptions, forksTransport } from './transport/forks.ts'
 export { type InlineTransportOptions, inlineTransport } from './transport/inline.ts'

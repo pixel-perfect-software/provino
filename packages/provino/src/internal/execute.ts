@@ -6,10 +6,12 @@ import {
   type RunGlobalHooks,
   type RunProjectOptions,
   runProjects,
+  type ShardSpec,
 } from '@provino/orchestrator'
 import { createReporterBus, type Environment } from '@provino/reporters'
 import type { FileFilter, ReporterBus, RunSummary } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
+import { workerStartupEnv } from './compile-cache.ts'
 import { type DisplayOptions, reportersFor } from './reporters.ts'
 
 /**
@@ -49,6 +51,27 @@ export interface ExecuteOptions {
   readonly detectOpenHandles?: boolean
   /** The run's own global hooks (Jest's root `globalSetup` and `globalTeardown`). */
   readonly globalSetup?: RunGlobalHooks
+  /** Run only this shard of the files (`--shard`, 1-based). */
+  readonly shard?: ShardSpec
+  /** The timings file `shard` cuts by, and whether the run writes it (`--update-timings`). */
+  readonly timings?: NonNullable<RunProjectOptions['timings']>
+}
+
+/**
+ * The `timings` run option from a timings file and `--update-timings`: only what was given.
+ * @internal
+ */
+export function timingsOf(options: {
+  readonly timingsFile?: string | undefined
+  readonly updateTimings?: boolean | undefined
+}): Pick<ExecuteOptions, 'timings'> {
+  if (options.timingsFile === undefined && options.updateTimings !== true) return {}
+  return {
+    timings: {
+      ...(options.timingsFile === undefined ? {} : { file: options.timingsFile }),
+      ...(options.updateTimings === true ? { update: true } : {}),
+    },
+  }
 }
 
 /**
@@ -107,10 +130,13 @@ function run(
   projects: readonly ResolvedProject[],
 ): Promise<RunSummary> {
   const { stderr, cwd } = options
+  // The bin's compile cache for the forked workers' own startup, and for them only (see
+  // `workerStartupEnv`); `{}` for a library caller, which turned nothing on.
+  const startupEnv = workerStartupEnv(process.env)
   return runProjects(projects, {
     ...(options.root === undefined ? {} : { root: options.root }),
     bus,
-    pool: options.pool,
+    pool: Object.keys(startupEnv).length === 0 ? options.pool : { ...options.pool, startupEnv },
     // Jest writes all test output to stderr and keeps stdout for `--json`: a worker's own stdout
     // (a direct write to fd 1) goes there too, so it can't land in the middle of a reporter's.
     stdout: stderr,
@@ -126,5 +152,7 @@ function run(
     ...(options.bail === undefined ? {} : { bail: options.bail }),
     ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
     ...(options.globalSetup === undefined ? {} : { globalSetup: options.globalSetup }),
+    ...(options.shard === undefined ? {} : { shard: options.shard }),
+    ...(options.timings === undefined ? {} : { timings: options.timings }),
   })
 }

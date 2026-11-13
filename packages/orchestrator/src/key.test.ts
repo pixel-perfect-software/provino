@@ -6,6 +6,7 @@ import { hashOf, sameWorkerKey, stableJson, workerKeyOf } from './key.ts'
 const base = {
   project: 'web',
   pool: 'forks',
+  isolation: 'registry',
   environment: 'node',
   environmentOptions: {},
   execArgv: [],
@@ -62,6 +63,8 @@ describe('workerKeyOf', () => {
     const others = [
       workerKeyOf({ ...base, project: 'api' }),
       workerKeyOf({ ...base, pool: 'threads' }),
+      workerKeyOf({ ...base, isolation: 'realm' }),
+      workerKeyOf({ ...base, isolation: 'process' }),
       workerKeyOf({ ...base, environment: 'jsdom' }),
       workerKeyOf({ ...base, environmentOptions: { url: 'x' } }),
       workerKeyOf({ ...base, execArgv: ['--max-old-space-size=512'] }),

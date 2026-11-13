@@ -37,6 +37,14 @@ Options of provino run:
                                     is 512,000,000, 512MiB is 2^29); 0 replaces it after every file
       --maxFilesPerWorker <n>       Replace a worker after it has run n files
       --fileTimeout <ms>            Kill a worker that runs one file longer than this, and fail it
+      --shard <i>/<n>               Run only shard i of n of the test files (1-based). With a timings
+                                    file the shards are cut by predicted time; without one, by the
+                                    dialect's split (Jest's under provino jest)
+      --timings <file>              The timings file --shard cuts by (default: provino.timings.json
+                                    in the project root)
+      --update-timings              After the run, write each file that ran, with its time, into the
+                                    timings file (provino jest takes this and --timings too). Not
+                                    with --shard: refresh it on an unsharded run
   -h, --help                        Print this text
       --version                     Print the version of provino
 

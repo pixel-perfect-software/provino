@@ -555,11 +555,13 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   }
 
   /**
-   * Whether the worker must not take another file: it ran its share, or holds too much memory. A
-   * worker that shares the process measures the whole coordinator, which no replacement frees
-   * (Jest's `--runInBand` recycles nothing either): only the file count applies to it.
+   * Whether the worker must not take another file: it ran its share, or holds too much memory, or
+   * it is at the `process` tier, where a worker is the one file's own (T2.11). A worker that
+   * shares the process measures the whole coordinator, which no replacement frees (Jest's
+   * `--runInBand` recycles nothing either): only the file count applies to its memory.
    */
   function worn(slot: Slot, done: FileDone): boolean {
+    if (slot.key.isolation === 'process') return true
     if (maxFilesPerWorker !== undefined && slot.files >= maxFilesPerWorker) return true
     return !sharesProcess && memoryLimitBytes !== undefined && done.memoryBytes > memoryLimitBytes
   }
@@ -608,8 +610,9 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       } catch (error) {
         report(error)
       }
-      if ((done.leakedGlobals.length > 0 && recycleOnLeak) || worn(slot, done)) retire(slot)
-      else pump()
+      if ((done.leakedGlobals.length > 0 && recycleOnLeak) || worn(slot, done)) {
+        retire(slot)
+      } else pump()
       waiter.resolve({ type: 'done', workerId: slot.id, done })
     } catch (error) {
       const exit = workerExitOf(error)

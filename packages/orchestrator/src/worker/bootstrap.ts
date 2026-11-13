@@ -9,6 +9,16 @@ import { messagePortLink, processLink } from '@provino/rpc'
 import type { WorkerMain, WorkerPort } from '@provino/types'
 import { flushStdio } from './stdio.ts'
 
+// Variables the coordinator put in a fork's environment for Node's own startup (`startupEnv` of the
+// forks transport: `NODE_COMPILE_CACHE`) are removed before anything loads: Node has read them
+// already, and a test, or a process it starts, must not see one (Jest sets none). The name of the
+// list is the one `transport/forks.ts` sets; the two nodes can't share it.
+const startupNames = process.env.PROVINO_WORKER_STARTUP_ENV
+if (isMainThread && startupNames !== undefined) {
+  for (const name of startupNames.split(',')) delete process.env[name]
+  delete process.env.PROVINO_WORKER_STARTUP_ENV
+}
+
 const entry: unknown = isMainThread ? process.argv[2] : (workerData as { entry?: unknown })?.entry
 if (typeof entry !== 'string') throw new TypeError('The worker bootstrap needs an entry module URL')
 if (!isMainThread && parentPort === null) throw new TypeError('A worker thread has no parentPort')

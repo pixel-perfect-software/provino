@@ -90,6 +90,28 @@ function parseWhole(text: string, flag: string, min: 0 | 1 = 1): number {
   return Number(text)
 }
 
+/**
+ * `--shard=2/5`: shard 2 of 5. Both numbers are digits only, the count at least 1 and the index from
+ * 1 to the count (Jest's own rule for its flag).
+ */
+function parseShard(text: string): { readonly index: number; readonly count: number } {
+  const match = /^(\d+)\/(\d+)$/.exec(text)
+  const index = match === null ? Number.NaN : Number(match[1])
+  const count = match === null ? Number.NaN : Number(match[2])
+  if (
+    !Number.isSafeInteger(index) ||
+    !Number.isSafeInteger(count) ||
+    count < 1 ||
+    index < 1 ||
+    index > count
+  ) {
+    throw new UsageError(
+      `--shard must be <index>/<count>, both whole numbers, from 1 to the count (such as 2/5; got "${text}")`,
+    )
+  }
+  return { index, count }
+}
+
 /** One `--reporter` name as the choice it stands for: a document reporter takes `outputFile`, any other stands for itself. */
 function choiceFor(name: BuiltInReporterName, outputFile: string | undefined): ReporterChoice {
   return isDocumentReporter(name) && outputFile !== undefined ? [name, { outputFile }] : name
@@ -175,6 +197,9 @@ export function parseRunArgs(
     ...(values.fileTimeout === undefined
       ? {}
       : { fileTimeoutMs: parseWhole(values.fileTimeout, '--fileTimeout') }),
+    ...(values.shard === undefined ? {} : { shard: parseShard(values.shard) }),
+    ...(values.timings === undefined ? {} : { timingsFile: values.timings }),
+    ...(values['update-timings'] === true ? { updateTimings: true } : {}),
   }
   return {
     type: 'run',
@@ -200,6 +225,9 @@ const OPTIONS = {
   workerMemoryLimit: { type: 'string' },
   maxFilesPerWorker: { type: 'string' },
   fileTimeout: { type: 'string' },
+  shard: { type: 'string' },
+  timings: { type: 'string' },
+  'update-timings': { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const satisfies ParseArgsOptionsConfig
 

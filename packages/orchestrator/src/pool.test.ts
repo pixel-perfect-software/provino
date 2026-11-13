@@ -211,6 +211,7 @@ const consoleEvent = (file: string): WorkerEvent => ({
 const key = workerKeyOf({
   project: 'p',
   pool: 'inline',
+  isolation: 'registry',
   environment: 'node',
   environmentOptions: {},
   execArgv: [],
@@ -261,6 +262,19 @@ function watch(promise: Promise<unknown>): { readonly settled: boolean } {
   }
   void promise.then(done, done)
   return state
+}
+
+/**
+ * Polls `condition` until it holds, for at most `timeoutMs`, and throws naming `what` if it never
+ * does. For something that must happen: a fixed `sleep` can't tell a loaded runner that is slow
+ * from a pool that is wrong, and a bound this generous only costs time when the pool is wrong.
+ */
+async function until(condition: () => boolean, what: string, timeoutMs = 5000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!condition()) {
+    if (Date.now() >= deadline) throw new Error(`${what} did not happen within ${timeoutMs} ms`)
+    await sleep(5)
+  }
 }
 
 /** Runs the files and closes the pool, returning each file's outcome. */
@@ -763,7 +777,7 @@ describe('createPool', () => {
     await sleep(20)
     assert.deepEqual([...f.exited], [], 'an idle worker waits for a next file')
     pool.drain()
-    await sleep(20)
+    await until(() => f.exited.size > 0, 'the drained worker to stop')
     assert.deepEqual([...f.exited], [1])
     await pool.close()
   })
@@ -775,7 +789,7 @@ describe('createPool', () => {
     const quick = pool.run(request('b'))
     pool.drain()
     await quick
-    await sleep(20)
+    await until(() => f.exited.size > 0, 'the worker with nothing left to do to stop')
     assert.deepEqual([...f.exited], [2], 'the worker with nothing left to do is gone')
     const closed = pool.close()
     assert.deepEqual(await slow, { type: 'aborted' })

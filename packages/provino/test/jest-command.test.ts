@@ -34,7 +34,7 @@ describe('what provino jest does not run is said, not ignored', () => {
     // A refusal names the flag by its long name, whatever alias was typed.
     for (const [flag, task, named] of [
       ['--coverage', 'T8.8'],
-      ['--shard=1/2', 'T9.6'],
+      ['--detectLeaks', 'T2.7'],
       ['--watch', 'T9.11'],
       ['-o', 'Track 9', '--onlyChanged'],
     ] as readonly (readonly [string, string, string?])[]) {

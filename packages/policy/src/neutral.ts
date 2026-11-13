@@ -228,7 +228,8 @@ export const neutralPolicy: Policy = deepFreeze({
     environmentConditions: moduleRef<EnvironmentConditions>(BEHAVIOURS, 'environmentConditions'),
     pool: { default: 'forks' },
     runInBand: { auto: false },
-    shard: { fallback: 'sha1-slice' },
+    // Ours: no runner to match, so the cheap split that keeps neighbouring files together (P32).
+    shard: { fallback: 'path-slice' },
     sequence: { unknownFirst: true },
     // Ours, with Vitest's order and no wrapper text of its own beyond naming the hook.
     globalSetup: {

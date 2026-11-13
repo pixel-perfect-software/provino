@@ -5,7 +5,7 @@ import { ExitCode, type RunProjectOptions } from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
 import { ENVIRONMENTS } from './internal/built-ins.ts'
 import { usageMessage } from './internal/describe.ts'
-import { executeProject } from './internal/execute.ts'
+import { executeProject, timingsOf } from './internal/execute.ts'
 import { UsageError } from './internal/usage-error.ts'
 import type { RunOptions, RunResult } from './types.ts'
 
@@ -73,6 +73,8 @@ async function execute(
     forceSignal: options.forceSignal,
     ...(options.bail === undefined || options.bail === 0 ? {} : { bail: { count: options.bail } }),
     ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
+    ...(options.shard === undefined ? {} : { shard: options.shard }),
+    ...timingsOf(options),
   })
 }
 

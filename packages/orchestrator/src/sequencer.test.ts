@@ -1,6 +1,6 @@
 // The history sequencer against Jest's `sort` cases (jest-test-sequencer's own tests): failed
 // files first, files with no history before or after the ones that have it, size and duration
-// descending, and a path tie-break so the order is total.
+// descending, and a path tie-break so the order is total. The shard is `shard.test.ts`.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { FileHistory, ScheduleInput } from '@provino/types'
@@ -15,7 +15,7 @@ function file(path: string, sizeBytes: number, past?: FileHistory): ScheduleInpu
 }
 
 function order(files: readonly ScheduleInput[], unknownFirst = true): string[] {
-  return createHistorySequencer({ unknownFirst })
+  return createHistorySequencer({ unknownFirst, shardFallback: 'sha1-slice' })
     .sort(files)
     .map((f) => f.path)
 }
@@ -89,10 +89,12 @@ describe('createHistorySequencer.sort', () => {
   })
 
   it('breaks a path tie by project', () => {
-    const sorted = createHistorySequencer({ unknownFirst: true }).sort([
-      { path: 'a', project: 'two', sizeBytes: 1 },
-      { path: 'a', project: 'one', sizeBytes: 1 },
-    ])
+    const sorted = createHistorySequencer({ unknownFirst: true, shardFallback: 'sha1-slice' }).sort(
+      [
+        { path: 'a', project: 'two', sizeBytes: 1 },
+        { path: 'a', project: 'one', sizeBytes: 1 },
+      ],
+    )
     assert.deepEqual(
       sorted.map((f) => f.project),
       ['one', 'two'],
@@ -101,20 +103,13 @@ describe('createHistorySequencer.sort', () => {
 
   it('returns a new array and leaves the input alone', () => {
     const input = [file('b', 1), file('a', 2)]
-    const sorted = createHistorySequencer({ unknownFirst: true }).sort(input)
+    const sorted = createHistorySequencer({ unknownFirst: true, shardFallback: 'sha1-slice' }).sort(
+      input,
+    )
     assert.notEqual(sorted, input)
     assert.deepEqual(
       input.map((f) => f.path),
       ['b', 'a'],
-    )
-  })
-})
-
-describe('createHistorySequencer.shard', () => {
-  it('names the task that builds it', () => {
-    assert.throws(
-      () => createHistorySequencer({ unknownFirst: true }).shard([], { index: 1, count: 2 }),
-      { code: 'ORCH_NOT_IMPLEMENTED', message: /T9\.6/ },
     )
   })
 })
