@@ -21,13 +21,13 @@ RSpec-style lazy variables (Track 6). Neutral: it reads only `LazyPolicy` and a 
 - **Resolution** is by the running test's innermost suite, never the suite that declared the handle. `parent()` resolves from the declaring suite's parent and is not memoized (once per evaluation). One entry per key per suite: a second one in the same suite, `.override` included, is `LAZY_DUPLICATE`.
 - **Memo** lives in the scope's map: test `run.slots`, file `file.slots`, worker `host.workerSlots` (keyed by `Symbol.for('provino.lazy.worker:<file:line:col#key>')`, so two files with one helper share a value). Async values memoize the promise; a throw or rejection is memoized too. A `Cell` in state `EVAL` seen by a read is always a synchronous re-entry, so it is a cycle (`LAZY_CYCLE`, from the sync stack); a cycle through `deps` after an `await` is found by the chain each evaluation carries. A cycle through `$` after an `await` waits for the test timeout (documented gap 3).
 - **Scope** is checked on every read made while a definition runs (`deps` reads and `$` reads under the sync stack): a wider-scoped definition reading a narrower one is `LAZY_SCOPE` with both sites. A test-scoped read in a suite hook follows `readInBeforeAll`: `error` is `LAZY_SCOPE`; `allow` (Provino's own, tests not ground truth) memoizes per suite in `suite.slots`, cleans up with the file, and gives `ctx.task` a task named for the suite.
-- **Eager** evaluates what the test sees (`resolveEntry` in the hook), awaits it and replaces the memo; a read before then is `LAZY_EAGER_PENDING`. An override of an eager key stays eager; a nested `lazy.let` of it makes it lazy again, as its type says (`Exclude<E, K>`).
+- **Eager** evaluates what the test sees (`resolveEntry` in the hook), awaits it and replaces the memo; a read before then is `LAZY_EAGER_PENDING`. An override of an eager key stays eager (a file or worker one gets its own `beforeAll` where it is declared); a hook evaluates only the entry that registered it or its overrides, so a nested re-declare runs at its own position; a nested `lazy.let` of it makes it lazy again, as its type says (`Exclude<E, K>`).
 - **The log** (`evaluatedLazies(run)`) holds one entry per finished evaluation of a test run, dependencies before dependents, `ms` inclusive of dependencies. File and worker values evaluated from a test land in that test's log.
 - **Timeout** (`LetOptions.timeout`) only bounds a definition that returns a thenable; timers are the real ones, captured at module load.
 
 ## The core check
 
-`packages/bench/src/lazy/` (`pnpm bench:lazy check`) runs 29 behaviours under the Jest dialect's whole policy and the neutral one on the real `createRuntime`, 58 checks, 0 failed (T6.5). `behaviours.ts` is the rebuilt Spikes C corpus. It found no `LazyHost` gap in core. Never lower the count.
+`packages/bench/src/lazy/` (`pnpm bench:lazy check`) runs 34 behaviours under the Jest dialect's whole policy and the neutral one on the real `createRuntime`, 68 checks, 0 failed (T6.5). `behaviours.ts` is the rebuilt Spikes C corpus. It found no `LazyHost` gap in core. Never lower the count.
 
 ## Not built yet
 

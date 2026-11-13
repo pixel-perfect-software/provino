@@ -42,18 +42,25 @@ class Logged implements EvaluatedLazy {
   }
 }
 
+// A view's state sits under module-private symbols, so no lazy key (`suite`, `engine`, `from`, …)
+// can collide with it.
+const V_ENGINE: unique symbol = Symbol('provino.lazy.view.engine')
+const V_FRAME: unique symbol = Symbol('provino.lazy.view.frame')
+const V_SUITE: unique symbol = Symbol('provino.lazy.view.suite')
+const V_FROM: unique symbol = Symbol('provino.lazy.view.from')
+
 /** What a definition's `deps` and `$.from(ctx)` give: getters over every key the suite can see. */
 class View {
-  readonly engine: Engine
-  readonly frame: LazyFrame
-  readonly suite: SuiteHandle
-  readonly from: EvalFrame | null
+  readonly [V_ENGINE]: Engine
+  readonly [V_FRAME]: LazyFrame
+  readonly [V_SUITE]: SuiteHandle
+  readonly [V_FROM]: EvalFrame | null
 
   constructor(engine: Engine, frame: LazyFrame, suite: SuiteHandle, from: EvalFrame | null) {
-    this.engine = engine
-    this.frame = frame
-    this.suite = suite
-    this.from = from
+    this[V_ENGINE] = engine
+    this[V_FRAME] = frame
+    this[V_SUITE] = suite
+    this[V_FROM] = from
   }
 }
 
@@ -72,7 +79,7 @@ function viewClassOf(suite: SuiteHandle): ViewClass {
       Object.defineProperty(made.prototype, key, {
         enumerable: true,
         get(this: View): unknown {
-          return readFrom(this.engine, this.frame, this.suite, key, this.from)
+          return readFrom(this[V_ENGINE], this[V_FRAME], this[V_SUITE], key, this[V_FROM])
         },
       })
     }

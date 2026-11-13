@@ -67,6 +67,19 @@ function ancestorEntry(suite: SuiteHandle, key: string): LazyEntry | undefined {
   return undefined
 }
 
+/**
+ * The scope of the eager definition an override at `entry` inherits, or `undefined` when the key is
+ * not eager there (a `let` of it, or no definition yet around the override).
+ */
+export function inheritedEagerScope(entry: LazyEntry): Scope | undefined {
+  for (let e = ancestorEntry(entry.suite, entry.key); e !== undefined; ) {
+    if (e.kindOf === 'eager') return e.declared
+    if (e.kindOf === 'let') return undefined
+    e = ancestorEntry(e.suite, e.key)
+  }
+  return undefined
+}
+
 /** The file's state; the first registration in a file also hooks its collection-time check. */
 function fileState(engine: Engine, file: FileHandle): FileState {
   let state = file.slots.get(FILE_STATE) as FileState | undefined
