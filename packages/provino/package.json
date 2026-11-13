@@ -99,6 +99,7 @@
     "@provino/env-node": "workspace:*",
     "@provino/orchestrator": "workspace:*",
     "@provino/reporters": "workspace:*",
+    "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*"
   },
   "peerDependencies": {

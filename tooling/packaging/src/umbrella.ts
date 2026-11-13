@@ -33,7 +33,14 @@ const PROVINO_SCOPE: RegExp[] = [/^@provino\//]
  * Oxc's binding is missing: kept out of both chunk groups, so `dist/cli.js` and its own small
  * chunks import nothing that loads an Oxc package.
  */
-const BIN_LIGHT_FILES = ['usage', 'reporter-names', 'version', 'native-binding', 'quick']
+const BIN_LIGHT_FILES = [
+  'usage',
+  'reporter-names',
+  'version',
+  'native-binding',
+  'quick',
+  'compile-cache',
+]
 
 /**
  * The umbrella's entries, name to source: the subpaths of `provino`'s own `exports`, its bin
@@ -102,7 +109,12 @@ const COORDINATOR = new RegExp(
 
 /** `BIN_LIGHT_FILES`, as a test of a module id. */
 const BIN_LIGHT = new RegExp(
-  `[\\\\/]packages[\\\\/]provino[\\\\/]src[\\\\/]internal[\\\\/](?:${BIN_LIGHT_FILES.join('|')})\\.ts$`,
+  [
+    `[\\\\/]packages[\\\\/]provino[\\\\/]src[\\\\/]internal[\\\\/](?:${BIN_LIGHT_FILES.join('|')})\\.ts$`,
+    // The compile cache the bin turns on first (T3.7): a leaf that imports only `node:` modules, and
+    // the one file of the transform it shares (the `CACHEDIR.TAG` writer).
+    `[\\\\/]packages[\\\\/]transform[\\\\/]src[\\\\/](?:v8cache[\\\\/]|cache[\\\\/]store\\.ts$)`,
+  ].join('|'),
 )
 
 /**
@@ -112,7 +124,8 @@ const BIN_LIGHT = new RegExp(
  * `import { expect } from 'provino'` does not. Kept in a chunk of their own, the `expect` runtime's
  * graph (`worker/jest-runtime.js` and the `shared` chunk it imports) loads none of them.
  */
-const LOADING = /[\\/]packages[\\/](?:transform|resolver|loader)[\\/]src[\\/]/
+const LOADING =
+  /[\\/]packages[\\/](?:transform|resolver|loader)[\\/]src[\\/](?!v8cache[\\/]|cache[\\/]store\.ts$)/
 
 /** A source file of a workspace package. */
 const SHARED = /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/

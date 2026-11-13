@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { enableBinCompileCache } from './internal/compile-cache.ts'
 import { missingBindingMessage } from './internal/native-binding.ts'
 import { quickAnswer } from './internal/quick.ts'
 
@@ -20,6 +21,9 @@ const quick = quickAnswer(argv)
 if (quick !== undefined) {
   process.stdout.write(quick)
 } else {
+  // Before the rest is imported, so the chunks it loads, and the workers' (which inherit the
+  // variable it sets), are the ones the cache covers. Off under coverage.
+  enableBinCompileCache(argv, process.env, process.cwd())
   let loaded:
     | [typeof import('./internal/cli.ts'), typeof import('./internal/signals.ts')]
     | undefined

@@ -980,6 +980,9 @@ importers:
       '@provino/reporters':
         specifier: workspace:*
         version: link:../reporters
+      '@provino/transform':
+        specifier: workspace:*
+        version: link:../transform
       '@provino/types':
         specifier: workspace:*
         version: link:../types
