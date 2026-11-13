@@ -384,6 +384,89 @@ describe('toTestResult', () => {
   })
 })
 
+describe('a collect-only file (--collectTests)', () => {
+  const collect: BuildOptions = { ...OPTIONS, collectOnly: true }
+
+  it('reports a queued test as passed with wouldRun, and nothing a run would know', () => {
+    const built = toTestResult(
+      events([
+        { task: test('a', 'file'), result: result('queued', { attempts: 0 }) },
+        { task: test('b', 'file'), result: result('skip') },
+        { task: test('c', 'file'), result: result('todo') },
+      ]),
+      collect,
+    )
+    assert.deepEqual(
+      built.testResults.map((entry) => [entry.status, entry.wouldRun]),
+      [
+        ['passed', true],
+        ['pending', undefined],
+        ['todo', undefined],
+      ],
+    )
+    for (const entry of built.testResults) {
+      assert.deepEqual(
+        [entry.duration, entry.invocations, entry.location, entry.startAt, entry.numPassingAsserts],
+        [null, 0, null, null, 0],
+      )
+      assert.equal('retryMessages' in entry, false)
+    }
+    assert.deepEqual(
+      [built.numPassingTests, built.numPendingTests, built.numTodoTests, built.skipped],
+      [1, 1, 1, false],
+    )
+  })
+
+  it('fails a file with no test, as TestScheduler.onResult does, whatever state it ended in', () => {
+    const built = toTestResult(events([]), collect)
+    assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
+    assert.deepEqual(built.testResults, [])
+  })
+
+  it('ignores the errors circus files under unhandledErrors when tests were collected', () => {
+    const built = toTestResult(
+      events(
+        [{ task: test('a', 'file'), result: result('queued', { attempts: 0 }) }],
+        {},
+        { state: 'fail', errors: [failure('Invalid: beforeEach() may not be used')] },
+      ),
+      collect,
+    )
+    assert.equal(built.testExecError, undefined)
+    assert.equal(built.numPassingTests, 1)
+    // ...and a file whose describe holds only hooks collected no test: "must contain a test".
+    const hooksOnly = events([], {}, { state: 'fail', errors: [failure('Invalid: beforeEach()')] })
+    const suite = { ...test('s', 'file'), type: 'suite', children: [] } as unknown as TaskNode
+    const empty = toTestResult({ ...hooksOnly, tree: [...(hooksOnly.tree ?? []), suite] }, collect)
+    assert.equal(empty.testExecError?.message, NO_TESTS_MESSAGE)
+  })
+
+  it('sets skipped, displayName and perfStats on the collected result, as runTest.ts does', () => {
+    const pending = toTestResult(
+      events([{ task: test('a', 'file'), result: result('skip') }], {
+        startedAt: 100,
+        endedAt: 130,
+      }),
+      { ...collect, displayName: { name: 'p', color: 'white' } },
+    )
+    assert.equal(pending.skipped, true)
+    assert.deepEqual(pending.displayName, { name: 'p', color: 'white' })
+    assert.deepEqual(
+      [pending.perfStats.start, pending.perfStats.end, pending.perfStats.runtime],
+      [100, 130, 30],
+    )
+    assert.equal(pending.perfStats.slow, false)
+  })
+
+  it('keeps a file that could not load as a runtime error', () => {
+    const built = toTestResult(
+      events([], { tree: undefined }, { state: 'fail', errors: [failure('cannot load')] }),
+      collect,
+    )
+    assert.equal(built.testExecError?.message, 'cannot load')
+  })
+})
+
 describe('finishAggregated', () => {
   const end = (reason: 'passed' | 'interrupted', update?: 'all' | 'none') => ({
     reason,

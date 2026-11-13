@@ -62,6 +62,7 @@ export {
 } from './normalize.ts'
 export { replaceRootDirInPath } from './paths.ts'
 export { setupPreset } from './preset.ts'
+export { type CollectedTextStyle, jestCollectedText } from './reporters/collected-text.ts'
 export {
   type ProcessJestResultsOptions,
   processJestResults,

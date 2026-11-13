@@ -44,6 +44,9 @@
       "path": "packages/mock/test"
     },
     {
+      "path": "packages/lazy/test"
+    },
+    {
       "path": "packages/timers/test"
     },
     {

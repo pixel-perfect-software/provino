@@ -8,6 +8,7 @@ import { createRequire } from 'node:module'
 import { describe, test } from 'node:test'
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping'
 import type { IstanbulFileCoverageData, SourceMapV3 } from '@provino/types'
+import { ownCodeIdentity } from './code-identity.ts'
 import { readInitialCoverage } from './initial-coverage.ts'
 import { istanbulInstrumenter } from './instrument.ts'
 import { CASES } from './test-cases.ts'
@@ -171,6 +172,7 @@ describe('the vendored instrumenter against babel-plugin-istanbul 8.0.0', () => 
       istanbulInstrumenter({ coverageVariable: '__other__' }).name,
     )
     assert.match(istanbulInstrumenter().name, /istanbul-lib-instrument@2\.1\.0/)
+    assert.ok(istanbulInstrumenter().name.includes(ownCodeIdentity()), 'the package code is in it')
   })
 
   test('readInitialCoverage finds what instrumenting recorded', () => {
@@ -180,5 +182,15 @@ describe('the vendored instrumenter against babel-plugin-istanbul 8.0.0', () => 
     assert.ok(found !== null)
     assert.equal(found.path, `${ROOT}/src/read.js`)
     assert.deepEqual(essentials(found.coverageData), essentials(result.coverage))
+  })
+
+  test('code babel-plugin-istanbul already instrumented gives its coverage back, unchanged', () => {
+    const code = `export function f(a) {\n  return a ? 1 : 2;\n}\n`
+    const filename = `${ROOT}/src/twice.js`
+    const theirs = babelCoverage(code, filename)
+    const result = istanbulInstrumenter().instrument(theirs.code, filename, null)
+    assert.equal(result.code, theirs.code)
+    assert.ok(result.coverage !== undefined)
+    assert.deepEqual(essentials(result.coverage), essentials(theirs.coverage))
   })
 })

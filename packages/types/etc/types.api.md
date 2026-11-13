@@ -968,6 +968,7 @@ export interface FileInfo {
 
 // @public
 export interface FileJob {
+    readonly collectOnly?: true;
     // (undocumented)
     readonly file: string;
     // (undocumented)
@@ -3281,7 +3282,7 @@ export interface TransformerOutput {
 }
 
 // @public
-export type TransformErrorCode = "PARSE_ERROR" | "HOIST_FACTORY_OUT_OF_SCOPE" | "HOIST_NOT_TOP_LEVEL" | "HOIST_NESTED" | "HOIST_EXPORTED" | "HOIST_FACTORY_NOT_FUNCTION" | "UNSUPPORTED_SYNTAX" | "TRANSFORMER_FAILED" | "TSCONFIG_EXTENDS_NOT_FOUND";
+export type TransformErrorCode = "PARSE_ERROR" | "HOIST_FACTORY_OUT_OF_SCOPE" | "HOIST_NOT_TOP_LEVEL" | "HOIST_NESTED" | "HOIST_EXPORTED" | "HOIST_FACTORY_NOT_FUNCTION" | "UNSUPPORTED_SYNTAX" | "TRANSFORMER_FAILED" | "COVERAGE_INSTRUMENT_FAILED" | "TSCONFIG_EXTENDS_NOT_FOUND";
 
 // @public
 export interface TransformLookup {

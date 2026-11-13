@@ -41,6 +41,12 @@ function essentials(data: unknown): unknown {
   return copy
 }
 
+interface BabelCore {
+  transformSync(code: string, options: Record<string, unknown>): { code?: string | null } | null
+}
+const babel = nodeRequire('@babel/core') as BabelCore
+const babelPlugin = (nodeRequire('babel-plugin-istanbul') as { default: unknown }).default
+
 const FILE = '/virtual/project/src/case.js'
 
 describe('readInitialCoverage against istanbul-lib-instrument 6.0.3', () => {
@@ -65,4 +71,29 @@ describe('readInitialCoverage against istanbul-lib-instrument 6.0.3', () => {
   test('code with no instrumentation holds no initial coverage', () => {
     assert.equal(readInitialCoverage('export const x = 1;\n'), null)
   })
+
+  for (const { name, code } of CASES) {
+    test(`${name}: babel-plugin-istanbul's output reads the same as istanbul-lib-instrument reads it`, () => {
+      const out = babel.transformSync(code, {
+        babelrc: false,
+        configFile: false,
+        filename: FILE,
+        sourceType: 'module',
+        plugins: [
+          [babelPlugin, { compact: false, cwd: '/virtual/project', exclude: [], extension: false }],
+        ],
+      })?.code
+      assert.ok(typeof out === 'string')
+      const expected = oracle.readInitialCoverage(out)
+      const mine = readInitialCoverage(out)
+      if (expected === null) {
+        assert.equal(mine, null)
+        return
+      }
+      assert.ok(mine !== null)
+      assert.equal(mine.path, expected.path)
+      assert.equal(mine.gcv, expected.gcv)
+      assert.deepEqual(essentials(mine.coverageData), essentials(expected.coverageData))
+    })
+  }
 })

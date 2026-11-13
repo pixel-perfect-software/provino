@@ -119,6 +119,37 @@ test('statements, functions and branches map back to their TypeScript lines', ()
   }
 })
 
+test('a JavaScript file the instrumenter cannot parse is a diagnostic naming the instrumenter', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-instrument-pipeline-')))
+  roots.push(root)
+  const pipeline = createPipeline({
+    root,
+    typescript: 'oxc',
+    tsconfig: false,
+    hoist: jestHoistPolicy,
+    cache: false,
+    instrumenter: istanbulInstrumenter(),
+  })
+  for (const [name, source] of [
+    ['syntax.js', 'export const = ;\n'],
+    ['dup.js', 'export const a = 1\nexport const a = 2\n'],
+  ] as const) {
+    const record = pipeline.transform({
+      filename: join(root, name),
+      source,
+      role: 'source',
+      consumer: 'import',
+      instrument: true,
+    })
+    const errors = record.diagnostics.filter((d) => d.severity === 'error')
+    assert.ok(
+      errors.some((d) => d.code === 'COVERAGE_INSTRUMENT_FAILED'),
+      `${name}: ${JSON.stringify(record.diagnostics)}`,
+    )
+    assert.ok(errors.every((d) => d.code !== 'TRANSFORMER_FAILED'))
+  }
+})
+
 test('the import rewrite and the mock hoist add no statement of their own', () => {
   const { record } = transformed()
   const found = readInitialCoverage(record.code)

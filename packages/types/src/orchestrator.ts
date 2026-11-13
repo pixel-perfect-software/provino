@@ -125,6 +125,11 @@ export interface FileJob {
   /** Only these tests (slow-file splitting, IDE runs). */
   readonly testIds?: readonly TaskId[]
   readonly updateSnapshots: 'all' | 'new' | 'none'
+  /**
+   * Collect the file and report what its tests would do (`queued`, `skip` or `todo`) without
+   * running a hook or a test body (Jest's `--collectTests`); no snapshot is written.
+   */
+  readonly collectOnly?: true
 }
 
 /**

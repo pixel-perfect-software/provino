@@ -4,16 +4,10 @@
 // the source, the counters are written into the code, and the input map is embedded in the
 // coverage data, where `istanbul-lib-source-maps` finds it when the report is remapped.
 import type { CoverageInstrumenter, IstanbulFileCoverageData, SourceMapV3 } from '@provino/types'
+import { ownCodeIdentity } from './code-identity.ts'
 import { CoverageError } from './errors.ts'
 import type { InputSourceMap } from './vendor/istanbul-lib-instrument/index.ts'
 import { createInstrumenter } from './vendor/istanbul-lib-instrument/index.ts'
-
-/**
- * What the cache key says about the instrumenter's output. Raise it when `instrument.ts` changes
- * what a file's instrumented code or coverage data is (the vendored files are named by their
- * upstream version in `name`).
- */
-const REVISION = 1
 
 /**
  * Options of `istanbulInstrumenter`.
@@ -65,7 +59,7 @@ export function istanbulInstrumenter(
     inputSourceMap: true,
   })
   return {
-    name: `istanbul:@vitest/istanbul-lib-instrument@2.1.0:r${REVISION}:${coverageVariable}`,
+    name: `istanbul:@vitest/istanbul-lib-instrument@2.1.0:${ownCodeIdentity()}:${coverageVariable}`,
     instrument(code, filename, inputMap) {
       try {
         const instrumented = instrumenter.instrumentSync(

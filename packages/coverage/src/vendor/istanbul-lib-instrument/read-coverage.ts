@@ -1,6 +1,6 @@
 import type * as ESTree from "oxc-parser"; // provino: oxc-parser re-exports the ESTree types (D110)
 
-import { MAGIC_KEY, MAGIC_VALUE } from "./constants.ts";
+import { MAGIC_KEY, READABLE_MAGIC_VALUES } from "./constants.ts";
 import { parse } from "./parse.ts";
 import type { SourceCoverageData } from "./source-coverage.ts";
 
@@ -130,7 +130,10 @@ function findCoverageScope(ast: ESTree.Program): Node | null {
       node.key.name === MAGIC_KEY
     ) {
       const magicValue = tryEvaluate(node.value);
-      if (magicValue.confident && magicValue.value === MAGIC_VALUE) {
+      if (magicValue.confident &&
+        // provino: either package name's schema value (constants.ts)
+        READABLE_MAGIC_VALUES.includes(magicValue.value as string)
+      ) {
         return true;
       }
     }
