@@ -593,7 +593,11 @@ export class Executor {
     const repeat = progress.repeatIndex
     for (let attempt = resuming ? 1 : 0; attempt <= plan.count; attempt++) {
       progress.attempts++
-      const result = await this.#runAttempt(run, test, attempt, repeat, scope)
+      // The first attempt starts in the same synchronous run as the test (no turn between
+      // `test-start` and here), so it carries the test's start time rather than reading the clock.
+      const startedAt =
+        attempt === 0 && repeat === 0 && progress.attempts === 1 ? progress.start : undefined
+      const result = await this.#runAttempt(run, test, attempt, repeat, scope, startedAt)
       const errors = result.errors
       // A skip that nothing failed after ends the test; a failure outranks it.
       progress.skipped = errors.length === 0 ? result.skipped : undefined
@@ -722,6 +726,7 @@ export class Executor {
     attempt: number,
     repeat: number,
     scope: Scope,
+    startedAt: number | undefined,
   ): Promise<{ readonly errors: unknown[]; readonly skipped: AttemptState['skipped'] }> {
     // Set by `finalize` for every node of a collected file.
     const task = test.task as TestTask
@@ -763,7 +768,8 @@ export class Executor {
     this.#config.runs.set(state.ctx, handle)
     this.#running.set(test.id, state)
     const store = newStore({ frame, lazy: state.lazy, attempt: state })
-    this.#emit({ type: 'test-attempt-start', id: test.id, attempt, repeat, t: this.#now() })
+    const t = startedAt ?? this.#now()
+    this.#emit({ type: 'test-attempt-start', id: test.id, attempt, repeat, t })
     setRunningFrame(scope.concurrent ? undefined : frame)
     try {
       await runInStore(store, () => this.#attemptBody(run, test, state, store, scope))
@@ -1153,12 +1159,22 @@ export class Executor {
   ): Promise<CallResult> {
     const { attempt } = spec
     const store = this.#hookScope(run, spec.kind, spec.owner, attempt)
-    this.#emitHook(spec)
+    const startedAt = this.#emitHookStart(spec)
     let result: CallResult
     try {
-      const value = await this.#calls.run(() =>
-        runInStore(store, () => this.#deadlines.call(call, { what: 'hook', timeoutMs, attempt })),
-      )
+      const calls = this.#calls
+      // With no limiter the call starts at once, so `hook-start`'s time is its deadline's start
+      // too; a call that may wait for a slot reads the clock again when it gets one.
+      const bounded = (): Promise<unknown> =>
+        this.#deadlines.call(call, {
+          what: 'hook',
+          timeoutMs,
+          attempt,
+          start: calls === unlimited ? startedAt : undefined,
+        })
+      const value = await (calls === unlimited
+        ? runInStore(store, bounded)
+        : calls.run(() => runInStore(store, bounded)))
       result = { ok: true, value }
     } catch (error) {
       // `ctx.skip()` in an each-hook ends the test as skipped.
@@ -1210,16 +1226,25 @@ export class Executor {
 
   /** `hook-start` (with the hook's location), or `hook-end` once the call has its `result`. */
   #emitHook(spec: HookCall, result?: CallResult): void {
+    if (result === undefined) {
+      this.#emitHookStart(spec)
+      return
+    }
     const ownerId = spec.owner.id
     const testId = spec.attempt?.test.id ?? null
     const { kind, ordinal } = spec
-    if (result === undefined) {
-      const { location } = spec
-      this.#emit({ type: 'hook-start', ownerId, testId, kind, ordinal, location, t: this.#now() })
-      return
-    }
     const error = result.ok ? null : serializeError(result.error)
     this.#emit({ type: 'hook-end', ownerId, testId, kind, ordinal, error, t: this.#now() })
+  }
+
+  /** `hook-start`, with the hook's location; returns the time it carries. */
+  #emitHookStart(spec: HookCall): number {
+    const ownerId = spec.owner.id
+    const testId = spec.attempt?.test.id ?? null
+    const { kind, ordinal, location } = spec
+    const t = this.#now()
+    this.#emit({ type: 'hook-start', ownerId, testId, kind, ordinal, location, t })
+    return t
   }
 
   /** Runs the teardowns hooks returned, in the order of `hookOrder[after]`. */

@@ -77,6 +77,11 @@ export interface DeadlineOptions {
   readonly timeoutError: () => Error
   /** Called once when the deadline passes (to abort the test's signal). */
   readonly onTimeout?: ((error: Error) => void) | undefined
+  /**
+   * When the call started, if the caller read the clock for it just before (the `hook-start`
+   * event's time): saves reading it again. Default: `now()` as the call starts.
+   */
+  readonly start?: number | undefined
 }
 
 /**
@@ -88,7 +93,7 @@ export interface DeadlineOptions {
 export function withDeadline(invoke: () => unknown, options: DeadlineOptions): Promise<unknown> {
   const { timeoutMs, now } = options
   const bounded = isBounded(timeoutMs)
-  const start = bounded ? now() : 0
+  const start = bounded ? (options.start ?? now()) : 0
   const overran = (): boolean => bounded && options.catchSyncOverrun && now() - start > timeoutMs
   let result: unknown
   try {
@@ -166,6 +171,8 @@ export interface DeadlineCall {
   readonly attempt?: Abortable | undefined
   /** Default: `timeouts.catchSyncOverrun`. */
   readonly catchSyncOverrun?: boolean
+  /** When the call started, if the caller has just read the clock (`DeadlineOptions.start`). */
+  readonly start?: number | undefined
 }
 
 /** Where a teardown stack stops, and whose signal a timeout aborts. */
@@ -202,6 +209,7 @@ export function createDeadlines(
       now,
       timeoutError: () => new CoreError('CORE_TIMEOUT', TIMEOUT_MESSAGES[spec.what](named)),
       onTimeout: attempt === undefined ? undefined : (error) => attempt.controller.abort(error),
+      start: spec.start,
     }
   }
   return {
