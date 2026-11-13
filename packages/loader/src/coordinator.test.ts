@@ -56,10 +56,6 @@ test('a globalSetup.ts loads through the transform and its default export runs',
   const loader = await createCoordinatorLoader(root, config(), neutralPolicy.module)
   const module = await loader.import<{ default: Setup }>(join(root, 'globalSetup.ts'))
   assert.equal(await module.default({ rootDir: 'there' }), 'hello there')
-  assert.deepEqual(loader.loadedModules().toSorted(), [
-    join(root, 'globalSetup.ts'),
-    join(root, 'helper.ts'),
-  ])
   loader.dispose()
 })
 

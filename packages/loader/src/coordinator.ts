@@ -10,13 +10,7 @@
 // module-mock registry (`jest.mock` in a global setup is out of scope, as in Jest, where it
 // doesn't apply) and no per-module bindings: a module that names `jest` sees the global of that
 // name, which a coordinator doesn't have.
-import type {
-  FileRegistry,
-  Loader,
-  ModuleId,
-  ModulePolicy,
-  SerializedLoaderConfig,
-} from '@provino/types'
+import type { FileRegistry, Loader, ModulePolicy, SerializedLoaderConfig } from '@provino/types'
 import { createProjectLoader } from './project.ts'
 
 /**
@@ -30,8 +24,6 @@ export interface CoordinatorLoader extends Disposable {
    * itself is never mocked. A module imported twice is evaluated once.
    */
   import<T = unknown>(file: string): Promise<T>
-  /** The modules everything imported so far loaded: the user modules, with the files themselves. */
-  loadedModules(): readonly ModuleId[]
   /** Forgets every module; further imports start over. */
   dispose(): void
 }
@@ -63,22 +55,14 @@ export async function createCoordinatorLoader(
     mocksReachShared: false,
   })
   const registries: FileRegistry[] = []
-  // What each import loaded, kept as the import ends: the shared registry counts for one file at a time.
-  const loaded = new Set<ModuleId>()
   const coordinator: CoordinatorLoader = {
-    import: async <T>(file: string) => {
+    import: <T>(file: string) => {
       const registry = loader.createFileRegistry(file, { tier: 'none' })
       registries.push(registry)
-      try {
-        return await registry.import<T>(file)
-      } finally {
-        for (const id of registry.loadedModules()) loaded.add(id)
-      }
+      return registry.import<T>(file)
     },
-    loadedModules: () => [...loaded],
     dispose: () => {
       for (const registry of registries.splice(0)) registry.dispose()
-      loaded.clear()
       loader[Symbol.dispose]()
     },
     [Symbol.dispose]: () => {

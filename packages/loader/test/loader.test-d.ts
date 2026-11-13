@@ -99,7 +99,7 @@ buildThirdPartyGraph({ root: '/repo' })
 importersOf('/a.js', graph)
 
 // The coordinator-mode loader (U5): the same settings as a worker's, a module imported by its
-// absolute path, and the user modules it loaded.
+// absolute path.
 expectTypeOf(createCoordinatorLoader).parameters.toEqualTypeOf<
   [root: string, config: SerializedLoaderConfig, policy: ModulePolicy]
 >()
@@ -109,8 +109,9 @@ expectTypeOf(coordinator.import<{ default: () => void }>('/setup.ts')).toEqualTy
   Promise<{ default: () => void }>
 >()
 expectTypeOf(coordinator.import('/setup.ts')).toEqualTypeOf<Promise<unknown>>()
-expectTypeOf(coordinator.loadedModules()).toEqualTypeOf<readonly ModuleId[]>()
 expectTypeOf(coordinator.dispose()).toEqualTypeOf<void>()
+// @ts-expect-error what a file loaded is a worker's file registry's to report, not the coordinator's
+coordinator.loadedModules()
 // @ts-expect-error a coordinator loader has no file registry or mocks: it imports files
 coordinator.createFileRegistry('/setup.ts', { tier: 'none' })
 // @ts-expect-error the file is an absolute path string
