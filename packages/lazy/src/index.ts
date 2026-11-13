@@ -21,6 +21,7 @@ export {
   type LazyCore,
   type LazyRuntimeOptions,
 } from './runtime/create.ts'
+export type { DescribeFn, SharedFunctions } from './runtime/shared.ts'
 export {
   currentLazyRuntime,
   installLazyRuntime,

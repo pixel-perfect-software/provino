@@ -3,6 +3,7 @@ import type { LazyHost, LazyPolicy, TestRunHandle } from '@provino/types'
 import type { EvaluatedLazy, LazyRoot } from '../types.ts'
 import { createHandles } from './handle.ts'
 import { logOf } from './read.ts'
+import { createShared, type DescribeFn, type SharedFunctions } from './shared.ts'
 import type { Engine } from './state.ts'
 
 /**
@@ -12,14 +13,16 @@ import type { Engine } from './state.ts'
 export interface LazyRuntimeOptions {
   readonly host: LazyHost
   readonly policy: LazyPolicy
+  /** The worker's `describe` (`runtime.api.describe`): `itBehavesLike` opens a nested one. */
+  readonly describe: DescribeFn
 }
 
 /**
- * The root handle and the report data. B24c adds the shared-example functions to make the whole
- * `LazyRuntime` the slot holds.
+ * The whole runtime the slot holds: the root handle, the shared-example functions and the report
+ * data.
  * @beta
  */
-export interface LazyCore {
+export interface LazyCore extends SharedFunctions {
   readonly lazy: LazyRoot
   evaluatedLazies(run: TestRunHandle): readonly EvaluatedLazy[]
 }
@@ -32,6 +35,7 @@ export function createLazyRuntime(options: LazyRuntimeOptions): LazyCore {
   const engine: Engine = { host: options.host, policy: options.policy, stack: [] }
   const makeHandle = createHandles(engine)
   return {
+    ...createShared(engine, makeHandle, options.describe),
     lazy: makeHandle([]) as unknown as LazyRoot,
     evaluatedLazies: (run) => logOf(run.slots),
   }

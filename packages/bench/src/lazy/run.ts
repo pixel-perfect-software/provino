@@ -60,7 +60,11 @@ export async function runFiles(policy: Policy, scripts: readonly Script[]): Prom
     rootDir: '/bench',
     locations: false,
   })
-  const lazyRuntime = createLazyRuntime({ host: runtime.lazyHost, policy: policy.lazy })
+  const lazyRuntime = createLazyRuntime({
+    host: runtime.lazyHost,
+    policy: policy.lazy,
+    describe: runtime.api.describe,
+  })
   env = { api: runtime.api, runtime, lazyRuntime, lazy: lazyRuntime.lazy, step }
   const fileErrors: SerializedError[][] = []
   const keepAlive = setInterval(() => {}, 60_000)
