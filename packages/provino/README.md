@@ -1,68 +1,39 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pixel-perfect-software/provino/main/assets/provino-mark.png">
-    <img src="https://raw.githubusercontent.com/pixel-perfect-software/provino/main/assets/provino-logo.png" alt="Provino" height="80">
-  </picture>
+  <img src="https://raw.githubusercontent.com/pixel-perfect-software/provino/main/assets/provino-mark.png" width="128" height="128" alt="Provino logo: a tilted test tube holding a check mark, on an indigo-to-green tile" />
 </p>
 
-# provino
+<h1 align="center">provino</h1>
 
-A test runner for JavaScript and TypeScript, for Node. One neutral core runs the tests, and Jest and Vitest are dialects on top of it. Today `provino jest` runs a Jest project: it reads the project's Jest config and command line, and runs its tests.
+<p align="center">
+  The Jest suite you already have, on a runner built to be faster: same config, same command line, same matchers, same snapshots.
+</p>
 
-**The goal is a faster runner you don't migrate to.** You keep your Jest config, command line, matchers, snapshot files and exit codes, and the suite runs faster. Most of a large Jest suite's time goes on work repeated for every test file. Provino cuts that work and keeps each file isolated:
-- each file gets fresh copies of your own modules, while `node_modules` is evaluated once per worker and shared;
-- workers are reused across files;
-- transforms go into a persistent cache, and Node's compile cache and V8's code cache skip recompiling;
-- Oxc, a Rust toolchain, compiles TypeScript and JSX instead of Babel.
+`provino jest` runs a Jest project as it is: the same `jest.config` and Jest's flags, matchers and mocks. It writes snapshot files byte for byte as Jest does, and exits with Jest's exit codes. There's nothing to migrate: you change the command. [Why Provino →](https://github.com/pixel-perfect-software/provino/blob/main/wiki/why-provino.md)
 
-Its go/no-go bar is at most half of Jest's run time warm and 80% cold, with matching results, on the reference suites. Measured results on pinned hardware are pending, so there are no speed claims yet. See [Why Provino](https://github.com/pixel-perfect-software/provino#why-provino).
+This package is the one you install. It holds every `@provino/*` package in one bundle, with the `provino` command.
 
-**Pre-alpha, and not published to npm yet.** This package is the one you install: it holds every `@provino/*` package inlined in one bundle, with the `provino` command. Until the first release, install it from a tarball built from [the repository](https://github.com/pixel-perfect-software/provino).
+## 🚀 Install
 
-## Install
+**Pre-alpha, and not published yet.** Until the first release, build the package from [the repository](https://github.com/pixel-perfect-software/provino), then add it to your Jest project. It needs Node 22.15 or later, or 24.
 
-You need Node 22.15 or later (24 recommended) and pnpm. Build the tarball once:
+```bash
+git clone https://github.com/pixel-perfect-software/provino.git && cd provino
+pnpm install && pnpm pack:all --out ~/provino-packs
 
-```sh
-git clone https://github.com/pixel-perfect-software/provino.git
-cd provino
-pnpm install
-pnpm pack:all --out ~/provino-packs
-```
-
-Then, in your Jest project:
-
-```sh
+cd ~/your-project
 pnpm add -D ~/provino-packs/provino-0.0.0.tgz
 ```
 
-## Use
+## 🧭 Getting started
 
-```sh
-pnpm exec provino jest --listTests              # the test files it would run
-pnpm exec provino jest path/to/one.test.ts      # one file first
-pnpm exec provino jest                          # the whole suite
+```bash
+pnpm exec provino jest --listTests        # the files it would run
+pnpm exec provino jest path/to/a.test.ts  # one file first
+pnpm exec provino jest                    # the whole suite
 ```
 
-`provino jest` takes Jest's own command line and the Jest config found from the working directory (or `-c`/`--config`), and exits with Jest's exit codes. A flag it can't run yet is refused by name. `provino --help` lists the commands.
+A flag Provino can't run yet is refused by name. Coverage, watch mode, `--json` output and custom reporters are planned; [Jest compatibility](https://github.com/pixel-perfect-software/provino/blob/main/wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
 
-## What works
+## 📝 License
 
-Jest's config and command line; several `projects` in one pool; TypeScript, TSX, JSX and JavaScript tests (compiled with Oxc, not type-checked); the project's own transformers (`babel-jest`, `ts-jest`, `@swc/jest`); `moduleNameMapper`; `node`, `jsdom` and custom environments, through the project's own environment class; `globalSetup` and `globalTeardown`; Jest's globals, `expect` matchers, mocks and automock, modern fake timers, `@jest/globals`, `jest.retryTimes`; snapshots in Jest's format; `--bail`, `--shard`, `--forceExit`, `--detectOpenHandles` and Ctrl+C handling; and the `default`, `verbose`, `agent` and `github-actions` reporters.
-
-## What's not in place yet
-
-- Coverage (`--coverage`), watch mode (`--watch`), `--json` and `--outputFile` for a run, custom reporters (`--reporters`), running only changed files, random test order and `--detectLeaks` are refused by name.
-- Inline snapshots (`toMatchInlineSnapshot`) compare, but can't write a new one.
-- Legacy fake timers throw.
-- `provino vitest` is not available, and the RSpec-style lazy variables are not built.
-
-The repository's [README](https://github.com/pixel-perfect-software/provino#readme) has the full list, with what happens for each. There are no benchmark results yet.
-
-## Reporting a problem
-
-If Provino and Jest disagree on a test, please [open an issue](https://github.com/pixel-perfect-software/provino/issues) with the test (or a minimal copy), Jest's result, Provino's result, and the output of `provino jest --showConfig`.
-
-## License
-
-[MIT](https://github.com/pixel-perfect-software/provino/blob/main/LICENSE). `provino` includes code copied from Jest, Vitest and a few other projects under their own MIT licenses: see `THIRD_PARTY_NOTICES.md` in this package.
+MIT © [Tyler Robertson](https://github.com/TylerNRobertson) @ [Pixel Perfect Software Inc.](https://github.com/pixel-perfect-software). `provino` includes code from Jest, Vitest and others, under their own MIT licenses; see `THIRD_PARTY_NOTICES.md` in this package.
