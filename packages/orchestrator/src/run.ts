@@ -749,7 +749,11 @@ export async function runProjects(
       finishedFiles().some((file) => file.state === 'fail') ||
       snapshotsFailRun(snapshotMembers) ||
       (orchestrator.unhandledErrors === 'fail-run' && unhandled.length > 0)
-    const summary = summarize(interrupted ? cutShort() : failed ? 'failed' : 'passed', openHandles)
+    // A signal that came while the run was winding down (the pool closing, the cache being written,
+    // the open handles being collected) leaves no file in the middle of anything, but it is still
+    // the user's interruption: the summary says so, and the exit code is the signal's.
+    const cut = interrupted || signal?.aborted === true
+    const summary = summarize(cut ? cutShort() : failed ? 'failed' : 'passed', openHandles)
     await bus.emit('run:end', summary)
     pruneTransformCaches()
     return summary

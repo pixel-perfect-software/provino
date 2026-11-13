@@ -5,7 +5,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
-import { ExitCode, exitCodeFor, type RunProjectOptions, runProject } from '@provino/orchestrator'
+import {
+  ExitCode,
+  exitCodeFor,
+  type ResultsCache,
+  type RunProjectOptions,
+  runProject,
+} from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { Reporter, RunSummary } from '@provino/types'
 import {
@@ -259,6 +265,38 @@ describe('signals', () => {
       signal: AbortSignal.abort('SIGTERM'),
     })
     assert.equal(summary.reason, 'terminated')
+  })
+
+  it('a signal that comes after every file has ended, while the run winds down, still ends it interrupted or terminated', async () => {
+    for (const [reason, expected, code] of [
+      [undefined, 'interrupted', ExitCode.Sigint],
+      ['SIGTERM', 'terminated', ExitCode.Sigterm],
+    ] as const) {
+      const controller = new AbortController()
+      const made = await makeProject({ 'a.test.js': passing() })
+      const project = runtimeProject(made.dir)
+      // The results cache is written once the last file is done: the signal lands in that window.
+      const cache: ResultsCache = {
+        get: () => undefined,
+        record: () => {},
+        prune: () => {},
+        write: async () => controller.abort(reason),
+      }
+      const summary = await runProject(project, {
+        bus: createReporterBus([]),
+        cache,
+        stderr: new Collect(),
+        pool: { kind: 'forks', maxWorkers: 1 },
+        signal: controller.signal,
+      })
+      assert.equal(summary.reason, expected)
+      assert.deepEqual(
+        summary.files.map((file) => file.state),
+        ['pass'],
+        'the file had finished: the interruption cost it nothing',
+      )
+      assert.equal(exitCodeFor(summary, { policy: project.policy }), code)
+    }
   })
 
   it('a force signal ends the run without waiting for a worker that will not stop', async () => {
