@@ -1,20 +1,13 @@
-import {
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { runCommand } from './exec.ts'
-import { type PackedPackage, packAll, pnpm } from './pack.ts'
+import { type CommandResult, runCommand } from './exec.ts'
+import { packPackage, pnpm } from './pack.ts'
+import { readManifest } from './package-json.ts'
 import { publicPackages } from './workspace.ts'
 
 /** One step of the smoke and what it printed. */
-export interface SmokeStep {
+interface SmokeStep {
   readonly name: string
   readonly ok: boolean
   readonly output: string
@@ -80,29 +73,32 @@ function removeOxcBindings(app: string): readonly string[] {
 }
 
 /**
- * Packs every public package with `pnpm pack`, installs `provino` from its tarball into an empty
- * directory (outside the repository, so none of its pnpm settings apply), and runs
- * `provino --version` and the three-file smoke suite there. The install reaches the registry
- * for `provino`'s own dependencies; it uses no registry copy of Provino. It is the local half of
- * T10.2's install matrix: one cell, run with pnpm.
+ * Packs `provino` with `pnpm pack` (it inlines every other package, so it is the only tarball the
+ * install needs), installs it from that tarball into an empty directory (outside the repository,
+ * so none of its pnpm settings apply), and runs `provino --version` and the three-file smoke
+ * suite there. The install reaches the registry for `provino`'s own dependencies; it uses no
+ * registry copy of Provino. It is the local half of T10.2's install matrix: one cell, run with
+ * pnpm.
  * @internal
  */
 export function installSmoke(options: {
   readonly root: string
   readonly keep: boolean
-  /** Tarballs already packed, to skip the pack (hygiene has them). */
-  readonly packed?: readonly PackedPackage[]
 }): SmokeResult {
   const work = mkdtempSync(join(tmpdir(), 'provino-smoke-'))
+  const kept = options.keep ? work : undefined
   const steps: SmokeStep[] = []
   const step = (name: string, ok: boolean, output: string): boolean => {
     steps.push({ name, ok, output })
     return ok
   }
   try {
-    const packs = options.packed ?? packAll(publicPackages(options.root), join(work, 'tarballs'))
-    const provino = packs.find((packed) => packed.name === 'provino')
-    if (!step('pack', provino !== undefined, `${packs.length} tarballs`) || provino === undefined) {
+    const provinoPackage = publicPackages(options.root).find(
+      (pkg) => pkg.manifest.name === 'provino',
+    )
+    const provino =
+      provinoPackage === undefined ? undefined : packPackage(provinoPackage, join(work, 'tarballs'))
+    if (!step('pack', provino !== undefined, 'provino') || provino === undefined) {
       return { steps, ok: false, kept: undefined }
     }
     const app = join(work, 'app')
@@ -117,22 +113,12 @@ export function installSmoke(options: {
     const run = (args: readonly string[]) =>
       runCommand(command, [...prefix, ...args], { cwd: app, timeoutMs: 600_000 })
     const install = run(['add', '--ignore-workspace', '--prefer-offline', provino.tarball])
-    if (!step('install', install.status === 0, install.output)) {
-      return { steps, ok: false, kept: options.keep ? work : undefined }
-    }
+    if (!step('install', install.status === 0, install.output)) return { steps, ok: false, kept }
+    const expected = readManifest(join(app, 'node_modules', 'provino')).version ?? ''
+    const printsVersion = (result: CommandResult): boolean =>
+      result.status === 0 && result.output.trim().split('\n').at(-1) === expected
     const version = run(['exec', 'provino', '--version'])
-    const installed: unknown = JSON.parse(
-      readFileSync(join(app, 'node_modules', 'provino', 'package.json'), 'utf8'),
-    )
-    const expected =
-      typeof installed === 'object' && installed !== null && 'version' in installed
-        ? String(installed.version)
-        : ''
-    step(
-      'provino --version',
-      version.status === 0 && version.output.trim().split('\n').at(-1) === expected,
-      version.output,
-    )
+    step('provino --version', printsVersion(version), version.output)
     const suite = run(['exec', 'provino', 'jest', '--ci'])
     step(
       'smoke suite (3 files)',
@@ -146,11 +132,7 @@ export function installSmoke(options: {
       const removed = removeOxcBindings(app)
       step('Oxc bindings removed from the install', removed.length === 3, removed.join('\n'))
       const still = run(['exec', 'provino', '--version'])
-      step(
-        'provino --version with no Oxc binding',
-        still.status === 0 && still.output.trim().split('\n').at(-1) === expected,
-        still.output,
-      )
+      step('provino --version with no Oxc binding', printsVersion(still), still.output)
       const failed = run(['exec', 'provino', 'jest', '--ci'])
       step(
         'provino jest with no Oxc binding: one message, exit 1, no stack',
@@ -165,5 +147,5 @@ export function installSmoke(options: {
   } finally {
     if (!options.keep) rmSync(work, { recursive: true, force: true })
   }
-  return { steps, ok: steps.every((entry) => entry.ok), kept: options.keep ? work : undefined }
+  return { steps, ok: steps.every((entry) => entry.ok), kept }
 }

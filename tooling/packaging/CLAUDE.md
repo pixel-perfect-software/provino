@@ -13,8 +13,8 @@ How Provino's packages are built, packed and checked (B21e: T1.6, T1.10, T7.12, 
 | `src/pack.ts`, `src/lint-pack.ts` | `pnpm pack` per package (never `npm pack`: only pnpm rewrites `workspace:` and `catalog:` and applies `publishConfig`, D75), then publint (`--strict`, level `suggestion`, must print "All good!") and `attw --profile esm-only` on the tarball |
 | `src/api-reports.ts`, `src/changesets.ts`, `src/git.ts` | API Extractor per entry point of the semver packages, `etc/<package>[-<entry>].api.md` committed in the package; the changeset gate |
 | `src/install-scripts.ts`, `src/release-lint.ts`, `templates/release.yml` | The T10.4 checks: the install-script ban, and the release workflow lint with the draft it passes |
-| `src/smoke.ts` | `pnpm smoke:install`: pack, install `provino` from its tarball into an empty temp directory with pnpm, `provino --version` and a 3-file suite (the injected globals, `import … from 'provino'`, a TypeScript test), then with this platform's three Oxc binding packages moved out of the install: `--version` still answers and `provino jest` ends as one message, with no stack (T10.3, Provino's half) |
-| `src/exec.ts`, `src/package-json.ts`, `src/workspace.ts` | `runCommand` (stdout then stderr, no colour, a deadline), `binScript` (a package's bin without importing its package.json), the package.json reader, the workspace and `SEMVER_PACKAGES` |
+| `src/smoke.ts` | `pnpm smoke:install`: pack `provino` alone (it inlines the rest), install it from its tarball into an empty temp directory with pnpm, `provino --version` and a 3-file suite (the injected globals, `import … from 'provino'`, a TypeScript test), then with this platform's three Oxc binding packages moved out of the install: `--version` still answers and `provino jest` ends as one message, with no stack (T10.3, Provino's half) |
+| `src/exec.ts`, `src/package-json.ts`, `src/workspace.ts` | `runCommand` (stdout then stderr, no colour, a deadline), `binScript` (a package bin, read with `readManifest`), the package.json reader, the workspace and `SEMVER_PACKAGES` |
 | `src/*.test.ts` | The planted cases (below) |
 
 ## The umbrella (T1.10)

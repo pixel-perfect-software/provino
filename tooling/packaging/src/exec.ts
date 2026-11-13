@@ -1,7 +1,8 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readManifest } from './package-json.ts'
 
 /** What a finished command left. */
 export interface CommandResult {
@@ -132,21 +133,11 @@ function finished(
  */
 export function binScript(packageName: string, bin: string): string {
   for (let dir = dirname(fileURLToPath(import.meta.url)); ; dir = dirname(dir)) {
-    const path = join(dir, 'node_modules', packageName, 'package.json')
-    if (existsSync(path)) {
-      const manifest: unknown = JSON.parse(readFileSync(path, 'utf8'))
-      const field =
-        typeof manifest === 'object' && manifest !== null && 'bin' in manifest
-          ? manifest.bin
-          : undefined
-      const relative =
-        typeof field === 'string'
-          ? field
-          : typeof field === 'object' && field !== null
-            ? (field as Record<string, unknown>)[bin]
-            : undefined
-      if (typeof relative !== 'string') throw new Error(`${packageName} has no bin "${bin}"`)
-      return join(dirname(path), relative)
+    const packageDir = join(dir, 'node_modules', packageName)
+    if (existsSync(join(packageDir, 'package.json'))) {
+      const relative = readManifest(packageDir).bin[bin]
+      if (relative === undefined) throw new Error(`${packageName} has no bin "${bin}"`)
+      return join(packageDir, relative)
     }
     if (dirname(dir) === dir) throw new Error(`${packageName} is not installed`)
   }
