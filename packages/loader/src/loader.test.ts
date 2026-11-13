@@ -528,3 +528,54 @@ test('invalidate drops a module loaded by require() whose exports differ by cond
     assert.deepEqual(log, ['esm', 'cjs', 'only', 'esm', 'cjs', 'only'])
   })
 })
+
+// ---- loadedModules, per file (U5: the `deps` event reads it) ----
+
+const CHAIN = {
+  'leaf.ts': 'export const leaf: number = 1\n',
+  'mid.ts': "import { leaf } from './leaf.ts'\nexport const mid: number = leaf + 1\n",
+  'lonely.ts': 'export const lonely: number = 9\n',
+  'a.test.ts': "import { mid } from './mid.ts'\nexport const a: number = mid\n",
+  'b.test.ts': "import { mid } from './mid.ts'\nexport const b: number = mid\n",
+  'c.test.ts': "import { lonely } from './lonely.ts'\nexport const c: number = lonely\n",
+}
+
+test('loadedModules: under registry it is the file’s own instances, the file and what it loaded', async () => {
+  const root = writeTree(CHAIN)
+  const loader = loaderFor(root)
+  const a = loader.createFileRegistry(join(root, 'a.test.ts'), { tier: 'registry' })
+  await a.import(join(root, 'a.test.ts'))
+  assert.deepEqual(a.loadedModules().toSorted(), [
+    join(root, 'a.test.ts'),
+    join(root, 'leaf.ts'),
+    join(root, 'mid.ts'),
+  ])
+})
+
+test('loadedModules: under none it is this file’s closure, not everything the worker loaded', async () => {
+  const root = writeTree(CHAIN)
+  const loader = loaderFor(root)
+  const a = loader.createFileRegistry(join(root, 'a.test.ts'), { tier: 'none' })
+  await a.import(join(root, 'a.test.ts'))
+  assert.deepEqual(a.loadedModules().toSorted(), [
+    join(root, 'a.test.ts'),
+    join(root, 'leaf.ts'),
+    join(root, 'mid.ts'),
+  ])
+  a.dispose()
+
+  // b.test.ts finds mid.ts (and leaf.ts under it) already evaluated: nothing is evaluated again,
+  // yet they are what b loaded. a.test.ts and lonely.ts are not.
+  const b = loader.createFileRegistry(join(root, 'b.test.ts'), { tier: 'none' })
+  await b.import(join(root, 'b.test.ts'))
+  assert.deepEqual(b.loadedModules().toSorted(), [
+    join(root, 'b.test.ts'),
+    join(root, 'leaf.ts'),
+    join(root, 'mid.ts'),
+  ])
+  b.dispose()
+
+  const c = loader.createFileRegistry(join(root, 'c.test.ts'), { tier: 'none' })
+  await c.import(join(root, 'c.test.ts'))
+  assert.deepEqual(c.loadedModules().toSorted(), [join(root, 'c.test.ts'), join(root, 'lonely.ts')])
+})

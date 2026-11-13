@@ -149,6 +149,12 @@ export class Registry {
   #ledger = createLedger()
   /** The running file's context. Under `none` the registry is shared, and each file sets its own. */
   context: FileContext = NO_FILE
+  /**
+   * The user modules the running file asked for (under `none`, where the registry outlives the
+   * file): a module an earlier file evaluated is found, not evaluated again, and is still one the
+   * file loaded. `null` outside `beginFile`/`endFile`.
+   */
+  #touched: Set<ModuleId> | null = null
 
   constructor(state: Records, base: Map<ModuleId, Instance> = new Map()) {
     this.#state = state
@@ -176,6 +182,43 @@ export class Registry {
 
   loaded(): ModuleId[] {
     return [...new Set(this.#maps.flatMap((map) => [...map.keys()]))]
+  }
+
+  /** Starts counting the modules a file asks for (the shared registry of tier `none`). */
+  beginFile(): void {
+    this.#touched = new Set()
+  }
+
+  /** Stops counting; the next `beginFile` starts over. */
+  endFile(): void {
+    this.#touched = null
+  }
+
+  /**
+   * What the file loaded, under `none`: the modules it asked for and, through each one's
+   * dependency edges, the loaded modules those reach (an evaluated module's imports are part of
+   * what the file needs, though the file didn't evaluate them). Over-approximate for a CommonJS
+   * module, whose edges are its `require` calls as the scan sees them. Without `beginFile`, every
+   * instance.
+   */
+  loadedByFile(): ModuleId[] {
+    const touched = this.#touched
+    if (touched === null) return this.loaded()
+    const live = new Set(this.loaded())
+    const seen = new Set<ModuleId>(touched)
+    const queue = [...touched]
+    for (let at = 0; at < queue.length; at++) {
+      const id = queue[at]
+      if (id === undefined) continue
+      for (const edge of userEdgesOf(this.#state, id) ?? []) {
+        if (edge.target === null) continue
+        const target = toModuleId(edge.target)
+        if (seen.has(target) || !live.has(target)) continue
+        seen.add(target)
+        queue.push(target)
+      }
+    }
+    return [...seen]
   }
 
   /**
@@ -631,6 +674,7 @@ export class Registry {
   }
 
   #evaluateSync(record: ModuleRecord): Instance {
+    this.#touched?.add(record.id)
     const instances = this.#instances
     const existing = instances.get(record.id)
     if (existing !== undefined) {
@@ -681,6 +725,7 @@ export class Registry {
   }
 
   #evaluateAsync(record: ModuleRecord): Promise<object> {
+    this.#touched?.add(record.id)
     const existing = this.#instances.get(record.id)
     if (existing !== undefined) {
       if (existing.status === 'errored') return Promise.reject(existing.error)
