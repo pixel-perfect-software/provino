@@ -1,4 +1,4 @@
 {
-  "description": "A function as Vitest's retry.condition. Vitest 5.0.5 types it as (error) => boolean and its runner has code to call it, but a function given to a test's retry option is never called: the failed test is retried on every failure (the function's trace line never appears, and one that returns false still retries). Provino calls it (DIVERGENCES, D7).",
+  "description": "A function as Vitest's retry.condition. Vitest 5.0.5 types it as (error) => boolean and its runner has code to call it, but a function given to a test's retry option is never called: the failed test is retried on every failure (the function's trace line never appears, and one that returns false still retries). Provino's Vitest dialect keeps that outcome and warns once a file (policy retry.functionCondition: ignore-warn, D7); neutral mode calls the function.",
   "runners": ["vitest"]
 }
