@@ -15,7 +15,9 @@ const BINDING = /^@oxc-(?:parser|transform|resolver)\/binding-/
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (process.env.PROVINO_BLOCK === 'other') {
-      if (specifier === 'oxc-parser') {
+      // Only the import of it: the bin's probe `require.resolve`s it to look for the bindings, and
+      // those are installed here.
+      if (specifier === 'oxc-parser' && context.conditions.includes('import')) {
         throw new Error(
           'Cannot find native binding. npm has a bug related to optional dependencies (https://github.com/npm/cli/issues/4828). Please try `npm i` again after removing both package-lock.json and node_modules directory.',
           { cause: new Error("Cannot find module '@swc/core-darwin-arm64'") },
