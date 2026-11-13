@@ -7,13 +7,49 @@
 
 # Provino
 
-Provino is a test runner for JavaScript and TypeScript, for Node. One neutral core runs the tests, and Jest and Vitest are *dialects* on top of it, so Provino can take an existing project as it is. Today the Jest dialect works: `provino jest` reads a Jest project's config and command line, and runs its tests.
+Provino is a test runner for JavaScript and TypeScript, for Node, built to run the test suite you already have, faster. One neutral core runs the tests, and Jest and Vitest are *dialects* on top of it, so Provino can take an existing project as it is. Today the Jest dialect works: `provino jest` reads a Jest project's config and command line, and runs its tests.
+
+## Why Provino
+
+Most of the time a large Jest suite spends isn't spent running tests. It goes on work repeated for every test file:
+- evaluating the module graph again, `node_modules` included;
+- building the test environment again and re-running setup files;
+- pushing source through Babel.
+
+Jest gives each file a fresh module environment that nothing can share. That is what makes its isolation safe, and also what makes big suites slow.
+
+The faster runners each ask you to change something first:
+- **Vitest** needs Vite and has its own API (`vi`, its own config, different defaults), so moving a large Jest suite over is a migration.
+- **Bun's test runner** needs the Bun runtime.
+- **Node's built-in `node:test`** has no `expect`, and its module mocks are still experimental.
+
+**Provino's goal is to be the faster runner you don't migrate to.** You point it at the Jest project you have, and the suite runs with:
+- your config;
+- your command line;
+- your matchers;
+- your snapshot files, byte for byte;
+- the same exit codes.
+
+It aims to be faster through the way it's built, without giving up isolation:
+
+- **Your modules are fresh in every test file; `node_modules` isn't.** Each file gets a new registry for your own code, while third-party modules are evaluated once per worker and shared. A file that needs them fresh can ask for a stricter isolation tier with an `@provino-isolate` docblock.
+- **Warm work is kept:**
+  - workers are reused across files;
+  - transformed code goes into a persistent cache;
+  - Node's compile cache and V8's code cache skip recompiling.
+- **Oxc compiles TypeScript and JSX instead of Babel.** Oxc is a Rust toolchain. Your project's own transformers (`babel-jest`, `ts-jest`, `@swc/jest`) still run when its config names them.
+- **Matching Jest is checked, not assumed.** Every place where Jest and Vitest behave differently is a typed policy value that the dialect supplies. Each value is checked against goldens recorded from the real Jest 30.5 and Vitest 5.0, and where Provino deliberately differs, the difference is recorded.
+
+**The bar Provino holds itself to** is its go/no-go line. On the reference suites, it must take at most half of Jest's time warm and at most 80% cold, with at least 90% of tests getting the same result as Jest. The plan has three steps after that bar:
+- `provino vitest` for Vitest projects;
+- RSpec-style lazy variables as the default way to define test values;
+- a Rust core for discovery, resolution, transforms and scheduling.
 
 ## Status
 
 **Pre-alpha, and not on npm.** You can install the `provino` package from a tarball you build from this repository (below), and run it against a Jest project, within the limits listed under [What's not in place yet](#whats-not-in-place-yet). Two things are not built at all: `provino vitest`, and the RSpec-style lazy variables that are planned as the default way to define test values.
 
-There are no benchmark results to quote. Benchmarks on pinned hardware are pending, and Provino makes no claim about speed.
+There are no benchmark results to quote yet. The bar above is a target. Results will come from benchmarks on pinned hardware, which are pending; numbers from a developer's laptop are signals, not results.
 
 ## Try it on a Jest project
 

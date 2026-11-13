@@ -9,6 +9,14 @@
 
 A test runner for JavaScript and TypeScript, for Node. One neutral core runs the tests, and Jest and Vitest are dialects on top of it. Today `provino jest` runs a Jest project: it reads the project's Jest config and command line, and runs its tests.
 
+**The goal is a faster runner you don't migrate to.** You keep your Jest config, command line, matchers, snapshot files and exit codes, and the suite runs faster. Most of a large Jest suite's time goes on work repeated for every test file. Provino cuts that work and keeps each file isolated:
+- each file gets fresh copies of your own modules, while `node_modules` is evaluated once per worker and shared;
+- workers are reused across files;
+- transforms go into a persistent cache, and Node's compile cache and V8's code cache skip recompiling;
+- Oxc, a Rust toolchain, compiles TypeScript and JSX instead of Babel.
+
+Its go/no-go bar is at most half of Jest's run time warm and 80% cold, with matching results, on the reference suites. Measured results on pinned hardware are pending, so there are no speed claims yet. See [Why Provino](https://github.com/pixel-perfect-software/provino#why-provino).
+
 **Pre-alpha, and not published to npm yet.** This package is the one you install: it holds every `@provino/*` package inlined in one bundle, with the `provino` command. Until the first release, install it from a tarball built from [the repository](https://github.com/pixel-perfect-software/provino).
 
 ## Install
