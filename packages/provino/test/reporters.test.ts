@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { run } from 'provino/node'
+import { runJest } from './live-jest.ts'
 import { loadFixture, materialize } from './recorded.ts'
 import { Collect, failing, passing, spawnCli, trackedProjects } from './support.ts'
 
@@ -62,11 +63,23 @@ describe('provino jest prints what Jest 30.5.2 printed (the lines each recording
       '--verbose: each test under its describe titles, console before the header',
     ],
     ['cli/report-silent', '--silent: the same headers and totals, and no console output'],
+    [
+      'cli/report-single-file',
+      'a single test file lists its tests with no --verbose, console first (runJest turns it on)',
+    ],
+    [
+      'cli/report-single-file-silent',
+      'a single test file under --silent is not verbose: header, totals, no console',
+    ],
+    [
+      'cli/report-single-file-verbose-false',
+      'a single test file under verbose: false is not verbose: the console block under the header',
+    ],
   ] as const) {
     it(`${what} (${id})`, async () => {
       const run = await provinoOn(id)
       assert.equal(run.code, run.expectedCode, run.stderr)
-      assert.ok(run.expected.length > 5, 'the recording kept lines')
+      assert.ok(run.expected.length >= 3, 'the recording kept lines')
       assert.deepEqual(run.lines, run.expected, run.stderr)
     })
   }
@@ -103,6 +116,64 @@ describe('provino jest prints what Jest 30.5.2 printed (the lines each recording
     ]) {
       assert.ok(run.lines.includes(line), `lists "${line}":\n${run.lines.join('\n')}`)
     }
+  })
+})
+
+describe('a run of one test file is verbose under provino jest, as Jest has it (runJest)', () => {
+  const config = (dir: string): string =>
+    JSON.stringify({ rootDir: dir, testMatch: ['<rootDir>/tests/**/*.test.js'] })
+
+  it('lists the test with no flag, for one file; two files list none', async () => {
+    const one = await makeProject({ 'tests/a.test.js': passing('only one') })
+    const alone = await spawnCli(['jest', '--config', config(one.dir)], { cwd: one.dir })
+    assert.equal(alone.code, 0, alone.stderr)
+    assert.match(alone.stderr, /^ {2}✓ only one( \(\d+ ms\))?$/m)
+    const two = await makeProject({
+      'tests/a.test.js': passing('first'),
+      'tests/b.test.js': passing('second'),
+    })
+    const both = await spawnCli(['jest', '--config', config(two.dir)], { cwd: two.dir })
+    assert.equal(both.code, 0, both.stderr)
+    assert.doesNotMatch(both.stderr, /✓/)
+  })
+
+  it('counts the files the filters leave: a path pattern that picks one of two', async () => {
+    const two = await makeProject({
+      'tests/a.test.js': passing('first'),
+      'tests/b.test.js': passing('second'),
+    })
+    const ran = await spawnCli(['jest', '--config', config(two.dir), 'a.test'], { cwd: two.dir })
+    assert.match(ran.stderr, /^ {2}✓ first( \(\d+ ms\))?$/m)
+    assert.doesNotMatch(ran.stderr, /second/)
+  })
+
+  it('--no-verbose and --verbose=false keep it off, as real Jest does (live)', async () => {
+    const project = await makeProject({ 'tests/a.test.js': passing('only one') })
+    for (const flag of ['--no-verbose', '--verbose=false']) {
+      const args = ['--config', config(project.dir), flag]
+      const live = await runJest(project.dir, ['--watchman=false', '--ci', ...args])
+      const ours = await spawnCli(['jest', '--ci', ...args], { cwd: project.dir })
+      assert.doesNotMatch(live.stderr, /✓/, `Jest ${flag}`)
+      assert.doesNotMatch(ours.stderr, /✓/, `Provino ${flag}`)
+      assert.match(ours.stderr, /^PASS tests\/a\.test\.js$/m)
+    }
+  })
+
+  it('--silent keeps it off, with the file’s console output too (live)', async () => {
+    const project = await makeProject({ 'tests/a.test.js': passing('only one') })
+    const args = ['--config', config(project.dir), '--silent']
+    const live = await runJest(project.dir, ['--watchman=false', '--ci', ...args])
+    const ours = await spawnCli(['jest', '--ci', ...args], { cwd: project.dir })
+    assert.doesNotMatch(live.stderr, /✓/)
+    assert.doesNotMatch(ours.stderr, /✓/)
+  })
+
+  it('is Jest’s alone: provino run lists nothing for one file', async () => {
+    const project = await makeProject({ 'tests/a.test.js': passing('only one') })
+    const ran = await spawnCli(['run', '--config', project.config], { cwd: project.dir })
+    assert.equal(ran.code, 0, ran.stderr)
+    assert.match(ran.stderr, /^PASS tests\/a\.test\.js$/m)
+    assert.doesNotMatch(ran.stderr, /✓/)
   })
 })
 

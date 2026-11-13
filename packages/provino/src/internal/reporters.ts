@@ -81,6 +81,11 @@ export interface DisplayOptions {
   readonly verbose?: boolean
   /** Print none of the tests' console output. */
   readonly silent?: boolean
+  /**
+   * `default` lists every test when the run has exactly one test file: Jest's own rule, which
+   * `provino jest` sets (unless `--silent` or `verbose: false`) and `provino run` does not.
+   */
+  readonly verboseForOneFile?: boolean
   /** `verbose` lists skipped and todo tests in declaration order. */
   readonly expand?: boolean
   /** Leave the stack frames out of the failure messages. */
@@ -233,6 +238,7 @@ function textOptions(context: ReporterContext, output: OutputEnvironment): TextR
     ...(display?.silent === true ? { silent: true } : {}),
     ...(display?.noStackTrace === true ? { noStackTrace: true } : {}),
     ...(display?.expand === true ? { expand: true } : {}),
+    ...(display?.verboseForOneFile === true ? { verboseForOneFile: true } : {}),
   }
 }
 

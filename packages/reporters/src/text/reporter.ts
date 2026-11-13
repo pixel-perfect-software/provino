@@ -44,7 +44,7 @@ export interface TextReporterOptions {
    * finish (a terminal, not CI, not an agent). Default `false`.
    */
   readonly live?: boolean
-  /** The terminal's width, for the live block. Default 80. */
+  /** The terminal's width, for the live block and the dots' wrap. Default 80, also for a width that is not at least 1. */
   readonly columns?: number
   /** Print none of the tests' console output (Jest's `--silent`). */
   readonly silent?: boolean
@@ -52,6 +52,13 @@ export interface TextReporterOptions {
   readonly noStackTrace?: boolean
   /** `verbose`: list skipped and todo tests in declaration order, not after the others (Jest's `--expand`). */
   readonly expand?: boolean
+  /**
+   * `default` lists every test, as `verbose` does, when the run has exactly one test file (what
+   * `run:start` announces). That is Jest's rule, which turns `--verbose` on for one file unless
+   * `--silent` or `verbose: false`: the caller applies those two, this only watches the file
+   * count. No effect on `verbose`, `agent` or `dot`. Default `false`.
+   */
+  readonly verboseForOneFile?: boolean
 }
 
 /**
@@ -115,6 +122,9 @@ export function createTextReporter(
     style,
   })
   const quiet = mode === 'agent' || mode === 'dot'
+  // Whether each file's tests are listed: `verbose`, or `default` in a run of one file when asked
+  // (Jest's rule, decided at `run:start` from the files it announces).
+  let listing = mode === 'verbose'
   let state = freshState()
   // Whether the last thing printed ended in a blank line, so the totals don't add a second.
   let atBlank = true
@@ -179,6 +189,9 @@ export function createTextReporter(
     'run:start'(_info, files) {
       state = freshState()
       state.queued = files.length
+      listing =
+        mode === 'verbose' ||
+        (mode === 'default' && options.verboseForOneFile === true && files.length === 1)
       row = 0
       afterDots = false
       deferred = []
@@ -332,7 +345,7 @@ export function createTextReporter(
         : failLine(shown, result.durationMs, style)
     const entries = state.console.get(result.file.fileId) ?? []
     const parts: string[] = []
-    if (mode === 'verbose') {
+    if (listing) {
       if (entries.length > 0) {
         parts.push(
           consoleEntries(

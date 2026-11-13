@@ -406,6 +406,65 @@ describe('the verbose reporter', () => {
   })
 })
 
+describe('verboseForOneFile (Jest turns --verbose on for a run of one test file)', () => {
+  const one: FileSpec = {
+    path: 'a.test.ts',
+    tests: [
+      { path: ['group', 'works'], durationMs: 3 },
+      { path: ['later'], state: 'skip' },
+    ],
+    console: [{ text: 'hello\n' }],
+  }
+  const two: FileSpec = { path: 'b.test.ts', tests: [{ path: ['t'] }] }
+
+  test('lists the tests of the one file, console first, as verbose does', async () => {
+    const asked = await written(defaultReporter, [one], { verboseForOneFile: true })
+    const verbose = await written(verboseReporter, [one])
+    assert.equal(asked, verbose)
+    // The console block first (cli/report-single-file), then the root's own tests, then the suites.
+    assert.match(
+      asked,
+      /^ {2}console\.log\n {4}hello\n\nPASS \.\/a\.test\.ts\n {2}○ skipped later\n {2}group\n {4}✓ works \(3 ms\)\n\n/,
+    )
+  })
+
+  test('does nothing for a run of two files, or of none', async () => {
+    const plain = await written(defaultReporter, [one, two])
+    assert.equal(await written(defaultReporter, [one, two], { verboseForOneFile: true }), plain)
+    assert.doesNotMatch(plain, /✓/)
+    const empty = await written(defaultReporter, [])
+    assert.equal(await written(defaultReporter, [], { verboseForOneFile: true }), empty)
+  })
+
+  test('counts the files run:start announces, so a second file the run never reached still makes two', async () => {
+    const out = output()
+    const bus = createReporterBus([
+      defaultReporter({ stream: out, report: REPORT, verboseForOneFile: true }),
+    ])
+    await playRun(bus, [one], { notRun: ['never.test.ts'] })
+    assert.doesNotMatch(out.text(), /✓/)
+  })
+
+  test('leaves the dot and agent reporters alone', async () => {
+    for (const make of [dotReporter, agentReporter]) {
+      const plain = await written(make, [one])
+      assert.equal(await written(make, [one], { verboseForOneFile: true }), plain)
+    }
+  })
+
+  test('starts over at each run:start: one file, then two', async () => {
+    const out = output()
+    const bus = createReporterBus([
+      defaultReporter({ stream: out, report: REPORT, verboseForOneFile: true }),
+    ])
+    await playRun(bus, [one])
+    const first = out.text().length
+    await playRun(bus, [one, two])
+    assert.match(out.text().slice(0, first), /✓ works/)
+    assert.doesNotMatch(out.text().slice(first), /✓/)
+  })
+})
+
 describe('the agent reporter', () => {
   test('prints nothing for a passing run but the totals', async () => {
     const text = await written(agentReporter, [
@@ -560,7 +619,11 @@ describe('the dot reporter', () => {
       durationMs: 1,
     })
     const text = out.text()
-    assert.match(text, /^\.\n\n {2}● Run error\n\n {4}mid-run\n\nF\.\n\nFAIL \.\/a\.test\.ts\n/, text)
+    assert.match(
+      text,
+      /^\.\n\n {2}● Run error\n\n {4}mid-run\n\nF\.\n\nFAIL \.\/a\.test\.ts\n/,
+      text,
+    )
   })
 
   test('takes a width of zero, or none that makes sense, for the default 80', async () => {

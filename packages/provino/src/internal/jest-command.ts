@@ -131,7 +131,9 @@ function report(diagnostics: readonly Diagnostic[], stderr: NodeJS.WritableStrea
 /**
  * How Jest's presentation flags and config keys look to the reporters: `verbose` (the global config
  * or any project), `silent`, `expand` and `noStackTrace` from the merged global config, and the
- * colour request from `--color`, `--colors` and `--no-color`.
+ * colour request from `--color`, `--colors` and `--no-color`. A run of exactly one test file is
+ * verbose too, as `runJest` has it (`allTests.length === 1 && silent !== true && verbose !== false`
+ * on the global config: a `verbose` that is unset is not `false`); the reporter counts the files.
  */
 function presentation(
   read: { readonly verbose: boolean; readonly globalConfig: JestGlobalConfig },
@@ -140,6 +142,9 @@ function presentation(
   const { globalConfig } = read
   return {
     ...(read.verbose ? { verbose: true } : {}),
+    ...(globalConfig.silent !== true && globalConfig.verbose !== false
+      ? { verboseForOneFile: true }
+      : {}),
     ...(globalConfig.silent === true ? { silent: true } : {}),
     ...(globalConfig.expand ? { expand: true } : {}),
     ...(globalConfig.noStackTrace ? { noStackTrace: true } : {}),
