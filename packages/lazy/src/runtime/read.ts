@@ -340,6 +340,8 @@ function withTimeout(
 interface Outcome {
   readonly ok: boolean
   readonly value: unknown
+  /** The run's log entry, when the frame is a test's. */
+  readonly logged: Logged | undefined
 }
 
 /**
@@ -392,27 +394,19 @@ function run(engine: Engine, entry: LazyEntry, frame: LazyFrame, from: EvalFrame
   const start = performance.now()
   let outcome: Outcome
   let failedChain: readonly string[] | undefined
-  let logged: Logged | undefined
   engine.stack.push(evalFrame)
   try {
     let value = entry.define(deps, ctx)
     if (controller !== undefined && entry.timeout !== undefined && isThenable(value)) {
       value = withTimeout(value, entry, entry.timeout, controller)
     }
-    if (value instanceof Promise) {
-      // The rejection is observed on a side branch: the value stays the one the definition
-      // returned (same object, same class), and the consumer's own handling is untouched. Any
-      // other thenable is not touched at all (calling its `then` could start its work), so its
-      // rejection is not flagged on the log.
-      const path = pathTo(engine, evalFrame, from)
-      const chains = chainsOf(frame)
-      Promise.prototype.then.call(value, undefined, (error: unknown): void => {
-        logged?.fail(markChain(error, path, chains))
-      })
-    }
-    outcome = { ok: true, value }
+    // The value goes back as the definition made it. A promise or any other thenable is never
+    // touched (no `then` call, no handler attached), so a rejection nobody awaits is still the
+    // unhandled rejection it would be without Provino. An async rejection is therefore not
+    // flagged on the log here; the eager hook, which awaits the value itself, flags the one it sees.
+    outcome = { ok: true, value, logged: undefined }
   } catch (error) {
-    outcome = { ok: false, value: error }
+    outcome = { ok: false, value: error, logged: undefined }
     failedChain = markChain(error, pathTo(engine, evalFrame, from), chainsOf(frame))
   } finally {
     engine.stack.pop()
@@ -423,9 +417,10 @@ function run(engine: Engine, entry: LazyEntry, frame: LazyFrame, from: EvalFrame
       log = []
       frame.run.slots.set(LOG, log)
     }
-    logged = new Logged(entry, performance.now() - start)
+    const logged = new Logged(entry, performance.now() - start)
     if (!outcome.ok) logged.fail(failedChain)
     log.push(logged)
+    return { ok: outcome.ok, value: outcome.value, logged }
   }
   return outcome
 }
@@ -500,6 +495,8 @@ export async function evaluateEager(
     (error: unknown) => {
       cell.state = ERR
       cell.value = error
+      // Provino awaited this rejection itself (the hook fails with it), so it is flagged.
+      outcome.logged?.fail(markChain(error, [entry], chainsOf(frame)))
     },
   )
   await cell.wait

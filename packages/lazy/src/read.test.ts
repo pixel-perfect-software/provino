@@ -382,7 +382,9 @@ describe('the failure chain (T6.10)', () => {
     )
   })
 
-  test('a rejection is marked and logged when it happens, and the consumer sees the same error', async () => {
+  test('an async rejection the test awaits reaches it unchanged, and the log does not flag it', async () => {
+    // Provino never attaches a handler to the promise, so it cannot see the rejection: the entry
+    // is not failed, and the error carries no mark.
     const w = createWorld()
     const boom = new Error('rejected')
     let seen: unknown
@@ -401,11 +403,12 @@ describe('the failure chain (T6.10)', () => {
       }),
     )
     assert.equal(seen, boom)
+    assert.equal(Object.hasOwn(boom, LAZY_CHAIN), false)
     const run = w.runs[0]
     assert.ok(run)
     const [entry] = w.runtime.evaluatedLazies(run)
-    assert.equal(entry?.failed, true)
-    assert.deepEqual(entry?.chain, ['slow'])
+    assert.equal(entry?.failed, false)
+    assert.equal(Object.hasOwn(entry ?? {}, 'chain'), false)
   })
 
   test('a value that evaluates fine is not failed and carries no chain', async () => {
@@ -494,29 +497,44 @@ describe('what a definition returns is never replaced (review of T6.10)', () => 
     assert.equal(same, true)
   })
 
-  test('a native promise is returned as it is, and its rejection still flags the entry', async () => {
+  test('a native rejection nobody awaits is still an unhandled rejection', async () => {
     const w = createWorld()
     const boom = new Error('rejected')
-    let seen: unknown
     let promise: Promise<never> | undefined
-    passed(
-      await w.runFile('a.test.ts', () => {
-        const $ = w.lazy.let('p', () => {
-          promise = Promise.reject(boom)
-          return promise
-        })
-        w.test('t', async () => {
-          seen = $.p
-          await assert.rejects(Promise.resolve($.p), boom)
-        })
-      }),
-    )
+    let seen: unknown
+    const unhandled: { reason: unknown; promise: Promise<unknown> }[] = []
+    const probe = (reason: unknown, rejected: Promise<unknown>): void => {
+      unhandled.push({ reason, promise: rejected })
+    }
+    // node:test's own listener would fail this file on the rejection the test makes on purpose,
+    // so only the probe listens while it runs.
+    const others = process.listeners('unhandledRejection')
+    process.removeAllListeners('unhandledRejection')
+    process.on('unhandledRejection', probe)
+    try {
+      passed(
+        await w.runFile('a.test.ts', () => {
+          const $ = w.lazy.let('p', () => {
+            promise = Promise.reject(boom)
+            return promise
+          })
+          w.test('t', () => {
+            seen = $.p
+          })
+        }),
+      )
+      for (let i = 0; i < 3 && unhandled.length === 0; i++) {
+        await new Promise((resolve) => setImmediate(resolve))
+      }
+    } finally {
+      process.off('unhandledRejection', probe)
+      for (const listener of others) process.on('unhandledRejection', listener)
+    }
     assert.equal(seen, promise)
+    assert.deepEqual(unhandled, [{ reason: boom, promise }])
     const run = w.runs[0]
     assert.ok(run)
-    const [entry] = w.runtime.evaluatedLazies(run)
-    assert.equal(entry?.failed, true)
-    assert.deepEqual(entry?.chain, ['p'])
+    assert.equal(w.runtime.evaluatedLazies(run)[0]?.failed, false)
   })
 })
 
