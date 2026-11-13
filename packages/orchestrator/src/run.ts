@@ -31,6 +31,7 @@ import type {
 import { cacheDirectories, createResultsCache, type ResultsCache } from './cache.ts'
 import { type DiscoveredFile, discoverFiles } from './discover.ts'
 import { discoverByRules } from './discover-rules.ts'
+import { createDepsTable, type DepsTable } from './deps-table.ts'
 import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
 import { OrchestratorError } from './errors.ts'
 import { isRunSignal, RUN_SIGNALS } from './exit-code.ts'
@@ -499,6 +500,8 @@ export async function runProjects(
   let ended: RunSummary | undefined
   /** Per worker, the file it ran last and when that file's `file:end` has been emitted. */
   const lastFile = new Map<number, { readonly info: FileInfo; readonly ended: Promise<void> }>()
+  /** Per worker, the module paths its `deps` events have named: the ids are the worker's for its life. */
+  const depsTables = new Map<number, DepsTable>()
   // Nothing starts until a file is run, but this is where a bad option throws (`recycle`, the
   // transport's own entry), so it comes before `run:start`.
   const pool = createPool(poolOptions, {
@@ -611,6 +614,8 @@ export async function runProjects(
     const { member } = entry
     /** This file's failed tests: added to the run's count as they fail, or when the file ends. */
     let failedInFile = 0
+    /** The worker that took the file (set by `onStart`, before any of its events). */
+    let takenBy = -1
     const dispatch = createFileDispatch({
       bus,
       file: entry.info,
@@ -618,6 +623,14 @@ export async function runProjects(
       onTestFailed: () => {
         failedInFile++
         if (bailAfter === 'test') countFailed(1)
+      },
+      depsTable: () => {
+        let table = depsTables.get(takenBy)
+        if (table === undefined) {
+          table = createDepsTable()
+          depsTables.set(takenBy, table)
+        }
+        return table
       },
     })
     const job: FileJob = {
@@ -635,6 +648,7 @@ export async function runProjects(
         key: member.key,
         job,
         onStart: async (workerId) => {
+          takenBy = workerId
           takenAt = performance.now()
           lastFile.set(workerId, { info: entry.info, ended: ended.promise })
           await bus.emit('file:start', entry.info, workerId)

@@ -190,6 +190,15 @@ export function busEventFor(event: WorkerEvent): keyof ReporterEvents | null {
   }
 }
 
+// U5: the modules a file loaded cross as the paths the worker had not sent and an id for each
+// module, so the event carries numbers and strings only.
+type DepsEvent = Extract<WorkerEvent, { readonly type: 'deps' }>
+expectTypeOf<DepsEvent['added']>().toEqualTypeOf<readonly string[]>()
+expectTypeOf<DepsEvent['ids']>().toEqualTypeOf<readonly number[]>()
+expectTypeOf<DepsEvent>().toExtend<CloneSafe<DepsEvent>>()
+// @ts-expect-error the paths are no longer the event's list: `added` and `ids` replace `modules`
+expectTypeOf<DepsEvent['modules']>()
+
 // T9.5 and T9.10: a file's deadline, the memory a worker may hold, how a worker ends, how a run ends.
 expectTypeOf<PoolOptions['fileTimeoutMs']>().toEqualTypeOf<number | undefined>()
 expectTypeOf<PoolOptions['recycle']['memoryLimitBytes']>().toEqualTypeOf<number | undefined>()

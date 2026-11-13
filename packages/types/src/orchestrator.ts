@@ -137,7 +137,17 @@ export type WorkerEvent =
   | {
       readonly type: 'deps'
       readonly fileId: TaskId
-      readonly modules: readonly string[]
+      /**
+       * The user modules the file loaded, as numbers: a worker names each path once for its whole
+       * life and sends its id after that, so a file that loads 1,500 modules costs a few
+       * kilobytes on the link, not the paths themselves. `ids` has one entry per module, in the
+       * worker's order. `added` holds the paths this worker had not sent before; they take the
+       * next free ids, in order, from where the worker's earlier `deps` events left off (the
+       * first event's `added[0]` is 0). The coordinator keeps one table per worker and rebuilds
+       * the list by appending `added` to it, then reading each id.
+       */
+      readonly added: readonly string[]
+      readonly ids: readonly number[]
       readonly t: number
     }
 

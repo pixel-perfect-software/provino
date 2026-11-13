@@ -157,6 +157,8 @@ export function startWorker(
   let startFailure: { readonly error: unknown } | undefined
   /** One controller per file received and not finished: a `cancel` aborts them all. */
   const controllers = new Map<number, AbortController>()
+  /** The id of each module path this worker has sent in a `deps` event (the coordinator keeps the same table). */
+  const interned = new Map<string, number>()
 
   const rpcOptions: RpcOptions =
     options.serializeError === undefined ? {} : { serializeError: options.serializeError }
@@ -247,12 +249,19 @@ export function startWorker(
       leakedGlobals = outcome?.leakedGlobals ?? []
       snapshot = outcome?.snapshot ?? null
       if (outcome?.deps !== undefined) {
-        packer.emit({
-          type: 'deps',
-          fileId: job.fileId,
-          modules: outcome.deps,
-          t: performance.now(),
-        })
+        // Each path crosses the link once per worker; after that it is its id.
+        const added: string[] = []
+        const ids: number[] = []
+        for (const path of outcome.deps) {
+          let id = interned.get(path)
+          if (id === undefined) {
+            id = interned.size
+            interned.set(path, id)
+            added.push(path)
+          }
+          ids.push(id)
+        }
+        packer.emit({ type: 'deps', fileId: job.fileId, added, ids, t: performance.now() })
       }
     } catch (error) {
       // The runtime reports test failures as events; a runner that throws is a bug, charged to the file.

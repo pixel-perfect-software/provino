@@ -181,12 +181,13 @@ describe('createFileDispatch', () => {
     assert.equal(dispatch.tests, 0)
     await dispatch.handle([
       { type: 'coverage', fileId: id('f'), payload: { type: 'json', json: '{}' }, t: 0 },
-      { type: 'deps', fileId: id('f'), modules: ['/x'], t: 0 },
+      { type: 'deps', fileId: id('f'), added: ['/x'], ids: [0, 0], t: 0 },
       collected,
       { type: 'file-end', fileId: id('f'), result, t: 1 },
     ])
     assert.equal(dispatch.result, result)
     assert.equal(dispatch.tests, 1)
+    assert.deepEqual(dispatch.deps, ['/x', '/x'], 'the deps event, rebuilt, is kept')
     assert.deepEqual(
       seen.map((entry) => entry[0]),
       ['file:collected'],

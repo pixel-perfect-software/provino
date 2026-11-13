@@ -12,6 +12,7 @@ export {
   type FileDone,
   type WorkerConnection,
 } from './connect.ts'
+export { createDepsTable, type DepsEvent, type DepsTable } from './deps-table.ts'
 export { type DiscoveredFile, type DiscoverOptions, discoverFiles } from './discover.ts'
 export {
   discoverByRules,

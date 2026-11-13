@@ -14,6 +14,7 @@ import type {
   TestTask,
   WorkerEvent,
 } from '@provino/types'
+import { createDepsTable, type DepsTable } from './deps-table.ts'
 import { OrchestratorError } from './errors.ts'
 
 /**
@@ -27,6 +28,11 @@ export interface FileDispatch {
   readonly result: TaskResult | undefined
   /** How many tests the file collected (`file-collect-end`). */
   readonly tests: number
+  /**
+   * The user modules the file loaded (its `deps` event, rebuilt from the worker's table);
+   * `undefined` until that event has arrived. T9.12's affected-test selection reads it.
+   */
+  readonly deps: readonly string[] | undefined
 }
 
 /**
@@ -40,6 +46,11 @@ export interface FileDispatchOptions {
   readonly onUnhandled: (error: SerializedError) => void
   /** Called after each test of the file ends as `fail`, once reporters have heard of it. */
   readonly onTestFailed?: () => void
+  /**
+   * The table of the worker running the file, which outlives the file (a worker's `deps` events
+   * name a path once). Without it the file has a table of its own, enough for one file.
+   */
+  readonly depsTable?: () => DepsTable
 }
 
 function badEvent(event: WorkerEvent, why: string): OrchestratorError {
@@ -50,15 +61,18 @@ function badEvent(event: WorkerEvent, why: string): OrchestratorError {
  * Dispatches one file's events. Create one per file run; the task tree it builds belongs to that
  * file. Events that no reporter has a bus event for are dropped: `file-collect-start` (the
  * coordinator announces `file:start` itself), `file-end` (kept as `result`; the coordinator emits
- * `file:end` once the worker is done), and the worker's own `coverage` and `deps` events (T8.x,
- * T9.8).
+ * `file:end` once the worker is done), and the worker's own `coverage` event (T8.x, T9.8); its
+ * `deps` event is kept, rebuilt, as `deps` (T9.12).
  * @public
  */
 export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
-  const { bus, file, onUnhandled, onTestFailed } = options
+  const { bus, file, onUnhandled, onTestFailed, depsTable } = options
   const nodes = new Map<TaskId, TaskNode>()
   let result: TaskResult | undefined
   let tests = 0
+  let deps: readonly string[] | undefined
+  /** The table of a file run on its own: no worker's earlier files to share ids with. */
+  let fileTable: DepsTable | undefined
 
   function node(event: WorkerEvent, id: TaskId): TaskNode {
     const found = nodes.get(id)
@@ -89,7 +103,11 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
     switch (event.type) {
       case 'file-collect-start':
       case 'coverage':
+        return
       case 'deps':
+        // The worker's table takes the event in even when nothing reads the list yet: the next
+        // file's ids refer to what this one added.
+        deps = (depsTable?.() ?? (fileTable ??= createDepsTable())).resolve(event)
         return
       case 'file-collect-end':
         for (const task of event.tasks) nodes.set(task.id, task)
@@ -138,6 +156,9 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
     },
     get tests() {
       return tests
+    },
+    get deps() {
+      return deps
     },
   }
 }
