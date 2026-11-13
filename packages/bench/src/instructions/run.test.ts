@@ -14,8 +14,14 @@ const standIn = [
   fileURLToPath(new URL('fixtures/stand-in-valgrind.ts', import.meta.url)),
 ]
 
-test('the V8 flags are the ones Track 12 F7 measured a 0.05% spread with', () => {
-  assert.deepEqual(V8_FLAGS, ['--single-threaded', '--no-opt', '--predictable'])
+test('the V8 flags are the ones Track 12 F7 measured a 0.05% spread with, and no GC task', () => {
+  // The last one is why loader-e2e repeats; determinism.test.ts shows what it changes.
+  assert.deepEqual(V8_FLAGS, [
+    '--single-threaded',
+    '--no-opt',
+    '--predictable',
+    '--no-incremental-marking-task',
+  ])
 })
 
 test('Node below 22.18 is told to strip types; 22.18 and later strip them by default', () => {

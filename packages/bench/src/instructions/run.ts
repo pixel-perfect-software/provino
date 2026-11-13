@@ -13,10 +13,28 @@ import type { WorkloadResult } from './workloads.ts'
 
 /**
  * V8's flags under cachegrind (Track 12 F7: 0.05% spread over 3 runs with them, 0.6% without):
- * one thread, no optimising tier, and V8's deterministic mode.
+ * one thread, no optimising tier, V8's deterministic mode, and no incremental-marking task.
+ *
+ * The last one closes the one time-dependent GC path `--predictable` leaves open (it implies no
+ * memory reducer and single-threaded GC, not this). V8 starts and finishes incremental marking from
+ * a foreground task (`IncrementalMarkingJob`) as well as from allocation (the stack guard). The task
+ * runs on a turn of the event loop, and marking is paced by wall time, so which of the two ends a
+ * marking cycle, and whether a cycle is still open when the process exits, is not fixed by the
+ * input. A leg that never turns the loop never runs the task; `loader-e2e` turns it on every native
+ * `import()` of a shared external (`magic-string`, `es-module-lexer`). Its Mark-Compact of a 70 MB
+ * heap ("finalize incremental marking via task") was in 7 of 8 plain runs here and absent from the
+ * 8th, and a full collection that size is tens of millions of instructions (a 1.8% spread on that
+ * leg, under valgrind). With the task off, marking starts and finishes only on allocation, so the
+ * same input does the same collections. `determinism.test.ts` pins it. The flag exists in V8 12.4
+ * (Node 22.15) and later.
  * @public
  */
-export const V8_FLAGS: readonly string[] = ['--single-threaded', '--no-opt', '--predictable']
+export const V8_FLAGS: readonly string[] = [
+  '--single-threaded',
+  '--no-opt',
+  '--predictable',
+  '--no-incremental-marking-task',
+]
 
 /** The child entry. */
 const CHILD: string = fileURLToPath(new URL('child.ts', import.meta.url))

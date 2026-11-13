@@ -84,11 +84,12 @@ kill-check: Track 12 R6 on the R6 suite set: Provino against Jest, warm and cold
 instructions: T12.13's regression guard, with T2.12's, T5.14's and T3.12's. Each leg (the app-50,
   mock-heavy-50 and isolate-heavy suites in one inline worker; the loader's e2e fixture; core's
   workload; transform, hoist, resolve and the warm transform cache over fixed corpora) runs on the
-  built packages under valgrind cachegrind with V8 --single-threaded --no-opt --predictable, and its
-  instruction count is compared with --baseline (a record from main): +1.5% flags a suite or the
-  loader leg, +20% core and the T3.12 legs. Wall times print as local signals. The record goes to
-  .results/. Linux only (valgrind); --no-cachegrind gives the wall signals anywhere. --plant shows
-  a real +2% rise flagged and a +1% one not. Exit 1 when a leg regressed or failed.
+  built packages under valgrind cachegrind with V8 --single-threaded --no-opt --predictable
+  --no-incremental-marking-task, and its instruction count is compared with --baseline (a record
+  from main): +1.5% flags a suite or the loader leg, +20% core and the T3.12 legs. Wall times print
+  as local signals. The record goes to .results/. Linux only (valgrind); --no-cachegrind gives the
+  wall signals anywhere. --plant shows a real +2% rise flagged and a +1% one not. Exit 1 when a leg
+  regressed or failed.
 Options: each applies only to the commands above that show it.
   --warm, --cold   Timed runs per subject: whole numbers of 1 or more. The R5 protocol is
                    ${DEFAULT_WARM_RUNS} warm and ${DEFAULT_COLD_RUNS} cold. desktop and pinned records need at least that
