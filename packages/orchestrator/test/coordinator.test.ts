@@ -658,6 +658,28 @@ describe('runProject over inline workers', () => {
   })
 })
 
+describe('runProject over an inline worker that holds more memory than the limit', () => {
+  it('keeps the worker: its memory is the coordinator’s own, and a replacement would free none of it', async () => {
+    // What a CI runner does by default: a limit under the heap the test process already holds.
+    const p = await makeProject({
+      'a.test.js': passing('a'),
+      'b.test.js': passing('b'),
+      'c.test.js': passing('c'),
+    })
+    const { summary, seen } = await run(runtimeProject(p.dir), {
+      pool: { kind: 'inline', maxWorkers: 1, recycle: { memoryLimitBytes: 1 } },
+    })
+    assert.deepEqual(
+      summary.files.map((file) => file.state),
+      ['pass', 'pass', 'pass'],
+    )
+    const workers = seen
+      .filter((entry) => entry.name === 'file:start')
+      .map((entry) => entry.detail.workerId)
+    assert.deepEqual(workers, [1, 1, 1], 'one inline worker took every file')
+  })
+})
+
 describe('runProject: pool and run lifecycle', () => {
   it('runs an inline pool on one worker whatever maxWorkers says: three passing files all pass', async () => {
     const p = await makeProject({

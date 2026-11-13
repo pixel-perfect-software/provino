@@ -849,6 +849,42 @@ describe('recycling (T9.5)', () => {
     )
   })
 
+  it('never replaces a worker that shares the process for its memory: what it measures is the coordinator’s own', async () => {
+    // The in-process worker's `memoryBytes` is the whole process's heap, which no replacement
+    // frees. The other rules still apply to it.
+    for (const memoryLimitBytes of [0, 5000]) {
+      const f = fake(() => 'big', undefined, { sharesProcess: true })
+      const pool = createPool(options(1, undefined, { recycle: { memoryLimitBytes } }), deps(f))
+      const outcomes = await runAll(pool, ['a', 'b', 'c'])
+      assert.deepEqual(
+        outcomes.map((o) => o.type === 'done' && o.workerId),
+        [1, 1, 1],
+        `a limit of ${memoryLimitBytes}: one worker took every file`,
+      )
+    }
+    const files = fake(() => 'ok', undefined, { sharesProcess: true })
+    const counted = createPool(
+      options(1, undefined, { recycle: { maxFilesPerWorker: 2, memoryLimitBytes: 0 } }),
+      deps(files),
+    )
+    const byCount = await runAll(counted, ['a', 'b', 'c'])
+    assert.deepEqual(
+      byCount.map((o) => o.type === 'done' && o.workerId),
+      [1, 1, 2],
+      'the file count still replaces it',
+    )
+    const leaky = fake(() => 'leak', undefined, { sharesProcess: true })
+    const byLeak = await runAll(
+      createPool(options(1, undefined, { recycle: { memoryLimitBytes: 0 } }), deps(leaky)),
+      ['a', 'b'],
+    )
+    assert.deepEqual(
+      byLeak.map((o) => o.type === 'done' && o.workerId),
+      [1, 2],
+      'and so does a leak of globals',
+    )
+  })
+
   it('does no memory check when the limit is Infinity, and keeps its worker', async () => {
     const f = fake(() => 'big')
     const pool = createPool(

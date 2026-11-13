@@ -30,9 +30,10 @@ export interface WorkerKey {
  */
 export interface RecyclePolicy {
   /**
-   * RSS (forks) or heapUsed + external (threads, inline), checked after each file with the
+   * RSS (forks) or heapUsed + external (threads), checked after each file with the
    * `fileDone.memoryBytes` the worker measured: a worker over it is stopped and a new one serves
    * the next file. `0` replaces the worker after every file (Jest's `workerIdleMemoryLimit: 0`).
+   * An inline worker is never replaced for memory (what it measures is the coordinator's own).
    * Absent: no check.
    */
   readonly memoryLimitBytes?: number
@@ -343,8 +344,10 @@ export interface TransportFactory {
   /**
    * Whether its workers run in this process (the inline transport). A kill can then only close
    * the worker's link, not end the worker: the pool stops waiting for one once its force signal
-   * comes, and gives up on the file it is running. Omitted: its workers are processes or threads
-   * that a kill ends.
+   * comes, and gives up on the file it is running. Its memory is the coordinator's own, so a
+   * worker is never replaced for holding too much (`RecyclePolicy.memoryLimitBytes`); the file
+   * count and a leak still replace it. Omitted: its workers are processes or threads that a kill
+   * ends.
    */
   readonly sharesProcess?: boolean
   /**

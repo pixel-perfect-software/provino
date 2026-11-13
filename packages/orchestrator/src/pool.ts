@@ -271,7 +271,8 @@ export function workerExitOf(error: unknown): WorkerExit | undefined {
  * run.
  *
  * A worker is also replaced after `recycle.maxFilesPerWorker` files, and after a file whose
- * `fileDone.memoryBytes` is over `recycle.memoryLimitBytes` (`0` replaces it after every file).
+ * `fileDone.memoryBytes` is over `recycle.memoryLimitBytes` (`0` replaces it after every file;
+ * never for a worker of a transport with `sharesProcess`, whose memory is the coordinator's).
  * Both are decided once the file's outcome is known, so the worker is stopped in the background
  * and the next file goes to another one.
  *
@@ -553,10 +554,14 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     else await execute(slot, waiter)
   }
 
-  /** Whether the worker must not take another file: it ran its share, or holds too much memory. */
+  /**
+   * Whether the worker must not take another file: it ran its share, or holds too much memory. A
+   * worker that shares the process measures the whole coordinator, which no replacement frees
+   * (Jest's `--runInBand` recycles nothing either): only the file count applies to it.
+   */
   function worn(slot: Slot, done: FileDone): boolean {
     if (maxFilesPerWorker !== undefined && slot.files >= maxFilesPerWorker) return true
-    return memoryLimitBytes !== undefined && done.memoryBytes > memoryLimitBytes
+    return !sharesProcess && memoryLimitBytes !== undefined && done.memoryBytes > memoryLimitBytes
   }
 
   /**
