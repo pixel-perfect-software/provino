@@ -48,6 +48,7 @@ function startCli(
   cwd: string,
   deadlineMs = 60_000,
   nodeArgs: readonly string[] = [],
+  env: Readonly<Record<string, string>> = {},
 ): Live {
   const child = spawn(
     process.execPath,
@@ -56,6 +57,7 @@ function startCli(
       cwd,
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ...env },
     },
   )
   let out = ''
@@ -73,6 +75,20 @@ function startCli(
     return { code: code as number | null, signal: signal as NodeJS.Signals | null }
   })
   return { child, pgid, stdout: () => out, stderr: () => err, exited }
+}
+
+/** A preload that swaps the bin's `main` for one that never settles (`fixtures/unsettled-main/`). */
+const UNSETTLED_MAIN_PRELOAD: string = fileURLToPath(
+  new URL('./fixtures/unsettled-main/preload.ts', import.meta.url),
+)
+
+/** Waits until the process has written `text` to its stdout. */
+async function untilOutput(live: Live, text: string, timeoutMs = 30_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!live.stdout().includes(text)) {
+    if (Date.now() > deadline) assert.fail(`no "${text}" in time:\n${live.stderr()}`)
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
 }
 
 /** Waits until `pidFile` holds `count` pids, and returns them. */
@@ -185,22 +201,32 @@ describe('exit codes through the bin (provino run)', () => {
     }
   })
 
-  it('a second signal after SIGHUP is the force: the bin is gone within 1 s, with 129, and no child survives', async () => {
-    const project = await makeProject((dir) => ({
-      'tests/hang.test.js': hanging(join(dir, 'workers.pids')),
-    }))
-    const pidFile = project.path('workers.pids')
-    const live = startCli(['run', '--config', project.config, '--maxWorkers', '1'], project.dir)
+  it('a second SIGHUP is the force: the bin, slow to stop, is gone within 1 s, with 129', async () => {
+    // The bin's `main` is a stand-in that stays up until the force signal (see the SIGINT case
+    // below), so the first signal cannot end the run before the second one lands: no race with the
+    // run finishing by itself.
+    const project = await makeProject({ 'tests/a.test.js': passing('a') })
+    const live = startCli(
+      ['run', '--config', project.config],
+      project.dir,
+      60_000,
+      ['--import', UNSETTLED_MAIN_PRELOAD],
+      { UNSETTLED_MAIN_HOLD: 'force' },
+    )
     try {
-      const pids = await untilNoted(pidFile)
+      await untilOutput(live, 'ready')
       live.child.kill('SIGHUP')
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      await untilOutput(live, 'cancelled')
+      const alive = await Promise.race([
+        live.exited.then(() => false),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 300)),
+      ])
+      assert.equal(alive, true, 'one SIGHUP does not end a run that is slow to stop')
       const second = Date.now()
       live.child.kill('SIGHUP')
       const ended = await live.exited
       assert.deepEqual(ended, { code: 129, signal: null }, live.stderr())
       assert.ok(Date.now() - second < 1000, 'the bin ended within the grace')
-      await assertNoChild(live, pids)
     } finally {
       killGroup(live.pgid)
     }
@@ -210,7 +236,6 @@ describe('exit codes through the bin (provino run)', () => {
     // The bin's `main` is replaced (a resolve hook) by one that says "ready" and never settles, with
     // no handle: what a reporter promise that never settles looks like once the workers are gone.
     const project = await makeProject({ 'tests/a.test.js': passing('a') })
-    const preload = fileURLToPath(new URL('./fixtures/unsettled-main/preload.ts', import.meta.url))
     for (const [signal, code] of [
       ['SIGINT', 130],
       ['SIGTERM', 143],
@@ -218,14 +243,10 @@ describe('exit codes through the bin (provino run)', () => {
     ] as const) {
       const live = startCli(['run', '--config', project.config], project.dir, 60_000, [
         '--import',
-        preload,
+        UNSETTLED_MAIN_PRELOAD,
       ])
       try {
-        const deadline = Date.now() + 30_000
-        while (!live.stdout().includes('ready')) {
-          if (Date.now() > deadline) assert.fail(`the bin never started:\n${live.stderr()}`)
-          await new Promise((resolve) => setTimeout(resolve, 25))
-        }
+        await untilOutput(live, 'ready')
         live.child.kill(signal)
         const ended = await live.exited
         assert.deepEqual(ended, { code, signal: null }, `${signal}: ${live.stderr()}`)
