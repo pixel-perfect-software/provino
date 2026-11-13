@@ -6,7 +6,6 @@ import assert from 'node:assert/strict'
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
-import type { ResolvedProject } from '@provino/config'
 import {
   createResultsCache,
   defaultCacheDir,
@@ -14,89 +13,24 @@ import {
   exitCodeFor,
   fileIdOf,
   projectCacheKey,
-  type RunProjectOptions,
   runProject,
 } from '@provino/orchestrator'
-import { createReporterBus, type ReporterBusHandle } from '@provino/reporters'
-import type { Reporter, ReporterBus, RunSummary, TaskId } from '@provino/types'
+import { createReporterBus } from '@provino/reporters'
+import type { Reporter, ReporterBus, TaskId } from '@provino/types'
 import {
+  assertWorkersGone,
   Collect,
   fixture,
-  isRunning,
   PID_RECORDING_ENTRY,
+  recorder,
+  run,
   runtimeProject,
+  type Seen,
   takeWorkerPids,
   trackedProjects,
 } from './support.ts'
 
 const makeProject = trackedProjects()
-
-/** One thing the recorder saw: the event, the file it belongs to (if any) and what we assert on. */
-interface Seen {
-  readonly name: string
-  readonly fileId: TaskId | null
-  readonly detail: Readonly<Record<string, unknown>>
-}
-
-function recorder(): { reporter: Reporter; seen: Seen[] } {
-  const seen: Seen[] = []
-  const note = (name: string, fileId: TaskId | null, detail: Seen['detail'] = {}): void => {
-    seen.push({ name, fileId, detail })
-  }
-  const reporter: Reporter = {
-    name: 'recorder',
-    'run:start': (_info, files) => note('run:start', null, { files: files.map((f) => f.path) }),
-    'file:queued': (file) => note('file:queued', file.fileId, { path: file.path }),
-    'file:start': (file, workerId) => note('file:start', file.fileId, { workerId }),
-    'file:collected': (file) => note('file:collected', file.fileId),
-    'task:start': (task) => note('task:start', task.fileId, { name: task.name }),
-    'task:end': (task, event) =>
-      note('task:end', task.fileId, {
-        name: task.name,
-        type: task.type,
-        state: event.result.state,
-      }),
-    console: (file, event) => note('console', file.fileId, { text: event.text }),
-    'file:end': (result) => note('file:end', result.file.fileId, { state: result.state }),
-    'run:end': (summary) => note('run:end', null, { reason: summary.reason }),
-    error: (error, origin) => note('error', null, { message: error.message, origin }),
-  }
-  return { reporter, seen }
-}
-
-interface Run {
-  readonly summary: RunSummary
-  readonly seen: readonly Seen[]
-  readonly bus: ReporterBusHandle
-  readonly stderr: Collect
-  /** The pids of the forked workers that ran, and they are all gone. */
-  readonly pids: readonly number[]
-}
-
-/**
- * Runs the project with a recording reporter and checks no forked worker outlived the run. The
- * results cache is off, unless `cache` is given or `defaultCache` asks for the project’s own.
- */
-async function run(
-  project: ResolvedProject,
-  options: Partial<RunProjectOptions> & { readonly defaultCache?: boolean } = {},
-): Promise<Run> {
-  const { defaultCache, ...runOptions } = options
-  const { reporter, seen } = recorder()
-  const bus = createReporterBus([reporter])
-  const stderr = new Collect()
-  const summary = await runProject(project, {
-    bus,
-    stderr,
-    ...(defaultCache === true ? {} : { cache: false }),
-    // Only forks are processes of their own to record; an inline worker would write the test's.
-    ...(runOptions.pool?.kind === 'forks' ? { entry: PID_RECORDING_ENTRY } : {}),
-    ...runOptions,
-  })
-  const pids = await takeWorkerPids()
-  for (const pid of pids) assert.equal(isRunning(pid), false, `worker ${pid} is still running`)
-  return { summary, seen, bus, stderr, pids }
-}
 
 /** The names of the events of one file, in order. */
 const namesOf = (seen: readonly Seen[], fileId: TaskId): string[] =>
@@ -319,7 +253,7 @@ describe('runProject over forks', () => {
     assert.equal(seen.at(-1)?.name, 'run:end')
     assert.equal(seen.at(-1)?.detail.reason, 'interrupted')
     assert.equal(pids.length, 1)
-    for (const pid of pids) assert.equal(isRunning(pid), false)
+    assertWorkersGone(pids)
   })
 
   it('fails every file, without a hang, when no worker can start', async () => {
@@ -545,7 +479,7 @@ describe('runProject over inline workers', () => {
     )
     const pids = await takeWorkerPids()
     assert.ok(pids.length > 0)
-    for (const pid of pids) assert.equal(isRunning(pid), false, `worker ${pid} is still running`)
+    assertWorkersGone(pids)
 
     // `run:start` was emitted, so the run is closed: the error, then `run:end` as failed.
     assert.equal(seen[0]?.name, 'run:start')

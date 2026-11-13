@@ -1,5 +1,5 @@
 // T9.10 in the coordinator: `bail` (when it is checked, what it kills, what it reports), the run
-// reasons a signal gives (`interrupted` 130, `terminated` 143), a second Ctrl+C (`forceSignal`), and
+// reasons a signal gives (`interrupted` 130, `terminated` 143, `hangup` 129), a second Ctrl+C (`forceSignal`), and
 // `detectOpenHandles`. Real forked workers, with the pids checked afterwards; the bin's side of
 // the same is `packages/provino/test/lifecycle.test.ts`.
 import assert from 'node:assert/strict'
@@ -8,6 +8,7 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
+import { setTimeout as sleep } from 'node:timers/promises'
 import type { ResolvedProject } from '@provino/config'
 import {
   exitCodeFor,
@@ -16,23 +17,21 @@ import {
   runProject,
 } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
-import type { Reporter, RunSummary } from '@provino/types'
+import type { RunSummary } from '@provino/types'
 import {
+  assertWorkersGone,
   Collect,
   fixture,
-  isRunning,
   PID_RECORDING_ENTRY,
+  recorder,
+  run as runRecorded,
   runtimeProject,
+  type Seen,
   takeWorkerPids,
   trackedProjects,
 } from './support.ts'
 
 const makeProject = trackedProjects()
-
-interface Seen {
-  readonly name: string
-  readonly path: string
-}
 
 interface Run {
   readonly summary: RunSummary
@@ -49,25 +48,19 @@ const failing = (count: number): string =>
 const passing = (extra = ''): string => `${extra}test('passes', () => { expect(1).toBe(1) })\n`
 const hanging = "test('hangs', () => { for (;;) {} })\n"
 
-/** What happened to files, by path, in the order the bus heard it. */
-function recorder(): { reporter: Reporter; seen: Seen[] } {
-  const seen: Seen[] = []
-  const reporter: Reporter = {
-    name: 'recorder',
-    'file:start': (file) => void seen.push({ name: 'file:start', path: file.path }),
-    'file:end': (result) => void seen.push({ name: 'file:end', path: result.file.path }),
-  }
-  return { reporter, seen }
-}
-
+/** What happened to a file, `file:start` and `file:end`, in the order the bus heard it. */
 const eventsOf = (seen: readonly Seen[], path: string): string[] =>
-  seen.filter((entry) => entry.path === path).map((entry) => entry.name)
+  seen
+    .filter(
+      (entry) => entry.path === path && (entry.name === 'file:start' || entry.name === 'file:end'),
+    )
+    .map((entry) => entry.name)
 
 /** Every worker the entries that note their pid started is gone, and the notes are removed. */
 async function assertNoWorkerLeft(): Promise<void> {
   const pids = await takeWorkerPids()
   assert.ok(pids.length > 0, 'the run started a worker, so there is a pid to check')
-  for (const pid of pids) assert.equal(isRunning(pid), false, `worker ${pid} is still running`)
+  assertWorkersGone(pids)
 }
 
 /** Runs the project's files over forks, and checks that no worker outlived the run. */
@@ -83,19 +76,12 @@ async function run(
   const project = runtimeProject(made.dir, {
     ...(checkAfter === undefined ? {} : { policy: { orchestrator: { bail: { checkAfter } } } }),
   })
-  const { reporter, seen } = recorder()
   const started = performance.now()
-  const summary = await runProject(project, {
-    bus: createReporterBus([reporter]),
-    cache: false,
-    stderr: new Collect(),
-    entry: PID_RECORDING_ENTRY,
+  const { summary, seen } = await runRecorded(project, {
     pool: { kind: 'forks', maxWorkers: maxWorkers ?? 1, ...pool },
     ...rest,
   })
-  const elapsedMs = performance.now() - started
-  for (const pid of await takeWorkerPids()) assert.equal(isRunning(pid), false, `worker ${pid}`)
-  return { summary, seen, project, elapsedMs }
+  return { summary, seen, project, elapsedMs: performance.now() - started }
 }
 
 describe('bail, checked after each file (Jest)', () => {
@@ -397,7 +383,7 @@ describe('detectOpenHandles', () => {
     assert.match(handle?.codeFrame ?? '', />\s*4 \| {3}const timer = setInterval/)
     assert.match(handle?.codeFrame ?? '', /\^/)
     // Let the interval end itself, so the test process is not held open.
-    await new Promise((resolve) => setTimeout(resolve, 600))
+    await sleep(600)
   })
 
   it('reports nothing when every handle was closed, or is unref’d', async () => {
@@ -429,6 +415,6 @@ describe('detectOpenHandles', () => {
       pool: { kind: 'inline' },
     })
     assert.equal(summary.openHandles, undefined)
-    await new Promise((resolve) => setTimeout(resolve, 600))
+    await sleep(600)
   })
 })

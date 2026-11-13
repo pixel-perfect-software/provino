@@ -12,15 +12,15 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import type { RunPoolOptions } from '@provino/orchestrator'
 import type { WorkerExit } from '@provino/types'
-import { fixture, isRunning, trackedProjects } from './support.ts'
-import { killGroup, sweep } from './sweep.ts'
+import { fixture, isRunning, takeWorkerPids, trackedProjects } from './support.ts'
+import { assertGroupEmpty, killGroup } from './sweep.ts'
 
 const makeProject = trackedProjects()
 
@@ -55,7 +55,6 @@ interface ChaosRun {
   readonly reason: string
   readonly files: readonly Outcome[]
   readonly pgid: number
-  readonly coordinatorPid: number
   readonly stderr: string
   readonly workerPids: readonly number[]
 }
@@ -83,7 +82,7 @@ async function chaos(
   kind: PoolKindUnderTest,
   custom: {
     readonly files?: Record<string, string>
-    readonly options?: Record<string, number>
+    readonly pool?: RunPoolOptions
   } = {},
 ): Promise<ChaosRun> {
   const project = await makeProject(custom.files ?? sources(kind))
@@ -97,12 +96,12 @@ async function chaos(
       stdio: ['ignore', 'ignore', 'pipe'],
       env: {
         ...process.env,
-        CHAOS_OPTIONS: JSON.stringify(
-          custom.options ?? {
+        CHAOS_POOL: JSON.stringify(
+          custom.pool ?? {
             maxWorkers: 4,
             fileTimeoutMs: FILE_TIMEOUT_MS,
             heapLimitMb: HEAP_LIMIT_MB,
-            memoryLimitBytes: WORKER_MEMORY_LIMIT_BYTES,
+            recycle: { memoryLimitBytes: WORKER_MEMORY_LIMIT_BYTES },
           },
         ),
       },
@@ -123,12 +122,7 @@ async function chaos(
   const result = JSON.parse(readFileSync(out, 'utf8')) as Pick<ChaosRun, 'reason' | 'files'>
   await rm(out, { force: true })
   // The forked workers noted their pids in a file named for the coordinator.
-  const pidFile = join(tmpdir(), `provino-pids-${pgid}`)
-  const workerPids = existsSync(pidFile)
-    ? readFileSync(pidFile, 'utf8').split('\n').filter(Boolean).map(Number)
-    : []
-  await rm(pidFile, { force: true })
-  return { ...result, pgid, coordinatorPid: pgid, stderr, workerPids }
+  return { ...result, pgid, stderr, workerPids: await takeWorkerPids(pgid) }
 }
 
 for (const kind of ['forks', 'threads'] as const) {
@@ -178,15 +172,7 @@ for (const kind of ['forks', 'threads'] as const) {
         // No child survives: every forked worker is gone, and nothing is left in the group.
         for (const pid of run.workerPids) assert.equal(isRunning(pid), false, `worker ${pid}`)
         if (kind === 'forks') assert.ok(run.workerPids.length >= 5, 'workers were recorded')
-        const swept = await sweep(run.pgid)
-        assert.equal(swept.alive, false, 'kill(-pgid, 0): nothing is left in the group')
-        if (swept.ps === undefined) {
-          console.warn(
-            `pool-chaos (${kind}): \`ps\` cannot run here; only the kill(-pgid, 0) probe swept the group`,
-          )
-        } else {
-          assert.deepEqual(swept.ps, [], 'ps: no process of the group is left')
-        }
+        await assertGroupEmpty(run.pgid, `pool-chaos (${kind})`)
       } finally {
         killGroup(run.pgid)
       }
@@ -207,7 +193,7 @@ describe('recycling over real forks (T9.5)', () => {
   it('maxFilesPerWorker: 3 gives a fresh worker every 3 files', async () => {
     const run = await chaos('forks', {
       files: passingFiles(30),
-      options: { maxWorkers: 1, maxFilesPerWorker: 3 },
+      pool: { maxWorkers: 1, recycle: { maxFilesPerWorker: 3 } },
     })
     try {
       assert.equal(run.reason, 'passed')
@@ -222,7 +208,7 @@ describe('recycling over real forks (T9.5)', () => {
   it('a file over memoryLimitBytes replaces its worker: a limit of 1 byte is a worker per file', async () => {
     const run = await chaos('forks', {
       files: passingFiles(6),
-      options: { maxWorkers: 1, memoryLimitBytes: 1 },
+      pool: { maxWorkers: 1, recycle: { memoryLimitBytes: 1 } },
     })
     try {
       assert.equal(run.reason, 'passed')
@@ -235,7 +221,7 @@ describe('recycling over real forks (T9.5)', () => {
   it('without a limit one worker serves every file (the control)', async () => {
     const run = await chaos('forks', {
       files: passingFiles(6),
-      options: { maxWorkers: 1, memoryLimitBytes: Number.MAX_SAFE_INTEGER },
+      pool: { maxWorkers: 1, recycle: { memoryLimitBytes: Number.MAX_SAFE_INTEGER } },
     })
     try {
       assert.equal(new Set(run.workerPids).size, 1)

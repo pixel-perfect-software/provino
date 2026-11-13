@@ -2,6 +2,7 @@
 // replacement after a leak or a crash, start failures, abort and close.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { setTimeout as sleep } from 'node:timers/promises'
 import type {
   CoordinatorToWorker,
   FileJob,
@@ -252,6 +253,16 @@ function request(file: string, extra: Partial<FileRequest> = {}): FileRequest {
   return { key, job, onEvents: () => {}, ...extra }
 }
 
+/** Whether `promise` has settled, as of whenever `settled` is read: for a test that says it has not yet. */
+function watch(promise: Promise<unknown>): { readonly settled: boolean } {
+  const state = { settled: false }
+  const done = (): void => {
+    state.settled = true
+  }
+  void promise.then(done, done)
+  return state
+}
+
 /** Runs the files and closes the pool, returning each file's outcome. */
 async function runAll(pool: Pool, files: readonly string[], workerKey: WorkerKey = key) {
   const outcomes = await Promise.all(
@@ -498,12 +509,9 @@ describe('createPool', () => {
     )
     const outcomes = Promise.all(['a', 'b', 'c', 'd', 'e'].map((file) => pool.run(request(file))))
     // Starts 2, 3 and 4 fail at once; the first, slow one is still starting.
-    let settled = false
-    void outcomes.then(() => {
-      settled = true
-    })
+    const state = watch(outcomes)
     for (let turn = 0; turn < 5; turn++) await new Promise((resolve) => setImmediate(resolve))
-    assert.equal(settled, false, 'e waits: a worker is still starting')
+    assert.equal(state.settled, false, 'e waits: a worker is still starting')
     gate.resolve()
     const results = await outcomes
     await pool.close()
@@ -711,7 +719,7 @@ describe('createPool', () => {
       }),
     )
     await pool.run(request('late'))
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await sleep(20)
     await pool.close()
     assert.deepEqual(kinds.toSorted(), ['other', 'worker-lost'])
   })
@@ -752,10 +760,10 @@ describe('createPool', () => {
     const f = fake(() => 'ok')
     const pool = createPool(options(2), deps(f))
     await pool.run(request('a'))
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await sleep(20)
     assert.deepEqual([...f.exited], [], 'an idle worker waits for a next file')
     pool.drain()
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await sleep(20)
     assert.deepEqual([...f.exited], [1])
     await pool.close()
   })
@@ -767,7 +775,7 @@ describe('createPool', () => {
     const quick = pool.run(request('b'))
     pool.drain()
     await quick
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await sleep(20)
     assert.deepEqual([...f.exited], [2], 'the worker with nothing left to do is gone')
     const closed = pool.close()
     assert.deepEqual(await slow, { type: 'aborted' })
@@ -936,16 +944,14 @@ describe('the file deadline (T9.5)', () => {
     const pool = createPool(options(1, undefined, { fileTimeoutMs: 50 }), deps(f))
     const outcomes = await runAll(pool, ['a', 'b', 'c'])
     assert.ok(outcomes.every((o) => o.type === 'done'))
-    await new Promise((resolve) => setTimeout(resolve, 80))
+    await sleep(80)
     assert.deepEqual(f.started, [1], 'no worker was killed after its file ended')
   })
 
   it('counts from when the job is sent, so a slow onStart does not eat the deadline', async () => {
     const f = fake(() => 'ok')
     const pool = createPool(options(1, undefined, { fileTimeoutMs: 40 }), deps(f))
-    const outcome = await pool.run(
-      request('a', { onStart: () => new Promise((resolve) => setTimeout(resolve, 80)) }),
-    )
+    const outcome = await pool.run(request('a', { onStart: () => sleep(80) }))
     await pool.close()
     assert.equal(outcome.type, 'done')
   })
@@ -958,7 +964,7 @@ describe('the file deadline (T9.5)', () => {
       deps(f, { signal: controller.signal }),
     )
     const stuck = pool.run(request('stuck'))
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await sleep(10)
     controller.abort()
     assert.deepEqual(await stuck, { type: 'aborted' })
     await pool.close()
@@ -971,7 +977,7 @@ describe('cancelling and forcing', () => {
     const pool = createPool(options(1), deps(f))
     const slow = pool.run(request('slow'))
     const waiting = [pool.run(request('b')), pool.run(request('c'))]
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await sleep(10)
     pool.cancelQueued()
     assert.deepEqual(await Promise.all(waiting), [{ type: 'aborted' }, { type: 'aborted' }])
     assert.deepEqual(await pool.run(request('d')), { type: 'aborted' }, 'nothing starts after it')
@@ -989,10 +995,10 @@ describe('cancelling and forcing', () => {
     const pool = createPool(options(2), deps(f, { forceSignal: force.signal }))
     await Promise.all([pool.run(request('a')), pool.run(request('b'))])
     pool.drain()
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await sleep(20)
     assert.equal(f.exited.size, 0, 'the graceful stops are hanging')
     const closing = pool.close()
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await sleep(20)
     assert.equal(f.exited.size, 0, 'and close is waiting for them')
     force.abort()
     await closing
@@ -1012,15 +1018,12 @@ describe('cancelling and forcing', () => {
       deps(f, { signal: abort.signal, forceSignal: force.signal }),
     )
     const running = pool.run(request('stuck'))
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await sleep(10)
     abort.abort()
     const closing = pool.close()
-    let settled = false
-    void Promise.all([running, closing]).then(() => {
-      settled = true
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    assert.equal(settled, false, 'the first abort still waits for the worker')
+    const state = watch(Promise.all([running, closing]))
+    await sleep(20)
+    assert.equal(state.settled, false, 'the first abort still waits for the worker')
     force.abort()
     assert.deepEqual(await running, { type: 'aborted' })
     await closing
@@ -1032,15 +1035,12 @@ describe('cancelling and forcing', () => {
     const force = new AbortController()
     const pool = createPool(options(1), deps(f, { forceSignal: force.signal }))
     const running = pool.run(request('stuck'))
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await sleep(10)
     const closing = pool.close()
     force.abort()
-    let settled = false
-    void Promise.all([running, closing]).then(() => {
-      settled = true
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    assert.equal(settled, false, 'a child that is still alive is waited for')
+    const state = watch(Promise.all([running, closing]))
+    await sleep(20)
+    assert.equal(state.settled, false, 'a child that is still alive is waited for')
     f.end(1)
     await closing
     assert.deepEqual(await running, { type: 'aborted' })

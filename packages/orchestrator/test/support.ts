@@ -1,5 +1,7 @@
-// Shared by the end-to-end tests: worker inits, jobs, transports of each kind, and a stream that
-// keeps what a worker printed (so a crash's stderr doesn't land in the test output).
+// Shared by the end-to-end tests: worker inits, jobs, transports of each kind, a stream that
+// keeps what a worker printed (so a crash's stderr doesn't land in the test output), and a run that
+// records what the bus heard and checks no worker outlived it.
+import assert from 'node:assert/strict'
 import { existsSync, mkdtempSync, readFileSync, realpathSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -11,10 +13,13 @@ import {
   connectWorker,
   type FileDone,
   fileIdOf,
+  type RunProjectOptions,
   relativePosix,
+  runProject,
   transportFor,
 } from '@provino/orchestrator'
 import { moduleRef, neutralPolicy, resolvePolicy, serializePolicy } from '@provino/policy'
+import { createReporterBus, type ReporterBusHandle } from '@provino/reporters'
 import type { RpcHandlers } from '@provino/rpc'
 import type {
   CoordinatorMethods,
@@ -26,6 +31,8 @@ import type {
   Policy,
   PolicyOverrides,
   PoolKind,
+  Reporter,
+  RunSummary,
   SerializedPolicy,
   SerializedProjectConfig,
   TaskId,
@@ -342,15 +349,21 @@ export function runtimeProject(
 export const PID_RECORDING_ENTRY: URL = fixture('pid-recording-main.ts')
 
 /**
- * The pids of the forked workers that loaded `PID_RECORDING_ENTRY` for this test process, in the
+ * The pids of the forked workers that noted theirs (`PID_RECORDING_ENTRY` and the other entries
+ * that call `recordPid`) for `owner`, the coordinator's pid (this test process by default), in the
  * order they started, and removes the file. Empty when no worker was started.
  */
-export async function takeWorkerPids(): Promise<readonly number[]> {
-  const file = join(tmpdir(), `provino-pids-${process.pid}`)
+export async function takeWorkerPids(owner: number = process.pid): Promise<readonly number[]> {
+  const file = join(tmpdir(), `provino-pids-${owner}`)
   if (!existsSync(file)) return []
   const pids = readFileSync(file, 'utf8').split('\n').filter(Boolean).map(Number)
   await rm(file, { force: true })
   return pids
+}
+
+/** No process with any of these pids is still running. */
+export function assertWorkersGone(pids: readonly number[]): void {
+  for (const pid of pids) assert.equal(isRunning(pid), false, `worker ${pid} is still running`)
 }
 
 /** Whether a process with this pid is still there (a reaped child is not). */
@@ -361,4 +374,84 @@ export function isRunning(pid: number): boolean {
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'EPERM'
   }
+}
+
+// ---- A run that records what the bus heard, and checks no worker outlived it.
+
+/** One thing the recorder saw: the event, the file it belongs to (if any) and what we assert on. */
+export interface Seen {
+  readonly name: string
+  readonly fileId: TaskId | null
+  /** The file's path, where the event names one. */
+  readonly path: string | null
+  readonly detail: Readonly<Record<string, unknown>>
+}
+
+/** A reporter that notes the events of a run, and what it noted. */
+export function recorder(): { reporter: Reporter; seen: Seen[] } {
+  const seen: Seen[] = []
+  const note = (
+    name: string,
+    fileId: TaskId | null,
+    path: string | null = null,
+    detail: Seen['detail'] = {},
+  ): void => {
+    seen.push({ name, fileId, path, detail })
+  }
+  const reporter: Reporter = {
+    name: 'recorder',
+    'run:start': (_info, files) =>
+      note('run:start', null, null, { files: files.map((f) => f.path) }),
+    'file:queued': (file) => note('file:queued', file.fileId, file.path, { path: file.path }),
+    'file:start': (file, workerId) => note('file:start', file.fileId, file.path, { workerId }),
+    'file:collected': (file) => note('file:collected', file.fileId, file.path),
+    'task:start': (task) => note('task:start', task.fileId, null, { name: task.name }),
+    'task:end': (task, event) =>
+      note('task:end', task.fileId, null, {
+        name: task.name,
+        type: task.type,
+        state: event.result.state,
+      }),
+    console: (file, event) => note('console', file.fileId, file.path, { text: event.text }),
+    'file:end': (result) =>
+      note('file:end', result.file.fileId, result.file.path, { state: result.state }),
+    'run:end': (summary) => note('run:end', null, null, { reason: summary.reason }),
+    error: (error, origin) => note('error', null, null, { message: error.message, origin }),
+  }
+  return { reporter, seen }
+}
+
+/** What `run` found. */
+export interface Run {
+  readonly summary: RunSummary
+  readonly seen: readonly Seen[]
+  readonly bus: ReporterBusHandle
+  readonly stderr: Collect
+  /** The pids of the forked workers that ran, and they are all gone. */
+  readonly pids: readonly number[]
+}
+
+/**
+ * Runs the project with a recording reporter and checks no forked worker outlived the run. The
+ * results cache is off, unless `cache` is given or `defaultCache` asks for the project’s own.
+ */
+export async function run(
+  project: ResolvedProject,
+  options: Partial<RunProjectOptions> & { readonly defaultCache?: boolean } = {},
+): Promise<Run> {
+  const { defaultCache, ...runOptions } = options
+  const { reporter, seen } = recorder()
+  const bus = createReporterBus([reporter])
+  const stderr = new Collect()
+  const summary = await runProject(project, {
+    bus,
+    stderr,
+    ...(defaultCache === true ? {} : { cache: false }),
+    // Only forks are processes of their own to record; an inline worker would write the test's.
+    ...(runOptions.pool?.kind === 'forks' ? { entry: PID_RECORDING_ENTRY } : {}),
+    ...runOptions,
+  })
+  const pids = await takeWorkerPids()
+  assertWorkersGone(pids)
+  return { summary, seen, bus, stderr, pids }
 }
