@@ -105,6 +105,75 @@ describe('the provino entry binds late to the worker globals (T1.10)', () => {
     assert.equal((live as unknown as Record<string, unknown>).d, 4)
   })
 
+  test('new reaches the live constructor, with its arguments and its prototype', () => {
+    class Fake {
+      readonly a: number
+      constructor(a: number) {
+        this.a = a
+      }
+    }
+    install('describe', Fake)
+    const made = new (api.describe as unknown as new (a: number) => Fake)(5)
+    assert.ok(made instanceof Fake)
+    assert.equal(made.a, 5)
+  })
+
+  test('new on a live value that is not a constructor says so, as it would without the proxy', () => {
+    install('it', (): void => {})
+    assert.throws(() => new (api.it as unknown as new () => object)(), TypeError)
+  })
+
+  test('a non-configurable define is refused, and leaves the live value alone', () => {
+    const live = Object.assign((): void => {}, {})
+    install('expect', live)
+    const proxy = api.expect as unknown as object
+    // The proxy cannot report a non-configurable property (the target has none), so it refuses
+    // outright instead of throwing a proxy-invariant TypeError after having defined it.
+    assert.equal(Reflect.defineProperty(proxy, 'x', { value: 1, configurable: false }), false)
+    assert.ok(!('x' in live))
+    assert.throws(
+      () => Object.defineProperty(proxy, 'x', { value: 1, configurable: false }),
+      TypeError,
+    )
+    assert.ok(!('x' in live))
+  })
+
+  test('a configurable define reaches the live value and reads back through the proxy', () => {
+    const live = Object.assign((): void => {}, {})
+    install('expect', live)
+    const proxy = api.expect as unknown as Record<string, unknown>
+    assert.equal(
+      Reflect.defineProperty(proxy, 'y', {
+        value: 2,
+        configurable: true,
+        enumerable: true,
+        writable: true,
+      }),
+      true,
+    )
+    assert.equal((live as unknown as Record<string, unknown>).y, 2)
+    assert.equal(proxy.y, 2)
+    assert.deepEqual(Object.getOwnPropertyDescriptor(proxy, 'y'), {
+      value: 2,
+      configurable: true,
+      enumerable: true,
+      writable: true,
+    })
+  })
+
+  test('it cannot be made non-extensible, so the proxy goes on keeping its invariants', () => {
+    const live = Object.assign((): void => {}, { a: 1 })
+    install('expect', live)
+    const proxy = api.expect as unknown as object
+    assert.equal(Reflect.preventExtensions(proxy), false)
+    assert.ok(Object.isExtensible(proxy))
+    assert.ok(Object.getOwnPropertyDescriptor(proxy, 'a'))
+    assert.deepEqual(
+      Reflect.ownKeys(proxy).filter((key) => key === 'a'),
+      ['a'],
+    )
+  })
+
   test('a global that is not a function or an object is not installed', () => {
     install('expect', 'not an api')
     assert.throws(() => (api.expect as unknown as () => void)(), api.ProvinoWorkerApiError)

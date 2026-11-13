@@ -44,12 +44,19 @@ function live(name: string): object {
 
 /**
  * A stand-in for the global `name` that forwards every operation to it when the operation happens,
- * so `expect.extend`, `describe.each` and `it.only` need no list of statics. The target is an
- * arrow function, which has no non-configurable own keys, so the proxy may report any keys the
- * live value has.
+ * so `expect.extend`, `describe.each` and `it.only` need no list of statics.
+ *
+ * The target is a bound class: callable by a trap and constructible (an arrow function is not, so
+ * its `construct` trap could never run; `function () {}` would be, but has a non-configurable
+ * `prototype`, and Biome rewrites it to an arrow) and with no `prototype`, so every own key it has
+ * (`length`, `name`) is configurable and the proxy may report any keys the live value has. It
+ * stays extensible (`preventExtensions` is refused) and holds no property of its own that is not
+ * configurable (a non-configurable define is refused), which is what lets the traps answer for the
+ * live value and still satisfy the invariants a Proxy checks.
  */
 function bound<K extends keyof WorkerApi>(name: K): WorkerApi[K] {
-  const proxy = new Proxy(() => undefined, {
+  const target: object = class {}.bind(null)
+  const proxy = new Proxy(target, {
     apply: (_target, thisArg, args: unknown[]) =>
       Reflect.apply(live(name) as (...args: unknown[]) => unknown, thisArg, args),
     construct: (_target, args: unknown[]) =>
@@ -58,8 +65,13 @@ function bound<K extends keyof WorkerApi>(name: K): WorkerApi[K] {
     set: (_target, key, value) => Reflect.set(live(name), key, value),
     has: (_target, key) => Reflect.has(live(name), key),
     deleteProperty: (_target, key) => Reflect.deleteProperty(live(name), key),
+    // The target can't hold a non-configurable property, so a proxy can't report one: refuse it
+    // before it is defined, instead of defining it and failing the invariant check after.
     defineProperty: (_target, key, descriptor) =>
-      Reflect.defineProperty(live(name), key, descriptor),
+      descriptor.configurable === false
+        ? false
+        : Reflect.defineProperty(live(name), key, descriptor),
+    preventExtensions: () => false,
     ownKeys: () => Reflect.ownKeys(live(name)),
     getOwnPropertyDescriptor: (_target, key) => {
       const descriptor = Reflect.getOwnPropertyDescriptor(live(name), key)
