@@ -202,19 +202,19 @@ function checkedLimits(options: PoolOptions): {
   ) {
     throw new OrchestratorError(
       'ORCH_BAD_OPTION',
-      `recycle.maxFilesPerWorker must be a whole number of at least 1 (got ${String(maxFilesPerWorker)})`,
+      `recycle.maxFilesPerWorker (the files a worker runs before it is replaced) must be a whole number of at least 1 (got ${String(maxFilesPerWorker)})`,
     )
   }
   if (memoryLimitBytes !== undefined && !(memoryLimitBytes >= 0)) {
     throw new OrchestratorError(
       'ORCH_BAD_OPTION',
-      `recycle.memoryLimitBytes must be a number of bytes, 0 or more (got ${String(memoryLimitBytes)})`,
+      `recycle.memoryLimitBytes (what a worker may hold before it is replaced) must be a number of bytes, 0 or more (got ${String(memoryLimitBytes)})`,
     )
   }
   if (fileTimeoutMs !== undefined && !(fileTimeoutMs > 0 && Number.isFinite(fileTimeoutMs))) {
     throw new OrchestratorError(
       'ORCH_BAD_OPTION',
-      `fileTimeoutMs must be a number of milliseconds above 0 (got ${String(fileTimeoutMs)})`,
+      `fileTimeoutMs (the longest one file may run) must be a number of milliseconds above 0 (got ${String(fileTimeoutMs)})`,
     )
   }
   return { maxFilesPerWorker, memoryLimitBytes, fileTimeoutMs }

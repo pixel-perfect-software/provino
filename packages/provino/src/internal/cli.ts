@@ -92,13 +92,6 @@ function bailWithCount(args: readonly string[]): string[] {
   return out
 }
 
-function parseBail(text: string): number {
-  if (!/^\d+$/.test(text) || !Number.isSafeInteger(Number(text))) {
-    throw new UsageError(`--bail must be a whole number, 0 or more (got "${text}")`)
-  }
-  return Number(text)
-}
-
 /** The bytes in each unit a `--workerMemoryLimit` may name: Jest's, decimal for `kb`/`mb`/`gb`, binary for `kib`/`mib`/`gib`. */
 const BYTE_UNITS: Readonly<Record<string, number>> = {
   b: 1,
@@ -122,16 +115,11 @@ function parseBytes(text: string, flag: string): number {
   return Math.floor(Number(match[1]) * factor)
 }
 
-function parseWhole(text: string, flag: string): number {
-  if (!/^[1-9]\d*$/.test(text) || !Number.isSafeInteger(Number(text))) {
-    throw new UsageError(`${flag} must be a whole number of at least 1 (got "${text}")`)
-  }
-  return Number(text)
-}
-
-function parseMaxWorkers(text: string): number {
-  if (!/^[1-9]\d*$/.test(text) || !Number.isSafeInteger(Number(text))) {
-    throw new UsageError(`--maxWorkers must be a whole number of at least 1 (got "${text}")`)
+/** A whole number of at least `min` (1, or 0 where 0 is off), in digits only. */
+function parseWhole(text: string, flag: string, min: 0 | 1 = 1): number {
+  const digits = min === 0 ? /^\d+$/ : /^[1-9]\d*$/
+  if (!digits.test(text) || !Number.isSafeInteger(Number(text))) {
+    throw new UsageError(`${flag} must be a whole number of at least ${min} (got "${text}")`)
   }
   return Number(text)
 }
@@ -186,7 +174,9 @@ export function parseRunArgs(
   const reporters = parseReporters(names, values.outputFile)
   const options: RunOptions = {
     config: values.config,
-    ...(values.maxWorkers === undefined ? {} : { maxWorkers: parseMaxWorkers(values.maxWorkers) }),
+    ...(values.maxWorkers === undefined
+      ? {}
+      : { maxWorkers: parseWhole(values.maxWorkers, '--maxWorkers') }),
     ...(values.pool === undefined ? {} : { pool: values.pool }),
     ...(names.length === 0 ? {} : { reporters }),
     ...(values.ci === true ? { ci: true } : {}),
@@ -194,7 +184,7 @@ export function parseRunArgs(
     ...(values.passWithNoTests === true ? { passWithNoTests: true } : {}),
     ...(values.testNamePattern === undefined ? {} : { testNamePattern: values.testNamePattern }),
     ...(values['no-cache'] === true ? { cache: false } : {}),
-    ...(values.bail === undefined ? {} : { bail: parseBail(values.bail) }),
+    ...(values.bail === undefined ? {} : { bail: parseWhole(values.bail, '--bail', 0) }),
     ...(values.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
     ...(values.workerMemoryLimit === undefined
       ? {}

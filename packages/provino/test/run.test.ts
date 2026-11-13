@@ -137,19 +137,43 @@ describe('run()', () => {
       }
     })
 
-    it('a bail that is not a whole number of at least 0, and a detectOpenHandles that is not a boolean', async () => {
+    it('a bail that is not a whole number of at least 0', async () => {
       const project = await makeProject({ 'tests/a.test.js': passing('a') })
       for (const bail of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
         const ran = await runProject(project, { bail })
         assert.equal(ran.exitCode, 2, String(bail))
         assert.equal(ran.summary, null)
-        assert.match(ran.stderr, /bail must be a whole number/)
+        assert.match(ran.stderr, /bail\.count .*must be a whole number of at least 1/)
+        assert.doesNotMatch(ran.stderr, /PASS|FAIL/, 'no file ran')
       }
-      // @ts-expect-error detectOpenHandles is a boolean
-      const ran = await runProject(project, { detectOpenHandles: 'yes' })
-      assert.equal(ran.exitCode, 2)
-      assert.equal(ran.summary, null)
-      assert.match(ran.stderr, /detectOpenHandles must be true or false/)
+    })
+
+    it('a worker limit or a file deadline that makes no sense, said by the orchestrator, with nothing run', async () => {
+      const project = await makeProject({ 'tests/a.test.js': passing('a') })
+      for (const [options, pattern] of [
+        [{ workerMemoryLimit: -1 }, /recycle\.memoryLimitBytes .*must be a number of bytes/],
+        [{ workerMemoryLimit: Number.NaN }, /recycle\.memoryLimitBytes/],
+        [
+          { maxFilesPerWorker: 0 },
+          /recycle\.maxFilesPerWorker .*must be a whole number of at least 1/,
+        ],
+        [{ maxFilesPerWorker: 1.5 }, /recycle\.maxFilesPerWorker/],
+        [{ fileTimeoutMs: 0 }, /fileTimeoutMs .*must be a number of milliseconds above 0/],
+        [{ fileTimeoutMs: Number.POSITIVE_INFINITY }, /fileTimeoutMs/],
+      ] as const) {
+        const ran = await runProject(project, options)
+        assert.equal(ran.exitCode, 2, JSON.stringify(options))
+        assert.equal(ran.summary, null)
+        assert.match(ran.stderr, pattern)
+        assert.doesNotMatch(ran.stderr, /PASS|FAIL/, 'no file ran')
+      }
+    })
+
+    it('a bail of 0 is off, not an error', async () => {
+      const project = await makeProject({ 'tests/a.test.js': failing('a') })
+      const ran = await runProject(project, { bail: 0 })
+      assert.equal(ran.exitCode, 1, ran.stderr)
+      assert.equal(ran.summary?.reason, 'failed')
     })
 
     it('a reporter that is not a built-in or a reporter', async () => {

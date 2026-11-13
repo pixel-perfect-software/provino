@@ -35,16 +35,20 @@ function describeError(error: Error): string {
 
 /**
  * What to tell the user about an error that means their input is wrong (a usage error, a config
- * error, a test name pattern that isn't a regular expression), or `undefined` for any other error:
- * those are bugs, and are rethrown.
+ * error, a test name pattern that isn't a regular expression, a pool or run option with a value
+ * that makes no sense), or `undefined` for any other error: those are bugs, and are rethrown.
  * @internal
  */
 export function usageMessage(error: unknown): string | undefined {
   if (error instanceof UsageError || error instanceof ConfigError) {
     return `Provino: ${describeError(error)}`
   }
-  // The pattern error's message already carries the regular expression's own complaint.
-  if (error instanceof OrchestratorError && error.code === 'ORCH_BAD_PATTERN') {
+  // These messages already say what is wrong: the pattern error carries the regular expression's
+  // own complaint, and an option error names the option and the value it got.
+  if (
+    error instanceof OrchestratorError &&
+    (error.code === 'ORCH_BAD_PATTERN' || error.code === 'ORCH_BAD_OPTION')
+  ) {
     return `Provino: ${error.message}`
   }
   return undefined

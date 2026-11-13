@@ -9,7 +9,11 @@ import { executeProject } from './internal/execute.ts'
 import { UsageError } from './internal/usage-error.ts'
 import type { RunOptions, RunResult } from './types.ts'
 
-/** The pool options a run overrides: only the ones given, so the policy's defaults stand. */
+/**
+ * The pool options a run overrides: only the ones given, so the policy's defaults stand. A limit
+ * that makes no sense (`workerMemoryLimit`, `maxFilesPerWorker`, `fileTimeoutMs`, `bail`) is the
+ * orchestrator's to refuse (`ORCH_BAD_OPTION`, exit 2); `maxWorkers` it would only round.
+ */
 function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']> {
   if (
     options.maxWorkers !== undefined &&
@@ -19,33 +23,7 @@ function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']
       `maxWorkers must be a whole number of at least 1 (got ${String(options.maxWorkers)})`,
     )
   }
-  const { workerMemoryLimit, maxFilesPerWorker, fileTimeoutMs, bail, detectOpenHandles } = options
-  if (bail !== undefined && !(Number.isSafeInteger(bail) && bail >= 0)) {
-    throw new UsageError(`bail must be a whole number, 0 (off) or more (got ${String(bail)})`)
-  }
-  if (detectOpenHandles !== undefined && typeof detectOpenHandles !== 'boolean') {
-    throw new UsageError(
-      `detectOpenHandles must be true or false (got ${String(detectOpenHandles)})`,
-    )
-  }
-  if (workerMemoryLimit !== undefined && !(workerMemoryLimit >= 0)) {
-    throw new UsageError(
-      `workerMemoryLimit must be a number of bytes, 0 or more (got ${String(workerMemoryLimit)})`,
-    )
-  }
-  if (
-    maxFilesPerWorker !== undefined &&
-    !(Number.isSafeInteger(maxFilesPerWorker) && maxFilesPerWorker >= 1)
-  ) {
-    throw new UsageError(
-      `maxFilesPerWorker must be a whole number of at least 1 (got ${String(maxFilesPerWorker)})`,
-    )
-  }
-  if (fileTimeoutMs !== undefined && !(fileTimeoutMs > 0 && Number.isFinite(fileTimeoutMs))) {
-    throw new UsageError(
-      `fileTimeoutMs must be a number of milliseconds above 0 (got ${String(fileTimeoutMs)})`,
-    )
-  }
+  const { workerMemoryLimit, maxFilesPerWorker, fileTimeoutMs } = options
   return {
     ...(options.pool === undefined ? {} : { kind: options.pool }),
     ...(options.maxWorkers === undefined ? {} : { maxWorkers: options.maxWorkers }),
@@ -105,7 +83,7 @@ async function execute(
  * name, and every reporter is built from `reporters` or the policy's defaults. Bad input (no
  * config file, a config that doesn't load or fails its checks, an unknown dialect, a `maxWorkers`
  * or reporter that makes no sense, a `bail` that isn't a whole number of at least 0, a test name
- * pattern that isn't a regular expression) does not
+ * pattern that isn't a regular expression, a limit the orchestrator refuses) does not
  * reject: the message goes to `stderr` and the result is exit code 2 with a `null` summary. Any
  * other error is a bug and rejects.
  * @public

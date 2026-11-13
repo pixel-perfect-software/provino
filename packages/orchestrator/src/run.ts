@@ -371,7 +371,7 @@ export async function runProjects(
   if (bail !== undefined && !(Number.isSafeInteger(bail.count) && bail.count >= 1)) {
     throw new OrchestratorError(
       'ORCH_BAD_OPTION',
-      `bail.count must be a whole number of at least 1 (got ${String(bail.count)})`,
+      `bail.count (the failed tests that end the run) must be a whole number of at least 1 (got ${String(bail.count)})`,
     )
   }
   const bailAfter = orchestrator.bail.checkAfter
