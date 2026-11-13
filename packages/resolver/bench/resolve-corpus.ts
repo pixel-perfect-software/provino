@@ -1,28 +1,25 @@
 // T3.2's acceptance workload, rebuilt (the spike's bench-resolve.mjs is gone; see
-// docs/plan/bundles/B05.md → Corpora). Requests: every installed package's bare name plus every
-// literal `exports` subpath, from pnpm's hoisted store. Baseline: Node's own ESM resolution
+// docs/plan/bundles/B05.md → Corpora). Requests: every installed third-party package's bare name plus
+// every literal `exports` subpath, from pnpm's hoisted store. The workspace's own packages, which pnpm
+// links into that store, are left out and counted (their targets depend on whether a build ran: CI
+// runs this with no `dist/`), and a target whose file is missing is no answer (`requests.ts`). Baseline: Node's own ESM resolution
 // (`import.meta.resolve` with a parent in that store). Bar: at least 531 compared requests and an
 // agreement ratio of at least 529/531; with `--max-warm-us`, the warm cost per request too.
 //
 // Usage: node --conditions=provino-source packages/resolver/bench/resolve-corpus.ts
 //          [--max-warm-us 15] [--json]
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { createResolver } from '@provino/resolver'
 import type { ResolveContext } from '@provino/types'
+import { collectRequests, type NodeAnswer, withoutMissingTargets } from './requests.ts'
 
 const MIN_COMPARED = 531
 const AGREEMENT = 529 / 531
 const WARM_PASSES = 5
-
-interface NodeAnswer {
-  readonly request: string
-  readonly path: string | null
-  readonly error: string | null
-}
 
 const { values: args } = parseArgs({
   options: { 'max-warm-us': { type: 'string' }, json: { type: 'boolean', default: false } },
@@ -31,30 +28,6 @@ const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
 const store = join(repoRoot, 'node_modules/.pnpm/node_modules')
 if (!existsSync(store)) throw new Error(`no pnpm hoisted store at ${store}; run pnpm install`)
 const parentFile = join(store, '__provino_resolve_parent__.mjs')
-
-/** Every bare name plus every literal `exports` subpath of the packages in the store. */
-function collectRequests(): string[] {
-  const names: string[] = []
-  for (const entry of readdirSync(store).sort()) {
-    if (entry.startsWith('.')) continue
-    if (entry.startsWith('@')) {
-      for (const sub of readdirSync(join(store, entry)).sort()) names.push(`${entry}/${sub}`)
-    } else names.push(entry)
-  }
-  const requests: string[] = []
-  for (const name of names) {
-    const manifest = join(store, name, 'package.json')
-    if (!existsSync(manifest)) continue
-    requests.push(name)
-    const pkg: { readonly exports?: unknown } = JSON.parse(readFileSync(manifest, 'utf8'))
-    const exports = pkg.exports
-    if (exports === null || typeof exports !== 'object' || Array.isArray(exports)) continue
-    for (const key of Object.keys(exports)) {
-      if (key.startsWith('./') && !key.includes('*')) requests.push(`${name}/${key.slice(2)}`)
-    }
-  }
-  return requests
-}
 
 /** Node's answers, from a child process (the parent argument needs the flag). */
 function nodeAnswers(requests: readonly string[]): NodeAnswer[] {
@@ -83,7 +56,8 @@ function nodeAnswers(requests: readonly string[]): NodeAnswer[] {
     },
   )
   if (child.status !== 0) throw new Error(`the Node baseline failed:\n${child.stderr}`)
-  return JSON.parse(child.stdout)
+  // import.meta.resolve answers a path for an exports target whose file is missing: not an answer.
+  return withoutMissingTargets(JSON.parse(child.stdout))
 }
 
 function median(values: readonly number[]): number {
@@ -94,7 +68,7 @@ function median(values: readonly number[]): number {
     : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
 }
 
-const requests = collectRequests()
+const { requests, workspace } = collectRequests(store)
 const node = nodeAnswers(requests)
 const compared = node.filter((answer) => answer.path !== null)
 const excluded = node.length - compared.length
@@ -151,6 +125,7 @@ const report = {
   requests: requests.length,
   compared: compared.length,
   excludedNodeErrors: excluded,
+  excludedWorkspacePackages: workspace,
   agreed,
   disagreements,
   coldUsPerRequest: Number(coldUs.toFixed(2)),
@@ -162,7 +137,8 @@ else {
   process.stdout.write(
     [
       `resolve corpus (local, Node ${process.version})`,
-      `  requests ${requests.length}, compared ${compared.length}, excluded (Node errors) ${excluded}`,
+      `  requests ${requests.length}, compared ${compared.length}, excluded (Node errors, or a target whose file is missing) ${excluded}`,
+      `  left out: ${workspace.length} workspace packages (the workspace's own, whose targets depend on whether a build ran)`,
       `  agreed ${agreed}/${compared.length}`,
       ...disagreements.map(
         (row) => `    ${row.request}: node ${row.node} | provino ${row.provino}`,
