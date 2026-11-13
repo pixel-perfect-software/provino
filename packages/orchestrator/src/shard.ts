@@ -30,6 +30,20 @@ export interface ShardSpec {
 const MIN_WEIGHT_MS = 1
 
 /**
+ * A weight above this counts as this (2^32 ms, 49 days: no test file takes longer). The timings
+ * file only checks that a time is finite, so `1e308` is one, and two of them sum to `Infinity`:
+ * `floor(count * middle / total)` is then `NaN`, no shard keeps the file, and it runs nowhere.
+ */
+const MAX_WEIGHT_MS = 2 ** 32
+
+/** `file`'s predicted time as a weight, or `undefined` when it has none (a time that is not a number is none). */
+function timeOf(file: ScheduleInput): number | undefined {
+  const { timingMs } = file
+  if (timingMs === undefined || Number.isNaN(timingMs)) return undefined
+  return Math.min(Math.max(timingMs, MIN_WEIGHT_MS), MAX_WEIGHT_MS)
+}
+
+/**
  * Throws `ORCH_BAD_OPTION` unless `shard` is `index` of `count`, both whole numbers, with
  * `1 <= index <= count`. Jest's text for each (`parseShardPair`) is the dialect reader's.
  * @public
@@ -86,18 +100,15 @@ export function sha1Shard(
 }
 
 /**
- * What each file is predicted to take, in ms: its `timingMs`, else the median of the files that
- * have one, else 1 (nothing is known, so every file counts the same).
+ * What each file is predicted to take, in ms: its `timingMs` (at least 1, at most 2^32, so the
+ * cumulative sum stays finite; a time that is not a number is none), else the median of the files
+ * that have one, else 1 (nothing is known, so every file counts the same).
  * @public
  */
 export function predictedWeights(
   files: readonly ScheduleInput[],
 ): ReadonlyMap<ScheduleInput, number> {
-  const known = files
-    .flatMap((file) =>
-      file.timingMs === undefined ? [] : [Math.max(file.timingMs, MIN_WEIGHT_MS)],
-    )
-    .toSorted((a, b) => a - b)
+  const known = files.flatMap((file) => timeOf(file) ?? []).toSorted((a, b) => a - b)
   const middle = Math.floor(known.length / 2)
   const median =
     known.length === 0
@@ -105,12 +116,7 @@ export function predictedWeights(
       : known.length % 2 === 1
         ? (known[middle] as number)
         : ((known[middle - 1] as number) + (known[middle] as number)) / 2
-  return new Map(
-    files.map((file) => [
-      file,
-      file.timingMs === undefined ? median : Math.max(file.timingMs, MIN_WEIGHT_MS),
-    ]),
-  )
+  return new Map(files.map((file) => [file, timeOf(file) ?? median]))
 }
 
 /**

@@ -155,6 +155,22 @@ describe('sliceShard (contiguous cuts by predicted time)', () => {
       [2, 2],
     )
   })
+
+  it('keeps every file in a shard when the times are huge: the cumulative sum must not overflow', () => {
+    // 1e308 passes the timings file's checks (finite, not negative) but two of them sum to Infinity.
+    const files = [file('a.test.ts', 1e308), file('b.test.ts', 1e308), file('c.test.ts', 5)]
+    const all = [1, 2].flatMap((index) => paths(sliceShard(files, { index, count: 2 })))
+    assert.deepEqual(all.toSorted(), ['a.test.ts', 'b.test.ts', 'c.test.ts'])
+    const infinite = [file('a.test.ts', Infinity), file('b.test.ts', 7), file('c.test.ts', 7)]
+    const every = [1, 2].flatMap((index) => paths(sliceShard(infinite, { index, count: 2 })))
+    assert.deepEqual(every.toSorted(), ['a.test.ts', 'b.test.ts', 'c.test.ts'])
+  })
+
+  it('treats a time that is not a number as no time', () => {
+    const files = [file('a.test.ts', Number.NaN), file('b.test.ts', 4), file('c.test.ts', 4)]
+    const all = [1, 2].flatMap((index) => paths(sliceShard(files, { index, count: 2 })))
+    assert.deepEqual(all.toSorted(), ['a.test.ts', 'b.test.ts', 'c.test.ts'])
+  })
 })
 
 describe('every file lands in exactly one shard (seeded property test)', () => {
