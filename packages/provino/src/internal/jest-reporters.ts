@@ -169,6 +169,7 @@ export async function setUpJestReporters(options: {
             globalConfig,
             {
               interrupted: results.aggregated().wasInterrupted,
+              watch: globalConfig.watch || globalConfig.watchAll,
               contextCount: results.contexts().size,
             },
             style,

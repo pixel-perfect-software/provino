@@ -159,7 +159,10 @@ export function jestSnapshotSummary(
 /**
  * The line after the totals (`_getTestSummary`): `Ran all test suites` and what narrowed the run
  * (paths, changed files, a file pattern, a test name, the project count), or ``Test run was
- * interrupted.``. `interrupted` is the aggregate's `wasInterrupted`. Nothing under `--silent`.
+ * interrupted.``. `interrupted` is the aggregate's `wasInterrupted`: Jest sets it from
+ * `watcher.isInterrupted()`, which only watch mode ever raises, so outside `watch` the line is
+ * never printed, and a run that a signal cut has no closing line at all (Jest's process ends).
+ * Nothing under `--silent`.
  * @public
  */
 export function jestRunSummaryLine(
@@ -173,11 +176,18 @@ export function jestRunSummaryLine(
     | 'testNamePattern'
     | 'testPathPatterns'
   >,
-  run: { readonly interrupted: boolean; readonly contextCount: number },
+  run: {
+    readonly interrupted: boolean
+    readonly contextCount: number
+    /** `--watch` or `--watchAll`. */
+    readonly watch?: boolean
+  },
   style: TextStyle,
 ): string | undefined {
   if (globalConfig.silent) return undefined
-  if (run.interrupted) return style.bold(style.red('Test run was interrupted.'))
+  if (run.interrupted) {
+    return run.watch === true ? style.bold(style.red('Test run was interrupted.')) : undefined
+  }
   const patterns = globalConfig.testPathPatterns
   let testInfo = ''
   if (globalConfig.runTestsByPath) {

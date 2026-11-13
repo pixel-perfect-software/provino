@@ -97,11 +97,13 @@ describe('jestRunSummaryLine', () => {
     )
   })
 
-  it('says the run was interrupted, and says nothing under --silent', () => {
+  it('says the run was interrupted only in watch mode, and says nothing under --silent', () => {
     assert.equal(
-      jestRunSummaryLine(base, { ...run, interrupted: true }, style),
+      jestRunSummaryLine(base, { ...run, interrupted: true, watch: true }, style),
       'Test run was interrupted.',
     )
+    // Outside watch mode Jest's process ends on the signal and `wasInterrupted` is never true.
+    assert.equal(jestRunSummaryLine(base, { ...run, interrupted: true }, style), undefined)
     assert.equal(jestRunSummaryLine({ ...base, silent: true }, run, style), undefined)
   })
 })
