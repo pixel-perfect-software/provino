@@ -341,8 +341,12 @@ describe('how the worker exits', () => {
   it('a fork that exits with a non-zero code fails the bar, though every test passed', async () => {
     const dir = await project({
       'a.test.js': [
-        // The bootstrap exits on purpose with code 0; a handler for `exit` changes it.
-        "process.on('exit', () => { process.exitCode = 9 })",
+        // The bootstrap exits on purpose with code 0; a handler for `exit` changes it. It goes on
+        // the worker's own `process` (which `require('node:process')` returns): the file's global
+        // `process` is its own copy (`orchestrator.processObject: 'per-file'`, as Jest gives it), and
+        // a listener on the copy never runs.
+        "const host = require('node:process')",
+        "host.on('exit', () => { host.exitCode = 9 })",
         "test('passes', () => { expect(1).toBe(1) })",
       ].join('\n'),
     })
