@@ -30,6 +30,9 @@
       "path": "../mock"
     },
     {
+      "path": "../lazy"
+    },
+    {
       "path": "../dialect-jest"
     },
     {

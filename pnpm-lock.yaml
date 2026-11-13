@@ -456,6 +456,9 @@ importers:
       '@provino/harness':
         specifier: workspace:*
         version: link:../harness
+      '@provino/lazy':
+        specifier: workspace:*
+        version: link:../lazy
       '@provino/loader':
         specifier: workspace:*
         version: link:../loader
