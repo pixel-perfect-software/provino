@@ -796,10 +796,10 @@ export class Executor {
         ? this.#eachHooksOf(test.parent)
         : NO_EACH_HOOKS
     attempt.deadline = this.#attemptDeadline(test)
-    const inner = (): Promise<void> => this.#attemptSteps(run, test, attempt, eachHooks, scope)
     if (eachHooks.aroundEach.length === 0) {
-      await inner()
+      await this.#attemptSteps(run, test, attempt, eachHooks, scope)
     } else {
+      const inner = (): Promise<void> => this.#attemptSteps(run, test, attempt, eachHooks, scope)
       errors.push(
         ...(await runAround(
           eachHooks.aroundEach.map((hook) => this.#aroundCall(run, hook, attempt)),
@@ -838,7 +838,10 @@ export class Executor {
     }
     if (errors.length === 0 && attempt.skipped === undefined) await this.#runBody(test, attempt)
     if (eachHooks.afterEach.length > 0 || teardowns.length > 0) {
-      await this.#runAfterEach(run, eachHooks.afterEach, attempt, teardowns)
+      // Each level's `afterEach` hooks, innermost first, then the teardowns `beforeEach` returned.
+      errors.push(
+        ...(await this.#runAfter(run, eachHooks.afterEach, 'afterEach', attempt, teardowns)),
+      )
     }
     attempt.state = 'cleanup'
     if (attempt.teardowns.length > checkpoint) {
@@ -940,16 +943,6 @@ export class Executor {
       }
       if (attempt.skipped !== undefined) return
     }
-  }
-
-  /** Each level's `afterEach` hooks, innermost first, then the teardowns `beforeEach` returned. */
-  async #runAfterEach(
-    run: FileRun,
-    levels: readonly SuiteNode[],
-    attempt: AttemptState,
-    teardowns: readonly Teardown[],
-  ): Promise<void> {
-    attempt.errors.push(...(await this.#runAfter(run, levels, 'afterEach', attempt, teardowns)))
   }
 
   /**
