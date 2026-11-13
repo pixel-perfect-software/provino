@@ -1,0 +1,6 @@
+cmd: /bin/sh -c true
+events: Ir
+fl=/bin/sh
+fn=main
+1 939999
+summary: 939999
