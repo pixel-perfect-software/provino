@@ -19,6 +19,13 @@ export async function loadJestReporters(plan: JestReporterPlan): Promise<JestLoa
     if (step.kind === 'builtin') {
       // The one built-in Jest builds from a class of its own that Provino runs as one.
       if (step.name === 'github-actions') {
+        // `silent: false` adds the result tree to the log (GitHubActionsReporter's `#getResultTree`
+        // and `#printFullResult`); Provino does not build it, so say so instead of printing less.
+        if (step.options.silent === false) {
+          throw new Error(
+            "The github-actions reporter option 'silent: false' is not supported yet: Provino does not print the result tree. Remove the option, or set 'silent: true'.",
+          )
+        }
         entries.push({
           path: 'github-actions',
           options: step.options,
