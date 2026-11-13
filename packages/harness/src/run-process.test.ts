@@ -79,7 +79,9 @@ test('a child that ignores SIGTERM is killed after the grace period', {
       '-e',
       `process.on('SIGTERM', () => console.log('IGNORED')); console.log('READY'); ${SPIN_FOREVER}`,
     ],
-    { ...baseOptions, deadline: signal, onOutput, killGraceMs: 20 },
+    // The grace has to outlast the child's turn of its event loop, or SIGKILL lands before the
+    // handler prints (a 20 ms grace lost that race under load).
+    { ...baseOptions, deadline: signal, onOutput, killGraceMs: 1_000 },
   )
   assert.equal(result.timedOut, true)
   assert.equal(result.signal, 'SIGKILL')
