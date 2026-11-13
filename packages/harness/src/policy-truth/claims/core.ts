@@ -119,7 +119,7 @@ export const coreClaims: Claims = {
     golden('core-test-fn'),
     golden('defaults', { case: 'core.eachTitleTruncate' }),
   ]),
-  'core.retry.timing': golden('core-retry'),
+  'core.retry.timing': [golden('core-retry'), corpus('runtime', 'runtime/retry-order')],
   'core.retry.logErrorsBeforeRetry': each(
     // The first attempt's error is in Jest's output only with logErrorsBeforeRetry set.
     golden('core-retry-log', {
@@ -136,9 +136,12 @@ export const coreClaims: Claims = {
       read: (g) => errorsOf(g, 'fails once, then passes').includes('Error: first attempt'),
     }),
   ),
-  'core.retry.keepEarlierErrors': golden('core-retry', {
-    read: (g) => errorsOf(g, 'fails every attempt').includes('Error: attempt 1'),
-  }),
+  'core.retry.keepEarlierErrors': [
+    golden('core-retry', {
+      read: (g) => errorsOf(g, 'fails every attempt').includes('Error: attempt 1'),
+    }),
+    corpus('runtime', 'runtime/retry-order'),
+  ],
   'core.allowOnly': corpus('runtime', 'runtime/only-scope'),
   'core.maxConcurrency': [corpus('runtime', 'runtime/concurrent-limit'), golden('defaults')],
   'core.unawaitedAsyncAssertion': golden('expect/policies/unawaited-async', {

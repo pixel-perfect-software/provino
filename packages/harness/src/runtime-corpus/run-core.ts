@@ -3,8 +3,9 @@
 // each test's title path, `dupIndex`, status, location and whether it carries errors, and the
 // file's status, whether it carries errors, and what failed at collection.
 import { pathToFileURL } from 'node:url'
-import { createRuntime } from '@provino/core'
-import { createBehaviourLoader } from '@provino/policy'
+import { createRuntime, type Runtime } from '@provino/core'
+import { jestGlobals } from '@provino/dialect-jest/runtime'
+import { createBehaviourLoader, neutralPolicy } from '@provino/policy'
 import type {
   CorePolicy,
   RuntimeEvent,
@@ -33,6 +34,14 @@ export interface CoreTest {
   readonly location: { readonly line: number; readonly column: number } | null
   /** What its `test-end` result reports. The comparison only asks whether there are any. */
   readonly errors: readonly SerializedError[]
+  /** The attempts it ran: its first, each retry and each repeat. */
+  readonly attempts: number
+  /**
+   * The errors of the attempts that were retried, which the result keeps for the reporter (Jest's
+   * `retryReasons`, printed under `logErrorsBeforeRetry`). Under `retry.keepEarlierErrors` they are
+   * also in `errors`, as Vitest's result lists every attempt's.
+   */
+  readonly retryErrors: readonly SerializedError[]
 }
 
 /** One file's run under the core. */
@@ -92,6 +101,8 @@ export async function runUnderCore(
       trace.push(step)
     },
     ...runtime.api,
+    // Jest's own `jest.retryTimes`, over this runtime: the one part of `jest` a runtime fixture uses.
+    jest: jestOverRuntime(runtime),
   })
   // The process's own listeners, for the fixtures whose errors come from timers and rejections: a
   // test process (`node:test`) has its own handlers, so those run in a child (`child.ts`).
@@ -107,7 +118,7 @@ export async function runUnderCore(
     restore()
     await runtime.dispose()
   }
-  return summarizeRun(events, trace)
+  return summarizeRun(events, trace, { keepEarlierErrors: policy.retry.keepEarlierErrors })
 }
 
 function findEvent<Type extends RuntimeEventType>(
@@ -140,7 +151,11 @@ export function reported(state: TaskState | undefined): Reported {
  * is `no-result`, and so is a file with no `file-end`: a core that drops an ending must fail the
  * comparison, not read as a skipped test.
  */
-export function summarizeRun(events: readonly RuntimeEvent[], trace: readonly string[]): CoreRun {
+export function summarizeRun(
+  events: readonly RuntimeEvent[],
+  trace: readonly string[],
+  options: { readonly keepEarlierErrors?: boolean } = {},
+): CoreRun {
   const collected = findEvent(events, 'file-collect-end')
   const fileEnd = findEvent(events, 'file-end')
   const tasks: readonly TaskNode[] = collected?.tasks ?? []
@@ -177,7 +192,13 @@ export function summarizeRun(events: readonly RuntimeEvent[], trace: readonly st
           task.location === null
             ? null
             : { line: task.location.line, column: task.location.column },
-        errors: [...(result?.errors ?? []), ...late],
+        errors: [
+          ...(result?.errors ?? []),
+          ...(options.keepEarlierErrors === true ? (result?.retryErrors ?? []) : []),
+          ...late,
+        ],
+        attempts: result?.attempts ?? 0,
+        retryErrors: result?.retryErrors ?? [],
       }
     })
   const collectionErrors = collected?.errors ?? []
@@ -194,4 +215,26 @@ export function summarizeRun(events: readonly RuntimeEvent[], trace: readonly st
     collectionErrors,
     unhandled,
   }
+}
+
+/** `jest` for a runtime fixture: the Jest dialect's real `jest.retryTimes` over `runtime`. */
+function jestOverRuntime(runtime: Runtime): unknown {
+  const unused = (what: string) => (): never => {
+    throw new Error(`a runtime fixture does not use ${what}`)
+  }
+  const globals = jestGlobals({
+    api: runtime.api,
+    expect: unused('expect') as never,
+    registry: unused('the module registry'),
+    mocks: unused('mocks'),
+    moduleMocks: unused('module mocks'),
+    mockPolicy: neutralPolicy.mock,
+    timers: unused('the fake clock'),
+    timersPolicy: neutralPolicy.timers,
+    seed: 0,
+    environmentTornDown: () => false,
+    setDefaultTimeout: (ms) => runtime.setDefaultTimeout(ms),
+    setDefaultRetry: (retry) => runtime.setDefaultRetry(retry),
+  })
+  return globals.jest
 }

@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/retry-order",
+  "files": [
+    {
+      "file": "order.vitest.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "order.vitest.test.ts",
+            "path": [
+              "a fails once"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: a failed #1",
+              "userFrame": "<root>/order.vitest.test.ts:10:40"
+            }
+          ],
+          "location": {
+            "line": 14,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "order.vitest.test.ts",
+            "path": [
+              "b passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 15,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "order.vitest.test.ts",
+            "path": [
+              "c fails twice"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: c failed #1",
+              "userFrame": "<root>/order.vitest.test.ts:10:40"
+            },
+            {
+              "name": "Error",
+              "message": "Error: c failed #2",
+              "userFrame": "<root>/order.vitest.test.ts:10:40"
+            }
+          ],
+          "location": {
+            "line": 16,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "order.vitest.test.ts",
+            "path": [
+              "d fails every time"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: d failed #1",
+              "userFrame": "<root>/order.vitest.test.ts:10:40"
+            },
+            {
+              "name": "Error",
+              "message": "Error: d failed #2",
+              "userFrame": "<root>/order.vitest.test.ts:10:40"
+            },
+            {
+              "name": "Error",
+              "message": "Error: d failed #3",
+              "userFrame": "<root>/order.vitest.test.ts:10:40"
+            }
+          ],
+          "location": {
+            "line": 17,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "order.vitest.test.ts",
+            "path": [
+              "nested",
+              "e fails once"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: e failed #1",
+              "userFrame": "<root>/order.vitest.test.ts:10:40"
+            }
+          ],
+          "location": {
+            "line": 20,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "order.vitest.test.ts",
+            "path": [
+              "nested",
+              "f passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "order.vitest.test.ts",
+            "path": [
+              "g passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 24,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "a #1",
+    "a #2",
+    "b",
+    "c #1",
+    "c #2",
+    "c #3",
+    "d #1",
+    "d #2",
+    "d #3",
+    "e #1",
+    "e #2",
+    "f",
+    "g"
+  ]
+}

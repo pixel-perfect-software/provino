@@ -1,0 +1,4 @@
+{
+  "description": "When a failed test is retried, for a retry count of 2: tests that fail once, twice and every time, a test that passes, a nested describe with its own failed test, and a test after it. Jest (jest.retryTimes(2)) runs a failed test again after the rest of its describe, in the order the tests failed, a test's retries one after the other; Vitest (the retry option) runs the retries at once.",
+  "runners": ["jest", "vitest"]
+}

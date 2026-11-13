@@ -1,0 +1,4 @@
+{
+  "description": "jest.retryTimes with retryImmediately: a failed test is retried at once, as Vitest's retry is, not after the rest of its describe. The same tests as retry-order's Jest file.",
+  "runners": ["jest"]
+}

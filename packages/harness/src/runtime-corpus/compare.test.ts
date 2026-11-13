@@ -13,7 +13,16 @@ const boom: SerializedError = { name: 'Error', message: 'boom' }
 const goldenBoom = { message: 'boom', raw: '' }
 
 function coreTest(name: string, overrides: Partial<CoreTest> = {}): CoreTest {
-  return { path: [name], dupIndex: 0, status: 'passed', location: null, errors: [], ...overrides }
+  return {
+    path: [name],
+    dupIndex: 0,
+    status: 'passed',
+    location: null,
+    errors: [],
+    attempts: 1,
+    retryErrors: [],
+    ...overrides,
+  }
 }
 
 function coreRun(overrides: Partial<CoreRun> = {}): CoreRun {

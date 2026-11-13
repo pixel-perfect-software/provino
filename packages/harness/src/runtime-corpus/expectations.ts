@@ -44,3 +44,26 @@ export const MESSAGE_FIXTURES: ReadonlySet<string> = new Set([
   'runtime/done-hooks',
   'runtime/context-shape',
 ])
+
+/**
+ * The fixtures whose stderr is Jest's `logErrorsBeforeRetry` output: the errors core keeps for the
+ * reporter (`retryErrors`) must be the ones Jest printed.
+ */
+export const RETRY_LOG_FIXTURES: ReadonlySet<string> = new Set(['runtime/retry-log-errors'])
+
+/**
+ * The trace core gives where the real runner has a bug that core does not copy (D7), by
+ * `fixture (profile)`. Vitest 5.0.5 never calls a function given as `retry.condition`: a failed
+ * test is retried on every failure, so its golden has all three attempts of both tests. Core calls
+ * it: the condition is asked after each failed attempt but the last, and `false` ends the retries.
+ */
+export const DECLARED_TRACES: Readonly<Record<string, readonly string[]>> = {
+  'runtime/retry-condition-function (vitest)': [
+    'function says yes #1',
+    'condition asked: always',
+    'function says yes #2',
+    'condition asked: always',
+    'function says yes #3',
+    'function says no #1',
+  ],
+}

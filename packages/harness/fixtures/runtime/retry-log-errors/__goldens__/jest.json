@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/retry-log-errors",
+  "files": [
+    {
+      "file": "log.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "log.test.ts",
+            "path": [
+              "passes on the third attempt"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "retries": 2,
+          "location": {
+            "line": 14,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "log.test.ts",
+            "path": [
+              "fails every attempt"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: every failed #3",
+              "userFrame": "<root>/log.test.ts:10:40"
+            }
+          ],
+          "passingAssertions": 0,
+          "retries": 2,
+          "location": {
+            "line": 15,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "third #1",
+    "every #1",
+    "third #2",
+    "third #3",
+    "every #2",
+    "every #3"
+  ],
+  "observed": {
+    "stderr": " LOGGING RETRY ERRORS  passes on the third attempt\n RETRY 1 \n    third failed #1\n RETRY 2 \n    third failed #2\n LOGGING RETRY ERRORS  fails every attempt\n RETRY 1 \n    every failed #1\n RETRY 2 \n    every failed #2\n    every failed #3"
+  }
+}

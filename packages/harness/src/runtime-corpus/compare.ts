@@ -21,6 +21,18 @@ export interface GoldenExpectations {
    * that exercise those ask. A timeout is a timeout: its text is core's.
    */
   readonly compareMessages?: boolean
+  /**
+   * The golden's stderr is Jest's `logErrorsBeforeRetry` output: each test's earlier attempts'
+   * errors (core's `retryErrors`) must be the ones Jest printed under its `LOGGING RETRY ERRORS`
+   * header, and a test with none printed has none.
+   */
+  readonly retryLog?: boolean
+  /**
+   * A trace core is declared to give in place of the golden's (the fixture shows a bug in the real
+   * runner that core does not copy, DIVERGENCES). It must differ from the golden's, so a declaration
+   * that no longer holds fails.
+   */
+  readonly declaredTrace?: readonly string[]
 }
 
 /** The golden's text for a Jest or Vitest timeout, which core words its own way. */
@@ -63,7 +75,16 @@ export function assertRunMatchesGolden(
   assert.ok(goldenFile !== undefined)
   assert.equal(goldenFile.file, expected.testFile, "the golden's file is the test file")
 
-  assert.deepEqual(run.trace, golden.trace ?? [], 'trace')
+  if (expected.declaredTrace === undefined) {
+    assert.deepEqual(run.trace, golden.trace ?? [], 'trace')
+  } else {
+    assert.notDeepEqual(
+      expected.declaredTrace,
+      golden.trace ?? [],
+      'the declared trace now equals the golden: remove the declaration',
+    )
+    assert.deepEqual(run.trace, expected.declaredTrace, 'the declared trace')
+  }
   assert.deepEqual(
     run.tests.map((t) => ({ path: t.path, dupIndex: t.dupIndex, status: t.status })),
     goldenFile.tests.map((t) => ({ path: t.id.path, dupIndex: t.id.dupIndex, status: t.status })),
@@ -83,6 +104,29 @@ export function assertRunMatchesGolden(
     goldenFile.tests.map((t) => ({ path: t.id.path, hasErrors: t.errors.length > 0 })),
     'tests: which carry errors',
   )
+  // Jest counts a test's invocations, so its `retries` are the attempts after the first. Vitest's
+  // JSON has no count: its retries show in the trace.
+  if (golden.runner === 'jest') {
+    assert.deepEqual(
+      run.tests.map((t) => ({ path: t.path, retries: Math.max(t.attempts - 1, 0) })),
+      goldenFile.tests.map((t) => ({ path: t.id.path, retries: t.retries ?? 0 })),
+      'tests: retries',
+    )
+  }
+  if (expected.retryLog === true) {
+    const logged = loggedRetryErrors(String(golden.observed?.stderr ?? ''))
+    assert.deepEqual(
+      run.tests.map((t) => ({
+        path: t.path,
+        retryErrors: t.retryErrors.map((e) => e.message),
+      })),
+      goldenFile.tests.map((t) => ({
+        path: t.id.path,
+        retryErrors: logged.get(t.id.path.join(' ')) ?? [],
+      })),
+      'tests: the errors logged before each retry',
+    )
+  }
   if (expected.compareMessages === true) {
     assert.deepEqual(
       run.tests.map((t) => ({ path: t.path, messages: t.errors.map(printed) })),
@@ -132,4 +176,28 @@ export function assertRunMatchesGolden(
       'the collection error code',
     )
   }
+}
+
+/**
+ * What Jest's default reporter logged for the retried tests: by the test's full name, the message
+ * of each `RETRY n` block, in order (the first line below the heading, whatever follows it).
+ */
+export function loggedRetryErrors(stderr: string): ReadonlyMap<string, readonly string[]> {
+  const logged = new Map<string, string[]>()
+  let current: string[] | undefined
+  let wantsMessage = false
+  for (const line of stderr.split('\n')) {
+    const header = /^ LOGGING RETRY ERRORS {2}(.*)$/.exec(line)
+    if (header !== null) {
+      current = []
+      logged.set(header[1] ?? '', current)
+      wantsMessage = false
+    } else if (/^ RETRY \d+ *$/.test(line)) {
+      wantsMessage = true
+    } else if (wantsMessage && current !== undefined) {
+      current.push(line.trim())
+      wantsMessage = false
+    }
+  }
+  return logged
 }

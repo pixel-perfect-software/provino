@@ -1,0 +1,4 @@
+{
+  "description": "A function as Vitest's retry.condition. Vitest 5.0.5 types it as (error) => boolean and its runner has code to call it, but a function given to a test's retry option is never called: the failed test is retried on every failure (the function's trace line never appears, and one that returns false still retries). Provino calls it (DIVERGENCES, D7).",
+  "runners": ["vitest"]
+}

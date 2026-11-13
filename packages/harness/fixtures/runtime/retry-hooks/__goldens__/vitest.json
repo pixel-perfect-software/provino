@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/retry-hooks",
+  "files": [
+    {
+      "file": "hooks.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "hooks.vitest.test.ts",
+            "path": [
+              "body fails once"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: body failed",
+              "userFrame": "<root>/hooks.vitest.test.ts:12:32"
+            }
+          ],
+          "location": {
+            "line": 10,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "hooks.vitest.test.ts",
+            "path": [
+              "beforeEach fails once",
+              "first"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: beforeEach failed",
+              "userFrame": "<root>/hooks.vitest.test.ts:21:30"
+            }
+          ],
+          "location": {
+            "line": 25,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "hooks.vitest.test.ts",
+            "path": [
+              "afterEach fails once",
+              "second"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: afterEach failed",
+              "userFrame": "<root>/hooks.vitest.test.ts:35:30"
+            }
+          ],
+          "location": {
+            "line": 38,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "beforeAll root",
+    "beforeEach root",
+    "body",
+    "afterEach root",
+    "beforeEach root",
+    "body",
+    "afterEach root",
+    "beforeAll first",
+    "beforeEach root",
+    "beforeEach first",
+    "afterEach first",
+    "afterEach root",
+    "beforeEach root",
+    "beforeEach first",
+    "first body",
+    "afterEach first",
+    "afterEach root",
+    "afterAll first",
+    "beforeAll second",
+    "beforeEach root",
+    "beforeEach second",
+    "second body",
+    "afterEach second",
+    "beforeEach root",
+    "beforeEach second",
+    "second body",
+    "afterEach second",
+    "afterEach root",
+    "afterAll second",
+    "afterAll root"
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "description": "When Jest reads the file's retry: jest.retryTimes sets one value for the whole file, and each describe reads it when it starts running, after its beforeAll hooks, and keeps it for its own tests. A beforeAll that lowers it gives its describe no retries, one that raises it more; a call from a test body changes only the describes that start after it; the file level reads it before anything has run, so its own retries use the first call's value.",
+  "runners": ["jest"]
+}

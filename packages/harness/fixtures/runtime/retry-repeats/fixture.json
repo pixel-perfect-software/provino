@@ -1,0 +1,4 @@
+{
+  "description": "Vitest's repeats option: a test with repeats: n runs n + 1 times, the each-hooks around every run, a failed repeat does not stop the next, and each repeat has its own retries. Jest has no repeats.",
+  "runners": ["vitest"]
+}
