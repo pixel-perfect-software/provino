@@ -1,0 +1,25 @@
+FAIL src/cart.test.ts
+  cart
+    ✕ totals (1 ms)
+    ✕ plain (1 ms)
+    ✓ fine (1 ms)
+
+  ● cart › totals
+
+    no such user
+      at user (/project/src/cart.test.ts:5:30)
+
+    Lazy values evaluated before the failure:
+      db  src/cart.test.ts:3:14  <1 ms
+      user (override) threw  src/cart.test.ts:5:14  3 ms
+      cart threw  src/cart.test.ts:6:14  13 ms
+      chain: cart -> user
+
+  ● cart › plain
+
+    no such user
+      at user (/project/src/cart.test.ts:5:30)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 1 passed, 3 total
+Time:        1.234 s

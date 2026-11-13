@@ -86,4 +86,4 @@ A mistake throws a `LazyError` with a `code` and the file and line of the defini
 ## Limits
 
 - A cycle through `$` after an `await` waits for the test's timeout; read the other value through the dependencies argument to get `LAZY_CYCLE`.
-- A list of the values a failing test evaluated, in the failure report, is not built yet.
+- The failure report lists the lazy values a failed test evaluated (key, where it is defined, time) in the text reporters (`default`, `verbose`, `agent`, `dot`), and for a definition that threw, the chain of reads that led to it (`chain: cart -> user`). The JSON, JUnit and GitHub Actions reporters do not carry it.
