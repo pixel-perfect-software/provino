@@ -23,6 +23,7 @@ interface Result {
   readonly status: string
   readonly directory?: string
   readonly message?: string
+  readonly portable?: boolean
 }
 interface Outcome {
   readonly first: Result
@@ -71,6 +72,11 @@ test('the first call enables Node’s compile cache and tags the directory, the 
   const { first, second } = native({ dir })
   assert.equal(first.status, 'enabled')
   assert.equal(typeof first.directory, 'string')
+  // Portable where the object form is taken: a process that shares the directory must be too.
+  assert.equal(
+    first.portable,
+    compileCacheArgumentForm(process.versions.node) === 'object' ? true : undefined,
+  )
   assert.ok(existsSync(dir))
   assert.ok(existsSync(join(dir, 'CACHEDIR.TAG')))
   assert.ok(hasProvinoTag(dir))
@@ -103,6 +109,7 @@ test('where the object form is tried and refused, the call falls back to the str
   const dir = join(scratch(), 'fallback')
   const { first, calls } = native({ dir, fake: 'object-throws' })
   assert.equal(first.status, 'enabled')
+  assert.equal(first.portable, undefined, 'the string form was the one that worked')
   // The child calls twice, so each call's attempts are there twice.
   if (compileCacheArgumentForm(process.versions.node) === 'object') {
     assert.deepEqual(calls, ['object', 'string', 'object', 'string'])

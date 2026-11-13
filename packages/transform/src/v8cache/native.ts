@@ -20,6 +20,12 @@ export interface NativeCompileCacheResult {
   readonly status: 'enabled' | 'already-enabled' | 'disabled' | 'unsupported' | 'failed'
   /** The directory Node is using (it adds a per-Node-version directory under the one given). */
   readonly directory?: string
+  /**
+   * `true` when this call turned the cache on in portable mode (the object form, Node 24.12 and
+   * 25 on): a process that should share the directory, such as a forked worker, must be portable
+   * too (`NODE_COMPILE_CACHE_PORTABLE=1`), or Node 26 keeps its entries in another directory.
+   */
+  readonly portable?: boolean
   /** Node's reason for `failed`. */
   readonly message?: string
 }
@@ -68,10 +74,12 @@ export function enableNativeCompileCache(
   const call = enable as EnableCompileCache
   const directory = resolve(dir)
   let result: NodeResult
+  let portable = false
   try {
     if (compileCacheArgumentForm(process.versions.node) === 'object') {
       try {
         result = call({ directory, portable: true })
+        portable = true
       } catch {
         result = call(directory)
       }
@@ -84,7 +92,7 @@ export function enableNativeCompileCache(
   const status = nodeModule.constants.compileCacheStatus
   if (result.status === status.ENABLED) {
     writeCacheTag(directory)
-    return withDetails('enabled', result)
+    return { ...withDetails('enabled', result), ...(portable ? { portable } : {}) }
   }
   if (result.status === status.ALREADY_ENABLED) return withDetails('already-enabled', result)
   if (result.status === status.DISABLED) return withDetails('disabled', result)

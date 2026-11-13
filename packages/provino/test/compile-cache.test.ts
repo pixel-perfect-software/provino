@@ -19,6 +19,16 @@ const { cachesOff, coverageOn } = (await import(
   coverageOn(argv: readonly string[], env: Readonly<Record<string, string | undefined>>): boolean
 }
 
+/**
+ * Whether this Node takes `enableCompileCache({ directory, portable })`: the rule of
+ * `compileCacheArgumentForm` in `@provino/transform`'s `native.ts`, which `native.test.ts` pins for
+ * each version.
+ */
+function hasObjectForm(version: string): boolean {
+  const [major = 0, minor = 0] = version.replace(/^v/, '').split('.').map(Number)
+  return major >= 25 || (major === 24 && minor >= 12)
+}
+
 const CHILD = fileURLToPath(new URL('compile-cache-child.ts', import.meta.url))
 const dirs: string[] = []
 after(async () => {
@@ -105,7 +115,14 @@ describe('enableBinCompileCache (a process of its own each)', () => {
     assert.equal(seen.before, null)
     assert.equal(seen.after, null, 'the variable is not written: a test must not see it')
     assert.equal(seen.grandchild, '', 'a process a test starts has none either')
-    assert.deepEqual(seen.workerEnv, { NODE_COMPILE_CACHE: expected })
+    // The bin's cache is portable where Node takes the object form, so the forks must say so too,
+    // or Node 26 keeps theirs in another directory (a portable cache has no uid suffix).
+    assert.deepEqual(
+      seen.workerEnv,
+      hasObjectForm(process.version)
+        ? { NODE_COMPILE_CACHE: expected, NODE_COMPILE_CACHE_PORTABLE: '1' }
+        : { NODE_COMPILE_CACHE: expected },
+    )
     assert.equal(seen.created, true)
     assert.equal(seen.tagged, true, 'the directory carries Provino’s CACHEDIR.TAG')
   })
@@ -159,11 +176,14 @@ describe('the compile cache and the tests the bin runs (D7: Jest sets no such va
   const sees = (expected: string | undefined): string =>
     [
       "const { execFileSync } = require('node:child_process')",
-      "test('sees the compile cache variable as the user left it', () => {",
+      "test('sees the compile cache variables as the user left them', () => {",
       `  const expected = ${JSON.stringify(expected)}`,
-      '  expect(process.env.NODE_COMPILE_CACHE).toBe(expected)',
-      "  const child = execFileSync(process.execPath, ['-p', 'String(process.env.NODE_COMPILE_CACHE)'], { encoding: 'utf8' })",
-      '  expect(child.trim()).toBe(String(expected))',
+      // `NODE_COMPILE_CACHE_PORTABLE` is the second variable the bin hands its forks (never set by the user here).
+      "  for (const [name, value] of [['NODE_COMPILE_CACHE', expected], ['NODE_COMPILE_CACHE_PORTABLE', undefined]]) {",
+      '    expect(process.env[name]).toBe(value)',
+      "    const child = execFileSync(process.execPath, ['-p', 'String(process.env[process.argv[1]])', name], { encoding: 'utf8' })",
+      '    expect(child.trim()).toBe(String(value))',
+      '  }',
       '})',
       '',
     ].join('\n')
@@ -176,16 +196,18 @@ describe('the compile cache and the tests the bin runs (D7: Jest sets no such va
       })
       assert.equal(ran.status, 0, ran.stderr)
       const dir = join(project.dir, 'node_modules', '.cache', 'provino', 'compile')
-      // Node's own layout under our directory is not ours to count: Node 26 keeps the bin's
-      // portable cache and the forks' `NODE_COMPILE_CACHE` cache in two directories (the portable
-      // one has no uid suffix), Node 24 in one. What matters is that Node cached chunks there.
-      const cached = readdirSync(dir, { withFileTypes: true })
+      const holding = readdirSync(dir, { withFileTypes: true })
         .filter((entry) => entry.isDirectory())
-        .map((entry) => readdirSync(join(dir, entry.name)).length)
-      assert.ok(
-        cached.some((entries) => entries > 0),
-        'the compiled chunks were cached',
-      )
+        .filter((entry) => readdirSync(join(dir, entry.name)).length > 0)
+        .map((entry) => entry.name)
+      assert.ok(holding.length > 0, 'the compiled chunks were cached')
+      // Where Node takes the object form the bin's cache is portable, and a portable cache has no
+      // uid suffix on Node 26 (`v26.13.1-arm64-<hash>`, a plain one `…-<hash>-501`). The forks are
+      // told to be portable too, so the bin's directory is the only one that holds entries: had the
+      // forks written their own, there would be a second one.
+      if (hasObjectForm(process.version)) {
+        assert.equal(holding.length, 1, `the bin and its forks share one directory: ${holding}`)
+      }
     })
 
     it(`--pool ${pool}: a test sees no NODE_COMPILE_CACHE, and the cache directory is still written`, async () => {

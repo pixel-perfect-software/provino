@@ -80,24 +80,31 @@ export function enableBinCompileCache(
   const mode = cachesOff(argv) ? 'off' : cacheModeFor({ coverage: coverageOn(argv, env) })
   const result = enableNativeCompileCache(dir, mode)
   // `enabled` only when this call did it: a `NODE_COMPILE_CACHE` the user set is `already-enabled`.
-  enabled = result.status === 'enabled' ? dir : undefined
+  enabled =
+    result.status === 'enabled' ? { directory: dir, portable: result.portable === true } : undefined
   return result
 }
 
-/** Where `enableBinCompileCache` turned the cache on, when it did: a process-wide fact, like the cache. */
-let enabled: string | undefined
+/** Where `enableBinCompileCache` turned the cache on, and how, when it did: a process-wide fact, like the cache. */
+let enabled: { readonly directory: string; readonly portable: boolean } | undefined
 
 /**
  * What a forked worker's Node must find in its spawn environment to use the bin's compile cache
  * (`RunPoolOptions.startupEnv`): `NODE_COMPILE_CACHE`, when `enableBinCompileCache` turned the cache
- * on here, and nothing when it didn't (a library caller, coverage, `--no-cache`) or when the user
- * set `NODE_COMPILE_CACHE` themselves: that one reaches the workers, and the tests, as it is.
+ * on here, and `NODE_COMPILE_CACHE_PORTABLE=1` with it when the bin's cache is portable (Node 24.12
+ * on): Node 26 names a portable cache's directory without the uid suffix, so a fork that wasn't
+ * told would keep its entries in a directory of its own and share none with the bin. Nothing when
+ * the bin turned nothing on (a library caller, coverage, `--no-cache`) or when the user set
+ * `NODE_COMPILE_CACHE` themselves: that one reaches the workers, and the tests, as it is. The
+ * worker removes every name listed here before any file loads.
  * @internal
  */
 export function workerStartupEnv(
   env: Readonly<Record<string, string | undefined>>,
 ): Readonly<Record<string, string>> {
-  return enabled === undefined || env.NODE_COMPILE_CACHE !== undefined
-    ? {}
-    : { NODE_COMPILE_CACHE: enabled }
+  if (enabled === undefined || env.NODE_COMPILE_CACHE !== undefined) return {}
+  return {
+    NODE_COMPILE_CACHE: enabled.directory,
+    ...(enabled.portable ? { NODE_COMPILE_CACHE_PORTABLE: '1' } : {}),
+  }
 }
