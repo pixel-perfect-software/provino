@@ -131,7 +131,20 @@ const damage: readonly (readonly [string, (file: string) => void])[] = [
   ],
   ['a truncated entry', (file) => truncateSync(file, Math.floor(statSync(file).size / 2))],
   ['an empty file', (file) => truncateSync(file, 0)],
+  // V8 checks the data's header and length, not its payload: on Node 24 a byte flipped near the
+  // start aborts the whole process (SIGTRAP, "unreachable code") and one in the middle is
+  // accepted, so the entry carries a checksum of its own.
+  ['a byte flipped near the start of the data', (file) => flipByte(file, 100)],
+  [
+    'a byte flipped in the middle of the data (length and header unchanged)',
+    (file) => flipByte(file, Math.floor(statSync(file).size / 2)),
+  ],
 ]
+function flipByte(file: string, offset: number): void {
+  const data = readFileSync(file)
+  data[offset] = (data[offset] as number) ^ 0x55
+  writeFileSync(file, data)
+}
 for (const [name, damaged] of damage) {
   test(`${name} is rejected, never an error, and replaced: the next process hits`, () => {
     const dir = scratch()
