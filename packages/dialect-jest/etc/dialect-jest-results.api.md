@@ -96,6 +96,7 @@ export function buildFailureTestResult(testPath: string, err: SerializableError)
 
 // @public
 export interface BuildOptions {
+    readonly collectOnly?: boolean;
     // (undocumented)
     readonly displayName: TestResult["displayName"];
     readonly locations: boolean;
@@ -203,6 +204,7 @@ export interface JestResults<Config extends ProjectConfigLike> {
 
 // @public
 export interface JestResultsOptions<Config extends ProjectConfigLike> {
+    readonly collectOnly?: boolean;
     // (undocumented)
     readonly globalConfig: GlobalConfigLike;
     readonly now?: () => number;

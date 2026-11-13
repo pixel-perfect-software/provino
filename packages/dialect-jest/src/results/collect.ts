@@ -47,6 +47,8 @@ export interface JestResultsOptions<Config extends ProjectConfigLike> {
   readonly globalConfig: GlobalConfigLike
   /** The run's projects in the order of `FileInfo.projectIndex`. */
   readonly projectConfigs: readonly Config[]
+  /** The run only collects (`--collectTests`): each file's result is `makeCollectedTestResult`'s. */
+  readonly collectOnly?: boolean
   /** The clock (`Date.now`), injected so a test can fix it. */
   readonly now?: () => number
 }
@@ -178,6 +180,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
       const build: BuildOptions = {
         locations: config.testLocationInResults,
         displayName: config.displayName,
+        ...(options.collectOnly === true ? { collectOnly: true } : {}),
         ...(config.slowTestThreshold === undefined
           ? {}
           : { slowTestThreshold: config.slowTestThreshold }),
@@ -208,7 +211,9 @@ export function createJestResults<Config extends ProjectConfigLike>(
         }
       }
       const { testExecError } = testResult
-      if (testExecError !== undefined && testResult.testResults.length === 0) {
+      if (options.collectOnly === true && testExecError === undefined) {
+        // Nothing ran, so there is nothing to format.
+      } else if (testExecError !== undefined && testResult.testResults.length === 0) {
         testResult.failureMessage = await formatFileError(
           testExecError,
           config,

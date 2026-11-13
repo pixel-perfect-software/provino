@@ -353,6 +353,49 @@ describe('toTestResult', () => {
   })
 })
 
+describe('a collect-only file (--collectTests)', () => {
+  const collect: BuildOptions = { ...OPTIONS, collectOnly: true }
+
+  it('reports a queued test as passed with wouldRun, and nothing a run would know', () => {
+    const built = toTestResult(
+      events([
+        { task: test('a', 'file'), result: result('queued', { attempts: 0 }) },
+        { task: test('b', 'file'), result: result('skip') },
+        { task: test('c', 'file'), result: result('todo') },
+      ]),
+      collect,
+    )
+    assert.deepEqual(
+      built.testResults.map((entry) => [entry.status, entry.wouldRun]),
+      [
+        ['passed', true],
+        ['pending', undefined],
+        ['todo', undefined],
+      ],
+    )
+    for (const entry of built.testResults) {
+      assert.deepEqual(
+        [entry.duration, entry.invocations, entry.location, entry.startAt, entry.numPassingAsserts],
+        [null, 0, null, null, 0],
+      )
+      assert.equal('retryMessages' in entry, false)
+    }
+    assert.deepEqual(
+      [built.numPassingTests, built.numPendingTests, built.numTodoTests, built.skipped],
+      [1, 1, 1, false],
+    )
+    assert.equal(built.perfStats.runtime, 0, 'makeCollectedTestResult has no timings')
+  })
+
+  it('keeps a file that could not load as a runtime error', () => {
+    const built = toTestResult(
+      events([], { tree: undefined }, { state: 'fail', errors: [failure('cannot load')] }),
+      collect,
+    )
+    assert.equal(built.testExecError?.message, 'cannot load')
+  })
+})
+
 describe('finishAggregated', () => {
   const end = (reason: 'passed' | 'interrupted', update?: 'all' | 'none') => ({
     reason,

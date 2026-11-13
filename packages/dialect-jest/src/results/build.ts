@@ -12,7 +12,7 @@ import type {
   TaskResult,
   TestTask,
 } from '@provino/types'
-import { createEmptyTestResult } from './helpers.ts'
+import { createEmptyTestResult, makeCollectedTestResult } from './helpers.ts'
 import type { AggregatedResult, AssertionResult, Status, TestResult } from './types.ts'
 
 /**
@@ -58,6 +58,12 @@ export interface BuildOptions {
   readonly displayName: TestResult['displayName']
   /** `slowTestThreshold`, in seconds (Jest's default 5). */
   readonly slowTestThreshold?: number
+  /**
+   * The run only collected (`--collectTests`): each test is reported as
+   * `collectTestsWithoutRunning` (jestAdapterInit.ts L174-L252) does, with no duration, location,
+   * start or invocation, and `makeCollectedTestResult` builds the file's result.
+   */
+  readonly collectOnly?: boolean
 }
 
 /**
@@ -95,7 +101,6 @@ function flatten(error: SerializedError, seen: Set<SerializedError>): string {
 function statusOf(state: TaskResult['state']): Status {
   switch (state) {
     case 'skip':
-    case 'queued':
       return 'pending'
     case 'todo':
       return 'todo'
@@ -103,6 +108,8 @@ function statusOf(state: TaskResult['state']): Status {
     case 'running':
       return 'failed'
     case 'pass':
+    case 'queued':
+      // `queued` is what a collect-only pass says of a test a run would start.
       return 'passed'
     default:
       return state satisfies never
@@ -121,6 +128,24 @@ export function toAssertionResult(record: TestRecord, options: BuildOptions): As
   const { location } = task
   const title = task.fullName.at(-1) ?? task.name
   const ran = status === 'passed' || status === 'failed'
+  if (options.collectOnly === true) {
+    return {
+      ancestorTitles: task.fullName.slice(0, -1),
+      duration: null,
+      failing: task.expectFail,
+      failureDetails: [],
+      failureMessages: [],
+      fullName: task.fullName.join(' '),
+      invocations: 0,
+      location: null,
+      numPassingAsserts: 0,
+      retryReasons: [],
+      startAt: null,
+      status,
+      title,
+      ...(result?.state === 'queued' ? { wouldRun: true as const } : {}),
+    }
+  }
   return {
     ancestorTitles: task.fullName.slice(0, -1),
     duration: ran && result !== undefined ? Math.round(result.durationMs) : null,
@@ -215,6 +240,13 @@ export function toTestResult(file: FileEvents, options: BuildOptions): TestResul
     }
   }
   const failed = testExecError !== undefined && !ran
+  if (options.collectOnly === true && testExecError === undefined) {
+    // `collectTestsWithoutRunning`: the counts come from the statuses, and nothing else is set.
+    return makeCollectedTestResult(assertionResults, {
+      displayName: options.displayName,
+      testFilePath: file.testFilePath,
+    })
+  }
   const results = failed ? [] : assertionResults
   const runtime = file.endedAt - file.startedAt
   const { snapshot } = file.result
