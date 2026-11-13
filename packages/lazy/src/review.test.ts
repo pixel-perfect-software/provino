@@ -2,7 +2,12 @@
 // the runtime's own fields, eager overrides of wider scopes, and where a nested eager runs.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { lazy as publicLazy } from './api.ts'
+import {
+  includeContext as publicIncludeContext,
+  includeExamples as publicIncludeExamples,
+  itBehavesLike as publicItBehavesLike,
+  lazy as publicLazy,
+} from './api.ts'
 import { LazyError } from './errors.ts'
 import { createWorld, type FileOutcome } from './internal/test-support.ts'
 import { installLazyRuntime } from './slot.ts'
@@ -131,5 +136,111 @@ describe('a nested eager re-declare', () => {
       }),
     )
     assert.deepEqual(trace, ['d before', 'nested eager', 'test'])
+  })
+})
+
+describe('shared groups through the public functions', () => {
+  test('a misuse is sited at the caller, not at api.ts', async () => {
+    const w = createWorld()
+    const uninstall = installLazyRuntime(w.runtime as never)
+    try {
+      const group = w.runtime.sharedExamples<{ n: number }>('n', () => {})
+      const context = w.runtime.sharedContext<{ n: number }, { m: number }>('m', ($) => $ as never)
+      const thrown: unknown[] = []
+      passed(
+        await w.runFile('a.test.ts', () => {
+          const $ = w.lazy.let('n', () => 1)
+          w.test('t', () => {
+            for (const fn of [
+              () => publicIncludeExamples(group, $),
+              () => publicItBehavesLike(group, $),
+              () => publicIncludeContext($, context as never),
+            ]) {
+              try {
+                fn()
+              } catch (error) {
+                thrown.push(error)
+              }
+            }
+          })
+        }),
+      )
+      assert.equal(thrown.length, 3)
+      for (const error of thrown) {
+        assert.ok(error instanceof LazyError)
+        assert.equal(error.code, 'LAZY_NOT_COLLECTING')
+        assert.match(error.site?.file ?? '', /review\.test\.ts$/)
+      }
+    } finally {
+      uninstall()
+    }
+  })
+
+  test('a context body that returns no handle names the includeContext call site', async () => {
+    const w = createWorld()
+    const uninstall = installLazyRuntime(w.runtime as never)
+    try {
+      const context = w.runtime.sharedContext('bad', (() => 1) as never)
+      const outcome = await w.runFile('a.test.ts', () => {
+        publicIncludeContext(
+          w.lazy.let('n', () => 1),
+          context as never,
+        )
+      })
+      assert.ok(outcome.collectError instanceof LazyError)
+      assert.match(outcome.collectError.message, /review\.test\.ts:\d+:\d+\)/)
+    } finally {
+      uninstall()
+    }
+  })
+
+  test('definitions made inside a group body keep their own site', async () => {
+    const w = createWorld()
+    const uninstall = installLazyRuntime(w.runtime as never)
+    try {
+      const group = w.runtime.sharedExamples<{ n: number }>('n', ($) => {
+        try {
+          $.let('d', () => 1).let('d', () => 2)
+        } catch (error) {
+          assert.ok(error instanceof LazyError)
+          assert.match(error.site?.file ?? '', /review\.test\.ts$/)
+          w.test('ran', () => {})
+          return
+        }
+        assert.fail('no duplicate')
+      })
+      const outcome = await w.runFile('a.test.ts', () => {
+        publicIncludeExamples(
+          group,
+          w.lazy.let('n', () => 1),
+        )
+      })
+      passed(outcome)
+      assert.equal(outcome.tests.length, 1)
+    } finally {
+      uninstall()
+    }
+  })
+
+  test('keys named suite, engine and frame work through a context and its returned handle', async () => {
+    const w = createWorld()
+    const context = w.runtime.sharedContext<{ n: number }, { suite: string; engine: string }>(
+      'names',
+      ($) => $.let('suite', () => 'checkout').let('engine', ({ n }) => `v${n}`) as never,
+    )
+    const seen: unknown[] = []
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.runtime.includeContext(
+          w.lazy.let('n', () => 8),
+          context as never,
+        ) as unknown as {
+          suite: string
+          engine: string
+        }
+        w.test('t', () => void seen.push($.suite, $.engine))
+      }),
+    )
+    assert.deepEqual(seen, ['checkout', 'v8'])
   })
 })
