@@ -28,16 +28,23 @@ const require = createRequire(import.meta.url)
 // Each is loaded from the package that depends on it, so it is the one instance that package
 // later uses. Only these few leaf modules: the heavy parts (`jest-diff`, the code frame itself,
 // `micromatch`, `jest-util`) stay deferred.
-function loadFromDependent(dependent: string, ...path: readonly string[]): void {
-  let from = require.resolve(dependent)
-  for (const dependency of path.slice(0, -1)) from = createRequire(from).resolve(dependency)
-  const last = path.at(-1)
-  if (last !== undefined) createRequire(from)(last)
+function resolveFrom(from: string, name: string): string {
+  return createRequire(from).resolve(name)
 }
-loadFromDependent('jest-matcher-utils', 'chalk', 'supports-color')
-loadFromDependent('jest-message-util', 'chalk', 'supports-color')
-loadFromDependent('jest-message-util', 'graceful-fs')
-loadFromDependent('jest-message-util', '@babel/code-frame', 'picocolors')
+function loadFrom(from: string, name: string): void {
+  createRequire(from)(name)
+}
+const matcherUtilsPath = require.resolve('jest-matcher-utils')
+const messageUtilPath = require.resolve('jest-message-util')
+// Both packages read the colour level from the same Chalk in every ordinary install: resolve it
+// from each (a different copy is its own instance and is loaded too), then load the one
+// `supports-color` once.
+const chalkOfMatcherUtils = resolveFrom(matcherUtilsPath, 'chalk')
+const chalkOfMessageUtil = resolveFrom(messageUtilPath, 'chalk')
+loadFrom(chalkOfMatcherUtils, 'supports-color')
+if (chalkOfMessageUtil !== chalkOfMatcherUtils) loadFrom(chalkOfMessageUtil, 'supports-color')
+loadFrom(messageUtilPath, 'graceful-fs')
+loadFrom(resolveFrom(messageUtilPath, '@babel/code-frame'), 'picocolors')
 
 /** A loader that runs once, on the first call. */
 function once<T>(load: () => T): () => T {
@@ -48,23 +55,14 @@ function once<T>(load: () => T): () => T {
   }
 }
 
-/**
- * The real `jest-matcher-utils`.
- * @internal
- */
-export const matcherUtils: () => typeof MatcherUtils = once(() => require('jest-matcher-utils'))
+/** The real `jest-matcher-utils`. */
+const matcherUtils: () => typeof MatcherUtils = once(() => require('jest-matcher-utils'))
 
-/**
- * The real `jest-message-util`.
- * @internal
- */
-export const messageUtil: () => typeof MessageUtil = once(() => require('jest-message-util'))
+/** The real `jest-message-util`. */
+const messageUtil: () => typeof MessageUtil = once(() => require('jest-message-util'))
 
-/**
- * The real `jest-util`.
- * @internal
- */
-export const jestUtil: () => typeof JestUtil = once(() => require('jest-util'))
+/** The real `jest-util`. */
+const jestUtil: () => typeof JestUtil = once(() => require('jest-util'))
 
 type AnyFunction = (...args: never[]) => unknown
 
@@ -82,8 +80,7 @@ function lazyFunction<M, K extends FunctionKeys<M>>(real: () => M, key: K): M[K]
 
 /** As `lazyFunction`, and the real function's own properties (`.bold`) read through. */
 function lazyChalk<K extends FunctionKeys<typeof MatcherUtils>>(key: K): (typeof MatcherUtils)[K] {
-  const stand = (...args: unknown[]): unknown =>
-    (matcherUtils()[key] as (...a: unknown[]) => unknown)(...args)
+  const stand = lazyFunction(matcherUtils, key) as AnyFunction
   return new Proxy(stand, {
     get: (target, property, receiver) =>
       property in target
@@ -108,13 +105,53 @@ export const INVERTED_COLOR: typeof MatcherUtils.INVERTED_COLOR = lazyChalk('INV
 export const RECEIVED_COLOR: typeof MatcherUtils.RECEIVED_COLOR = lazyChalk('RECEIVED_COLOR')
 /** @internal */
 export const diff: typeof MatcherUtils.diff = matcher('diff')
-/** @internal */
+// The three `ensure*` checks run on passing assertions (`toBeDefined`, `toBeTruthy`, `toBeGreaterThan`,
+// `toHaveLength`, `toHaveBeenCalled`, `toHaveReturned`, and the `*Times` forms), so loading
+// `jest-matcher-utils` for them would put it, and its Chalk, in every worker of nearly every suite
+// (about 4 ms). Each stand-in repeats the condition under which jest-matcher-utils 30.5.2's own
+// function throws, and calls the real one, with the same arguments, only then: it is the real one
+// that builds the message, so every message stays byte-identical. `lazy-packages.test.ts` holds
+// each condition against the package, in both directions.
+
+/** `typeof value` is what `ensureActualIsNumber` and `ensureExpectedIsNumber` accept. */
+const isNumeric = (value: unknown): boolean =>
+  typeof value === 'number' || typeof value === 'bigint'
+
+/**
+ * Throws, through `jest-matcher-utils`, unless `expected` is a non-negative safe integer.
+ * @internal
+ */
 export const ensureExpectedIsNonNegativeInteger: typeof MatcherUtils.ensureExpectedIsNonNegativeInteger =
-  matcher('ensureExpectedIsNonNegativeInteger')
-/** @internal */
-export const ensureNoExpected: typeof MatcherUtils.ensureNoExpected = matcher('ensureNoExpected')
-/** @internal */
-export const ensureNumbers: typeof MatcherUtils.ensureNumbers = matcher('ensureNumbers')
+  (expected, matcherName, options) => {
+    if (typeof expected !== 'number' || !Number.isSafeInteger(expected) || expected < 0) {
+      matcherUtils().ensureExpectedIsNonNegativeInteger(expected, matcherName, options)
+    }
+  }
+/**
+ * Throws, through `jest-matcher-utils`, when an expected argument was given.
+ * @internal
+ */
+export const ensureNoExpected: typeof MatcherUtils.ensureNoExpected = (
+  expected,
+  matcherName,
+  options,
+) => {
+  if (expected !== undefined) matcherUtils().ensureNoExpected(expected, matcherName, options)
+}
+/**
+ * Throws, through `jest-matcher-utils`, unless both are a `number` or a `bigint`.
+ * @internal
+ */
+export const ensureNumbers: typeof MatcherUtils.ensureNumbers = (
+  actual,
+  expected,
+  matcherName,
+  options,
+) => {
+  if (!isNumeric(actual) || !isNumeric(expected)) {
+    matcherUtils().ensureNumbers(actual, expected, matcherName, options)
+  }
+}
 /** @internal */
 export const getLabelPrinter: typeof MatcherUtils.getLabelPrinter = matcher('getLabelPrinter')
 /** @internal */
