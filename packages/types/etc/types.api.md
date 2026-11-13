@@ -1383,6 +1383,16 @@ export type JsonValue = string | number | boolean | null | readonly JsonValue[] 
 };
 
 // @public
+export interface LazyEvaluation {
+    readonly chain?: readonly string[];
+    readonly failed: boolean;
+    readonly key: string;
+    readonly ms: number;
+    readonly override: boolean;
+    readonly site: SourceLocation;
+}
+
+// @public
 export type LazyFrame = {
     readonly kind: "test";
     readonly run: TestRunHandle;
@@ -3110,6 +3120,7 @@ export interface TaskResult {
     readonly durationMs: number;
     // (undocumented)
     readonly errors: readonly SerializedError[];
+    readonly lazies?: readonly LazyEvaluation[];
     readonly note?: string;
     readonly passingAssertions: number;
     // (undocumented)

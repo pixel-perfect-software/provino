@@ -1,13 +1,31 @@
 // `provino`: what a test file imports. Phase 1 form (T1.10): the Jest dialect's test-definition
 // API, `describe`, `it`, `test`, the hooks and `expect`, bound late to the globals the worker
-// installs (`injectGlobals`, which is on unless a project turns it off). The lazy variables, `fn`,
-// `spyOn`, `mock` and `timers` of Track 1's table arrive with the neutral API; today they are
-// `jest.fn`, `jest.spyOn`, `jest.mock` and `jest.useFakeTimers`, on the Jest facade.
+// installs (`injectGlobals`, which is on unless a project turns it off), and the lazy variables
+// (`lazy`, the shared examples), which are neutral and never globals: they read the runtime the
+// worker puts in a `Symbol.for` slot, so they work with `injectGlobals` off. `fn`, `spyOn`, `mock`
+// and `timers` of Track 1's table arrive with the neutral API; today they are `jest.fn`,
+// `jest.spyOn`, `jest.mock` and `jest.useFakeTimers`, on the Jest facade.
 //
-// This file imports nothing at run time. The worker's engine is in its own chunks, which a test
-// file reaching `provino` must not load a second time: a copy of `expect` here would have its own
-// matchers and its own state, not the test's.
+// At run time this file imports only the lazy forwarders (a few small functions that read the slot
+// when called) and, through them, `dist/lazy-api.js`: the error class, the call-site marker and the
+// slot reader, in a chunk of their own (`tooling/packaging/src/umbrella.ts`, group `lazy-api`).
+// `import 'provino'` loads no `shared.js`, `loading.js` or coordinator chunk. The worker's engine is
+// in those, and a test file reaching `provino` must not load a second copy: a copy of `expect`
+// would have its own matchers and its own state, not the test's.
 import type { JestGlobals } from '@provino/dialect-jest/runtime'
+
+export {
+  evaluatedLazies,
+  includeContext,
+  includeExamples,
+  itBehavesLike,
+  type Lazy,
+  LazyError,
+  type LazyErrorCode,
+  lazy,
+  sharedContext,
+  sharedExamples,
+} from '@provino/lazy'
 
 /**
  * What the `provino` entry exports: the Jest dialect's test-definition globals, typed as the

@@ -10,6 +10,7 @@
     { "path": "../coverage" },
     { "path": "../dialect-jest" },
     { "path": "../env-jsdom" },
-    { "path": "../env-node" }
+    { "path": "../env-node" },
+    { "path": "../lazy" }
   ]
 }

@@ -1,9 +1,15 @@
 // Reads: resolve a key from the test's innermost suite outward, find or make its memo cell, and run
 // the definition on the first read. A memoized read of a test-scoped value is the host's frame
 // lookup, two map reads on the resolved suite, one on the memo and a state check; it allocates nothing.
-import type { LazyFrame, Scope, SourceLocation, SuiteHandle, TaskInfo } from '@provino/types'
-import { LazyError } from '../errors.ts'
-import type { EvaluatedLazy } from '../types.ts'
+import type {
+  LazyEvaluation,
+  LazyFrame,
+  Scope,
+  SourceLocation,
+  SuiteHandle,
+  TaskInfo,
+} from '@provino/types'
+import { LAZY_CHAIN, LazyError } from '../errors.ts'
 import { registerCleanup, scopeSignal } from './cleanup.ts'
 import { formatSite } from './site.ts'
 import {
@@ -28,11 +34,15 @@ const realClearTimeout = globalThis.clearTimeout
 const RANK: Record<Scope, number> = { worker: 0, file: 1, test: 2 }
 
 /** An evaluated lazy value in a run's log. */
-class Logged implements EvaluatedLazy {
+class Logged implements LazyEvaluation {
   readonly key: string
   readonly site: SourceLocation
   readonly override: boolean
   readonly ms: number
+  /** Set when the definition threw (at once) or rejected (when it does). */
+  failed = false
+  /** The keys being evaluated when it failed; own only on a failed one. */
+  declare chain?: readonly string[]
 
   constructor(entry: LazyEntry, ms: number) {
     this.key = entry.key
@@ -40,6 +50,117 @@ class Logged implements EvaluatedLazy {
     this.override = entry.override
     this.ms = ms
   }
+
+  /** Records a failure and the chain the error was marked with. */
+  fail(chain: readonly string[] | undefined): void {
+    this.failed = true
+    if (chain !== undefined) this.chain = chain
+  }
+}
+
+/** One mark of the chain a thrown value carries under `LAZY_CHAIN`. */
+interface ChainMark {
+  readonly key: string
+  readonly site: SourceLocation
+}
+
+/** Per test run: the chain each thrown object had in this attempt (a memo outlives the attempt). */
+const CHAINS: unique symbol = Symbol('provino.lazy.chains')
+
+type Chains = WeakMap<object, readonly string[]>
+
+function isObjectLike(value: unknown): value is object {
+  return value !== null && (typeof value === 'object' || typeof value === 'function')
+}
+
+function chainsOf(frame: LazyFrame): Chains | undefined {
+  if (frame.kind !== 'test') return undefined
+  let chains = frame.run.slots.get(CHAINS) as Chains | undefined
+  if (chains === undefined) {
+    chains = new WeakMap()
+    frame.run.slots.set(CHAINS, chains)
+  }
+  return chains
+}
+
+/**
+ * The chain of lazies being evaluated when a definition's value was thrown (outermost first),
+ * for this read: a chain this attempt already gave the object stands when it runs through `path`
+ * (the value passing up through its dependents), else `path` is the chain (the same object thrown
+ * by another definition, or a memoized one read again). The object itself gets a `LAZY_CHAIN`
+ * mark the first time, made where it was thrown, deepest, and keeps it. A primitive, or an object
+ * that refuses the property, is left unmarked and has no chain.
+ */
+function markChain(
+  error: unknown,
+  path: readonly LazyEntry[],
+  chains: Chains | undefined,
+): readonly string[] | undefined {
+  if (!isObjectLike(error)) return undefined
+  const own = path.map((entry) => entry.key)
+  const known = chains?.get(error)
+  const keys = known !== undefined && own.every((key, i) => known[i] === key) ? known : own
+  chains?.set(error, keys)
+  try {
+    if (!Array.isArray(Reflect.get(error, LAZY_CHAIN))) {
+      const marks: ChainMark[] = path.map((entry) => ({ key: entry.key, site: entry.site }))
+      Object.defineProperty(error, LAZY_CHAIN, {
+        value: marks,
+        configurable: true,
+        enumerable: false,
+      })
+    }
+  } catch {
+    // an object that refuses the mark still has its chain in the log
+  }
+  return keys
+}
+
+/**
+ * A memoized error read again, returned for the caller to throw: the chain of this read is the lazies being evaluated, then the
+ * memoized definition and what it was waiting on, from the object's own mark.
+ */
+function noteReuse(
+  engine: Engine,
+  entry: LazyEntry,
+  frame: LazyFrame,
+  from: EvalFrame | null,
+  error: unknown,
+): unknown {
+  const chains = chainsOf(frame)
+  if (chains === undefined || !isObjectLike(error)) return error
+  const base = (from === null ? engine.stack : evalPath(from)).map((f) => f.entry.key)
+  let tail: string[] = [entry.key]
+  try {
+    const mark: unknown = Reflect.get(error, LAZY_CHAIN)
+    if (Array.isArray(mark)) {
+      const keys = (mark as ChainMark[]).map((m) => m.key)
+      const at = keys.lastIndexOf(entry.key)
+      if (at >= 0) tail = keys.slice(at)
+    }
+  } catch {
+    // no mark to read
+  }
+  chains.set(error, [...base, ...tail])
+  return error
+}
+
+/** The evaluations a `from` frame is in, outermost first. */
+function evalPath(from: EvalFrame): EvalFrame[] {
+  const path: EvalFrame[] = []
+  for (let f: EvalFrame | null = from; f !== null; f = f.from) path.push(f)
+  return path.reverse()
+}
+
+/** The evaluations in progress down to `frame`, the outermost first. */
+function pathTo(engine: Engine, frame: EvalFrame, from: EvalFrame | null): LazyEntry[] {
+  const path: LazyEntry[] = []
+  if (from !== null) {
+    for (let f: EvalFrame | null = frame; f !== null; f = f.from) path.push(f.entry)
+    return path.reverse()
+  }
+  for (const f of engine.stack) path.push(f.entry)
+  return path
 }
 
 // A view's state sits under module-private symbols, so no lazy key (`suite`, `engine`, `from`, …)
@@ -149,11 +270,22 @@ function checkReader(engine: Engine, entry: LazyEntry, reader: EvalFrame, chaine
   }
 }
 
-/** The map a value is memoized in. */
+/** The map a value is memoized in. Small enough to inline into `readFrom`; hooks go cold. */
 function memoOf(engine: Engine, entry: LazyEntry, frame: LazyFrame): Map<symbol, unknown> {
-  if (entry.scope === 'worker') return engine.host.workerSlots
-  if (entry.scope === 'file') return frame.file.slots
-  if (frame.kind === 'test') return frame.run.slots
+  const scope = entry.scope
+  if (scope === 'test') {
+    return frame.kind === 'test' ? frame.run.slots : hookMemo(engine, entry, frame)
+  }
+  if (scope === 'file') return frame.file.slots
+  return engine.host.workerSlots
+}
+
+/** A test-scoped value read in a suite hook: `readInBeforeAll` decides. */
+function hookMemo(
+  engine: Engine,
+  entry: LazyEntry,
+  frame: Extract<LazyFrame, { kind: 'suite' }>,
+): Map<symbol, unknown> {
   if (engine.policy.readInBeforeAll === 'error') {
     throw new LazyError(
       'LAZY_SCOPE',
@@ -219,6 +351,8 @@ function withTimeout(
 interface Outcome {
   readonly ok: boolean
   readonly value: unknown
+  /** The run's log entry, when the frame is a test's. */
+  readonly logged: Logged | undefined
 }
 
 /**
@@ -270,15 +404,21 @@ function run(engine: Engine, entry: LazyEntry, frame: LazyFrame, from: EvalFrame
   }
   const start = performance.now()
   let outcome: Outcome
+  let failedChain: readonly string[] | undefined
   engine.stack.push(evalFrame)
   try {
     let value = entry.define(deps, ctx)
     if (controller !== undefined && entry.timeout !== undefined && isThenable(value)) {
       value = withTimeout(value, entry, entry.timeout, controller)
     }
-    outcome = { ok: true, value }
+    // The value goes back as the definition made it. A promise or any other thenable is never
+    // touched (no `then` call, no handler attached), so a rejection nobody awaits is still the
+    // unhandled rejection it would be without Provino. An async rejection is therefore not
+    // flagged on the log here; the eager hook, which awaits the value itself, flags the one it sees.
+    outcome = { ok: true, value, logged: undefined }
   } catch (error) {
-    outcome = { ok: false, value: error }
+    outcome = { ok: false, value: error, logged: undefined }
+    failedChain = markChain(error, pathTo(engine, evalFrame, from), chainsOf(frame))
   } finally {
     engine.stack.pop()
   }
@@ -288,7 +428,10 @@ function run(engine: Engine, entry: LazyEntry, frame: LazyFrame, from: EvalFrame
       log = []
       frame.run.slots.set(LOG, log)
     }
-    log.push(new Logged(entry, performance.now() - start))
+    const logged = new Logged(entry, performance.now() - start)
+    if (!outcome.ok) logged.fail(failedChain)
+    log.push(logged)
+    return { ok: outcome.ok, value: outcome.value, logged }
   }
   return outcome
 }
@@ -301,15 +444,48 @@ export function readFrom(
   key: string,
   from: EvalFrame | null,
 ): unknown {
-  const entry = resolveEntry(suite, key)
-  const top = engine.stack.length === 0 ? null : (engine.stack[engine.stack.length - 1] ?? null)
-  if (from !== null) checkReader(engine, entry, from, true)
-  else if (top !== null) checkReader(engine, entry, top, false)
+  return readEntry(engine, frame, resolveEntry(suite, key), from)
+}
+
+/**
+ * Reads a resolved entry. The hot path, kept small for V8 to inline: a memoized value read
+ * outside any evaluation is one memo lookup and a state check. Everything else is in `readCold`.
+ */
+export function readEntry(
+  engine: Engine,
+  frame: LazyFrame,
+  entry: LazyEntry,
+  from: EvalFrame | null,
+): unknown {
+  if (from !== null || engine.stack.length !== 0) checkRead(engine, entry, from)
   const memo = memoOf(engine, entry, frame)
   const cell = memo.get(entry.memo) as Cell | undefined
+  if (cell !== undefined && cell.state === OK) return cell.value
+  return readCold(engine, entry, frame, from, memo, cell)
+}
+
+/** The scope and cycle checks for a read made while a definition runs. */
+function checkRead(engine: Engine, entry: LazyEntry, from: EvalFrame | null): void {
+  if (from !== null) {
+    checkReader(engine, entry, from, true)
+    return
+  }
+  const top = engine.stack[engine.stack.length - 1]
+  if (top !== undefined) checkReader(engine, entry, top, false)
+}
+
+/** Every read that is not a memoized value: a first read, a memoized error, a pending or cycle. */
+function readCold(
+  engine: Engine,
+  entry: LazyEntry,
+  frame: LazyFrame,
+  from: EvalFrame | null,
+  memo: Map<symbol, unknown>,
+  cell: Cell | undefined,
+): unknown {
   if (cell !== undefined) {
     if (cell.state === OK) return cell.value
-    if (cell.state === ERR) throw cell.value
+    if (cell.state === ERR) throw noteReuse(engine, entry, frame, from, cell.value)
     if (cell.state === EAGER_WAIT) throw eagerPending(entry)
     throw cycleFrom(engine, entry, from)
   }
@@ -363,6 +539,8 @@ export async function evaluateEager(
     (error: unknown) => {
       cell.state = ERR
       cell.value = error
+      // Provino awaited this rejection itself (the hook fails with it), so it is flagged.
+      outcome.logged?.fail(markChain(error, [entry], chainsOf(frame)))
     },
   )
   await cell.wait
@@ -390,6 +568,6 @@ export function peek(
 }
 
 /** The values a run evaluated, in the order they finished. */
-export function logOf(slots: Map<symbol, unknown>): readonly EvaluatedLazy[] {
+export function logOf(slots: Map<symbol, unknown>): readonly LazyEvaluation[] {
   return (slots.get(LOG) as Logged[] | undefined) ?? []
 }

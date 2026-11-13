@@ -134,6 +134,9 @@ const LOADING =
  */
 const COVERAGE = /[\\/]packages[\\/]coverage[\\/]src[\\/]/
 
+/** The three `@provino/lazy` leaves `provino`'s own `lazy` forwarders import (`import 'provino'`). */
+const LAZY_API = /[\\/]packages[\\/]lazy[\\/]src[\\/](?:errors|slot|runtime[\\/]site)\.ts$/
+
 /** A source file of a workspace package. */
 const SHARED = /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/
 
@@ -257,6 +260,15 @@ export function umbrellaConfig(dir: string): UserConfig[] {
             {
               name: 'coverage',
               test: COVERAGE,
+              priority: 4,
+              includeDependenciesRecursively: false,
+            },
+            // What the `lazy` forwarders in `index.js` need (the error, the call-site marker, the
+            // runtime slot): three small leaves, the worker entries use them too, so left to
+            // `shared` they would make `import 'provino'` load the whole engine chunk.
+            {
+              name: 'lazy-api',
+              test: LAZY_API,
               priority: 4,
               includeDependenciesRecursively: false,
             },

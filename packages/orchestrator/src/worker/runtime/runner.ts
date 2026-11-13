@@ -1,7 +1,7 @@
 // U1: the worker's runtime (B10). It assembles what the other packages built, in the order their
 // docs prescribe, behind `startWorker`'s `WorkerRunner`:
 //   start (once)   config → behaviour loader + project loader → expect (state source, registry,
-//                  slot, table, `createExpect`) → core → environment `prepare` → the dialect's
+//                  slot, table, `createExpect`) → core → lazy runtime (the slot) → environment `prepare` → the dialect's
 //                  globals factory → registry snapshot (last, so a matcher the factory adds is part
 //                  of the baseline a file's restore returns to)
 //   runFile        back-pressure → mock registry (new per file; one per worker under `none`) →
@@ -34,6 +34,7 @@ import {
   type StateSource,
   snapshotRegistry,
 } from '@provino/expect'
+import { createLazyRuntime, installLazyRuntime } from '@provino/lazy'
 import {
   createProjectLoader,
   installSourceMappedStacks,
@@ -90,6 +91,7 @@ import {
   setupEnvironment,
 } from '../internal/runtime/environment.ts'
 import { installGlobals, splitGlobals } from '../internal/runtime/globals.ts'
+import { lazyReportSink } from '../internal/runtime/lazy-sink.ts'
 import { fileLeakEvent, leakedGlobalsOf, workerLeakEvent } from '../internal/runtime/leaks.ts'
 import { pragmaValue, readPragmas } from '../internal/runtime/pragmas.ts'
 import { assertionCountSink } from '../internal/runtime/sink.ts'
@@ -166,6 +168,8 @@ interface Booted {
   moduleScope: ModuleScopeValues | undefined
   /** Removes the process listeners core charges errors from (`captureProcessErrors`). */
   stopProcessErrors: (() => void) | undefined
+  /** Takes the lazy runtime out of its slot (`installLazyRuntime`). */
+  uninstallLazy: (() => void) | undefined
   /** Puts back the `Error.prepareStackTrace` the worker found (`installSourceMappedStacks`). */
   unmapStacks: (() => void) | undefined
   /** What every file's snapshot state is built from: the policy's behaviours, loaded once. */
@@ -536,12 +540,15 @@ export function createRuntimeRunner(): WorkerRunner {
       if (shared) files.invalidate(path)
       return await files.import(path)
     }
+    const lazyReport = lazyReportSink(
+      observingSink(assertionCountSink(source, context.sink), (event) =>
+        openSnapshots?.lifecycle.observe(event),
+      ),
+    )
     const coreRuntime = await createRuntime({
       policy: policy.core,
       behaviours,
-      sink: observingSink(assertionCountSink(source, context.sink), (event) =>
-        openSnapshots?.lifecycle.observe(event),
-      ),
+      sink: lazyReport.sink,
       importFile,
       rootDir: config.rootDir,
       projectName: config.name,
@@ -571,6 +578,26 @@ export function createRuntimeRunner(): WorkerRunner {
     })
     // Uncaught exceptions and rejections with no handler are charged by `errors.lateErrors` (T5.11).
     parts.stopProcessErrors = coreRuntime.captureProcessErrors()
+    // Lazy variables: `import { lazy } from 'provino'` reaches this runtime through its slot. It is
+    // neutral, so every dialect gets it, and it goes in before the environment is prepared.
+    const lazyRuntime = createLazyRuntime({
+      host: coreRuntime.lazyHost,
+      policy: policy.lazy,
+      describe: coreRuntime.api.describe,
+    })
+    parts.uninstallLazy = installLazyRuntime(lazyRuntime)
+    // A failed attempt hands its lazy values to the failure report (T6.10); a passing one does
+    // nothing, so a test that passes pays for none of it.
+    coreRuntime.onAfterTryTask(({ test, failed }) => {
+      if (!failed) return
+      const frame = coreRuntime.lazyHost.current()
+      // Every failed attempt records, an empty list included, so an earlier attempt's values are
+      // never shown for a later one that evaluated none.
+      lazyReport.record(
+        test.id,
+        frame?.kind === 'test' ? lazyRuntime.evaluatedLazies(frame.run) : [],
+      )
+    })
 
     // The snapshot slice's behaviours, once: every file's state is built from them.
     const { snapshot } = policy
@@ -958,6 +985,7 @@ export function createRuntimeRunner(): WorkerRunner {
           coverageLoader = undefined
         },
         () => torn.unmapStacks?.(),
+        () => torn.uninstallLazy?.(),
         () => torn.slot?.uninstall(),
         // Last: the worker environment's teardown ran with its signal still live.
         () => workerLifetime.abort(),

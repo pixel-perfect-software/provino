@@ -274,6 +274,7 @@ export type {
 } from './runtime/lazy-host.ts'
 export type {
   FileTask,
+  LazyEvaluation,
   RunMode,
   SerializedError,
   SkipReason,

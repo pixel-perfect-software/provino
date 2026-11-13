@@ -1,7 +1,7 @@
 // The public types of lazy variables (Track 6, "Types and public API"). They pass TS 7.0.2 and
 // 5.9.3 under `strict`, `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess`; the type tests
 // in `test/lazy.test-d.ts` and the compile checks in `test/type-errors.test.ts` hold them there.
-import type { Scope, SourceLocation, TaskInfo } from '@provino/types'
+import type { Scope, TaskInfo } from '@provino/types'
 
 export type { Scope, TaskInfo }
 
@@ -220,15 +220,3 @@ export interface SharedContext<R, A> {
  * @public
  */
 export type ContextOutput<R, Out> = Omit<Out, keyof R | keyof LazyApi<Empty, never, never, never>>
-
-/**
- * A test's evaluated lazy value, as the failure report lists it. B24e moves this to
- * `@provino/types` as `LazyEvaluation`.
- * @beta
- */
-export interface EvaluatedLazy {
-  readonly key: string
-  readonly site: SourceLocation
-  readonly override: boolean
-  readonly ms: number
-}

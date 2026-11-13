@@ -68,14 +68,22 @@ describe('the umbrella exports (T1.10)', () => {
   test('each subpath imports under plain Node and exports what it promises', () => {
     const expected: Readonly<Record<string, readonly string[]>> = {
       provino: [
+        'LazyError',
         'ProvinoWorkerApiError',
         'afterAll',
         'afterEach',
         'beforeAll',
         'beforeEach',
         'describe',
+        'evaluatedLazies',
         'expect',
+        'includeContext',
+        'includeExamples',
         'it',
+        'itBehavesLike',
+        'lazy',
+        'sharedContext',
+        'sharedExamples',
         'test',
       ],
       'provino/globals': [],
@@ -177,6 +185,43 @@ async function builtProject(): Promise<string> {
   symlinkSync(PACKAGE, join(dir, 'node_modules', 'provino'), 'dir')
   return dir
 }
+
+describe("`import 'provino'` alone", () => {
+  test('statically imports no engine chunk: dist/index.js reaches only the lazy-api leaf', () => {
+    const source = readFileSync(join(PACKAGE, 'dist', 'index.js'), 'utf8')
+    const imports = [...source.matchAll(/^import [^\n]*? from "([^"]+)"/gm)].map((m) => m[1])
+    assert.deepEqual(imports, ['./lazy-api.js'])
+    assert.doesNotMatch(source, /import\(/)
+  })
+
+  test('loads dist/index.js and the lazy-api leaf, not shared.js, loading.js or the coordinator', async () => {
+    const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
+    after(() => rm(logs, { recursive: true, force: true }))
+    const result = spawnSync(
+      process.execPath,
+      ['--input-type=module', '-e', "await import('provino')"],
+      {
+        cwd: PACKAGE,
+        encoding: 'utf8',
+        env: childEnv(['load-recorder'], { PROVINO_LOAD_LOG: logs }),
+        timeout: 60_000,
+      },
+    )
+    assert.equal(result.status, 0, result.stderr)
+    const loaded = readdirSync(logs)
+      .flatMap((file) => readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean))
+      .map((line) => line.split('\t')[1] ?? '')
+      .filter((url) => url.includes('/dist/'))
+    assert.ok(
+      loaded.some((url) => url.endsWith('/dist/index.js')),
+      loaded.join('\n'),
+    )
+    assert.deepEqual(
+      loaded.filter((url) => /\/dist\/(?:shared|loading|coordinator)\.js/.test(url)),
+      [],
+    )
+  })
+})
 
 describe('the worker-side expect (T7.12)', () => {
   test('imports no transform, resolver, loader, Oxc package or coordinator code', async () => {
