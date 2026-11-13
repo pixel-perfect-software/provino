@@ -44,19 +44,19 @@ test('stripped TypeScript becomes module-runner form, with deps and a composed m
   assert.deepEqual(output.map?.sources, ['/m.ts'], 'the map leads back to the original file')
 })
 
-test('a CommonJS record is read as CommonJS: a top-level return is legal in it', () => {
+test('a CommonJS body is read as CommonJS when asked: a top-level return is legal in it', () => {
   // Node wraps a CommonJS file in a function; the loader takes this form for a CommonJS file that
   // calls import(), so the file must still load where it returns early.
   const source = "exports.lazy = () => import('./lazy.js')\nif (exports.lazy) return\n"
   const record = strip('/guard.cjs', source)
   assert.equal(record.format, 'cjs')
-  const output = toModuleRunner('/guard.cjs', record)
+  const output = toModuleRunner('/guard.cjs', record, { commonjs: true })
   assert.match(output.code, /__vite_ssr_dynamic_import__\('\.\/lazy\.js'\)/)
   assert.match(output.code, /return/)
   assert.deepEqual(output.dynamicDeps, ['./lazy.js'])
-  // A module with the same `return` stays an error: only a CommonJS file may.
-  const esm = { ...record, format: 'esm' } as const
-  assert.throws(() => toModuleRunner('/guard.mjs', esm), { code: 'TRANSFORM_RUNNER_FAILED' })
+  // Read as a module (the default, whatever the record's format says) the same `return` is an
+  // error: the caller that knows it holds a CommonJS body says so.
+  assert.throws(() => toModuleRunner('/guard.cjs', record), { code: 'TRANSFORM_RUNNER_FAILED' })
 })
 
 test('a failure is a per-file TransformError that names the file', () => {

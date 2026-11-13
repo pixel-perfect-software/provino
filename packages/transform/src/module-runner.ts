@@ -39,12 +39,18 @@ export function usesModuleRunnerForm(record: Pick<TransformRecord, 'format' | 'i
 /**
  * Rewrites a transformed ESM module into module-runner form. `record` must come from the
  * pipeline (TypeScript already stripped). Errors are thrown as `TRANSFORM_RUNNER_FAILED`,
- * naming the file. Deterministic: the same record gives the same bytes.
+ * naming the file. Deterministic: the same record gives the same bytes. `commonjs` reads the code
+ * as a CommonJS file's body, where a top-level `return` is legal, and not as a module: the loader
+ * asks for it when it takes the runner form of a CommonJS file that calls `import()`.
  * @beta
  */
-export function toModuleRunner(filename: string, record: TransformRecord): ModuleRunnerOutput {
+export function toModuleRunner(
+  filename: string,
+  record: TransformRecord,
+  options?: { readonly commonjs?: boolean },
+): ModuleRunnerOutput {
   // A cached or pipeline-made runner form skips the step (`createPipeline({ runnerForm: true })`).
-  const form = record.runner ?? runnerFormOf(filename, record.code, record.format === 'cjs')
+  const form = record.runner ?? runnerFormOf(filename, record.code, options?.commonjs === true)
   let composed: SourceMapV3 | null | undefined
   return {
     code: form.code,

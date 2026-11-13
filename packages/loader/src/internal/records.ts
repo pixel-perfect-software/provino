@@ -390,7 +390,9 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       // binding the wrapper takes (`ModuleRecord.dynamicImport`); the runner form of a CommonJS
       // file is that rewrite and nothing else.
       const dynamicImport = transformed.imports.some((entry) => entry.kind === 'dynamic')
-      const source = dynamicImport ? toModuleRunner(path, transformed) : transformed
+      const source = dynamicImport
+        ? toModuleRunner(path, transformed, { commonjs: true })
+        : transformed
       record = makeRecord(
         id,
         'cjs',
