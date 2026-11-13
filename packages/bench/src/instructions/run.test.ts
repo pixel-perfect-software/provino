@@ -4,7 +4,16 @@ import { fileURLToPath } from 'node:url'
 import { BenchError } from '../errors.ts'
 import { SAMPLE_PREFIX } from '../internal/limits.ts'
 import { PACKAGE_DIR } from '../suites.ts'
-import { childEnv, readWorkload, runCounted, runPlain, stripTypesArgs, V8_FLAGS } from './run.ts'
+import {
+  COUNTED_WITH,
+  childEnv,
+  readWorkload,
+  runCounted,
+  runPlain,
+  stripTypesArgs,
+  V8_FLAGS,
+  VALGRIND_OPTIONS,
+} from './run.ts'
 
 const fromSource = { nodeArgs: ['--conditions=provino-source'] }
 // The child's environment has no NODE_OPTIONS, so below 22.18 the stand-in needs the flag too.
@@ -22,6 +31,15 @@ test('the V8 flags are the ones Track 12 F7 measured a 0.05% spread with, and no
     '--predictable',
     '--no-incremental-marking-task',
   ])
+})
+
+test('the record names the flags the counted run passes, joined as one line each', () => {
+  assert.equal(COUNTED_WITH.v8Flags, V8_FLAGS.join(' '))
+  assert.equal(COUNTED_WITH.valgrindOptions, VALGRIND_OPTIONS.join(' '))
+  assert.equal(
+    COUNTED_WITH.valgrindOptions,
+    '--tool=cachegrind --cache-sim=no --trace-children=yes',
+  )
 })
 
 test('Node below 22.18 is told to strip types; 22.18 and later strip them by default', () => {

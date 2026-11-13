@@ -7,8 +7,11 @@ import {
   anyRegressed,
   assertBaselineCovers,
   assertComparable,
+  assertSameCounting,
+  COUNTING_KEYS,
   compareLeg,
   comparisonLines,
+  countingRunners,
   countsOf,
   signedPercent,
   unjudgedLegs,
@@ -164,4 +167,61 @@ test('the legs the baseline has no count for are named as unjudged', () => {
     compareLeg(legOf('hoist') ?? core, undefined, BASELINE),
   ]
   assert.deepEqual(unjudgedLegs(comparisons), ['core'])
+})
+
+// What a counted record says it was counted with: the V8 flags and the valgrind options.
+const COUNTING = {
+  v8Flags: '--single-threaded --no-opt --predictable --no-incremental-marking-task',
+  valgrindOptions: '--tool=cachegrind --cache-sim=no --trace-children=yes',
+}
+
+test('a counted record keeps valgrind’s version, its options and the V8 flags under machine.runners', () => {
+  assert.deepEqual(countingRunners('3.19.0', COUNTING), {
+    valgrind: '3.19.0',
+    [COUNTING_KEYS.valgrindOptions]: COUNTING.valgrindOptions,
+    [COUNTING_KEYS.v8Flags]: COUNTING.v8Flags,
+  })
+})
+
+test('a baseline counted with the same V8 flags and valgrind options compares', () => {
+  const baseline = record([], { runners: countingRunners('3.19.0', COUNTING) })
+  assertSameCounting(baseline, COUNTING)
+  // Another valgrind version is not a difference in how it counts.
+  assertSameCounting(record([], { runners: countingRunners('3.22.0', COUNTING) }), COUNTING)
+})
+
+test('a baseline counted with other V8 flags or valgrind options is refused, naming both sets', () => {
+  const old = { ...COUNTING, v8Flags: '--single-threaded --no-opt --predictable' }
+  assert.throws(
+    () => assertSameCounting(record([], { runners: countingRunners('3.19.0', old) }), COUNTING),
+    (error: unknown) =>
+      error instanceof BenchError &&
+      error.code === 'BENCH_BASELINE_INVALID' &&
+      error.message.includes(`"${old.v8Flags}" against "${COUNTING.v8Flags}"`),
+  )
+  const other = { ...COUNTING, valgrindOptions: '--tool=cachegrind --cache-sim=yes' }
+  assert.throws(
+    () => assertSameCounting(record([], { runners: countingRunners('3.19.0', other) }), COUNTING),
+    (error: unknown) =>
+      error instanceof BenchError &&
+      error.code === 'BENCH_BASELINE_INVALID' &&
+      error.message.includes(`"${other.valgrindOptions}" against "${COUNTING.valgrindOptions}"`),
+  )
+})
+
+test('a baseline with no record of how it was counted is refused as predating the field', () => {
+  // The old format: valgrind's version alone, or half the pair.
+  for (const runners of [
+    { valgrind: '3.19.0' },
+    { valgrind: '3.19.0', [COUNTING_KEYS.v8Flags]: COUNTING.v8Flags },
+    { valgrind: '3.19.0', [COUNTING_KEYS.valgrindOptions]: COUNTING.valgrindOptions },
+  ]) {
+    assert.throws(
+      () => assertSameCounting(record([], { runners }), COUNTING),
+      (error: unknown) =>
+        error instanceof BenchError &&
+        error.code === 'BENCH_BASELINE_INVALID' &&
+        /predates the record of how it was counted/.test(error.message),
+    )
+  }
 })

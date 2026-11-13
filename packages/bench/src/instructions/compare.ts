@@ -97,6 +97,66 @@ export function assertComparable(
 }
 
 /**
+ * How a count was made, as text: the V8 flags and the valgrind options (not the paths in them).
+ * Two counts compare only when both are the same.
+ * @public
+ */
+export interface Counting {
+  readonly v8Flags: string
+  readonly valgrindOptions: string
+}
+
+/**
+ * Where a record keeps what it was counted with, under `machine.runners` beside `valgrind`'s
+ * version (a `BenchRecord` has no other free-form place, and the public type stays as it is).
+ * @public
+ */
+export const COUNTING_KEYS = { v8Flags: 'v8-flags', valgrindOptions: 'valgrind-options' } as const
+
+/**
+ * The `machine.runners` of a counted record: valgrind's version and `counting`.
+ * @public
+ */
+export function countingRunners(valgrind: string, counting: Counting): Record<string, string> {
+  return {
+    valgrind,
+    [COUNTING_KEYS.valgrindOptions]: counting.valgrindOptions,
+    [COUNTING_KEYS.v8Flags]: counting.v8Flags,
+  }
+}
+
+/**
+ * Checks that a baseline was counted the way this run counts: the same V8 flags and valgrind
+ * options, since a flag such as `--no-incremental-marking-task` changes the work a leg does. A
+ * record with neither field predates them and says nothing about how it was counted. Throws
+ * `BENCH_BASELINE_INVALID`, naming both sets.
+ * @public
+ */
+export function assertSameCounting(baseline: BenchRecord, current: Counting): void {
+  const { runners } = baseline.machine
+  const v8Flags = runners[COUNTING_KEYS.v8Flags]
+  const valgrindOptions = runners[COUNTING_KEYS.valgrindOptions]
+  if (v8Flags === undefined || valgrindOptions === undefined) {
+    throw new BenchError(
+      'BENCH_BASELINE_INVALID',
+      `the baseline predates the record of how it was counted (it has no ${COUNTING_KEYS.v8Flags} or ${COUNTING_KEYS.valgrindOptions} under machine.runners); count again with this version, which counts with V8 flags "${current.v8Flags}" and valgrind options "${current.valgrindOptions}"`,
+    )
+  }
+  const differences = [
+    v8Flags === current.v8Flags ? undefined : `V8 flags "${v8Flags}" against "${current.v8Flags}"`,
+    valgrindOptions === current.valgrindOptions
+      ? undefined
+      : `valgrind options "${valgrindOptions}" against "${current.valgrindOptions}"`,
+  ].filter((difference) => difference !== undefined)
+  if (differences.length > 0) {
+    throw new BenchError(
+      'BENCH_BASELINE_INVALID',
+      `the baseline was counted with other flags (${differences.join(', ')}); instruction counts compare only under the same V8 flags and valgrind options`,
+    )
+  }
+}
+
+/**
  * Checks that a baseline can judge this run at all: it holds an instruction count for at least one
  * of `legs`. A record made with `--no-cachegrind` (no counts), or with other `--legs`, holds none,
  * and every leg would read as `no-baseline` and pass. Throws `BENCH_BASELINE_INVALID`.

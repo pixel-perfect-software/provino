@@ -9,6 +9,7 @@ import { runProcess } from '@provino/harness'
 import { BenchError } from '../errors.ts'
 import { SAMPLE_PREFIX } from '../internal/limits.ts'
 import { readCachegrindDir, totalInstructions } from './cachegrind.ts'
+import type { Counting } from './compare.ts'
 import type { WorkloadResult } from './workloads.ts'
 
 /**
@@ -35,6 +36,28 @@ export const V8_FLAGS: readonly string[] = [
   '--predictable',
   '--no-incremental-marking-task',
 ]
+
+/**
+ * The valgrind options every counted run passes, apart from the two output paths (which differ by
+ * run and process).
+ * @public
+ */
+export const VALGRIND_OPTIONS: readonly string[] = [
+  '--tool=cachegrind',
+  '--cache-sim=no',
+  '--trace-children=yes',
+]
+
+/**
+ * How this version counts, as the record keeps it (`machine.runners`) and a baseline is checked
+ * against: built from the same two lists `runCounted` runs with, so the record can't name flags
+ * that were not used.
+ * @public
+ */
+export const COUNTED_WITH: Counting = {
+  v8Flags: V8_FLAGS.join(' '),
+  valgrindOptions: VALGRIND_OPTIONS.join(' '),
+}
 
 /** The child entry. */
 const CHILD: string = fileURLToPath(new URL('child.ts', import.meta.url))
@@ -183,9 +206,7 @@ export async function runCounted(
       valgrind,
       [
         ...valgrindArgs,
-        '--tool=cachegrind',
-        '--cache-sim=no',
-        '--trace-children=yes',
+        ...VALGRIND_OPTIONS,
         `--cachegrind-out-file=${join(dir, 'cachegrind.out.%p')}`,
         `--log-file=${join(dir, 'valgrind.%p.log')}`,
         process.execPath,

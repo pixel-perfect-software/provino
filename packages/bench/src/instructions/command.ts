@@ -28,9 +28,11 @@ import {
   anyRegressed,
   assertBaselineCovers,
   assertComparable,
+  assertSameCounting,
   benchIdOf,
   compareLeg,
   comparisonLines,
+  countingRunners,
   countsOf,
   type LegComparison,
   millions,
@@ -39,7 +41,7 @@ import {
 } from './compare.ts'
 import { LEGS, type Leg, legOf } from './legs.ts'
 import { assertEmptiable, prepareWork } from './prepare.ts'
-import { runCounted, runPlain, V8_FLAGS, valgrindVersion } from './run.ts'
+import { COUNTED_WITH, runCounted, runPlain, V8_FLAGS, valgrindVersion } from './run.ts'
 import { sortedFiles, WORK_PATHS, type WorkloadResult } from './workloads.ts'
 
 /**
@@ -320,7 +322,11 @@ export async function instructionsCommand(command: InstructionsCommand, io: Io):
   const valgrind = command.cachegrind ? valgrindVersion() : undefined
   // A baseline that holds no count for any leg this run measures (a record made with
   // --no-cachegrind or other --legs) would pass every leg as "no baseline", comparing nothing.
-  if (baseline !== undefined && valgrind !== undefined) assertBaselineCovers(baseline, command.legs)
+  if (baseline !== undefined && valgrind !== undefined) {
+    assertBaselineCovers(baseline, command.legs)
+    // Counts made with other V8 flags or valgrind options are different work, not a regression.
+    assertSameCounting(baseline, COUNTED_WITH)
+  }
   if (command.plant && valgrind === undefined) {
     throw new BenchError('BENCH_USAGE', '--plant needs cachegrind; drop --no-cachegrind')
   }
@@ -367,7 +373,9 @@ export async function instructionsCommand(command: InstructionsCommand, io: Io):
   const record = buildRecord({
     label: 'local',
     ref,
-    environment: readRunEnvironment(valgrind === undefined ? {} : { valgrind }),
+    environment: readRunEnvironment(
+      valgrind === undefined ? {} : countingRunners(valgrind, COUNTED_WITH),
+    ),
     machineId: `local-${process.platform}-${process.arch}`,
     results: runs.map((legRuns) => resultFor(legRuns, version)),
   })
