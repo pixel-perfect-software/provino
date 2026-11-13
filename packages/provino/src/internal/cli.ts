@@ -16,8 +16,6 @@ const INTERNAL_ERROR_EXIT = 1
 
 const POOL_KINDS: readonly PoolKind[] = ['forks', 'threads', 'inline']
 
-export { USAGE }
-
 /**
  * What a command line asks for.
  * @internal

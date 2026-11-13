@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { Writable } from 'node:stream'
 import { describe, it } from 'node:test'
-import { main, parseRunArgs, USAGE } from './cli.ts'
+import { main, parseRunArgs } from './cli.ts'
+import { USAGE } from './usage.ts'
 import { UsageError } from './usage-error.ts'
 import { packageVersion } from './version.ts'
 

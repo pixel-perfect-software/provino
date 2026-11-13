@@ -12,8 +12,8 @@ The umbrella package (layer 6, composition root). B11 built its first part: `pro
 | `src/node.ts` | The `provino/node` entry: `run` and the types in `src/types.ts` (`RunOptions`, `RunResult`, `ReporterChoice`, `NormalizedJsonChoiceOptions`) |
 | `src/run.ts` | `run(options)`: the whole flow below |
 | `src/cli.ts` | The `provino` bin (`bin` points at the `.ts`, as `provino-bench` does): answers `--version`, `--help` and `-h` itself, else imports `internal/cli.ts` and does `process.exitCode = await main(argv)`, turning a missing Oxc binding into one message (see "Build and exports"). Run it with `pnpm provino run --config <file>` |
-| `src/internal/quick.ts`, `usage.ts`, `native-binding.ts` | `quickAnswer` (first argument `--version`, `--help` or `-h`: the text, else `undefined`), `USAGE` (re-exported by `internal/cli.ts`), and `bindingTriple` and `missingBindingMessage`: with `version.ts`, the files the bin imports before anything native |
-| `src/internal/cli.ts` | `main(argv, io)` (dispatch on the first argument: `run`, `jest`, `vitest`, none or a first argument starting with `-` = bare), `parseRunArgs` (`node:util` `parseArgs`, strict), `USAGE` |
+| `src/internal/quick.ts`, `usage.ts`, `native-binding.ts` | `quickAnswer` (first argument `--version`, `--help` or `-h`: the text, else `undefined`), `USAGE`, and `bindingTriple` and `missingBindingMessage`: with `version.ts`, the files the bin imports before anything native |
+| `src/internal/cli.ts` | `main(argv, io)` (dispatch on the first argument: `run`, `jest`, `vitest`, none or a first argument starting with `-` = bare), `parseRunArgs` (`node:util` `parseArgs`, strict) |
 | `src/internal/jest-command.ts` | `runJestCommand(args, io)`: `provino jest` (see "`provino jest`") |
 | `src/internal/select-projects.ts` | `--selectProjects`/`--ignoreProjects` (D69): `chooseProjects`, `selectionMessage`, `noProjectsMessage` |
 | `src/internal/detect.ts` | `detectProject(cwd, forced?)`: what bare `provino` runs |
