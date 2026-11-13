@@ -3,6 +3,10 @@
 // `detectOpenHandles`. Real forked workers, with the pids checked afterwards; the bin's side of
 // the same is `packages/provino/test/lifecycle.test.ts`.
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
+import { rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
 import {
@@ -59,6 +63,13 @@ function recorder(): { reporter: Reporter; seen: Seen[] } {
 
 const eventsOf = (seen: readonly Seen[], path: string): string[] =>
   seen.filter((entry) => entry.path === path).map((entry) => entry.name)
+
+/** Every worker the entries that note their pid started is gone, and the notes are removed. */
+async function assertNoWorkerLeft(): Promise<void> {
+  const pids = await takeWorkerPids()
+  assert.ok(pids.length > 0, 'the run started a worker, so there is a pid to check')
+  for (const pid of pids) assert.equal(isRunning(pid), false, `worker ${pid} is still running`)
+}
 
 /** Runs the project's files over forks, and checks that no worker outlived the run. */
 async function run(
@@ -147,10 +158,34 @@ describe('bail, checked after each file (Jest)', () => {
   })
 
   it('kills the files still running, reports them no further, and is quick about it', async () => {
+    // Which worker takes which file, and how soon, is the machine's to say. So the file that
+    // fails waits for a marker that the file that hangs writes once it is running: `file:start`
+    // of the one is on the bus before the other can fail, whatever the load.
+    const marker = join(tmpdir(), `provino-bail-b-started-${process.pid}-${randomUUID()}`)
+    const waitsForB = [
+      "test('fails once b is running', () => {",
+      "  const { existsSync } = require('node:fs')",
+      '  const sleep = new Int32Array(new SharedArrayBuffer(4))',
+      '  const until = Date.now() + 30000',
+      `  while (!existsSync(${JSON.stringify(marker)})) {`,
+      "    if (Date.now() > until) throw new Error('b never started')",
+      '    Atomics.wait(sleep, 0, 0, 10)',
+      '  }',
+      '  expect(1).toBe(2)',
+      '})',
+      '',
+    ].join('\n')
+    const hangsOnceRunning = [
+      "test('hangs', () => {",
+      `  require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'started')`,
+      '  for (;;) {}',
+      '})',
+      '',
+    ].join('\n')
     const { summary, seen, elapsedMs } = await run(
-      { 'a-fails.test.js': `${failing(1)}\n`, 'b-hangs.test.js': hanging },
+      { 'a-fails.test.js': waitsForB, 'b-hangs.test.js': hangsOnceRunning },
       { checkAfter: 'file', bail: { count: 1 }, maxWorkers: 2 },
-    )
+    ).finally(() => rm(marker, { force: true }))
     assert.deepEqual(
       summary.files.map((file) => file.file.path),
       ['a-fails.test.js'],
@@ -218,6 +253,7 @@ describe('signals', () => {
       ]),
       cache: false,
       stderr: new Collect(),
+      entry: PID_RECORDING_ENTRY,
       pool: { kind: 'forks', maxWorkers: 1 },
       signal: controller.signal,
     })
@@ -226,6 +262,8 @@ describe('signals', () => {
     assert.equal(exitCodeFor(summary, { policy: project.policy }), ExitCode.Sigint)
     assert.equal(exitCodeFor(summary, { policy: project.policy }), 130)
     assert.deepEqual(eventsOf(seen, 'a.test.js'), ['file:start', 'file:end'])
+    // The worker was in a synchronous loop: only the kill got rid of it.
+    await assertNoWorkerLeft()
   })
 
   it('SIGTERM (an abort with the reason "SIGTERM") is `terminated`, exit code 143', async () => {
@@ -241,6 +279,7 @@ describe('signals', () => {
       ]),
       cache: false,
       stderr: new Collect(),
+      entry: PID_RECORDING_ENTRY,
       pool: { kind: 'forks', maxWorkers: 1 },
       signal: controller.signal,
     })
@@ -252,6 +291,7 @@ describe('signals', () => {
       [['a.test.js', 'fail']],
       'the file that was running is the interrupted one, as under SIGINT',
     )
+    await assertNoWorkerLeft()
   })
 
   it('an already aborted SIGTERM signal ends a run that finds files as `terminated` too', async () => {
@@ -286,6 +326,7 @@ describe('signals', () => {
         bus: createReporterBus([]),
         cache,
         stderr: new Collect(),
+        entry: PID_RECORDING_ENTRY,
         pool: { kind: 'forks', maxWorkers: 1 },
         signal: controller.signal,
       })
@@ -296,6 +337,7 @@ describe('signals', () => {
         'the file had finished: the interruption cost it nothing',
       )
       assert.equal(exitCodeFor(summary, { policy: project.policy }), code)
+      await assertNoWorkerLeft()
     }
   })
 
@@ -327,6 +369,8 @@ describe('signals', () => {
     })
     assert.ok(performance.now() - started < 10_000, 'it did not wait out the 120 s teardown')
     assert.ok(summary.files.length <= 1)
+    // The worker ignores SIGTERM and its stop never ends: only the force signal's SIGKILL ended it.
+    await assertNoWorkerLeft()
   })
 })
 

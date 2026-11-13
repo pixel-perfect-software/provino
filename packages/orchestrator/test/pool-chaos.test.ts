@@ -33,6 +33,14 @@ const CRASHES = ['crash-1', 'crash-2', 'crash-3']
 const FILE_TIMEOUT_MS = 6000
 /** Small enough that a runaway allocation ends quickly, large enough for the runtime itself. */
 const HEAP_LIMIT_MB = 192
+/**
+ * When a worker is replaced after a file, below the heap cap. Without it the pool's default (at
+ * least 512 MiB) sits above the cap, so a healthy worker that has served many files would be
+ * stopped by the cap, as an OOM, rather than replaced by the pool, and a slow machine (more files
+ * per worker, more garbage not yet collected) could fail a file that did nothing wrong. Replaced
+ * first, a healthy worker never gets there, and the planted OOM stays the only one.
+ */
+const WORKER_MEMORY_LIMIT_BYTES = 160 * 1024 * 1024
 
 type PoolKindUnderTest = 'forks' | 'threads'
 
@@ -94,6 +102,7 @@ async function chaos(
             maxWorkers: 4,
             fileTimeoutMs: FILE_TIMEOUT_MS,
             heapLimitMb: HEAP_LIMIT_MB,
+            memoryLimitBytes: WORKER_MEMORY_LIMIT_BYTES,
           },
         ),
       },
