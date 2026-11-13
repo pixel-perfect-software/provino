@@ -77,6 +77,7 @@ export type {
   EnvironmentSetupContext,
   EnvironmentTeardownReport,
   Pragmas,
+  ProcessObject,
 } from './environment.ts'
 export type {
   Assertion,

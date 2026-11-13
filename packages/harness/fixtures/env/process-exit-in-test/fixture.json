@@ -1,0 +1,9 @@
+{
+  "description": "A test that calls `process.exit(3)`, run in band (`-i`): the runner's own process runs the file. The run captures the exit code and the stderr line that names the call (the code frame and the stack after it are left out).",
+  "runners": ["jest"],
+  "run": {
+    "argv": { "jest": ["-i"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "process\\.exit called with"
+  }
+}

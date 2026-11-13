@@ -1,0 +1,296 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "env/process-setup-listener-per-file",
+  "files": [
+    {
+      "file": "file-01.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "file-01.test.ts",
+            "path": [
+              "exit listeners after the setup file: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "file-02.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "file-02.test.ts",
+            "path": [
+              "exit listeners after the setup file: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "file-03.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "file-03.test.ts",
+            "path": [
+              "exit listeners after the setup file: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "file-04.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "file-04.test.ts",
+            "path": [
+              "exit listeners after the setup file: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "file-05.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "file-05.test.ts",
+            "path": [
+              "exit listeners after the setup file: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "file-06.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "file-06.test.ts",
+            "path": [
+              "exit listeners after the setup file: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "file-07.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "file-07.test.ts",
+            "path": [
+              "exit listeners after the setup file: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "file-08.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "file-08.test.ts",
+            "path": [
+              "exit listeners after the setup file: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "file-09.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "file-09.test.ts",
+            "path": [
+              "exit listeners after the setup file: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "file-10.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "file-10.test.ts",
+            "path": [
+              "exit listeners after the setup file: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "file-11.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "file-11.test.ts",
+            "path": [
+              "exit listeners after the setup file: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "file-12.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "file-12.test.ts",
+            "path": [
+              "exit listeners after the setup file: 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "Tests:       12 passed, 12 total",
+    "files": {
+      "exit-from-setup.txt": null
+    }
+  }
+}

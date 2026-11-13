@@ -4,6 +4,7 @@
 // touched from descriptors it saved itself, whether or not `teardown` worked.
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
+import worker from 'node:process'
 import { test } from 'node:test'
 import type { EnvironmentInstance, EnvironmentSetupContext } from '@provino/types'
 import { nodeEnvironment } from './index.ts'
@@ -88,8 +89,10 @@ function closureAccessor(name: string): {
   return { state, descriptor }
 }
 
-function setUp(): EnvironmentInstance {
-  const instance = nodeEnvironment.setup(context, undefined)
+function setUp(
+  setupContext: EnvironmentSetupContext<Record<string, never>> = context,
+): EnvironmentInstance {
+  const instance = nodeEnvironment.setup(setupContext, undefined)
   assert.ok(!(instance instanceof Promise), 'the node environment sets up synchronously')
   return instance
 }
@@ -512,4 +515,75 @@ test('D22: a global a test cannot remove is reported, not thrown, and everything
     addedGone: true,
     again: true,
   })
+})
+
+// `processObject: 'per-file'` (`orchestrator.processObject`, Jest's and the neutral value): each
+// file gets its own copy of `process`, so what one file does to `process` reaches neither the
+// worker's own nor the next file (recorded from Jest 30.5.2: the harness's `env/process-*`).
+const perFile: EnvironmentSetupContext<Record<string, never>> = {
+  ...context,
+  processObject: 'per-file',
+}
+
+test('per-file: twelve files that each add an exit listener stay under the listener limit', async () => {
+  const before = worker.listenerCount('exit')
+  const warnings: string[] = []
+  const onWarning = (warning: Error): void => void warnings.push(warning.name)
+  worker.on('warning', onWarning)
+  const seen: number[] = []
+  let ran = 0
+  try {
+    for (let file = 0; file < 12; file++) {
+      const instance = setUp(perFile)
+      try {
+        assert.notEqual(globalThis.process, worker, 'the file has a process of its own')
+        globalThis.process.on('exit', () => void ran++)
+        seen.push(globalThis.process.listenerCount('exit'))
+      } finally {
+        instance.teardown()
+      }
+      assert.equal(globalThis.process, worker, 'the worker’s own is back after the file')
+    }
+    // Node emits a MaxListenersExceededWarning on the next tick.
+    await new Promise<void>((resolve) => setImmediate(resolve))
+  } finally {
+    worker.off('warning', onWarning)
+  }
+  assert.deepEqual(seen, Array(12).fill(1), 'each file sees its own listener only')
+  assert.equal(worker.listenerCount('exit'), before, 'no listener reached the worker’s process')
+  assert.deepEqual(warnings, [], 'no MaxListenersExceededWarning')
+  assert.equal(ran, 0)
+})
+
+test('per-file: an env change stays in its file, as a string', () => {
+  const name = 'PROVINO_ENV_NODE_PER_FILE'
+  const first = setUp(perFile)
+  try {
+    const env = globalThis.process.env as Record<string, unknown>
+    env[name] = 'set by the first file'
+    env.PROVINO_ENV_NODE_NUMBER = 42
+    assert.equal(env[name], 'set by the first file')
+    assert.equal(env.PROVINO_ENV_NODE_NUMBER, '42')
+    assert.equal(globalThis.process.getBuiltinModule('node:process'), globalThis.process)
+  } finally {
+    first.teardown()
+  }
+  assert.equal(worker.env[name], undefined, 'the worker’s env never saw it')
+  const second = setUp(perFile)
+  try {
+    assert.equal(globalThis.process.env[name], undefined, 'the next file doesn’t see it')
+  } finally {
+    second.teardown()
+  }
+})
+
+test('shared, or no processObject: the file sees the worker’s own process', () => {
+  for (const shared of [context, { ...context, processObject: 'shared' } as const]) {
+    const instance = setUp(shared)
+    try {
+      assert.equal(globalThis.process, worker)
+    } finally {
+      instance.teardown()
+    }
+  }
 })

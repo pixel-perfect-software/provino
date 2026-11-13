@@ -589,6 +589,8 @@ export function createRuntimeRunner(): WorkerRunner {
       pragmas,
       console: context.console,
       signal: scope === 'worker' ? workerLifetime.signal : context.signal,
+      // A copy of `process` for the file, or the worker's own (`orchestrator.processObject`).
+      processObject: worker.modules.policy.orchestrator.processObject,
     })
     const set = { instance, name: environment.environment.name, prepared: environment }
     if (scope === 'worker') worker.workerEnvironment = set

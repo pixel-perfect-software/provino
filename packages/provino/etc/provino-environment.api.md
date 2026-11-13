@@ -63,6 +63,7 @@ export interface EnvironmentSetupContext<Options> {
     // (undocumented)
     readonly options: Options;
     readonly pragmas: Pragmas;
+    readonly processObject?: ProcessObject;
     // (undocumented)
     readonly realm: EnvironmentRealm;
     // (undocumented)
@@ -108,6 +109,9 @@ export type NodeEnvironmentErrorCode = "ENV_NODE_REALM_UNSUPPORTED";
 
 // @public
 export type Pragmas = Readonly<Record<string, string | readonly string[]>>;
+
+// @public
+export type ProcessObject = "per-file" | "shared";
 
 // (No @packageDocumentation comment for this package)
 

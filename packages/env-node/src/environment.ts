@@ -2,7 +2,7 @@
 // does not build a global: test code sees the worker's own, and the file's changes to it are
 // undone when the file ends. Realm `context` (a vm context with Node's globals) needs the `realm`
 // isolation tier, T2.8.
-import { leakReport, snapshotProperties } from '@provino/env-shared'
+import { createFileProcess, leakReport, snapshotProperties } from '@provino/env-shared'
 import type { Environment, EnvironmentInstance, EnvironmentTeardownReport } from '@provino/types'
 import { NodeEnvironmentError } from './errors.ts'
 
@@ -20,6 +20,10 @@ import { NodeEnvironmentError } from './errors.ts'
  * An assignment to a get/set accessor whose value lives in a closure (Node's `process`, `Buffer`
  * and `performance`) leaves the descriptor unchanged, so `setup` wraps those setters: the first
  * assignment records the old value, `teardown` assigns it back and puts the original setter back.
+ *
+ * With `processObject: 'per-file'` in the context, `setup` installs a copy of the worker's
+ * `process` for the file (`createFileProcess`: listeners and an `env` of its own, as Jest gives
+ * each file), and `teardown` puts the worker's back.
  *
  * A key that cannot be restored (an added property that is not configurable, so `delete` fails)
  * is a warning, not a failure (decision D22): `teardown` restores everything else, then returns
@@ -42,6 +46,9 @@ export const nodeEnvironment: Environment<'node'> = {
       )
     }
     const snapshot = snapshotProperties(globalThis)
+    // After the snapshot, so the assignment goes through its wrapped setter and teardown puts the
+    // worker's `process` back.
+    if (context.processObject === 'per-file') globalThis.process = createFileProcess()
     return {
       global: globalThis,
       teardown(): EnvironmentTeardownReport | undefined {

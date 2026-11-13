@@ -3,7 +3,13 @@
 // global's names and descriptors are as they were. The semantics of what is copied are Vitest's
 // (`@provino/env-shared`'s `populateGlobal`); the options and the error-event bridge follow
 // Vitest's `jsdom` environment and Jest's `jest-environment-jsdom`.
-import { leakReport, populateGlobal, snapshotProperties } from '@provino/env-shared'
+import worker from 'node:process'
+import {
+  createFileProcess,
+  leakReport,
+  populateGlobal,
+  snapshotProperties,
+} from '@provino/env-shared'
 import type {
   Environment,
   EnvironmentInstance,
@@ -69,7 +75,9 @@ function bridgeErrors(win: DOMWindow): () => void {
   const bridge = (event: ErrorEvent): void => {
     if (userListeners === 0 && event.error != null) {
       event.preventDefault()
-      process.emit('uncaughtException', event.error)
+      // The worker's own `process`, where the runtime listens: the file's global one may be a
+      // copy (`processObject: 'per-file'`), which nothing in the worker hears.
+      worker.emit('uncaughtException', event.error)
     }
   }
   add('error', bridge as EventListener)
@@ -102,6 +110,10 @@ function bridgeErrors(win: DOMWindow): () => void {
  *
  * Window `error` events with no listener of the test's own become uncaught exceptions.
  *
+ * With `processObject: 'per-file'` in the context, `setup` also installs a copy of the worker's
+ * `process` for the file (listeners and an `env` of its own), which teardown removes.
+ *
+
  * Only the `worker` realm is supported: `setup` throws `ENV_JSDOM_REALM_UNSUPPORTED` for
  * `context`, which needs the `realm` isolation tier (T2.8).
  *
@@ -164,6 +176,9 @@ export const jsdomEnvironment: Environment<'jsdom', JsdomEnvironmentOptions> = {
 
     const snapshot = snapshotProperties(globalThis)
     populateGlobal(globalThis, win, { bindFunctions: true })
+    // After the snapshot, so the assignment goes through its wrapped setter and teardown puts the
+    // worker's `process` back.
+    if (context.processObject === 'per-file') globalThis.process = createFileProcess()
     return {
       global: globalThis,
       teardown(): EnvironmentTeardownReport | undefined {

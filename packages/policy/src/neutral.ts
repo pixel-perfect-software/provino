@@ -212,6 +212,8 @@ export const neutralPolicy: Policy = deepFreeze({
     globMatchesOn: 'root-relative-path',
     // Ours: a file where nothing ran is skipped.
     todoOnlyFile: 'skip',
+    // Ours: a file's `process` listeners and `env` changes stay in the file.
+    processObject: 'per-file',
     passWithNoTests: false,
     exitCodes: { failure: 1, noTests: 1, unhandled: 1, usage: 2 },
     unhandledErrors: 'fail-run',

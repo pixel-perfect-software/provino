@@ -761,6 +761,7 @@ export interface EnvironmentSetupContext<Options> {
     // (undocumented)
     readonly options: Options;
     readonly pragmas: Pragmas;
+    readonly processObject?: ProcessObject;
     // (undocumented)
     readonly realm: EnvironmentRealm;
     // (undocumented)
@@ -2042,6 +2043,7 @@ export interface OrchestratorPolicy {
     readonly pool: {
         readonly default: PoolKind;
     };
+    readonly processObject: ProcessObject;
     readonly runInBand: {
         readonly auto: boolean;
     };
@@ -2149,6 +2151,9 @@ export interface PoolOptions {
 
 // @public
 export type Pragmas = Readonly<Record<string, string | readonly string[]>>;
+
+// @public
+export type ProcessObject = "per-file" | "shared";
 
 // @public
 export interface ProjectConfig extends BaseConfig, ProjectKeys, DialectKeys, PluginKeys {}

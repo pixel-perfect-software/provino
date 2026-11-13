@@ -303,6 +303,10 @@ export const jestPolicy: PolicyOverrides = {
     globMatchesOn: 'absolute-path',
     // Jest marks a suite skipped only when every test is pending (`cli/report-todo-only`, DV50).
     todoOnlyFile: 'pass',
+    // jest-util's `installCommonGlobals` gives every file its own copy of `process`: a later file
+    // in the worker sees none of an earlier one's listeners or `env` changes
+    // (`env/process-per-file-listeners`, `env/process-per-file-env`).
+    processObject: 'per-file',
     // research: track-01 L227
     passWithNoTests: false,
     // research: track-01 L228, track-09 L563; `usage` is `cli/unknown-flag` and `cli/bad-config`.

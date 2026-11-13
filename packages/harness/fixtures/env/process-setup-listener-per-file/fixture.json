@@ -1,0 +1,15 @@
+{
+  "description": "A `setupFiles` module that adds an `exit` listener to `process`, as a project's setup does to clean up after itself, over 12 test files in one worker (`maxWorkers: 1`; a `workerIdleMemoryLimit` makes Jest use a worker process even so). Twelve listeners on one `process` would pass Node's limit of 10 and print a `MaxListenersExceededWarning`. Each test's title holds the `exit` listener count its file saw; the run keeps the stderr lines naming the warning, and the totals, and captures `exit-from-setup.txt`, which the listener writes if it ever runs.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "workerIdleMemoryLimit": "1GB",
+      "setupFiles": ["<rootDir>/setup.ts"]
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr", "file:exit-from-setup.txt"],
+    "keepLines": "MaxListeners|^Tests:"
+  }
+}

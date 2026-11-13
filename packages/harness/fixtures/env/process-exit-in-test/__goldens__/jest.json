@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "env/process-exit-in-test",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 3,
+    "stderr": "  ●  process.exit called with \"3\""
+  }
+}

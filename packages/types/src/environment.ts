@@ -27,6 +27,13 @@ export type EnvironmentScope = 'file' | 'worker'
 export type Pragmas = Readonly<Record<string, string | readonly string[]>>
 
 /**
+ * The `process` a test file sees (the policy's `orchestrator.processObject`): `per-file`, a copy
+ * of the worker's with listeners and an `env` of its own, or `shared`, the worker's own.
+ * @public
+ */
+export type ProcessObject = 'per-file' | 'shared'
+
+/**
  * What an environment's `setup` receives.
  * @public
  */
@@ -40,6 +47,12 @@ export interface EnvironmentSetupContext<Options> {
   readonly console: Console
   /** Aborted when the worker cancels. */
   readonly signal: AbortSignal
+  /**
+   * The `process` to install on the global for the file (`orchestrator.processObject`): with
+   * `per-file` the environment installs a copy of the worker's for the file (scope `worker`: one
+   * for the worker) and puts the worker's back at teardown. Absent: `shared`.
+   */
+  readonly processObject?: ProcessObject
 }
 
 /**
