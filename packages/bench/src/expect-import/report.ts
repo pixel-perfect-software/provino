@@ -1,6 +1,5 @@
 // The pure part of `bench:expect-import`: what the samples say and whether the bar holds.
-import { overBar, pastLimit } from '../internal/limits.ts'
-import { median } from '../stats.ts'
+import { medianSample, overBar, pastLimit } from '../internal/limits.ts'
 
 /** What one fresh process measured, in milliseconds. */
 export const KEYS = ['entry', 'engine', 'total'] as const
@@ -18,11 +17,7 @@ export type ImportSample = Readonly<Record<(typeof KEYS)[number], number>>
  * @internal
  */
 export function summarise(samples: readonly ImportSample[]): ImportSample {
-  return {
-    entry: median(samples.map((sample) => sample.entry)),
-    engine: median(samples.map((sample) => sample.engine)),
-    total: median(samples.map((sample) => sample.total)),
-  }
+  return medianSample(KEYS, samples)
 }
 
 /**

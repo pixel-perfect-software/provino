@@ -10,10 +10,13 @@ import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { runProcess } from '@provino/harness'
+import { exitOnSignals, runProcess } from '@provino/harness'
 import { BenchError } from '../errors.ts'
 import { parseLimit, parseOrExitUsage, readSample } from '../internal/limits.ts'
 import { describeRun, type ImportSample, KEYS, summarise } from './report.ts'
+
+// Each run is a child in its own process group, so Ctrl-C must end them through this hook.
+exitOnSignals()
 
 const DEFAULT_RUNS = 15
 
