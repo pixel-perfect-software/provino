@@ -630,7 +630,7 @@ describe('the dot reporter', () => {
     const tests = Array.from({ length: 85 }, (_, i) => ({ path: [`t${i}`] }))
     for (const columns of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
       const text = await written(dotReporter, [{ path: 'a.test.ts', tests }], { columns })
-      assert.match(text, new RegExp(`^\\.{80}\\n\\.{5}\\n\\nTest Suites:`), `columns ${columns}`)
+      assert.match(text, /^\.{80}\n\.{5}\n\nTest Suites:/, `columns ${columns}`)
     }
   })
 
