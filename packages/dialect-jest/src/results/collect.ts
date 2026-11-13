@@ -87,6 +87,12 @@ export interface JestResults<Config extends ProjectConfigLike> {
   aggregated(): AggregatedResult
   /** A finished file's result. */
   testResultOf(fileId: TaskId): TestResult | undefined
+  /**
+   * A failed file's `failureMessage` in blocks, as the text reporters print it: each failed test's
+   * (`formatResultsErrors` of its assertion, with its id), then the file's own errors. Joined by
+   * `\n`, the blocks are `failureMessage`. `undefined` for a file with no failure text.
+   */
+  failureTextOf(fileId: TaskId): readonly JestFailureBlock[] | undefined
   /** The `Test` Jest's reporters get for a file. */
   testOf(file: FileInfo): Test<Config>
   /** The projects that have a file in the run. */
@@ -103,6 +109,15 @@ export interface JestResults<Config extends ProjectConfigLike> {
    * heard the end of the run (Jest's `anyReporterErrors`): `success` goes false.
    */
   reportersFailed(failed: boolean): void
+}
+
+/**
+ * One block of a failed file's text: a failed test's (`taskId`), or the file's own errors.
+ * @public
+ */
+export interface JestFailureBlock {
+  readonly taskId?: TaskId
+  readonly text: string
 }
 
 interface MutableFile {
@@ -131,6 +146,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
   aggregated.success = false
   const files = new Map<TaskId, MutableFile>()
   const results = new Map<TaskId, TestResult>()
+  const failureBlocks = new Map<TaskId, readonly JestFailureBlock[]>()
   const contexts = new Map<Config, TestContext<Config>>()
 
   const configOf = (info: FileInfo): Config => {
@@ -182,6 +198,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
       aggregated.startTime = now()
       files.clear()
       results.clear()
+      failureBlocks.clear()
       contexts.clear()
     },
     'file:start': (info) => {
@@ -275,19 +292,19 @@ export function createJestResults<Config extends ProjectConfigLike>(
       if (options.collectOnly === true && testExecError === undefined) {
         // Nothing ran, so there is nothing to format.
       } else if (testExecError !== undefined && testResult.testResults.length === 0) {
-        testResult.failureMessage = await formatFileError(
-          testExecError,
-          config,
-          stack,
-          events.testFilePath,
-        )
+        const text = await formatFileError(testExecError, config, stack, events.testFilePath)
+        testResult.failureMessage = text
+        failureBlocks.set(info.fileId, [{ text }])
       } else {
-        let message = await formatTestFailures(
-          testResult.testResults,
-          config,
-          stack,
-          events.testFilePath,
-        )
+        // `formatResultsErrors` joins one block per failure with `\n`, so formatting each test's
+        // assertion alone and joining the texts is Jest's text, with the test each block is for.
+        const blocks: JestFailureBlock[] = []
+        for (const [index, assertion] of testResult.testResults.entries()) {
+          const text = await formatTestFailures([assertion], config, stack, events.testFilePath)
+          if (text === null) continue
+          const taskId = ordered[index]?.task.id
+          blocks.push(taskId === undefined ? { text } : { taskId, text })
+        }
         if (testExecError !== undefined) {
           const errors = [...fileResult.errors, ...file.unhandled]
           const text = await Promise.all(
@@ -300,9 +317,12 @@ export function createJestResults<Config extends ProjectConfigLike>(
               ),
             ),
           )
-          message = `${message ?? ''}\n\n${text.join('\n')}`
+          // Jest's `${message ?? ''}\n\n${errors}`: the join adds one of the two newlines.
+          blocks.push({ text: `${blocks.length === 0 ? '\n\n' : '\n'}${text.join('\n')}` })
         }
-        testResult.failureMessage = message
+        testResult.failureMessage =
+          blocks.length === 0 ? null : blocks.map((block) => block.text).join('\n')
+        if (blocks.length > 0) failureBlocks.set(info.fileId, blocks)
       }
       results.set(info.fileId, testResult)
       addResult(aggregated, testResult)
@@ -326,6 +346,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
     reporter,
     aggregated: () => aggregated,
     testResultOf: (fileId) => results.get(fileId),
+    failureTextOf: (fileId) => failureBlocks.get(fileId),
     testOf: (info) => ({ context: contextOf(configOf(info)), path: pathOf(info) }),
     contexts: () => new Set(contexts.values()),
     assertionOf: (test, retried) => {

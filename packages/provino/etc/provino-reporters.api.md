@@ -118,7 +118,7 @@ export interface TextReporterOptions {
     readonly consoleTrace?: (file: FileInfo, entry: ConsoleEntry) => string;
     readonly expand?: boolean;
     readonly failureSummaryThreshold?: number;
-    readonly failureText?: (file: FileResult) => string | undefined;
+    readonly failureText?: (file: FileResult) => readonly FailureTextBlock[] | undefined;
     readonly fileNotes?: (file: FileResult, style: TextStyle) => readonly string[] | undefined;
     readonly live?: boolean;
     readonly noStackTrace?: boolean;

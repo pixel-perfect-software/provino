@@ -339,6 +339,14 @@ export interface JestDisplayName {
 }
 
 // @public
+export interface JestFailureBlock {
+    // (undocumented)
+    readonly taskId?: TaskId;
+    // (undocumented)
+    readonly text: string;
+}
+
+// @public
 export const jestFlags: readonly FlagSpec[];
 
 // @public
@@ -806,6 +814,7 @@ export interface JestResults<Config extends ProjectConfigLike> {
         readonly errors: readonly SerializedError[];
     }): AssertionResult | undefined;
     contexts(): Set<TestContext<Config>>;
+    failureTextOf(fileId: TaskId): readonly JestFailureBlock[] | undefined;
     readonly reporter: Reporter;
     reportersFailed(failed: boolean): void;
     startInfoOf(test: TestTask): TestCaseStartInfo;

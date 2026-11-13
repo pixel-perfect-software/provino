@@ -9,6 +9,7 @@ import {
   detectOutput,
   dotReporter,
   type Environment,
+  type FailureTextBlock,
   githubActionsReporter,
   jsonReporter,
   junitReporter,
@@ -61,8 +62,8 @@ export interface DisplayOptions {
 export interface TextExtras {
   /** `default`, `verbose` and `agent` print no summary: a `summary` reporter does. */
   readonly separateSummary?: true
-  /** Text printed in place of Provino's failure blocks for a failed file. */
-  readonly failureText?: (file: FileResult) => string | undefined
+  /** Text printed in place of Provino's failure blocks for a failed file, one block per test. */
+  readonly failureText?: (file: FileResult) => readonly FailureTextBlock[] | undefined
   /** What goes under a console entry in place of its `at` line (Jest's `formatStackTrace`). */
   readonly consoleTrace?: (file: FileInfo, entry: ConsoleEntry) => string
   /** Lines under a file's output (Jest's per-file snapshot lines). */

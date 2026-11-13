@@ -6,6 +6,7 @@ import type {
   ReportPolicy,
   RunSummary,
   SerializedError,
+  TaskId,
   TaskNode,
   TaskState,
   TextStyle,
@@ -77,9 +78,10 @@ export interface TextReporterOptions {
   readonly summary?: false
   /**
    * Text printed in place of Provino's own failure blocks for a file that failed (`undefined`:
-   * the blocks). A dialect that has its own failure text for a file passes it here.
+   * the blocks). A dialect that has its own failure text for a file passes it here, one block per
+   * failed test so each test's lazy values (T6.10) can follow its own block.
    */
-  readonly failureText?: (file: FileResult) => string | undefined
+  readonly failureText?: (file: FileResult) => readonly FailureTextBlock[] | undefined
   /**
    * Lines printed under a file's header and failures (Jest's per-file snapshot lines); not part of
    * the failures the summary reprints.
@@ -149,8 +151,20 @@ const ERROR_LABELS = {
   globalSetup: 'Global setup error',
 } as const
 
+/**
+ * One block of a dialect's failure text for a file: a failed test's (`taskId`), or the file's own
+ * errors. The blocks print joined by `\n`, so a dialect splits its text where it joined it.
+ * @public
+ */
+export interface FailureTextBlock {
+  readonly taskId?: TaskId
+  readonly text: string
+}
+
 /** A test, or a suite with errors of its own, that failed. */
 interface Failure {
+  /** The test's id; a suite's failure has none. */
+  readonly id?: TaskId
   readonly title: string
   readonly errors: readonly SerializedError[]
   /** The lazy values the test evaluated (a failed test with any). */
@@ -221,6 +235,7 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       const outcome = outcomeOf(entry, test)
       if (outcome.failed) {
         failed.push({
+          id,
           title: testTitle(report, test.fullName),
           errors: outcome.errors,
           ...(result.lazies === undefined ? {} : { lazies: result.lazies }),
@@ -278,7 +293,16 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     }
     const given = result.state === 'fail' ? options.failureText?.(result) : undefined
     if (given !== undefined) {
-      parts.push(given)
+      const lazies = new Map(failuresOf(entry).map((test) => [test.id, test.lazies]))
+      parts.push(
+        ...given.map(
+          (block) =>
+            block.text +
+            (block.taskId === undefined
+              ? ''
+              : lazyBlock(lazies.get(block.taskId), record.root, style)),
+        ),
+      )
     } else if (result.state === 'fail') {
       const failed = failuresOf(entry)
       parts.push(

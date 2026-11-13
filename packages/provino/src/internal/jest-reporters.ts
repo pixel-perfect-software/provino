@@ -157,7 +157,7 @@ export async function setUpJestReporters(options: {
         ...noteHooks,
         separateSummary: true,
         snapshotsAlways: true,
-        failureText: (file) => results.testResultOf(file.file.fileId)?.failureMessage ?? undefined,
+        failureText: (file) => results.failureTextOf(file.file.fileId),
         failureSummaryThreshold:
           typeof threshold === 'number' ? threshold : DEFAULT_SUMMARY_THRESHOLD,
         snapshotSummary: (_summary, style) =>
@@ -186,7 +186,7 @@ export async function setUpJestReporters(options: {
     verbose,
     text: {
       ...noteHooks,
-      failureText: (file) => results.testResultOf(file.file.fileId)?.failureMessage ?? undefined,
+      failureText: (file) => results.failureTextOf(file.file.fileId),
     },
   }
 }

@@ -14,6 +14,7 @@ export {
 export {
   createJestResults,
   type GlobalConfigLike,
+  type JestFailureBlock,
   type JestResults,
   type JestResultsOptions,
   type ProjectConfigLike,

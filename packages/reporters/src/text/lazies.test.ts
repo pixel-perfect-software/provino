@@ -7,7 +7,13 @@ import { agentReporter } from '../agent/reporter.ts'
 import { defaultReporter } from '../default/reporter.ts'
 import { dotReporter } from '../dot/reporter.ts'
 import { expectGolden } from '../internal/golden.ts'
-import { type FileSpec, JEST_REPORT, playThrough } from '../internal/test-support.ts'
+import {
+  type FileSpec,
+  fileInfo,
+  JEST_REPORT,
+  playThrough,
+  taskId,
+} from '../internal/test-support.ts'
 import { createStyle } from '../style.ts'
 import { verboseReporter } from '../verbose/reporter.ts'
 import { lazyBlock } from './format.ts'
@@ -100,5 +106,58 @@ describe('lazy values in the failure report', () => {
   test('no values is no block', () => {
     assert.equal(lazyBlock(undefined, '/project', createStyle(false)), '')
     assert.equal(lazyBlock([], '/project', createStyle(false)), '')
+  })
+
+  // A dialect's own failure text (Jest's, under `provino jest`) comes in one block per failed
+  // test, so each test's values go under its own block, and with none the text is the blocks
+  // joined as the dialect wrote them.
+  test("under a dialect's failure text, each test's values follow that test's block", async () => {
+    const fileId = fileInfo('src/cart.test.ts').fileId
+    const blocks = [
+      { taskId: taskId(`${fileId}/t0`), text: '  ● cart › totals\n\n    DIALECT TEXT A\n' },
+      { taskId: taskId(`${fileId}/t1`), text: '  ● cart › plain\n\n    DIALECT TEXT B\n' },
+      { text: '\n  FILE ERRORS\n' },
+    ]
+    const text = await playThrough(
+      (out) =>
+        defaultReporter({
+          stream: out,
+          report: JEST_REPORT,
+          colour: false,
+          live: false,
+          columns: 80,
+          failureText: (file) => (file.state === 'fail' ? blocks : undefined),
+        }),
+      FILES,
+    )
+    const a = text.indexOf('DIALECT TEXT A')
+    const lazy = text.indexOf('Lazy values evaluated before the failure:')
+    const b = text.indexOf('DIALECT TEXT B')
+    assert.ok(a !== -1 && a < lazy && lazy < b, text)
+    assert.equal(text.split('Lazy values evaluated before the failure:').length, 2, text)
+    assert.ok(text.indexOf('FILE ERRORS') > b, text)
+    assert.doesNotMatch(text, /no such user/)
+
+    const plain = await playThrough(
+      (out) =>
+        defaultReporter({
+          stream: out,
+          report: JEST_REPORT,
+          colour: false,
+          live: false,
+          columns: 80,
+          failureText: (file) => (file.state === 'fail' ? blocks.slice(1) : undefined),
+        }),
+      FILES,
+    )
+    assert.ok(
+      plain.includes(
+        blocks
+          .slice(1)
+          .map((block) => block.text)
+          .join('\n'),
+      ),
+      plain,
+    )
   })
 })

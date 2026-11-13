@@ -10,7 +10,7 @@ import { StandardSchemaV1 } from '@standard-schema/spec';
 // @public
 export interface $ extends TaskBase {
     // (undocumented)
-    readonly children: readonly TaskId[];
+    readonly children: readonly et[];
     // (undocumented)
     readonly concurrent: boolean;
     // (undocumented)
@@ -61,7 +61,21 @@ export interface a<Name extends string = string, Options = unknown> {
 }
 
 // @public
-export type at = (port: WorkerPort) => void | Promise<void>;
+export interface at {
+    readonly advanceToNextTimerHonorsSteps: boolean;
+    readonly enableGlobally: boolean;
+    readonly facadeReturns: "lifecycle" | "all";
+    readonly fakeTemporal: boolean;
+    readonly legacyAvailable: boolean;
+    readonly loopLimit: number;
+    readonly messages: {
+        readonly notFaked: string;
+    };
+    readonly notFaked: "warn" | "throw";
+    readonly optionNames: "do-not-fake" | "to-fake";
+    readonly setSystemTimeWithoutFakes: "warn-noop" | "fake-date-only";
+    readonly toFakeDefault: "all" | "all-but-microtasks";
+}
 
 // @public
 export type B = "per-file" | "shared";
@@ -130,17 +144,9 @@ export interface d<G extends object = typeof globalThis> {
 export type E = (miss: MapperMiss) => string;
 
 // @public
-export interface et {
-    // (undocumented)
-    readonly file: string;
-    readonly fullName: string;
-    // (undocumented)
-    readonly name: string;
-    // (undocumented)
-    readonly repeat: number;
-    // (undocumented)
-    readonly retry: number;
-}
+export type et = string & {
+    readonly __brand: "TaskId";
+};
 
 // @public
 export interface F {
@@ -233,19 +239,19 @@ export type i = <const N extends string>(reporter: W & {
 
 // @public
 export interface it {
-    readonly advanceToNextTimerHonorsSteps: boolean;
-    readonly enableGlobally: boolean;
-    readonly facadeReturns: "lifecycle" | "all";
-    readonly fakeTemporal: boolean;
-    readonly legacyAvailable: boolean;
-    readonly loopLimit: number;
-    readonly messages: {
-        readonly notFaked: string;
-    };
-    readonly notFaked: "warn" | "throw";
-    readonly optionNames: "do-not-fake" | "to-fake";
-    readonly setSystemTimeWithoutFakes: "warn-noop" | "fake-date-only";
-    readonly toFakeDefault: "all" | "all-but-microtasks";
+    badge(word: string, colour: "green" | "red" | "yellow"): string;
+    // (undocumented)
+    bold(text: string): string;
+    // (undocumented)
+    dim(text: string): string;
+    // (undocumented)
+    green(text: string): string;
+    // (undocumented)
+    magenta(text: string): string;
+    // (undocumented)
+    red(text: string): string;
+    // (undocumented)
+    yellow(text: string): string;
 }
 
 // @public
@@ -290,7 +296,7 @@ export interface k {
     setDefaultRetry(retry: DefaultRetry | undefined): void;
     setDefaultTimeout(ms: number | undefined): void;
     timers(): object;
-    readonly timersPolicy: it;
+    readonly timersPolicy: at;
 }
 
 // @public
@@ -350,20 +356,19 @@ export interface n {
 
 // @public
 export interface nt {
-    addTeardown(fn: () => unknown): void;
     // (undocumented)
-    readonly ctx: {
-        readonly task: et;
-    };
+    annotate(message: string, kind?: string): Promise<void>;
     // (undocumented)
+    onTestFailed(fn: (ctx: nt) => void | Promise<void>, timeoutMs?: number): void;
+    // (undocumented)
+    onTestFinished(fn: (ctx: nt) => void | Promise<void>, timeoutMs?: number): void;
     readonly signal: AbortSignal;
-    readonly slots: Map<symbol, unknown>;
     // (undocumented)
-    readonly state: "running" | "cleanup" | "done";
+    skip(note?: string): never;
     // (undocumented)
-    readonly test: {
-        readonly suite: SuiteHandle;
-    };
+    skip(condition: boolean, note?: string): void;
+    // (undocumented)
+    readonly task: Readonly<TestTask>;
 }
 
 // @public
@@ -374,6 +379,9 @@ export type O = (thrown: unknown, context: {
 
 // @public
 export type o = { readonly [N in DialectName as N extends G ? never : N]?: DialectRegistry[N]; };
+
+// @public
+export type ot = (port: WorkerPort) => void | Promise<void>;
 
 // @public
 export type P = "clear" | "reset" | "restore" | "unstubEnvs" | "unstubGlobals";
@@ -414,25 +422,26 @@ export type r = <const Name extends string, Options = Record<string, never>, G e
 
 // @public
 export interface rt {
-    badge(word: string, colour: "green" | "red" | "yellow"): string;
+    addTeardown(fn: () => unknown): void;
     // (undocumented)
-    bold(text: string): string;
+    readonly ctx: {
+        readonly task: tt;
+    };
     // (undocumented)
-    dim(text: string): string;
+    readonly signal: AbortSignal;
+    readonly slots: Map<symbol, unknown>;
     // (undocumented)
-    green(text: string): string;
+    readonly state: "running" | "cleanup" | "done";
     // (undocumented)
-    magenta(text: string): string;
-    // (undocumented)
-    red(text: string): string;
-    // (undocumented)
-    yellow(text: string): string;
+    readonly test: {
+        readonly suite: SuiteHandle;
+    };
 }
 
 // @beta
 export interface S {
     // (undocumented)
-    readonly fileId: TaskId;
+    readonly fileId: et;
     readonly path: string;
     // (undocumented)
     readonly project: string;
@@ -467,18 +476,14 @@ export interface t {
 // @public
 export interface tt {
     // (undocumented)
-    annotate(message: string, kind?: string): Promise<void>;
+    readonly file: string;
+    readonly fullName: string;
     // (undocumented)
-    onTestFailed(fn: (ctx: tt) => void | Promise<void>, timeoutMs?: number): void;
+    readonly name: string;
     // (undocumented)
-    onTestFinished(fn: (ctx: tt) => void | Promise<void>, timeoutMs?: number): void;
-    readonly signal: AbortSignal;
+    readonly repeat: number;
     // (undocumented)
-    skip(note?: string): never;
-    // (undocumented)
-    skip(condition: boolean, note?: string): void;
-    // (undocumented)
-    readonly task: Readonly<TestTask>;
+    readonly retry: number;
 }
 
 // @public
@@ -509,7 +514,7 @@ export interface W extends ReporterHandlers {
 // @public
 export interface w extends TaskBase {
     // (undocumented)
-    readonly children: readonly TaskId[];
+    readonly children: readonly et[];
     readonly path: string;
     // (undocumented)
     readonly projectName: string;

@@ -126,7 +126,7 @@ describe('the text reporters beside the summary reporter', () => {
         stream: out,
         ...PLAIN,
         failureText: (file) =>
-          file.state === 'fail' ? `JEST TEXT FOR ${file.file.path}\n` : undefined,
+          file.state === 'fail' ? [{ text: `JEST TEXT FOR ${file.file.path}\n` }] : undefined,
       }),
     )
     assert.match(text, /JEST TEXT FOR .*broken\.test\.ts/)
