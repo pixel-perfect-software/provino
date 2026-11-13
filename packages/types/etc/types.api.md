@@ -1046,6 +1046,14 @@ export interface Frame {
 }
 
 // @public
+export interface GlobalSetupArgs {
+    // (undocumented)
+    readonly globalConfig: Readonly<Record<string, JsonValue>>;
+    // (undocumented)
+    readonly projectConfig: Readonly<Record<string, JsonValue>>;
+}
+
+// @public
 export interface GlobalSetupContext {
     // (undocumented)
     onTestsRerun(callback: () => void | Promise<void>): void;
@@ -1873,10 +1881,7 @@ export interface NeutralProject {
     };
     readonly fakeTimers?: Readonly<Record<string, JsonValue>>;
     readonly globalSetup: readonly string[];
-    readonly globalSetupArgs?: {
-        readonly globalConfig: Readonly<Record<string, JsonValue>>;
-        readonly projectConfig: Readonly<Record<string, JsonValue>>;
-    };
+    readonly globalSetupArgs?: GlobalSetupArgs;
     // (undocumented)
     readonly globalTeardown: readonly string[];
     readonly globalValues?: Readonly<Record<string, JsonValue>>;
@@ -2017,6 +2022,8 @@ export interface OrchestratorPolicy {
         readonly signature: "global-and-project-config" | "project-with-teardown";
         readonly teardownOrder: "in-order" | "reverse";
         readonly failureMessage: string;
+        readonly formatThrown: Behaviour<FormatValue>;
+        readonly reviveArgs: Behaviour<ReviveGlobalSetupArgs>;
     };
     readonly globMatchesOn: "absolute-path" | "root-relative-path";
     readonly include: readonly string[];
@@ -2343,6 +2350,12 @@ export interface ResolverOptions {
 
 // @public
 export type ResolveSnapshotPath = (testPath: string, extension: string) => string;
+
+// @public
+export type ReviveGlobalSetupArgs = (args: GlobalSetupArgs) => {
+    readonly globalConfig: object;
+    readonly projectConfig: object;
+};
 
 // @public
 export type RpcCall<Methods> = { readonly [K in keyof Methods & string]: {

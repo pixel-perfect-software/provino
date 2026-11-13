@@ -3,7 +3,13 @@ import type { JsonValue } from './clone-safe.ts'
 import type { EnvironmentResolver } from './environment.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { FileRegistry, ModuleMockRegistry } from './loader.ts'
-import type { MockPolicy, ModuleRef, PolicyOverrides, TimersPolicy } from './policy/index.ts'
+import type {
+  GlobalSetupArgs,
+  MockPolicy,
+  ModuleRef,
+  PolicyOverrides,
+  TimersPolicy,
+} from './policy/index.ts'
 import type { CliDialect } from './run-request.ts'
 import type { DefaultRetry } from './runtime/context.ts'
 
@@ -143,10 +149,7 @@ export interface NeutralProject {
    * has one (Jest's root `globalSetup` with `projects`): that hook is called with the config of the
    * first project.
    */
-  readonly globalSetupArgs?: {
-    readonly globalConfig: Readonly<Record<string, JsonValue>>
-    readonly projectConfig: Readonly<Record<string, JsonValue>>
-  }
+  readonly globalSetupArgs?: GlobalSetupArgs
   /** The environment's neutral name (`node`, `jsdom`), or an absolute path to a custom one. */
   readonly environment: {
     readonly name: string
