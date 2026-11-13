@@ -1,0 +1,9 @@
+{
+  "description": "A global setup that throws (T9.15): Jest runs no test file, prints its own message above the error's (the hook's name, the module and the reason), and exits 1. The black-box run captures the exit code and the lines that name it.",
+  "runners": ["jest"],
+  "config": { "jest": { "globalSetup": "<rootDir>/setup.ts", "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "globalSetup|setup failed|^(Tests|Test Suites):|^(PASS|FAIL) "
+  }
+}
