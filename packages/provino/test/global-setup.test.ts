@@ -2,8 +2,12 @@
 // Jest 30.5.2 does. Against black-box goldens recorded from the real runner
 // (`cli/global-setup-{order,globals,throws,projects}`: the order of setup, test and teardown, what
 // the teardown sees of `globalThis` that a test in a worker does not, a throwing setup's exit code
-// and message, two projects), and against real Jest run beside it for the transformed setup files
-// (babel-jest and ts-jest, which the harness has no recorder for).
+// and message, two projects; `-root-projects` and `-sequence`: the root config's hook and the order
+// Jest's sequenced list gives; `-throws-{typeerror,object,string}`: the class and a non-Error as
+// pretty-format prints it; `-{test-path-patterns,no-test-path-patterns}`: what a hook sees of
+// `globalConfig.testPathPatterns`; `cli/global-teardown-{output,throws}`: a teardown comes below
+// the summary), and against real Jest run beside it for the transformed setup files (babel-jest
+// and ts-jest, which the harness has no recorder for).
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
