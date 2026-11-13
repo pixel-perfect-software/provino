@@ -16,8 +16,8 @@ import {
   type FileEvents,
   finishAggregated,
   type TestRecord,
-  toAssertionResult,
   testsInOrder,
+  toAssertionResult,
   toTestResult,
 } from './build.ts'
 import {
