@@ -101,6 +101,15 @@ const BIN_LIGHT = new RegExp(
   `[\\\\/]packages[\\\\/]provino[\\\\/]src[\\\\/]internal[\\\\/](?:${BIN_LIGHT_FILES.join('|')})\\.ts$`,
 )
 
+/**
+ * The loading stack: the transform, the resolver and the loader. Their third-party packages are
+ * Oxc's natives (`oxc-parser`, `oxc-transform`, `oxc-resolver`), `oxc-walker`, `magic-string` and
+ * `@jridgewell/*`, about 17 ms of cold import that a worker pays when it runs a file and
+ * `import { expect } from 'provino'` does not. Kept in a chunk of their own, the `expect` runtime's
+ * graph (`worker/jest-runtime.js` and the `shared` chunk it imports) loads none of them.
+ */
+const LOADING = /[\\/]packages[\\/](?:transform|resolver|loader)[\\/]src[\\/]/
+
 /** A source file of a workspace package. */
 const SHARED = /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/
 
@@ -194,9 +203,10 @@ export function umbrellaConfig(dir: string): UserConfig[] {
         onlyImport: [...runtimeDependencyNames(manifest)],
       },
       outputOptions: {
-        // T1.10: one chunk for every module more than one entry uses (the engine, shared by the
-        // coordinator, the worker's entries and the dialect's runtime), instead of a dozen small
-        // ones, so a worker's cold start loads a handful of files from this package.
+        // T1.10: three chunks instead of a dozen small ones, so a worker's cold start loads a
+        // handful of files from this package: the loading stack (transform, resolver, loader),
+        // the coordinator's code, and every other module more than one entry uses (the engine,
+        // shared by the coordinator, the worker's entries and the dialect's runtime).
         codeSplitting: {
           groups: [
             // The coordinator's own code (the run, discovery, the pool, reporters, config) in one
@@ -208,6 +218,15 @@ export function umbrellaConfig(dir: string): UserConfig[] {
               minShareCount: 2,
               priority: 2,
               // Only the coordinator's own files: what they import (rpc, transform, policy) is shared.
+              includeDependenciesRecursively: false,
+            },
+            // The transform, the resolver and the loader, with the Oxc natives they import: a
+            // worker loads them when it runs a file, and the `expect` runtime never does. Taken
+            // before `shared`, whatever number of entries use them.
+            {
+              name: 'loading',
+              test: LOADING,
+              priority: 3,
               includeDependenciesRecursively: false,
             },
             {

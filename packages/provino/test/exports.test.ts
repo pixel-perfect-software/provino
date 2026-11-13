@@ -16,7 +16,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { childEnv, runBuilt, trackedProjects } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
@@ -164,6 +164,46 @@ async function builtProject(): Promise<string> {
   symlinkSync(PACKAGE, join(dir, 'node_modules', 'provino'), 'dir')
   return dir
 }
+
+describe('the worker-side expect (T7.12)', () => {
+  test('imports no transform, resolver, loader, Oxc package or coordinator code', async () => {
+    const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
+    after(() => rm(logs, { recursive: true, force: true }))
+    // What `bench:expect-import` imports: the entry, then the runtime it forwards to.
+    const runtime = pathToFileURL(join(PACKAGE, 'dist', 'worker', 'jest-runtime.js')).href
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `await import('provino'); await import(${JSON.stringify(runtime)})`,
+      ],
+      {
+        cwd: PACKAGE,
+        encoding: 'utf8',
+        env: childEnv(['load-recorder'], { PROVINO_LOAD_LOG: logs }),
+        timeout: 60_000,
+      },
+    )
+    assert.equal(result.status, 0, result.stderr)
+    const loaded = readdirSync(logs)
+      .flatMap((file) => readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean))
+      .map((line) => line.split('\t')[1] ?? '')
+    assert.ok(
+      loaded.some((url) => url.endsWith('/dist/worker/jest-runtime.js')),
+      loaded.join('\n'),
+    )
+    // The engine is there; the loading stack (`loading.js`, which holds `transform`, `resolver`
+    // and `loader`, and the natives and `magic-string` they import) and the coordinator are not.
+    assert.ok(loaded.some((url) => url.endsWith('/dist/shared.js')))
+    const heavy = loaded.filter((url) =>
+      /\/dist\/(?:loading|coordinator)\.js|oxc|magic-string|@jridgewell|oxc-walker|es-module-lexer/.test(
+        url,
+      ),
+    )
+    assert.deepEqual(heavy, [])
+  })
+})
 
 describe('a built worker (T1.10)', () => {
   test('runs a project whose test imports `provino`, and starts with at most 10 files from the package', async () => {
