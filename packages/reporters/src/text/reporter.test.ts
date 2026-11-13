@@ -512,6 +512,17 @@ describe('the dot reporter', () => {
     )
   })
 
+  test('never draws the live block, whose redraw would erase the row of dots', async () => {
+    const text = await written(
+      dotReporter,
+      [{ path: 'a.test.ts', tests: [{ path: ['t'] }, { path: ['u'] }] }],
+      { live: true, columns: 40 },
+    )
+    assert.doesNotMatch(text, new RegExp(`${ESC}\\[\\d+F`))
+    assert.doesNotMatch(text, /RUNS/)
+    assert.match(text, /^\.\.\n\nTest Suites: 1 passed, 1 total\n/)
+  })
+
   test('starts its dots over at each run:start', async () => {
     const out = output()
     const reporter = dotReporter({ stream: out, report: REPORT, columns: 3 })

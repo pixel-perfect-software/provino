@@ -96,8 +96,9 @@ export function createTextReporter(
   const { stream, report } = options
   const style = createStyle(options.colour === true)
   const errorFormat: ErrorFormat = { stackTrace: options.noStackTrace !== true }
+  // The block's redraw erases the lines above it, so it has no place over a row of dots it doesn't track.
   const out = createLiveOutput(stream, {
-    live: options.live === true && mode !== 'agent',
+    live: options.live === true && mode !== 'agent' && mode !== 'dot',
     columns: options.columns ?? 80,
     style,
   })

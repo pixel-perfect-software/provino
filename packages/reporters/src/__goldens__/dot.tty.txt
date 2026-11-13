@@ -1,12 +1,4 @@
-<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./math.test.ts
-<ESC>[32m.<ESC>[39m<ESC>[32m.<ESC>[39m<ESC>[32m.<ESC>[39m<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./fails.test.ts
-<ESC>[31mF<ESC>[39m<ESC>[32m.<ESC>[39m<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./skipped.test.ts
-<ESC>[32m.<ESC>[39m<ESC>[33m-<ESC>[39m<ESC>[33m-<ESC>[39m<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./all-skipped.test.ts
-<ESC>[33m-<ESC>[39m<ESC>[33m-<ESC>[39m<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./todo-only.test.ts
-<ESC>[33m-<ESC>[39m<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./console.test.ts
-<ESC>[32m.<ESC>[39m<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./snapshot.test.ts
-<ESC>[31mF<ESC>[39m<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./broken.test.ts
-<ESC>[1F<ESC>[0J
+<ESC>[32m.<ESC>[39m<ESC>[32m.<ESC>[39m<ESC>[32m.<ESC>[39m<ESC>[31mF<ESC>[39m<ESC>[32m.<ESC>[39m<ESC>[32m.<ESC>[39m<ESC>[33m-<ESC>[39m<ESC>[33m-<ESC>[39m<ESC>[33m-<ESC>[39m<ESC>[33m-<ESC>[39m<ESC>[33m-<ESC>[39m<ESC>[32m.<ESC>[39m<ESC>[31mF<ESC>[39m
 
 <ESC>[0m<ESC>[7m<ESC>[1m<ESC>[31m FAIL <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./fails.test.ts
 <ESC>[1m  ● <ESC>[22m<ESC>[1mgroup › fails<ESC>[22m
