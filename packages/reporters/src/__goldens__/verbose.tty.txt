@@ -1,0 +1,78 @@
+<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./math.test.ts
+<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[32m PASS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./math.test.ts
+  <ESC>[32m✓<ESC>[39m <ESC>[2mstands alone (2 ms)<ESC>[22m
+  math
+    <ESC>[32m✓<ESC>[39m <ESC>[2madds (3 ms)<ESC>[22m
+    nested
+      <ESC>[32m✓<ESC>[39m <ESC>[2msubtracts<ESC>[22m
+
+<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./fails.test.ts
+<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[31m FAIL <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./fails.test.ts
+  group
+    <ESC>[31m✕<ESC>[39m <ESC>[2mfails (4 ms)<ESC>[22m
+    <ESC>[32m✓<ESC>[39m <ESC>[2mpasses after (1 ms)<ESC>[22m
+
+<ESC>[1m  ● <ESC>[22m<ESC>[1mgroup › fails<ESC>[22m
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+      at Object.<anonymous> (/project/fails.test.ts:3:15)
+
+<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./skipped.test.ts
+<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[32m PASS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./skipped.test.ts
+  <ESC>[32m✓<ESC>[39m <ESC>[2mruns (2 ms)<ESC>[22m
+  <ESC>[33m○<ESC>[39m <ESC>[2mskipped is skipped<ESC>[22m
+  <ESC>[35m✎<ESC>[39m <ESC>[2mtodo is planned<ESC>[22m
+
+<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./all-skipped.test.ts
+<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./todo-only.test.ts
+<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[32m PASS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./todo-only.test.ts
+  <ESC>[35m✎<ESC>[39m <ESC>[2mtodo later<ESC>[22m
+
+<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./console.test.ts
+<ESC>[1F<ESC>[0J  <ESC>[2mconsole.log<ESC>[22m
+    at import time
+
+  <ESC>[2mconsole.log<ESC>[22m
+    from the test
+
+  <ESC>[33mconsole.warn<ESC>[39m
+<ESC>[33m    a warning<ESC>[39m
+
+  <ESC>[2mprocess.stdout<ESC>[22m
+    a direct write
+
+<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[32m PASS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./console.test.ts
+  <ESC>[32m✓<ESC>[39m <ESC>[2mlogs and warns (2 ms)<ESC>[22m
+
+<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./snapshot.test.ts
+<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[31m FAIL <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./snapshot.test.ts
+  <ESC>[31m✕<ESC>[39m <ESC>[2mmatches a stored snapshot (5 ms)<ESC>[22m
+
+<ESC>[1m  ● <ESC>[22m<ESC>[1mmatches a stored snapshot<ESC>[22m
+
+    expect(received).toMatchSnapshot()
+
+    Snapshot name: `matches a stored snapshot 1`
+
+    - Snapshot  - 1
+    + Received  + 1
+
+      {
+    -   "value": "old",
+    +   "value": "new",
+      }
+      at Object.<anonymous> (/project/snapshot.test.ts:2:28)
+
+<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./broken.test.ts
+<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[31m FAIL <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m ./broken.test.ts
+<ESC>[1m  ● <ESC>[22m<ESC>[1mTest suite failed to run<ESC>[22m
+
+    ImportError: Cannot find module './missing.ts'
+
+<ESC>[1mTest Suites:<ESC>[22m <ESC>[1m<ESC>[31m3 failed<ESC>[39m<ESC>[22m, <ESC>[1m<ESC>[33m1 skipped<ESC>[39m<ESC>[22m, <ESC>[1m<ESC>[32m4 passed<ESC>[39m<ESC>[22m, 7 of 8 total
+<ESC>[1mTests:<ESC>[22m       <ESC>[1m<ESC>[31m2 failed<ESC>[39m<ESC>[22m, <ESC>[1m<ESC>[33m3 skipped<ESC>[39m<ESC>[22m, <ESC>[1m<ESC>[35m2 todo<ESC>[39m<ESC>[22m, <ESC>[1m<ESC>[32m6 passed<ESC>[39m<ESC>[22m, 13 total
+<ESC>[1mSnapshots:<ESC>[22m   <ESC>[1m<ESC>[31m1 failed<ESC>[39m<ESC>[22m, 1 total
+<ESC>[1mTime:<ESC>[22m        1.234 s

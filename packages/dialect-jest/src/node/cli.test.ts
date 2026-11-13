@@ -996,7 +996,7 @@ describe('the options table', () => {
   it('classifies every option once, and counts the classes', (t) => {
     const counts = Object.fromEntries(supports)
     t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
-    assert.deepEqual(counts, { request: 14, config: 53, accepted: 7, warn: 10, refuse: 21 })
+    assert.deepEqual(counts, { request: 16, config: 57, accepted: 7, warn: 4, refuse: 21 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'
       assert.equal(option.owner !== undefined, needsOwner, name)
@@ -1015,6 +1015,8 @@ describe('the options table', () => {
         'cache',
         'ci',
         'clearCache',
+        'color',
+        'colors',
         'config',
         'listTests',
         'maxWorkers',
@@ -1037,21 +1039,7 @@ describe('the options table', () => {
       'useStderr',
       'watchman',
     ])
-    assert.deepEqual(
-      named('warn'),
-      [
-        'color',
-        'colors',
-        'debug',
-        'expand',
-        'logHeapUsage',
-        'noStackTrace',
-        'notify',
-        'notifyMode',
-        'silent',
-        'verbose',
-      ].sort(),
-    )
+    assert.deepEqual(named('warn'), ['debug', 'logHeapUsage', 'notify', 'notifyMode'].sort())
   })
 
   it('makes one FlagSpec per option', () => {
@@ -1138,17 +1126,7 @@ describe('diagnostics', () => {
   })
 
   it('gives a warning for each flag it reads but does not apply', () => {
-    for (const name of [
-      'verbose',
-      'silent',
-      'expand',
-      'noStackTrace',
-      'debug',
-      'logHeapUsage',
-      'color',
-      'colors',
-      'notify',
-    ]) {
+    for (const name of ['debug', 'logHeapUsage', 'notify']) {
       const { diagnostics } = parseJestCli([`--${name}`])
       assert.deepEqual(diagnostics, [
         {
@@ -1160,7 +1138,21 @@ describe('diagnostics', () => {
       ])
     }
     assert.equal(parseJestCli(['--notifyMode', 'always']).diagnostics[0]?.key, '--notifyMode')
-    assert.equal(parseJestCli(['-e']).diagnostics[0]?.key, '--expand')
+  })
+
+  it('says nothing for the presentation flags the reporters apply (D54, T9.7)', () => {
+    for (const line of [
+      ['--verbose'],
+      ['--silent'],
+      ['--expand'],
+      ['-e'],
+      ['--noStackTrace'],
+      ['--color'],
+      ['--colors'],
+      ['--no-color'],
+    ]) {
+      assert.deepEqual(parseJestCli(line).diagnostics, [], line.join(' '))
+    }
   })
 
   it('says nothing for request, config and accepted flags, or for a flag switched off', () => {
@@ -1177,10 +1169,16 @@ describe('diagnostics', () => {
   })
 
   it("lists several in the table's order, and lets --json and --outputFile shape --listTests", () => {
-    const { diagnostics } = parseJestCli(['--watch', '--shard', '1/2', '--verbose', '--coverage'])
+    const { diagnostics } = parseJestCli([
+      '--watch',
+      '--shard',
+      '1/2',
+      '--logHeapUsage',
+      '--coverage',
+    ])
     assert.deepEqual(
       diagnostics.map((diagnostic) => diagnostic.key),
-      ['--coverage', '--shard', '--verbose', '--watch'],
+      ['--coverage', '--logHeapUsage', '--shard', '--watch'],
     )
     assert.deepEqual(parseJestCli(['--listTests', '--json']).diagnostics, [])
     assert.deepEqual(
@@ -1260,6 +1258,16 @@ describe('the run request', () => {
     assert.equal('cache' in request(['--ci']), false)
     assert.equal(request(['-c', 'jest.config.js']).configPath, 'jest.config.js')
     assert.equal(request(['--config={"a":1}']).configPath, '{"a":1}')
+  })
+
+  it('reads --color, --colors and --no-color as the colour request (T9.7)', () => {
+    assert.equal(request(['--color']).colour, true)
+    assert.equal(request(['--colors']).colour, true)
+    assert.equal(request(['--no-color']).colour, false)
+    assert.equal(request(['--color=false']).colour, false)
+    assert.equal(request(['--no-colors']).colour, false)
+    assert.equal('colour' in request([]), false)
+    assert.equal('colour' in request(['--ci']), false)
   })
 
   it('throws for a --maxWorkers that is neither a count nor a percentage', () => {

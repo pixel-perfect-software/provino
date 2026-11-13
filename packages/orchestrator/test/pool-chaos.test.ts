@@ -28,9 +28,12 @@ const OK_FILES = 195
 const CRASHES = ['crash-1', 'crash-2', 'crash-3']
 /**
  * The deadline for the file that hangs. It has room: every other file, the one that runs out of
- * memory included, must end well inside it on a busy machine. The run waits it out once.
+ * memory included, must end well inside it on a busy machine. The run waits it out once. At 6 s a
+ * loaded CI runner (Node 24, `03c6109`) killed the OOM file for its deadline before V8 reached the
+ * heap limit, so the OOM must reach that limit long before this: 30 s, at the price of one 30 s
+ * wait per pool kind.
  */
-const FILE_TIMEOUT_MS = 6000
+const FILE_TIMEOUT_MS = 30_000
 /** Small enough that a runaway allocation ends quickly, large enough for the runtime itself. */
 const HEAP_LIMIT_MB = 192
 /**

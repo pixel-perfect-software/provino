@@ -1,16 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import type { ReportPolicy, SnapshotRunSummary } from '@provino/types'
-import { createReporterBus } from '../bus.ts'
-import { type FileSpec, output, playRun } from '../internal/test-support.ts'
+import { type FileSpec, JEST_REPORT, playThrough } from '../internal/test-support.ts'
 import { defaultReporter } from './reporter.ts'
 
-const POLICY: ReportPolicy = {
-  displaySeparator: ' › ',
-  defaultReporters: ['default'],
-  failureTitleBullet: '  ● ',
-  resultStatusSkipped: 'pending',
-}
+/** Jest's wording; its one-file listing has its own tests (`text/reporter.test.ts`). */
+const POLICY: ReportPolicy = { ...JEST_REPORT, listTestsForSingleFile: false }
 
 const counters = {
   added: 0,
@@ -27,11 +22,12 @@ const counters = {
 
 const passing: FileSpec[] = [{ path: 'a.test.ts', tests: [{ path: ['one'] }] }]
 
-async function summaryText(snapshots?: SnapshotRunSummary): Promise<string> {
-  const out = output()
-  const bus = createReporterBus([defaultReporter({ stream: out, report: POLICY })])
-  await playRun(bus, passing, snapshots === undefined ? {} : { snapshots })
-  return out.text()
+function summaryText(snapshots?: SnapshotRunSummary): Promise<string> {
+  return playThrough(
+    (stream) => defaultReporter({ stream, report: POLICY }),
+    passing,
+    snapshots === undefined ? {} : { snapshots },
+  )
 }
 
 describe('the default reporter: snapshots', () => {

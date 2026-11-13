@@ -48,6 +48,11 @@ export interface RunRequest {
   readonly cache?: boolean
   /** `-c`, `--config`: a path, or a JSON text where the dialect accepts one. */
   readonly configPath?: string
+  /**
+   * `--color` / `--colors` and `--no-color`: colour the output on or off whatever the terminal and
+   * the environment say; absent when not given (`FORCE_COLOR`, `NO_COLOR` and the terminal decide).
+   */
+  readonly colour?: boolean
 }
 
 /**

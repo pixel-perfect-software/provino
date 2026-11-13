@@ -301,6 +301,8 @@ export const jestPolicy: PolicyOverrides = {
     ),
     // Ours: Jest's `testMatch` is picomatch on the absolute path (`policy/orchestrator-match-path`).
     globMatchesOn: 'absolute-path',
+    // Jest marks a suite skipped only when every test is pending (`cli/report-todo-only`, DV50).
+    todoOnlyFile: 'pass',
     // research: track-01 L227
     passWithNoTests: false,
     // research: track-01 L228, track-09 L563; `usage` is `cli/unknown-flag` and `cli/bad-config`.
@@ -348,6 +350,8 @@ export const jestPolicy: PolicyOverrides = {
     displaySeparator: ' › ',
     // research: track-01 L234, track-09 L562
     defaultReporters: ['default'],
+    // Jest lists every test of a run of one file (`cli/report-single-file`).
+    listTestsForSingleFile: true,
     // research: track-01 L234
     // Two spaces, the bullet, one space (`policy/report-default`; Track 1 had ' ●  ').
     failureTitleBullet: '  ● ',

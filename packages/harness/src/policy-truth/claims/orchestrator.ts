@@ -27,6 +27,9 @@ const failureLine = (g: Golden): string => {
   return line
 }
 
+/** What a recorded black-box run printed on stderr (Jest writes its report there). */
+const stderrOf = (g: Golden): string => observedOf(g).stderr ?? ''
+
 /** The pragmas whose file failed to start, in the order a file with both shows they win. */
 const pragmasRead = (g: Golden): readonly string[] => {
   const started = (file: string): boolean =>
@@ -158,6 +161,14 @@ export const orchestratorClaims: Claims = {
   'orchestrator.passWithNoTests': each(
     [golden('orchestrator-no-tests', { read: (g) => exitCode(g) === 0 }), golden('defaults')],
     golden('orchestrator-no-tests', { read: (g) => exitCode(g) === 0 }),
+  ),
+  // Jest's runner marks a suite skipped only when every test is pending, so a file with a todo
+  // test gets a PASS line; the golden holds a todo-only file next to an all-skipped one.
+  'orchestrator.todoOnlyFile': each(
+    golden('cli/report-todo-only', {
+      read: (g) => (stderrOf(g).includes('PASS ./todo-only.test.ts') ? 'pass' : 'skip'),
+    }),
+    pending('T11.16', 'no Vitest fixture records what a file of only todo tests ends as'),
   ),
   'orchestrator.exitCodes.failure': golden('orchestrator-exit-codes', { read: exitCode }),
   'orchestrator.exitCodes.noTests': golden('orchestrator-no-tests', { read: exitCode }),
@@ -310,6 +321,11 @@ export const reportClaims: Claims = {
       return line.includes(' FAIL ') ? null : line.slice(0, line.indexOf('the suite'))
     },
   }),
+  // Jest's `runJest` lists every test of a run of one file; the golden's check mark is that list.
+  'report.listTestsForSingleFile': each(
+    golden('cli/report-single-file', { read: (g) => stderrOf(g).includes('✓ adds') }),
+    pending('T11.16', 'no Vitest fixture records a run of one file under its default reporter'),
+  ),
   'report.resultStatusSkipped': pending(
     'T11.8',
     "the word Jest's --json uses for a skipped test is T11.8's to write; the recorder keeps only the converted status",

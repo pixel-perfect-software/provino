@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { failing, passing, spawnCli } from './support.ts'
+import { failing, jestConfigJson, passing, spawnCli } from './support.ts'
 
 const made: string[] = []
 after(async () => {
@@ -33,7 +33,7 @@ async function provino(args: readonly string[], cwd: string) {
   return { code: ended.code, stdout: ended.stdout, stderr: ended.stderr }
 }
 
-const JEST_CONFIG = JSON.stringify({ testMatch: ['<rootDir>/tests/**/*.test.js'] })
+const JEST_CONFIG = jestConfigJson()
 const JEST_PROJECT = {
   'jest.config.json': JEST_CONFIG,
   'tests/a.test.js': passing('a'),

@@ -488,6 +488,7 @@ export interface z {
     readonly defaultReporters: readonly string[];
     readonly displaySeparator: string;
     readonly failureTitleBullet: string | null;
+    readonly listTestsForSingleFile: boolean;
     readonly resultStatusSkipped: "pending" | "skipped";
 }
 

@@ -5,13 +5,19 @@
 ```ts
 
 // @public
+export interface JUnitChoiceOptions {
+    readonly name?: string;
+    readonly outputFile?: string;
+}
+
+// @public
 export interface NormalizedJsonChoiceOptions {
     readonly outputFile?: string;
     readonly suite?: string;
 }
 
 // @public
-export type ReporterChoice = "default" | "normalized-json" | readonly ["normalized-json", NormalizedJsonChoiceOptions] | Reporter;
+export type ReporterChoice = "default" | "verbose" | "dot" | "agent" | "github-actions" | "json" | "normalized-json" | "junit" | readonly ["json" | "normalized-json", NormalizedJsonChoiceOptions] | readonly ["junit", JUnitChoiceOptions] | Reporter;
 
 // @public
 export function run(options: RunOptions): Promise<RunResult>;
@@ -24,6 +30,7 @@ export interface RunOptions {
     readonly config: string;
     readonly cwd?: string;
     readonly detectOpenHandles?: boolean;
+    readonly env?: Readonly<Record<string, string | undefined>>;
     readonly fileTimeoutMs?: number;
     readonly forceSignal?: AbortSignal;
     readonly maxFilesPerWorker?: number;

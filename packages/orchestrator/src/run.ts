@@ -272,16 +272,24 @@ interface QueuedFile {
   readonly file: DiscoveredFile
 }
 
-/** A file's state for reporters: `todo` and `queued` ran nothing (`skip`), `running` never finished (`fail`). */
-function stateOf(state: TaskState): FileResult['state'] {
+/**
+ * A file's state for reporters, decided here once (the reporters, the results cache and
+ * `normalized-json` all read it): `todo` and `queued` ran nothing (`skip`), `running` never
+ * finished (`fail`), and a `skip` file with a test that ended `todo` is the policy's
+ * `todoOnlyFile` (Jest passes it, DV50).
+ */
+function stateOf(
+  state: TaskState,
+  todo: { readonly ended: number; readonly todoOnlyFile: 'pass' | 'skip' },
+): FileResult['state'] {
   switch (state) {
     case 'pass':
     case 'fail':
-    case 'skip':
       return state
+    case 'skip':
     case 'todo':
     case 'queued':
-      return 'skip'
+      return todo.ended > 0 ? todo.todoOnlyFile : 'skip'
     case 'running':
       return 'fail'
     default:
@@ -673,7 +681,10 @@ export async function runProjects(
         entry.member.snapshots.aggregate.add(outcome.done.snapshot, entry.file.path)
       }
       const elapsedMs = takenAt === undefined ? 0 : performance.now() - takenAt
-      const result = resultOf(entry.info, outcome, dispatch.result, elapsedMs)
+      const result = resultOf(entry.info, outcome, dispatch.result, elapsedMs, {
+        ended: dispatch.todo,
+        todoOnlyFile: member.project.policy.orchestrator.todoOnlyFile,
+      })
       // A start failure or an interruption says nothing about the file; a skipped file isn't
       // remembered (as Jest's).
       if (
@@ -925,6 +936,7 @@ function resultOf(
   outcome: PoolOutcome,
   end: TaskResult | undefined,
   elapsedMs: number,
+  todo: { readonly ended: number; readonly todoOnlyFile: 'pass' | 'skip' },
 ): FileResult {
   const failed = (
     durationMs: number,
@@ -960,7 +972,7 @@ function resultOf(
               message: `The worker finished ${file.path} without reporting its result`,
             },
           ])
-        : { file, state: stateOf(end.state), durationMs: end.durationMs, errors: end.errors }
+        : { file, state: stateOf(end.state, todo), durationMs: end.durationMs, errors: end.errors }
     default:
       return outcome satisfies never
   }

@@ -33,6 +33,8 @@ export interface FileDispatch {
    * `undefined` until that event has arrived. T9.12's affected-test selection reads it.
    */
   readonly deps: readonly string[] | undefined
+  /** How many tests ended `todo`. */
+  readonly todo: number
 }
 
 /**
@@ -74,6 +76,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
   /** The table of a file run on its own: no worker's earlier files to share ids with. */
   const ownTable = createDepsTable()
   const tableOf = depsTable ?? ((): DepsTable => ownTable)
+  let todo = 0
 
   function node(event: WorkerEvent, id: TaskId): TaskNode {
     const found = nodes.get(id)
@@ -126,6 +129,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
       case 'test-end': {
         await bus.emit('task:end', suiteOrTest(event, event.id), event)
         if (event.result.state === 'fail') onTestFailed?.()
+        else if (event.result.state === 'todo') todo++
         return
       }
       case 'hook-start':
@@ -160,6 +164,9 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
     },
     get deps() {
       return deps
+    },
+    get todo() {
+      return todo
     },
   }
 }

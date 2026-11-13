@@ -7,10 +7,10 @@ import {
   type RunProjectOptions,
   runProjects,
 } from '@provino/orchestrator'
-import { createReporterBus } from '@provino/reporters'
+import { createReporterBus, type Environment } from '@provino/reporters'
 import type { FileFilter, ReporterBus, RunSummary } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
-import { reportersFor } from './reporters.ts'
+import { type DisplayOptions, reportersFor } from './reporters.ts'
 
 /**
  * What a run of an already-resolved project needs: the part of a run that `run()` (a
@@ -28,6 +28,10 @@ export interface ExecuteOptions {
   readonly stdout: NonNullable<RunOptions['stdout']>
   readonly stderr: NonNullable<RunOptions['stderr']>
   readonly reporters?: readonly ReporterChoice[] | undefined
+  /** What the reporters read for the terminal, CI, an agent and colour: resolved by the caller. */
+  readonly env: Environment
+  /** How text looks (Jest's `--verbose`, `--silent`, `--expand`, `--noStackTrace`, `--colors`). */
+  readonly display?: DisplayOptions
   readonly pool: NonNullable<RunProjectOptions['pool']>
   /** `false`: neither read nor write the results cache. */
   readonly cache?: false
@@ -54,7 +58,16 @@ export interface ExecuteOptions {
  */
 export async function executeProject(options: ExecuteOptions): Promise<RunResult> {
   const { project, cwd, stdout, stderr } = options
-  const bus = createReporterBus(reportersFor(options.reporters, { project, cwd, stdout, stderr }))
+  const bus = createReporterBus(
+    reportersFor(options.reporters, {
+      project,
+      cwd,
+      stdout,
+      stderr,
+      env: options.env,
+      ...(options.display === undefined ? {} : { display: options.display }),
+    }),
+  )
 
   let summary: RunSummary
   try {

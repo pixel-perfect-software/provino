@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { run } from 'provino/node'
-import { Collect, trackedProjects } from './support.ts'
+import { Collect, QUIET_ENV, trackedProjects } from './support.ts'
 
 const makeProject = trackedProjects()
 
@@ -56,7 +56,13 @@ describe('the jsdom environment through run()', () => {
     )
     const stdout = new Collect()
     const stderr = new Collect()
-    const ran = await run({ config: project.config, stdout, stderr, pool: 'forks' })
+    const ran = await run({
+      config: project.config,
+      stdout,
+      stderr,
+      env: QUIET_ENV,
+      pool: 'forks',
+    })
 
     const states = new Map(ran.summary?.files.map((file) => [file.file.path, file.state]))
     assert.equal(states.get('tests/a.test.js'), 'pass', stderr.text)

@@ -2,8 +2,8 @@ import { resolve } from 'node:path'
 import { loadProject } from '@provino/config'
 import { jestDialect } from '@provino/dialect-jest'
 import { ExitCode, type RunProjectOptions } from '@provino/orchestrator'
+import { isCi } from '@provino/reporters'
 import { ENVIRONMENTS } from './internal/built-ins.ts'
-import { isCi } from './internal/ci.ts'
 import { usageMessage } from './internal/describe.ts'
 import { executeProject } from './internal/execute.ts'
 import { UsageError } from './internal/usage-error.ts'
@@ -50,10 +50,12 @@ async function execute(
   const pool = poolOptions(options)
   const cwd = resolve(options.cwd ?? process.cwd())
 
+  // The composition root resolves the environment once; everything below reads this.
+  const env = options.env ?? process.env
   const project = await loadProject(resolve(cwd, options.config), {
     dialects: [jestDialect],
     environments: ENVIRONMENTS,
-    ci: options.ci ?? isCi(process.env),
+    ci: options.ci ?? isCi(env),
   })
   return executeProject({
     project,
@@ -61,6 +63,7 @@ async function execute(
     stdout,
     stderr,
     reporters: options.reporters,
+    env,
     pool,
     ...(options.cache === false ? { cache: false } : {}),
     testNamePattern: options.testNamePattern,

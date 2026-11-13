@@ -1,0 +1,10 @@
+{
+  "description": "A run of exactly one test file with --silent under Jest 30.5.2 (T9.7, B21c): `@jest/core`'s runJest leaves verbose off for one file when `globalConfig.silent` is true, so the run is report-single-file's project printed as the default reporter does: the header and the totals, no list of tests and no console output. One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--silent"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^ +(✓|✕|○|✎) |^ +math$|^ +console\\.|^ {4}from the test$|^  ● Console$|^(Test Suites|Tests):"
+  }
+}

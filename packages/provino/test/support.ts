@@ -6,11 +6,77 @@ import { once } from 'node:events'
 import { mkdtempSync, readFileSync, realpathSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
 import { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { OUTPUT_VARIABLES } from '@provino/reporters'
 import { killGroup } from './sweep.ts'
+
+// What picks the reporters, and whether the text is coloured, comes from the environment: an agent
+// (`CLAUDECODE`, `AI_AGENT`, ...) gets the `agent` reporter, GitHub Actions gets `github-actions`
+// beside `default`, and `FORCE_COLOR` colours it. The tests assert on `default`'s plain text, and
+// they run under an agent's shell and on GitHub's runners, so none of it may leak in. This module
+// leaves `process.env` alone: a child process starts from the environment of `outputFree`, an
+// in-process `run()` is given `QUIET_ENV`. A test that wants one of the variables sets it for its
+// own child (`env` of `spawnCli`, `childEnv`) or passes it as `env` to `run()`.
+
+/** What an in-process run reads for the terminal, CI, an agent and colour: nothing. */
+export const QUIET_ENV: Readonly<Record<string, string | undefined>> = {}
+
+/** The directory an agent is found by on `PATH` (`detectOutput` reads it; the rest of `PATH` stays). */
+const AGENT_PATH = /\.pi[\\/]agent/
+
+/**
+ * `env` without anything `detectOutput` reads (`OUTPUT_VARIABLES`: `CI`, `TERM`, the colour
+ * switches, `GITHUB_ACTIONS`, the agent variables) or the workspace `github-actions` reads, and
+ * without the `PATH` entry that names an agent. A child process starts from this.
+ */
+export function outputFree(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const kept = { ...env }
+  for (const name of [...OUTPUT_VARIABLES, 'GITHUB_WORKSPACE']) delete kept[name]
+  if (kept.PATH !== undefined) {
+    kept.PATH = kept.PATH.split(delimiter)
+      .filter((entry) => !AGENT_PATH.test(entry))
+      .join(delimiter)
+  }
+  return kept
+}
+
+/**
+ * What a process writes to stderr before the run's own text, with the lines Node and the sandbox
+ * add taken out: Node 22.15 (CI runs it with `--experimental-strip-types`) prints an
+ * `ExperimentalWarning` and a `--trace-warnings` hint once per process that loads a `.ts` file,
+ * and some sandboxes print a certificate error at every Node start. For an assertion that anchors
+ * on the start of stderr.
+ */
+export function withoutNodeNoise(stderr: string): string {
+  return stderr
+    .replaceAll(/^\(node:\d+\) ExperimentalWarning: .*\n/gm, '')
+    .replaceAll(
+      /^\(Use `node --trace-warnings \.\.\.` to show where the warning was created\)\n/gm,
+      '',
+    )
+    .replaceAll(/ERROR: failed to copy trust settings of system certificate-\d+\n/g, '')
+}
+
+/** The escape character, as the coloured output has it. */
+export const ESC: string = String.fromCharCode(27)
+
+/**
+ * The text of a Jest config that finds `tests/**\/*.test.js` (the files of `makeProject`), as JSON
+ * for `--config`: `rootDir` is `dir` when given, and `extra` (more Jest keys) comes last.
+ */
+export function jestConfigJson(
+  dir?: string,
+  extra: Readonly<Record<string, unknown>> = {},
+): string {
+  return JSON.stringify({
+    ...(dir === undefined ? {} : { rootDir: dir }),
+    testMatch: ['<rootDir>/tests/**/*.test.js'],
+    ...extra,
+  })
+}
 
 /** A writable that keeps everything written to it. */
 export class Collect extends Writable {
@@ -138,7 +204,7 @@ export interface CliOptions {
   readonly deadlineMs?: number
   /** In a process group of its own, so a sweep can tell what it left behind. */
   readonly detached?: boolean
-  /** Added to this process's environment. */
+  /** Added to this process's environment, which has none of the variables that choose the output (`outputFree`). */
   readonly env?: Readonly<Record<string, string>>
   /** Node flags before the bin (`--import <preload>`). */
   readonly nodeArgs?: readonly string[]
@@ -178,7 +244,7 @@ export function startCli(args: readonly string[], options: CliOptions = {}): Liv
   const child = spawn(
     process.execPath,
     ['--conditions=provino-source', ...nodeArgs, CLI, ...args],
-    { cwd, detached, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...env } },
+    { cwd, detached, stdio: ['ignore', 'pipe', 'pipe'], env: { ...outputFree(), ...env } },
   )
   let stdout = ''
   let stderr = ''
@@ -228,28 +294,6 @@ export function startCli(args: readonly string[], options: CliOptions = {}): Liv
 /** Runs `provino <args>` as a child process and resolves when it has exited on its own. */
 export function spawnCli(args: readonly string[], options: CliOptions = {}): Promise<Spawned> {
   return startCli(args, options).result()
-}
-
-/**
- * `text` without the lines Node itself writes to a child's stderr before the program's own output:
- * Node 22's type-stripping warning with its `--trace-warnings` hint (CI's 22.15 leg runs with
- * `--experimental-strip-types`), and the sandbox's `failed to copy trust settings` error. A test
- * that compares where the output begins reads it through this.
- */
-export function withoutNodeNoise(text: string): string {
-  return text
-    .split('\n')
-    .filter(
-      (line) =>
-        !/^\(node:\d+\) ExperimentalWarning: Type Stripping is an experimental feature/.test(
-          line,
-        ) &&
-        !/^\(Use `node --trace-warnings \.\.\.` to show where the warning was created\)$/.test(
-          line,
-        ) &&
-        !/^ERROR: failed to copy trust settings/.test(line),
-    )
-    .join('\n')
 }
 
 /** One file of a `normalized-json` run, as the tests assert on it. */
@@ -328,7 +372,8 @@ export const BUILT_BIN: string = fileURLToPath(new URL('../dist/cli.js', import.
 export type Preload = 'block-oxc-bindings' | 'load-recorder'
 
 /**
- * The environment of a child that runs the built package: this process's, then `env`, with each
+ * The environment of a child that runs the built package: this process's without the output
+ * variables (`outputFree`), then `env`, with each
  * preload added to `NODE_OPTIONS` after whatever the parent already set. The one place that
  * composes it.
  */
@@ -341,7 +386,7 @@ export function childEnv(
     return `--import=data:text/javascript,${encodeURIComponent(source)}`
   })
   return {
-    ...process.env,
+    ...outputFree(),
     ...env,
     NODE_OPTIONS: [process.env.NODE_OPTIONS, ...imports].filter(Boolean).join(' '),
   }
