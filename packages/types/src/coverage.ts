@@ -1,5 +1,6 @@
 // Track 8 §Types → Coverage contract. The provider is loaded in both processes: the worker
 // creates a collector, the coordinator merges and reports.
+import type { JsonValue } from './clone-safe.ts'
 import type { SourceMapV3 } from './transform.ts'
 
 /**
@@ -48,6 +49,54 @@ export interface CoverageOptions {
   /** Reproduce Jest's v8-to-istanbul numbers. */
   readonly legacyV8?: boolean
   readonly ignoreClassMethods?: readonly string[]
+}
+
+/**
+ * One file's Istanbul coverage data, as `istanbul-lib-instrument` writes it and
+ * `istanbul-lib-coverage`'s `FileCoverage` reads it: the maps of statements, functions and
+ * branches, and the counters. `hash` and `_coverageSchema` are present on instrumented output.
+ * @public
+ */
+export interface IstanbulFileCoverageData {
+  readonly path: string
+  readonly statementMap: Readonly<Record<string, IstanbulRange>>
+  readonly fnMap: Readonly<
+    Record<
+      string,
+      {
+        readonly name: string
+        readonly decl: IstanbulRange
+        readonly loc: IstanbulRange
+        readonly line?: number
+      }
+    >
+  >
+  readonly branchMap: Readonly<
+    Record<
+      string,
+      {
+        readonly loc?: IstanbulRange
+        readonly type: string
+        readonly locations: readonly IstanbulRange[]
+        readonly line?: number
+      }
+    >
+  >
+  readonly s: Readonly<Record<string, number>>
+  readonly f: Readonly<Record<string, number>>
+  readonly b: Readonly<Record<string, readonly number[]>>
+  readonly hash?: string
+  readonly _coverageSchema?: string
+  readonly inputSourceMap?: SourceMapV3
+}
+
+/**
+ * A source range in Istanbul's coordinates: lines from 1, columns from 0.
+ * @public
+ */
+export interface IstanbulRange {
+  readonly start: { readonly line: number; readonly column: number | null }
+  readonly end: { readonly line: number; readonly column: number | null }
 }
 
 /**
@@ -130,7 +179,59 @@ export interface CoverageInstrumenter {
     code: string,
     filename: string,
     inputMap: SourceMapV3 | null,
-  ): { code: string; map: SourceMapV3 | null }
+  ): {
+    code: string
+    map: SourceMapV3 | null
+    /** The file's initial coverage (every counter zero), when the instrumenter has it. */
+    coverage?: IstanbulFileCoverageData
+  }
+}
+
+/**
+ * What a worker needs to decide which files to instrument and count (sent in
+ * `SerializedProjectConfig.coverage`). Globs are strings and matchers are built in the worker.
+ * @public
+ */
+export interface SerializedCoverageConfig {
+  readonly provider: 'v8' | 'istanbul'
+  /** Absolute; patterns below are relative to it. */
+  readonly root: string
+  /** The include globs (Jest's `collectCoverageFrom`); empty means every file the tests load. */
+  readonly include: readonly string[]
+  /** Whether the include globs match against the root-relative path. */
+  readonly includeRoot: boolean
+  /** Files that count even when a test-file or node_modules rule would skip them (`forceCoverageMatch`). */
+  readonly force: readonly string[]
+  /** The globs and regular expression sources that make a file a test file (never counted). */
+  readonly testFiles: readonly string[]
+  /** Regular expression sources of paths to leave out (`coveragePathIgnorePatterns`). */
+  readonly excludePatterns: readonly string[]
+  /** Absolute paths to leave out (the config, setup and transform files). */
+  readonly excludePaths: readonly string[]
+}
+
+/**
+ * A threshold group: `name` is `global`, a path or a glob, in the order the config gave it.
+ * @public
+ */
+export interface CoverageThresholdGroup extends MetricThresholds {
+  readonly name: string
+}
+
+/**
+ * What the coordinator needs to merge, report and check a run's coverage.
+ * @public
+ */
+export interface RunCoverageOptions {
+  readonly provider: 'v8' | 'istanbul'
+  /** Reporter names with their options, as Istanbul's reports take them. */
+  readonly reporters: readonly (string | readonly [string, Readonly<Record<string, JsonValue>>])[]
+  /** Absolute. */
+  readonly directory: string
+  /** Istanbul watermarks: `[low, high]` per metric. */
+  readonly watermarks: { readonly [M in CoverageMetric]: readonly [number, number] }
+  /** The thresholds, in config order (Jest's first match wins). */
+  readonly thresholds: readonly CoverageThresholdGroup[]
 }
 
 /**
@@ -151,6 +252,8 @@ export interface CoverageTotals {
 export interface CoverageSummary {
   readonly totals: { readonly [M in CoverageMetric]: CoverageTotals }
   readonly thresholdFailures: readonly string[]
+  /** The merged Istanbul data per file, by absolute path (what `coverageMap` is made of). */
+  readonly map: Readonly<Record<string, IstanbulFileCoverageData>>
 }
 
 /**

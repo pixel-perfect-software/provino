@@ -83,6 +83,10 @@ const config: KnipConfig = {
     },
     'packages/core': { ignoreDependencies: ['@types/sinonjs__fake-timers'] },
     'packages/timers': { ignoreDependencies: ['@types/sinonjs__fake-timers'] },
+    'packages/coverage': {
+      // Declared by the package map; the instrumenter and collectors that import it are B23b Phase 2.
+      ignoreDependencies: ['@provino/types'],
+    },
     'packages/env-shared': {
       // Declared by the package map; not imported yet.
       ignoreDependencies: ['@provino/types'],

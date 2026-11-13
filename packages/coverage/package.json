@@ -1,0 +1,47 @@
+{
+  "name": "@provino/coverage",
+  "version": "0.0.0",
+  "description": "Provino's code coverage: the Istanbul instrumenter and V8 collectors that run in a worker, and the merge, reports and thresholds that run in the coordinator.",
+  "homepage": "https://github.com/pixel-perfect-software/provino#readme",
+  "bugs": {
+    "url": "https://github.com/pixel-perfect-software/provino/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pixel-perfect-software/provino.git",
+    "directory": "packages/coverage"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./node": {
+      "provino-source": "./src/node/index.ts",
+      "types": "./dist/node/index.d.ts",
+      "import": "./dist/node/index.js"
+    },
+    "./runtime": {
+      "provino-source": "./src/runtime/index.ts",
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@provino/types": "workspace:*"
+  }
+}

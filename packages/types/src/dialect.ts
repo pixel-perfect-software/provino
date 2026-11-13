@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { JsonValue } from './clone-safe.ts'
+import type { SerializedCoverageConfig } from './coverage.ts'
 import type { EnvironmentResolver } from './environment.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { FileRegistry, ModuleMockRegistry } from './loader.ts'
@@ -159,6 +160,8 @@ export interface NeutralProject {
   readonly aliases: readonly NeutralAlias[]
   /** How specifiers resolve beyond `aliases` (Jest's `moduleDirectories`, `modulePaths`, `resolver`). */
   readonly resolution?: NeutralResolution
+  /** Which files count toward coverage, when the project or the run turns it on. Absent means off. */
+  readonly coverage?: SerializedCoverageConfig
   /** Values put on the environment's global before `setupFiles` (Jest's `globals`), as data. */
   readonly globalValues?: Readonly<Record<string, JsonValue>>
   /**

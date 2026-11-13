@@ -349,6 +349,23 @@ export interface CompiledModuleEvent {
   readonly wrapperColumnOffset: number
   readonly map: SourceMapV3 | null
   readonly thirdParty: boolean
+  /** The transform cache key of this exact variant of the module (set by B23b Phase 3, T2.9). */
+  readonly transformKey?: string
+}
+
+/**
+ * A compiled module as coverage needs it: the code V8 saw and how to map back.
+ * @public
+ */
+export interface CompiledModuleInfo {
+  readonly path: string
+  /** The transformed code, without the wrapper. */
+  readonly code: string
+  /** Characters the wrapper put before `code` on line 1. */
+  readonly wrapperLength: number
+  /** Composed back to the source file. */
+  readonly map: SourceMapV3 | null
+  readonly transformKey: string
 }
 
 /**
@@ -421,6 +438,11 @@ export interface Loader extends Disposable {
   /** Every compiled script, for V8 coverage. Returns an unsubscribe function. */
   onModuleCompiled(listener: (event: CompiledModuleEvent) => void): () => void
   getSourceMap(id: ModuleId): SourceMapV3 | null
+  /**
+   * The compiled module V8 knows by this script URL, or `null`. Absent from a loader that does not
+   * report coverage (B23b Phase 3, T2.9, builds it).
+   */
+  compiledModule?(url: string): CompiledModuleInfo | null
 }
 
 /**
