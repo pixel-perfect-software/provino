@@ -2,7 +2,7 @@
 // `parent()`, cycles and the read-time errors.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { LazyError } from './errors.ts'
+import { LAZY_CHAIN, LazyError } from './errors.ts'
 import { createWorld, type FileOutcome } from './internal/test-support.ts'
 
 function passed(outcome: FileOutcome): void {
@@ -148,6 +148,31 @@ describe('resolution', () => {
       }),
     )
     assert.equal(got, 3)
+  })
+
+  test('a key read from suites in turn, and in a second file, resolves in each one', async () => {
+    // The handle's getter caches the last suite a key resolved in: switching suites, and a new
+    // file defining the same key, must each resolve again.
+    const w = createWorld()
+    const seen: unknown[] = []
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('k', () => 'top')
+        w.test('t1', () => void seen.push($.k))
+        w.describe('d', () => {
+          $.override('k', () => 'inner')
+          w.test('t2', () => void seen.push($.k))
+        })
+        w.test('t3', () => void seen.push($.k))
+      }),
+    )
+    passed(
+      await w.runFile('b.test.ts', () => {
+        const $ = w.lazy.let('k', () => 'second file')
+        w.test('t4', () => void seen.push($.k))
+      }),
+    )
+    assert.deepEqual(seen, ['top', 'inner', 'top', 'second file'])
   })
 })
 
@@ -342,5 +367,263 @@ describe('the evaluation log', () => {
     )
     assert.match(log[0]?.site.file ?? '', /read\.test\.ts$/)
     assert.ok((log[0]?.ms ?? -1) >= 0)
+  })
+})
+
+describe('the failure chain (T6.10)', () => {
+  test('a definition that throws marks the error with the chain that read it, outermost first', async () => {
+    const w = createWorld()
+    let caught: unknown
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy
+          .let('user', () => {
+            throw new Error('no such user')
+          })
+          .let('cart', ({ user }) => user)
+        w.test('t', () => {
+          try {
+            void $.cart
+          } catch (error) {
+            caught = error
+          }
+        })
+      }),
+    )
+    const marks = (caught as { [LAZY_CHAIN]?: { key: string }[] })[LAZY_CHAIN]
+    assert.deepEqual(
+      marks?.map((m) => m.key),
+      ['cart', 'user'],
+    )
+    const run = w.runs[0]
+    assert.ok(run)
+    const log = w.runtime.evaluatedLazies(run)
+    assert.deepEqual(
+      log.map((e) => [e.key, e.failed, e.chain]),
+      [
+        ['user', true, ['cart', 'user']],
+        ['cart', true, ['cart', 'user']],
+      ],
+    )
+  })
+
+  test('an async rejection the test awaits reaches it unchanged, and the log does not flag it', async () => {
+    // Provino never attaches a handler to the promise, so it cannot see the rejection: the entry
+    // is not failed, and the error carries no mark.
+    const w = createWorld()
+    const boom = new Error('rejected')
+    let seen: unknown
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('slow', async () => {
+          throw boom
+        })
+        w.test('t', async () => {
+          try {
+            await $.slow
+          } catch (error) {
+            seen = error
+          }
+        })
+      }),
+    )
+    assert.equal(seen, boom)
+    assert.equal(Object.hasOwn(boom, LAZY_CHAIN), false)
+    const run = w.runs[0]
+    assert.ok(run)
+    const [entry] = w.runtime.evaluatedLazies(run)
+    assert.equal(entry?.failed, false)
+    assert.equal(Object.hasOwn(entry ?? {}, 'chain'), false)
+  })
+
+  test('a value that evaluates fine is not failed and carries no chain', async () => {
+    const w = createWorld()
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('a', () => 1)
+        w.test('t', () => void $.a)
+      }),
+    )
+    const run = w.runs[0]
+    assert.ok(run)
+    const [entry] = w.runtime.evaluatedLazies(run)
+    assert.equal(entry?.failed, false)
+    assert.equal(Object.hasOwn(entry ?? {}, 'chain'), false)
+  })
+
+  test('a thrown primitive is left alone', async () => {
+    const w = createWorld()
+    let seen: unknown
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('a', () => {
+          throw 'plain'
+        })
+        w.test('t', () => {
+          try {
+            void $.a
+          } catch (error) {
+            seen = error
+          }
+        })
+      }),
+    )
+    assert.equal(seen, 'plain')
+    const run = w.runs[0]
+    assert.ok(run)
+    assert.equal(w.runtime.evaluatedLazies(run)[0]?.failed, true)
+  })
+})
+
+describe('what a definition returns is never replaced (review of T6.10)', () => {
+  test('a non-native thenable keeps its identity and methods, and the read never calls its then', async () => {
+    const w = createWorld()
+    let thenCalls = 0
+    const builder = {
+      where: () => 'where',
+      // biome-ignore lint/suspicious/noThenProperty: the point of the test is a custom thenable
+      then(): void {
+        thenCalls++
+      },
+    }
+    let seen: unknown
+    let same = false
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('q', () => builder)
+        w.test('t', () => {
+          seen = $.q
+          const again: unknown = $.q
+          same = seen === again
+        })
+      }),
+    )
+    assert.equal(seen, builder)
+    assert.equal(same, true)
+    assert.equal(thenCalls, 0)
+  })
+
+  test('a Promise subclass keeps its class, and the same value comes back on every read', async () => {
+    const w = createWorld()
+    class Query<T> extends Promise<T> {}
+    let seen: unknown
+    let same = false
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('q', () => Query.resolve(1))
+        w.test('t', () => {
+          seen = $.q
+          const again: unknown = $.q
+          same = seen === again
+        })
+      }),
+    )
+    assert.ok(seen instanceof Query)
+    assert.equal(same, true)
+  })
+
+  test('a native rejection nobody awaits is still an unhandled rejection', async () => {
+    const w = createWorld()
+    const boom = new Error('rejected')
+    let promise: Promise<never> | undefined
+    let seen: unknown
+    const unhandled: { reason: unknown; promise: Promise<unknown> }[] = []
+    const probe = (reason: unknown, rejected: Promise<unknown>): void => {
+      unhandled.push({ reason, promise: rejected })
+    }
+    // node:test's own listener would fail this file on the rejection the test makes on purpose,
+    // so only the probe listens while it runs.
+    const others = process.listeners('unhandledRejection')
+    process.removeAllListeners('unhandledRejection')
+    process.on('unhandledRejection', probe)
+    try {
+      passed(
+        await w.runFile('a.test.ts', () => {
+          const $ = w.lazy.let('p', () => {
+            promise = Promise.reject(boom)
+            return promise
+          })
+          w.test('t', () => {
+            seen = $.p
+          })
+        }),
+      )
+      for (let i = 0; i < 3 && unhandled.length === 0; i++) {
+        await new Promise((resolve) => setImmediate(resolve))
+      }
+    } finally {
+      process.off('unhandledRejection', probe)
+      for (const listener of others) process.on('unhandledRejection', listener)
+    }
+    assert.equal(seen, promise)
+    assert.deepEqual(unhandled, [{ reason: boom, promise }])
+    const run = w.runs[0]
+    assert.ok(run)
+    assert.equal(w.runtime.evaluatedLazies(run)[0]?.failed, false)
+  })
+})
+
+describe('the chain of a reused error (review of T6.10)', () => {
+  test('a memoized error read by another lazy in a later test gets that read’s chain', async () => {
+    const w = createWorld()
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy
+          .let(
+            'a',
+            () => {
+              throw new Error('a failed')
+            },
+            { scope: 'file' },
+          )
+          .let('b', ({ a }) => a)
+        for (const name of ['A', 'B']) {
+          w.test(name, () => {
+            try {
+              void (name === 'A' ? $.a : $.b)
+            } catch {
+              // the error is the point
+            }
+          })
+        }
+      }),
+    )
+    const chains = w.runs.map((run) => w.runtime.evaluatedLazies(run).map((e) => [e.key, e.chain]))
+    assert.deepEqual(chains[0], [['a', ['a']]])
+    assert.deepEqual(chains[1], [['b', ['b', 'a']]])
+  })
+
+  test('one error object thrown by two definitions is chained per definition', async () => {
+    const w = createWorld()
+    const shared = new Error('shared')
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy
+          .let('x', () => {
+            throw shared
+          })
+          .let('y', () => {
+            throw shared
+          })
+        w.test('t', () => {
+          for (const read of [() => $.x, () => $.y]) {
+            try {
+              read()
+            } catch {
+              // the error is the point
+            }
+          }
+        })
+      }),
+    )
+    const run = w.runs[0]
+    assert.ok(run)
+    assert.deepEqual(
+      w.runtime.evaluatedLazies(run).map((e) => [e.key, e.chain]),
+      [
+        ['x', ['x']],
+        ['y', ['y']],
+      ],
+    )
   })
 })

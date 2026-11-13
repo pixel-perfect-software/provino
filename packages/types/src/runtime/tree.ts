@@ -151,6 +151,30 @@ export interface SerializedError {
 }
 
 /**
+ * One lazy value a failed test evaluated, as the failure report lists it (`@provino/lazy`'s
+ * `evaluatedLazies`). Plain data, so it crosses a thread.
+ * @public
+ */
+export interface LazyEvaluation {
+  /** The key it was defined under. */
+  readonly key: string
+  /** Where its definition was written. */
+  readonly site: SourceLocation
+  /** Whether the definition is an `.override` of an outer one. */
+  readonly override: boolean
+  /** How long the evaluation took, dependencies included. */
+  readonly ms: number
+  /** Whether its definition threw or rejected (the test's error may be this one). */
+  readonly failed: boolean
+  /**
+   * For a definition that failed: the keys being evaluated when it threw, the outermost read
+   * first (`['cart', 'user']`: reading `cart` read `user`, which threw). Absent when it did not
+   * fail, or when the error is not an object the runtime could mark.
+   */
+  readonly chain?: readonly string[]
+}
+
+/**
  * A task's outcome. Files and suites use the same shape; the test-only fields are zero or absent
  * on them.
  * @public
@@ -173,4 +197,9 @@ export interface TaskResult {
   readonly skipReason?: SkipReason
   /** The note given to `ctx.skip(note)` or `test.todo`. */
   readonly note?: string
+  /**
+   * The lazy values a failed test evaluated, in the order they finished. Only a failed
+   * `test-end` carries it, and only when the test evaluated any: a passing test pays nothing.
+   */
+  readonly lazies?: readonly LazyEvaluation[]
 }

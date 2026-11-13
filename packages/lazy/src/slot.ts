@@ -1,10 +1,9 @@
 // The slot the worker puts the lazy runtime in. The public functions read it when they are called,
 // so a test file's own copy of `@provino/lazy` and the umbrella's reach the same runtime (D83's
 // pattern: a `Symbol.for` key on `globalThis`, not a global name).
-import type { TestRunHandle } from '@provino/types'
+import type { LazyEvaluation, TestRunHandle } from '@provino/types'
 import type {
   ContextOutput,
-  EvaluatedLazy,
   Lazy,
   LazyRoot,
   SharedContext,
@@ -47,7 +46,7 @@ export interface LazyRuntime {
     $: Lazy<T, L, W, E>,
     context: SharedContext<R, A>,
   ): Lazy<Omit<T, keyof A> & A, L, W, E>
-  evaluatedLazies(run: TestRunHandle): readonly EvaluatedLazy[]
+  evaluatedLazies(run: TestRunHandle): readonly LazyEvaluation[]
 }
 
 type SlotHolder = { [LAZY_RUNTIME_SLOT]?: LazyRuntime }

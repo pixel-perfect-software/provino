@@ -4,6 +4,7 @@ import type {
   CloneSafe,
   DefinitionBuilder,
   EachApi,
+  LazyEvaluation,
   RuntimeEvent,
   RuntimeEventOf,
   SkipReason,
@@ -137,4 +138,14 @@ expectTypeOf<RuntimeEventOf<'test-end'>['result']>().toEqualTypeOf<TaskResult>()
 // @ts-expect-error skipReason is optional, not undefined (exactOptionalPropertyTypes)
 const skipped: Pick<TaskResult, 'skipReason'> = { skipReason: undefined }
 
-export { id, skipped }
+// T6.10: a failed test's lazy values cross threads as plain data.
+expectTypeOf<TaskResult['lazies']>().toEqualTypeOf<readonly LazyEvaluation[] | undefined>()
+expectTypeOf<LazyEvaluation>().toExtend<CloneSafe<LazyEvaluation>>()
+expectTypeOf<TaskResult>().toExtend<CloneSafe<TaskResult>>()
+expectTypeOf<LazyEvaluation['chain']>().toEqualTypeOf<readonly string[] | undefined>()
+// @ts-expect-error lazies is optional, not undefined (exactOptionalPropertyTypes)
+const noLazies: Pick<TaskResult, 'lazies'> = { lazies: undefined }
+// @ts-expect-error a lazy evaluation names its site
+const noSite: LazyEvaluation = { key: 'a', override: false, ms: 1, failed: false }
+
+export { id, noLazies, noSite, skipped }

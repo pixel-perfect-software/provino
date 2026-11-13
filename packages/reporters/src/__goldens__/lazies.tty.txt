@@ -1,0 +1,26 @@
+<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[33m RUNS <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m src/cart.test.ts
+<ESC>[1F<ESC>[0J<ESC>[0m<ESC>[7m<ESC>[1m<ESC>[31m FAIL <ESC>[39m<ESC>[22m<ESC>[27m<ESC>[0m src/cart.test.ts
+  cart
+    <ESC>[31m✕<ESC>[39m <ESC>[2mtotals (1 ms)<ESC>[22m
+    <ESC>[31m✕<ESC>[39m <ESC>[2mplain (1 ms)<ESC>[22m
+    <ESC>[32m✓<ESC>[39m <ESC>[2mfine (1 ms)<ESC>[22m
+
+<ESC>[1m  ● <ESC>[22m<ESC>[1mcart › totals<ESC>[22m
+
+    no such user
+      at user (/project/src/cart.test.ts:5:30)
+
+    Lazy values evaluated before the failure:
+      db  <ESC>[2msrc/cart.test.ts:3:14  <1 ms<ESC>[22m
+      user (override) <ESC>[31mthrew<ESC>[39m  <ESC>[2msrc/cart.test.ts:5:14  3 ms<ESC>[22m
+      cart <ESC>[31mthrew<ESC>[39m  <ESC>[2msrc/cart.test.ts:6:14  13 ms<ESC>[22m
+      chain: cart -> user
+
+<ESC>[1m  ● <ESC>[22m<ESC>[1mcart › plain<ESC>[22m
+
+    no such user
+      at user (/project/src/cart.test.ts:5:30)
+
+<ESC>[1mTest Suites:<ESC>[22m <ESC>[1m<ESC>[31m1 failed<ESC>[39m<ESC>[22m, 1 total
+<ESC>[1mTests:<ESC>[22m       <ESC>[1m<ESC>[31m2 failed<ESC>[39m<ESC>[22m, <ESC>[1m<ESC>[32m1 passed<ESC>[39m<ESC>[22m, 3 total
+<ESC>[1mTime:<ESC>[22m        1.234 s

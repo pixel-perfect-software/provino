@@ -4,11 +4,13 @@
 // failure message, which has Provino's frames).
 import type {
   FileInfo,
+  LazyEvaluation,
   OpenHandle,
   ReportPolicy,
   SerializedError,
   SnapshotRunSummary,
 } from '@provino/types'
+import { posixRelative } from '../internal/posix-relative.ts'
 import type { Style } from '../style.ts'
 
 /** How deep a `cause` or an aggregate's `errors` are shown. */
@@ -147,6 +149,45 @@ export function failureBlock(
   stackTrace = true,
 ): string {
   return `${titleLine(report, title, style)}\n\n${indent(formatErrors(errors, stackTrace), 4)}\n`
+}
+
+/** A lazy value's time: `<1 ms` under a millisecond, else whole milliseconds. */
+function lazyMs(ms: number): string {
+  return ms < 1 ? '<1 ms' : `${Math.round(ms)} ms`
+}
+
+/** A definition's site as the run's own paths read: relative to `root` when it is under it. */
+function lazySite(root: string, site: LazyEvaluation['site']): string {
+  const path = posixRelative(root, site.file)
+  const shown = path === '' || path.startsWith('..') ? site.file : path
+  return `${shown}:${site.line}:${site.column}`
+}
+
+/**
+ * The lazy values a failed test evaluated (T6.10), in the order they finished, each with where it
+ * is defined and how long it took, then the chain of a definition that threw (`cart -> user`: reading
+ * `cart` read `user`, which threw). Ends with a blank line, to follow a `failureBlock`; `''` for
+ * none.
+ */
+export function lazyBlock(
+  lazies: readonly LazyEvaluation[] | undefined,
+  root: string,
+  style: Style,
+): string {
+  if (lazies === undefined || lazies.length === 0) return ''
+  const lines = [`Lazy values evaluated before the failure:`]
+  const chains = new Set<string>()
+  for (const lazy of lazies) {
+    const note = `${lazy.override ? ' (override)' : ''}${lazy.failed ? ` ${style.red('threw')}` : ''}`
+    lines.push(
+      `  ${lazy.key}${note}  ${style.dim(`${lazySite(root, lazy.site)}  ${lazyMs(lazy.ms)}`)}`,
+    )
+    if (lazy.failed && lazy.chain !== undefined && lazy.chain.length > 1) {
+      chains.add(lazy.chain.join(' -> '))
+    }
+  }
+  for (const chain of chains) lines.push(`  chain: ${chain}`)
+  return `\n${indent(lines.join('\n'), 4)}\n`
 }
 
 function part(count: number, label: string): string {
