@@ -1,0 +1,9 @@
+{
+  "description": "A global setup that throws a TypeError with a message of two lines (T9.15): Jest rewrites the error's message in place (`Jest: Got error running globalSetup - <path>, reason: <message>`) and rethrows the same object, so its stack, which the CLI prints, names its own class, `TypeError`, not `Error`, and holds the message's second line as part of the message, not as a stack frame. No test file runs and the exit code is 1. The black-box run captures the exit code and every stderr line that is not a stack frame.",
+  "runners": ["jest"],
+  "config": { "jest": { "globalSetup": "<rootDir>/setup.ts", "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(?!\\s*at ).+"
+  }
+}

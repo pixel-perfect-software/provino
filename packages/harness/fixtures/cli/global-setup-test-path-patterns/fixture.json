@@ -1,0 +1,9 @@
+{
+  "description": "What a global setup's globalConfig.testPathPatterns is (T9.15): in Jest 30 a TestPathPatterns object (jest-pattern), not an array, with `patterns`, `isSet()`, `isValid()`, `toPretty()` (the patterns joined with `|`), `toJSON()` and `toExecutor({ rootDir })`, whose executor has `isSet`, `isValid`, `isMatch(absolutePath)` and `toPretty`. The setup writes what it saw to seen.txt, which the black-box run captures. Two patterns on the command line: one a plain regular expression, one anchored with `./`, which Jest reads as `^`.",
+  "runners": ["jest"],
+  "config": { "jest": { "globalSetup": "<rootDir>/setup.ts", "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--testPathPatterns", "a\\.test", "./b"] },
+    "capture": ["exitCode", "file:seen.txt"]
+  }
+}

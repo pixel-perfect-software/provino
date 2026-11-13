@@ -1,0 +1,9 @@
+{
+  "description": "Where a global teardown's own output lands against the reporters' summary (T9.15): in runJest the scheduler runs the reporters' onRunComplete (the summary) inside scheduleTests, and runGlobalHook(globalTeardown) comes after it, so the teardown's line is the last thing on stderr, below the totals. The black-box run captures the exit code and the summary's totals lines with the teardown's own.",
+  "runners": ["jest"],
+  "config": { "jest": { "globalTeardown": "<rootDir>/teardown.ts", "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Test Suites|Tests):|^teardown ran"
+  }
+}

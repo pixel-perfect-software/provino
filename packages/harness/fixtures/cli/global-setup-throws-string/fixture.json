@@ -1,0 +1,9 @@
+{
+  "description": "A global setup that throws a string (T9.15): it is no Error, so Jest raises a new one whose message holds the string as pretty-format prints it, in double quotes. No test file runs and the exit code is 1. The black-box run captures the exit code and every stderr line that is not a stack frame.",
+  "runners": ["jest"],
+  "config": { "jest": { "globalSetup": "<rootDir>/setup.ts", "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(?!\\s*at ).+"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "description": "globalConfig.testPathPatterns with no pattern given (T9.15): still a TestPathPatterns object, with an empty `patterns`, `isSet()` false and `toPretty()` empty, and its executor matches every path. The setup writes what it saw to seen.txt, which the black-box run captures.",
+  "runners": ["jest"],
+  "config": { "jest": { "globalSetup": "<rootDir>/setup.ts", "maxWorkers": 1 } },
+  "run": { "capture": ["exitCode", "file:seen.txt"] }
+}

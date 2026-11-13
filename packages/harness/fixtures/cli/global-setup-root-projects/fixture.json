@@ -1,0 +1,15 @@
+{
+  "description": "A root-level globalSetup and globalTeardown beside projects (T9.15): Jest's runGlobalHook adds the root config's hook to the set of paths after the projects', and calls it with the projectConfig of the first test that names the same path, else of allTests[0]. Here p1 has its own hook and p2 none; the root hook runs after p1's, and p1 is first in the sequenced list (its test file is the larger), so the root hook gets p1's projectConfig. Each hook appends a line to order.txt, which the black-box run captures. The projects come from --projects, because the recorder reserves the config key; they and the root hook are plain JavaScript, because a project's own config has no transformer for TypeScript.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "globalSetup": "<rootDir>/root-setup.js",
+      "globalTeardown": "<rootDir>/root-teardown.js",
+      "maxWorkers": 2
+    }
+  },
+  "run": {
+    "argv": { "jest": ["--projects", "p1", "p2"] },
+    "capture": ["exitCode", "file:order.txt"]
+  }
+}

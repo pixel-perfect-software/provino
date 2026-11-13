@@ -1,0 +1,9 @@
+{
+  "description": "A global setup that throws a plain object (T9.15): it is no Error, so Jest raises a new one whose message holds the object as pretty-format prints it, three levels deep (`Object {` on the first line, then one property to a line), and the CLI prints that error's stack. No test file runs and the exit code is 1. The black-box run captures the exit code and every stderr line that is not a stack frame.",
+  "runners": ["jest"],
+  "config": { "jest": { "globalSetup": "<rootDir>/setup.ts", "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(?!\\s*at ).+"
+  }
+}

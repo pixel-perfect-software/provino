@@ -1,0 +1,6 @@
+{
+  "displayName": "a",
+  "cacheDirectory": "<rootDir>/.jest-cache",
+  "globalSetup": "<rootDir>/setup.js",
+  "globalTeardown": "<rootDir>/teardown.js"
+}

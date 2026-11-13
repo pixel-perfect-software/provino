@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/global-setup-throws-typeerror",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "TypeError: Jest: Got error running globalSetup - <root>/setup.ts, reason: setup failed\nsecond line of the message"
+  }
+}
