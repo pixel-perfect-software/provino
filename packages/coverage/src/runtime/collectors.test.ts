@@ -57,6 +57,46 @@ test('istanbul: a take copies the counters, zeroes them in place and sends the m
   }
 })
 
+test('istanbul: once a file has been sent, a take copies no map for it', async () => {
+  const variable = '__provino_test_coverage_clones__'
+  const live = fileData('/p/a.ts', 1)
+  Reflect.set(globalThis, variable, { '/p/a.ts': live })
+  const original = globalThis.structuredClone
+  const cloned: unknown[] = []
+  try {
+    const collector = createIstanbulCollector({ workerId: 1, variable })
+    await collector.take('/p/a.test.ts')
+    globalThis.structuredClone = ((
+      value: unknown,
+      options?: Parameters<typeof structuredClone>[1],
+    ) => {
+      cloned.push(value)
+      return original(value, options)
+    }) as typeof structuredClone
+    // Untouched, maps sent: nothing is copied and nothing is sent.
+    const idle = await collector.take('/p/b.test.ts')
+    assert.deepEqual(idle.kind === 'istanbul' ? idle.data : null, {})
+    assert.deepEqual(cloned, [])
+    // Touched: only the counters are copied.
+    ;(live.s as Record<string, number>)['0'] = 4
+    const busy = await collector.take('/p/c.test.ts')
+    assert.deepEqual(busy.kind === 'istanbul' ? busy.data['/p/a.ts'] : null, {
+      path: '/p/a.ts',
+      hash: 'h1',
+      s: { '0': 4 },
+      f: { '0': 0 },
+      b: { '0': [0, 0] },
+    })
+    assert.equal(cloned.length, 1)
+    for (const value of cloned) {
+      assert.deepEqual(Object.keys(value as object).sort(), ['b', 'f', 's'])
+    }
+  } finally {
+    globalThis.structuredClone = original
+    Reflect.deleteProperty(globalThis, variable)
+  }
+})
+
 test('v8: a take keeps the compiled, counted user modules and their wrapper lengths', async () => {
   const path = `${process.cwd()}/provino-v8-collector-fixture-a.ts`
   const other = `${process.cwd()}/provino-v8-collector-fixture-b.ts`

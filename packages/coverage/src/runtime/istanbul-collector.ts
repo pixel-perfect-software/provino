@@ -65,10 +65,17 @@ export function createIstanbulCollector(options: IstanbulCollectorOptions): Cove
       if (typeof live === 'object' && live !== null) {
         for (const [path, entry] of Object.entries(live)) {
           if (!isCoverageData(entry)) continue
-          // A copy first: the counters go back to zero in place straight after.
-          const copy = structuredClone(entry)
-          if (interner.has(copy.path, copy.hash) && untouched(copy)) continue
-          data[path] = interner.compact(copy)
+          // The live entry is asked first, so a file the take leaves out costs nothing. A file
+          // whose maps went out is copied as counters only; the full copy is the first send's.
+          const sent = interner.has(entry.path, entry.hash)
+          if (sent && untouched(entry)) continue
+          // A copy: the counters go back to zero in place straight after.
+          data[path] = sent
+            ? interner.compact({
+                ...entry,
+                ...structuredClone({ s: entry.s, f: entry.f, b: entry.b }),
+              })
+            : interner.compact(structuredClone(entry))
           reset(entry as unknown as Parameters<typeof reset>[0])
         }
       }
