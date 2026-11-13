@@ -157,6 +157,8 @@ export const vitestPolicy: PolicyOverrides = {
     ),
     // Vitest's `include` is relative to the root (`policy/orchestrator-match-path`).
     globMatchesOn: 'root-relative-path',
+    // Vitest's rule is not recorded yet (T11.16): a file where nothing ran is skipped.
+    todoOnlyFile: 'skip',
     passWithNoTests: false,
     // `usage` is `cli/unknown-flag`: cac throws on an unknown option and the process exits 1.
     exitCodes: { failure: 1, noTests: 1, unhandled: 1, usage: 1 },
@@ -178,6 +180,8 @@ export const vitestPolicy: PolicyOverrides = {
     displaySeparator: ' > ',
     defaultReporters: ['default'],
     failureTitleBullet: null,
+    // Not recorded for Vitest yet (T11.16); the neutral reporters list a file's tests on request only.
+    listTestsForSingleFile: false,
     resultStatusSkipped: 'skipped',
   },
   coverage: {

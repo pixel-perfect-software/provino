@@ -20,6 +20,8 @@ export interface RecordedManifest {
   readonly run?: {
     readonly argv?: { readonly jest?: readonly string[] }
     readonly capture: readonly string[]
+    /** The lines of a stream the recording kept: a regular expression's source. */
+    readonly keepLines?: string
   }
 }
 

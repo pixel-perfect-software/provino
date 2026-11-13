@@ -13,53 +13,21 @@ import type {
   RuntimeEventOf,
   SerializedError,
   TaskId,
-  TaskNode,
   TaskResult,
   TestStatus,
   TestTask,
 } from '@provino/types'
-
-/** What the reporter has seen of one file. */
-export interface FileRecord {
-  /** The file's tests in collection order; a test that ended without being collected is added. */
-  readonly tests: Map<TaskId, TestTask>
-  /** The `test-end` result of each test that ended. */
-  readonly results: Map<TaskId, TaskResult>
-  /** Unhandled errors the runtime tied to this file. */
-  readonly unhandled: SerializedError[]
-  /** Errors the runtime charged to a test after it ended (`errors.lateErrors: 'fail-owner'`). */
-  readonly late: Map<TaskId, SerializedError[]>
-  /** Errors of suites that ended `fail` (an `afterAll` that threw), which are in no file result. */
-  readonly suiteErrors: SerializedError[]
-  /** Real retries per test, counted from `test:attempt-end` events with `willRetry`. */
-  readonly retries: Map<TaskId, number>
-  /** The file's `console` events, in the order they came. */
-  readonly console: RuntimeEventOf<'console'>[]
-  /** Set by `file:end`. */
-  ended: FileResult | undefined
-}
-
-/** A run-level error. `unhandled` ones are ignored for `success` when the policy says so. */
-export interface RunError {
-  readonly error: SerializedError
-  readonly unhandled: boolean
-}
+import {
+  type FileRecord,
+  groupConsole,
+  type Outcome,
+  outcomeOf,
+  type RunError,
+  suiteErrorsOf,
+} from '../internal/collect.ts'
 
 /** What a run does about unhandled errors; the orchestrator's `unhandledErrors` policy. */
 export type UnhandledErrors = 'fail-run' | 'ignore'
-
-export function newFileRecord(): FileRecord {
-  return {
-    tests: new Map(),
-    results: new Map(),
-    unhandled: [],
-    late: new Map(),
-    suiteErrors: [],
-    retries: new Map(),
-    console: [],
-    ended: undefined,
-  }
-}
 
 /**
  * A write as lines (the model has one entry per line): split on `\n`, with a trailing newline
@@ -80,26 +48,21 @@ function consoleOf(record: FileRecord): {
   readonly file: ConsoleEntry[]
   readonly tests: Map<TaskId, ConsoleEntry[]>
 } {
-  const file: ConsoleEntry[] = []
-  const tests = new Map<TaskId, ConsoleEntry[]>()
-  for (const write of record.console) {
-    const entries = linesOf(write.text).map(
-      (text): ConsoleEntry => ({
-        stream: write.stream,
-        text,
-        ...(write.level === null ? {} : { level: write.level }),
-      }),
+  const grouped = groupConsole(record)
+  const lines = (writes: readonly RuntimeEventOf<'console'>[]): ConsoleEntry[] =>
+    writes.flatMap((write) =>
+      linesOf(write.text).map(
+        (text): ConsoleEntry => ({
+          stream: write.stream,
+          text,
+          ...(write.level === null ? {} : { level: write.level }),
+        }),
+      ),
     )
-    const test = write.taskId === null ? undefined : record.tests.get(write.taskId)
-    if (test === undefined) {
-      file.push(...entries)
-      continue
-    }
-    const existing = tests.get(test.id)
-    if (existing === undefined) tests.set(test.id, entries)
-    else existing.push(...entries)
+  return {
+    file: lines(grouped.file),
+    tests: new Map([...grouped.tests].map(([id, writes]) => [id, lines(writes)])),
   }
-  return { file, tests }
 }
 
 /** Everything `buildNormalizedRun` needs. */
@@ -116,32 +79,6 @@ export interface RunParts {
   readonly unhandledErrors?: UnhandledErrors
   /** The run's snapshot totals and files (`normalizeSnapshots`), when it had any. */
   readonly snapshots?: NormalizedRun['snapshots']
-}
-
-/**
- * The tests of a collected tree in declaration order: a walk down from the file node, children in
- * order. The array is "parents before children", which is not necessarily declaration order.
- * Tests the walk doesn't reach are added at the end, in array order.
- */
-export function testsInOrder(tasks: readonly TaskNode[]): TestTask[] {
-  const byId = new Map(tasks.map((task) => [task.id, task]))
-  const ordered: TestTask[] = []
-  const seen = new Set<TaskId>()
-  const visit = (task: TaskNode): void => {
-    if (seen.has(task.id)) return
-    seen.add(task.id)
-    if (task.type === 'test') {
-      ordered.push(task)
-      return
-    }
-    for (const childId of task.children) {
-      const child = byId.get(childId)
-      if (child !== undefined) visit(child)
-    }
-  }
-  for (const task of tasks) if (task.type === 'file') visit(task)
-  for (const task of tasks) if (task.type === 'test' && !seen.has(task.id)) ordered.push(task)
-  return ordered
 }
 
 /** A thrown error as the model has it: no ANSI in `message`, the stack (else the message) as `raw`. */
@@ -200,20 +137,20 @@ function retriesOf(
 function normalizeTest(
   info: FileInfo,
   test: TestTask,
-  result: TaskResult | undefined,
+  outcome: Outcome,
   counted: number | undefined,
   console: readonly ConsoleEntry[] | undefined,
-  late: readonly SerializedError[] = [],
 ): NormalizedTest {
+  const { result } = outcome
   const retries = result === undefined ? undefined : retriesOf(test, result, counted)
   return {
     id: { file: info.runPath ?? info.path, path: [...test.fullName], dupIndex: test.dupIndex },
     // An error charged to the test after it ended fails it, whatever it ended as.
-    status: late.length > 0 ? 'failed' : testStatus(result),
-    ...(result?.skipReason === undefined || late.length > 0
+    status: outcome.failed ? 'failed' : testStatus(result),
+    ...(result?.skipReason === undefined || outcome.late.length > 0
       ? {}
       : { skipReason: result.skipReason }),
-    errors: [...(result?.errors ?? []), ...late].map(normalizeError),
+    errors: outcome.errors.map(normalizeError),
     ...(result === undefined ? {} : { passingAssertions: result.passingAssertions }),
     ...(retries === undefined || retries < 1 ? {} : { retries }),
     ...(result === undefined ? {} : { durationMs: result.durationMs }),
@@ -244,13 +181,12 @@ function normalizeFile(
     normalizeTest(
       info,
       test,
-      record.results.get(test.id),
+      outcomeOf(record, test),
       record.retries.get(test.id),
       console.tests.get(test.id),
-      record.late.get(test.id),
     ),
   )
-  const own = [...result.errors, ...record.suiteErrors]
+  const own = [...result.errors, ...suiteErrorsOf(record)]
   const known = new Set(own.map((error) => `${error.name}\0${error.message}`))
   const charged = record.unhandled.filter((error) => !known.has(`${error.name}\0${error.message}`))
   const errors = [...own, ...charged]

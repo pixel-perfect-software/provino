@@ -374,6 +374,9 @@ catalogs:
     vitest:
       specifier: 5.0.5
       version: 5.0.5
+    xmllint-wasm:
+      specifier: 5.3.0
+      version: 5.3.0
     zod:
       specifier: 4.6.7
       version: 4.6.7
@@ -990,6 +993,10 @@ importers:
       '@provino/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      xmllint-wasm:
+        specifier: 'catalog:'
+        version: 5.3.0(@types/node@22.20.5)
 
   packages/resolver:
     dependencies:
@@ -5349,6 +5356,12 @@ packages:
   xmlchars@2.2.0:
     resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
 
+  xmllint-wasm@5.3.0:
+    resolution: {integrity: sha512-sEgRXdf2t13eYCFCURmCE6h2hwleEOIS9VL/jOh9JJJnez2YXIooi2Ghm05/JZEPXyPawN8sMASPVZlmh8Sd6A==}
+    engines: {node: '>=16'}
+    peerDependencies:
+      '@types/node': '>=16'
+
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
@@ -9538,6 +9551,10 @@ snapshots:
   xml-name-validator@5.0.0: {}
 
   xmlchars@2.2.0: {}
+
+  xmllint-wasm@5.3.0(@types/node@22.20.5):
+    dependencies:
+      '@types/node': 22.20.5
 
   y18n@5.0.8: {}
 

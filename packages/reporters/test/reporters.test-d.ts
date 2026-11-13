@@ -1,13 +1,29 @@
 // The public API of @provino/reporters.
 import {
+  AGENT_VARIABLES,
+  agentReporter,
   createReporterBus,
+  createStyle,
   type DefaultReporterOptions,
+  type DetectOptions,
   defaultReporter,
   defineReporter,
+  detectOutput,
+  dotReporter,
+  type GitHubActionsReporterOptions,
+  githubActionsReporter,
+  type JUnitReporterOptions,
+  jsonReporter,
+  junitReporter,
   type NormalizedJsonReporterOptions,
   normalizedJsonReporter,
+  type OutputEnvironment,
+  type OutputStream,
   type ReporterBusHandle,
+  type Style,
+  type TextReporterOptions,
   type TextSink,
+  verboseReporter,
 } from '@provino/reporters'
 import type {
   Reporter,
@@ -115,3 +131,72 @@ normalizedJsonReporter({ suite: 's', runner: 'r', runnerVersion: '1', outputFile
 normalizedJsonReporter({ suite: 's', runner: 'r', runnerVersion: '1', env: 'node' })
 // @ts-expect-error ci is the run's answer, a boolean, not the CI variable's text
 normalizedJsonReporter({ suite: 's', runner: 'r', runnerVersion: '1', ci: 'true' })
+
+// The text reporters share their options; the default one has had them all along.
+expectTypeOf<DefaultReporterOptions>().toEqualTypeOf<TextReporterOptions>()
+expectTypeOf<TextReporterOptions['colour']>().toEqualTypeOf<boolean | undefined>()
+expectTypeOf<TextReporterOptions['live']>().toEqualTypeOf<boolean | undefined>()
+expectTypeOf<TextReporterOptions['columns']>().toEqualTypeOf<number | undefined>()
+expectTypeOf<TextReporterOptions['silent']>().toEqualTypeOf<boolean | undefined>()
+expectTypeOf<TextReporterOptions['noStackTrace']>().toEqualTypeOf<boolean | undefined>()
+expectTypeOf<TextReporterOptions['expand']>().toEqualTypeOf<boolean | undefined>()
+for (const make of [verboseReporter, dotReporter, agentReporter]) {
+  expectTypeOf(make({ stream: sink, report })).toEqualTypeOf<Reporter>()
+}
+// @ts-expect-error the text reporters need their report policy
+verboseReporter({ stream: sink })
+// @ts-expect-error colour is a flag, not the FORCE_COLOR text
+dotReporter({ stream: sink, report, colour: 'always' })
+// @ts-expect-error the width is a number
+agentReporter({ stream: sink, report, columns: '80' })
+
+// json is the normalized-json reporter's options under another name.
+expectTypeOf(jsonReporter).toEqualTypeOf<typeof normalizedJsonReporter>()
+// @ts-expect-error json needs the identity of the run, as normalized-json does
+jsonReporter({ outputFile: 'run.json' })
+
+// junit takes the report policy for its separator, and a file or a sink.
+expectTypeOf(junitReporter({ report, outputFile: 'junit.xml' })).toEqualTypeOf<Reporter>()
+expectTypeOf<JUnitReporterOptions['name']>().toEqualTypeOf<string | undefined>()
+expectTypeOf<JUnitReporterOptions['now']>().toEqualTypeOf<(() => number) | undefined>()
+// @ts-expect-error junit needs the report policy
+junitReporter({ outputFile: 'junit.xml' })
+// @ts-expect-error the output file is a path
+junitReporter({ report, outputFile: 3 })
+
+expectTypeOf(githubActionsReporter({ stream: sink, report })).toEqualTypeOf<Reporter>()
+expectTypeOf<GitHubActionsReporterOptions['workspace']>().toEqualTypeOf<string | undefined>()
+// @ts-expect-error github-actions needs somewhere to write
+githubActionsReporter({ report })
+
+// What detectOutput reads and gives back.
+expectTypeOf(detectOutput()).toEqualTypeOf<OutputEnvironment>()
+expectTypeOf(
+  detectOutput({ env: { CI: 'true' }, stream: { isTTY: true, columns: 100 } }),
+).toEqualTypeOf<OutputEnvironment>()
+expectTypeOf<OutputEnvironment['agent']>().toEqualTypeOf<string | undefined>()
+expectTypeOf<
+  OutputEnvironment['colour' | 'live' | 'tty' | 'ci' | 'githubActions']
+>().toEqualTypeOf<boolean>()
+expectTypeOf<OutputEnvironment['columns']>().toEqualTypeOf<number>()
+expectTypeOf<DetectOptions['ci']>().toEqualTypeOf<boolean | undefined>()
+expectTypeOf<DetectOptions['colour']>().toEqualTypeOf<boolean | undefined>()
+// process.stdout is an OutputStream, so is a stand-in.
+const streams: readonly OutputStream[] = [process.stdout, { isTTY: false }, {}]
+void streams
+expectTypeOf(AGENT_VARIABLES).toEqualTypeOf<
+  readonly (readonly [agent: string, variable: string])[]
+>()
+// @ts-expect-error CI is the caller's answer, a boolean
+detectOutput({ ci: 'true' })
+// @ts-expect-error the environment holds text
+detectOutput({ env: { CI: true } })
+// @ts-expect-error a stream says whether it is a terminal with a boolean
+detectOutput({ stream: { isTTY: 'yes' } })
+
+// A style is a set of functions from text to text.
+expectTypeOf(createStyle(true)).toEqualTypeOf<Style>()
+expectTypeOf(createStyle(false).red('x')).toEqualTypeOf<string>()
+expectTypeOf<Style['badge']>().parameter(1).toEqualTypeOf<'green' | 'red' | 'yellow'>()
+// @ts-expect-error a badge has one of three colours
+createStyle(true).badge('PASS', 'blue')

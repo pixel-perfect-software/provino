@@ -1,0 +1,70 @@
+PASS ./math.test.ts
+  ✓ stands alone (2 ms)
+  math
+    ✓ adds (3 ms)
+    nested
+      ✓ subtracts
+
+FAIL ./fails.test.ts
+  group
+    ✕ fails (4 ms)
+    ✓ passes after (1 ms)
+
+  ● group › fails
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+      at Object.<anonymous> (/project/fails.test.ts:3:15)
+
+PASS ./skipped.test.ts
+  ✓ runs (2 ms)
+  ○ skipped is skipped
+  ✎ todo is planned
+
+PASS ./todo-only.test.ts
+  ✎ todo later
+
+  console.log
+    at import time
+
+  console.log
+    from the test
+
+  console.warn
+    a warning
+
+  process.stdout
+    a direct write
+
+PASS ./console.test.ts
+  ✓ logs and warns (2 ms)
+
+FAIL ./snapshot.test.ts
+  ✕ matches a stored snapshot (5 ms)
+
+  ● matches a stored snapshot
+
+    expect(received).toMatchSnapshot()
+
+    Snapshot name: `matches a stored snapshot 1`
+
+    - Snapshot  - 1
+    + Received  + 1
+
+      {
+    -   "value": "old",
+    +   "value": "new",
+      }
+      at Object.<anonymous> (/project/snapshot.test.ts:2:28)
+
+FAIL ./broken.test.ts
+  ● Test suite failed to run
+
+    ImportError: Cannot find module './missing.ts'
+
+Test Suites: 3 failed, 1 skipped, 4 passed, 7 of 8 total
+Tests:       2 failed, 3 skipped, 2 todo, 6 passed, 13 total
+Snapshots:   1 failed, 1 total
+Time:        1.234 s

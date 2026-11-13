@@ -2022,6 +2022,7 @@ export interface OrchestratorPolicy {
         readonly fallback: "sha1-slice";
     };
     readonly slowTestThresholdMs: number;
+    readonly todoOnlyFile: "pass" | "skip";
     readonly unhandledErrors: "fail-run" | "ignore";
     readonly watch: {
         readonly initialRun: "changed" | "all";
@@ -2248,6 +2249,7 @@ export interface ReportPolicy {
     readonly defaultReporters: readonly string[];
     readonly displaySeparator: string;
     readonly failureTitleBullet: string | null;
+    readonly listTestsForSingleFile: boolean;
     readonly resultStatusSkipped: "pending" | "skipped";
 }
 
@@ -2430,6 +2432,7 @@ export interface RunRef {
 export interface RunRequest {
     readonly cache?: boolean;
     readonly ci?: boolean;
+    readonly colour?: boolean;
     readonly configPath?: string;
     // (undocumented)
     readonly fileFilters: readonly FileFilter[];

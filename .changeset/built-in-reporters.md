@@ -1,0 +1,6 @@
+---
+"provino": minor
+"@provino/types": minor
+---
+
+The built-in reporters beside `default` (T9.7): `verbose`, `dot`, `agent`, `json` (the `NormalizedRun`, also `normalized-json`), `junit` and `github-actions`, named with `--reporter` or in `run()`'s `reporters`, and exported from `provino/reporters` with `detectOutput` (a terminal, CI, an agent, colour) and `createStyle`. With no reporter named, an agent (`CLAUDECODE`, `AI_AGENT`, ...) gets `agent` and GitHub Actions adds `github-actions`; colour follows the terminal, `FORCE_COLOR` and `NO_COLOR`. `RunOptions` gains `env`, `ReporterChoice` the new names and `JUnitChoiceOptions`, and `RunRequest` gains `colour` (Jest's `--color`, `--colors` and `--no-color`). A run of exactly one test file lists each test, as Jest does unless `--silent` or `verbose: false`, under any project whose dialect says so: the `report` policy slice gains `listTestsForSingleFile` (Jest `true`), the text reporters' options gain `verbose: false` for Jest's explicit `verbose: false`, and `provino run` on a Jest-dialect config prints what `provino jest` does. The `orchestrator` slice gains `todoOnlyFile` (Jest `pass`): a file whose tests are only skipped and todo ones, with a todo, is decided once by the orchestrator, so the reporters, the results cache and `normalized-json` agree on it.

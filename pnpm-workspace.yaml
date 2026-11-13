@@ -150,6 +150,10 @@ catalog:
   # Jest 30.5 and Vitest 5.0 are the ground truth every golden records (CLAUDE.md NN2, DECISIONS
   # S3), so `.always-up-to-date.json` holds both families: moving one is a re-record, not an update.
   vitest: 5.0.5
+  # libxml2 compiled to WebAssembly (MIT): the JUnit reporter's test validates its output against
+  # the vendored Jenkins XSD with it (T9.7), so local runs and CI use one validator and need no
+  # system xmllint. A devDependency of @provino/reporters only.
+  xmllint-wasm: 5.3.0
   zod: 4.6.7
 
 # dependency-cruiser loads `typescript` at runtime to parse .ts files, and 18.7 can't use the

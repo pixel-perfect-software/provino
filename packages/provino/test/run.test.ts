@@ -14,6 +14,7 @@ import {
   noting,
   type Project,
   passing,
+  QUIET_ENV,
   trackedProjects,
   viewOfNormalized,
 } from './support.ts'
@@ -29,7 +30,7 @@ interface Ran extends RunResult {
 async function runProject(project: Project, options: Partial<RunOptions> = {}): Promise<Ran> {
   const stdout = new Collect()
   const stderr = new Collect()
-  const result = await run({ config: project.config, stdout, stderr, ...options })
+  const result = await run({ config: project.config, stdout, stderr, env: QUIET_ENV, ...options })
   return { ...result, stdout: stdout.text, stderr: stderr.text }
 }
 
@@ -178,12 +179,12 @@ describe('run()', () => {
 
     it('a reporter that is not a built-in or a reporter', async () => {
       const project = await makeProject({ 'tests/a.test.js': passing('a') })
-      // @ts-expect-error "verbose" is not a reporter name
-      const ran = await runProject(project, { reporters: ['verbose'] })
+      // @ts-expect-error "tap" is not a reporter name
+      const ran = await runProject(project, { reporters: ['tap'] })
 
       assert.equal(ran.exitCode, 2)
       assert.equal(ran.summary, null)
-      assert.match(ran.stderr, /unknown reporter "verbose"/)
+      assert.match(ran.stderr, /unknown reporter "tap"/)
     })
 
     it('reporter options that make no sense', async () => {
@@ -344,21 +345,14 @@ describe('run()', () => {
     /** Runs a passing project with `CI` set to `value` (unset when `undefined`) and reads `env.ci`. */
     async function ciOf(value: string | undefined, options: Partial<RunOptions> = {}) {
       const project = await makeProject({ 'tests/a.test.js': passing('a') })
-      const before = process.env.CI
-      try {
-        if (value === undefined) delete process.env.CI
-        else process.env.CI = value
-        const ran = await runProject(project, {
-          pool: 'inline',
-          reporters: ['normalized-json'],
-          ...options,
-        })
-        assert.equal(ran.exitCode, 0, ran.stderr)
-        return viewOfNormalized(ran.stdout).ci
-      } finally {
-        if (before === undefined) delete process.env.CI
-        else process.env.CI = before
-      }
+      const ran = await runProject(project, {
+        pool: 'inline',
+        reporters: ['normalized-json'],
+        env: value === undefined ? QUIET_ENV : { CI: value },
+        ...options,
+      })
+      assert.equal(ran.exitCode, 0, ran.stderr)
+      return viewOfNormalized(ran.stdout).ci
     }
 
     it('reads CI the way isCi does: case and spaces do not make false a CI', async () => {

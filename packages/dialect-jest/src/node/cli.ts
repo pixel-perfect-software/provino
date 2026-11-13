@@ -392,6 +392,8 @@ export function jestArgvToRunRequest(argv: JestArgv): RunRequest {
   const maxWorkers = maxWorkersOf(argv.maxWorkers)
   const configPath = last(argv.config)
   const flag = (value: unknown): value is boolean => typeof value === 'boolean'
+  // `--colors` is the alias of `--color`: whichever was given (`--colors` when both were).
+  const colour = [last(argv.color), last(argv.colors)].filter(flag).at(-1)
   return {
     mode,
     json: mode === 'list-files' && isGiven(argv.json),
@@ -405,6 +407,7 @@ export function jestArgvToRunRequest(argv: JestArgv): RunRequest {
     ...(flag(argv.passWithNoTests) ? { passWithNoTests: argv.passWithNoTests } : {}),
     ...(flag(argv.cache) ? { cache: argv.cache } : {}),
     ...(configPath === undefined ? {} : { configPath: String(configPath) }),
+    ...(colour === undefined ? {} : { colour }),
   }
 }
 

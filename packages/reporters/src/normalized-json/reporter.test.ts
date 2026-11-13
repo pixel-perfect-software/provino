@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
 import type { NormalizedRun, SerializedError } from '@provino/types'
 import { createReporterBus } from '../bus.ts'
+import { type FileRecord, newFileRecord, testsInOrder } from '../internal/collect.ts'
 import {
   breadthFirst,
   buildFile,
@@ -22,7 +23,7 @@ import {
   testEndEvent,
   unhandledEvent,
 } from '../internal/test-support.ts'
-import { buildNormalizedRun, type FileRecord, newFileRecord, testsInOrder } from './build.ts'
+import { buildNormalizedRun } from './build.ts'
 import { normalizedJsonReporter } from './reporter.ts'
 
 const STARTED_AT_MS = Date.UTC(2026, 10, 5, 12, 0, 0)

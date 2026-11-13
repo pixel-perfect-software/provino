@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { run } from 'provino/node'
-import { Collect, passing, trackedProjects, viewOfNormalized } from './support.ts'
+import { Collect, passing, QUIET_ENV, trackedProjects, viewOfNormalized } from './support.ts'
 
 const makeProject = trackedProjects()
 
@@ -22,6 +22,7 @@ describe('run() pools', () => {
       maxWorkers: 4,
       stdout,
       stderr,
+      env: QUIET_ENV,
     })
     assert.equal(result.exitCode, 0, stderr.text)
     assert.equal(result.summary?.files.length, 3)

@@ -233,10 +233,10 @@ async function runFixture(
   }
 }
 
-/** The `PASS`/`FAIL` file lines a golden's stderr kept, as `[state, path]` with the `./` Jest adds dropped. */
+/** The `PASS`/`FAIL` file lines a golden's stderr kept, as `[state, path]` with the path as Jest prints it (`./a.test.ts`). */
 function goldenFileLines(stderr: string): [string, string][] {
   return stderr.split('\n').flatMap((line) => {
-    const match = /^(PASS|FAIL) (?:\.\/)?(\S+)/.exec(line)
+    const match = /^(PASS|FAIL) (\S+)/.exec(line)
     return match === null ? [] : [[match[1] as string, match[2] as string]]
   })
 }
@@ -259,7 +259,7 @@ describe('--bail against Jest 30.5.2', () => {
           assert.match(run.stderr, new RegExp(`^${state} ${path.replace('.', '\\.')}`, 'm'))
         }
         const all = ['a-fails.test.ts', 'b-passes.test.ts', 'b-fails.test.ts', 'c-passes.test.ts']
-        const reported = new Set(files.map(([, path]) => path))
+        const reported = new Set(files.map(([, path]) => path.replace(/^\.\//, '')))
         for (const path of all.filter((name) => !reported.has(name))) {
           assert.doesNotMatch(run.stderr, new RegExp(path.replace('.', '\\.')))
         }
@@ -282,7 +282,7 @@ describe('--bail against Jest 30.5.2', () => {
       const files = goldenFileLines(expected)
       assert.deepEqual(
         files.map(([state, path]) => `${state} ${path}`),
-        ['FAIL a-throws.test.ts', 'PASS b-passes.test.ts', 'PASS c-passes.test.ts'],
+        ['FAIL ./a-throws.test.ts', 'PASS ./b-passes.test.ts', 'PASS ./c-passes.test.ts'],
         'Jest ran all three: the load failure is not a failed test',
       )
       for (const [state, path] of files) {
@@ -350,6 +350,12 @@ describe('a skipped file against Jest 30.5.2', () => {
         for (const [state, path] of goldenFileLines(expected)) {
           assert.match(run.stderr, new RegExp(`^${state} ${path.replace('.', '\\.')}`, 'm'))
         }
+        // Jest prints no line for a suite whose every test is skipped, and neither do we (DV50).
+        assert.deepEqual(
+          run.stderr.split('\n').filter((line) => /^(PASS|FAIL|SKIP) /.test(line)),
+          expected.split('\n').filter((line) => /^(PASS|FAIL|SKIP) /.test(line)),
+          'the same file lines as Jest: none for the skipped file',
+        )
       } finally {
         await run.dispose()
       }

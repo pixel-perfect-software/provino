@@ -27,6 +27,7 @@ import type { ReporterChoice } from '../types.ts'
 import { JEST_BUILT_INS, JEST_ENVIRONMENT, NODE_ENVIRONMENT } from './built-ins.ts'
 import { usageMessage } from './describe.ts'
 import { executeProject } from './execute.ts'
+import type { DisplayOptions } from './reporters.ts'
 import {
   chooseProjects,
   noProjectsMessage,
@@ -48,6 +49,8 @@ export interface JestCommandIo {
    * so only a caller of this module sets it (the tests that read each test's status).
    */
   readonly reporters?: readonly ReporterChoice[]
+  /** What the reporters read for the terminal, CI, an agent and colour. Default: `process.env`. */
+  readonly env?: Readonly<Record<string, string | undefined>>
   /** Aborted by the first SIGINT or SIGTERM: the run ends 130 or 143. Default: never. */
   readonly signal?: AbortSignal
   /** Aborted by the second signal: every worker is killed at once. */
@@ -125,6 +128,32 @@ function report(diagnostics: readonly Diagnostic[], stderr: NodeJS.WritableStrea
   return failed
 }
 
+/**
+ * How Jest's presentation flags and config keys look to the reporters: `verbose` (the global config
+ * or any project; `false` only when the global config says so on purpose), `silent`, `expand` and
+ * `noStackTrace` from the merged global config, and the colour request from `--color`, `--colors`
+ * and `--no-color`. A run of exactly one test file is verbose too, as `runJest` has it, which the
+ * dialect's `report.listTestsForSingleFile` and these two inputs (`silent`, `verbose: false`) give
+ * the reporter to decide.
+ */
+function presentation(
+  read: { readonly verbose: boolean; readonly globalConfig: JestGlobalConfig },
+  request: RunRequest,
+): DisplayOptions {
+  const { globalConfig } = read
+  return {
+    ...(read.verbose
+      ? { verbose: true }
+      : globalConfig.verbose === false
+        ? { verbose: false }
+        : {}),
+    ...(globalConfig.silent === true ? { silent: true } : {}),
+    ...(globalConfig.expand ? { expand: true } : {}),
+    ...(globalConfig.noStackTrace ? { noStackTrace: true } : {}),
+    ...(request.colour === undefined ? {} : { colour: request.colour }),
+  }
+}
+
 /** The projects of the config the request names (or the one found from `cwd`), unresolved. */
 async function readProjects(
   argv: JestArgv,
@@ -134,6 +163,8 @@ async function readProjects(
   readonly neutral: readonly NeutralProject[]
   readonly globalConfig: JestGlobalConfig
   readonly cache: boolean
+  /** Jest's `verbose`: the global config's, or any project's. */
+  readonly verbose: boolean
   readonly showable: unknown
   readonly diagnostics: readonly Diagnostic[]
 }> {
@@ -151,6 +182,9 @@ async function readProjects(
     neutral: neutral.value,
     globalConfig: resolved.value.globalConfig,
     cache: resolved.value.configs.every((config) => config.cache),
+    verbose:
+      resolved.value.globalConfig.verbose === true ||
+      resolved.value.configs.some((config) => config.verbose === true),
     showable: { globalConfig: resolved.value.globalConfig, configs: resolved.value.configs },
     diagnostics: [...resolved.diagnostics, ...neutral.diagnostics],
   }
@@ -278,6 +312,8 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       stdout,
       stderr,
       ...(io.reporters === undefined ? {} : { reporters: io.reporters }),
+      env: io.env ?? process.env,
+      display: presentation(read, request),
       pool: {
         ...(request.workerThreads === true ? { kind: 'threads' as const } : {}),
         maxWorkers: read.globalConfig.maxWorkers,

@@ -1,6 +1,8 @@
 // Test helpers for the reporters' unit tests (not a test file): synthetic runs built to the real
 // types. A `FileSpec` describes one file and the events it would produce; `playRun` sends a
 // whole run through a bus, as the coordinator will.
+
+import assert from 'node:assert/strict'
 import type {
   FileInfo,
   FileResult,
@@ -8,6 +10,7 @@ import type {
   OpenHandle,
   Reporter,
   ReporterBus,
+  ReportPolicy,
   RunEnvironment,
   RunSummary,
   RuntimeEventOf,
@@ -22,6 +25,25 @@ import type {
   TestTask,
   WorkerExit,
 } from '@provino/types'
+import { createReporterBus } from '../bus.ts'
+
+/** The `report` slice as the Jest dialect has it (`jestPolicy.report`), for tests that need no more than its values. */
+export const JEST_REPORT: ReportPolicy = {
+  displaySeparator: ' › ',
+  defaultReporters: ['default'],
+  failureTitleBullet: '  ● ',
+  listTestsForSingleFile: true,
+  resultStatusSkipped: 'pending',
+}
+
+/** The neutral `report` slice (`neutralPolicy.report`). */
+export const NEUTRAL_REPORT: ReportPolicy = {
+  displaySeparator: ' > ',
+  defaultReporters: ['default'],
+  failureTitleBullet: null,
+  listTestsForSingleFile: false,
+  resultStatusSkipped: 'skipped',
+}
 
 /** The ids are plain text in tests; the brand is what the real coordinator's hash carries. */
 export function taskId(text: string): TaskId {
@@ -51,6 +73,17 @@ export function taskResult(state: TaskState, extra: Partial<TaskResult> = {}): T
   }
 }
 
+/** One console write in a `FileSpec` or `TestSpec`. */
+export interface ConsoleSpec {
+  /** Default `stdout`. */
+  readonly stream?: 'stdout' | 'stderr'
+  /** The console method, or `null` for a write to the stream itself. Default `log`. */
+  readonly level?: string | null
+  readonly text: string
+  /** Where the call was made. Default `null`: the worker doesn't capture one yet. */
+  readonly origin?: string | null
+}
+
 /** One test in a `FileSpec`. */
 export interface TestSpec {
   /** Describe titles, then the test title. */
@@ -71,6 +104,8 @@ export interface TestSpec {
   readonly repeats?: number
   readonly expectFail?: boolean
   readonly location?: { readonly line: number; readonly column: number }
+  /** Console writes while the test ran, sent before its `test-end`. */
+  readonly console?: readonly ConsoleSpec[]
 }
 
 /** One file in a run. */
@@ -89,6 +124,8 @@ export interface FileSpec {
   }[]
   readonly durationMs?: number
   readonly workerExit?: WorkerExit
+  /** Console writes outside any test (a `beforeAll`, the top level), sent before the first test. */
+  readonly console?: readonly ConsoleSpec[]
 }
 
 /** A file's tree and the events it produces, built from its spec. */
@@ -288,15 +325,33 @@ export function attemptEndEvents(
   return events
 }
 
+export function consoleEvent(write: ConsoleSpec, taskId: TaskId | null): RuntimeEventOf<'console'> {
+  return {
+    type: 'console',
+    taskId,
+    stream: write.stream ?? 'stdout',
+    level: write.level === undefined ? 'log' : write.level,
+    text: write.text,
+    origin: write.origin ?? null,
+    t: 2,
+  }
+}
+
 /** Sends one file's events, in the order the coordinator will: queued, start, collected, each test, end. */
 export async function emitFile(bus: ReporterBus, spec: FileSpec): Promise<FileResult> {
   const file = buildFile(spec)
   await bus.emit('file:queued', file.info)
   await bus.emit('file:start', file.info, 0)
   await bus.emit('file:collected', file.info, collectedEvent(file))
+  for (const write of spec.console ?? []) {
+    await bus.emit('console', file.info, consoleEvent(write, null))
+  }
   for (const { task, spec: testSpec } of file.tests) {
     if (testSpec.ran === false) continue
     await bus.emit('task:start', task, testStartEvent(task))
+    for (const write of testSpec.console ?? []) {
+      await bus.emit('console', file.info, consoleEvent(write, task.id))
+    }
     for (const attempt of attemptEndEvents(task, testSpec)) {
       await bus.emit('test:attempt-end', task, attempt)
     }
@@ -314,21 +369,24 @@ export async function emitFile(bus: ReporterBus, spec: FileSpec): Promise<FileRe
   return file.result
 }
 
+/** What `playRun` adds to a run of files. */
+export interface PlayOptions {
+  readonly unhandled?: readonly SerializedError[]
+  readonly durationMs?: number
+  readonly snapshots?: SnapshotRunSummary
+  /** The run's end reason; default `failed` when a file failed, else `passed`. */
+  readonly reason?: RunSummary['reason']
+  /** Files announced at `run:start` that never ran (a run that bailed). */
+  readonly notRun?: readonly string[]
+  /** What `detectOpenHandles` found, for the summary. */
+  readonly openHandles?: readonly OpenHandle[]
+}
+
 /** A run: `run:start`, every file, then `run:end` with a summary built from them. */
 export async function playRun(
   bus: ReporterBus,
   files: readonly FileSpec[],
-  options: {
-    readonly unhandled?: readonly SerializedError[]
-    readonly durationMs?: number
-    readonly snapshots?: SnapshotRunSummary
-    /** The run's end reason; default `failed` when a file failed, else `passed`. */
-    readonly reason?: RunSummary['reason']
-    /** Files announced at `run:start` that never ran (a run that bailed). */
-    readonly notRun?: readonly string[]
-    /** What `detectOpenHandles` found, for the summary. */
-    readonly openHandles?: readonly OpenHandle[]
-  } = {},
+  options: PlayOptions = {},
 ): Promise<RunSummary> {
   const infos = [
     ...files.map((spec) => fileInfo(spec.path, spec.project ?? '')),
@@ -358,6 +416,8 @@ export async function playRun(
 export interface Output {
   write(chunk: string): void
   text(): string
+  /** Each write, as it was made. */
+  writes(): readonly string[]
 }
 
 export function output(): Output {
@@ -367,6 +427,7 @@ export function output(): Output {
       chunks.push(chunk)
     },
     text: () => chunks.join(''),
+    writes: () => chunks,
   }
 }
 
@@ -404,4 +465,188 @@ export function recorder(
     'run:end': () => seen('run:end'),
     error: (err) => seen('error', ` ${err.message}`),
   }
+}
+
+// The fixture run: the one run every built-in reporter's golden is taken from (T9.7): a passing file with nested
+// `describe`s, a failing test, a skipped and a todo test, a file whose every test is skipped, a
+// todo-only file, console output (a `log`, a `warn`, a direct write, and a write outside any
+// test), a stored snapshot that differs, and a file that fails to collect. Test support, not a
+// test file.
+
+/** A failed `toBe`, as the expect layer's error reads. */
+const toBeError: SerializedError = error(
+  'expect(received).toBe(expected) // Object.is equality\n\nExpected: 2\nReceived: 1',
+  {
+    stack: [
+      'Error: expect(received).toBe(expected) // Object.is equality',
+      '',
+      'Expected: 2',
+      'Received: 1',
+      '    at Object.<anonymous> (/project/fails.test.ts:3:15)',
+      '    at run (/project/node_modules/lib/run.js:1:1)',
+      '    at node:internal/process/task_queues:1:1',
+    ].join('\n'),
+    location: { file: '/project/fails.test.ts', line: 3, column: 15 },
+  },
+)
+
+/** A stored snapshot that differs from the received value. */
+const snapshotError: SerializedError = error(
+  [
+    'expect(received).toMatchSnapshot()',
+    '',
+    'Snapshot name: `matches a stored snapshot 1`',
+    '',
+    '- Snapshot  - 1',
+    '+ Received  + 1',
+    '',
+    '  {',
+    '-   "value": "old",',
+    '+   "value": "new",',
+    '  }',
+  ].join('\n'),
+  {
+    stack: [
+      'Error: expect(received).toMatchSnapshot()',
+      '    at Object.<anonymous> (/project/snapshot.test.ts:2:28)',
+    ].join('\n'),
+  },
+)
+
+/** The fixture run's files, in the order they finish. */
+export const FIXTURE_FILES: readonly FileSpec[] = [
+  {
+    path: 'math.test.ts',
+    durationMs: 12,
+    tests: [
+      { path: ['math', 'adds'], durationMs: 3 },
+      { path: ['math', 'nested', 'subtracts'], durationMs: 0.4 },
+      { path: ['stands alone'], durationMs: 2 },
+    ],
+  },
+  {
+    path: 'fails.test.ts',
+    durationMs: 9,
+    tests: [
+      {
+        path: ['group', 'fails'],
+        state: 'fail',
+        durationMs: 4,
+        errors: [toBeError],
+        location: { line: 2, column: 3 },
+      },
+      { path: ['group', 'passes after'], durationMs: 1 },
+    ],
+  },
+  {
+    path: 'skipped.test.ts',
+    durationMs: 3,
+    tests: [
+      { path: ['runs'], durationMs: 2 },
+      { path: ['is skipped'], state: 'skip', skipReason: 'modifier' },
+      { path: ['is planned'], state: 'todo' },
+    ],
+  },
+  {
+    path: 'all-skipped.test.ts',
+    state: 'skip',
+    durationMs: 1,
+    tests: [
+      { path: ['first'], state: 'skip', skipReason: 'modifier' },
+      { path: ['second'], state: 'skip', skipReason: 'modifier' },
+    ],
+  },
+  {
+    path: 'todo-only.test.ts',
+    // The orchestrator decides it: `orchestrator.todoOnlyFile` is `pass` under Jest (DV50).
+    state: 'pass',
+    durationMs: 1,
+    tests: [{ path: ['later'], state: 'todo' }],
+  },
+  {
+    path: 'console.test.ts',
+    durationMs: 6,
+    console: [{ text: 'at import time\n' }],
+    tests: [
+      {
+        path: ['logs and warns'],
+        durationMs: 2,
+        console: [
+          { text: 'from the test\n' },
+          { level: 'warn', stream: 'stderr', text: 'a warning\n' },
+          { level: null, text: 'a direct write\n' },
+        ],
+      },
+    ],
+  },
+  {
+    path: 'snapshot.test.ts',
+    durationMs: 7,
+    tests: [
+      {
+        path: ['matches a stored snapshot'],
+        state: 'fail',
+        durationMs: 5,
+        errors: [snapshotError],
+      },
+    ],
+  },
+  {
+    path: 'broken.test.ts',
+    state: 'fail',
+    durationMs: 2,
+    errors: [error("Cannot find module './missing.ts'", { name: 'ImportError' })],
+  },
+]
+
+/** The snapshot totals of the fixture run: one stored snapshot that differs. */
+export const FIXTURE_SNAPSHOTS: SnapshotRunSummary = {
+  counters: {
+    added: 0,
+    matched: 0,
+    unmatched: 1,
+    updated: 0,
+    unchecked: 0,
+    total: 1,
+    filesAdded: 0,
+    filesRemoved: 0,
+    filesUnmatched: 1,
+    filesUpdated: 0,
+  },
+  uncheckedKeysByFile: [],
+  update: 'none',
+  files: [],
+}
+
+/**
+ * Plays `files` through the reporter `make` builds around a buffer (`out`, a new one by default),
+ * checks that no reporter failed, and returns what it wrote with the run's summary.
+ */
+async function playInto(
+  make: (out: Output) => Reporter,
+  files: readonly FileSpec[],
+  extra: PlayOptions,
+  out: Output,
+): Promise<{ readonly text: string; readonly summary: RunSummary }> {
+  const bus = createReporterBus([make(out)])
+  const summary = await playRun(bus, files, extra)
+  assert.deepEqual(bus.failures(), [])
+  return { text: out.text(), summary }
+}
+
+/** `playRun` through the reporter `make` builds around a buffer: what it wrote, and no reporter failed. */
+export async function playThrough(
+  make: (out: Output) => Reporter,
+  files: readonly FileSpec[],
+  extra: PlayOptions = {},
+  out: Output = output(),
+): Promise<string> {
+  return (await playInto(make, files, extra, out)).text
+}
+
+/** Plays the fixture run through the reporter `make` builds around a buffer, and returns what it wrote. */
+export function playFixture(
+  make: (out: Output) => Reporter,
+): Promise<{ readonly text: string; readonly summary: RunSummary }> {
+  return playInto(make, FIXTURE_FILES, { snapshots: FIXTURE_SNAPSHOTS, durationMs: 1234 }, output())
 }

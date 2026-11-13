@@ -202,6 +202,8 @@ export const neutralPolicy: Policy = deepFreeze({
     watchDefault: 'never',
     watch: { initialRun: 'all' },
     globMatchesOn: 'root-relative-path',
+    // Ours: a file where nothing ran is skipped.
+    todoOnlyFile: 'skip',
     passWithNoTests: false,
     exitCodes: { failure: 1, noTests: 1, unhandled: 1, usage: 2 },
     unhandledErrors: 'fail-run',
@@ -226,6 +228,8 @@ export const neutralPolicy: Policy = deepFreeze({
     displaySeparator: ' > ',
     defaultReporters: ['default'],
     failureTitleBullet: null,
+    // Not recorded for Vitest yet (T11.16); the neutral reporters list a file's tests on request only.
+    listTestsForSingleFile: false,
     resultStatusSkipped: 'skipped',
   },
   coverage: {

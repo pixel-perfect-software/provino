@@ -13,14 +13,37 @@ export interface NormalizedJsonChoiceOptions {
 }
 
 /**
- * One reporter for `run()`: a built-in by name, `normalized-json` with options, or a reporter
- * object (`defineReporter` from `@provino/reporters`).
+ * The options the `junit` reporter takes through `run()`.
+ * @public
+ */
+export interface JUnitChoiceOptions {
+  /** Where the XML goes, relative to `cwd`; its directory is created. Default: `stdout`. */
+  readonly outputFile?: string
+  /** The `name` of `<testsuites>`. Default: `provino`. */
+  readonly name?: string
+}
+
+/**
+ * One reporter for `run()`: a built-in by name, `json` (or its older name `normalized-json`) or
+ * `junit` with options, or a reporter object (`defineReporter` from `@provino/reporters`).
+ *
+ * - `default`, `verbose`, `dot`, `agent`: text on `stderr`.
+ * - `json`, `normalized-json`: the `NormalizedRun` document, on `stdout` or in `outputFile`.
+ * - `junit`: JUnit XML, on `stdout` or in `outputFile`.
+ * - `github-actions`: error annotations on `stderr`.
  * @public
  */
 export type ReporterChoice =
   | 'default'
+  | 'verbose'
+  | 'dot'
+  | 'agent'
+  | 'github-actions'
+  | 'json'
   | 'normalized-json'
-  | readonly ['normalized-json', NormalizedJsonChoiceOptions]
+  | 'junit'
+  | readonly ['json' | 'normalized-json', NormalizedJsonChoiceOptions]
+  | readonly ['junit', JUnitChoiceOptions]
   | Reporter
 
 /**
@@ -36,10 +59,21 @@ export interface RunOptions {
   readonly maxWorkers?: number
   /** Default: the policy's `orchestrator.pool.default`. */
   readonly pool?: PoolKind
-  /** Default: the policy's `report.defaultReporters`, each a built-in name. */
+  /**
+   * Default: the policy's `report.defaultReporters`, each a built-in name; `agent` in place of
+   * `default` when an agent runs the process, and `github-actions` added on GitHub Actions.
+   */
   readonly reporters?: readonly ReporterChoice[]
   /** Whether this is a CI run. Default: the `CI` environment variable is set, and not `false` or `0`. */
   readonly ci?: boolean
+  /**
+   * The environment the run reads: `CI`, the variables that say an agent runs it (`CLAUDECODE`,
+   * `AI_AGENT`, ...), `GITHUB_ACTIONS`, `FORCE_COLOR`, `NO_COLOR` and `TERM`. They choose the
+   * reporters when `reporters` names none (`agent` for an agent, `github-actions` beside the
+   * default on GitHub Actions) and whether the `default` reporter colours its text and draws a live
+   * block. Default: `process.env`.
+   */
+  readonly env?: Readonly<Record<string, string | undefined>>
   /** A run that finds no test files passes. Default: the policy's `orchestrator.passWithNoTests`. */
   readonly passWithNoTests?: boolean
   /** Run only the tests whose full name matches this regular expression (`-t`). */

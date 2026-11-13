@@ -202,13 +202,13 @@ describe('usage errors: the message and the usage text on stderr, exit 2', () =>
     ['a --maxWorkers of abc', ['run', '--config', 'x.mjs', '--maxWorkers', 'abc'], /--maxWorkers/],
     [
       'an unknown --reporter',
-      ['run', '--config', 'x.mjs', '--reporter', 'verbose'],
-      /unknown reporter "verbose"/,
+      ['run', '--config', 'x.mjs', '--reporter', 'tap'],
+      /unknown reporter "tap"/,
     ],
     [
-      '--outputFile without normalized-json',
+      '--outputFile without a document reporter',
       ['run', '--config', 'x.mjs', '--outputFile', 'out.json'],
-      /--outputFile needs --reporter normalized-json/,
+      /--outputFile needs --reporter json, normalized-json or junit/,
     ],
   ]
   for (const [name, args, message] of cases) {

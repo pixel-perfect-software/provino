@@ -55,6 +55,13 @@ export interface OrchestratorPolicy {
    * Evidence: `policy/orchestrator-match-path` (U2, B14c).
    */
   readonly globMatchesOn: 'absolute-path' | 'root-relative-path'
+  /**
+   * What a file whose tests are only skipped and todo ones, with at least one todo, ends as: Jest
+   * marks a suite skipped only when every test is pending, so a todo test makes it `pass`; Vitest's
+   * rule is not recorded yet. Neutral: `skip`, since nothing ran. Evidence: `cli/report-todo-only`
+   * (B21c, DV50).
+   */
+  readonly todoOnlyFile: 'pass' | 'skip'
   /** Whether a run that finds no tests passes. Jest: `false`. Vitest: `false`. research: track-01 L227 */
   readonly passWithNoTests: boolean
   /**

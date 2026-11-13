@@ -1,0 +1,9 @@
+{
+  "description": "A run of exactly one test file under a config with `verbose: false`, Jest 30.5.2 (T9.7, B21c): `@jest/core`'s runJest leaves verbose off for one file when `globalConfig.verbose === false` (a verbose that is merely unset is not false), so the project of report-single-file prints as the default reporter does: the header, the console block under it, and the totals, with no list of tests. One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1, "verbose": false } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^ +(✓|✕|○|✎) |^ +math$|^ +console\\.|^ {4}from the test$|^  ● Console$|^(Test Suites|Tests):"
+  }
+}

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="provino" tests="14" failures="2" errors="1" time="1.234">
+  <testsuite name="math.test.ts" tests="3" failures="0" errors="0" skipped="0" time="0.012" timestamp="2026-11-13T09:00:00.000Z" file="math.test.ts">
+    <testcase name="math › adds" classname="math.test.ts" time="0.003"/>
+    <testcase name="math › nested › subtracts" classname="math.test.ts" time="0.000"/>
+    <testcase name="stands alone" classname="math.test.ts" time="0.002"/>
+  </testsuite>
+  <testsuite name="fails.test.ts" tests="2" failures="1" errors="0" skipped="0" time="0.009" timestamp="2026-11-13T09:00:00.000Z" file="fails.test.ts">
+    <testcase name="group › fails" classname="fails.test.ts" time="0.004">
+      <failure message="expect(received).toBe(expected) // Object.is equality" type="Error">expect(received).toBe(expected) // Object.is equality
+
+Expected: 2
+Received: 1
+  at Object.&lt;anonymous&gt; (/project/fails.test.ts:3:15)</failure>
+    </testcase>
+    <testcase name="group › passes after" classname="fails.test.ts" time="0.001"/>
+  </testsuite>
+  <testsuite name="skipped.test.ts" tests="3" failures="0" errors="0" skipped="2" time="0.003" timestamp="2026-11-13T09:00:00.000Z" file="skipped.test.ts">
+    <testcase name="runs" classname="skipped.test.ts" time="0.002"/>
+    <testcase name="is skipped" classname="skipped.test.ts" time="0.001">
+      <skipped message="modifier"/>
+    </testcase>
+    <testcase name="is planned" classname="skipped.test.ts" time="0.001">
+      <skipped message="todo"/>
+    </testcase>
+  </testsuite>
+  <testsuite name="all-skipped.test.ts" tests="2" failures="0" errors="0" skipped="2" time="0.001" timestamp="2026-11-13T09:00:00.000Z" file="all-skipped.test.ts">
+    <testcase name="first" classname="all-skipped.test.ts" time="0.001">
+      <skipped message="modifier"/>
+    </testcase>
+    <testcase name="second" classname="all-skipped.test.ts" time="0.001">
+      <skipped message="modifier"/>
+    </testcase>
+  </testsuite>
+  <testsuite name="todo-only.test.ts" tests="1" failures="0" errors="0" skipped="1" time="0.001" timestamp="2026-11-13T09:00:00.000Z" file="todo-only.test.ts">
+    <testcase name="later" classname="todo-only.test.ts" time="0.001">
+      <skipped message="todo"/>
+    </testcase>
+  </testsuite>
+  <testsuite name="console.test.ts" tests="1" failures="0" errors="0" skipped="0" time="0.006" timestamp="2026-11-13T09:00:00.000Z" file="console.test.ts">
+    <testcase name="logs and warns" classname="console.test.ts" time="0.002">
+      <system-out>from the test
+a direct write
+</system-out>
+      <system-err>a warning
+</system-err>
+    </testcase>
+    <system-out>at import time
+</system-out>
+  </testsuite>
+  <testsuite name="snapshot.test.ts" tests="1" failures="1" errors="0" skipped="0" time="0.007" timestamp="2026-11-13T09:00:00.000Z" file="snapshot.test.ts">
+    <testcase name="matches a stored snapshot" classname="snapshot.test.ts" time="0.005">
+      <failure message="expect(received).toMatchSnapshot()" type="Error">expect(received).toMatchSnapshot()
+
+Snapshot name: `matches a stored snapshot 1`
+
+- Snapshot  - 1
++ Received  + 1
+
+  {
+-   "value": "old",
++   "value": "new",
+  }
+  at Object.&lt;anonymous&gt; (/project/snapshot.test.ts:2:28)</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="broken.test.ts" tests="1" failures="0" errors="1" skipped="0" time="0.002" timestamp="2026-11-13T09:00:00.000Z" file="broken.test.ts">
+    <testcase name="Test suite failed to run" classname="broken.test.ts" time="0.000">
+      <error message="Cannot find module './missing.ts'" type="ImportError">ImportError: Cannot find module './missing.ts'</error>
+    </testcase>
+  </testsuite>
+</testsuites>

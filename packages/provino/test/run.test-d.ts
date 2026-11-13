@@ -2,6 +2,7 @@
 import type { PoolKind, Reporter, RunSummary } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 import {
+  type JUnitChoiceOptions,
   type NormalizedJsonChoiceOptions,
   type ReporterChoice,
   type RunOptions,
@@ -31,6 +32,18 @@ expectTypeOf<'default'>().toExtend<ReporterChoice>()
 expectTypeOf<'normalized-json'>().toExtend<ReporterChoice>()
 expectTypeOf<readonly ['normalized-json', NormalizedJsonChoiceOptions]>().toExtend<ReporterChoice>()
 expectTypeOf<Reporter>().toExtend<ReporterChoice>()
+for (const name of ['verbose', 'dot', 'agent', 'github-actions', 'json', 'junit'] as const) {
+  expectTypeOf(name).toExtend<ReporterChoice>()
+}
+expectTypeOf<readonly ['json', NormalizedJsonChoiceOptions]>().toExtend<ReporterChoice>()
+expectTypeOf<readonly ['junit', JUnitChoiceOptions]>().toExtend<ReporterChoice>()
+expectTypeOf<JUnitChoiceOptions>().toEqualTypeOf<{
+  readonly outputFile?: string
+  readonly name?: string
+}>()
+expectTypeOf<RunOptions['env']>().toEqualTypeOf<
+  Readonly<Record<string, string | undefined>> | undefined
+>()
 expectTypeOf<NormalizedJsonChoiceOptions>().toEqualTypeOf<{
   readonly outputFile?: string
   readonly suite?: string
@@ -46,8 +59,11 @@ void run({
   reporters: [
     'default',
     ['normalized-json', { outputFile: 'out.json', suite: 'app' }],
+    ['junit', { outputFile: 'junit.xml', name: 'app' }],
+    'dot',
     { name: 'mine', 'run:end': () => {} },
   ],
+  env: { CI: 'true', FORCE_COLOR: undefined },
   ci: true,
   passWithNoTests: true,
   testNamePattern: 'adds',
@@ -64,8 +80,14 @@ void run({})
 void run({ config: 1 })
 // @ts-expect-error there is no pool called cluster
 void run({ config: 'c.mjs', pool: 'cluster' })
-// @ts-expect-error "verbose" is not a built-in reporter
-void run({ config: 'c.mjs', reporters: ['verbose'] })
+// @ts-expect-error "tap" is not a built-in reporter
+void run({ config: 'c.mjs', reporters: ['tap'] })
+// @ts-expect-error the junit reporter has no suite option
+void run({ config: 'c.mjs', reporters: [['junit', { suite: 'app' }]] })
+// @ts-expect-error the junit output file is a string
+void run({ config: 'c.mjs', reporters: [['junit', { outputFile: 1 }]] })
+// @ts-expect-error the environment holds text
+void run({ config: 'c.mjs', env: { CI: true } })
 // @ts-expect-error outputFile is a string
 void run({ config: 'c.mjs', reporters: [['normalized-json', { outputFile: 1 }]] })
 // @ts-expect-error the options tuple belongs to normalized-json only

@@ -25,11 +25,12 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
 const PROVINO_SCOPE: RegExp[] = [/^@provino\//]
 
 /**
- * The files the bin answers `--version` and `--help` from before it imports the rest, and
- * `native-binding`, which says what to do when Oxc's binding is missing: kept out of both chunk
- * groups, so `dist/cli.js` and its own small chunks import nothing that loads an Oxc package.
+ * The files the bin answers `--version` and `--help` from before it imports the rest (`usage` lists
+ * the reporters, which `reporter-names` holds), and `native-binding`, which says what to do when
+ * Oxc's binding is missing: kept out of both chunk groups, so `dist/cli.js` and its own small
+ * chunks import nothing that loads an Oxc package.
  */
-const BIN_LIGHT_FILES = ['usage', 'version', 'native-binding', 'quick']
+const BIN_LIGHT_FILES = ['usage', 'reporter-names', 'version', 'native-binding', 'quick']
 
 /**
  * The umbrella's entries, name to source: the subpaths of `provino`'s own `exports`, its bin
