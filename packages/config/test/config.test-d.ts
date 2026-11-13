@@ -8,6 +8,7 @@ import {
   loadConfigFile,
   loadProject,
   pruneTransformCache,
+  type ResolvedGlobalSetup,
   type ResolvedProject,
   type ResolveNeutralProjectOptions,
   type ResolveProjectOptions,
@@ -120,3 +121,12 @@ expectTypeOf(withTransformCache).toEqualTypeOf<
 expectTypeOf(pruneTransformCache).toEqualTypeOf<(dir: string) => void>()
 // @ts-expect-error the directory is a string
 pruneTransformCache(undefined)
+
+// Global setup and teardown a project carries for the coordinator to run (T9.15).
+expectTypeOf<ResolvedProject['globalSetup']>().toEqualTypeOf<ResolvedGlobalSetup | undefined>()
+expectTypeOf<ResolvedGlobalSetup['setup']>().toEqualTypeOf<readonly string[]>()
+expectTypeOf<ResolvedGlobalSetup['teardown']>().toEqualTypeOf<readonly string[]>()
+expectTypeOf<ResolvedGlobalSetup['args']>().toEqualTypeOf<NeutralProject['globalSetupArgs']>()
+declare const resolvedHooks: ResolvedGlobalSetup
+// @ts-expect-error the hooks are read from the project, not set on it
+resolvedHooks.setup = []

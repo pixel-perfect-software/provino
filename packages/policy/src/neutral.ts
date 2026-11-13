@@ -2,6 +2,7 @@ import type {
   EnvironmentConditions,
   FormatEachTitle,
   FormatValue,
+  GlobalSetupFailure,
   Policy,
   SnapshotKey,
 } from '@provino/types'
@@ -48,7 +49,14 @@ export const neutralPolicy: Policy = deepFreeze({
     formatEachTitle: moduleRef<FormatEachTitle>(BEHAVIOURS, 'formatEachTitle'),
     formatValue: moduleRef<FormatValue>(BEHAVIOURS, 'formatValue'),
     eachTitleTruncate: null,
-    retry: { timing: 'immediate', logErrorsBeforeRetry: true, keepEarlierErrors: true },
+    // A function `retry.condition` is called: a condition the user wrote is never silently dropped.
+    retry: {
+      timing: 'immediate',
+      keepEarlierErrors: true,
+      functionCondition: 'call',
+      functionConditionWarning:
+        'every failure is retried instead. Pass a RegExp (tested against the error message) to limit the retries.',
+    },
     // A `.only` committed by mistake must not shrink a CI run.
     allowOnly: 'not-in-ci',
     maxConcurrency: 5,
@@ -222,7 +230,12 @@ export const neutralPolicy: Policy = deepFreeze({
     runInBand: { auto: false },
     shard: { fallback: 'sha1-slice' },
     sequence: { unknownFirst: true },
-    globalSetup: { signature: 'project-with-teardown' },
+    // Ours, with Vitest's order and no wrapper text of its own beyond naming the hook.
+    globalSetup: {
+      signature: 'project-with-teardown',
+      teardownOrder: 'reverse',
+      failure: moduleRef<GlobalSetupFailure>(BEHAVIOURS, 'globalSetupFailure'),
+    },
   },
   report: {
     displaySeparator: ' > ',

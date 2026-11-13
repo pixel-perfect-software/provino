@@ -842,10 +842,6 @@ importers:
       es-module-lexer:
         specifier: 'catalog:'
         version: 3.0.4
-    devDependencies:
-      '@provino/mock':
-        specifier: workspace:*
-        version: link:../mock
 
   packages/mock:
     dependencies:

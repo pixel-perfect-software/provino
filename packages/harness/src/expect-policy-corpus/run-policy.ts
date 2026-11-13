@@ -24,7 +24,7 @@ import { createBehaviourLoader } from '@provino/policy'
 import type { CorePolicy, ExpectPolicy, RuntimeEvent } from '@provino/types'
 import { type ExpectTest, summarizeExpectRun } from '../expect-corpus/run-expect.ts'
 import { installGlobals } from '../internal/globals.ts'
-import { unusedJestHost } from '../mock-corpus/run-mock.ts'
+import { unusedJestHost } from '../internal/unused-jest-host.ts'
 
 /** The slices a run is under: the Jest and Vitest dialects' own, or a flipped one. */
 export interface PolicyRun {

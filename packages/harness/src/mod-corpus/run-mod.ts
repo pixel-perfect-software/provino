@@ -35,7 +35,8 @@ import type {
 import type { Fixture } from '../fixture.ts'
 import { installGlobals } from '../internal/globals.ts'
 import '../internal/observe-setup.ts'
-import { createViFacade, unusedJestHost } from '../mock-corpus/run-mock.ts'
+import { unusedJestHost } from '../internal/unused-jest-host.ts'
+import { createViFacade } from '../mock-corpus/run-mock.ts'
 import { copyFixture, installPackages } from '../record.ts'
 import { type CoreRun, summarizeRun } from '../runtime-corpus/run-core.ts'
 

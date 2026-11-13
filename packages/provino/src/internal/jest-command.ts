@@ -13,6 +13,7 @@ import {
   type JestGlobalConfig,
   jestCli,
   jestNodeDialect,
+  jestRunGlobalHooks,
 } from '@provino/dialect-jest/node'
 import {
   defaultCacheDir,
@@ -304,6 +305,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       await writeOut(message)
       return passWithNoTests ? ExitCode.Pass : jestExitCode('noTests', ExitCode.TestFailure)
     }
+    const runHooks = jestRunGlobalHooks(read.globalConfig)
     const result = await executeProject({
       project,
       others,
@@ -327,6 +329,8 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       // (and `--bail=2` is false, as in Jest 30.5.2, so a count is always the config's).
       ...(read.globalConfig.bail > 0 ? { bail: { count: read.globalConfig.bail } } : {}),
       ...(read.globalConfig.detectOpenHandles ? { detectOpenHandles: true } : {}),
+      // The root config's hooks, which Jest runs beside the projects' own (`runGlobalHook`).
+      ...(runHooks === undefined ? {} : { globalSetup: runHooks }),
       ...(io.signal === undefined ? {} : { signal: io.signal }),
       ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
     })

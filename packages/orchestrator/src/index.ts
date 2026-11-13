@@ -12,6 +12,7 @@ export {
   type FileDone,
   type WorkerConnection,
 } from './connect.ts'
+export { createDepsTable, type DepsEvent, type DepsTable } from './deps-table.ts'
 export { type DiscoveredFile, type DiscoverOptions, discoverFiles } from './discover.ts'
 export {
   discoverByRules,
@@ -36,6 +37,7 @@ export {
   type RunSignal,
 } from './exit-code.ts'
 export { fileIdOf, relativePosix } from './file-id.ts'
+export { hookFailureReport, type RunGlobalHooks } from './global-setup.ts'
 export { sameWorkerKey, type WorkerKeyInput, workerKeyOf } from './key.ts'
 export {
   collectOpenHandles,

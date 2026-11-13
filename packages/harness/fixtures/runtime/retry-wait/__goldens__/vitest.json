@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/retry-wait",
+  "files": [
+    {
+      "file": "wait.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "wait.vitest.test.ts",
+            "path": [
+              "waits before each retry"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: attempt 1 failed",
+              "userFrame": "<root>/wait.vitest.test.ts:9:24"
+            },
+            {
+              "name": "Error",
+              "message": "Error: attempt 2 failed",
+              "userFrame": "<root>/wait.vitest.test.ts:9:24"
+            }
+          ],
+          "location": {
+            "line": 4,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "wait.vitest.test.ts",
+            "path": [
+              "another test, with no retry needed"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 12,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "attempt 1: first",
+    "attempt 2: waited",
+    "attempt 3: waited",
+    "another"
+  ]
+}

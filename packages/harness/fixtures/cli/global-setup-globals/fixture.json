@@ -1,0 +1,12 @@
+{
+  "description": "What a global setup's globalThis is (T9.15): the setup sets a global, the teardown (the same process) sees it, and a test file run by a worker does not. Each writes a line to seen.txt, which the black-box run captures. Two test files and two workers, so Jest runs them in worker processes: in band (one worker or one file) the test environment copies the main process's globals, the setup's included, into its context, and the test sees it.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "globalSetup": "<rootDir>/setup.ts",
+      "globalTeardown": "<rootDir>/teardown.ts",
+      "maxWorkers": 2
+    }
+  },
+  "run": { "capture": ["exitCode", "file:seen.txt"] }
+}

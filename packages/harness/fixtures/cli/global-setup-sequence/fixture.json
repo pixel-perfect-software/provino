@@ -1,0 +1,15 @@
+{
+  "description": "Which order global setup runs in, and which project's config a shared hook gets (T9.15): Jest builds the list of hook paths from allTests, which is sorted by its sequencer across every project, not in the config's order. Three projects, listed a, b, c; c's test file is the largest, then b's, then a's, so with no history the sequenced list is c, b, a. Project c names b's hook files (the same absolute path), so that hook runs once, with the projectConfig of the first test that names it, which is c's; a's own hook runs after it; the root hook, which no project names, gets the first test's config, again c's. The teardowns run in the same order. Each hook appends a line to order.txt, which the black-box run captures. The projects come from --projects, because the recorder reserves the config key; they and the hooks are plain JavaScript, because a project's own config has no transformer for TypeScript.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "globalSetup": "<rootDir>/root-setup.js",
+      "globalTeardown": "<rootDir>/root-teardown.js",
+      "maxWorkers": 3
+    }
+  },
+  "run": {
+    "argv": { "jest": ["--projects", "a", "b", "c"] },
+    "capture": ["exitCode", "file:order.txt"]
+  }
+}

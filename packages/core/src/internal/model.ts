@@ -19,6 +19,7 @@ import type {
   TestTask,
 } from '@provino/types'
 import type { Site } from '../collector/location.ts'
+import type { RetrySpec } from '../collector/retry.ts'
 
 /** A user function as stored: any function is assignable; it is called with `Reflect.apply`. */
 export type UserFn = AnyFunction
@@ -59,7 +60,8 @@ export interface HookNode {
  */
 export interface InheritedOptions {
   readonly timeout?: number | undefined
-  readonly retry?: number | undefined
+  /** The `retry` option, read once where it was given (`retryOf`). */
+  readonly retry?: RetrySpec | undefined
   readonly repeats?: number | undefined
   readonly concurrent?: boolean | undefined
   readonly only?: boolean | undefined
@@ -123,7 +125,7 @@ export interface TestNode extends NodeBase {
   readonly expectFail: boolean
   /** The test's own timeout; `undefined` takes the file's default, else the policy's, when it runs. */
   readonly timeoutMs: number | undefined
-  readonly retry: number
+  readonly retry: RetrySpec | undefined
   readonly repeats: number
   readonly tags: readonly string[]
   readonly meta: Readonly<Record<string, JsonValue>>

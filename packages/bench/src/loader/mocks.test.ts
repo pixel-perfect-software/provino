@@ -10,7 +10,7 @@ import { test } from 'node:test'
 import { createMockRegistry, createModuleMockRegistry } from '@provino/mock'
 import { neutralPolicy } from '@provino/policy'
 import type { HoistPolicy, MockDecision, ModuleMockRegistry, ModulePolicy } from '@provino/types'
-import { at, fileWithMocks, HOIST, JESTISH, loaderFor, writeTree } from './internal/test-support.ts'
+import { at, fileWithMocks, HOIST, JESTISH, loaderFor, writeTree } from './test-support.ts'
 
 /** A registry that mocks nothing and records every `decide` it is asked. */
 function recording(): { readonly registry: ModuleMockRegistry; readonly asked: string[] } {

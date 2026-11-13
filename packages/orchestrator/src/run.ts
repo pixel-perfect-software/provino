@@ -28,12 +28,14 @@ import type {
   WorkerKey,
 } from '@provino/types'
 import { cacheDirectories, createResultsCache, type ResultsCache } from './cache.ts'
+import { createDepsTable, type DepsTable } from './deps-table.ts'
 import { type DiscoveredFile, discoverFiles } from './discover.ts'
 import { discoverByRules } from './discover-rules.ts'
 import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
 import { OrchestratorError } from './errors.ts'
 import { isRunSignal, RUN_SIGNALS } from './exit-code.ts'
 import { fileIdOf, relativePosix } from './file-id.ts'
+import { type GlobalSetupRun, type RunGlobalHooks, runGlobalSetup } from './global-setup.ts'
 import { configHash, hashOf, workerKeyOf } from './key.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
@@ -176,6 +178,13 @@ export interface RunProjectOptions {
   readonly detectOpenHandles?: boolean
   /** `RunInfo.root` of a run over several projects (Jest's config `rootDir`). Default: the first project's root. */
   readonly root?: string
+  /**
+   * Hooks of the run itself, beside the projects': Jest's root `globalSetup` and
+   * `globalTeardown`, which a config with `projects` keeps in its global config (T9.15). Each runs
+   * after the projects' own, once per path no project names, with the config of the first project
+   * in the sequenced order. They run only when some project has a file to run.
+   */
+  readonly globalSetup?: RunGlobalHooks
 }
 
 /**
@@ -487,8 +496,14 @@ export async function runProjects(
   }
 
   const unhandled: SerializedError[] = []
+  /** Global setup, once it has run (T9.15): its teardown comes after the run, whatever ends it. */
+  let globalSetup: GlobalSetupRun | undefined
+  /** The run ended in an error, so a failing teardown must not replace it. */
+  let thrown = false
   /** Per worker, the file it ran last and when that file's `file:end` has been emitted. */
   const lastFile = new Map<number, { readonly info: FileInfo; readonly ended: Promise<void> }>()
+  /** Per worker, the module paths its `deps` events have named: the ids are the worker's for its life. */
+  const depsTables = new Map<number, DepsTable>()
   // Nothing starts until a file is run, but this is where a bad option throws (`recycle`, the
   // transport's own entry), so it comes before `run:start`.
   const pool = createPool(poolOptions, {
@@ -503,7 +518,8 @@ export async function runProjects(
         key: workerKey,
         workerId,
         isolation: member.project.isolation,
-        provided: {},
+        // What global setup's `provide` collected; a worker starts only once setup has run.
+        provided: globalSetup?.provided ?? {},
         config: member.project.config,
       }
     },
@@ -601,6 +617,8 @@ export async function runProjects(
     const { member } = entry
     /** This file's failed tests: added to the run's count as they fail, or when the file ends. */
     let failedInFile = 0
+    /** The worker that took the file (set by `onStart`, before any of its events). */
+    let takenBy = -1
     const dispatch = createFileDispatch({
       bus,
       file: entry.info,
@@ -608,6 +626,14 @@ export async function runProjects(
       onTestFailed: () => {
         failedInFile++
         if (bailAfter === 'test') countFailed(1)
+      },
+      depsTable: () => {
+        let table = depsTables.get(takenBy)
+        if (table === undefined) {
+          table = createDepsTable()
+          depsTables.set(takenBy, table)
+        }
+        return table
       },
     })
     const job: FileJob = {
@@ -625,6 +651,7 @@ export async function runProjects(
         key: member.key,
         job,
         onStart: async (workerId) => {
+          takenBy = workerId
           takenAt = performance.now()
           lastFile.set(workerId, { info: entry.info, ended: ended.promise })
           await bus.emit('file:start', entry.info, workerId)
@@ -736,6 +763,18 @@ export async function runProjects(
       ),
     )
 
+    // Jest's order: the files are known, the setup runs, then the reporters hear the run start. A
+    // project with no file to run has no setup (Jest's `allTests` only holds projects with tests).
+    // A run that was interrupted before this point sets nothing up: the pool never starts a file,
+    // and the run ends with the signal's reason, as it would one moment later.
+    if (signal?.aborted !== true) {
+      globalSetup = await runGlobalSetup(sequencedProjects(found, options.globalSetup), {
+        hooks: options.globalSetup,
+        signal,
+        forceSignal: options.forceSignal,
+      })
+    }
+
     announced = true
     await bus.emit(
       'run:start',
@@ -772,6 +811,7 @@ export async function runProjects(
     pruneTransformCaches()
     return summary
   } catch (error) {
+    thrown = true
     await pool.close()
     // The hook that tracks resources is process-wide: it must not outlive the run.
     handles?.dispose()
@@ -787,7 +827,73 @@ export async function runProjects(
       }
     }
     throw error
+  } finally {
+    // After the reporters have the summary (or the run failed), in the policy's order. A teardown
+    // that throws fails a run that didn't; after a failure it is only a line on `stderr`.
+    try {
+      await globalSetup?.teardown()
+    } catch (error) {
+      // biome-ignore lint/correctness/noUnsafeFinally: the point: a teardown that fails replaces the summary of a run that ended well, and after a failed run it must not replace that run's own error
+      if (!thrown) throw error
+      stderr.write(`Provino: global teardown failed: ${messageOf(error)}\n`)
+    }
   }
+}
+
+/** The sequencer a project's policy asks for. */
+function sequencerFor(project: ResolvedProject) {
+  return createHistorySequencer({
+    unknownFirst: project.policy.orchestrator.sequence.unknownFirst,
+  })
+}
+
+/**
+ * What the sequencer reads of a discovered file: its path, its size and its history. `key` names
+ * the project the file belongs to, which the order breaks ties by.
+ */
+function scheduleInputOf(member: Member, file: DiscoveredFile, key: string): ScheduleInput {
+  const history = member.cache?.get(member.cacheProject, file.relativePath)
+  return {
+    path: file.relativePath,
+    project: key,
+    sizeBytes: file.sizeBytes,
+    ...(history === undefined ? {} : { history }),
+  }
+}
+
+/** Whether `hooks` names a setup or a teardown module. */
+function hasHooks(hooks: RunGlobalHooks | undefined): boolean {
+  return hooks !== undefined && (hooks.setup.length > 0 || hooks.teardown.length > 0)
+}
+
+/**
+ * The projects that have a file to run, in the order Jest's one sorted list of every project's
+ * files reaches them (`allTests` after `sequencer.sort`, which `runGlobalHook` reads): the run's
+ * global setup follows it, and so does which project's config a hook several share gets. The
+ * queue itself goes project by project; this order is only for the hooks, so it is worked out
+ * only when there are hooks and more than one project to put in order.
+ */
+function sequencedProjects(
+  found: readonly { readonly member: Member; readonly discovered: readonly DiscoveredFile[] }[],
+  runHooks: RunGlobalHooks | undefined,
+): SeededProject[] {
+  const withFiles = found.filter((entry) => entry.discovered.length > 0)
+  const [first] = withFiles
+  if (first === undefined) return []
+  if (
+    withFiles.length < 2 ||
+    !(hasHooks(runHooks) || withFiles.some(({ member }) => hasHooks(member.project.globalSetup)))
+  ) {
+    return withFiles.map(({ member }) => member.project)
+  }
+  const inputs: ScheduleInput[] = withFiles.flatMap(({ member, discovered }) =>
+    discovered.map((file) => scheduleInputOf(member, file, member.identity)),
+  )
+  const sorted = sequencerFor(first.member.project).sort(inputs)
+  const byIdentity = new Map(withFiles.map(({ member }) => [member.identity, member.project]))
+  return [...new Set(sorted.map((input) => input.project))].flatMap(
+    (identity) => byIdentity.get(identity) ?? [],
+  )
 }
 
 /**
@@ -818,17 +924,9 @@ function planQueue(
         ...(runPath === file.relativePath ? {} : { runPath }),
       },
     })
-    const history = cache?.get(cacheProject, file.relativePath)
-    return {
-      path: file.relativePath,
-      project: project.name,
-      sizeBytes: file.sizeBytes,
-      ...(history === undefined ? {} : { history }),
-    }
+    return scheduleInputOf(member, file, project.name)
   })
-  const ordered = createHistorySequencer({
-    unknownFirst: project.policy.orchestrator.sequence.unknownFirst,
-  }).sort(inputs)
+  const ordered = sequencerFor(project).sort(inputs)
   return ordered.flatMap((input) => entries.get(input.path) ?? [])
 }
 

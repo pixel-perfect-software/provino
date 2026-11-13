@@ -25,6 +25,7 @@ import {
   TEST_FILE_FRAMES,
 } from './location.ts'
 import { isOpen, newSuiteNode } from './nodes.ts'
+import { type RetryOption, retryOf } from './retry.ts'
 
 /**
  * The options tests and describes both take as their second argument (Vitest's options object).
@@ -32,7 +33,7 @@ import { isOpen, newSuiteNode } from './nodes.ts'
  */
 export interface CommonOptions {
   readonly timeout?: number
-  readonly retry?: number
+  readonly retry?: RetryOption
   readonly repeats?: number
   readonly concurrent?: boolean
   readonly skip?: boolean
@@ -184,7 +185,7 @@ export class Collector {
       concurrent: spec.flags.concurrent ?? spec.options.concurrent ?? inherited.concurrent ?? false,
       expectFail: spec.flags.fails === true || spec.options.fails === true,
       timeoutMs: timeout,
-      retry: spec.options.retry ?? inherited.retry ?? 0,
+      retry: retryOf(spec.options.retry, inherited.retry, policy.retry),
       repeats: spec.options.repeats ?? inherited.repeats ?? 0,
       tags: mergeTags(inherited.tags, spec.options.tags),
       meta: { ...inherited.meta, ...spec.options.meta },
@@ -223,7 +224,12 @@ export class Collector {
         `A describe body must be a function, got ${typeof spec.body}`,
       )
     }
-    const options = inheritOptions(inherited, spec.options, spec.flags.concurrent)
+    const options = inheritOptions(
+      inherited,
+      spec.options,
+      spec.flags.concurrent,
+      this.#config.policy.retry,
+    )
     const suite = newSuiteNode({
       type: 'suite',
       name: spec.name,
@@ -529,11 +535,13 @@ function inheritOptions(
   inherited: InheritedOptions,
   own: SuiteOptions,
   chainedConcurrent: boolean | undefined,
+  retryPolicy: CorePolicy['retry'],
 ): InheritedOptions {
   return {
     ...modeOptions(inherited, own),
     timeout: own.timeout ?? inherited.timeout,
-    retry: own.retry ?? inherited.retry,
+    // Read here, so a wrong `retry` fails the describe, not each of its tests.
+    retry: retryOf(own.retry, inherited.retry, retryPolicy),
     repeats: own.repeats ?? inherited.repeats,
     concurrent: chainedConcurrent ?? own.concurrent ?? inherited.concurrent,
     tags: mergeTags(inherited.tags, own.tags),

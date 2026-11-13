@@ -6,7 +6,7 @@
 // returned too, so a test that fails inside the fixture (outside `observe`) is seen.
 import { pathToFileURL } from 'node:url'
 import { createRuntime } from '@provino/core'
-import { type JestGlobalsHost, jestGlobals } from '@provino/dialect-jest/runtime'
+import { jestGlobals } from '@provino/dialect-jest/runtime'
 import {
   createMockFn,
   createMockRegistry,
@@ -18,12 +18,12 @@ import {
   spyOn,
   type UnknownFunction,
 } from '@provino/mock'
-import { createBehaviourLoader, neutralPolicy } from '@provino/policy'
-import type { FakeClock } from '@provino/timers'
-import type { CorePolicy, MockPolicy, RuntimeEvent, TimersPolicy } from '@provino/types'
+import { createBehaviourLoader } from '@provino/policy'
+import type { CorePolicy, MockPolicy, RuntimeEvent } from '@provino/types'
 import type { MockCleanup } from '../fixture.ts'
 import { installGlobals } from '../internal/globals.ts'
 import '../internal/observe-setup.ts'
+import { unusedJestHost } from '../internal/unused-jest-host.ts'
 import { type CoreRun, summarizeRun } from '../runtime-corpus/run-core.ts'
 
 /** Which test-object name the file under test sees. */
@@ -80,43 +80,6 @@ export function createViFacade(
     },
   }
   return object
-}
-
-/**
- * The host `jestGlobals` is given by the corpora that run a file over `@provino/mock` alone: its
- * `mocks()` is the file's registry, and `expect` and the module registry throw, because the
- * fixtures of these corpora use neither (`timers`, when given, is the clock the timer members act on). `label` names the corpus in that error.
- */
-export function unusedJestHost(
-  api: JestGlobalsHost['api'],
-  mocks: MockRegistry,
-  mockPolicy: MockPolicy,
-  label: string,
-  timers?: { readonly clock: () => FakeClock; readonly policy: TimersPolicy },
-): JestGlobalsHost {
-  return {
-    api,
-    expect: (() => {
-      throw new Error(`${label} does not use expect`)
-    }) as unknown as JestGlobalsHost['expect'],
-    registry: () => {
-      throw new Error(`${label} does not use the module registry`)
-    },
-    mocks: () => mocks,
-    moduleMocks: () => {
-      throw new Error(`${label} does not use the module-mock registry`)
-    },
-    mockPolicy,
-    timers:
-      timers?.clock ??
-      ((): never => {
-        throw new Error(`${label} does not use the fake clock`)
-      }),
-    timersPolicy: timers?.policy ?? neutralPolicy.timers,
-    seed: 0,
-    environmentTornDown: () => false,
-    setDefaultTimeout: () => {},
-  }
 }
 
 let imports = 0

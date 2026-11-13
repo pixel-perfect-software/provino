@@ -3,6 +3,8 @@
 // `SerializedError` names.
 import type {
   CloneSafe,
+  CorePolicy,
+  DefaultRetry,
   Dialect,
   Environment,
   EnvironmentRef,
@@ -166,6 +168,21 @@ expectTypeOf(host.expect).toEqualTypeOf<object>()
 expectTypeOf(host.registry).toEqualTypeOf<() => FileRegistry>()
 expectTypeOf(host.mocks).toEqualTypeOf<() => object>()
 expectTypeOf(host.mockPolicy).toEqualTypeOf<MockPolicy>()
+// The retry a file sets for its tests (`jest.retryTimes`), or none: a count and a delay, and the
+// policy's `timing` and `keepEarlierErrors` when the file sets them.
+expectTypeOf(host.setDefaultRetry).toEqualTypeOf<(retry: DefaultRetry | undefined) => void>()
+expectTypeOf<DefaultRetry>().toEqualTypeOf<{
+  readonly count: number
+  readonly delay: number
+  readonly timing?: 'deferred' | 'immediate'
+  readonly keepEarlierErrors?: boolean
+}>()
+expectTypeOf<DefaultRetry['timing']>().toEqualTypeOf<CorePolicy['retry']['timing'] | undefined>()
+host.setDefaultRetry({ count: 1, delay: 0, timing: 'immediate', keepEarlierErrors: true })
+// @ts-expect-error a retry with no `delay` is incomplete
+host.setDefaultRetry({ count: 1 })
+// @ts-expect-error `timing` is one of the policy's two
+host.setDefaultRetry({ count: 1, delay: 0, timing: 'soon' })
 expectTypeOf<GlobalsFactory>().returns.toEqualTypeOf<Readonly<Record<string, unknown>>>()
 expectTypeOf<ReturnType<GlobalsFactory>>().toEqualTypeOf<Readonly<Record<string, unknown>>>()
 

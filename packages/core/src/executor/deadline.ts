@@ -53,6 +53,19 @@ export function armDeadline(
   return () => timers.clearTimeout(timer)
 }
 
+/**
+ * Resolves once `ms` has passed on `timers`. A wait no timer can hold (`isBounded`: 0 or less,
+ * `NaN`, or more than 2^31-1 ms, which Node would fire after 1 ms) resolves at once, as
+ * `armDeadline` sets no timer for it. Unlike a deadline, the timer holds the process open: the
+ * caller is waiting on it.
+ */
+export function sleep(timers: RealTimers, ms: number): Promise<void> {
+  if (!isBounded(ms)) return Promise.resolve()
+  return new Promise((resolve) => {
+    timers.setTimeout(resolve, ms)
+  })
+}
+
 /** How one call is bounded. */
 export interface DeadlineOptions {
   /** 0, `Infinity` or more than a timer holds: no deadline. */

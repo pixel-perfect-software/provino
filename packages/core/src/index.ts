@@ -12,6 +12,7 @@ export type {
   TestFunction,
 } from './collector/api.ts'
 export type { CommonOptions, SuiteOptions, TestOptions } from './collector/collector.ts'
+export type { RetryCondition, RetryOption } from './collector/retry.ts'
 export { type CurrentTestService, currentTest } from './current/current-test.ts'
 export type { ProcessLike } from './errors/process-errors.ts'
 export {

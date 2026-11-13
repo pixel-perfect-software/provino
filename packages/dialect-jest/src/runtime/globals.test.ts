@@ -2,7 +2,14 @@ import assert from 'node:assert/strict'
 import { type TestContext, test } from 'node:test'
 import { createMockRegistry, type MockRegistry } from '@provino/mock'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
-import type { FileRegistry, LeakReport, RuntimeEvent, TaskNode, TestTask } from '@provino/types'
+import type {
+  DefaultRetry,
+  FileRegistry,
+  LeakReport,
+  RuntimeEvent,
+  TaskNode,
+  TestTask,
+} from '@provino/types'
 import { jestDialect, jestPolicy } from '../dialect.ts'
 import { type JestGlobals, jestGlobals } from './globals.ts'
 import { runRegistered, setUpJestExpect, timerHost } from './internal/test-support.ts'
@@ -170,6 +177,67 @@ test("jest.setTimeout hands core Jest's reading: 0 and NaN are none, a negative 
   }, jestCore)
   // Infinity is not finite, so it is none too, as core read it before the mapping moved here.
   assert.deepEqual(seen, [250, undefined, undefined, 1, undefined])
+})
+
+test("jest.retryTimes hands core Jest's reading of the file's retry, and replaces every option", async (t) => {
+  const { expect } = setUpJestExpect(t)
+  const seen: (DefaultRetry | undefined)[] = []
+  const returned: unknown[] = []
+  await runRegistered((api) => {
+    const g = jestGlobals({
+      api,
+      expect,
+      registry: unusedRegistry,
+      ...mockHost(),
+      setDefaultRetry: (retry) => {
+        seen.push(retry)
+      },
+    })
+    returned.push(g.jest.retryTimes(2))
+    g.jest.retryTimes(3, {
+      logErrorsBeforeRetry: true,
+      retryImmediately: true,
+      waitBeforeRetry: 250,
+    })
+    // jest-circus reads the globals with `parseInt(String(value), 10) || 0` and by truthiness.
+    g.jest.retryTimes('2.9' as never, { waitBeforeRetry: '40ms' as never })
+    g.jest.retryTimes(Number.NaN, { retryImmediately: 1 as never })
+    g.jest.retryTimes(-1)
+  }, jestCore)
+  // A truthy `retryImmediately` is `timing`, a truthy `logErrorsBeforeRetry` is `keepEarlierErrors`;
+  // a falsy one leaves the key out, so the policy's value stands.
+  assert.deepEqual(seen, [
+    { count: 2, delay: 0 },
+    { count: 3, delay: 250, timing: 'immediate', keepEarlierErrors: true },
+    { count: 2, delay: 40 },
+    { count: 0, delay: 0, timing: 'immediate' },
+    { count: -1, delay: 0 },
+  ])
+  assert.equal(typeof returned[0], 'object', 'retryTimes returns the jest object')
+})
+
+test('jest.retryTimes refuses entireDescribe by name, and sets nothing', async (t) => {
+  const { expect } = setUpJestExpect(t)
+  const seen: unknown[] = []
+  let message = ''
+  await runRegistered((api) => {
+    const g = jestGlobals({
+      api,
+      expect,
+      registry: unusedRegistry,
+      ...mockHost(),
+      setDefaultRetry: (retry) => {
+        seen.push(retry)
+      },
+    })
+    try {
+      g.jest.retryTimes(2, { entireDescribe: true })
+    } catch (error) {
+      message = String(error)
+    }
+  }, jestCore)
+  assert.match(message, /entireDescribe.*T5\.10/)
+  assert.deepEqual(seen, [])
 })
 
 test('fit registers a focused test; xit and xtest skipped ones', async (t) => {

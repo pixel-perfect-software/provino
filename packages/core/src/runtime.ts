@@ -5,6 +5,7 @@ import { relative, sep } from 'node:path'
 import type { BehaviourLoader } from '@provino/policy'
 import type {
   CorePolicy,
+  DefaultRetry,
   EventSink,
   ImportFile,
   LazyHost,
@@ -24,6 +25,7 @@ import { capturedTimers, createDeadlines, type RealTimers } from './executor/dea
 import {
   Executor,
   type Outcome,
+  type RetryDefaults,
   type TimeoutDefaults,
   type TryTaskListener,
   type TryTaskListeners,
@@ -131,6 +133,17 @@ export interface Runtime {
    * maps its own odd values (Jest's `0`, `NaN` and negative numbers) before it calls.
    */
   setDefaultTimeout(ms: number | undefined): void
+  /**
+   * Sets the retry that every test with no `retry` of its own gets, until the file that is running
+   * ends (Jest's `jest.retryTimes`): how many retries, how long to wait before each, whether they
+   * run at once (`immediate`, whatever `retry.timing` says) and whether the errors of the attempts
+   * that were retried are kept on the result (`logErrors`). It replaces any earlier call whole, as
+   * Jest's globals are overwritten. A suite reads it when it starts running, after its `beforeAll`
+   * hooks, and holds it for its own tests: a call from a hook or a test changes the suites that
+   * start after it, not the running one. `undefined` clears it. A dialect maps its own odd values
+   * before it calls; a count below 1 or that is not a finite number is no retry.
+   */
+  setDefaultRetry(retry: DefaultRetry | undefined): void
   /** Runs the worker teardowns (last first); rejects with an `AggregateError` if any failed. */
   dispose(): Promise<void>
 }
@@ -170,6 +183,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   })
   const tryTask: TryTaskListeners = { before: [], after: [] }
   const defaults: TimeoutDefaults = { ms: undefined }
+  const retryDefaults: RetryDefaults = { value: undefined }
   /** What `setDefaultTimeout` last asked for; `defaults.ms` takes it when the run starts. */
   let requestedTimeout: number | undefined
   const processErrors: ProcessErrors = new ProcessErrors({
@@ -193,6 +207,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     tryTask,
     locations: options.locations ?? true,
     defaults,
+    retryDefaults,
   })
   const pattern = options.testNamePattern
   const finalizeOptions: Omit<FinalizeOptions, 'lines'> = {
@@ -336,6 +351,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       file.errors.push(...(await deadlines.drain(file.handle.teardowns)))
       collector.release(file)
       defaults.ms = undefined
+      retryDefaults.value = undefined
       requestedTimeout = undefined
       // A rejection still held belongs to the task that made it; this is where it is charged.
       processErrors.flush()
@@ -357,6 +373,9 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     captureProcessErrors: (target = process) => listenForProcessErrors(processErrors, target),
     setDefaultTimeout(ms) {
       requestedTimeout = ms
+    },
+    setDefaultRetry(retry) {
+      retryDefaults.value = retry
     },
     async dispose(): Promise<void> {
       const errors = await deadlines.drain(workerTeardowns)

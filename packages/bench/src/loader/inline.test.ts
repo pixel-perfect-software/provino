@@ -7,16 +7,9 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { initLexer } from '@provino/loader/graph'
 import type { LoaderWarning, ModuleId, ModuleMockRegistry } from '@provino/types'
-import { initLexer } from './graph/index.ts'
-import {
-  at,
-  fileWithMocks,
-  JESTISH,
-  loaderFor,
-  VITESTISH,
-  writeTree,
-} from './internal/test-support.ts'
+import { at, fileWithMocks, JESTISH, loaderFor, VITESTISH, writeTree } from './test-support.ts'
 
 const factory = (value: unknown) => ({ kind: 'factory', factory: () => value }) as const
 
@@ -283,7 +276,7 @@ test('a mocked module that is not reached by a package leaves it shared', () => 
 
 // ---- the installed pretty-format → ansi-styles (the Done-when's own case, D53) ----
 
-const STORE = fileURLToPath(new URL('../../../node_modules/.pnpm/', import.meta.url))
+const STORE = fileURLToPath(new URL('../../../../node_modules/.pnpm/', import.meta.url))
 const PRETTY_FORMAT = join(STORE, 'pretty-format@30.5.1/node_modules/pretty-format')
 
 /** `ansi-styles` as pretty-format resolves it (a different major than the others in the store). */

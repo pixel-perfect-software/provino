@@ -3,8 +3,15 @@ import type { JsonValue } from './clone-safe.ts'
 import type { EnvironmentResolver } from './environment.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { FileRegistry, ModuleMockRegistry } from './loader.ts'
-import type { MockPolicy, ModuleRef, PolicyOverrides, TimersPolicy } from './policy/index.ts'
+import type {
+  GlobalSetupArgs,
+  MockPolicy,
+  ModuleRef,
+  PolicyOverrides,
+  TimersPolicy,
+} from './policy/index.ts'
 import type { CliDialect } from './run-request.ts'
+import type { DefaultRetry } from './runtime/context.ts'
 
 /**
  * Dialect option types by dialect name. Each dialect package augments it:
@@ -131,9 +138,19 @@ export interface NeutralProject {
   readonly setupFiles: readonly string[]
   /** Absolute paths, run after it (Jest's `setupFilesAfterEnv`, Vitest's `setupFiles`). */
   readonly setupFilesAfterEnv: readonly string[]
-  /** Absolute paths, or `[]`. */
+  /** Absolute paths, or `[]`. Run in the coordinator, once per distinct path (T9.15). */
   readonly globalSetup: readonly string[]
   readonly globalTeardown: readonly string[]
+  /**
+   * What a global setup or teardown function receives under the policy's
+   * `global-and-project-config` signature (Jest's `GlobalConfig` and `ProjectConfig`, as the
+   * reader holds them). It stays in the coordinator, where the hook runs, so it need not be JSON.
+   * Absent when neither the project nor the run has a global setup or teardown, or for a
+   * signature that takes the project. A project with no hook of its own still has it when the run
+   * has one (Jest's root `globalSetup` with `projects`): that hook is called with the config of the
+   * first project.
+   */
+  readonly globalSetupArgs?: GlobalSetupArgs
   /** The environment's neutral name (`node`, `jsdom`), or an absolute path to a custom one. */
   readonly environment: {
     readonly name: string
@@ -299,6 +316,11 @@ export interface GlobalsHost {
    * ends (`Runtime.setDefaultTimeout`).
    */
   setDefaultTimeout(ms: number | undefined): void
+  /**
+   * Sets the retry that every test with none of its own gets, until the file that is running ends
+   * (`Runtime.setDefaultRetry`). `undefined` clears it.
+   */
+  setDefaultRetry(retry: DefaultRetry | undefined): void
 }
 
 /**

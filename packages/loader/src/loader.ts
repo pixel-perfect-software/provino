@@ -58,6 +58,8 @@ export const createLoader: CreateLoader = (options) => {
       registryOptions.moduleMocks?.({ loadActual, resolver: options.resolver, conditions }) ?? null
     const context: FileContext = { mocks, scope: registryOptions.moduleScope ?? null }
     registry.context = context
+    // The shared registry outlives the file: it counts what this file asks for (`loadedModules`).
+    if (registryOptions.tier === 'none') registry.beginFile()
     const needMocks = (): ModuleMockRegistry => {
       if (mocks === null) {
         throw new LoaderError(
@@ -135,7 +137,8 @@ export const createLoader: CreateLoader = (options) => {
           mocks?.exitIsolation()
         }
       },
-      loadedModules: () => registry.loaded(),
+      // Counted per file under `none` (`beginFile`), every instance of a file's own registry.
+      loadedModules: () => registry.loadedByFile(),
       dispose: () => {
         mocks?.dispose()
         // What the file inlined, for its report; under `none` the instances go too, so the next
@@ -144,7 +147,10 @@ export const createLoader: CreateLoader = (options) => {
         if (registryOptions.tier === 'none') registry.dropInlined()
         // Under `none` the registry outlives the file: a later file sets its own context, and
         // code the file left behind finds no disposed registry in the meantime.
-        if (registry.context === context) registry.context = NO_FILE
+        if (registry.context === context) {
+          registry.context = NO_FILE
+          registry.endFile()
+        }
         if (registryOptions.tier !== 'none') registry.reset()
         return {
           restored: [],

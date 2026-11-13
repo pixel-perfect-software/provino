@@ -27,6 +27,31 @@ export interface EnvironmentRequest {
 export type EnvironmentConditions = (env: EnvironmentRequest) => readonly string[]
 
 /**
+ * The two configs a global setup or teardown function is called with under the
+ * `global-and-project-config` signature, as the dialect's config reader built them (Jest's
+ * `GlobalConfig` and `ProjectConfig`). They are coordinator-local: a hook runs in the coordinator
+ * and these never cross to a worker, so they are not JSON and may hold what the hook should see (a
+ * class instance, a function).
+ * @public
+ */
+export interface GlobalSetupArgs {
+  readonly globalConfig: object
+  readonly projectConfig: object
+}
+
+/**
+ * What a global hook that throws, or is no function, is reported as: the `Error` this returns,
+ * whatever the hook threw. `hook` is the one that failed and `path` its module. A reporter prints
+ * the error's `name` and `message` as the header and the `    at ` lines of its `stack` as the
+ * frames. The function may return the thrown error itself, rewritten.
+ * @public
+ */
+export type GlobalSetupFailure = (
+  thrown: unknown,
+  context: { readonly hook: 'globalSetup' | 'globalTeardown'; readonly path: string },
+) => Error
+
+/**
  * The `orchestrator` slice, read by `@provino/orchestrator` (Track 9): discovery, scheduling,
  * bail, watch, exit codes, and each file's isolation tier and environment.
  * @public
@@ -127,5 +152,22 @@ export interface OrchestratorPolicy {
    */
   readonly globalSetup: {
     readonly signature: 'global-and-project-config' | 'project-with-teardown'
+    /**
+     * The order the teardowns run in, against the setups': the same (`in-order`) or the opposite
+     * (`reverse`). Jest: `in-order` (`runGlobalHook` walks one list for both; recorded by
+     * `cli/global-setup-projects`). Vitest: `reverse`. Evidence for Vitest: its source
+     * (`core.ts` closes the projects last to first).
+     */
+    readonly teardownOrder: 'in-order' | 'reverse'
+    /**
+     * What a hook that throws, or is no function, is reported as. Jest: the thrown `Error` with
+     * its message rewritten in place to `Jest: Got error running {hook} - {path}, reason:
+     * {message}` (its class and frames kept); for a value that is no `Error`, or whose message
+     * can't be rewritten, a new `Error` with that text, the value printed by pretty-format three
+     * levels deep (recorded by `cli/global-setup-throws`, `-typeerror`, `-object` and `-string`).
+     * Neutral: an `Error` that names the hook and the path, with the thrown error as its `cause`.
+     * Vitest: the neutral behaviour, until T11.16 records what its source raises.
+     */
+    readonly failure: Behaviour<GlobalSetupFailure>
   }
 }

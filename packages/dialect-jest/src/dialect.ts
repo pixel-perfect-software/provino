@@ -16,6 +16,7 @@
 //   core.orderHooks (`null`: `hookOrder` decides), snapshot.key (`${name} ${n}`, the neutral
 //   `snapshotKey` function), snapshot.resolvePath (`null`: the default layout; Jest's is the
 //   user's `snapshotResolver`), snapshot.serializers (`[]`: Jest's is the user's list),
+//   core.retry.functionConditionWarning (Jest has no `retry.condition` to warn about),
 //   orchestrator.isolationDefault.byEnvironment (see there).
 import { defineDialect, moduleRef } from '@provino/policy'
 import type {
@@ -25,6 +26,7 @@ import type {
   FormatEachTitle,
   FormatMapperMiss,
   FormatValue,
+  GlobalSetupFailure,
   GlobalsFactory,
   ModuleScopeFactory,
   PolicyOverrides,
@@ -83,8 +85,14 @@ export const jestPolicy: PolicyOverrides = {
     doneDeprecatedMessage: null,
     // research: track-01 L191 (`none`)
     eachTitleTruncate: null,
-    // research: track-05 L319
-    retry: { timing: 'deferred', logErrorsBeforeRetry: false, keepEarlierErrors: false },
+    // research: track-05 L319. `functionCondition` is the neutral `call`: Jest's `jest.retryTimes`
+    // has no `condition`, so nothing reads it, or `functionConditionWarning` (left at the neutral
+    // text): their claims are `own`.
+    retry: {
+      timing: 'deferred',
+      keepEarlierErrors: false,
+      functionCondition: 'call',
+    },
     // research: track-01 L193
     allowOnly: 'always',
     // research: track-05 L317
@@ -323,8 +331,19 @@ export const jestPolicy: PolicyOverrides = {
     shard: { fallback: 'sha1-slice' },
     // research: track-09 L559
     sequence: { unknownFirst: true },
-    // research: track-09 L564
-    globalSetup: { signature: 'global-and-project-config' },
+    // research: track-09 L564 (the signature); the other two are recorded (`cli/global-setup-projects`,
+    // `cli/global-setup-throws` and its three siblings)
+    globalSetup: {
+      signature: 'global-and-project-config',
+      teardownOrder: 'in-order',
+      // `runGlobalHook` rewrites a thrown Error's message in place and prints anything else with
+      // `prettyFormat(error, { maxDepth: 3 })`. The coordinator loads it, so it is a leaf of its
+      // own and not the worker's whole `/runtime` entry.
+      failure: moduleRef<GlobalSetupFailure>(
+        import.meta.resolve('@provino/dialect-jest/global-setup'),
+        'globalSetupFailure',
+      ),
+    },
   },
   report: {
     // research: track-01 L233

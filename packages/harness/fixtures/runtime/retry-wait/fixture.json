@@ -1,0 +1,4 @@
+{
+  "description": "The wait before a retry: Jest's waitBeforeRetry and Vitest's retry.delay, 120 ms. The test records whether the retry started at least 100 ms after the failed attempt did. Jest waits after the other tests of the describe, and before each retry.",
+  "runners": ["jest", "vitest"]
+}

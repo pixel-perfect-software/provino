@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { MATCHERS_SLOT } from '@provino/expect'
+import { createDepsTable } from '@provino/orchestrator'
 import { moduleRef } from '@provino/policy'
 import type {
   FileJob,
@@ -236,6 +237,77 @@ describe('the file id (D23)', () => {
     assert.ok(collected !== undefined)
     for (const task of collected.tasks) assert.equal(task.fileId, given)
   })
+})
+
+describe('the deps event (U5)', () => {
+  const files = {
+    'leaf.js': 'module.exports = 1',
+    'mid.js': "module.exports = require('./leaf.js') + 1",
+    'setup.js': '',
+    'a.test.js': "const mid = require('./mid.js')\ntest('a', () => { expect(mid).toBe(2) })",
+    'b.test.js': "test('b', () => {})",
+    'c.test.js': "const mid = require('./mid.js')\ntest('c', () => { expect(mid).toBe(2) })",
+  }
+
+  for (const isolation of ['registry', 'none'] as const) {
+    it(`sends one per file, under ${isolation}: the modules the file loaded, before its fileDone`, async () => {
+      const p = await project(files)
+      const config = runtimeConfig(p.dir, { setupFiles: [p.path('setup.js')] })
+      const jobs = [
+        runtimeJob(config, p.path('a.test.js')),
+        runtimeJob(config, p.path('b.test.js')),
+        runtimeJob(config, p.path('c.test.js')),
+      ]
+      const run = await runJobs({ config, isolation, jobs })
+      const deps = eventsOf(run.events, 'deps')
+      assert.deepEqual(
+        deps.map((event) => event.fileId),
+        jobs.map((job) => job.fileId),
+        'one per file, in order',
+      )
+      // The coordinator's table for this worker turns each event back into the file's list.
+      const table = createDepsTable()
+      const [first, second, third] = deps.map((event) => table.resolve(event))
+      assert.deepEqual(first?.toSorted(), [
+        p.path('a.test.js'),
+        p.path('leaf.js'),
+        p.path('mid.js'),
+        p.path('setup.js'),
+      ])
+      assert.deepEqual(second?.toSorted(), [p.path('b.test.js'), p.path('setup.js')])
+      assert.deepEqual(third?.toSorted(), [
+        p.path('c.test.js'),
+        p.path('leaf.js'),
+        p.path('mid.js'),
+        p.path('setup.js'),
+      ])
+      for (const event of deps) assert.equal(typeof event.t, 'number')
+    })
+
+    it(`names each path once per worker, under ${isolation}, then sends its id`, async () => {
+      const p = await project(files)
+      const config = runtimeConfig(p.dir, { setupFiles: [p.path('setup.js')] })
+      const jobs = [
+        runtimeJob(config, p.path('a.test.js')),
+        runtimeJob(config, p.path('b.test.js')),
+        runtimeJob(config, p.path('c.test.js')),
+      ]
+      const run = await runJobs({ config, isolation, jobs })
+      const [first, second, third] = eventsOf(run.events, 'deps')
+      assert.equal(first?.added.length, 4, 'the first file names all of its modules')
+      assert.equal(first?.ids.length, 4)
+      assert.deepEqual(second?.added, [p.path('b.test.js')], 'the setup file is not named again')
+      assert.equal(second?.ids.length, 2)
+      assert.deepEqual(third?.added, [p.path('c.test.js')], 'nor mid.js and leaf.js')
+      assert.equal(third?.ids.length, 4)
+      const named = [first, second, third].flatMap((event) => event?.added ?? [])
+      assert.equal(new Set(named).size, named.length, 'no path crosses twice')
+      assert.ok(
+        [first, second, third].every((event) => event?.ids.every((id) => id < named.length)),
+        'an id is one of the named paths',
+      )
+    })
+  }
 })
 
 describe('setup files are fresh for every file', () => {

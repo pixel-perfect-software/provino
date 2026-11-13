@@ -523,6 +523,7 @@ export function createRuntimeRunner(): WorkerRunner {
       seed: config.seed,
       environmentTornDown: () => (fileScope.getStore() ?? fallback)?.tornDown ?? true,
       setDefaultTimeout: (ms) => coreRuntime.setDefaultTimeout(ms),
+      setDefaultRetry: (retry) => coreRuntime.setDefaultRetry(retry),
     }
     // The scope also serves the imports (`@jest/globals`); the bindings a module's wrapper declares
     // are `config.loader.moduleScope`, which is empty when `injectGlobals` is off.
@@ -771,6 +772,8 @@ export function createRuntimeRunner(): WorkerRunner {
       // put back before the environment's own check of the global, and before the next file. With
       // `none` the environment, the custom matchers, the globals and the mocks persist for the
       // next file, as with Vitest's `isolate: false`: only the file registry goes.
+      // What the file loaded, read before the registry's disposal empties it (U5: the `deps` event).
+      const deps = registry.loadedModules()
       let leaked: readonly string[] = []
       const teardownEnvironment = async (): Promise<void> => {
         // The environment reports a global it couldn't remove instead of throwing (D22).
@@ -807,6 +810,7 @@ export function createRuntimeRunner(): WorkerRunner {
       if (leaked.length > 0) context.sink.emit(fileLeakEvent(job.file, leaked))
       rethrow(errors, `Tearing down ${job.file} failed`)
       return {
+        deps,
         ...(leaked.length > 0 ? { leakedGlobals: leaked } : {}),
         ...(snapshotReport === null || isEmptyReport(snapshotReport)
           ? {}

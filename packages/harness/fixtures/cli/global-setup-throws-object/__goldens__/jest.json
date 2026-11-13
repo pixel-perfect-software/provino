@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/global-setup-throws-object",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "Error: Jest: Got error running globalSetup - <root>/setup.ts, reason: Object {\n  \"code\": 42,\n  \"detail\": Object {\n    \"deeper\": Object {\n      \"deepest\": [Object],\n    },\n    \"list\": Array [\n      \"a\",\n      \"b\",\n    ],\n  },\n}"
+  }
+}

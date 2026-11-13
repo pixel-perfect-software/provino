@@ -10,6 +10,35 @@ export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/** An object that is no array: the shape of a parsed JSON record or of a module's exports. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** What `raceAbort` resolves with when the signal came first. */
+export const ABORTED: unique symbol = Symbol('aborted')
+
+/**
+ * `work`'s outcome, or `ABORTED` as soon as `signal` aborts (at once when it already has). Work
+ * that can't be cancelled (a hook that hangs) is left running: what it throws after that is
+ * nobody's to report, and the listener on `signal` is gone as soon as the race is decided.
+ */
+export async function raceAbort<T>(
+  work: Promise<T>,
+  signal: AbortSignal,
+): Promise<T | typeof ABORTED> {
+  work.catch(() => undefined)
+  if (signal.aborted) return ABORTED
+  const aborted = Promise.withResolvers<typeof ABORTED>()
+  const onAbort = (): void => aborted.resolve(ABORTED)
+  signal.addEventListener('abort', onAbort, { once: true })
+  try {
+    return await Promise.race([work, aborted.promise])
+  } finally {
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
 /** How many files are `stat`ed (or resolved) at once: a project can have thousands. */
 export const BATCH = 256
 

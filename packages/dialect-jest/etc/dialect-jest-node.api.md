@@ -477,6 +477,12 @@ export interface JestResolvedConfig {
 }
 
 // @public
+export function jestRunGlobalHooks(globalConfig: JestGlobalConfig): {
+    readonly setup: readonly string[];
+    readonly teardown: readonly string[];
+} | undefined;
+
+// @public
 export type JestTransformEntry = readonly [pattern: string, path: string, options: Readonly<Record<string, unknown>>];
 
 // @public

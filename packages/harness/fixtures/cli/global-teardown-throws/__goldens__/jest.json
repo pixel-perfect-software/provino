@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/global-teardown-throws",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "Test Suites: 1 passed, 1 total\nTests:       1 passed, 1 total\nError: Jest: Got error running globalTeardown - <root>/teardown.ts, reason: teardown failed"
+  }
+}

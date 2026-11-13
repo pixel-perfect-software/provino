@@ -1,9 +1,15 @@
 // The evidence for the `core` and `lazy` slices (T1.7). The runtime corpus (B07) runs Provino's
 // core under each value and compares with goldens recorded from both runners, so a flipped value
 // that changes a run is caught there; `fixtures/policy/core-*` record what it can't tell apart.
+import { vitestPolicy } from '@provino/dialect-vitest'
 import { neutralPolicy } from '@provino/policy'
 import { type Claims, corpus, each, golden, own, pending } from '../evidence.ts'
 import { errorsOf, hasTest, oneOf, statusOf, testOf, timeoutOf } from '../observe.ts'
+
+/** Whether a test that fails every attempt reports the first attempt's error (`core-retry`). */
+const keptByRetryGolden = golden('core-retry', {
+  read: (g) => errorsOf(g, 'fails every attempt').includes('Error: attempt 1'),
+})
 
 const hookOrder = (...fixtures: readonly string[]) => [
   golden('core-hooks'),
@@ -119,26 +125,53 @@ export const coreClaims: Claims = {
     golden('core-test-fn'),
     golden('defaults', { case: 'core.eachTitleTruncate' }),
   ]),
-  'core.retry.timing': golden('core-retry'),
-  'core.retry.logErrorsBeforeRetry': each(
-    // The first attempt's error is in Jest's output only with logErrorsBeforeRetry set.
-    golden('core-retry-log', {
-      read: (g) => {
-        const shown = String(g.observed?.stderr)
-        if (!shown.includes('first attempt (logErrorsBeforeRetry)')) {
-          return 'the option set on purpose was not logged either'
-        }
-        return shown.includes('first attempt (default options)')
-      },
-    }),
-    // The first attempt's error reaches the reporter with the passed retry's result.
-    golden('core-retry', {
-      read: (g) => errorsOf(g, 'fails once, then passes').includes('Error: first attempt'),
-    }),
+  'core.retry.timing': [golden('core-retry'), corpus('runtime', 'runtime/retry-order')],
+  // Vitest 5.0.5 never calls a function `retry.condition` and retries every failure; flipping to
+  // `call` makes core ask the function, which the recorded trace doesn't show. Jest has no
+  // condition, so its value is the neutral one and a core test pins what each value does.
+  'core.retry.functionCondition': each(
+    own(
+      'packages/core/src/executor/retry-timing.test.ts',
+      'functionCondition',
+      'call',
+      'Jest has no retry condition, so nothing reads the value; it is the neutral `call`, which core calls the function under',
+    ),
+    corpus('runtime', 'runtime/retry-condition-function'),
   ),
-  'core.retry.keepEarlierErrors': golden('core-retry', {
-    read: (g) => errorsOf(g, 'fails every attempt').includes('Error: attempt 1'),
-  }),
+  // The text after the test's name in the warning for an ignored function condition: Provino's own,
+  // so a test pins each dialect's. Jest has no condition to warn about and keeps the neutral text.
+  'core.retry.functionConditionWarning': each(
+    own(
+      'packages/dialect-jest/src/dialect.test.ts',
+      'functionConditionWarning',
+      neutralPolicy.core.retry.functionConditionWarning,
+      'Jest has no retry condition, so nothing warns; the value is the neutral text',
+    ),
+    own(
+      'packages/dialect-vitest/src/dialect.test.ts',
+      'functionConditionWarning',
+      vitestPolicy.core?.retry?.functionConditionWarning,
+      "Provino's own warning, which names the runner whose outcome the dialect keeps (D7)",
+    ),
+  ),
+  // Whether the errors of a retried attempt stay on the result. Jest drops them from its output
+  // unless `logErrorsBeforeRetry` is set (a file sets it with `DefaultRetry.keepEarlierErrors`).
+  'core.retry.keepEarlierErrors': each(
+    [
+      keptByRetryGolden,
+      golden('core-retry-log', {
+        read: (g) => {
+          const shown = String(g.observed?.stderr)
+          if (!shown.includes('first attempt (logErrorsBeforeRetry)')) {
+            return 'the option set on purpose was not logged either'
+          }
+          return shown.includes('first attempt (default options)')
+        },
+      }),
+      corpus('runtime', 'runtime/retry-order'),
+    ],
+    [keptByRetryGolden, corpus('runtime', 'runtime/retry-order')],
+  ),
   'core.allowOnly': corpus('runtime', 'runtime/only-scope'),
   'core.maxConcurrency': [corpus('runtime', 'runtime/concurrent-limit'), golden('defaults')],
   'core.unawaitedAsyncAssertion': golden('expect/policies/unawaited-async', {

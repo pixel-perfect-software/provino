@@ -231,6 +231,7 @@ export type {
 export type { CliDialect, FileFilter, RunRequest } from './run-request.ts'
 export type {
   CurrentTest,
+  DefaultRetry,
   EachApi,
   EachRowArgs,
   Frame,

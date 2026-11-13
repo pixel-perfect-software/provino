@@ -60,6 +60,8 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest hoist.messages.HOIST_NESTED': 'T11.16',
   'vitest hoist.messages.HOIST_NOT_TOP_LEVEL': 'T11.16',
   'vitest mock.messages.spy-namespace': 'T11.16',
+  'vitest orchestrator.globalSetup.failure': 'T11.16',
+  'vitest orchestrator.globalSetup.teardownOrder': 'T11.16',
   'vitest orchestrator.sequence.unknownFirst': 'B21',
   'vitest orchestrator.todoOnlyFile': 'T11.16',
   'vitest orchestrator.shard.fallback': 'B21',
@@ -482,6 +484,22 @@ describe('the checks catch a wrong value', () => {
     for (const line of [`/* ${title}: track-01 */`, ` * ${word.toUpperCase()} until T9.7`]) {
       assert.ok(MARKER.test(line), line)
     }
+  })
+
+  test('a runtime corpus run is judged with the corpus check`s expectations, a declared trace included', async () => {
+    // Core's run of this fixture differs from the Vitest golden by design (D7): it passes only when
+    // `corpusProblems` reads the declaration, as the corpus check does, and fails when the declared
+    // trace is not what core gives (here, a policy that changes the retries).
+    const vitest = { profile: 'vitest', ...SUBJECTS.vitest } as const
+    assert.deepEqual(
+      await corpusProblems('runtime', 'runtime/retry-condition-regexp-global', vitest),
+      [],
+    )
+    const dropsKept = await corpusProblems('runtime', 'runtime/retry-condition-regexp-global', {
+      ...vitest,
+      ...flipped(SUBJECTS.vitest, 'core.retry.keepEarlierErrors', false),
+    })
+    assert.ok(dropsKept.length > 0, 'a policy that drops the kept errors is not what Vitest does')
   })
 
   test('an error that escapes a corpus run is not one of its problems', async () => {

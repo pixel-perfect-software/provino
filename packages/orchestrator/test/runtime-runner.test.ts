@@ -63,7 +63,8 @@ describe('createRuntimeRunner', () => {
   it('waits for the packer to have room before it starts a file', async () => {
     const { runner, sink, file, base } = await started()
     let finished = false
-    const running = runner.runFile(file()).then((outcome) => {
+    const context = file()
+    const running = runner.runFile(context).then((outcome) => {
       finished = true
       return outcome
     })
@@ -73,7 +74,8 @@ describe('createRuntimeRunner', () => {
     assert.equal(sink.events.length, 0, 'nothing runs while the packer is full')
 
     sink.open()
-    assert.deepEqual(await running, {})
+    // The outcome carries what the file loaded (U5): its own path, here.
+    assert.deepEqual(await running, { deps: [context.job.file] })
     assert.ok(sink.events.some((event) => event.type === 'file-end'))
     await runner.stop?.(base)
   })
@@ -179,7 +181,10 @@ describe('createRuntimeRunner', () => {
       const { runner, sink, file, base } = await started('registry', { leak: 'a,Symbol(b)' })
       sink.open()
       const context = file()
-      assert.deepEqual(await runner.runFile(context), { leakedGlobals: ['a', 'Symbol(b)'] })
+      assert.deepEqual(await runner.runFile(context), {
+        deps: [context.job.file],
+        leakedGlobals: ['a', 'Symbol(b)'],
+      })
       const kinds = sink.events.map((event) => event.type)
       const [warning] = warnings(sink.events)
       assert.equal(warnings(sink.events).length, 1)
@@ -189,10 +194,11 @@ describe('createRuntimeRunner', () => {
       await runner.stop?.(base)
     })
 
-    it('a clean file has an empty outcome and sends no warning', async () => {
+    it('a clean file has no leak on its outcome and sends no warning', async () => {
       const { runner, sink, file, base } = await started()
       sink.open()
-      assert.deepEqual(await runner.runFile(file()), {})
+      const context = file()
+      assert.deepEqual(await runner.runFile(context), { deps: [context.job.file] })
       assert.deepEqual(warnings(sink.events), [])
       await runner.stop?.(base)
     })
@@ -200,7 +206,8 @@ describe('createRuntimeRunner', () => {
     it('a worker-scoped environment reports at stop, as one warn through the stop context’s sink', async () => {
       const { runner, sink, file, base } = await started('none', { leak: 'late' })
       sink.open()
-      assert.deepEqual(await runner.runFile(file()), {})
+      const context = file()
+      assert.deepEqual(await runner.runFile(context), { deps: [context.job.file] })
       assert.deepEqual(warnings(sink.events), [], 'nothing while the worker runs')
       await runner.stop?.(base)
       const [warning, ...more] = warnings(sink.events)

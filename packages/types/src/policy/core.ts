@@ -133,15 +133,35 @@ export interface CorePolicy {
   /** Maximum length of an interpolated `.each` value, or `null` for none. Jest: `null`. Vitest: 40. research: track-01 L191 */
   readonly eachTitleTruncate: number | null
   /**
-   * When a failed test retries, whether earlier attempts' errors are logged, and whether they are
-   * kept on the result. Track 5 adds `keepEarlierErrors`.
-   * Jest: `deferred` (to the end of the suite; `immediate` with `retryImmediately`). Vitest: `immediate`.
+   * When a failed test retries, and whether the errors of the attempts that were retried are kept
+   * on the result (the reporters print them from there). A file can set both for the tests that
+   * declare no `retry` (`DefaultRetry`, Jest's `jest.retryTimes`: its `retryImmediately` is
+   * `timing`, its `logErrorsBeforeRetry` is `keepEarlierErrors`); what it sets wins.
+   * Jest: `deferred` (to the end of the suite; `immediate` with `retryImmediately`), earlier errors
+   * dropped (kept with `logErrorsBeforeRetry`). Vitest: `immediate`, earlier errors kept.
    * research: track-01 L192, track-05 L319
    */
   readonly retry: {
     readonly timing: 'deferred' | 'immediate'
-    readonly logErrorsBeforeRetry: boolean
     readonly keepEarlierErrors: boolean
+    /**
+     * What a function given as a test's `retry.condition` does (a `RegExp` is always tested). `call`:
+     * it is called with the last error after each failed attempt but the last, and `false` ends the
+     * retries. `ignore-warn`: it is never called, every failure is retried, and the first retry
+     * that skips it in a file warns, naming the test and giving `functionConditionWarning`. Vitest
+     * 5.0.5 never calls it (recorded: `runtime/retry-condition-function`), and honouring it could
+     * turn a green suite red, so its dialect keeps that outcome and warns (D7). Neutral: `call`.
+     * Jest: `call`, though nothing reads it there: Jest has no `retry` option on a test.
+     * Neutral-only key; backed by `runtime/retry-condition-function` (Vitest) and a core test.
+     */
+    readonly functionCondition: 'call' | 'ignore-warn'
+    /**
+     * Under `functionCondition: 'ignore-warn'`, what the warning says after "The function given as
+     * the retry.condition of "<test>" is not called: ": why, and how to get what the user wrote.
+     * Nothing reads it under `call`. Neutral-only key; each dialect's value is pinned by its own
+     * test.
+     */
+    readonly functionConditionWarning: string
   }
   /**
    * Whether `.only` is allowed. Also Track 5's `only.allowOnly`.

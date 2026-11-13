@@ -149,6 +149,19 @@ export class Registry {
   #ledger = createLedger()
   /** The running file's context. Under `none` the registry is shared, and each file sets its own. */
   context: FileContext = NO_FILE
+  /**
+   * The user modules the running file asked for (under `none`, where the registry outlives the
+   * file): a module an earlier file evaluated is found, not evaluated again, and is still one the
+   * file loaded. `null` outside `beginFile`/`endFile`.
+   */
+  #touched: Set<ModuleId> | null = null
+  /**
+   * The user modules each module loaded through an edge its static deps don't name (a
+   * `require(variable)`, a runtime `import()`), by importing module, noted while a file is being
+   * counted (`#touched` is set). Under `none` a later file finds the importer evaluated, not
+   * evaluated again, so what it loaded then is what `loadedByFile` follows for it.
+   */
+  readonly #dynamicLoads = new Map<ModuleId, Set<ModuleId>>()
 
   constructor(state: Records, base: Map<ModuleId, Instance> = new Map()) {
     this.#state = state
@@ -176,6 +189,67 @@ export class Registry {
 
   loaded(): ModuleId[] {
     return [...new Set(this.#maps.flatMap((map) => [...map.keys()]))]
+  }
+
+  /** Starts counting the modules a file asks for (the shared registry of tier `none`). */
+  beginFile(): void {
+    this.#touched = new Set()
+  }
+
+  /** Stops counting; the next `beginFile` starts over. */
+  endFile(): void {
+    this.#touched = null
+  }
+
+  /**
+   * What the file loaded, under `none`: the modules it asked for and, through each one's
+   * dependency edges, the loaded modules those reach (an evaluated module's imports are part of
+   * what the file needs, though the file didn't evaluate them). Over-approximate for a CommonJS
+   * module, whose edges are its `require` calls as the scan sees them. Without `beginFile`, every
+   * instance.
+   */
+  loadedByFile(): ModuleId[] {
+    const touched = this.#touched
+    if (touched === null) return this.loaded()
+    const seen = new Set<ModuleId>(touched)
+    const queue = [...touched]
+    const reach = (target: ModuleId): void => {
+      if (seen.has(target) || !this.#maps.some((map) => map.has(target))) return
+      seen.add(target)
+      queue.push(target)
+    }
+    for (let at = 0; at < queue.length; at++) {
+      const id = queue[at]
+      if (id === undefined) continue
+      // The targets the record linked (every static dep, and a `require`'s specifier once it has
+      // resolved), not a new resolve of each specifier: the walk runs once per file over every
+      // module the file reaches.
+      const record = this.#state.records.get(id)
+      if (record !== undefined) {
+        for (const target of record.resolved.values()) {
+          if (target.kind === 'user') reach(target.id)
+          else if (target.kind === 'external') reach(toModuleId(target.path))
+        }
+      }
+      const loads = this.#dynamicLoads.get(id)
+      if (loads !== undefined) for (const target of loads) reach(target)
+    }
+    return [...seen]
+  }
+
+  /**
+   * Notes that `importer` loaded the user module `id` through an edge that can be dynamic. Only
+   * while a file is counted: a registry of any other tier is the file's own and never asks.
+   */
+  #noteLoad(importer: string, id: ModuleId): void {
+    if (this.#touched === null) return
+    const key = toModuleId(importer)
+    let loads = this.#dynamicLoads.get(key)
+    if (loads === undefined) {
+      loads = new Set()
+      this.#dynamicLoads.set(key, loads)
+    }
+    loads.add(id)
   }
 
   /**
@@ -285,6 +359,8 @@ export class Registry {
   async load(specifier: string, importer: string, isTest: boolean): Promise<object> {
     const target = resolveTarget(this.#state, specifier, importer, 'import')
     if (target.kind !== 'user') return this.#externalAsync(target)
+    // An entry the file asked for: no edge of another module leads to it.
+    this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, isTest)
     await linkAsync(this.#state, record)
     return this.#evaluateForImport(record)
@@ -294,6 +370,7 @@ export class Registry {
   loadSync(specifier: string, importer: string, isTest: boolean): unknown {
     const target = resolveTarget(this.#state, specifier, importer, 'require')
     if (target.kind !== 'user') return this.#requireExternal(target)
+    this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, isTest)
     linkSync(this.#state, record)
     return this.#requireRecord(record)
@@ -308,6 +385,7 @@ export class Registry {
     if (mocked !== REAL) return (await this.#settleFor(mocked, specifier, 'async')) as object
     const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#externalAsync(found)
+    this.#noteLoad(importer, found.id)
     const record = recordFor(this.#state, found.id, false)
     await linkAsync(this.#state, record)
     return this.#evaluateForImport(record)
@@ -328,6 +406,8 @@ export class Registry {
     }
     const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#requireExternal(found)
+    // A target the record linked is an edge the closure walk follows already.
+    if (record?.resolved.get(specifier) !== target) this.#noteLoad(importer, found.id)
     const dep = recordFor(this.#state, found.id, false)
     linkSync(this.#state, dep)
     return this.#requireRecord(dep)
@@ -352,6 +432,7 @@ export class Registry {
     if (mocked !== REAL) return this.#settleFor(mocked, specifier, 'sync')
     const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#externalImport(found)
+    this.#noteLoad(record.path, found.id)
     const dep = recordFor(this.#state, found.id, false)
     linkSync(this.#state, dep)
     return this.#importRecord(dep, 'sync')
@@ -523,6 +604,7 @@ export class Registry {
   #actualSync(id: string): unknown {
     const target = this.#maybeInline(this.#actualTarget(id))
     if (target.kind !== 'user') return this.#requireExternal(target)
+    this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, false)
     linkSync(this.#state, record)
     if (record.format === 'esm' && record.asyncGraph) {
@@ -539,6 +621,7 @@ export class Registry {
     if (target.kind !== 'user') {
       return cjsNamespace(this.#requireExternal(target), this.#interop, this.#cache)
     }
+    this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, false)
     await linkAsync(this.#state, record)
     // The instance this load evaluates, taken before its await: afterwards `#instances` may name
@@ -627,6 +710,8 @@ export class Registry {
       view: null,
     }
     this.#instances.set(record.id, instance)
+    // An instance found rather than made was reached by an edge or an entry that counts itself.
+    this.#touched?.add(record.id)
     return instance
   }
 

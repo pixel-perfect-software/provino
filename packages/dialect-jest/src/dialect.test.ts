@@ -152,6 +152,28 @@ test('the name-mapper miss text is a ref to the runtime export (mapperMiss)', as
   assert.equal(typeof (await createBehaviourLoader().load(ref as never)), 'function')
 })
 
+test('a failing global hook is reported by the leaf entry, not the worker’s whole runtime (globalSetup.failure)', async () => {
+  const ref = resolved.orchestrator.globalSetup.failure
+  assert.deepEqual(ref, {
+    module: import.meta.resolve('@provino/dialect-jest/global-setup'),
+    export: 'globalSetupFailure',
+  })
+  assert.notEqual(
+    (ref as { module: string }).module,
+    import.meta.resolve('@provino/dialect-jest/runtime'),
+    'the coordinator loads this one: ./runtime costs about 57 ms before the first worker',
+  )
+  const failure = await createBehaviourLoader().load(ref as never)
+  assert.equal(typeof failure, 'function')
+  assert.equal(
+    (failure as (thrown: unknown, context: { hook: string; path: string }) => Error)('x', {
+      hook: 'globalTeardown',
+      path: '/p.ts',
+    }).message,
+    'Jest: Got error running globalTeardown - /p.ts, reason: "x"',
+  )
+})
+
 test('every module gets its own jest, built by the runtime factory, whether or not globals are injected', async () => {
   const scope = jestDialect.moduleScope
   assert.ok(scope !== undefined)
@@ -165,6 +187,9 @@ test('every module gets its own jest, built by the runtime factory, whether or n
 test('values that equal the neutral ones are not divergences', () => {
   const paths = new Set(diffPolicy(neutralPolicy, resolved).map((row) => row.path))
   for (const path of [
+    // Jest has no `retry.condition`, so it keeps the neutral `call`.
+    'core.retry.functionCondition',
+    'core.retry.functionConditionWarning',
     'core.maxConcurrency',
     'snapshot.dirName',
     'orchestrator.unhandledErrors',
@@ -233,6 +258,7 @@ test('the keys the dialect leaves to the neutral policy are the ones listed in d
     all.filter((path) => !set.has(path)).sort(),
     [
       'core.orderHooks',
+      'core.retry.functionConditionWarning',
       'snapshot.key',
       'snapshot.serializers',
       'snapshot.resolvePath',

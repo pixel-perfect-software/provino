@@ -15,6 +15,7 @@ import type {
   PolicyOverrides,
 } from '@provino/types'
 import { hasBabelConfig } from './babel-config.ts'
+import { jestHookArgs, jestRunGlobalHooks, list } from './global-hooks.ts'
 import { type JestRequireResolve, projectJestRequireResolve } from './resolution.ts'
 import type { JestGlobalConfig, JestProjectConfig } from './types.ts'
 
@@ -154,8 +155,6 @@ export function jestProjectToNeutral(
       '; snapshots stay beside the test file',
     )
   }
-  if (project.globalSetup !== undefined) notApplied(diagnostics, 'globalSetup', 'Track 9')
-  if (project.globalTeardown !== undefined) notApplied(diagnostics, 'globalTeardown', 'Track 9')
   if (globalConfig.collectCoverage) notApplied(diagnostics, 'collectCoverage', 'T8.8')
   if (globalConfig.reporters !== undefined) notApplied(diagnostics, 'reporters', 'T11.9')
 
@@ -239,6 +238,12 @@ export function jestProjectToNeutral(
       },
     },
   }
+  const globalSetup = list(project.globalSetup)
+  const globalTeardown = list(project.globalTeardown)
+  const hasGlobalHooks =
+    globalSetup.length > 0 ||
+    globalTeardown.length > 0 ||
+    jestRunGlobalHooks(globalConfig) !== undefined
   const neutral: NeutralProject = {
     name: project.displayName?.name ?? '',
     rootDir: project.rootDir,
@@ -261,8 +266,13 @@ export function jestProjectToNeutral(
     },
     setupFiles: [...project.setupFiles],
     setupFilesAfterEnv: [...project.setupFilesAfterEnv],
-    globalSetup: project.globalSetup === undefined ? [] : [project.globalSetup],
-    globalTeardown: project.globalTeardown === undefined ? [] : [project.globalTeardown],
+    globalSetup,
+    globalTeardown,
+    // `fn(globalConfig, projectConfig)`: Jest's own two configs, as they are (a hook runs in the
+    // coordinator, so they need not be JSON: nothing is lost to it). The run's own hooks (the root
+    // config's, with `projects`) are called with the first project's config, whichever project
+    // that is: every project keeps the two.
+    ...(hasGlobalHooks ? { globalSetupArgs: jestHookArgs(project, globalConfig) } : {}),
     environment: {
       name: environment,
       // One shape for every environment: the adapter's class (absent for the built-in `node`) and

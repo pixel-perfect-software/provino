@@ -20,6 +20,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'core.asyncDescribe': ['throw', 'await'],
   'core.nonPromiseReturn': ['fail', 'ignore'],
   'core.retry.timing': ['deferred', 'immediate'],
+  'core.retry.functionCondition': ['call', 'ignore-warn'],
   'core.allowOnly': ['always', 'not-in-ci'],
   'core.unawaitedAsyncAssertion': ['ignore', 'fail'],
   'core.collect.describeBody': ['immediate', 'deferred'],
@@ -80,6 +81,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'orchestrator.pool.default': ['forks', 'threads', 'inline'],
   'orchestrator.shard.fallback': ['sha1-slice'],
   'orchestrator.globalSetup.signature': ['global-and-project-config', 'project-with-teardown'],
+  'orchestrator.globalSetup.teardownOrder': ['in-order', 'reverse'],
   'report.resultStatusSkipped': ['pending', 'skipped'],
   'coverage.thresholdGrouping': ['first-match', 'all-files'],
   'coverage.globThresholdScope': ['per-file', 'aggregate'],
@@ -105,6 +107,9 @@ const NULL_FLIPS: Readonly<Record<string, unknown>> = {
 const REF_FLIPS: Readonly<Record<string, readonly unknown[]>> = {
   'core.formatEachTitle': [neutralPolicy.core.formatEachTitle],
   'core.formatValue': [neutralPolicy.core.formatValue],
+  // The four `cli/global-setup-throws*` recordings word a failing hook as Jest's behaviour does; the
+  // neutral wording must fail them (the claim calls the ref it is given).
+  'orchestrator.globalSetup.failure': [neutralPolicy.orchestrator.globalSetup.failure],
 }
 
 /** The suffix a flipped free-text value gains. */

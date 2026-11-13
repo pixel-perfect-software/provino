@@ -1,0 +1,12 @@
+{
+  "description": "Jest's global setup and teardown around a run (T9.15): the setup module runs in the main process before any test file, the teardown after the last one. Each appends a line to order.txt, which the black-box run captures. The setup and teardown are TypeScript files, so they go through the project's transform.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "globalSetup": "<rootDir>/setup.ts",
+      "globalTeardown": "<rootDir>/teardown.ts",
+      "maxWorkers": 1
+    }
+  },
+  "run": { "capture": ["exitCode", "file:order.txt"] }
+}

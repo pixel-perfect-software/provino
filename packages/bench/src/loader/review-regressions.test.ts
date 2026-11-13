@@ -3,14 +3,7 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import {
-  at,
-  fileWithMocks,
-  JESTISH,
-  loaderFor,
-  VITESTISH,
-  writeTree,
-} from './internal/test-support.ts'
+import { at, fileWithMocks, JESTISH, loaderFor, VITESTISH, writeTree } from './test-support.ts'
 
 const g = globalThis as { __count?: number; __fail?: boolean; __order?: string[] }
 

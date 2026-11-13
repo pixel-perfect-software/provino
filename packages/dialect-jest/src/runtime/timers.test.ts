@@ -45,6 +45,7 @@ async function jestOver(t: Parameters<typeof setUpJestExpect>[0]): Promise<{
       seed: 0,
       environmentTornDown: () => false,
       setDefaultTimeout: () => {},
+      setDefaultRetry: () => {},
     }
     jest = jestGlobals(host).jest
   }, policy.core)

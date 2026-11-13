@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/retry-repeats",
+  "files": [
+    {
+      "file": "repeats.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "repeats.test.ts",
+            "path": [
+              "repeats twice"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "repeats.test.ts",
+            "path": [
+              "each repeat has its retries"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: retried run 1 failed",
+              "userFrame": "<root>/repeats.test.ts:15:32"
+            },
+            {
+              "name": "Error",
+              "message": "Error: retried run 3 failed",
+              "userFrame": "<root>/repeats.test.ts:15:32"
+            }
+          ],
+          "location": {
+            "line": 12,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "repeats.test.ts",
+            "path": [
+              "a failed repeat does not stop the next"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: the second run failed",
+              "userFrame": "<root>/repeats.test.ts:20:28"
+            }
+          ],
+          "location": {
+            "line": 18,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "beforeAll",
+    "beforeEach",
+    "repeat run 1",
+    "afterEach",
+    "beforeEach",
+    "repeat run 2",
+    "afterEach",
+    "beforeEach",
+    "repeat run 3",
+    "afterEach",
+    "beforeEach",
+    "retried run 1",
+    "afterEach",
+    "beforeEach",
+    "retried run 2",
+    "afterEach",
+    "beforeEach",
+    "retried run 3",
+    "afterEach",
+    "beforeEach",
+    "retried run 4",
+    "afterEach",
+    "beforeEach",
+    "failing run 1",
+    "afterEach",
+    "beforeEach",
+    "failing run 2",
+    "afterEach",
+    "beforeEach",
+    "failing run 3",
+    "afterEach",
+    "afterAll"
+  ]
+}

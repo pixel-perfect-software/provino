@@ -358,8 +358,9 @@ export interface CorePolicy {
     readonly orderHooks: Behaviour<OrderHooks> | null;
     readonly retry: {
         readonly timing: "deferred" | "immediate";
-        readonly logErrorsBeforeRetry: boolean;
         readonly keepEarlierErrors: boolean;
+        readonly functionCondition: "call" | "ignore-warn";
+        readonly functionConditionWarning: string;
     };
     readonly status: {
         readonly todoUnderSkip: "skipped" | "todo";
@@ -498,6 +499,14 @@ export type DataOnly<T> = T extends AnyFunction ? never : T extends ModuleRef ? 
 
 // @public
 export type DeepPartial<T> = T extends PolicyAtom ? T : string extends keyof T ? T : { readonly [K in keyof T]?: DeepPartial<T[K]>; };
+
+// @public
+export interface DefaultRetry {
+    readonly count: number;
+    readonly delay: number;
+    readonly keepEarlierErrors?: boolean;
+    readonly timing?: CorePolicy["retry"]["timing"];
+}
 
 // @public
 export type DefineEnvironment = <const Name extends string, Options = Record<string, never>, G extends object = typeof globalThis>(environment: Environment<Name, Options, G>) => Environment<Name, Options, G>;
@@ -1037,6 +1046,14 @@ export interface Frame {
 }
 
 // @public
+export interface GlobalSetupArgs {
+    // (undocumented)
+    readonly globalConfig: object;
+    // (undocumented)
+    readonly projectConfig: object;
+}
+
+// @public
 export interface GlobalSetupContext {
     // (undocumented)
     onTestsRerun(callback: () => void | Promise<void>): void;
@@ -1048,6 +1065,12 @@ export interface GlobalSetupContext {
     // (undocumented)
     provide<K extends keyof ProvidedContext>(key: K, value: ProvidedContext[K]): void;
 }
+
+// @public
+export type GlobalSetupFailure = (thrown: unknown, context: {
+    readonly hook: "globalSetup" | "globalTeardown";
+    readonly path: string;
+}) => Error;
 
 // @public
 export type GlobalSetupFn = (context: GlobalSetupContext) => void | (() => void | Promise<void>) | Promise<void | (() => void | Promise<void>)>;
@@ -1067,6 +1090,7 @@ export interface GlobalsHost {
     moduleMocks(): ModuleMockRegistry;
     registry(): FileRegistry;
     readonly seed: number;
+    setDefaultRetry(retry: DefaultRetry | undefined): void;
     setDefaultTimeout(ms: number | undefined): void;
     timers(): object;
     readonly timersPolicy: TimersPolicy;
@@ -1863,6 +1887,7 @@ export interface NeutralProject {
     };
     readonly fakeTimers?: Readonly<Record<string, JsonValue>>;
     readonly globalSetup: readonly string[];
+    readonly globalSetupArgs?: GlobalSetupArgs;
     // (undocumented)
     readonly globalTeardown: readonly string[];
     readonly globalValues?: Readonly<Record<string, JsonValue>>;
@@ -2001,6 +2026,8 @@ export interface OrchestratorPolicy {
     };
     readonly globalSetup: {
         readonly signature: "global-and-project-config" | "project-with-teardown";
+        readonly teardownOrder: "in-order" | "reverse";
+        readonly failure: Behaviour<GlobalSetupFailure>;
     };
     readonly globMatchesOn: "absolute-path" | "root-relative-path";
     readonly include: readonly string[];
@@ -3258,7 +3285,8 @@ export type WorkerEvent = RuntimeEvent | {
 } | {
     readonly type: "deps";
     readonly fileId: TaskId;
-    readonly modules: readonly string[];
+    readonly added: readonly string[];
+    readonly ids: readonly number[];
     readonly t: number;
 };
 

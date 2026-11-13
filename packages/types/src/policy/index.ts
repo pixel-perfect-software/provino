@@ -78,6 +78,8 @@ export type { FormatMapperMiss, MapperMiss, ModuleMessages, ModulePolicy } from 
 export type {
   EnvironmentConditions,
   EnvironmentRequest,
+  GlobalSetupArgs,
+  GlobalSetupFailure,
   OrchestratorPolicy,
   PoolKind,
 } from './orchestrator.ts'

@@ -13,7 +13,16 @@ const boom: SerializedError = { name: 'Error', message: 'boom' }
 const goldenBoom = { message: 'boom', raw: '' }
 
 function coreTest(name: string, overrides: Partial<CoreTest> = {}): CoreTest {
-  return { path: [name], dupIndex: 0, status: 'passed', location: null, errors: [], ...overrides }
+  return {
+    path: [name],
+    dupIndex: 0,
+    status: 'passed',
+    location: null,
+    errors: [],
+    attempts: 1,
+    retryErrors: [],
+    ...overrides,
+  }
 }
 
 function coreRun(overrides: Partial<CoreRun> = {}): CoreRun {
@@ -198,5 +207,113 @@ test('the collection error code is asked of a crashed file only', () => {
   assertRunMatchesGolden(coreRun(), matching, {
     testFile: FILE,
     collectionErrorCode: 'CORE_MISSING_TEST_FN',
+  })
+})
+
+// A golden test that failed with these errors, one per attempt the runner kept.
+const goldenErrors = (...messages: string[]): Golden =>
+  golden([
+    makeTest(FILE, ['one'], {
+      status: 'failed',
+      errors: messages.map((message) => ({ message, raw: '' })),
+    }),
+  ])
+
+/** A run whose one test failed with these errors. */
+const failedWith = (...messages: string[]): CoreRun =>
+  coreRun({
+    tests: [
+      coreTest('one', {
+        status: 'failed',
+        errors: messages.map((message) => ({ name: 'Error', message })),
+      }),
+    ],
+    fileStatus: 'failed',
+  })
+
+test('compareMessages holds each error’s text, their order and their number to the golden’s', () => {
+  const messages: GoldenExpectations = { testFile: FILE, compareMessages: true }
+  const target = goldenErrors('Error: failed #1', 'Error: failed #2', 'Error: failed #3')
+  assertRunMatchesGolden(failedWith('failed #1', 'failed #2', 'failed #3'), target, messages)
+  // The final error alone, where earlier attempts' errors were kept (a retry that is not counted).
+  mismatch(failedWith('failed #3'), target, /the text of each error/, messages)
+  // Another order: the attempts' errors come in the order they ran.
+  mismatch(
+    failedWith('failed #3', 'failed #1', 'failed #2'),
+    target,
+    /the text of each error/,
+    messages,
+  )
+  mismatch(
+    failedWith('failed #1', 'failed #2', 'other'),
+    target,
+    /the text of each error/,
+    messages,
+  )
+  // Without the flag only where the errors are is compared, so these pass.
+  assertRunMatchesGolden(failedWith('failed #3'), target, expected)
+})
+
+test('retryLog holds the errors core kept for the reporter to the ones Jest printed', () => {
+  const stderr = [
+    ' LOGGING RETRY ERRORS  one',
+    ' RETRY 1',
+    '   Error: failed #1',
+    ' RETRY 2',
+    '   Error: failed #2',
+  ].join('\n')
+  const logged = toGolden(
+    makeRun([
+      makeFile(FILE, [makeTest(FILE, ['one'], { status: 'failed', errors: [goldenBoom] })]),
+    ]),
+    { observed: { stderr } },
+  )
+  const withRetryErrors = (...messages: string[]): CoreRun =>
+    coreRun({
+      tests: [
+        coreTest('one', {
+          status: 'failed',
+          errors: [boom],
+          retryErrors: messages.map((message) => ({ name: 'Error', message })),
+        }),
+      ],
+      fileStatus: 'failed',
+    })
+  const retryLog: GoldenExpectations = { testFile: FILE, retryLog: true }
+  assertRunMatchesGolden(withRetryErrors('Error: failed #1', 'Error: failed #2'), logged, retryLog)
+  mismatch(
+    withRetryErrors('Error: failed #1'),
+    logged,
+    /the errors logged before each retry/,
+    retryLog,
+  )
+  mismatch(withRetryErrors(), logged, /the errors logged before each retry/, retryLog)
+})
+
+test('a declared trace must be the golden’s as recorded, differ from it, and be what core gives', () => {
+  const recorded = ['a #1', 'a #2']
+  const declared = { golden: recorded, core: ['a #1', 'a #2', 'a #3'] }
+  const wanted: GoldenExpectations = { testFile: FILE, declaredTrace: declared }
+  const against = golden([makeTest(FILE, ['one'])], { trace: recorded })
+  assertRunMatchesGolden(coreRun({ trace: declared.core }), against, wanted)
+  // Core gives something else than declared.
+  mismatch(coreRun({ trace: recorded }), against, /the declared trace/, wanted)
+  // The golden was re-recorded: the exception can't outlive what it was made for.
+  mismatch(
+    coreRun({ trace: declared.core }),
+    golden([makeTest(FILE, ['one'])], { trace: ['a #1', 'a #2', 'a #3'] }),
+    /not the one the declaration was made against/,
+    wanted,
+  )
+  mismatch(
+    coreRun({ trace: declared.core }),
+    golden([makeTest(FILE, ['one'])], { trace: ['other'] }),
+    /not the one the declaration was made against/,
+    wanted,
+  )
+  // A declaration that equals the golden's trace no longer declares a difference.
+  mismatch(coreRun({ trace: recorded }), against, /now equals the golden/, {
+    testFile: FILE,
+    declaredTrace: { golden: recorded, core: recorded },
   })
 })

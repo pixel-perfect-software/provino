@@ -1,0 +1,9 @@
+{
+  "description": "A global teardown that throws after a passing run (T9.15): the reporters' summary comes first (onRunComplete runs inside scheduleTests; runGlobalHook(globalTeardown) follows it), then the CLI prints the error, whose message Jest has rewritten (`Jest: Got error running globalTeardown - <path>, reason: <message>`), and the exit code is 1 though every test passed. The black-box run captures the exit code and the summary's totals lines with the error's own.",
+  "runners": ["jest"],
+  "config": { "jest": { "globalTeardown": "<rootDir>/teardown.ts", "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Test Suites|Tests):|globalTeardown|teardown failed"
+  }
+}

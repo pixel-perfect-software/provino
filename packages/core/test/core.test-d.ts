@@ -48,6 +48,19 @@ createRuntime({ ...options, ci: undefined })
 
 // A line filter belongs to one file, so it's a `runFile` option, not a runtime one.
 declare const runtime: Runtime
+// The file's default retry (Jest's `jest.retryTimes`) is a count and a delay, and may set the
+// policy's `timing` and `keepEarlierErrors`; `undefined` clears it.
+runtime.setDefaultRetry({ count: 2, delay: 0 })
+runtime.setDefaultRetry({ count: 2, delay: 0, timing: 'immediate', keepEarlierErrors: true })
+runtime.setDefaultRetry(undefined)
+// @ts-expect-error the delay is required: a missing one is a decision the dialect must make
+runtime.setDefaultRetry({ count: 2 })
+// @ts-expect-error the count is a number
+runtime.setDefaultRetry({ count: '2', delay: 0 })
+// @ts-expect-error `timing` is the policy's: `deferred` or `immediate`
+runtime.setDefaultRetry({ count: 2, delay: 0, timing: 'later' })
+// @ts-expect-error `immediate` and `logErrors` are gone: they are `timing` and `keepEarlierErrors`
+runtime.setDefaultRetry({ count: 2, delay: 0, immediate: true, logErrors: false })
 expectTypeOf<Parameters<Runtime['runFile']>[1]>().toEqualTypeOf<RunFileOptions | undefined>()
 expectTypeOf<RunFileOptions['lines']>().toEqualTypeOf<readonly number[] | undefined>()
 void runtime.runFile('/a.test.ts', { lines: [3, 7] })
@@ -96,6 +109,13 @@ test('ctx', (ctx) => {
 })
 test('timeout', () => undefined, 100)
 test('options', { timeout: 100, retry: 2, concurrent: true, tags: ['slow'] }, () => undefined)
+// `retry` is a count, or Vitest's object: a delay, and a condition that is a RegExp or a function.
+test('retry object', { retry: { count: 2, delay: 100, condition: /flaky/ } }, () => undefined)
+test('retry function', { retry: { condition: (error) => error.message === 'x' } }, () => undefined)
+// @ts-expect-error a condition is a RegExp or a function, not a string
+test('retry condition string', { retry: { condition: 'flaky' } }, () => undefined)
+// @ts-expect-error the count is a number
+test('retry count string', { retry: { count: '2' } }, () => undefined)
 test('todo without a body')
 // @ts-expect-error options go second, never third
 test('options third', () => undefined, { timeout: 100 })

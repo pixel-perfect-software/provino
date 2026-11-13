@@ -1,0 +1,4 @@
+{
+  "description": "Vitest's retry.condition: a RegExp tested against the failure's message, and a function given the error. A failure that does not match is not retried, the test fails with it. The condition is read against the last error, after each failed attempt but the last.",
+  "runners": ["vitest"]
+}

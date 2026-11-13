@@ -1,0 +1,4 @@
+{
+  "description": "What a retry runs again: every attempt runs the beforeEach and afterEach hooks of all levels; beforeAll and afterAll run once, and afterAll waits for the retries Jest defers to the end of the describe. A failing beforeEach or afterEach fails the attempt and is retried too. Jest uses jest.retryTimes(1), Vitest the retry option.",
+  "runners": ["jest", "vitest"]
+}

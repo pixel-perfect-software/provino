@@ -6,7 +6,13 @@ import { after, test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import { createResolver } from '@provino/resolver'
 import { createPipeline } from '@provino/transform'
-import type { CompiledModuleEvent, Loader, ModulePolicy } from '@provino/types'
+import type {
+  CompiledModuleEvent,
+  HoistPolicy,
+  Loader,
+  ModulePolicy,
+  Resolver,
+} from '@provino/types'
 import { createLoader } from './loader.ts'
 
 const roots: string[] = []
@@ -24,24 +30,35 @@ function writeTree(files: Readonly<Record<string, string>>): string {
   return root
 }
 
-function loaderFor(root: string, policy: Partial<ModulePolicy> = {}): Loader {
+function loaderFor(
+  root: string,
+  policy: Partial<ModulePolicy> = {},
+  extra: {
+    readonly resolver?: Resolver
+    readonly hoist?: HoistPolicy
+    readonly moduleScope?: { readonly names: readonly string[] }
+  } = {},
+): Loader {
   return createLoader({
     root,
     engine: 'runner',
-    resolver: createResolver({
-      root,
-      mappers: [],
-      extensions: ['.ts', '.tsx', '.js', '.mjs', '.cjs', '.json'],
-      tsconfig: false,
-    }),
+    resolver:
+      extra.resolver ??
+      createResolver({
+        root,
+        mappers: [],
+        extensions: ['.ts', '.tsx', '.js', '.mjs', '.cjs', '.json'],
+        tsconfig: false,
+      }),
     transformer: createPipeline({
       root,
       typescript: 'oxc',
       tsconfig: false,
-      hoist: null,
+      hoist: extra.hoist ?? null,
       cache: false,
     }),
     policy: { ...neutralPolicy.module, ...policy },
+    ...(extra.moduleScope === undefined ? {} : { moduleScope: extra.moduleScope }),
   })
 }
 
@@ -527,4 +544,240 @@ test('invalidate drops a module loaded by require() whose exports differ by cond
     assert.notEqual(registry.require<{ kind: object }>('cjs-only'), only, 'a require-only package')
     assert.deepEqual(log, ['esm', 'cjs', 'only', 'esm', 'cjs', 'only'])
   })
+})
+
+// ---- loadedModules, per file (U5: the `deps` event reads it) ----
+
+const CHAIN = {
+  'leaf.ts': 'export const leaf: number = 1\n',
+  'mid.ts': "import { leaf } from './leaf.ts'\nexport const mid: number = leaf + 1\n",
+  'lonely.ts': 'export const lonely: number = 9\n',
+  'a.test.ts': "import { mid } from './mid.ts'\nexport const a: number = mid\n",
+  'b.test.ts': "import { mid } from './mid.ts'\nexport const b: number = mid\n",
+  'c.test.ts': "import { lonely } from './lonely.ts'\nexport const c: number = lonely\n",
+}
+
+test('loadedModules: under registry it is the file’s own instances, the file and what it loaded', async () => {
+  const root = writeTree(CHAIN)
+  const loader = loaderFor(root)
+  const a = loader.createFileRegistry(join(root, 'a.test.ts'), { tier: 'registry' })
+  await a.import(join(root, 'a.test.ts'))
+  assert.deepEqual(a.loadedModules().toSorted(), [
+    join(root, 'a.test.ts'),
+    join(root, 'leaf.ts'),
+    join(root, 'mid.ts'),
+  ])
+})
+
+test('loadedModules: under none it is this file’s closure, not everything the worker loaded', async () => {
+  const root = writeTree(CHAIN)
+  const loader = loaderFor(root)
+  const a = loader.createFileRegistry(join(root, 'a.test.ts'), { tier: 'none' })
+  await a.import(join(root, 'a.test.ts'))
+  assert.deepEqual(a.loadedModules().toSorted(), [
+    join(root, 'a.test.ts'),
+    join(root, 'leaf.ts'),
+    join(root, 'mid.ts'),
+  ])
+  a.dispose()
+
+  // b.test.ts finds mid.ts (and leaf.ts under it) already evaluated: nothing is evaluated again,
+  // yet they are what b loaded. a.test.ts and lonely.ts are not.
+  const b = loader.createFileRegistry(join(root, 'b.test.ts'), { tier: 'none' })
+  await b.import(join(root, 'b.test.ts'))
+  assert.deepEqual(b.loadedModules().toSorted(), [
+    join(root, 'b.test.ts'),
+    join(root, 'leaf.ts'),
+    join(root, 'mid.ts'),
+  ])
+  b.dispose()
+
+  const c = loader.createFileRegistry(join(root, 'c.test.ts'), { tier: 'none' })
+  await c.import(join(root, 'c.test.ts'))
+  assert.deepEqual(c.loadedModules().toSorted(), [join(root, 'c.test.ts'), join(root, 'lonely.ts')])
+})
+
+test('loadedModules: under none a module the file imports itself counts, though an earlier file evaluated it', async () => {
+  const root = writeTree(CHAIN)
+  const loader = loaderFor(root)
+  const a = loader.createFileRegistry(join(root, 'a.test.ts'), { tier: 'none' })
+  await a.import(join(root, 'a.test.ts'))
+  a.dispose()
+
+  // No new instance and no edge from a module this file evaluated: only the entry itself says so.
+  const b = loader.createFileRegistry(join(root, 'b.test.ts'), { tier: 'none' })
+  await b.import(join(root, 'mid.ts'))
+  assert.deepEqual(b.loadedModules().toSorted(), [join(root, 'leaf.ts'), join(root, 'mid.ts')])
+})
+
+test('loadedModules: under none a reused module’s own require(variable) is still a dependency of the next file', async () => {
+  const root = writeTree({
+    'picked.ts': 'module.exports = { picked: true }\n',
+    // `require(name)` is not a literal: no static dep names `picked.ts`, so only the load that
+    // happened while this module evaluated (in the first file) says it is one of its.
+    'dynamic.ts': "const name: string = './picked.ts'\nmodule.exports = { inner: require(name) }\n",
+    'first.test.ts': "import dynamic from './dynamic.ts'\nexport const first: unknown = dynamic\n",
+    'second.test.ts':
+      "import dynamic from './dynamic.ts'\nexport const second: unknown = dynamic\n",
+  })
+  const loader = loaderFor(root)
+  const first = loader.createFileRegistry(join(root, 'first.test.ts'), { tier: 'none' })
+  await first.import(join(root, 'first.test.ts'))
+  assert.deepEqual(first.loadedModules().toSorted(), [
+    join(root, 'dynamic.ts'),
+    join(root, 'first.test.ts'),
+    join(root, 'picked.ts'),
+  ])
+  first.dispose()
+
+  // dynamic.ts is found, not evaluated again, yet picked.ts is still what loading it needed.
+  const second = loader.createFileRegistry(join(root, 'second.test.ts'), { tier: 'none' })
+  await second.import(join(root, 'second.test.ts'))
+  assert.deepEqual(second.loadedModules().toSorted(), [
+    join(root, 'dynamic.ts'),
+    join(root, 'picked.ts'),
+    join(root, 'second.test.ts'),
+  ])
+})
+
+test('loadedModules: under none a reused ES module’s own import(variable) is still a dependency of the next file', async () => {
+  const root = writeTree({
+    'later.ts': 'export const later: number = 3\n',
+    'lazy.ts': [
+      "const name: string = './later.ts'",
+      'export const ready: Promise<unknown> = import(name)',
+      'export const load = (): Promise<unknown> => import(name)',
+      '',
+    ].join('\n'),
+    'first.test.ts':
+      "import { ready } from './lazy.ts'\nexport const done: Promise<unknown> = ready\n",
+    'second.test.ts': "import { load } from './lazy.ts'\nexport const second: unknown = load\n",
+  })
+  const loader = loaderFor(root)
+  const first = loader.createFileRegistry(join(root, 'first.test.ts'), { tier: 'none' })
+  const entry = await first.import<{ done: Promise<unknown> }>(join(root, 'first.test.ts'))
+  await entry.done
+  first.dispose()
+
+  const second = loader.createFileRegistry(join(root, 'second.test.ts'), { tier: 'none' })
+  await second.import(join(root, 'second.test.ts'))
+  assert.deepEqual(second.loadedModules().toSorted(), [
+    join(root, 'later.ts'),
+    join(root, 'lazy.ts'),
+    join(root, 'second.test.ts'),
+  ])
+})
+
+/** A Jest-shaped hoist policy for this test only (the dialect's value is not used here). */
+const HOIST: HoistPolicy = {
+  id: 'loader-test',
+  objects: [{ kind: 'global', name: 'mocker' }],
+  hoistCalls: { mock: 'path-factory-options', unmock: 'one-string' },
+  hoistValues: [],
+  rewriteImportArg: [],
+  chainable: true,
+  placement: 'enclosing-block',
+  topLevelGuards: [],
+  factoryReferences: 'allow',
+  runnerModules: [],
+  reExports: 'in-order',
+  rewrittenCalls: 'detached',
+  messages: {
+    HOIST_FACTORY_OUT_OF_SCOPE: 'out of scope',
+    HOIST_FACTORY_NOT_FUNCTION: 'not a function',
+    HOIST_NOT_TOP_LEVEL: 'not top level',
+    HOIST_NESTED: 'nested',
+    HOIST_EXPORTED: 'exported',
+    HOIST_EXPORTED_VALUE: 'exported value',
+  },
+}
+
+test('loadedModules: under none a reused module’s late imports (D38) are still what the next file loaded', async () => {
+  // The `mocker.mock` call hoists above the imports, so each module's own import becomes a late
+  // one: never linked ahead, loaded when its call runs. One module is loaded through `import` (the
+  // async wrapper) and one through `require` (the sync one).
+  const root = writeTree({
+    'dep-a.ts': 'export const a: number = 1\n',
+    'dep-b.ts': 'export const b: number = 2\n',
+    'other.ts': 'export const other: number = 3\n',
+    'parent-a.ts':
+      "import { a } from './dep-a.ts'\nmocker.mock('./other.ts')\nexport const seenA: number = a\n",
+    'parent-b.ts':
+      "import { b } from './dep-b.ts'\nmocker.mock('./other.ts')\nexport const seenB: number = b\n",
+    'first.test.ts': '',
+    'second.test.ts':
+      "import { seenA } from './parent-a.ts'\nimport { seenB } from './parent-b.ts'\nexport const both: number = seenA + seenB\n",
+  })
+  const loader = loaderFor(root, {}, { hoist: HOIST, moduleScope: { names: ['mocker'] } })
+  const moduleScope = (): Readonly<Record<string, unknown>> => ({ mocker: { mock: () => {} } })
+  const first = loader.createFileRegistry(join(root, 'first.test.ts'), {
+    tier: 'none',
+    moduleScope,
+  })
+  await first.import(join(root, 'parent-a.ts'))
+  first.require(join(root, 'parent-b.ts'))
+  first.dispose()
+
+  const second = loader.createFileRegistry(join(root, 'second.test.ts'), {
+    tier: 'none',
+    moduleScope,
+  })
+  const both = await second.import<{ both: number }>(join(root, 'second.test.ts'))
+  assert.equal(both.both, 3)
+  assert.deepEqual(second.loadedModules().toSorted(), [
+    join(root, 'dep-a.ts'),
+    join(root, 'dep-b.ts'),
+    join(root, 'parent-a.ts'),
+    join(root, 'parent-b.ts'),
+    join(root, 'second.test.ts'),
+  ])
+})
+
+/** A resolver that counts the resolutions the loader asks of it. */
+function countingResolver(root: string): { readonly resolver: Resolver; resolves(): number } {
+  const inner = createResolver({
+    root,
+    mappers: [],
+    extensions: ['.ts', '.tsx', '.js', '.mjs', '.cjs', '.json'],
+    tsconfig: false,
+  })
+  let count = 0
+  return {
+    resolver: {
+      resolve: (specifier, context) => {
+        count++
+        return inner.resolve(specifier, context)
+      },
+      invalidate: (paths) => {
+        inner.invalidate(paths)
+      },
+      fingerprint: inner.fingerprint,
+    },
+    resolves: () => count,
+  }
+}
+
+test('loadedModules: reading a file’s closure resolves nothing: the edges are the ones linking read', async () => {
+  const root = writeTree(CHAIN)
+  const counting = countingResolver(root)
+  const loader = loaderFor(root, {}, { resolver: counting.resolver })
+  const a = loader.createFileRegistry(join(root, 'a.test.ts'), { tier: 'none' })
+  await a.import(join(root, 'a.test.ts'))
+  const resolved = counting.resolves()
+  const expected = [join(root, 'a.test.ts'), join(root, 'leaf.ts'), join(root, 'mid.ts')]
+  assert.deepEqual(a.loadedModules().toSorted(), expected)
+  assert.deepEqual(a.loadedModules().toSorted(), expected, 'and the same each time')
+  assert.equal(counting.resolves(), resolved, 'no specifier was resolved again')
+  a.dispose()
+
+  // A later file that finds the whole chain already evaluated reads it the same way.
+  const b = loader.createFileRegistry(join(root, 'b.test.ts'), { tier: 'none' })
+  await b.import(join(root, 'b.test.ts'))
+  const beforeRead = counting.resolves()
+  assert.deepEqual(b.loadedModules().toSorted(), [
+    join(root, 'b.test.ts'),
+    join(root, 'leaf.ts'),
+    join(root, 'mid.ts'),
+  ])
+  assert.equal(counting.resolves(), beforeRead, 'no specifier was resolved again')
 })

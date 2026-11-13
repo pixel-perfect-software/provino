@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/global-setup-sequence",
+  "files": [
+    {
+      "file": "a/a.test.js",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "a/a.test.js",
+            "path": [
+              "a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0
+        }
+      ]
+    },
+    {
+      "file": "b/b.test.js",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "b/b.test.js",
+            "path": [
+              "b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0
+        }
+      ]
+    },
+    {
+      "file": "c/c.test.js",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "c/c.test.js",
+            "path": [
+              "c"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      "order.txt": "setup shared (projectConfig c)\nsetup a\nsetup root (projectConfig c)\nteardown shared (projectConfig c)\nteardown a\nteardown root (projectConfig c)\n"
+    }
+  }
+}

@@ -44,6 +44,7 @@ declare const timersPolicy: TimersPolicy
 declare const seed: number
 declare const environmentTornDown: () => boolean
 declare const setDefaultTimeout: (ms: number) => void
+declare const setDefaultRetry: RuntimeGlobalsHost['setDefaultRetry']
 declare const api: RuntimeGlobalsHost['api']
 declare const expectStatic: RuntimeGlobalsHost['expect']
 
@@ -59,8 +60,9 @@ const rest = {
   seed,
   environmentTornDown,
   setDefaultTimeout,
+  setDefaultRetry,
 }
-const tail = { seed, environmentTornDown, setDefaultTimeout }
+const tail = { seed, environmentTornDown, setDefaultTimeout, setDefaultRetry }
 // @ts-expect-error `api` must be core's, not any object
 const wrongApi: RuntimeGlobalsHost = { ...rest, api: {}, expect: expectStatic, registry }
 // @ts-expect-error `expect` must be the worker's `expect`, not any object
@@ -118,6 +120,8 @@ const noSeed: RuntimeGlobalsHost = { ...core, ...rest, seed: undefined }
 const noTornDown: RuntimeGlobalsHost = { ...core, ...rest, environmentTornDown: undefined }
 // @ts-expect-error `setDefaultTimeout` is part of the host (B17c)
 const noDefaultTimeout: RuntimeGlobalsHost = { ...core, ...rest, setDefaultTimeout: undefined }
+// @ts-expect-error `setDefaultRetry` is part of the host (T5.10)
+const noDefaultRetry: RuntimeGlobalsHost = { ...core, ...rest, setDefaultRetry: undefined }
 const right: RuntimeGlobalsHost = { ...core, ...rest }
 
 // The Jest dialect's per-module bindings take the same host the worker builds.
@@ -127,6 +131,7 @@ expectTypeOf<ReturnType<typeof jestModuleScope>>().toEqualTypeOf<
 >()
 
 export {
+  noDefaultRetry,
   noDefaultTimeout,
   noMockPolicy,
   noMocks,

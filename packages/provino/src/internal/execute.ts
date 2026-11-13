@@ -1,7 +1,14 @@
 import type { ResolvedProject } from '@provino/config'
-import { exitCodeFor, type RunProjectOptions, runProjects } from '@provino/orchestrator'
+import {
+  exitCodeFor,
+  hookFailureReport,
+  OrchestratorError,
+  type RunGlobalHooks,
+  type RunProjectOptions,
+  runProjects,
+} from '@provino/orchestrator'
 import { createReporterBus, type Environment } from '@provino/reporters'
-import type { FileFilter } from '@provino/types'
+import type { FileFilter, ReporterBus, RunSummary } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
 import { type DisplayOptions, reportersFor } from './reporters.ts'
 
@@ -40,6 +47,8 @@ export interface ExecuteOptions {
   readonly bail?: { readonly count: number }
   /** Report the handles still open after the run; runs in band. */
   readonly detectOpenHandles?: boolean
+  /** The run's own global hooks (Jest's root `globalSetup` and `globalTeardown`). */
+  readonly globalSetup?: RunGlobalHooks
 }
 
 /**
@@ -60,25 +69,19 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
     }),
   )
 
-  const summary = await runProjects([project, ...(options.others ?? [])], {
-    ...(options.root === undefined ? {} : { root: options.root }),
-    bus,
-    pool: options.pool,
-    // Jest writes all test output to stderr and keeps stdout for `--json`: a worker's own stdout
-    // (a direct write to fd 1) goes there too, so it can't land in the middle of a reporter's.
-    stdout: stderr,
-    stderr,
-    cwd,
-    // Omitted, `runProject` keeps the cache in the project's `node_modules/.cache/provino`.
-    ...(options.cache === false ? { cache: false } : {}),
-    ...(options.testNamePattern === undefined ? {} : { testNamePattern: options.testNamePattern }),
-    ...(options.update === true ? { update: true } : {}),
-    ...(options.fileFilters === undefined ? {} : { fileFilters: options.fileFilters }),
-    ...(options.signal === undefined ? {} : { signal: options.signal }),
-    ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
-    ...(options.bail === undefined ? {} : { bail: options.bail }),
-    ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
-  })
+  let summary: RunSummary
+  try {
+    summary = await run(options, bus, [project, ...(options.others ?? [])])
+  } catch (error) {
+    if (!(error instanceof OrchestratorError) || error.code !== 'ORCH_GLOBAL_SETUP_FAILED') {
+      throw error
+    }
+    // A global setup or teardown that threw: the user's error, said as Jest says it (the error's
+    // own class and text, then the frames of what the hook threw), with the runner's failure exit
+    // code.
+    stderr.write(hookFailureReport(error))
+    return { exitCode: project.policy.orchestrator.exitCodes.failure, summary: null }
+  }
 
   // A reporter that failed (a JSON file that couldn't be written) fails the run. The default
   // reporter shows such an error itself; the others may not, so it is said here as well.
@@ -96,4 +99,32 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
     }),
     summary,
   }
+}
+
+function run(
+  options: ExecuteOptions,
+  bus: ReporterBus,
+  projects: readonly ResolvedProject[],
+): Promise<RunSummary> {
+  const { stderr, cwd } = options
+  return runProjects(projects, {
+    ...(options.root === undefined ? {} : { root: options.root }),
+    bus,
+    pool: options.pool,
+    // Jest writes all test output to stderr and keeps stdout for `--json`: a worker's own stdout
+    // (a direct write to fd 1) goes there too, so it can't land in the middle of a reporter's.
+    stdout: stderr,
+    stderr,
+    cwd,
+    // Omitted, `runProject` keeps the cache in the project's `node_modules/.cache/provino`.
+    ...(options.cache === false ? { cache: false } : {}),
+    ...(options.testNamePattern === undefined ? {} : { testNamePattern: options.testNamePattern }),
+    ...(options.update === true ? { update: true } : {}),
+    ...(options.fileFilters === undefined ? {} : { fileFilters: options.fileFilters }),
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
+    ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
+    ...(options.bail === undefined ? {} : { bail: options.bail }),
+    ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
+    ...(options.globalSetup === undefined ? {} : { globalSetup: options.globalSetup }),
+  })
 }

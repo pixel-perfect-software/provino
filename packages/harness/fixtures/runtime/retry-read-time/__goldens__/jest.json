@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/retry-read-time",
+  "files": [
+    {
+      "file": "read.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "read.test.ts",
+            "path": [
+              "root test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: root failed #2",
+              "userFrame": "<root>/read.test.ts:10:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "retries": 1,
+          "location": {
+            "line": 14,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "read.test.ts",
+            "path": [
+              "beforeAll lowers it",
+              "lowered"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: lowered failed #1",
+              "userFrame": "<root>/read.test.ts:10:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "read.test.ts",
+            "path": [
+              "beforeAll raises it",
+              "raised"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: raised failed #3",
+              "userFrame": "<root>/read.test.ts:10:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "retries": 2,
+          "location": {
+            "line": 27,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "read.test.ts",
+            "path": [
+              "a test body sets it",
+              "sets it to 3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 31,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "read.test.ts",
+            "path": [
+              "a test body sets it",
+              "keeps the value from the start of the describe"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: same describe failed #3",
+              "userFrame": "<root>/read.test.ts:10:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "retries": 2,
+          "location": {
+            "line": 35,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "read.test.ts",
+            "path": [
+              "after the call",
+              "uses the value set in the test body"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: after failed #4",
+              "userFrame": "<root>/read.test.ts:10:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "retries": 3,
+          "location": {
+            "line": 39,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "root #1",
+    "lowered #1",
+    "raised #1",
+    "raised #2",
+    "raised #3",
+    "set 3",
+    "same describe #1",
+    "same describe #2",
+    "same describe #3",
+    "after #1",
+    "after #2",
+    "after #3",
+    "after #4",
+    "root #2"
+  ]
+}

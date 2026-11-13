@@ -78,6 +78,21 @@ test('a few divergences from the neutral policy are Vitest`s', () => {
     a: '// Provino Snapshot v1',
     b: '// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html',
   })
+  // D7: Vitest 5.0.5 never calls a function `retry.condition` and retries every failure; the
+  // dialect keeps that outcome and warns, where neutral calls the function.
+  assert.deepEqual(row('core.retry.functionCondition'), {
+    path: 'core.retry.functionCondition',
+    a: 'call',
+    b: 'ignore-warn',
+  })
+  // The words core prints after naming the test (`The function given as the retry.condition of
+  // "<test>" is not called: `): Provino's own text, which names the runner, so it is the dialect's.
+  assert.equal(
+    row('core.retry.functionConditionWarning')?.b,
+    'Vitest 5.0 never calls a function condition and retries every failure, and so does this mode, ' +
+      'so the outcome of a suite that passes there does not change. Pass a RegExp (tested against ' +
+      'the error message) to limit the retries, or use the neutral mode, which calls the function.',
+  )
 })
 
 test('the resolved policy serializes, and every ref in it is absolute (D21)', () => {

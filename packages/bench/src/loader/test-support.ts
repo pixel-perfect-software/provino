@@ -1,10 +1,13 @@
-// Shared by the loader's mock tests (`mocks.test.ts`, `review-regressions.test.ts`). Not exported
-// from the package. The policies are the two ends of the space that matter here, not any dialect's
+// Shared by the loader's mock-aware tests here (`mocks.test.ts`, `inline.test.ts`,
+// `review-regressions.test.ts`). They live in the bench because `@provino/loader` runs in the
+// coordinator too (U5) and so may not import `@provino/mock`, a worker package; they reach the
+// loader through its public entries. The policies are the two ends of the space that matter here, not any dialect's
 // values: `@provino/dialect-jest` and the harness's mod corpus own those.
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after } from 'node:test'
+import { createLoader } from '@provino/loader'
 import { createMockRegistry, createModuleMockRegistry } from '@provino/mock'
 import { neutralPolicy } from '@provino/policy'
 import { createResolver } from '@provino/resolver'
@@ -19,7 +22,6 @@ import type {
   ModuleMockRegistry,
   ModulePolicy,
 } from '@provino/types'
-import { createLoader } from '../loader.ts'
 
 const roots: string[] = []
 after(() => {
