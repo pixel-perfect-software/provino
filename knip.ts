@@ -81,6 +81,10 @@ const config: KnipConfig = {
       // The oracle for the vendored key order (T7.9), required by a test through `createRequire`.
       ignoreDependencies: ['natural-compare'],
     },
+    'packages/lazy': {
+      // The type-check tests run its `bin/tsc` found by path (`test/support/tsc.ts`), which knip can't see.
+      ignoreDependencies: ['typescript-5.9'],
+    },
     'packages/core': { ignoreDependencies: ['@types/sinonjs__fake-timers'] },
     'packages/timers': { ignoreDependencies: ['@types/sinonjs__fake-timers'] },
     'packages/coverage': {
