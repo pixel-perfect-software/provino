@@ -205,10 +205,11 @@ export function summaryLines(
 /**
  * Jest's report of what a run left open (`--detectOpenHandles`): how many handles, then each one's
  * kind, a code frame around the line that made it, and the stack that made it. Handles with the
- * same stack are one entry whose kinds are joined by `,` (the collector does that).
+ * same stack are one entry whose kinds are joined by `,` (the collector does that). Only for a
+ * run that found some: the summary has no `openHandles` when it found none.
  */
 export function openHandlesText(handles: readonly OpenHandle[]): string {
-  const count = `${handles.length} open handle${handles.length === 1 ? '' : 's'}`
+  const count = counted(handles.length, 'open handle')
   const blocks = handles.map((handle) => {
     const frames = handle.frames.map((frame) => `      ${frame}`).join('\n')
     const parts = [`  ●  ${handle.type}`]

@@ -155,9 +155,7 @@ export function defaultReporter(options: DefaultReporterOptions): Reporter {
         ),
       ]
       await print((atBlank ? parts : ['', ...parts]).join('\n'))
-      if (summary.openHandles !== undefined && summary.openHandles.length > 0) {
-        await print(openHandlesText(summary.openHandles))
-      }
+      if (summary.openHandles !== undefined) await print(openHandlesText(summary.openHandles))
     },
   }
 
