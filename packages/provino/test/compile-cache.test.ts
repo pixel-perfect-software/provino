@@ -63,6 +63,12 @@ describe('coverageOn', () => {
     assert.equal(coverageOn([], { NODE_V8_COVERAGE: '' }), false)
     assert.equal(coverageOn(['--coverageProvider', 'v8', '--no-cache'], {}), false)
   })
+
+  it('reads the dashed spelling Jest’s parser accepts: --collect-coverage is --collectCoverage', () => {
+    assert.equal(coverageOn(['--collect-coverage'], {}), true)
+    assert.equal(coverageOn(['--collect-coverage=true'], {}), true)
+    assert.equal(coverageOn(['--collect-coverage=false'], {}), false)
+  })
 })
 
 describe('cachesOff', () => {
@@ -77,6 +83,12 @@ describe('cachesOff', () => {
     assert.equal(cachesOff(['jest', '--clearCache']), true)
     assert.equal(cachesOff(['jest', '--showConfig']), true)
     assert.equal(cachesOff(['jest', '--listTests']), false)
+  })
+
+  it('reads the dashed spellings Jest’s parser accepts: --clear-cache is --clearCache', () => {
+    assert.equal(cachesOff(['jest', '--clear-cache']), true)
+    assert.equal(cachesOff(['jest', '--show-config']), true)
+    assert.equal(cachesOff(['jest', '--list-tests']), false)
   })
 })
 

@@ -14,6 +14,13 @@ import {
 /** The flags that turn code coverage on, as Jest and Vitest spell them. */
 const COVERAGE_FLAGS: ReadonlySet<string> = new Set(['--coverage', '--collectCoverage'])
 
+/** `--clear-cache` as `--clearCache`: Jest's parser takes a dashed flag as its camel-case one. */
+function camelFlag(flag: string): string {
+  return flag.startsWith('--')
+    ? `--${flag.slice(2).replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())}`
+    : flag
+}
+
 /**
  * Whether the run collects coverage: `NODE_V8_COVERAGE` is set (Node's own collector), or the
  * command line names a coverage flag (`--coverage`, `--collectCoverage`, with or without `=value`;
@@ -28,7 +35,7 @@ export function coverageOn(
   if (env.NODE_V8_COVERAGE !== undefined && env.NODE_V8_COVERAGE !== '') return true
   return argv.some((arg) => {
     const [flag, value] = arg.split('=', 2)
-    return flag !== undefined && COVERAGE_FLAGS.has(flag) && value !== 'false'
+    return flag !== undefined && COVERAGE_FLAGS.has(camelFlag(flag)) && value !== 'false'
   })
 }
 
@@ -40,14 +47,16 @@ export function coverageOn(
  * @internal
  */
 export function cachesOff(argv: readonly string[]): boolean {
-  return argv.some(
-    (arg, index) =>
+  return argv.some((arg, index) => {
+    const flag = camelFlag(arg)
+    return (
       arg === '--no-cache' ||
       arg === '--cache=false' ||
-      arg === '--clearCache' ||
-      arg === '--showConfig' ||
-      (arg === '--cache' && argv[index + 1] === 'false'),
-  )
+      flag === '--clearCache' ||
+      flag === '--showConfig' ||
+      (arg === '--cache' && argv[index + 1] === 'false')
+    )
+  })
 }
 
 /**
