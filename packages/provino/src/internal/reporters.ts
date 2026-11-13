@@ -3,6 +3,7 @@ import { basename, resolve } from 'node:path'
 import type { ResolvedProject } from '@provino/config'
 import {
   agentReporter,
+  type ConsoleEntry,
   createStyle,
   defaultReporter,
   detectOutput,
@@ -20,7 +21,7 @@ import {
   type TextSink,
   verboseReporter,
 } from '@provino/reporters'
-import type { FileResult, Reporter, RunSummary, TextStyle } from '@provino/types'
+import type { FileInfo, FileResult, Reporter, RunSummary, TextStyle } from '@provino/types'
 import {
   BUILT_IN_REPORTERS,
   type BuiltInReporterName,
@@ -62,6 +63,8 @@ export interface TextExtras {
   readonly separateSummary?: true
   /** Text printed in place of Provino's failure blocks for a failed file. */
   readonly failureText?: (file: FileResult) => string | undefined
+  /** What goes under a console entry in place of its `at` line (Jest's `formatStackTrace`). */
+  readonly consoleTrace?: (file: FileInfo, entry: ConsoleEntry) => string
   /** Lines under a file's output (Jest's per-file snapshot lines). */
   readonly fileNotes?: (file: FileResult, style: TextStyle) => readonly string[] | undefined
   /** The `summary` reporter's: reprint the failures when more suites than this ran. */
@@ -249,6 +252,9 @@ function textOptions(context: ReporterContext, output: OutputEnvironment): TextR
     ...(display?.verbose === false ? { verbose: false as const } : {}),
     ...(display?.verbose === true ? { verboseRun: true as const } : {}),
     ...(context.text?.separateSummary === true ? { summary: false as const } : {}),
+    ...(context.text?.consoleTrace === undefined
+      ? {}
+      : { consoleTrace: context.text.consoleTrace }),
     ...(context.text?.fileNotes === undefined ? {} : { fileNotes: context.text.fileNotes }),
     ...(context.text?.failureText === undefined ? {} : { failureText: context.text.failureText }),
     ...(context.text?.failureSummaryThreshold === undefined

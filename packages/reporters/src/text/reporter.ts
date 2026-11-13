@@ -13,7 +13,7 @@ import { DEFAULT_COLUMNS } from '../environment.ts'
 import { createCollector, type FileRecord, outcomeOf } from '../internal/collect.ts'
 import type { TextSink } from '../sink.ts'
 import { createStyle } from '../style.ts'
-import { consoleBlock, consoleEntries } from './console.ts'
+import { type ConsoleEntry, consoleBlock, consoleEntries } from './console.ts'
 import { createDots } from './dots.ts'
 import {
   displayPath,
@@ -56,6 +56,11 @@ export interface TextReporterOptions {
   readonly silent?: boolean
   /** Leave the stack frames out of the failure messages (Jest's `--noStackTrace`). */
   readonly noStackTrace?: boolean
+  /**
+   * A dialect's rendering of a console call's site, printed under the entry in place of the `at`
+   * line (Jest's `formatStackTrace`, with the code frame of a `warn` or `error`).
+   */
+  readonly consoleTrace?: (file: FileInfo, entry: ConsoleEntry) => string
   /** `verbose`: list skipped and todo tests in declaration order, not after the others (Jest's `--expand`). */
   readonly expand?: boolean
   /**
@@ -222,6 +227,11 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
   }
 
   /** What a file prints, or `undefined` for none (a skipped file; a passing one under `agent`). */
+  function traceOf(file: FileInfo): { trace?: (entry: ConsoleEntry) => string } {
+    const hook = options.consoleTrace
+    return hook === undefined ? {} : { trace: (entry) => hook(file, entry) }
+  }
+
   function fileText(result: FileResult, entry: FileRecord | undefined): string | undefined {
     if (result.state === 'skip') return undefined
     if (traits.quiet && result.state === 'pass') return undefined
@@ -235,7 +245,11 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     if (listing) {
       if (entries.length > 0) {
         parts.push(
-          consoleEntries(entries, { titleIndent: 2, stackTrace, root: record.root }, style),
+          consoleEntries(
+            entries,
+            { titleIndent: 2, stackTrace, root: record.root, ...traceOf(result.file) },
+            style,
+          ),
         )
       }
       parts.push(header)
@@ -248,7 +262,11 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       }
     } else {
       parts.push(header)
-      if (entries.length > 0) parts.push(consoleBlock(entries, style, stackTrace, record.root))
+      if (entries.length > 0) {
+        parts.push(
+          consoleBlock(entries, style, stackTrace, record.root, traceOf(result.file).trace),
+        )
+      }
     }
     const given = result.state === 'fail' ? options.failureText?.(result) : undefined
     if (given !== undefined) {

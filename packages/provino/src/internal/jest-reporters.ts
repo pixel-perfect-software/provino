@@ -7,6 +7,7 @@ import {
   type JestGlobalConfig,
   type JestProjectConfig,
   type JestResults,
+  jestConsoleTrace,
   jestReporterPlan,
   jestRunSummaryLine,
   jestSnapshotStatus,
@@ -14,8 +15,8 @@ import {
   jestUpdateCommand,
   loadJestReporters,
 } from '@provino/dialect-jest/node'
-import type { Environment, OutputEnvironment } from '@provino/reporters'
-import type { FileResult, Reporter, TextStyle } from '@provino/types'
+import type { ConsoleEntry, Environment, OutputEnvironment } from '@provino/reporters'
+import type { FileInfo, FileResult, Reporter, TextStyle } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
 import type { TextExtras } from './reporters.ts'
 import { UsageError } from './usage-error.ts'
@@ -65,6 +66,13 @@ export async function setUpJestReporters(options: {
   })
   const afterUpdate = globalConfig.updateSnapshot === 'all'
   const noteHooks = {
+    // Jest renders a console entry's site with `formatStackTrace`, a code frame for `warn` and `error`.
+    consoleTrace: (file: FileInfo, entry: ConsoleEntry) => {
+      const config = options.configs[file.projectIndex ?? 0] ?? options.configs[0]
+      return config === undefined || entry.origin === null
+        ? ''
+        : jestConsoleTrace(entry.origin, entry.level, config, globalConfig)
+    },
     fileNotes: (file: FileResult, style: TextStyle) => {
       const snapshot = results.testResultOf(file.file.fileId)?.snapshot
       return snapshot === undefined ? undefined : jestSnapshotStatus(snapshot, afterUpdate, style)
@@ -74,7 +82,7 @@ export async function setUpJestReporters(options: {
   let hosted = 0
   const reporters: ReporterChoice[] = []
   for (const step of plan.steps) {
-    if (step.kind === 'builtin') {
+    if (step.kind === 'builtin' && step.name !== 'github-actions') {
       reporters.push(step.name)
       continue
     }

@@ -30,5 +30,6 @@ export {
 export type { TextSink } from './sink.ts'
 export { createStyle, type Style } from './style.ts'
 export { type SummaryReporterOptions, summaryReporter } from './summary/reporter.ts'
+export type { ConsoleEntry } from './text/console.ts'
 export type { TextReporterOptions } from './text/reporter.ts'
 export { verboseReporter } from './verbose/reporter.ts'

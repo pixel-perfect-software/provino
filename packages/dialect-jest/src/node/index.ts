@@ -63,6 +63,7 @@ export {
 export { replaceRootDirInPath } from './paths.ts'
 export { setupPreset } from './preset.ts'
 export { type CollectedTextStyle, jestCollectedText } from './reporters/collected-text.ts'
+export { jestConsoleTrace } from './reporters/console-trace.ts'
 export {
   createJestReporterHost,
   type JestLoadedReporter,

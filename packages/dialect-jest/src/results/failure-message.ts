@@ -38,9 +38,15 @@ const PROVINO_PACKAGES: string | undefined =
 export function hideProvinoFrames(stack: string): string {
   const own = PROVINO_PACKAGES
   if (own === undefined) return stack
+  // `<repo>/packages/<name>/src|dist/...` only: a project that sits under `packages/` (a test
+  // project in a package's own directory) keeps its frames.
   return stack
     .split('\n')
-    .filter((line) => !(/^\s+at /.test(line) && line.includes(own)))
+    .filter((line) => {
+      if (!/^\s+at /.test(line)) return true
+      const at = line.indexOf(own)
+      return at === -1 || !/^[^/\\]+[/\\](?:src|dist)[/\\]/.test(line.slice(at + own.length))
+    })
     .join('\n')
 }
 

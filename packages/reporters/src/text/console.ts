@@ -44,6 +44,11 @@ export interface ConsoleFormat {
   readonly stackTrace: boolean
   /** Paths under this directory are shown relative to it, as Jest's `formatPath` does. */
   readonly root?: string
+  /**
+   * What goes under an entry in place of its `at` line: the dialect's own rendering of the call
+   * site (Jest's `formatStackTrace`: a code frame for a `warn` or `error`, then the frame).
+   */
+  readonly trace?: (entry: ConsoleEntry) => string
 }
 
 /**
@@ -61,6 +66,13 @@ export function consoleEntries(
     const colour =
       entry.level === 'warn' ? style.yellow : entry.level === 'error' ? style.red : undefined
     const message = indent(entry.text.trimEnd(), format.titleIndent + 2)
+    if (format.trace !== undefined) {
+      return [
+        `${pad}${(colour ?? style.dim)(entryTitle(entry))}`,
+        colour === undefined ? message : colour(message),
+        style.dim(format.trace(entry).trimEnd()),
+      ].join('\n')
+    }
     const frame = relativeFrame(originFrame(entry.origin), format.root)
     const showFrame = frame !== undefined && (colour === undefined || format.stackTrace)
     return [
@@ -78,6 +90,7 @@ export function consoleBlock(
   style: Style,
   stackTrace: boolean,
   root?: string,
+  trace?: (entry: ConsoleEntry) => string,
 ): string {
-  return `  ${style.bold('● ')}Console\n\n${consoleEntries(entries, { titleIndent: 4, stackTrace, ...(root === undefined ? {} : { root }) }, style)}`
+  return `  ${style.bold('● ')}Console\n\n${consoleEntries(entries, { titleIndent: 4, stackTrace, ...(root === undefined ? {} : { root }), ...(trace === undefined ? {} : { trace }) }, style)}`
 }
