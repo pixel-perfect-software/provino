@@ -190,7 +190,7 @@ export function createWorld(policy: LazyPolicy = { readInBeforeAll: 'error' }): 
     afterEach: (fn) => void collecting?.hooks.afterEach.push(fn),
   }
 
-  const runtime = createLazyRuntime({ host, policy })
+  const runtime = createLazyRuntime({ host, policy, describe: api.describe })
 
   function chain(suite: FakeSuite): FakeSuite[] {
     const list: FakeSuite[] = []

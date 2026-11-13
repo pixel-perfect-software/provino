@@ -1,4 +1,4 @@
-// The rebuilt Spikes C corpus (Track 6 §Spikes C): 29 behaviours of `@provino/lazy`, each run on the
+// The rebuilt Spikes C corpus (Track 6 §Spikes C): 30 behaviours of `@provino/lazy`, each run on the
 // real `@provino/core` under one whole policy. The original `check.ts` was deleted with the spikes;
 // this list is rebuilt from the behaviour table in the research. A behaviour passes when its function
 // resolves, and fails with the assertion that broke.
@@ -47,7 +47,7 @@ function frameOf(env: Env): Extract<LazyFrame, { kind: 'test' }> {
   return frame as Extract<LazyFrame, { kind: 'test' }>
 }
 
-/** The fixed list. The runner multiplies it by the policies; the total must stay at 58 or more. */
+/** The fixed list. The runner multiplies it by the policies; the total must stay at 60 or more. */
 export const BEHAVIOURS: readonly Behaviour[] = [
   {
     name: 'per-test memo, fresh for the next test',
@@ -578,6 +578,29 @@ export const BEHAVIOURS: readonly Behaviour[] = [
       })
       allPass(result)
       assert.equal(code(thrown), 'LAZY_READONLY')
+    },
+  },
+  {
+    name: 'a shared group adds a key and reads the caller override (T6.7)',
+    async check(policy) {
+      const seen: unknown[] = []
+      const result = await runFile(policy, ({ api, lazy, lazyRuntime }) => {
+        const group = lazyRuntime.sharedExamples<{ subject: number }, [label: string]>(
+          'a number',
+          ($, label) => {
+            const $g = $.let('double', ({ subject }) => subject * 2)
+            api.test(`${label} doubles`, () => void seen.push(label, $g.subject, $g.double))
+          },
+        )
+        const $ = lazy.let('subject', () => 1)
+        lazyRuntime.itBehavesLike(group, $, 'plain')
+        api.describe('over', () => {
+          $.override('subject', () => 5)
+          lazyRuntime.itBehavesLike(group, $, 'big')
+        })
+      })
+      allPass(result)
+      assert.deepEqual(seen, ['plain', 1, 2, 'big', 5, 10])
     },
   },
 ]

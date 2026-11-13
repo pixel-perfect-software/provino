@@ -8,11 +8,12 @@ RSpec-style lazy variables (Track 6). Neutral: it reads only `LazyPolicy` and a 
 |---|---|
 | `src/types.ts` | The public types (B24a). Type tests in `test/`: `lazy.test-d.ts`, `type-errors.test.ts` (each `@ts-expect-error` carries its code and a message substring), `typeperf.test.ts` (60 chained `.let`s under 150k instantiations) |
 | `src/errors.ts`, `src/slot.ts`, `src/api.ts` | `LazyError` (branded, `instanceof` holds across module copies), the `Symbol.for('provino.lazy.runtime')` slot, and the frozen forwarders that read it when called (`LAZY_NO_RUNTIME` with none) |
-| `src/runtime/create.ts` | `createLazyRuntime({ host, policy })`: the root handle and `evaluatedLazies`. B24c adds the shared-example functions that make it the whole `LazyRuntime` |
+| `src/runtime/create.ts` | `createLazyRuntime({ host, policy, describe })`: the root handle, `evaluatedLazies` and the shared-example functions (the whole `LazyRuntime`); `describe` is the worker's, which `itBehavesLike` opens a nested suite with |
 | `src/runtime/state.ts` | `LazyEntry` (shaped as `@provino/types` `Definition`; `define` is B25's `factory`), `Cell` (a memo: value, error, in flight, eager wait), the private slots symbols, `Engine` |
 | `src/runtime/table.ts` | The interim definition table (each suite's `slots`, one entry per key), `register` (reserved key, scope placement, duplicates), `resolveEntry` (innermost suite outward, cached per suite), `settle` (parent entry, scope, eagerness and memo key, fixed on first read) and the `onCollected` check that every override has a definition around it |
 | `src/runtime/read.ts` | `readFrom` (the hot path), `run` (one evaluation: deps view, context, sync stack, timeout, log), the deps view (a class per suite with prototype getters), `evaluateEager`, `peek` for `inspect` |
 | `src/runtime/handle.ts` | The frozen handle: enumerable getter per key (shared descriptors), non-enumerable `let`/`eager`/`override`/`from`, `toJSON`, `Symbol.toStringTag`, `util.inspect.custom` |
+| `src/runtime/shared.ts` | `sharedExamples`/`sharedContext` brand a frozen `{ name }` with the body under `Symbol.for('provino.lazy.shared.body')` (so a group made by another copy runs). `itBehavesLike` opens `describe('behaves like <name>')` and runs the body there; `includeExamples` and `includeContext` run it in the suite being collected (`LAZY_NOT_COLLECTING` otherwise, `LAZY_INVALID` for a non-group). The body's `$` is a fresh handle with the caller's keys, so reads resolve from the running test's suite and see the caller's overrides |
 | `src/runtime/eager.ts`, `cleanup.ts`, `site.ts` | The eager hook; `onCleanup` lists (test: `run.addTeardown`; file: one `file.teardowns` entry; worker: one worker teardown plus its own `AbortController`); the definition site from `Error.captureStackTrace` |
 | `src/internal/test-support.ts` | A fake `LazyHost` (collector, runner, ALS frame per run) for this package's tests |
 
@@ -27,8 +28,8 @@ RSpec-style lazy variables (Track 6). Neutral: it reads only `LazyPolicy` and a 
 
 ## The core check
 
-`packages/bench/src/lazy/` (`pnpm bench:lazy check`) runs 29 behaviours under the Jest dialect's whole policy and the neutral one on the real `createRuntime`, 58 checks, 0 failed (T6.5). `behaviours.ts` is the rebuilt Spikes C corpus. It found no `LazyHost` gap in core. Never lower the count.
+`packages/bench/src/lazy/` (`pnpm bench:lazy check`) runs 30 behaviours under the Jest dialect's whole policy and the neutral one on the real `createRuntime`, 60 checks, 0 failed (T6.5). `behaviours.ts` is the rebuilt Spikes C corpus. It found no `LazyHost` gap in core. Never lower the count.
 
 ## Not built yet
 
-Shared examples and shared context (B24c); the worker install, the umbrella exports and the docs (B24d); `LazyEvaluation` in `@provino/types`, `LAZY_CHAIN` on thrown values and the reporter block (B24e); the read-cost gate (B24f); `fixtures.compile` (T6.9). B25's T5.9 moves the table into core behind a `LazyHost` method.
+The worker install, the umbrella exports and the docs (B24d); `LazyEvaluation` in `@provino/types`, `LAZY_CHAIN` on thrown values and the reporter block (B24e); the read-cost gate (B24f); `fixtures.compile` (T6.9). B25's T5.9 moves the table into core behind a `LazyHost` method.
