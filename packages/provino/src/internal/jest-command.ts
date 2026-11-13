@@ -410,8 +410,12 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
             }),
           })
         : undefined
+    let reporterFailed = false
     const result = await executeProject({
       project,
+      onReporterFailures: (failures) => {
+        reporterFailed = failures.length > 0
+      },
       others,
       root: read.globalConfig.rootDir,
       cwd,
@@ -446,14 +450,31 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       if (!read.globalConfig.detectOpenHandles) stderr.write(`${FORCE_EXIT_WARNING}\n`)
       io.onForceExit?.()
     }
-    if (results !== undefined && result.summary !== null) {
-      const success = await processJestResults({
-        aggregated: results.aggregated(),
-        globalConfig: read.globalConfig,
-        cwd,
-        stdout,
-        outputStream: read.globalConfig.json || read.globalConfig.useStderr ? stderr : stdout,
-      })
+    // Jest processes the results (`processResults`, runJest.ts L173-L213) only when tests ran: with
+    // none and no `--passWithNoTests` it prints its message and exits 1 first (L369-L381), and a
+    // signal ends the process before it gets there.
+    const processing =
+      results !== undefined &&
+      result.summary !== null &&
+      !(result.summary.files.length === 0 && !read.globalConfig.passWithNoTests) &&
+      !results.aggregated().wasInterrupted
+    if (results !== undefined && result.summary !== null && processing) {
+      results.reportersFailed(reporterFailed)
+      let success: boolean
+      try {
+        success = await processJestResults({
+          aggregated: results.aggregated(),
+          globalConfig: read.globalConfig,
+          cwd,
+          stdout,
+          outputStream: read.globalConfig.json || read.globalConfig.useStderr ? stderr : stdout,
+        })
+      } catch (error) {
+        // A processor that throws (or fails to load) ends Jest's `runCLI` with the error: jest-cli
+        // prints its stack and exits 1, whatever the run's own result was.
+        stderr.write(`${error instanceof Error ? (error.stack ?? String(error)) : String(error)}\n`)
+        return ExitCode.TestFailure
+      }
       // Jest ends `success ? 0 : testFailureExitCode` from the processed results; a signal, a
       // usage error or anything else the run decided keeps its own code.
       const failure = read.globalConfig.testFailureExitCode

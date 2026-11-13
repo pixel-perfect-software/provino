@@ -9,7 +9,7 @@ import {
   type ShardSpec,
 } from '@provino/orchestrator'
 import { createReporterBus, type Environment } from '@provino/reporters'
-import type { FileFilter, Reporter, ReporterBus, RunSummary } from '@provino/types'
+import type { FileFilter, Reporter, ReporterBus, RunSummary, SerializedError } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
 import { workerStartupEnv } from './compile-cache.ts'
 import { type DisplayOptions, reportersFor } from './reporters.ts'
@@ -32,6 +32,8 @@ export interface ExecuteOptions {
   readonly reporters?: readonly ReporterChoice[] | undefined
   /** Reporters that hear every event before the others (a result collector), whatever `reporters` says. */
   readonly leadingReporters?: readonly Reporter[]
+  /** Told what the reporters failed with once the run is over (nothing is passed on a failed start). */
+  readonly onReporterFailures?: (failures: readonly SerializedError[]) => void
   /** What the reporters read for the terminal, CI, an agent and colour: resolved by the caller. */
   readonly env: Environment
   /** How text looks (Jest's `--verbose`, `--silent`, `--expand`, `--noStackTrace`, `--colors`). */
@@ -112,6 +114,7 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
   // A reporter that failed (a JSON file that couldn't be written) fails the run. The default
   // reporter shows such an error itself; the others may not, so it is said here as well.
   const reporterFailures = bus.failures()
+  options.onReporterFailures?.(reporterFailures)
   for (const failure of reporterFailures) {
     stderr.write(`Provino: a reporter failed: ${failure.message}\n`)
   }
