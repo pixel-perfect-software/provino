@@ -10,6 +10,7 @@ import type {
   TaskResult,
   TaskState,
 } from '@provino/types'
+import { DEFAULT_COLUMNS } from '../environment.ts'
 import type { TextSink } from '../sink.ts'
 import { createStyle } from '../style.ts'
 import { type ConsoleEntry, consoleBlock, consoleEntries } from './console.ts'
@@ -48,7 +49,7 @@ export interface TextReporterOptions {
    * finish (a terminal, not CI, not an agent). Default `false`.
    */
   readonly live?: boolean
-  /** The terminal's width, for the live block and the dots' wrap. Default 80, also for a width that is not at least 1. */
+  /** The terminal's width in whole columns, for the live block and the dots' wrap, as `detectOutput` reports it. Default 80. */
   readonly columns?: number
   /** Print none of the tests' console output (Jest's `--silent`). */
   readonly silent?: boolean
@@ -80,15 +81,6 @@ interface FailedTest {
   readonly errors: readonly SerializedError[]
 }
 
-/** The width a terminal is taken to have when its stream reports none that makes sense. */
-const DEFAULT_COLUMNS = 80
-
-/** The terminal's width: `columns` when it is a number of at least 1, else the default (a stream may report 0). */
-function widthOf(columns: number | undefined): number {
-  const whole = columns === undefined ? 0 : Math.floor(columns)
-  return Number.isFinite(whole) && whole >= 1 ? whole : DEFAULT_COLUMNS
-}
-
 /** How an `error` event is labelled, by where it came from. */
 const ERROR_LABELS = {
   coordinator: 'Run error',
@@ -116,7 +108,7 @@ export function createTextReporter(
   const { stream, report } = options
   const style = createStyle(options.colour === true)
   const errorFormat: ErrorFormat = { stackTrace: options.noStackTrace !== true }
-  const columns = widthOf(options.columns)
+  const columns = options.columns ?? DEFAULT_COLUMNS
   // The block's redraw erases the lines above it, so it has no place over a row of dots it doesn't track.
   const out = createLiveOutput(stream, {
     live: options.live === true && mode !== 'agent' && mode !== 'dot',

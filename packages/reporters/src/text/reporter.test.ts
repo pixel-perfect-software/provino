@@ -644,14 +644,6 @@ describe('the dot reporter', () => {
     )
   })
 
-  test('takes a width of zero, or none that makes sense, for the default 80', async () => {
-    const tests = Array.from({ length: 85 }, (_, i) => ({ path: [`t${i}`] }))
-    for (const columns of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
-      const text = await written(dotReporter, [{ path: 'a.test.ts', tests }], { columns })
-      assert.match(text, /^\.{80}\n\.{5}\n\nTest Suites:/, `columns ${columns}`)
-    }
-  })
-
   test('starts its dots over at each run:start', async () => {
     const out = output()
     const reporter = dotReporter({ stream: out, report: REPORT, columns: 3 })

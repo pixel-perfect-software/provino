@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { AGENT_VARIABLES, detectOutput } from './environment.ts'
+import { AGENT_VARIABLES, detectOutput, isCi, OUTPUT_VARIABLES } from './environment.ts'
 
 const TTY = { isTTY: true, columns: 120 }
 
@@ -16,6 +16,14 @@ describe('detectOutput: a terminal', () => {
     assert.equal(detectOutput({ env: {}, stream: TTY }).columns, 120)
     assert.equal(detectOutput({ env: {}, stream: { isTTY: true } }).columns, 80)
     assert.equal(detectOutput({ env: {} }).columns, 80)
+  })
+
+  test('takes a width that is not at least 1 for 80, and keeps whole columns', () => {
+    for (const columns of [0, -5, 0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const stream = { isTTY: true, columns }
+      assert.equal(detectOutput({ env: {}, stream }).columns, 80, `columns ${columns}`)
+    }
+    assert.equal(detectOutput({ env: {}, stream: { isTTY: true, columns: 120.7 } }).columns, 120)
   })
 
   test('is live in a terminal that is neither CI, nor dumb, nor an agent’s', () => {
@@ -150,5 +158,52 @@ describe('detectOutput: an agent', () => {
       if (had === undefined) delete process.env.AI_AGENT
       else process.env.AI_AGENT = had
     }
+  })
+})
+
+describe('isCi', () => {
+  test('is true when CI is set to anything but empty, false or 0', () => {
+    for (const value of ['true', '1', 'yes', 'TRUE', 'github']) {
+      assert.equal(isCi({ CI: value }), true, value)
+    }
+  })
+
+  test('is false when CI is unset, empty, false or 0', () => {
+    assert.equal(isCi({}), false)
+    for (const value of ['', 'false', '0']) {
+      assert.equal(isCi({ CI: value }), false, JSON.stringify(value))
+    }
+  })
+
+  test('ignores case and surrounding spaces', () => {
+    for (const value of ['FALSE', 'False', ' false ', '\tfalse\n', ' 0 ', ' ', '  ']) {
+      assert.equal(isCi({ CI: value }), false, JSON.stringify(value))
+    }
+    for (const value of [' true ', ' TRUE', ' 1 ', ' yes']) {
+      assert.equal(isCi({ CI: value }), true, JSON.stringify(value))
+    }
+  })
+
+  test('is what detectOutput reports as ci, unless it is told', () => {
+    for (const env of [{}, { CI: '0' }, { CI: 'true' }, { CI: ' FALSE ' }]) {
+      assert.equal(detectOutput({ env }).ci, isCi(env), JSON.stringify(env))
+    }
+  })
+})
+
+describe('OUTPUT_VARIABLES', () => {
+  test('names every variable detectOutput reads, and each of AGENT_VARIABLES', () => {
+    for (const name of ['CI', 'TERM', 'NO_COLOR', 'FORCE_COLOR', 'GITHUB_ACTIONS', 'AI_AGENT']) {
+      assert.ok(OUTPUT_VARIABLES.includes(name), name)
+    }
+    for (const [, variable] of AGENT_VARIABLES) assert.ok(OUTPUT_VARIABLES.includes(variable))
+  })
+
+  test('is enough to clear: set, they make a CI run on GitHub Actions under an agent; without them, none', () => {
+    const env = Object.fromEntries(OUTPUT_VARIABLES.map((name) => [name, 'kiro']))
+    const set = detectOutput({ env, stream: TTY })
+    assert.deepEqual([set.ci, set.githubActions, set.agent === undefined], [true, true, false])
+    const bare = detectOutput({ env: {}, stream: TTY })
+    assert.deepEqual([bare.ci, bare.githubActions, bare.agent], [false, false, undefined])
   })
 })

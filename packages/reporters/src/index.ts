@@ -12,6 +12,7 @@ export {
   type DetectOptions,
   detectOutput,
   type Environment,
+  isCi,
   OUTPUT_VARIABLES,
   type OutputEnvironment,
   type OutputStream,

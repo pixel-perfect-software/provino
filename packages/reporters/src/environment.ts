@@ -119,14 +119,40 @@ export interface OutputEnvironment {
    * not `TERM=dumb`, in a run that is neither CI nor an agent's.
    */
   readonly live: boolean
-  /** The stream's width, 80 when it doesn't say. */
+  /** The stream's width in whole columns: 80 when it doesn't say, or says a width that is not at least 1. */
   readonly columns: number
 }
 
+/**
+ * Whether an environment variable is on: set to something other than empty, `0` or `false`,
+ * ignoring case and surrounding spaces (as ci-info reads `CI`). The one rule for `CI`,
+ * `GITHUB_ACTIONS` and the agent variables.
+ */
 function isSet(value: string | undefined): value is string {
   if (value === undefined) return false
   const text = value.trim().toLowerCase()
   return text !== '' && text !== '0' && text !== 'false'
+}
+
+/**
+ * Whether `env` says this is a CI run: `CI` is set (`isSet`). `run()` resolves a run's `ci` with
+ * this and hands the answer to the reporters, so they and the run never disagree.
+ * @internal
+ */
+export function isCi(env: Environment): boolean {
+  return isSet(env.CI)
+}
+
+/**
+ * The width a stream is taken to have when it reports none that makes sense.
+ * @internal
+ */
+export const DEFAULT_COLUMNS = 80
+
+/** The stream's width in whole columns: what it reports when that is at least 1, else the default (a stream may report 0). */
+function widthOf(columns: number | undefined): number {
+  const whole = columns === undefined ? 0 : Math.floor(columns)
+  return Number.isFinite(whole) && whole >= 1 ? whole : DEFAULT_COLUMNS
 }
 
 /** The agent that runs the process (std-env's name for it), or `undefined`. */
@@ -166,7 +192,7 @@ function colourOf(env: Environment, tty: boolean, agent: string | undefined): bo
 export function detectOutput(options: DetectOptions = {}): OutputEnvironment {
   const env = options.env ?? process.env
   const tty = options.stream?.isTTY === true
-  const ci = options.ci ?? isSet(env.CI)
+  const ci = options.ci ?? isCi(env)
   const agent = agentOf(env, tty)
   const colour = options.colour ?? colourOf(env, tty, agent)
   const dumb = env.TERM === 'dumb'
@@ -177,6 +203,6 @@ export function detectOutput(options: DetectOptions = {}): OutputEnvironment {
     githubActions: isSet(env.GITHUB_ACTIONS),
     colour,
     live: tty && !dumb && !ci && agent === undefined,
-    columns: options.stream?.columns ?? 80,
+    columns: widthOf(options.stream?.columns),
   }
 }
