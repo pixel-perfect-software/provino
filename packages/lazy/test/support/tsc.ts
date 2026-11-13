@@ -49,6 +49,8 @@ export function compilerBin(compiler: Compiler): string {
 }
 
 const DIAGNOSTIC_LINE = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.*)$/
+/** A global error (a missing `types` entry, a bad option) has no file or position: its line is 0. */
+const GLOBAL_DIAGNOSTIC_LINE = /^error (TS\d+): (.*)$/
 
 /** Reads `tsc --pretty false` output: an error line, then indented lines that continue it. */
 export function parseDiagnostics(output: string): Diagnostic[] {
@@ -62,6 +64,15 @@ export function parseDiagnostics(output: string): Diagnostic[] {
         column: Number(match[3]),
         code: match[4] ?? '',
         message: match[5] ?? '',
+      })
+    } else if (GLOBAL_DIAGNOSTIC_LINE.test(line)) {
+      const global = GLOBAL_DIAGNOSTIC_LINE.exec(line)
+      found.push({
+        file: '',
+        line: 0,
+        column: 0,
+        code: global?.[1] ?? '',
+        message: global?.[2] ?? '',
       })
     } else if (/^\s+\S/.test(line)) {
       const last = found.at(-1)
@@ -112,8 +123,14 @@ export function compileFiles(
     if (run.error !== undefined) {
       throw run.error
     }
+    const diagnostics = parseDiagnostics(run.stdout)
+    if (run.status !== 0 && diagnostics.length === 0) {
+      throw new Error(
+        `${compiler} exited ${run.status} with no diagnostic it could read\nstdout: ${run.stdout}\nstderr: ${run.stderr}`,
+      )
+    }
     return {
-      diagnostics: parseDiagnostics(run.stdout),
+      diagnostics,
       stdout: run.stdout,
       status: run.status,
     }

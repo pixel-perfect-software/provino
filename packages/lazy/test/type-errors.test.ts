@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { COMPILERS } from './support/tsc.ts'
+import { COMPILERS, compileFiles } from './support/tsc.ts'
 import {
   checkTypeErrors,
   compareDiagnostics,
@@ -75,5 +75,33 @@ describe('lazy.test-d.ts directives', () => {
     const stripped = stripDirectives(source)
     assert.equal(stripped.split('\n').length, source.split('\n').length)
     assert.doesNotMatch(stripped, /^\s*\/\/ @ts-expect-error/m)
+  })
+})
+
+describe('a compiler setup that is broken', () => {
+  for (const compiler of COMPILERS) {
+    test(`a global error with no position is a diagnostic on ${compiler}`, () => {
+      const result = compileFiles(compiler, { 'case.test-d.ts': 'export {}\n' }, [
+        '--types',
+        'missing-types-package',
+      ])
+      assert.ok(
+        result.diagnostics.some((entry) => entry.code === 'TS2688' && entry.line === 0),
+        JSON.stringify(result.diagnostics),
+      )
+      assert.ok(
+        compareDiagnostics([], result.diagnostics).some((problem) => problem.includes('TS2688')),
+      )
+    })
+  }
+
+  test('a bad option is a diagnostic, not a clean run', () => {
+    const result = compileFiles('typescript', { 'case.test-d.ts': 'export {}\n' }, [
+      '--noSuchOption',
+    ])
+    assert.ok(
+      result.diagnostics.some((entry) => entry.code === 'TS5023'),
+      JSON.stringify(result.diagnostics),
+    )
   })
 })
