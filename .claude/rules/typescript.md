@@ -13,7 +13,7 @@ paths:
 - **`isolatedDeclarations`.** Annotate exported `const`s and the return types of exported functions. For example `export const jest: Dialect<'jest', JestOptions> = defineDialect({...})`, not a bare `defineDialect(...)`.
 - **Import only what your layer allows.** Check `monorepo-architecture.md` before adding a cross-package import. Never deep-import (`@provino/x/src/...`).
 - **Your slice only.** A package imports its own `*Policy` slice type, and its functions take that slice, never `Policy`. Exempt: `policy`, `config`, `orchestrator`, `dialect-*`.
-- **No dialect strings in neutral packages** (`core`, `lazy`, `mock`, `timers`, `expect`, `snapshot`, `loader`, `orchestrator`, `reporters`, `config`). Never write `=== 'jest'` / `=== 'vitest'` or branch on a dialect name there; add a policy key instead. Selecting a dialect by name (CLI dispatch, config `dialect`, the bench's `--runner`) is fine.
+- **No dialect strings in neutral packages** (`core`, `lazy`, `mock`, `timers`, `expect`, `snapshot`, `loader`, `orchestrator`, `reporters`, `coverage`, `config`). Never write `=== 'jest'` / `=== 'vitest'` or branch on a dialect name there; add a policy key instead. Selecting a dialect by name (CLI dispatch, config `dialect`, the bench's `--runner`) is fine.
 - **Clone safety.** Any type that crosses coordinator ↔ worker must satisfy `CloneSafe<T>`. Pass behaviour as a `ModuleRef`.
 - **Public API tiers.** Tag every export `@public`, `@beta` or `@internal` (TSDoc). `@internal` code lives in `src/internal/` and is not in `exports`.
 - **No hidden global state.** State goes in an explicit context object or core's AsyncLocalStorage.

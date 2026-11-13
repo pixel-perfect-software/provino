@@ -570,6 +570,12 @@ importers:
         specifier: 'catalog:'
         version: 30.1.3
 
+  packages/coverage:
+    dependencies:
+      '@provino/types':
+        specifier: workspace:*
+        version: link:../types
+
   packages/dialect-jest:
     dependencies:
       '@jest/expect-utils':

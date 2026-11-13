@@ -35,6 +35,9 @@
       "path": "packages/snapshot/test"
     },
     {
+      "path": "packages/coverage/test"
+    },
+    {
       "path": "packages/expect/test"
     },
     {

@@ -10,6 +10,9 @@
           "^packages/snapshot/(?!(?:src/runtime|src/node|test)/)",
           "^packages/snapshot/src/runtime/",
           "^packages/snapshot/src/node/",
+          "^packages/coverage/(?!(?:src/runtime|src/node|test)/)",
+          "^packages/coverage/src/runtime/",
+          "^packages/coverage/src/node/",
           "^packages/mock/",
           "^packages/timers/",
           "^packages/expect/",
@@ -22,6 +25,7 @@
           "^packages/orchestrator/(?!(?:src/worker|test)/)",
           "^packages/orchestrator/src/worker/",
           "^packages/snapshot/test/",
+          "^packages/coverage/test/",
           "^packages/loader/test/",
           "^packages/orchestrator/test/"
         ]
