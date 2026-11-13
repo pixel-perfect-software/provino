@@ -119,16 +119,29 @@ describe('provino jest --json with no output file', () => {
     const project = await materialize({
       id: 'inline',
       dir: join(import.meta.dirname, 'fixtures'),
-      manifest: { description: 'no tests', config: { jest: { testMatch: ['<rootDir>/none/**/*.test.ts'] } } },
+      manifest: {
+        description: 'no tests',
+        config: { jest: { testMatch: ['<rootDir>/none/**/*.test.ts'] } },
+      },
       golden: { files: [] },
     })
     try {
       const ended = await spawnCli(
-        ['jest', `--config=${join(project.root, 'jest.config.json')}`, '--ci', '--json', '--passWithNoTests'],
+        [
+          'jest',
+          `--config=${join(project.root, 'jest.config.json')}`,
+          '--ci',
+          '--json',
+          '--passWithNoTests',
+        ],
         { cwd: project.root },
       )
       assert.equal(ended.code, 0, ended.stderr)
-      const results = JSON.parse(ended.stdout) as { numTotalTests: number; success: boolean; testResults: unknown[] }
+      const results = JSON.parse(ended.stdout) as {
+        numTotalTests: number
+        success: boolean
+        testResults: unknown[]
+      }
       assert.deepEqual([results.numTotalTests, results.success, results.testResults], [0, true, []])
     } finally {
       await project.dispose()
