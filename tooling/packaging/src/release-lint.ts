@@ -18,18 +18,25 @@ function activeLines(text: string): readonly string[] {
     .filter((line) => line.trim() !== '')
 }
 
-const PUBLISH_ANY =
-  /\b(?:npm|pnpm|yarn|bun)\s+(?:--?\S+\s+)*(?:stage\s+)?publish\b|\bchangeset\s+publish\b/
-const PUBLISH_STAGED = /\bnpm\s+stage\s+publish\b/
+/** A command that publishes: a package manager, then `publish` in the same command. */
+const PUBLISH_ANY = /\b(?:npm|pnpm|yarn|bun)\b[^\n;&|]*\bpublish\b|\bchangeset\s+publish\b/
+/** `pnpm stage publish`, with pnpm's own flags before `stage` (`-r`, `--recursive`). */
+const PUBLISH_STAGED = /\bpnpm\b[^\n;&|]*\bstage\s+publish\b/
+/** A `run:` line that runs npm, npx, yarn or bun (D75: only install-matrix.yml may). */
+const OTHER_MANAGER = /\brun:.*(?:^|[\s;&|(`])(?:npm|npx|yarn|bunx?)(?=\s|$)/
 const TOKEN_NAMES = /\b(?:NPM_TOKEN|NODE_AUTH_TOKEN|NPM_CONFIG_TOKEN|_authToken)\b/i
 const SECRET_REF = /\$\{\{\s*secrets\.(?!GITHUB_TOKEN\b)[A-Za-z0-9_]+/
 
 /**
  * Lints a release workflow. Returns every property it lacks, in words; an empty list means it
  * has them all:
- * - `id-token: write`, so npm's trusted publishing can exchange the run's OIDC token;
+ * - `id-token: write`, so trusted publishing can exchange the run's OIDC token (pnpm does the
+ *   exchange itself and attaches provenance under it);
  * - no npm token and no secret but `GITHUB_TOKEN`: there is no `NPM_TOKEN` to leak;
- * - every publish is `npm stage publish`, and each carries `--provenance`;
+ * - every publish is `pnpm stage publish` (staged: the version goes live at `pnpm stage
+ *   approve`, with a one-time password), and each carries `--provenance`; `-r` skips the versions
+ *   already on the registry, so a rerun after a first release publishes only what changed;
+ * - no `npm`, `npx`, `yarn` or `bun` command: D75 allows them only in install-matrix.yml;
  * - a GitHub-hosted runner, and no `pull_request` trigger (a PR must not reach `id-token`);
  * - in a draft, `--dry-run` on every publish.
  * @internal
@@ -44,13 +51,16 @@ export function lintReleaseWorkflow(text: string, options: ReleaseLintOptions): 
   for (const line of tokens) {
     problems.push(`names an npm token or a secret other than GITHUB_TOKEN: ${line.trim()}`)
   }
+  for (const line of lines.filter((line) => OTHER_MANAGER.test(line))) {
+    problems.push(`runs npm, which D75 allows only in install-matrix.yml: ${line.trim()}`)
+  }
   const publishes = lines.filter((line) => PUBLISH_ANY.test(line))
   if (!lines.some((line) => PUBLISH_STAGED.test(line))) {
-    problems.push('no `npm stage publish` step')
+    problems.push('no `pnpm stage publish` step')
   }
   for (const line of publishes) {
     if (!PUBLISH_STAGED.test(line)) {
-      problems.push(`publishes other than with \`npm stage publish\`: ${line.trim()}`)
+      problems.push(`publishes other than with \`pnpm stage publish\`: ${line.trim()}`)
     } else {
       if (!/--provenance\b/.test(line))
         problems.push(`publish without --provenance: ${line.trim()}`)

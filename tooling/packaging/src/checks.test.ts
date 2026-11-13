@@ -105,13 +105,29 @@ describe('release workflow lint (T10.4)', () => {
     ],
     [
       'a plain npm publish',
-      (t) => t.replace('npm stage publish', 'npm publish'),
-      /publishes other than with `npm stage publish`/,
+      (t) => t.replace('- run: pnpm -r stage publish', '- run: npm publish'),
+      /publishes other than with `pnpm stage publish`/,
+    ],
+    [
+      'npm stage publish: D75 allows npm only inside install-matrix.yml',
+      (t) => t.replace('- run: pnpm -r stage publish', '- run: npm stage publish'),
+      /runs npm, which D75 allows only in install-matrix\.yml/,
+    ],
+    [
+      'npm, npx, yarn or bun for anything else',
+      (t) =>
+        t.replace('      - run: pnpm build', '      - run: npx tsdown && yarn build && bun x y'),
+      /runs npm, which D75 allows only in install-matrix\.yml/,
+    ],
+    [
+      'a pnpm publish that is not staged',
+      (t) => t.replace('- run: pnpm -r stage publish', '- run: pnpm -r publish'),
+      /publishes other than with `pnpm stage publish`/,
     ],
     [
       'a pnpm publish beside the staged one',
       (t) => `${t}      - run: pnpm publish -r --provenance --dry-run\n`,
-      /publishes other than with `npm stage publish`/,
+      /publishes other than with `pnpm stage publish`/,
     ],
     ['no provenance', (t) => t.replace(' --provenance', ''), /without --provenance/],
     [
@@ -126,8 +142,8 @@ describe('release workflow lint (T10.4)', () => {
     ],
     [
       'no publish step at all',
-      (t) => t.replace(/ *- run: for tarball.*\n/, ''),
-      /no `npm stage publish` step/,
+      (t) => t.replace(/ *- run: pnpm -r stage publish.*\n/, ''),
+      /no `pnpm stage publish` step/,
     ],
   ]
   for (const [name, mutate, expected] of planted) {
@@ -139,6 +155,22 @@ describe('release workflow lint (T10.4)', () => {
       )
     })
   }
+
+  test('pnpm stage publish in each of its spellings passes', () => {
+    for (const command of [
+      'pnpm stage publish ./x.tgz --provenance --dry-run',
+      'pnpm --recursive stage publish --access public --provenance --dry-run',
+      'pnpm -r stage publish --provenance --dry-run',
+    ]) {
+      const text = template.replace(/- run: pnpm -r stage publish.*/, `- run: ${command}`)
+      assert.deepEqual(lintReleaseWorkflow(text, { draft: true }), [], command)
+    }
+  })
+
+  test('the draft publishes with pnpm and no npm anywhere (D75), and does not repack by hand', () => {
+    assert.match(template, /pnpm -r stage publish/)
+    assert.doesNotMatch(template.replace(/^\s*#.*\n/gm, ''), /\bnpm\b|\bnpx\b|pack:all/)
+  })
 
   test('reads comments as comments: an NPM_TOKEN named in one is not a token', () => {
     assert.deepEqual(
