@@ -56,6 +56,11 @@ export interface FingerprintInputs {
    * to how the form is made is `code`'s (the hash covers `runner/`).
    */
   readonly runnerForm: boolean
+  /**
+   * The coverage instrumenter's `name`, or `null` without one. A file that is requested with
+   * `instrument` gets its output; the name says which instrumenter, at which revision.
+   */
+  readonly instrumenter: string | null
 }
 
 /**
@@ -79,6 +84,7 @@ export function pipelineFingerprint(inputs: FingerprintInputs): string {
       hoist: inputs.hoist,
       transformers: inputs.transformers,
       runnerForm: inputs.runnerForm,
+      instrumenter: inputs.instrumenter,
     }),
   ])
 }

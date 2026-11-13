@@ -32,7 +32,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
     "node": "^22.15.0 || >=24"
@@ -42,6 +43,18 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
   },
   "dependencies": {
-    "@provino/types": "workspace:*"
+    "@istanbuljs/schema": "catalog:",
+    "@jridgewell/remapping": "catalog:",
+    "@jridgewell/trace-mapping": "catalog:",
+    "@provino/types": "workspace:*",
+    "istanbul-lib-coverage": "catalog:",
+    "magic-string": "catalog:",
+    "oxc-parser": "catalog:"
+  },
+  "devDependencies": {
+    "@babel/core": "catalog:",
+    "@types/istanbul-lib-coverage": "catalog:",
+    "babel-plugin-istanbul": "catalog:",
+    "istanbul-lib-instrument": "catalog:"
   }
 }

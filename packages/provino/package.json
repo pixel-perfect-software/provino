@@ -79,12 +79,15 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },
   "dependencies": {
+    "@istanbuljs/schema": "catalog:",
     "@jest/expect-utils": "catalog:",
     "@jest/get-type": "catalog:",
     "@jridgewell/remapping": "catalog:",
+    "@jridgewell/trace-mapping": "catalog:",
     "@sinonjs/fake-timers": "catalog:",
     "@standard-schema/spec": "catalog:",
     "es-module-lexer": "catalog:",
+    "istanbul-lib-coverage": "catalog:",
     "jest-matcher-utils": "catalog:",
     "jest-message-util": "catalog:",
     "jest-util": "catalog:",
@@ -104,6 +107,7 @@
   },
   "devDependencies": {
     "@provino/config": "workspace:*",
+    "@provino/coverage": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
     "@provino/env-jsdom": "workspace:*",
     "@provino/env-node": "workspace:*",

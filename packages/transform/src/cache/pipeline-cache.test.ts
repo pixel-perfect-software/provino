@@ -178,6 +178,7 @@ function stubHost(options: StubOptions) {
       code: `"use strict";\njest.mock('./m');\nconst x = require('./m');\nexports.n = ${JSON.stringify(req.source.length)};\n`,
       map: null,
       transformerCacheKey: options.transformerKey,
+      canInstrument: false,
     }
   }
   return { host, calls }
