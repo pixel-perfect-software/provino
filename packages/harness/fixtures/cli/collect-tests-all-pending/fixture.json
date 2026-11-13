@@ -1,0 +1,12 @@
+{
+  "description": "--collectTests over a file whose tests are all skipped, beside one that runs: the file is skipped (every test pending), with perfStats and displayName set as for a run.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--collectTests", "--useStderr"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

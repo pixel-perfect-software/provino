@@ -47,6 +47,8 @@ function blocks(text: string, root: string): { files: string[]; summary: string 
     files: head
       .split(/^(?=<root>)/m)
       .filter((block) => block !== '')
+      // The blank line between two trees sits with whichever file Jest printed first.
+      .map((block) => block.trimEnd())
       .toSorted(),
     summary: at === -1 ? '' : plain.slice(at),
   }
@@ -71,6 +73,9 @@ describe('provino jest --collectTests --json writes what Jest 30.5.2 wrote', () 
     ['cli/collect-tests', 'nested describes, skip, todo, each and a focused file'],
     ['cli/collect-tests-name', '-t deselects tests: pending, with a todo kept'],
     ['cli/collect-tests-load-error', 'a file that fails to import is a runtime error'],
+    ['cli/collect-tests-empty-file', 'a file with no test fails, as the scheduler fails it'],
+    ['cli/collect-tests-hooks-only-describe', 'a hooks-only describe is not an error'],
+    ['cli/collect-tests-all-pending', 'a file of only pending tests is skipped'],
   ] as const) {
     it(`${what} (${id})`, async () => {
       const fixture = await loadFixture(id)
@@ -98,6 +103,14 @@ describe('provino jest --collectTests --json writes what Jest 30.5.2 wrote', () 
           .join('\n')
         assert.equal(kept, golden?.stderr)
         const raw = JSON.parse(await readFile(join(project.root, RESULTS), 'utf8')) as Json
+        // Jest gives a collected file real times (runTest.ts L313-L337); the golden masks them.
+        const results = (raw as { testResults: { startTime: number; endTime: number }[] })
+          .testResults
+        assert.ok(results.length > 0)
+        for (const entry of results) {
+          assert.ok(entry.startTime > 0, `startTime ${entry.startTime}`)
+          assert.ok(entry.endTime >= entry.startTime, `endTime ${entry.endTime}`)
+        }
         const observed = normalizedJson(raw, {
           roots: [project.root],
           timeKeys: run?.timeKeys ?? [],
@@ -116,6 +129,9 @@ describe('provino jest --collectTests prints the tree Jest 30.5.2 prints', () =>
     'cli/collect-tests',
     'cli/collect-tests-name',
     'cli/collect-tests-load-error',
+    'cli/collect-tests-empty-file',
+    'cli/collect-tests-hooks-only-describe',
+    'cli/collect-tests-all-pending',
   ]) {
     it(`${id}: the same files, trees, summary and exit code`, async () => {
       await withFixture(id, async (project, argv) => {
@@ -144,13 +160,15 @@ describe('provino jest --collectTests prints the tree Jest 30.5.2 prints', () =>
         const actual = blocks(ours.stdout, project.root)
         assert.ok(expected.files.length > 0, live.stdout)
         assert.deepEqual(actual.summary, expected.summary)
-        // A load error's text is the runner's own message (its code frame, frames and paths); the
-        // recording above holds that, so here only its first line is compared.
-        const head = (block: string): string =>
-          block
-            .split('\n')
-            .slice(0, id.endsWith('error') ? 2 : undefined)
-            .join('\n')
+        // A load error's text is the runner's own message, with its code frame and then the stack
+        // frames (whose paths and lines differ): everything above the first frame is compared, so a
+        // missing message or code frame fails.
+        const head = (block: string): string => {
+          if (!id.endsWith('error') && !id.endsWith('empty-file')) return block
+          const lines = block.split('\n')
+          const frame = lines.findIndex((line) => /^\s+at /.test(line))
+          return lines.slice(0, frame === -1 ? undefined : frame).join('\n')
+        }
         assert.deepEqual(actual.files.map(head), expected.files.map(head))
       })
     })
@@ -175,6 +193,33 @@ describe('provino jest --collectTests prints the tree Jest 30.5.2 prints', () =>
         assert.equal(ours.stdout, live.stdout)
         assert.equal(ours.stdout, 'No tests found.\n')
       }
+    })
+  })
+
+  it('--selectProjects with no match prints "No tests found." and exits 0, as Jest does', async () => {
+    await withFixture('cli/collect-tests', async (project) => {
+      const config = join(project.root, 'projects.config.json')
+      await writeFile(
+        config,
+        JSON.stringify({
+          rootDir: project.root,
+          projects: [
+            { displayName: 'one', rootDir: project.root, testMatch: ['<rootDir>/*.test.ts'] },
+          ],
+        }),
+      )
+      const args = ['--ci', '-c', config, '--collectTests', '--selectProjects', 'nope']
+      const live = await liveJest(project.root, args)
+      const ours = await spawnCli(
+        ['jest', `--config=${config}`, ...args.slice(0, 1), ...args.slice(3)],
+        {
+          cwd: project.root,
+        },
+      )
+      assert.equal(live.code, 0, live.stdout + live.stderr)
+      assert.equal(ours.code, live.code, ours.stderr)
+      assert.equal(ours.stdout, live.stdout)
+      assert.match(ours.stdout, /^No tests found\.\n$/m)
     })
   })
 
