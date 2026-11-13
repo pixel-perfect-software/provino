@@ -13,7 +13,7 @@ import {
   parseChangeset,
   readChangesetConfig,
 } from './changesets.ts'
-import { umbrellaDependencyProblems } from './hygiene.ts'
+import { inlinedPackages, umbrellaDependencyProblems } from './hygiene.ts'
 import { installScriptProblems } from './install-scripts.ts'
 import type { PackageManifest } from './package-json.ts'
 import { lintReleaseWorkflow } from './release-lint.ts'
@@ -267,6 +267,28 @@ describe('changesets (T1.6)', () => {
 describe('the umbrella lists what it bundles (T1.10)', () => {
   test('the real workspace agrees', () => {
     assert.deepEqual(umbrellaDependencyProblems(readWorkspacePackages()), [])
+  })
+
+  test("the inlined packages are provino's dev dependencies and what they depend on", () => {
+    const names = inlinedPackages(readWorkspacePackages()).map((pkg) => pkg.manifest.name)
+    for (const name of ['@provino/core', '@provino/dialect-jest', '@provino/env-jsdom']) {
+      assert.ok(names.includes(name), name)
+    }
+    for (const name of ['@provino/harness', '@provino/dialect-vitest', 'provino']) {
+      assert.ok(!names.includes(name), name)
+    }
+    const base = [
+      pkg('provino', { devDependencies: { '@provino/a': 'workspace:*' } }),
+      pkg('@provino/a', { dependencies: { '@provino/b': 'workspace:*' } }),
+      pkg('@provino/b'),
+      pkg('@provino/unused'),
+    ]
+    assert.deepEqual(
+      inlinedPackages(base)
+        .map((p) => p.manifest.name)
+        .sort(),
+      ['@provino/a', '@provino/b'],
+    )
   })
 
   test('a dependency of an inlined package that the umbrella lacks, and one nothing needs, both fail', () => {

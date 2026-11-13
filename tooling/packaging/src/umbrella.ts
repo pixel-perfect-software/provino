@@ -68,6 +68,12 @@ export function umbrellaEntries(dir: string): Readonly<Record<string, string>> {
 /** `import.meta.resolve` of a specifier the build can name, or of a package (`es-module-lexer`). */
 const RESOLVE_CALL = /import\.meta\.resolve\(\s*(?:"([^"\\]+)"|'([^'\\]+)'|`([^`\\$]+)`)\s*,?\s*\)/g
 
+/** A line of a comment, which may mention a call without making one. */
+const COMMENT_LINE = /^\s*(?:\/\/|\*|\/\*)/
+
+/** A call of `import.meta.resolve` with something between the parentheses. */
+const ARGUMENT_CALL = /import\.meta\.resolve\(\s*[^)\s]/g
+
 const MARK = '__provino_ref__:'
 
 /**
@@ -125,6 +131,19 @@ export function workerRefs(): NonNullable<UserConfig['plugins']> {
             changed = true
             return `new URL(${JSON.stringify(`${MARK}${entry}.js`)}, import.meta.url).href`
           })
+          // What no literal pattern matched, with an argument, is a call whose specifier the build
+          // can't read, so it could name a `@provino/*` package this plugin would never rewrite:
+          // fail the build. (`import.meta.resolve()` in a message has no argument.)
+          const rest = out.replace(RESOLVE_CALL, '')
+          for (const match of rest.matchAll(ARGUMENT_CALL)) {
+            const start = rest.lastIndexOf('\n', match.index) + 1
+            const end = rest.indexOf('\n', match.index)
+            const line = rest.slice(start, end === -1 ? undefined : end).trim()
+            if (COMMENT_LINE.test(line)) continue
+            throw new Error(
+              `${id}: import.meta.resolve needs a string literal, which the umbrella build reads to rewrite a @provino/* specifier (found \`${line}\`)`,
+            )
+          }
           return changed ? { code: out, map: null } : null
         },
       },

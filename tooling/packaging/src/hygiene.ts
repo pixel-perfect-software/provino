@@ -66,10 +66,34 @@ const RELEASE_WORKFLOW = '.github/workflows/release.yml'
 const RELEASE_TEMPLATE = 'tooling/packaging/templates/release.yml'
 
 /**
- * `provino` inlines every `@provino/*` package it lists as a workspace dev dependency, and the ones
- * those depend on, so the third-party packages they need at run time must be `provino`'s own dependencies: a package
- * missing there installs, then fails to import. The reverse also fails: a dependency nothing
- * inlined needs is dead weight on every install.
+ * The `@provino/*` packages `provino` inlines: the ones it lists as workspace dev dependencies and,
+ * closed over their runtime dependencies, the ones those need.
+ * @internal
+ */
+export function inlinedPackages(
+  packages: readonly WorkspacePackage[],
+): readonly WorkspacePackage[] {
+  const byName = new Map(packages.map((pkg) => [pkg.manifest.name, pkg]))
+  const inlined = new Map<string, WorkspacePackage>()
+  const queue = Object.keys(byName.get('provino')?.manifest.devDependencies ?? {}).filter((name) =>
+    name.startsWith('@provino/'),
+  )
+  for (let name = queue.pop(); name !== undefined; name = queue.pop()) {
+    const pkg = byName.get(name)
+    if (pkg === undefined || inlined.has(name)) continue
+    inlined.set(name, pkg)
+    for (const dependency of runtimeDependencyNames(pkg.manifest)) {
+      if (dependency.startsWith('@provino/')) queue.push(dependency)
+    }
+  }
+  return [...inlined.values()]
+}
+
+/**
+ * `provino` inlines every package `inlinedPackages` names, so the third-party packages they need
+ * at run time must be `provino`'s own dependencies: a package missing there installs, then fails
+ * to import. The reverse also fails: a dependency nothing inlined needs is dead weight on every
+ * install.
  * @internal
  */
 export function umbrellaDependencyProblems(
@@ -77,26 +101,11 @@ export function umbrellaDependencyProblems(
 ): readonly string[] {
   const umbrella = packages.find((pkg) => pkg.manifest.name === 'provino')
   if (umbrella === undefined) return ['the `provino` package is missing']
-  // The closure: what provino lists as a workspace package, and what those packages depend on.
-  const inlined = new Set<string>()
-  const queue = Object.keys(umbrella.manifest.devDependencies).filter((name) =>
-    name.startsWith('@provino/'),
+  const needed = new Set(
+    inlinedPackages(packages)
+      .flatMap((pkg) => runtimeDependencyNames(pkg.manifest))
+      .filter((name) => !name.startsWith('@provino/')),
   )
-  for (let name = queue.pop(); name !== undefined; name = queue.pop()) {
-    if (inlined.has(name)) continue
-    inlined.add(name)
-    const pkg = packages.find((candidate) => candidate.manifest.name === name)
-    for (const dependency of pkg === undefined ? [] : runtimeDependencyNames(pkg.manifest)) {
-      if (dependency.startsWith('@provino/')) queue.push(dependency)
-    }
-  }
-  const needed = new Set<string>()
-  for (const name of inlined) {
-    const pkg = packages.find((candidate) => candidate.manifest.name === name)
-    for (const dependency of pkg === undefined ? [] : runtimeDependencyNames(pkg.manifest)) {
-      if (!dependency.startsWith('@provino/')) needed.add(dependency)
-    }
-  }
   const declared = new Set(runtimeDependencyNames(umbrella.manifest))
   return [
     ...[...needed]
