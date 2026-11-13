@@ -83,6 +83,14 @@ describe('detectOutput: colour', () => {
     assert.equal(detectOutput({ env: { FORCE_COLOR: '1', NO_COLOR: '1' } }).colour, true)
   })
 
+  test('a terminal an agent runs in has none, unless FORCE_COLOR asks', () => {
+    assert.equal(detectOutput({ env: { CLAUDECODE: '1' }, stream: TTY }).colour, false)
+    assert.equal(
+      detectOutput({ env: { CLAUDECODE: '1', FORCE_COLOR: '1' }, stream: TTY }).colour,
+      true,
+    )
+  })
+
   test('TERM=dumb has none, and the caller’s choice (--colors) beats the environment', () => {
     assert.equal(detectOutput({ env: { TERM: 'dumb' }, stream: TTY }).colour, false)
     assert.equal(detectOutput({ env: { NO_COLOR: '1' }, stream: TTY, colour: true }).colour, true)

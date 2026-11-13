@@ -90,8 +90,8 @@ export interface OutputEnvironment {
   /**
    * ANSI colours: `FORCE_COLOR` (anything but `0` and `false`) turns them on and wins over
    * `NO_COLOR`; a `NO_COLOR` that is not empty turns them off; otherwise a terminal that is not
-   * `TERM=dumb` has them. CI alone does not: a CI log without a terminal stays plain unless
-   * `FORCE_COLOR` is set.
+   * `TERM=dumb` and not an agent's has them (escape sequences are noise to what an agent reads).
+   * CI alone does not: a CI log without a terminal stays plain unless `FORCE_COLOR` is set.
    */
   readonly colour: boolean
   /**
@@ -127,12 +127,15 @@ function agentOf(env: Environment, tty: boolean): string | undefined {
   return undefined
 }
 
-/** `FORCE_COLOR` over `NO_COLOR` over the terminal, as Node's own `getColorDepth` orders them. */
-function colourOf(env: Environment, tty: boolean): boolean {
+/**
+ * `FORCE_COLOR` over `NO_COLOR` over the terminal, as Node's own `getColorDepth` orders them; a
+ * terminal an agent runs in has none unless `FORCE_COLOR` asks.
+ */
+function colourOf(env: Environment, tty: boolean, agent: string | undefined): boolean {
   const forced = env.FORCE_COLOR
   if (forced !== undefined) return forced.trim().toLowerCase() !== '0' && forced.trim() !== 'false'
   if (env.NO_COLOR !== undefined && env.NO_COLOR !== '') return false
-  return tty && env.TERM !== 'dumb'
+  return tty && env.TERM !== 'dumb' && agent === undefined
 }
 
 /**
@@ -145,7 +148,7 @@ export function detectOutput(options: DetectOptions = {}): OutputEnvironment {
   const tty = options.stream?.isTTY === true
   const ci = options.ci ?? isSet(env.CI)
   const agent = agentOf(env, tty)
-  const colour = options.colour ?? colourOf(env, tty)
+  const colour = options.colour ?? colourOf(env, tty, agent)
   const dumb = env.TERM === 'dumb'
   return {
     tty,

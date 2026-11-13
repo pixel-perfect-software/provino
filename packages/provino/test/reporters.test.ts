@@ -6,8 +6,9 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
+import { run } from 'provino/node'
 import { loadFixture, materialize } from './recorded.ts'
-import { failing, passing, spawnCli, trackedProjects } from './support.ts'
+import { Collect, failing, passing, spawnCli, trackedProjects } from './support.ts'
 
 const makeProject = trackedProjects()
 
@@ -69,6 +70,16 @@ describe('provino jest prints what Jest 30.5.2 printed (the lines each recording
       assert.deepEqual(run.lines, run.expected, run.stderr)
     })
   }
+
+  it('a file of only todo tests, or skipped and todo, is a PASS line and a passed suite; one whose every test is skipped has no line (cli/report-todo-only, DV50)', async () => {
+    const run = await provinoOn('cli/report-todo-only')
+    assert.equal(run.code, run.expectedCode, run.stderr)
+    // Which of the small files runs first depends on the sequencer's tie-break, so the lines are compared as a set.
+    assert.deepEqual(run.lines.toSorted(), run.expected.toSorted(), run.stderr)
+    assert.ok(run.expected.some((line) => line === 'PASS ./todo-only.test.ts'))
+    assert.ok(!run.lines.some((line) => /all-skipped/.test(line)))
+    assert.ok(run.lines.includes('Test Suites: 1 skipped, 3 passed, 3 of 4 total'))
+  })
 
   it('--silent hides the console output the default run prints (cli/report-default against report-silent)', async () => {
     const loud = await provinoOn('cli/report-default')
@@ -169,6 +180,76 @@ describe('the environment picks the reporters when none are named', () => {
     })
     assert.match(ran.stderr, /^::error file=/m)
     assert.match(ran.stderr, /^FAIL tests\/bad\.test\.js$/m)
+  })
+})
+
+/** A stderr that says it is a terminal of this width, as a `tty.WriteStream` does. */
+class Terminal extends Collect {
+  readonly isTTY = true
+  readonly columns = 60
+}
+
+describe('a terminal (through run(), where a stderr can say it is one)', () => {
+  const ok = { 'tests/a.test.js': passing('a'), 'tests/b.test.js': passing('b') }
+
+  it('gets colour and the live block of the running files, erased before the results', async () => {
+    const project = await makeProject(ok)
+    const stderr = new Terminal()
+    const ran = await run({ config: project.config, stdout: new Collect(), stderr, env: {} })
+    assert.equal(ran.exitCode, 0, stderr.text)
+    assert.match(stderr.text, new RegExp(`${ESC}\\[33m RUNS ${ESC}`))
+    assert.match(stderr.text, new RegExp(`${ESC}\\[1F${ESC}\\[0J`))
+    assert.match(stderr.text, new RegExp(`${ESC}\\[32m PASS ${ESC}\\[39m`))
+    assert.match(stderr.text, /Test Suites:/)
+    // The block is gone by the totals: the last RUNS is followed by an erase.
+    const last = stderr.text.lastIndexOf('RUNS')
+    assert.match(stderr.text.slice(last), new RegExp(`${ESC}\\[1F${ESC}\\[0J`))
+  })
+
+  it('gets no live block in CI, and still has colour', async () => {
+    const project = await makeProject(ok)
+    const stderr = new Terminal()
+    await run({ config: project.config, stdout: new Collect(), stderr, env: { CI: 'true' } })
+    assert.doesNotMatch(stderr.text, /RUNS/)
+    assert.match(stderr.text, new RegExp(`${ESC}\\[32m PASS `))
+  })
+
+  it('gets no live block or colour under an agent: the agent reporter', async () => {
+    const project = await makeProject({ 'tests/bad.test.js': failing('bad') })
+    const stderr = new Terminal()
+    await run({ config: project.config, stdout: new Collect(), stderr, env: { CLAUDECODE: '1' } })
+    assert.doesNotMatch(stderr.text, /RUNS/)
+    assert.match(stderr.text, /FAIL tests\/bad\.test\.js/)
+  })
+
+  it('NO_COLOR turns the colour off and keeps the live block; TERM=dumb has neither', async () => {
+    const project = await makeProject(ok)
+    const plain = new Terminal()
+    await run({
+      config: project.config,
+      stdout: new Collect(),
+      stderr: plain,
+      env: { NO_COLOR: '1' },
+    })
+    assert.match(plain.text, /RUNS tests\/[ab]\.test\.js/)
+    assert.doesNotMatch(plain.text, new RegExp(`${ESC}\\[3\\dm`))
+    const dumb = new Terminal()
+    await run({
+      config: project.config,
+      stdout: new Collect(),
+      stderr: dumb,
+      env: { TERM: 'dumb' },
+    })
+    assert.doesNotMatch(dumb.text, /RUNS/)
+    assert.doesNotMatch(dumb.text, new RegExp(ESC))
+  })
+
+  it('a stderr that is not a terminal gets neither, whatever FORCE_COLOR says about the live block', async () => {
+    const project = await makeProject(ok)
+    const stderr = new Collect()
+    await run({ config: project.config, stdout: new Collect(), stderr, env: { FORCE_COLOR: '1' } })
+    assert.doesNotMatch(stderr.text, /RUNS/)
+    assert.match(stderr.text, new RegExp(`${ESC}\\[32m PASS `))
   })
 })
 
