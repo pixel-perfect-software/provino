@@ -12,7 +12,11 @@ import type {
   TaskResult,
   TestTask,
 } from '@provino/types'
-import { createEmptyTestResult, makeCollectedTestResult } from './helpers.ts'
+import {
+  buildFailureTestResult,
+  createEmptyTestResult,
+  makeCollectedTestResult,
+} from './helpers.ts'
 import type { AggregatedResult, AssertionResult, Status, TestResult } from './types.ts'
 
 /**
@@ -25,8 +29,6 @@ export interface TestRecord {
   readonly result: TaskResult | undefined
   /** The coordinator's clock (ms since the epoch) when the test started. */
   readonly startedAt: number | null
-  /** The errors of each attempt that was retried, in order. */
-  readonly retried: readonly SerializedError[]
 }
 
 /**
@@ -160,15 +162,22 @@ export function toAssertionResult(record: TestRecord, options: BuildOptions): As
         : null,
     numPassingAsserts: result?.passingAssertions ?? 0,
     retryMessages: [],
-    retryReasons: record.retried.map(flattenSerializedError),
+    // Core keeps the earlier attempts' errors only when the policy asks (Jest's
+    // `logErrorsBeforeRetry`, circus `eventHandler.ts` `test_retry`), so `retryErrors` is empty
+    // otherwise: a retry on its own fills neither `retryReasons` nor `retryMessages`.
+    retryReasons: (result?.retryErrors ?? []).map(flattenSerializedError),
     startAt: record.startedAt,
     status,
     title,
   }
 }
 
-/** The tests of a tree in declaration order (depth first), each with what the events said of it. */
-function testsInOrder(
+/**
+ * The tests of a tree in declaration order (depth first), each with what the events said of it.
+ * The assertions of `toTestResult` are in this order.
+ * @public
+ */
+export function testsInOrder(
   tree: readonly TaskNode[],
   records: ReadonlyMap<TaskId, TestRecord>,
 ): TestRecord[] {
@@ -178,7 +187,7 @@ function testsInOrder(
     if (node === undefined) return
     if (node.type === 'test') {
       const record = records.get(node.id)
-      out.push(record ?? { task: node, result: undefined, startedAt: null, retried: [] })
+      out.push(record ?? { task: node, result: undefined, startedAt: null })
       return
     }
     for (const child of node.children) visit(byId.get(child))
@@ -205,6 +214,44 @@ function execErrorOf(errors: readonly SerializedError[]): TestResult['testExecEr
 export const NO_TESTS_MESSAGE = 'Your test suite must contain at least one test.'
 
 /**
+ * The stack of `new Error(NO_TESTS_MESSAGE)` as Jest has it (TestScheduler.ts L144-L150): one
+ * frame, in Jest's own package under `node_modules`, so no code frame is printed for it. A real
+ * stack would point into this package, which prints one wherever it is not installed.
+ */
+function noTestsStack(): string {
+  return `Error: ${NO_TESTS_MESSAGE}\n    at TestScheduler.onResult (node_modules/@jest/core/build/index.js:1:1)`
+}
+
+function noTestsResult(testFilePath: string): TestResult {
+  return buildFailureTestResult(testFilePath, {
+    message: NO_TESTS_MESSAGE,
+    stack: noTestsStack(),
+  })
+}
+
+/**
+ * What `runTest.ts` L313-L337 sets on every file's result, a collected one too: `perfStats`,
+ * `skipped` and `displayName`.
+ */
+function withPerfStats(result: TestResult, file: FileEvents, options: BuildOptions): TestResult {
+  const runtime = file.endedAt - file.startedAt
+  const testCount =
+    result.numPassingTests + result.numFailingTests + result.numPendingTests + result.numTodoTests
+  return {
+    ...result,
+    displayName: options.displayName,
+    perfStats: {
+      ...result.perfStats,
+      end: file.endedAt,
+      runtime,
+      slow: runtime / 1000 > (options.slowTestThreshold ?? 5),
+      start: file.startedAt,
+    },
+    skipped: testCount === result.numPendingTests,
+  }
+}
+
+/**
  * One file's `TestResult`, with `failureMessage` left `null` (the text comes from
  * `jest-message-util`, asynchronously: `collect.ts` fills it).
  *
@@ -216,6 +263,16 @@ export const NO_TESTS_MESSAGE = 'Your test suite must contain at least one test.
  * @public
  */
 export function toTestResult(file: FileEvents, options: BuildOptions): TestResult {
+  if (file.result.workerExit !== undefined) {
+    // A worker that died takes the file's results with it: Jest's runner fails the whole file
+    // (`TestScheduler.ts` `onFailure`, L185-L200), so even tests that ended before the crash
+    // leave no counts and no assertion.
+    const error = execErrorOf([...file.result.errors, ...file.unhandled]) ?? {
+      message: `the worker running the file exited (${JSON.stringify(file.result.workerExit)})`,
+      stack: null,
+    }
+    return buildFailureTestResult(file.testFilePath, error)
+  }
   const tests = file.tree === undefined ? [] : testsInOrder(file.tree, file.records)
   const assertionResults = tests.map((record) => toAssertionResult(record, options))
   const count = (status: Status): number =>
@@ -225,13 +282,31 @@ export function toTestResult(file: FileEvents, options: BuildOptions): TestResul
   const numPendingTests = count('pending')
   const numTodoTests = count('todo')
   const fileErrors = [...file.result.errors, ...file.unhandled]
+  // Core finalizes a file whose import threw too, with only the file node: a tree with anything
+  // else below it is a file that collected.
+  const collected = file.tree?.some((node) => node.type !== 'file') === true
+  if (options.collectOnly === true && collected) {
+    // `collectTestsWithoutRunning` never reads `state.unhandledErrors`, so an error circus files
+    // there (a hooks-only describe, say) is not the file's; a file that collected nothing is
+    // `TestScheduler.onResult`'s (L144-L150) "must contain at least one test".
+    if (assertionResults.length === 0) return noTestsResult(file.testFilePath)
+    return withPerfStats(
+      makeCollectedTestResult(assertionResults, {
+        displayName: options.displayName,
+        testFilePath: file.testFilePath,
+      }),
+      file,
+      options,
+    )
+  }
   const ran = tests.some((record) => record.result !== undefined)
   let testExecError: TestResult['testExecError']
   if (!ran) {
     testExecError =
       execErrorOf(fileErrors) ??
-      (file.result.state === 'fail' && assertionResults.length === 0
-        ? { message: NO_TESTS_MESSAGE, stack: new Error(NO_TESTS_MESSAGE).stack ?? null }
+      ((file.result.state === 'fail' || options.collectOnly === true) &&
+      assertionResults.length === 0
+        ? { message: NO_TESTS_MESSAGE, stack: noTestsStack() }
         : undefined)
   } else if (fileErrors.length > 0) {
     testExecError = {
@@ -240,13 +315,6 @@ export function toTestResult(file: FileEvents, options: BuildOptions): TestResul
     }
   }
   const failed = testExecError !== undefined && !ran
-  if (options.collectOnly === true && testExecError === undefined) {
-    // `collectTestsWithoutRunning`: the counts come from the statuses, and nothing else is set.
-    return makeCollectedTestResult(assertionResults, {
-      displayName: options.displayName,
-      testFilePath: file.testFilePath,
-    })
-  }
   const results = failed ? [] : assertionResults
   const runtime = file.endedAt - file.startedAt
   const { snapshot } = file.result

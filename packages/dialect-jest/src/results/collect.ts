@@ -17,6 +17,7 @@ import {
   finishAggregated,
   type TestRecord,
   toAssertionResult,
+  testsInOrder,
   toTestResult,
 } from './build.ts'
 import {
@@ -96,6 +97,11 @@ export interface JestResults<Config extends ProjectConfigLike> {
   ): AssertionResult | undefined
   /** What `onTestCaseStart` gets for a test that has started (`createTestCaseStartInfo`). */
   startInfoOf(test: TestTask): TestCaseStartInfo
+  /**
+   * Tells the aggregate that a reporter failed, which the bus only knows once every reporter has
+   * heard the end of the run (Jest's `anyReporterErrors`): `success` goes false.
+   */
+  reportersFailed(failed: boolean): void
 }
 
 interface MutableFile {
@@ -158,7 +164,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
     if (known !== undefined) return known
     const node = file.tree?.find((candidate) => candidate.id === id)
     if (node?.type !== 'test') return undefined
-    const fresh: TestRecord = { task: node, result: undefined, startedAt: null, retried: [] }
+    const fresh: TestRecord = { task: node, result: undefined, startedAt: null }
     file.records.set(id, fresh)
     return fresh
   }
@@ -206,25 +212,24 @@ export function createJestResults<Config extends ProjectConfigLike>(
       const known = record(file, task.id)
       if (known !== undefined) file.records.set(task.id, { ...known, startedAt: now() })
     },
-    'test:attempt-end': (test, event) => {
-      if (!event.willRetry) return
-      const file = files.get(test.fileId)
-      const known = file === undefined ? undefined : record(file, test.id)
-      if (file === undefined || known === undefined) return
-      file.records.set(test.id, { ...known, retried: [...known.retried, ...event.errors] })
-    },
     'task:end': (task, event) => {
       if (task.type !== 'test' || event.type !== 'test-end') return
       const file = files.get(task.fileId)
       const known = file === undefined ? undefined : record(file, task.id)
       if (file === undefined || known === undefined) return
-      // Jest keeps an earlier attempt's error only when the policy keeps them
-      // (`logErrorsBeforeRetry`), which the result's `retryErrors` says.
-      const retried = event.result.retryErrors.length > 0 ? known.retried : []
-      file.records.set(task.id, { ...known, result: event.result, retried })
+      file.records.set(task.id, { ...known, result: event.result })
     },
     unhandled: (info, event) => {
-      if (info !== null) stateOf(info).unhandled.push(event.error)
+      if (info === null) return
+      const file = stateOf(info)
+      // An error charged to a test of another file isn't this file's (the worker reported it while
+      // it ran this one): it stays in the run's `unhandled`, out of the file's results.
+      const { ownerId } = event
+      const ours =
+        ownerId === null ||
+        ownerId === info.fileId ||
+        (file.tree?.some((node) => node.id === ownerId) ?? false)
+      if (ours) file.unhandled.push(event.error)
     },
     'file:end': async (fileResult) => {
       const info = fileResult.file
@@ -251,18 +256,16 @@ export function createJestResults<Config extends ProjectConfigLike>(
       const testResult = toTestResult(events, build)
       testResult.console = file.console.length > 0 ? file.console : undefined
       const stack = { noStackTrace: globalConfig.noStackTrace }
-      const retried = [...file.records.values()].filter((entry) => entry.retried.length > 0)
-      for (const entry of retried) {
-        const assertion = testResult.testResults.find(
-          (candidate) => candidate.fullName === entry.task.fullName.join(' '),
+      // The messages go with the assertions by position: two tests can share a full name.
+      const ordered = file.tree === undefined ? [] : testsInOrder(file.tree, file.records)
+      for (const [index, assertion] of testResult.testResults.entries()) {
+        const errors = ordered[index]?.result?.retryErrors ?? []
+        if (errors.length === 0) continue
+        assertion.retryMessages = await Promise.all(
+          errors.map((error) =>
+            formatRetryError(error.stack ?? error.message, config, stack, events.testFilePath),
+          ),
         )
-        if (assertion !== undefined) {
-          assertion.retryMessages = await Promise.all(
-            entry.retried.map((error) =>
-              formatRetryError(error.stack ?? error.message, config, stack, events.testFilePath),
-            ),
-          )
-        }
       }
       const { testExecError } = testResult
       if (options.collectOnly === true && testExecError === undefined) {
@@ -333,8 +336,6 @@ export function createJestResults<Config extends ProjectConfigLike>(
           ? known
           : {
               ...known,
-              // `logErrorsBeforeRetry` is off for the attempt that is being retried here.
-              retried: [],
               result: {
                 state: 'fail',
                 durationMs: 0,
@@ -361,6 +362,9 @@ export function createJestResults<Config extends ProjectConfigLike>(
         startedAt: file?.records.get(test.id)?.startedAt ?? null,
         title: test.fullName.at(-1) ?? test.name,
       }
+    },
+    reportersFailed: (failed) => {
+      if (failed) aggregated.success = false
     },
   }
 }

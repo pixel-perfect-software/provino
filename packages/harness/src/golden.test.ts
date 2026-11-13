@@ -289,6 +289,7 @@ test('a json: capture is parsed, with times, the root, frame runs and masks norm
   })
   const spec = {
     capture: ['json:out.json', 'json:gone.json'],
+    missingJson: ['json:gone.json'],
     timeKeys: ['startTime', 'duration'],
     mask: ['pid \\d+'],
   }
@@ -323,6 +324,70 @@ test('a json: capture is parsed, with times, the root, frame runs and masks norm
         'fixture.json',
       ),
     (error: unknown) => error instanceof HarnessError && error.code === 'HARNESS_FIXTURE_BAD_RUN',
+  )
+})
+
+test('a json: capture the run did not write is refused unless the fixture lists it in missingJson', () => {
+  const observe = (spec: { capture: string[]; missingJson?: string[] }) =>
+    observedOf(
+      spec,
+      { exitCode: 0, stdout: '', stderr: '' },
+      { 'gone.json': null },
+      (text) => text,
+      'fixture.json',
+    )
+  assert.throws(
+    () => observe({ capture: ['json:gone.json'] }),
+    (error: unknown) =>
+      error instanceof HarnessError &&
+      error.code === 'HARNESS_FIXTURE_BAD_RUN' &&
+      /json:gone\.json/.test(error.message) &&
+      /missingJson/.test(error.message),
+  )
+  assert.deepEqual(observe({ capture: ['json:gone.json'], missingJson: ['json:gone.json'] }), {
+    json: { 'gone.json': null },
+  })
+})
+
+test('a json: capture collapses only stack frames, not message lines that start with "at "', () => {
+  const message = [
+    'Error: boom',
+    '',
+    'at the end of the road',
+    '',
+    '    at fn (/work/a.ts:1:2)',
+    '    at /work/b.ts:3:4',
+    '    at Array.map (<anonymous>)',
+    'at the very end',
+  ].join('\n')
+  const observed = observedOf(
+    { capture: ['json:r.json'] },
+    { exitCode: 0, stdout: '', stderr: '' },
+    { 'r.json': JSON.stringify({ message }) },
+    (text) => text,
+    'fixture.json',
+    ['/work'],
+  ) as { json: Record<string, { message: string }> }
+  assert.equal(
+    observed.json['r.json']?.message,
+    'Error: boom\n\nat the end of the road\n\n<frames>\nat the very end',
+  )
+})
+
+test('a json: capture refuses a testResults entry with no string name', () => {
+  assert.throws(
+    () =>
+      observedOf(
+        { capture: ['json:r.json'] },
+        { exitCode: 0, stdout: '', stderr: '' },
+        { 'r.json': JSON.stringify({ testResults: [{ name: '/a' }, { status: 'passed' }] }) },
+        (text) => text,
+        'fixture.json',
+      ),
+    (error: unknown) =>
+      error instanceof HarnessError &&
+      error.code === 'HARNESS_FIXTURE_BAD_RUN' &&
+      /name/.test(error.message),
   )
 })
 

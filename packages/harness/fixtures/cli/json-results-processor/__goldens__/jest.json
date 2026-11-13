@@ -165,7 +165,7 @@
               }
             ],
             "endTime": "<time>",
-            "message": "  ● basic › fails\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 2\n    Received: 1\n\n      4 |   })\n      5 |   it('fails', () => {\n    > 6 |     expect(1).toBe(2)\n        |               ^\n      7 |   })\n      8 | })\n      9 |\n<frames>\n",
+            "message": "  ● basic › fails\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 2\n    Received: 1\n\n      4 |   })\n      5 |   it('fails', () => {\n    > 6 |     expect(1).toBe(2)\n        |               ^\n      7 |   })\n      8 | })\n      9 |\n\n<frames>\n",
             "name": "<root>/basic.test.ts",
             "startTime": "<time>",
             "status": "failed",

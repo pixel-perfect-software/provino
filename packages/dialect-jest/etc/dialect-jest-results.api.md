@@ -204,6 +204,7 @@ export interface JestResults<Config extends ProjectConfigLike> {
     }): AssertionResult | undefined;
     contexts(): Set<TestContext<Config>>;
     readonly reporter: Reporter;
+    reportersFailed(failed: boolean): void;
     startInfoOf(test: TestTask): TestCaseStartInfo;
     testOf(file: FileInfo): Test<Config>;
     testResultOf(fileId: TaskId): TestResult | undefined;
@@ -347,7 +348,6 @@ export interface TestContext<Config = unknown> {
 // @public
 export interface TestRecord {
     readonly result: TaskResult | undefined;
-    readonly retried: readonly SerializedError[];
     readonly startedAt: number | null;
     // (undocumented)
     readonly task: TestTask;

@@ -662,7 +662,8 @@ export function createRuntimeRunner(): WorkerRunner {
     return {
       ...(job.testNamePattern === undefined ? {} : { testNamePattern: job.testNamePattern }),
       ...(job.testIds === undefined ? {} : { testIds: job.testIds }),
-      ...(job.collectOnly === true ? { collectOnly: true as const } : {}),
+      // Whatever the job carries is forwarded: core fails the file for a value that is not `true`.
+      ...(job.collectOnly === undefined ? {} : { collectOnly: job.collectOnly }),
     }
   }
 

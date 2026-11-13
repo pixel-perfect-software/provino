@@ -128,7 +128,7 @@ function isDirectory(path: string): boolean {
 }
 
 /** The stream as the reporters' detection reads it: whether it is a terminal, and how wide. */
-function outputStreamOf(stream: NodeJS.WritableStream): OutputStream {
+function outputStreamOf(stream: object): OutputStream {
   const isTTY: unknown = Reflect.get(stream, 'isTTY')
   const columns: unknown = Reflect.get(stream, 'columns')
   return {
@@ -144,11 +144,12 @@ function outputStreamOf(stream: NodeJS.WritableStream): OutputStream {
  */
 export function styleFor(context: {
   readonly env: Environment
-  readonly stderr: NodeJS.WritableStream
+  /** The stream whose terminal decides the colour: Jest's chalk reads stdout's. */
+  readonly stream: object
   readonly ci: boolean
   readonly colour?: boolean | undefined
 }): Style {
-  return createStyle(outputFor(context).colour)
+  return createStyle(outputFor({ ...context, stderr: context.stream }).colour)
 }
 
 /**
@@ -158,7 +159,7 @@ export function styleFor(context: {
  */
 export function outputFor(context: {
   readonly env: Environment
-  readonly stderr: NodeJS.WritableStream
+  readonly stderr: object
   readonly ci: boolean
   readonly colour?: boolean | undefined
 }): OutputEnvironment {
