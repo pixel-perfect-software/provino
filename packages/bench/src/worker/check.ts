@@ -14,7 +14,9 @@ import {
   parseSuiteName,
   type SuiteSpec,
 } from '../suites.ts'
-import { runWorkerFiles, type WorkerRunResult } from './run.ts'
+import { meetsBar, runWorkerFiles, type WorkerRunResult } from './run.ts'
+
+export { meetsBar }
 
 /**
  * The tiers B10 implements.
@@ -86,27 +88,6 @@ export interface TierCheck {
   /** The tests the suite holds: the number that must pass. */
   readonly expected: number
   readonly ok: boolean
-}
-
-/**
- * Whether a run meets the bar: all `expected` passed, none failed or skipped, no unhandled error,
- * no error on a file itself (a failing `afterAll`), no global left behind (decision D22 makes that
- * a warning to the worker; the check still wants none), no ordering violation, and the worker
- * exited with code 0 after `stop`.
- * @public
- */
-export function meetsBar(result: WorkerRunResult, expected: number): boolean {
-  return (
-    result.passed === expected &&
-    result.total === expected &&
-    result.failed === 0 &&
-    result.unhandled === 0 &&
-    result.fileErrors === 0 &&
-    result.leakedGlobals === 0 &&
-    result.exit.type === 'exit' &&
-    result.exit.code === 0 &&
-    result.violations.length === 0
-  )
 }
 
 /**

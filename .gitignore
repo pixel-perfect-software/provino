@@ -25,6 +25,7 @@ CLAUDE.local.md
 # generated bench suites and local bench records (packages/bench), recorder work dirs (packages/harness)
 packages/bench/.suites/
 packages/bench/.results/
+packages/bench/.instructions/
 packages/harness/.record/
 
 # the Jest config oracle's preset projects, written at run time (pnpm bench:jest-config presets)

@@ -1,11 +1,12 @@
 import { resolve } from 'node:path'
 import { readRunEnvironment } from '@provino/harness'
-import type { BenchLabel, BenchRecord, BenchResult, RunRef } from '@provino/types'
+import type { BenchLabel, BenchResult, RunRef } from '@provino/types'
 import { type CheckResult, checkRunner } from './check.ts'
 import { type CliCommand, parseCli, USAGE } from './cli-args.ts'
 import { readRunRef } from './environment.ts'
 import { BenchError } from './errors.ts'
 import type { ExecProcess } from './exec.ts'
+import { instructionsCommand } from './instructions/command.ts'
 import { errorMessage } from './internal/guards.ts'
 import {
   DRY_RUN_RUNNER,
@@ -16,7 +17,7 @@ import {
   R6_SUITES,
 } from './kill-check.ts'
 import { listTestsCommand, type TestLists } from './list-tests.ts'
-import { prepareOutput, writeRecordFile } from './output.ts'
+import { persistRecord, prepareOutput } from './output.ts'
 import { checkStatusParity, parityLines, type StatusParity, unavailableParity } from './parity.ts'
 import {
   buildRecord,
@@ -97,41 +98,6 @@ function progressReporter(
       for (const warning of warnings) io.err(`[${label}] note: ${warning}`)
       warnings.clear()
     },
-  }
-}
-
-// Saves the record first and only then prints, so a throw while formatting or judging can never
-// lose runs that are already measured. The order: write the record; run `report` (it prints the
-// summary and the verdict, and returns what the caller needs); print `wrote <path>` last. If the
-// write fails, the whole record goes to stderr at once, `report` still runs, and the write error is
-// rethrown. If `report` fails after a good write, the wrote line still prints and its error is
-// rethrown.
-async function persistRecord<T>(
-  record: BenchRecord,
-  out: string,
-  io: CliIo,
-  report: () => T,
-): Promise<Awaited<T>> {
-  const text = `${JSON.stringify(record, null, 2)}\n`
-  const written = await settle(() => writeRecordFile(out, text))
-  if (!written.ok) io.err(text.trimEnd())
-  const reported = await settle(report)
-  if (!written.ok) throw written.error
-  io.out(`[${record.label}] wrote ${out}`)
-  if (!reported.ok) throw reported.error
-  return reported.value
-}
-
-type Settled<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: unknown }
-
-// Runs `fn` and holds its outcome, so a caller can finish what must happen before it rethrows.
-async function settle<T>(fn: () => T): Promise<Settled<Awaited<T>>> {
-  try {
-    return { ok: true, value: await fn() }
-  } catch (error) {
-    return { ok: false, error }
   }
 }
 
@@ -441,6 +407,8 @@ export async function runCli(
         return await runCommand(command, io, deps, paths)
       case 'kill-check':
         return await killCheckCommand(command, io, deps, paths)
+      case 'instructions':
+        return await instructionsCommand(command, io)
     }
   } catch (error) {
     if (!(error instanceof BenchError)) throw error
