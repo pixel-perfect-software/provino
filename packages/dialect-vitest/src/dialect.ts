@@ -172,7 +172,13 @@ export const vitestPolicy: PolicyOverrides = {
     runInBand: { auto: false },
     shard: { fallback: 'sha1-slice' },
     sequence: { unknownFirst: true },
-    globalSetup: { signature: 'project-with-teardown' },
+    globalSetup: {
+      signature: 'project-with-teardown',
+      // Vitest closes the projects last to first (core.ts); a fixture waits for T11.16
+      teardownOrder: 'reverse',
+      // Vitest rethrows the setup's own error as it is; a fixture waits for T11.16
+      failureMessage: '{message}',
+    },
   },
   report: {
     displaySeparator: ' > ',

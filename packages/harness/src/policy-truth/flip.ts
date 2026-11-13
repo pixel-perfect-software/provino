@@ -79,6 +79,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'orchestrator.pool.default': ['forks', 'threads', 'inline'],
   'orchestrator.shard.fallback': ['sha1-slice'],
   'orchestrator.globalSetup.signature': ['global-and-project-config', 'project-with-teardown'],
+  'orchestrator.globalSetup.teardownOrder': ['in-order', 'reverse'],
   'report.resultStatusSkipped': ['pending', 'skipped'],
   'coverage.thresholdGrouping': ['first-match', 'all-files'],
   'coverage.globThresholdScope': ['per-file', 'aggregate'],

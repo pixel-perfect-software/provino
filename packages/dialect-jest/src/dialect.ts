@@ -321,8 +321,13 @@ export const jestPolicy: PolicyOverrides = {
     shard: { fallback: 'sha1-slice' },
     // research: track-09 L559
     sequence: { unknownFirst: true },
-    // research: track-09 L564
-    globalSetup: { signature: 'global-and-project-config' },
+    // research: track-09 L564 (the signature); the other two are recorded (`cli/global-setup-projects`,
+    // `cli/global-setup-throws`)
+    globalSetup: {
+      signature: 'global-and-project-config',
+      teardownOrder: 'in-order',
+      failureMessage: 'Jest: Got error running {hook} - {path}, reason: {message}',
+    },
   },
   report: {
     // research: track-01 L233

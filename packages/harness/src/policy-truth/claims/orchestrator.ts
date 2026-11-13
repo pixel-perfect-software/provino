@@ -218,6 +218,51 @@ export const orchestratorClaims: Claims = {
       ])
     },
   }),
+  // Two projects, each with its own setup and teardown writing a line (`cli/global-setup-projects`):
+  // Jest's teardown runs in the setups' order.
+  'orchestrator.globalSetup.teardownOrder': each(
+    golden('cli/global-setup-projects', {
+      read: (g) => {
+        const text = capturedFile(g, 'order.txt')
+        const named = (word: string): string[] =>
+          text
+            .split('\n')
+            .filter((line) => line.startsWith(`${word} `))
+            .map((line) => line.slice(word.length + 1))
+        const setups = named('setup')
+        const teardowns = named('teardown')
+        const same = (a: readonly string[], b: readonly string[]): boolean =>
+          a.length === b.length && a.every((item, i) => item === b[i])
+        return oneOf(text, [
+          ['in-order', same(setups, teardowns)],
+          ['reverse', same(setups.toReversed(), teardowns)],
+        ])
+      },
+    }),
+    pending(
+      'T11.16',
+      "Vitest's global setup runs with its config reader; its source closes the projects last to first",
+    ),
+  ),
+  // The line Jest prints for a setup that throws, with the hook, the path and the reason as slots.
+  'orchestrator.globalSetup.failureMessage': each(
+    golden('cli/global-setup-throws', {
+      read: (g) => {
+        const stderr = String(observedOf(g).stderr ?? '')
+        const line = stderr.split('\n').find((text) => text.includes('Got error running'))
+        if (line === undefined) throw new Error(`${g.suite} (${g.runner}) printed no failure line`)
+        return line
+          .replace(/^Error: /, '')
+          .replace('globalSetup', '{hook}')
+          .replace('<root>/setup.ts', '{path}')
+          .replace('setup failed', '{message}')
+      },
+    }),
+    pending(
+      'T11.16',
+      "Vitest's global setup runs with its config reader; its source rethrows the setup's own error",
+    ),
+  ),
 }
 
 export const reportClaims: Claims = {

@@ -120,5 +120,19 @@ export interface OrchestratorPolicy {
    */
   readonly globalSetup: {
     readonly signature: 'global-and-project-config' | 'project-with-teardown'
+    /**
+     * The order the teardowns run in, against the setups': the same (`in-order`) or the opposite
+     * (`reverse`). Jest: `in-order` (`runGlobalHook` walks one list for both; recorded by
+     * `cli/global-setup-projects`). Vitest: `reverse`. Evidence for Vitest: its source
+     * (`core.ts` closes the projects last to first).
+     */
+    readonly teardownOrder: 'in-order' | 'reverse'
+    /**
+     * The text of the error a hook that throws raises. `{hook}` is `globalSetup` or
+     * `globalTeardown`, `{path}` the module's path and `{message}` the error's message. Jest:
+     * `Jest: Got error running {hook} - {path}, reason: {message}` (recorded by
+     * `cli/global-setup-throws`). Vitest raises the error as it is: `{message}`.
+     */
+    readonly failureMessage: string
   }
 }

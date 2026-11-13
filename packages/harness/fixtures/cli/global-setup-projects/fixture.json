@@ -1,0 +1,9 @@
+{
+  "description": "Global setup and teardown with two projects (T9.15, orchestrator.globalSetup.teardownOrder): each project names its own setup and teardown, and each appends a line to order.txt, which the black-box run captures. Setup runs project by project, and Jest's teardown runs in the same order, not the reverse. The first project's test file is the larger, so Jest's sequencer puts it first. The projects come from --projects, because the recorder reserves the config key; they are plain JavaScript, because a project's own config is not the recorder's and has no transformer for TypeScript.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 2 } },
+  "run": {
+    "argv": { "jest": ["--projects", "p1", "p2"] },
+    "capture": ["exitCode", "file:order.txt"]
+  }
+}

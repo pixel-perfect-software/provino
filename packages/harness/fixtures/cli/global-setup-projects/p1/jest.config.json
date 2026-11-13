@@ -1,0 +1,5 @@
+{
+  "displayName": "p1",
+  "globalSetup": "<rootDir>/setup.js",
+  "globalTeardown": "<rootDir>/teardown.js"
+}

@@ -220,7 +220,12 @@ export const neutralPolicy: Policy = deepFreeze({
     runInBand: { auto: false },
     shard: { fallback: 'sha1-slice' },
     sequence: { unknownFirst: true },
-    globalSetup: { signature: 'project-with-teardown' },
+    // Ours, with Vitest's order and no wrapper text of its own beyond naming the hook.
+    globalSetup: {
+      signature: 'project-with-teardown',
+      teardownOrder: 'reverse',
+      failureMessage: '{hook} {path} failed: {message}',
+    },
   },
   report: {
     displaySeparator: ' > ',
