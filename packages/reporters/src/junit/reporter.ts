@@ -206,7 +206,7 @@ function runErrorSuite(record: RunRecord, timestamp: string): SuiteElement | und
 /**
  * The JUnit reporter: one XML document at `run:end`, in the schema Jenkins and most CI systems
  * read (the Jenkins xunit plugin's `junit-10.xsd`, which the reporter's tests validate against
- * with `xmllint`). A file is a `<testsuite>` and a test a `<testcase>`: its `classname` is the
+ * with libxml2). A file is a `<testsuite>` and a test a `<testcase>`: its `classname` is the
  * file's path, its `name` the `describe` titles and its own joined with the dialect's separator.
  * A failed test has a `<failure>`; a skipped or todo test a `<skipped>`; a file that failed to run,
  * or whose worker died, an `<error>` on a testcase of its own; an error outside any file is a

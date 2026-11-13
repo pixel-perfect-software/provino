@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import type { ReportPolicy } from '@provino/types'
+import { validateXML } from 'xmllint-wasm'
 import { createReporterBus } from '../bus.ts'
 import {
   error,
@@ -25,45 +25,33 @@ const REPORT: ReportPolicy = {
   resultStatusSkipped: 'pending',
 }
 
-/** Whether `xmllint` (libxml2's, a system tool: macOS and the Ubuntu runners have it) can be run. */
-const XMLLINT = spawnSync('xmllint', ['--version'], { encoding: 'utf8' }).error === undefined
+const SCHEMA = await readFile(XSD, 'utf8')
 
 /**
- * Validates `xml` against the vendored Jenkins JUnit XSD. Without `xmllint` the test fails on CI
- * (the check must run there) and is skipped, saying so, anywhere else.
+ * Validates `xml` against the vendored Jenkins JUnit XSD with libxml2 compiled to WebAssembly
+ * (`xmllint-wasm`, a dev dependency), so every machine and CI run the same validator and none
+ * needs a system `xmllint`.
  */
 async function validate(xml: string): Promise<{ readonly ok: boolean; readonly stderr: string }> {
-  const dir = await mkdtemp(join(tmpdir(), 'provino-junit-'))
-  try {
-    const file = join(dir, 'junit.xml')
-    await writeFile(file, xml)
-    const result = spawnSync('xmllint', ['--noout', '--schema', XSD, file], { encoding: 'utf8' })
-    return { ok: result.status === 0, stderr: result.stderr }
-  } finally {
-    await rm(dir, { recursive: true, force: true })
-  }
+  const result = await validateXML({
+    xml: [{ fileName: 'junit.xml', contents: xml }],
+    schema: [SCHEMA],
+  })
+  return { ok: result.valid, stderr: result.rawOutput }
 }
-
-const skip = !XMLLINT && process.env.CI === undefined ? 'xmllint is not installed' : false
 
 describe('the junit reporter', () => {
   test('is a reporter named junit', () => {
     assert.equal(junitReporter({ report: REPORT, stream: output() }).name, 'junit')
   })
 
-  test('xmllint is there on CI, where the schema check must run', () => {
-    assert.ok(XMLLINT || process.env.CI === undefined, 'CI has no xmllint: install libxml2-utils')
-  })
-
-  test('the fixture run validates against the Jenkins JUnit XSD', { skip }, async () => {
+  test('the fixture run validates against the Jenkins JUnit XSD', async () => {
     const { text } = await playFixture((out) => junitReporter({ stream: out, report: REPORT }))
     const result = await validate(text)
     assert.ok(result.ok, result.stderr)
   })
 
-  test('the validation is real: a document that breaks the schema is refused', {
-    skip,
-  }, async () => {
+  test('the validation is real: a document that breaks the schema is refused', async () => {
     const { text } = await playFixture((out) => junitReporter({ stream: out, report: REPORT }))
     // `tests` is required on a testsuite.
     const refused = await validate(text.replace(' tests="3"', ''))
@@ -80,7 +68,7 @@ describe('the junit reporter', () => {
     )
   })
 
-  test('a run with no files is a valid, empty document', { skip }, async () => {
+  test('a run with no files is a valid, empty document', async () => {
     const out = output()
     const bus = createReporterBus([junitReporter({ report: REPORT, stream: out })])
     await playRun(bus, [])
@@ -104,9 +92,7 @@ describe('the junit reporter', () => {
     assert.match(text, /<testsuite name="broken\.test\.ts" tests="1" failures="0" errors="1"/)
   })
 
-  test('escapes names, messages and console text, and drops what XML cannot hold', {
-    skip,
-  }, async () => {
+  test('escapes names, messages and console text, and drops what XML cannot hold', async () => {
     const out = output()
     const bus = createReporterBus([
       junitReporter({ report: REPORT, stream: out, name: 'a "b" & <c>' }),
@@ -210,7 +196,7 @@ describe('the junit reporter', () => {
     }
   })
 
-  test('an error outside any file is a suite of its own', { skip }, async () => {
+  test('an error outside any file is a suite of its own', async () => {
     const out = output()
     const bus = createReporterBus([junitReporter({ report: REPORT, stream: out })])
     await bus.emit(

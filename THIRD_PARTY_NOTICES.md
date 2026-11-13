@@ -98,7 +98,7 @@ SOFTWARE.
 
 ## Jenkins xunit plugin
 
-`packages/reporters/src/junit/vendor/junit-10.xsd` is the JUnit schema of the Jenkins xunit plugin (https://github.com/jenkinsci/xunit-plugin, commit `ae25da5089d4f94ac6c4669bf736e4d416cc4665`), copied unchanged. It is used only by the JUnit reporter's test, to check the reporter's output with `xmllint`. The file carries its own license header:
+`packages/reporters/src/junit/vendor/junit-10.xsd` is the JUnit schema of the Jenkins xunit plugin (https://github.com/jenkinsci/xunit-plugin, commit `ae25da5089d4f94ac6c4669bf736e4d416cc4665`), copied unchanged. It is used only by the JUnit reporter's test, to check the reporter's output with `xmllint-wasm`. The file carries its own license header:
 
 ```
 The MIT License (MIT)

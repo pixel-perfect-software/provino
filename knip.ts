@@ -79,11 +79,6 @@ const config: KnipConfig = {
       // The oracle for the vendored key order (T7.9), required by a test through `createRequire`.
       ignoreDependencies: ['natural-compare'],
     },
-    'packages/reporters': {
-      // libxml2's validator, a system tool (macOS and the Ubuntu runners have it, not a dependency):
-      // the JUnit reporter's test checks its output against the vendored Jenkins XSD with it (T9.7).
-      ignoreBinaries: ['xmllint'],
-    },
     'packages/core': { ignoreDependencies: ['@types/sinonjs__fake-timers'] },
     'packages/timers': { ignoreDependencies: ['@types/sinonjs__fake-timers'] },
     'packages/env-shared': {
