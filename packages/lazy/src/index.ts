@@ -17,6 +17,11 @@ export {
   type LazyErrorOptions,
 } from './errors.ts'
 export {
+  createLazyRuntime,
+  type LazyCore,
+  type LazyRuntimeOptions,
+} from './runtime/create.ts'
+export {
   currentLazyRuntime,
   installLazyRuntime,
   LAZY_RUNTIME_SLOT,
