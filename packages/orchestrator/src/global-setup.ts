@@ -10,6 +10,7 @@
 // builds it); `onTestsRerun` is kept for the watch loop (T9.11).
 import type { ResolvedProject } from '@provino/config'
 import type { CoordinatorLoader } from '@provino/loader'
+import { callBehaviour, createBehaviourLoader } from '@provino/policy'
 import type { GlobalSetupContext, ProvidedContext } from '@provino/types'
 import { OrchestratorError } from './errors.ts'
 import { messageOf } from './util.ts'
@@ -39,17 +40,61 @@ export interface GlobalSetupRun {
   teardown(): Promise<void>
 }
 
-/** The text a failing hook raises: the policy's template with its three slots filled. */
-function failure(
-  template: string,
+/**
+ * Whether an error's `message` can be rewritten: Jest rewrites it in place to say which hook failed,
+ * and keeps the error (its class and stack); one it can't rewrite is reported as a new `Error`.
+ */
+function hasWritableMessage(error: Error): boolean {
+  return (
+    Object.getOwnPropertyDescriptor(error, 'message')?.writable === true ||
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(error), 'message')?.writable === true
+  )
+}
+
+/**
+ * What a hook threw, as the failure's `{message}`: an error's own message when it can be rewritten,
+ * else the value as the policy's `formatThrown` prints it (Jest: pretty-format, three levels deep).
+ */
+async function thrownText(project: ResolvedProject, cause: unknown): Promise<string> {
+  if (cause instanceof Error && hasWritableMessage(cause)) return cause.message
+  try {
+    return await callBehaviour(
+      createBehaviourLoader(),
+      project.policy.orchestrator.globalSetup.formatThrown,
+      cause,
+    )
+  } catch {
+    return messageOf(cause)
+  }
+}
+
+/** The error a failing hook raises: the policy's template with its three slots filled. */
+async function failure(
+  project: ResolvedProject,
   hook: HookName,
   path: string,
   cause: unknown,
-): OrchestratorError {
-  const text = template.replace(/\{(hook|path|message)\}/g, (_slot, name: string) =>
-    name === 'hook' ? hook : name === 'path' ? path : messageOf(cause),
+): Promise<OrchestratorError> {
+  const message = await thrownText(project, cause)
+  const text = project.policy.orchestrator.globalSetup.failureMessage.replace(
+    /\{(hook|path|message)\}/g,
+    (_slot, name: string) => (name === 'hook' ? hook : name === 'path' ? path : message),
   )
   return new OrchestratorError('ORCH_GLOBAL_SETUP_FAILED', text, { cause })
+}
+
+/**
+ * How a failing hook is reported on `stderr`, as Jest's CLI prints the error `runGlobalHook`
+ * rewrites: the header (the thrown error's own class, `Error` for a value that is none, then the
+ * message, which may run over several lines), then the frames of what the hook threw, and no other
+ * line of its stack.
+ * @internal
+ */
+export function hookFailureReport(error: OrchestratorError): string {
+  const { cause } = error
+  const thrown = cause instanceof Error && hasWritableMessage(cause) ? cause : undefined
+  const frames = (thrown?.stack ?? '').split('\n').filter((line) => /^\s+at /.test(line))
+  return `${[`${thrown?.name ?? 'Error'}: ${error.message}`, ...frames].join('\n')}\n`
 }
 
 function isHook(value: unknown): value is Hook {
@@ -226,7 +271,7 @@ export async function runGlobalSetup(
     try {
       return await (await loaderOf(project)).import(path)
     } catch (cause) {
-      throw failure(project.policy.orchestrator.globalSetup.failureMessage, hook, path, cause)
+      throw await failure(project, hook, path, cause)
     }
   }
 
@@ -259,8 +304,32 @@ export async function runGlobalSetup(
       await body()
     } catch (cause) {
       if (cause instanceof OrchestratorError) throw cause
-      throw failure(project.policy.orchestrator.globalSetup.failureMessage, hook, path, cause)
+      throw await failure(project, hook, path, cause)
     }
+  }
+
+  /**
+   * What a `global-and-project-config` hook is called with: the reader's two configs as the
+   * policy's `reviveArgs` rebuilds them, once per project, so the setup and the teardown get the
+   * same objects, as Jest passes one `globalConfig` to every hook.
+   */
+  const revived = new Map<
+    ResolvedProject,
+    Promise<{ globalConfig: object; projectConfig: object }>
+  >()
+  function argsOf(
+    project: ResolvedProject,
+  ): Promise<{ globalConfig: object; projectConfig: object }> {
+    let args = revived.get(project)
+    if (args === undefined) {
+      args = callBehaviour(
+        createBehaviourLoader(),
+        project.policy.orchestrator.globalSetup.reviveArgs,
+        project.globalSetup?.args ?? { globalConfig: {}, projectConfig: {} },
+      )
+      revived.set(project, args)
+    }
+    return args
   }
 
   const { signal, forceSignal } = options
@@ -309,8 +378,8 @@ export async function runGlobalSetup(
         if (fn === undefined) {
           throw new TypeError(`globalSetup file must export a function at ${path}`)
         }
-        const args = project.globalSetup?.args
-        await fn(args?.globalConfig ?? {}, args?.projectConfig ?? {})
+        const args = await argsOf(project)
+        await fn(args.globalConfig, args.projectConfig)
         return
       }
       const fn = defaultFunction(namespace) ?? named(namespace, 'setup')
@@ -380,8 +449,8 @@ export async function runGlobalSetup(
         if (fn === undefined) {
           throw new TypeError(`globalTeardown file must export a function at ${path}`)
         }
-        const args = project.globalSetup?.args
-        await fn(args?.globalConfig ?? {}, args?.projectConfig ?? {})
+        const args = await argsOf(project)
+        await fn(args.globalConfig, args.projectConfig)
       }),
   }))
 

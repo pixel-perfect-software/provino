@@ -3,6 +3,7 @@ import type {
   FormatEachTitle,
   FormatValue,
   Policy,
+  ReviveGlobalSetupArgs,
   SnapshotKey,
 } from '@provino/types'
 import { deepFreeze } from './internal/objects.ts'
@@ -231,6 +232,8 @@ export const neutralPolicy: Policy = deepFreeze({
       signature: 'project-with-teardown',
       teardownOrder: 'reverse',
       failureMessage: '{hook} {path} failed: {message}',
+      formatThrown: moduleRef<FormatValue>(BEHAVIOURS, 'formatValue'),
+      reviveArgs: moduleRef<ReviveGlobalSetupArgs>(BEHAVIOURS, 'reviveGlobalSetupArgs'),
     },
   },
   report: {

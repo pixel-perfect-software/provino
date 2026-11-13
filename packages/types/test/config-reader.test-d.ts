@@ -1,12 +1,17 @@
 // Track 11's config reader contract (B14b): `ConfigReader`, `ConfigSource` and `NeutralProject`.
 import type {
+  Behaviour,
   CloneSafe,
   ConfigReader,
   ConfigReadOutcome,
   ConfigSource,
   Dialect,
+  FormatValue,
+  GlobalSetupArgs,
   JsonValue,
   NeutralProject,
+  OrchestratorPolicy,
+  ReviveGlobalSetupArgs,
   SerializedProjectConfig,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
@@ -72,3 +77,25 @@ const hookArgs: NeutralProject['globalSetupArgs'] = {
   projectConfig: {},
 }
 void hookArgs
+
+// What the policy does with those args and a hook's failure (T9.15): `reviveArgs` turns the JSON a
+// reader gave into what the hook is called with, `formatThrown` prints a thrown value that is no
+// Error. Both are behaviours, so a dialect gives them as a `ModuleRef`.
+expectTypeOf<ReviveGlobalSetupArgs>().parameter(0).toEqualTypeOf<GlobalSetupArgs>()
+expectTypeOf<ReviveGlobalSetupArgs>().returns.toEqualTypeOf<{
+  readonly globalConfig: object
+  readonly projectConfig: object
+}>()
+expectTypeOf<NeutralProject['globalSetupArgs']>().toEqualTypeOf<GlobalSetupArgs | undefined>()
+expectTypeOf<OrchestratorPolicy['globalSetup']['formatThrown']>().toEqualTypeOf<
+  Behaviour<FormatValue>
+>()
+expectTypeOf<OrchestratorPolicy['globalSetup']['reviveArgs']>().toEqualTypeOf<
+  Behaviour<ReviveGlobalSetupArgs>
+>()
+// @ts-expect-error a revival gives both configs back, not one
+const oneConfig: ReviveGlobalSetupArgs = (args) => ({ globalConfig: args.globalConfig })
+// @ts-expect-error a thrown value is printed as text, not returned as it is
+const notText: Behaviour<FormatValue> = (value: unknown) => value
+void oneConfig
+void notText

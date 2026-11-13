@@ -63,6 +63,63 @@ describe('provino jest against the recorded Jest 30.5.2 runs', () => {
     })
   }
 
+  // What Jest prints for a hook that throws something other than a plain Error: its own class in the
+  // header and a multi-line message as the message (a TypeError), a non-Error as pretty-format
+  // prints it. Every line that isn't a stack frame, in order.
+  for (const id of [
+    'cli/global-setup-throws-typeerror',
+    'cli/global-setup-throws-object',
+    'cli/global-setup-throws-string',
+  ] as const) {
+    it(`${id}: the first lines and the exit code are Jest's, and a message is never repeated as frames`, async () => {
+      const fixture = await loadFixture(id)
+      const project = await materialize(fixture)
+      try {
+        const ended = await spawnCli(
+          ['jest', `--config=${join(project.root, 'jest.config.json')}`],
+          { cwd: project.root },
+        )
+        assert.equal(ended.code, fixture.golden.observed?.exitCode, ended.stderr)
+        const printed = underRoot(ended.stderr, project.root)
+          .split('\n')
+          .filter((line) => /^(?!\s*at ).+/.test(line))
+        // A message line printed again as a frame would be a second copy here.
+        assert.deepEqual(printed, String(fixture.golden.observed?.stderr).split('\n'))
+      } finally {
+        await project.dispose()
+      }
+    })
+  }
+
+  // `globalConfig.testPathPatterns` is a `TestPathPatterns` object in Jest 30: every member's answer
+  // (class names, own keys, `toExecutor`'s matches) is the recorded one.
+  for (const id of [
+    'cli/global-setup-test-path-patterns',
+    'cli/global-setup-no-test-path-patterns',
+  ] as const) {
+    it(`${id}: what the hook sees of globalConfig.testPathPatterns is Jest's`, async () => {
+      const fixture = await loadFixture(id)
+      const project = await materialize(fixture)
+      try {
+        const ended = await spawnCli(
+          [
+            'jest',
+            `--config=${join(project.root, 'jest.config.json')}`,
+            ...(fixture.manifest.run?.argv?.jest ?? []),
+          ],
+          { cwd: project.root },
+        )
+        assert.equal(ended.code, fixture.golden.observed?.exitCode, ended.stderr)
+        assert.equal(
+          await readOrEmpty(join(project.root, 'seen.txt')),
+          recordedFile(fixture.golden, 'seen.txt'),
+        )
+      } finally {
+        await project.dispose()
+      }
+    })
+  }
+
   it('cli/global-setup-throws: no test file runs, and the exit code and message are Jest’s', async () => {
     const fixture = await loadFixture('cli/global-setup-throws')
     const project = await materialize(fixture)

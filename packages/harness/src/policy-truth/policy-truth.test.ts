@@ -61,6 +61,8 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest hoist.messages.HOIST_NOT_TOP_LEVEL': 'T11.16',
   'vitest mock.messages.spy-namespace': 'T11.16',
   'vitest orchestrator.globalSetup.failureMessage': 'T11.16',
+  'vitest orchestrator.globalSetup.formatThrown': 'T11.16',
+  'vitest orchestrator.globalSetup.reviveArgs': 'T11.16',
   'vitest orchestrator.globalSetup.teardownOrder': 'T11.16',
   'vitest orchestrator.sequence.unknownFirst': 'B21',
   'vitest orchestrator.shard.fallback': 'B21',

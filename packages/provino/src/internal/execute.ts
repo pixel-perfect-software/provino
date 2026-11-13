@@ -1,6 +1,7 @@
 import type { ResolvedProject } from '@provino/config'
 import {
   exitCodeFor,
+  hookFailureReport,
   OrchestratorError,
   type RunGlobalHooks,
   type RunProjectOptions,
@@ -63,10 +64,9 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
       throw error
     }
     // A global setup or teardown that threw: the user's error, said as Jest says it (the error's
-    // own text, then the frames of what the hook threw), with the runner's failure exit code.
-    const frames =
-      error.cause instanceof Error ? (error.cause.stack ?? '').split('\n').slice(1) : []
-    stderr.write(`Error: ${error.message}\n${frames.map((line) => `${line}\n`).join('')}`)
+    // own class and text, then the frames of what the hook threw), with the runner's failure exit
+    // code.
+    stderr.write(hookFailureReport(error))
     return { exitCode: project.policy.orchestrator.exitCodes.failure, summary: null }
   }
 

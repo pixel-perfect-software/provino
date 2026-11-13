@@ -28,6 +28,7 @@ import type {
   GlobalsFactory,
   ModuleScopeFactory,
   PolicyOverrides,
+  ReviveGlobalSetupArgs,
   SnapshotPrinterFactory,
 } from '@provino/types'
 import { jestExpectPolicy } from './expect-policy.ts'
@@ -333,6 +334,18 @@ export const jestPolicy: PolicyOverrides = {
       signature: 'global-and-project-config',
       teardownOrder: 'in-order',
       failureMessage: 'Jest: Got error running {hook} - {path}, reason: {message}',
+      // `runGlobalHook` prints a thrown non-Error with `prettyFormat(error, { maxDepth: 3 })`: the
+      // function `core.formatValue` is (`cli/global-setup-throws-object` and `-string`).
+      formatThrown: moduleRef<FormatValue>(
+        import.meta.resolve('@provino/dialect-jest/runtime'),
+        'formatValue',
+      ),
+      // `globalConfig.testPathPatterns` is a `TestPathPatterns` in Jest 30
+      // (`cli/global-setup-test-path-patterns`); the reader gives an array.
+      reviveArgs: moduleRef<ReviveGlobalSetupArgs>(
+        import.meta.resolve('@provino/dialect-jest/runtime'),
+        'reviveGlobalSetupArgs',
+      ),
     },
   },
   report: {

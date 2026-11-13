@@ -6,6 +6,7 @@ export { type EachTableKind, formatEachTitle } from '../each/format-each-title.t
 export { jestExpectTable } from './expect-table.ts'
 export { formatMapperMiss } from './format-mapper-miss.ts'
 export { formatValue } from './format-value.ts'
+export { reviveGlobalSetupArgs } from './global-setup-args.ts'
 export {
   type JestFakeTimersConfig,
   type JestGlobals,

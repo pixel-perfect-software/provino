@@ -6,6 +6,7 @@ import type {
   EnvironmentConditions,
   FormatEachTitle,
   FormatValue,
+  ReviveGlobalSetupArgs,
   SnapshotKey,
 } from '@provino/types'
 
@@ -43,6 +44,13 @@ export const formatEachTitle: FormatEachTitle = (template, row, index) => {
  */
 export const formatValue: FormatValue = (value) =>
   inspect(value, { depth: 3, breakLength: Infinity, compact: true })
+
+/**
+ * Calls a global hook with the configs as they are (`orchestrator.globalSetup.reviveArgs`): the
+ * neutral signature takes none, so there is nothing to rebuild.
+ * @public
+ */
+export const reviveGlobalSetupArgs: ReviveGlobalSetupArgs = (args) => args
 
 /**
  * Names the `count`-th snapshot of a test: `` `${fullName} ${count}` ``.

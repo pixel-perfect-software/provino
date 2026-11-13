@@ -263,6 +263,41 @@ export const orchestratorClaims: Claims = {
       "Vitest's global setup runs with its config reader; its source rethrows the setup's own error",
     ),
   ),
+  // How a thrown value that is no Error is printed in that line. Jest's is `core.formatValue`'s
+  // function (pretty-format, three levels deep); `own` pins the ref, and provino's test holds the
+  // printed text to the recordings.
+  'orchestrator.globalSetup.formatThrown': each(
+    own(
+      'packages/provino/test/global-setup.test.ts',
+      'cli/global-setup-throws-object',
+      {
+        module: import.meta.resolve('@provino/dialect-jest/runtime'),
+        export: 'formatValue',
+      },
+      '`cli/global-setup-throws-object` and `-string` (Jest 30.5.2) hold the text: `Object {` with one property to a line, a string in double quotes',
+    ),
+    pending(
+      'T11.16',
+      "Vitest's global setup runs with its config reader; the neutral printer stands until a recording shows what it prints for a thrown non-Error",
+    ),
+  ),
+  // What a hook is called with that JSON can't carry. Jest's rebuilds `testPathPatterns` as the
+  // `TestPathPatterns` object Jest 30 passes; provino's test holds every member to the recordings.
+  'orchestrator.globalSetup.reviveArgs': each(
+    own(
+      'packages/provino/test/global-setup.test.ts',
+      'cli/global-setup-test-path-patterns',
+      {
+        module: import.meta.resolve('@provino/dialect-jest/runtime'),
+        export: 'reviveGlobalSetupArgs',
+      },
+      '`cli/global-setup-test-path-patterns` and `-no-test-path-patterns` (Jest 30.5.2) hold the object: its class names, own keys and every member the hook can call',
+    ),
+    pending(
+      'T11.16',
+      "Vitest's hooks take a project, not the two configs; the neutral identity stands until its config reader builds them",
+    ),
+  ),
 }
 
 export const reportClaims: Claims = {

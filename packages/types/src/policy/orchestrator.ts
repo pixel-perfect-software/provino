@@ -1,6 +1,7 @@
 import type { JsonValue } from '../clone-safe.ts'
 import type { IsolationTier } from '../isolation.ts'
 import type { Behaviour } from './behaviour.ts'
+import type { FormatValue } from './core.ts'
 
 /**
  * Worker pool kinds (Track 9): child processes, worker threads, or in the coordinator's own
@@ -25,6 +26,27 @@ export interface EnvironmentRequest {
  * @public
  */
 export type EnvironmentConditions = (env: EnvironmentRequest) => readonly string[]
+
+/**
+ * The two configs a global setup or teardown function is called with under the
+ * `global-and-project-config` signature, as the dialect's config reader gave them (JSON).
+ * @public
+ */
+export interface GlobalSetupArgs {
+  readonly globalConfig: Readonly<Record<string, JsonValue>>
+  readonly projectConfig: Readonly<Record<string, JsonValue>>
+}
+
+/**
+ * Turns the JSON a config reader gave a global hook into what the hook is called with: what JSON
+ * can't carry (a class instance Jest builds in its global config) is rebuilt here, in the
+ * coordinator, since it never crosses to a worker.
+ * @public
+ */
+export type ReviveGlobalSetupArgs = (args: GlobalSetupArgs) => {
+  readonly globalConfig: object
+  readonly projectConfig: object
+}
 
 /**
  * The `orchestrator` slice, read by `@provino/orchestrator` (Track 9): discovery, scheduling,
@@ -134,5 +156,19 @@ export interface OrchestratorPolicy {
      * `cli/global-setup-throws`). Vitest raises the error as it is: `{message}`.
      */
     readonly failureMessage: string
+    /**
+     * Prints a value a hook threw that is no `Error`, in the failure message's `{message}`. Jest:
+     * pretty-format with `maxDepth: 3` (`runGlobalHook`; recorded by
+     * `cli/global-setup-throws-object` and `-string`). Vitest: the neutral printer, with no
+     * recording until T11.16.
+     */
+    readonly formatThrown: Behaviour<FormatValue>
+    /**
+     * Rebuilds what JSON can't carry in the two configs a `global-and-project-config` hook is
+     * called with. Jest: `globalConfig.testPathPatterns`, an object with `TestPathPatterns`'
+     * members (recorded by `cli/global-setup-test-path-patterns`). Vitest: the neutral identity,
+     * since its hooks take no configs.
+     */
+    readonly reviveArgs: Behaviour<ReviveGlobalSetupArgs>
   }
 }

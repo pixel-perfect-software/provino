@@ -5,7 +5,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ResolvedGlobalSetup, ResolvedProject } from '@provino/config'
-import { OrchestratorError, type RunProjectOptions, runProjects } from '@provino/orchestrator'
+import {
+  hookFailureReport,
+  OrchestratorError,
+  type RunProjectOptions,
+  runProjects,
+} from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { PolicyOverrides, Reporter } from '@provino/types'
 import { Collect, runtimeProject, trackedProjects } from './support.ts'
@@ -397,6 +402,103 @@ async function withSignals<T>(
 const HANG = 'await new Promise(() => {})'
 const abortNow = ';(globalThis as any).__abort()'
 const forceNow = ';(globalThis as any).__force()'
+
+describe('what a hook is called with, and how its failure is worded', () => {
+  /** The error a run of a Jest-signature project whose setup throws `thrown` fails with. */
+  async function failedWith(thrown: string, extraFiles: Record<string, string> = {}) {
+    const p = await makeProject({
+      'setup.ts': `module.exports = async () => { ${thrown} }`,
+      'a.test.js': "test('a', () => {})",
+      ...extraFiles,
+    })
+    const project = withHooks(
+      runtimeProject(p.dir, {
+        policy: {
+          orchestrator: {
+            globalSetup: {
+              ...JEST_HOOKS.globalSetup,
+              failureMessage: 'Got error running {hook} - {path}, reason: {message}',
+              // The policy's printer: this module's `format`, which the test writes.
+              formatThrown: { module: p.path('format.ts'), export: 'format' },
+            },
+          },
+        },
+      }),
+      { setup: [p.path('setup.ts')], teardown: [] },
+    )
+    try {
+      await traced((t) => runAll([project], t))
+    } catch (error) {
+      assert.ok(error instanceof OrchestratorError)
+      return { error, path: p.path('setup.ts') }
+    }
+    return assert.fail('the run did not fail')
+  }
+
+  const FORMAT = {
+    'format.ts': 'export const format = (value: unknown) => "<" + JSON.stringify(value) + ">"',
+  }
+
+  it('puts a value that is no Error through the policy’s formatThrown, in the message', async () => {
+    const { error, path } = await failedWith("throw { code: 42, nested: { list: ['a'] } }", FORMAT)
+    assert.equal(
+      error.message,
+      `Got error running globalSetup - ${path}, reason: <{"code":42,"nested":{"list":["a"]}}>`,
+    )
+    assert.equal(
+      hookFailureReport(error),
+      `Error: ${error.message}\n`,
+      'no stack of its own to show',
+    )
+    const { error: text } = await failedWith("throw 'plain'", FORMAT)
+    assert.match(text.message, /reason: <"plain">$/)
+  })
+
+  it('keeps an Error’s own class and message, and shows only its frames: a message that runs over lines is not repeated', async () => {
+    const { error, path } = await failedWith("throw new TypeError('bad\\nsecond line')", FORMAT)
+    assert.equal(error.message, `Got error running globalSetup - ${path}, reason: bad\nsecond line`)
+    const lines = hookFailureReport(error).split('\n')
+    assert.equal(lines[0], `TypeError: Got error running globalSetup - ${path}, reason: bad`)
+    assert.equal(lines[1], 'second line')
+    assert.ok(
+      lines.slice(2, -1).every((line) => /^\s+at /.test(line)),
+      lines.join('\n'),
+    )
+    assert.equal(lines.filter((line) => line === 'second line').length, 1)
+  })
+
+  it('hands the hook what the policy’s reviveArgs makes of the reader’s JSON', async () => {
+    const p = await makeProject({
+      'revive.ts':
+        'export const revive = (args: { globalConfig: object; projectConfig: object }) => ({ globalConfig: { ...args.globalConfig, revived: { isSet: () => true } }, projectConfig: args.projectConfig })',
+      'setup.ts': `module.exports = async (globalConfig: { rootDir: string; revived: { isSet(): boolean } }) => { ;(globalThis as any).__trace.push('seen ' + globalConfig.rootDir + ' ' + globalConfig.revived.isSet()) }`,
+      'teardown.ts': `module.exports = async (globalConfig: { revived: unknown }) => { ;(globalThis as any).__trace.push('teardown ' + typeof globalConfig.revived) }`,
+      'a.test.js': "test('a', () => {})",
+    })
+    const project = withHooks(
+      runtimeProject(p.dir, {
+        policy: {
+          orchestrator: {
+            globalSetup: {
+              ...JEST_HOOKS.globalSetup,
+              reviveArgs: { module: p.path('revive.ts'), export: 'revive' },
+            },
+          },
+        },
+      }),
+      {
+        setup: [p.path('setup.ts')],
+        teardown: [p.path('teardown.ts')],
+        args: { globalConfig: { rootDir: '/the/root' }, projectConfig: {} },
+      },
+    )
+    const [, trace] = await traced((t) => runAll([project], t))
+    assert.deepEqual(
+      trace.filter((step) => /seen|teardown/.test(step)),
+      ['seen /the/root true', 'teardown object'],
+    )
+  })
+})
 
 describe('a signal while global hooks run (Ctrl+C, SIGTERM)', () => {
   it('sets nothing up when the run was interrupted before its setup', async () => {
