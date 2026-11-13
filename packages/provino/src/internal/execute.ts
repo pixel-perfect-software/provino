@@ -40,6 +40,8 @@ export interface ExecuteOptions {
   /** `false`: neither read nor write the results cache. */
   readonly cache?: false
   readonly testNamePattern?: string | undefined
+  /** Collect each file and report what its tests would do, running none (`--collectTests`). */
+  readonly collectOnly?: boolean
   /** Rewrite the snapshots that differ (`-u`). */
   readonly update?: boolean | undefined
   readonly fileFilters?: readonly FileFilter[]
@@ -149,6 +151,7 @@ function run(
     ...(options.cache === false ? { cache: false } : {}),
     ...(options.testNamePattern === undefined ? {} : { testNamePattern: options.testNamePattern }),
     ...(options.update === true ? { update: true } : {}),
+    ...(options.collectOnly === true ? { collectOnly: true } : {}),
     ...(options.fileFilters === undefined ? {} : { fileFilters: options.fileFilters }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
