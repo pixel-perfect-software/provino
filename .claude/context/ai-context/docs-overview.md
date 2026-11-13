@@ -5,8 +5,9 @@ Tier 1 is project-wide. Read a Tier 1 file only when the task needs it; `.claude
 ## Tier 1 — Foundational
 
 - `CLAUDE.md`: standards, non-negotiables, commands, git workflow.
-- `README.md`: the public front page: status, how to try `provino jest` on a Jest project, what works and the gap table (each gap with its owning task). When a gap closes or a flag is refused no longer, update the table; the package `CLAUDE.md` "Not built" sections and `packages/dialect-jest/src/node/cli-table.ts` are where the facts are.
+- `README.md`: the public front page, kept short in the house style of Pixel Perfect's other READMEs (centered logo, tagline and badges; a real `provino jest` run; Features, Requirements, Install, Getting started, Commands; links into `wiki/`). Longer explanations go in `wiki/`, not here.
 - `CONTRIBUTING.md`: setup, commands and conventions for human contributors. It doesn't repeat this file's agent rules.
+- `wiki/`: the longer public docs the README links to: `why-provino.md` (the problem, goal and go/no-go bar), `compatibility.md` (what `provino jest` does and the full gap table: when a gap closes or a flag stops being refused, update it here), `how-it-works.md`, `troubleshooting.md`.
 - `THIRD_PARTY_NOTICES.md`: the license for code copied from other projects. Five packages (`provino`, `@provino/dialect-jest`, `@provino/dialect-vitest`, `@provino/snapshot`, `@provino/env-shared`) ship a copy, which `pnpm hygiene` holds equal to it.
 - `packages/*/README.md`: each published package's npm page (`packages/provino/README.md` is the one users read; the others say they are building blocks inlined into `provino`, and whether D82 gives them semver).
 - `.claude/context/ai-context/handoff.md`: where the last session stopped. **Read first in every session** (it is created after the first session). Gitignored, so each checkout and worktree keeps its own.
