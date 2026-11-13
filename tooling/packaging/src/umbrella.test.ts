@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { binScript, runCommand } from './exec.ts'
+import { scratchDir } from './test-support.ts'
 import { umbrellaEntries, WORKER_ENTRIES, workerRefs } from './umbrella.ts'
 import { ROOT } from './workspace.ts'
 
@@ -88,29 +88,24 @@ describe('the worker-ref plugin', () => {
 })
 
 describe('knip gate (T1.6)', () => {
-  /** A scratch project with an entry file and `extra` files, and knip's own exit status. */
-  function knip(extra: Readonly<Record<string, string>>): {
-    status: number | null
-    output: string
-  } {
-    const dir = mkdtempSync(join(tmpdir(), 'knip-'))
-    writeFileSync(
-      join(dir, 'package.json'),
-      JSON.stringify({ name: 'planted', version: '1.0.0', type: 'module', main: 'index.ts' }),
-    )
-    writeFileSync(
-      join(dir, 'knip.json'),
-      JSON.stringify({ entry: ['index.ts'], project: ['*.ts'] }),
-    )
-    writeFileSync(
-      join(dir, 'index.ts'),
-      "import { used } from './used.ts'\nexport const a = used\n",
-    )
-    writeFileSync(join(dir, 'used.ts'), 'export const used = 1\n')
-    for (const [file, text] of Object.entries(extra)) {
-      mkdirSync(join(dir, file, '..'), { recursive: true })
-      writeFileSync(join(dir, file), text)
-    }
+  /** A scratch project with an entry file that uses `used.ts`, and `files` over or beside them. */
+  function knip(
+    files: Readonly<Record<string, string>>,
+    dependencies: Readonly<Record<string, string>> = {},
+  ): { status: number | null; output: string } {
+    const dir = scratchDir('knip', {
+      'package.json': JSON.stringify({
+        name: 'planted',
+        version: '1.0.0',
+        type: 'module',
+        main: 'index.ts',
+        dependencies,
+      }),
+      'knip.json': JSON.stringify({ entry: ['index.ts'], project: ['*.ts'] }),
+      'index.ts': "import { used } from './used.ts'\nexport const a = used\n",
+      'used.ts': 'export const used = 1\n',
+      ...files,
+    })
     return runCommand(process.execPath, [binScript('knip', 'knip'), '--no-progress'], {
       cwd: dir,
       timeoutMs: 120_000,
@@ -122,15 +117,18 @@ describe('knip gate (T1.6)', () => {
     assert.equal(status, 0, output)
   })
 
-  test('an unused file fails, naming it', () => {
-    const { status, output } = knip({ 'orphan.ts': 'export const orphan = 1\n' })
+  test('an unused file, an import the package.json does not list and a dependency nothing imports each fail, naming it', () => {
+    const { status, output } = knip(
+      {
+        'orphan.ts': 'export const orphan = 1\n',
+        'index.ts':
+          "import { used } from './used.ts'\nimport 'not-declared'\nexport const a = used\n",
+      },
+      { 'declared-but-unused': '1.0.0' },
+    )
     assert.notEqual(status, 0, output)
     assert.match(output, /Unused files[\s\S]*orphan\.ts/)
-  })
-
-  test('an import of a package the package.json does not list fails', () => {
-    const { status, output } = knip({ 'index.ts': "import 'not-declared'\nexport const a = 1\n" })
-    assert.notEqual(status, 0, output)
-    assert.match(output, /not-declared/)
+    assert.match(output, /Unlisted dependencies[\s\S]*not-declared/)
+    assert.match(output, /Unused dependencies[\s\S]*declared-but-unused/)
   })
 })

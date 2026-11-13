@@ -1,14 +1,13 @@
 // The planted cases of the two gates that run real tools (T1.6): API Extractor refuses an export
 // with no release tag, and publint and attw refuse a pack whose entry points don't resolve.
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { type ApiEntry, extract, publicApiChanged, reportBlocks } from './api-reports.ts'
 import { attwTarball, lintPackAsync, publintTarball } from './lint-pack.ts'
 import { packPackage, packPackageAsync } from './pack.ts'
 import { readManifest } from './package-json.ts'
+import { scratchDir } from './test-support.ts'
 import type { WorkspacePackage } from './workspace.ts'
 
 /** A package in a temp directory: its package.json, and `files` (relative path → text). */
@@ -16,12 +15,7 @@ function plantedPackage(
   manifest: Record<string, unknown>,
   files: Readonly<Record<string, string>>,
 ): WorkspacePackage {
-  const dir = mkdtempSync(join(tmpdir(), 'planted-'))
-  writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
-  for (const [path, text] of Object.entries(files)) {
-    mkdirSync(join(dir, path, '..'), { recursive: true })
-    writeFileSync(join(dir, path), text)
-  }
+  const dir = scratchDir('planted', { 'package.json': JSON.stringify(manifest), ...files })
   return { dir, rel: 'planted', manifest: readManifest(dir) }
 }
 
@@ -34,7 +28,7 @@ function entryOf(pkg: WorkspacePackage): ApiEntry {
   }
 }
 
-const work = mkdtempSync(join(tmpdir(), 'api-work-'))
+const work = scratchDir('api-work')
 
 describe('API Extractor gate (T1.6)', () => {
   test('an export with no release tag fails, naming it', () => {
@@ -121,7 +115,7 @@ describe('publint and attw gate (T1.6)', () => {
     files: ['dist'],
     exports: { '.': { types: './dist/index.d.ts', import: './dist/index.js' } },
   }
-  const out = mkdtempSync(join(tmpdir(), 'packs-'))
+  const out = scratchDir('packs')
 
   test('a package whose entry points resolve passes both', () => {
     const pkg = plantedPackage(good, {

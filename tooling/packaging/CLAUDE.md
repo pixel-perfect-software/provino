@@ -15,7 +15,7 @@ How Provino's packages are built, packed and checked (B21e: T1.6, T1.10, T7.12, 
 | `src/install-scripts.ts`, `src/release-lint.ts`, `templates/release.yml` | The T10.4 checks: the install-script ban, and the release workflow lint with the draft it passes |
 | `src/smoke.ts` | `pnpm smoke:install`: pack `provino` alone (it inlines the rest), install it from its tarball into an empty temp directory with pnpm, `provino --version` and a 3-file suite (the injected globals, `import … from 'provino'`, a TypeScript test), then with this platform's three Oxc binding packages moved out of the install: `--version` still answers and `provino jest` ends as one message, with no stack (T10.3, Provino's half) |
 | `src/exec.ts`, `src/package-json.ts`, `src/workspace.ts` | `runCommand` (stdout then stderr, no colour, a deadline), `binScript` (a package bin, read with `readManifest`), the package.json reader, the workspace and `SEMVER_PACKAGES` |
-| `src/*.test.ts` | The planted cases (below) |
+| `src/*.test.ts`, `src/test-support.ts` | The planted cases (below); the support file has `scratchDir` (removed when the test file ends, tarballs included), `writeFiles` and `repository()` (a scratch git repo with the git command in it) |
 
 ## The umbrella (T1.10)
 

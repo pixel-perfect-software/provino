@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { type PackageManifest, readManifest } from './package-json.ts'
 import { entriesOf, PRESET, packageConfig } from './preset.ts'
+import { scratchDir } from './test-support.ts'
 import { publicPackages, ROOT } from './workspace.ts'
 
 function manifest(exports: PackageManifest['exports']): PackageManifest {
@@ -98,10 +97,8 @@ describe('the shared tsdown preset (T1.6)', () => {
   })
 
   test("a package's config keeps its declared dependencies external and allows no other import", () => {
-    const dir = mkdtempSync(join(tmpdir(), 'preset-'))
-    writeFileSync(
-      join(dir, 'package.json'),
-      JSON.stringify({
+    const dir = scratchDir('preset', {
+      'package.json': JSON.stringify({
         name: '@provino/planted',
         type: 'module',
         exports: {
@@ -115,7 +112,7 @@ describe('the shared tsdown preset (T1.6)', () => {
         peerDependencies: { jsdom: '*' },
         devDependencies: { 'only-dev': '1.0.0' },
       }),
-    )
+    })
     const config = packageConfig(dir)
     assert.equal(config.cwd, dir)
     assert.deepEqual(config.entry, { index: 'src/index.ts' })

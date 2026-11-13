@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, test } from 'node:test'
 import { runCommand, runCommandAsync } from './exec.ts'
 import { packPackage } from './pack.ts'
 import { readManifest } from './package-json.ts'
+import { scratchDir } from './test-support.ts'
 
 // The sync and the async run are one contract: the same result for the same command.
 const RUNS = {
@@ -60,16 +61,11 @@ for (const [name, run] of Object.entries(RUNS)) {
 describe('packPackage reads pnpm pack --json from stdout only', () => {
   /** A package, and a stand-in for pnpm that writes `stderr` and the JSON `stdout`. */
   function setup(stderr: string, stdout: string, exit = 0) {
-    const dir = mkdtempSync(join(tmpdir(), 'pack-'))
-    writeFileSync(
-      join(dir, 'package.json'),
-      JSON.stringify({ name: '@provino/planted', version: '1.2.3' }),
-    )
+    const dir = scratchDir('pack', {
+      'package.json': JSON.stringify({ name: '@provino/planted', version: '1.2.3' }),
+      'fake-pnpm.cjs': `process.stderr.write(${JSON.stringify(stderr)}); process.stdout.write(${JSON.stringify(stdout)}); process.exit(${exit})`,
+    })
     const fake = join(dir, 'fake-pnpm.cjs')
-    writeFileSync(
-      fake,
-      `process.stderr.write(${JSON.stringify(stderr)}); process.stdout.write(${JSON.stringify(stdout)}); process.exit(${exit})`,
-    )
     chmodSync(fake, 0o755)
     return {
       pkg: { dir, rel: 'planted', manifest: readManifest(dir) },

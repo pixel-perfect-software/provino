@@ -1,9 +1,7 @@
 // The planted cases of `pnpm hygiene`'s cheap checks (T1.6, T10.4's agent half): each one fails
 // on a seeded violation, and the real repo passes.
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import {
@@ -17,6 +15,7 @@ import { inlinedPackages, umbrellaDependencyProblems } from './hygiene.ts'
 import { installScriptProblems } from './install-scripts.ts'
 import type { PackageManifest } from './package-json.ts'
 import { lintReleaseWorkflow } from './release-lint.ts'
+import { repository, writeFiles } from './test-support.ts'
 import { ROOT, readWorkspacePackages, type WorkspacePackage } from './workspace.ts'
 
 function pkg(name: string, parts: Partial<PackageManifest> = {}, rel = `packages/${name}`) {
@@ -259,31 +258,23 @@ describe('changesets (T1.6)', () => {
   })
 
   test('only changesets added since the base count, and untracked ones do', () => {
-    const repo = mkdtempSync(join(tmpdir(), 'changesets-'))
-    const git = (...args: string[]) =>
-      execFileSync(
-        'git',
-        ['-c', 'commit.gpgsign=false', '-c', 'user.name=t', '-c', 'user.email=t@t', ...args],
-        {
-          cwd: repo,
-          encoding: 'utf8',
-        },
-      )
-    git('init', '-q', '--initial-branch=main')
-    mkdirSync(join(repo, '.changeset'))
-    writeFileSync(join(repo, '.changeset/old.md'), '---\n"provino": patch\n---\n')
-    writeFileSync(join(repo, '.changeset/config.json'), '{}')
+    const { dir, git } = repository({
+      '.changeset/old.md': '---\n"provino": patch\n---\n',
+      '.changeset/config.json': '{}',
+    })
     git('add', '.')
     git('commit', '-q', '-m', 'base')
-    const base = git('rev-parse', 'HEAD').trim()
-    assert.deepEqual(changesetsSince(repo, base), [])
-    writeFileSync(join(repo, '.changeset/committed.md'), '---\n"@provino/types": minor\n---\n')
+    const base = git('rev-parse', 'HEAD')
+    assert.deepEqual(changesetsSince(dir, base), [])
+    writeFiles(dir, { '.changeset/committed.md': '---\n"@provino/types": minor\n---\n' })
     git('add', '.')
     git('commit', '-q', '-m', 'add one')
-    writeFileSync(join(repo, '.changeset/untracked.md'), '---\n"provino": minor\n---\n')
-    writeFileSync(join(repo, '.changeset/README.md'), '# not a changeset\n')
+    writeFiles(dir, {
+      '.changeset/untracked.md': '---\n"provino": minor\n---\n',
+      '.changeset/README.md': '# not a changeset\n',
+    })
     assert.deepEqual(
-      changesetsSince(repo, base).map((changeset) => [changeset.file, changeset.bumps]),
+      changesetsSince(dir, base).map((changeset) => [changeset.file, changeset.bumps]),
       [
         ['.changeset/committed.md', { '@provino/types': 'minor' }],
         ['.changeset/untracked.md', { provino: 'minor' }],
