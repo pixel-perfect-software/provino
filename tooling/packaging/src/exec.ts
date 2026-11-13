@@ -6,13 +6,23 @@ import { fileURLToPath } from 'node:url'
 /** What a finished command left. */
 export interface CommandResult {
   readonly status: number | null
+  readonly stdout: string
+  readonly stderr: string
+  /** stdout, then stderr, then what went wrong if the command never ran or didn't end. */
   readonly output: string
+  /**
+   * Set when the process could not be started (`ENOENT`), was killed for outrunning its deadline
+   * (`ETIMEDOUT`) or overflowed its buffer. `status` is `null` then, and `stdout` and
+   * `stderr` hold what arrived before.
+   */
+  readonly error: (Error & { readonly code?: string }) | undefined
 }
 
 /**
- * Runs a command to its end and returns its exit status and its output (stdout, then stderr).
- * `FORCE_COLOR` is dropped so the output is plain text, and a command that doesn't end within
- * `timeoutMs` is killed (status `null`).
+ * Runs a command to its end and returns its exit status, its stdout and stderr apart, and both
+ * joined as `output`. `FORCE_COLOR` is dropped so the output is plain text. A command that cannot be
+ * started, or doesn't end within `timeoutMs`, comes back with `status` `null`, the reason in `error`
+ * and in `output`: a failure to run is never printed as an empty result.
  * @internal
  */
 export function runCommand(
@@ -21,15 +31,24 @@ export function runCommand(
   options: { readonly cwd: string; readonly timeoutMs?: number; readonly env?: NodeJS.ProcessEnv },
 ): CommandResult {
   const { FORCE_COLOR: _color, ...inherited } = options.env ?? process.env
+  const timeoutMs = options.timeoutMs ?? 300_000
   const result = spawnSync(command, [...args], {
     cwd: options.cwd,
     env: { ...inherited, NO_COLOR: '1' },
     encoding: 'utf8',
-    timeout: options.timeoutMs ?? 300_000,
+    timeout: timeoutMs,
     maxBuffer: 64 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
-  return { status: result.status, output: `${result.stdout}${result.stderr}` }
+  // A command that never started has no streams at all (`null`, not empty strings).
+  const stdout = result.stdout ?? ''
+  const stderr = result.stderr ?? ''
+  const error = result.error as CommandResult['error']
+  const reason =
+    error === undefined
+      ? ''
+      : `\n${command}: ${error.code === 'ETIMEDOUT' ? `did not end within ${timeoutMs} ms and was killed` : error.message}\n`
+  return { status: result.status, stdout, stderr, output: `${stdout}${stderr}${reason}`, error }
 }
 
 /**

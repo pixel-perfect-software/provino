@@ -35,9 +35,18 @@ export function packPackage(pkg: WorkspacePackage, outDir: string): PackedPackag
   const result = runCommand(command, [...prefix, 'pack', '--pack-destination', outDir, '--json'], {
     cwd: pkg.dir,
   })
-  if (result.status !== 0) throw new Error(`pnpm pack failed in ${pkg.rel}:\n${result.output}`)
-  const start = result.output.indexOf('{')
-  const json: unknown = JSON.parse(result.output.slice(start))
+  if (result.status !== 0) {
+    // `error` is set when pnpm could not start or was killed for outrunning its deadline.
+    throw new Error(`pnpm pack failed in ${pkg.rel}:\n${result.output}`, { cause: result.error })
+  }
+  // stdout only: a WARN on stderr is not part of the JSON.
+  const start = result.stdout.indexOf('{')
+  let json: unknown
+  try {
+    json = JSON.parse(result.stdout.slice(start))
+  } catch (error) {
+    throw new Error(`pnpm pack printed no JSON in ${pkg.rel}:\n${result.output}`, { cause: error })
+  }
   if (typeof json !== 'object' || json === null) throw new Error(`pnpm pack: no JSON in ${pkg.rel}`)
   const { name, version, filename, files } = json as Record<string, unknown>
   if (typeof name !== 'string' || typeof version !== 'string' || typeof filename !== 'string') {

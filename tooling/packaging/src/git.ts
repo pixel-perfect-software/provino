@@ -2,7 +2,10 @@ import { runCommand } from './exec.ts'
 
 function git(root: string, args: readonly string[]): string | undefined {
   const result = runCommand('git', args, { cwd: root })
-  return result.status === 0 ? result.output : undefined
+  // git that cannot run is not a ref that doesn't exist.
+  if (result.error !== undefined)
+    throw new Error(`git ${args[0]} failed\n${result.output}`, { cause: result.error })
+  return result.status === 0 ? result.stdout : undefined
 }
 
 /**
@@ -35,7 +38,9 @@ export function resolveBase(root: string, ref: string): string {
  */
 export function fileAt(root: string, ref: string, path: string): string | undefined {
   const result = runCommand('git', ['show', `${ref}:${path}`], { cwd: root })
-  return result.status === 0 ? result.output : undefined
+  if (result.error !== undefined)
+    throw new Error(`git show failed\n${result.output}`, { cause: result.error })
+  return result.status === 0 ? result.stdout : undefined
 }
 
 /**
