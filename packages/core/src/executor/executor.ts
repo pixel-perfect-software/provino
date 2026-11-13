@@ -1088,17 +1088,21 @@ export class Executor {
   ): Promise<unknown[]> {
     const failures: unknown[] = []
     if (items.length === 0) return failures
-    const one = async (item: T): Promise<void> => {
+    if (this.#parallel(kind)) {
+      await Promise.all(
+        items.map(async (item) => {
+          const result = await call(item)
+          if (result.ok) onValue?.(item, result.value)
+          else failures.push(result.error)
+        }),
+      )
+      return failures
+    }
+    // In sequence, each call is awaited here: no async wrapper per call (T5.14).
+    for (const item of this.#order(items, kind)) {
       const result = await call(item)
       if (result.ok) onValue?.(item, result.value)
       else failures.push(result.error)
-    }
-    if (this.#parallel(kind)) {
-      await Promise.all(items.map(one))
-      return failures
-    }
-    for (const item of this.#order(items, kind)) {
-      await one(item)
       if ((stop && failures.length > 0) || halted?.() === true) break
     }
     return failures
