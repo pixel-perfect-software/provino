@@ -105,6 +105,34 @@ describe('provino jest against the recorded Jest 30.5.2 runs', () => {
     }
   })
 
+  // Jest's reporters print the summary inside `scheduleTests`, and `runJest` runs the teardown
+  // after it: what a teardown prints, or fails with, comes below the totals. Held in order.
+  for (const [id, keep] of [
+    ['cli/global-teardown-output', /^(Test Suites|Tests):|^teardown ran/],
+    [
+      'cli/global-teardown-throws',
+      /^(Test Suites|Tests):|^(?!\s*at ).*(globalTeardown|teardown failed)/,
+    ],
+  ] as const) {
+    it(`${id}: the totals come first, then the teardown's output or its failure, and the exit code is Jest's`, async () => {
+      const fixture = await loadFixture(id)
+      const project = await materialize(fixture)
+      try {
+        const ended = await spawnCli(
+          ['jest', `--config=${join(project.root, 'jest.config.json')}`],
+          { cwd: project.root },
+        )
+        assert.equal(ended.code, fixture.golden.observed?.exitCode, ended.stderr)
+        const printed = underRoot(ended.stderr, project.root)
+          .split('\n')
+          .filter((line) => keep.test(line))
+        assert.deepEqual(printed, String(fixture.golden.observed?.stderr).split('\n'))
+      } finally {
+        await project.dispose()
+      }
+    })
+  }
+
   // The recorder reserves `projects`, so these recordings named them on the command line: the same
   // projects, as a key of the config the fixture's own overlay (the root's hooks) is already in.
   for (const [id, projects] of [
