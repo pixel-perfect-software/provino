@@ -3,13 +3,13 @@
 // resolve its imports as a worker would, and leave nothing behind in the process.
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
+import { createRequire, syncBuiltinESMExports } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import type { SerializedLoaderConfig } from '@provino/types'
-import { createCoordinatorLoader } from './coordinator.ts'
+import { type CoordinatorLoader, createCoordinatorLoader } from './coordinator.ts'
 
 const roots: string[] = []
 after(() => {
@@ -129,14 +129,40 @@ test('a module imported twice is evaluated once, and a module that throws reject
   loader.dispose()
 })
 
-test('it installs no hook process-wide: the extension table is as it was', async () => {
+/** The parts of `node:module` the next test watches, typed for assignment (the namespace's are not). */
+interface ModuleHookApi {
+  readonly _extensions: Readonly<Record<string, unknown>>
+  registerHooks: (...args: readonly unknown[]) => unknown
+  register: (...args: readonly unknown[]) => unknown
+}
+
+test('it installs no hook process-wide: the extension table is as it was, and no module hook was registered', async () => {
   const root = writeTree({ 'a.ts': 'export const a: number = 1\n' })
-  const nodeModule = createRequire(import.meta.url)('node:module') as {
-    readonly _extensions: Readonly<Record<string, unknown>>
-  }
+  const nodeModule = createRequire(import.meta.url)('node:module') as ModuleHookApi
   const extensions = Object.entries(nodeModule._extensions)
-  const loader = await createCoordinatorLoader(root, config(), neutralPolicy.module)
-  await loader.import(join(root, 'a.ts'))
-  assert.deepEqual(Object.entries(nodeModule._extensions), extensions)
-  loader.dispose()
+  // Count the calls that would install a hook process-wide, for this test only. Named imports of
+  // `node:module` see the replacement after `syncBuiltinESMExports`, so they are counted too.
+  const original = { registerHooks: nodeModule.registerHooks, register: nodeModule.register }
+  const calls: string[] = []
+  nodeModule.registerHooks = (...args) => {
+    calls.push('registerHooks')
+    return Reflect.apply(original.registerHooks, nodeModule, args)
+  }
+  nodeModule.register = (...args) => {
+    calls.push('register')
+    return Reflect.apply(original.register, nodeModule, args)
+  }
+  syncBuiltinESMExports()
+  let loader: CoordinatorLoader | undefined
+  try {
+    loader = await createCoordinatorLoader(root, config(), neutralPolicy.module)
+    await loader.import(join(root, 'a.ts'))
+    assert.deepEqual(Object.entries(nodeModule._extensions), extensions)
+    assert.deepEqual(calls, [], 'module.registerHooks and module.register were not called')
+  } finally {
+    loader?.dispose()
+    nodeModule.registerHooks = original.registerHooks
+    nodeModule.register = original.register
+    syncBuiltinESMExports()
+  }
 })
