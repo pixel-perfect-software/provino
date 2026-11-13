@@ -72,7 +72,8 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
   let tests = 0
   let deps: readonly string[] | undefined
   /** The table of a file run on its own: no worker's earlier files to share ids with. */
-  let fileTable: DepsTable | undefined
+  const ownTable = createDepsTable()
+  const tableOf = depsTable ?? ((): DepsTable => ownTable)
 
   function node(event: WorkerEvent, id: TaskId): TaskNode {
     const found = nodes.get(id)
@@ -107,7 +108,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
       case 'deps':
         // The worker's table takes the event in even when nothing reads the list yet: the next
         // file's ids refer to what this one added.
-        deps = (depsTable?.() ?? (fileTable ??= createDepsTable())).resolve(event)
+        deps = tableOf().resolve(event)
         return
       case 'file-collect-end':
         for (const task of event.tasks) nodes.set(task.id, task)
