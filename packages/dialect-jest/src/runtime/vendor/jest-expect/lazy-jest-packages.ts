@@ -17,6 +17,26 @@ import type * as JestUtil from 'jest-util'
 
 const require = createRequire(import.meta.url)
 
+// What these packages do when they first load stays at load time, as when they were imported:
+// the first assertion to fail in a test must not be where it happens. Chalk (through
+// `supports-color`) fixes its colour level from FORCE_COLOR, NO_COLOR and the terminal, and
+// `picocolors`, which Babel's code frame uses, reads the same; `graceful-fs` patches the real
+// `fs.close`, `fs.closeSync`, `process.cwd` and `process.chdir`. A test that sets FORCE_COLOR or
+// spies on `fs` would otherwise change what the first failure prints, or have its spy wrapped.
+// Each is loaded from the package that depends on it, so it is the one instance that package
+// later uses. Only these few leaf modules: the heavy parts (`jest-diff`, the code frame itself,
+// `micromatch`, `jest-util`) stay deferred.
+function loadFromDependent(dependent: string, ...path: readonly string[]): void {
+  let from = require.resolve(dependent)
+  for (const dependency of path.slice(0, -1)) from = createRequire(from).resolve(dependency)
+  const last = path.at(-1)
+  if (last !== undefined) createRequire(from)(last)
+}
+loadFromDependent('jest-matcher-utils', 'chalk')
+loadFromDependent('jest-message-util', 'chalk')
+loadFromDependent('jest-message-util', 'graceful-fs')
+loadFromDependent('jest-message-util', '@babel/code-frame', 'picocolors')
+
 /** A loader that runs once, on the first call. */
 function once<T>(load: () => T): () => T {
   let value: T | undefined

@@ -173,3 +173,65 @@ describe('the stand-ins print what the packages print', () => {
     }
   })
 })
+
+/**
+ * Runs `code` in a fresh process after the facade is imported, as the worker's boot imports it, with
+ * `env` set for that process (and neither FORCE_COLOR nor NO_COLOR inherited).
+ */
+function afterBoot(code: string, env: NodeJS.ProcessEnv): Record<string, unknown> {
+  const { FORCE_COLOR: _color, NO_COLOR: _noColor, ...inherited } = process.env
+  const script = [
+    `const lazy = await import(${JSON.stringify(FACADE)})`,
+    "const { createRequire } = await import('node:module')",
+    "const fs = createRequire(import.meta.url)('node:fs')",
+    code,
+  ].join('\n')
+  const result = spawnSync(
+    process.execPath,
+    ['--conditions=provino-source', '--input-type=module', '-e', script],
+    {
+      encoding: 'utf8',
+      env: { ...inherited, ...env },
+      cwd: fileURLToPath(new URL('../../', import.meta.url)),
+    },
+  )
+  assert.equal(result.status, 0, result.stderr)
+  return JSON.parse(result.stdout.trim().split('\n').at(-1) ?? '{}') as Record<string, unknown>
+}
+
+describe('what the packages do when they first load happens at boot, as it did when imported (T7.12)', () => {
+  const colourAfterChange = [
+    'process.env.FORCE_COLOR = process.env.AFTER',
+    "console.log(JSON.stringify({ coloured: lazy.RECEIVED_COLOR('x').includes('\\u001b[') }))",
+  ].join('\n')
+
+  test("the colour level Chalk reads from FORCE_COLOR and the terminal is the boot one: a test can't change the first failure's", () => {
+    // Booted with colours off (not a terminal), a test turns them on: the first failure is plain.
+    assert.deepEqual(afterBoot(colourAfterChange, { AFTER: '1' }), { coloured: false })
+    // Booted with colours on, a test turns them off: the first failure is still coloured.
+    assert.deepEqual(afterBoot(colourAfterChange, { FORCE_COLOR: '1', AFTER: '0' }), {
+      coloured: true,
+    })
+  })
+
+  test("the colour support picocolors (Babel's code frame) reads from NO_COLOR is the boot one", () => {
+    const code = [
+      "process.env.NO_COLOR = '1'",
+      "const babel = createRequire(createRequire(import.meta.url).resolve('jest-message-util')).resolve('@babel/code-frame')",
+      "console.log(JSON.stringify({ supported: createRequire(babel)('picocolors').isColorSupported }))",
+    ].join('\n')
+    assert.deepEqual(afterBoot(code, { FORCE_COLOR: '1' }), { supported: true })
+  })
+
+  test('graceful-fs has patched fs.closeSync and process.cwd before a test can spy on them', () => {
+    const code = [
+      'const spy = () => {}',
+      'fs.closeSync = spy',
+      'const cwd = process.cwd',
+      '// The first message that needs jest-message-util must not patch fs again around the spy.',
+      "lazy.separateMessageFromStack('Error: x\\n    at f (/a.js:1:1)')",
+      'console.log(JSON.stringify({ spyKept: fs.closeSync === spy, cwdKept: process.cwd === cwd }))',
+    ].join('\n')
+    assert.deepEqual(afterBoot(code, {}), { spyKept: true, cwdKept: true })
+  })
+})
