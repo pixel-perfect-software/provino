@@ -84,8 +84,11 @@ describe('jest.retryTimes against real Jest 30.5.2', () => {
   for (const [name, options] of [
     ['retries after the other tests of the describe', '{}'],
     ['retries at once with retryImmediately', '{ retryImmediately: true }'],
+    // Only the statuses and the order of the calls are compared, with both options set. Nothing
+    // measures the wait (`runtime/retry-wait` does), and no reporter prints `retryErrors` yet, so
+    // Jest's `LOGGING RETRY ERRORS` block is not compared: that is reporter work (B21c).
     [
-      'waits before each retry, and logs the earlier errors',
+      'runs the same attempts in the same order with waitBeforeRetry and logErrorsBeforeRetry set',
       '{ waitBeforeRetry: 30, logErrorsBeforeRetry: true }',
     ],
   ] as const) {

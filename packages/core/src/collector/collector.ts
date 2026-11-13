@@ -185,7 +185,10 @@ export class Collector {
       concurrent: spec.flags.concurrent ?? spec.options.concurrent ?? inherited.concurrent ?? false,
       expectFail: spec.flags.fails === true || spec.options.fails === true,
       timeoutMs: timeout,
-      retry: normalizeRetry(spec.options.retry ?? inherited.retry),
+      // `null` is not "no option" (`??` would take it for one): it is a wrong one, and throws.
+      retry: normalizeRetry(
+        spec.options.retry === undefined ? inherited.retry : spec.options.retry,
+      ),
       repeats: spec.options.repeats ?? inherited.repeats ?? 0,
       tags: mergeTags(inherited.tags, spec.options.tags),
       meta: { ...inherited.meta, ...spec.options.meta },
@@ -224,6 +227,8 @@ export class Collector {
         `A describe body must be a function, got ${typeof spec.body}`,
       )
     }
+    // Its tests read this option again; checking it here puts a wrong one on the describe.
+    normalizeRetry(spec.options.retry)
     const options = inheritOptions(inherited, spec.options, spec.flags.concurrent)
     const suite = newSuiteNode({
       type: 'suite',

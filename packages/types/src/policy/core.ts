@@ -142,6 +142,17 @@ export interface CorePolicy {
     readonly timing: 'deferred' | 'immediate'
     readonly logErrorsBeforeRetry: boolean
     readonly keepEarlierErrors: boolean
+    /**
+     * What a function given as a test's `retry.condition` does (a `RegExp` is always tested). `call`:
+     * it is called with the last error after each failed attempt but the last, and `false` ends the
+     * retries. `ignore-warn`: it is never called, every failure is retried, and the first retry
+     * that skips it in a file warns, naming the test and the fix. Vitest 5.0.5 never calls it
+     * (recorded: `runtime/retry-condition-function`), and honouring it could turn a green suite
+     * red, so its dialect keeps that outcome and warns (D7). Neutral: `call`. Jest: `call`, though
+     * nothing reads it there: Jest has no `retry` option on a test.
+     * Neutral-only key; backed by `runtime/retry-condition-function` (Vitest) and a core test.
+     */
+    readonly functionCondition: 'call' | 'ignore-warn'
   }
   /**
    * Whether `.only` is allowed. Also Track 5's `only.allowOnly`.

@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/retry-condition-regexp-global",
+  "files": [
+    {
+      "file": "regexp-global.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "regexp-global.test.ts",
+            "path": [
+              "no flag"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: boom",
+              "userFrame": "<root>/regexp-global.test.ts:8:40"
+            },
+            {
+              "name": "Error",
+              "message": "Error: boom",
+              "userFrame": "<root>/regexp-global.test.ts:8:40"
+            },
+            {
+              "name": "Error",
+              "message": "Error: boom",
+              "userFrame": "<root>/regexp-global.test.ts:8:40"
+            },
+            {
+              "name": "Error",
+              "message": "Error: boom",
+              "userFrame": "<root>/regexp-global.test.ts:8:40"
+            }
+          ],
+          "location": {
+            "line": 14,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "regexp-global.test.ts",
+            "path": [
+              "global flag"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: boom",
+              "userFrame": "<root>/regexp-global.test.ts:8:40"
+            },
+            {
+              "name": "Error",
+              "message": "Error: boom",
+              "userFrame": "<root>/regexp-global.test.ts:8:40"
+            }
+          ],
+          "location": {
+            "line": 16,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "regexp-global.test.ts",
+            "path": [
+              "sticky flag"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: boom",
+              "userFrame": "<root>/regexp-global.test.ts:8:40"
+            },
+            {
+              "name": "Error",
+              "message": "Error: boom",
+              "userFrame": "<root>/regexp-global.test.ts:8:40"
+            }
+          ],
+          "location": {
+            "line": 18,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "regexp-global.test.ts",
+            "path": [
+              "shared global, passes on the retry"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: boom",
+              "userFrame": "<root>/regexp-global.test.ts:8:40"
+            }
+          ],
+          "location": {
+            "line": 20,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "regexp-global.test.ts",
+            "path": [
+              "shared global, next test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: boom",
+              "userFrame": "<root>/regexp-global.test.ts:8:40"
+            }
+          ],
+          "location": {
+            "line": 26,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "no flag #1",
+    "no flag #2",
+    "no flag #3",
+    "no flag #4",
+    "global flag #1",
+    "global flag #2",
+    "sticky flag #1",
+    "sticky flag #2",
+    "shared first #1",
+    "shared first #2",
+    "shared next #1"
+  ]
+}

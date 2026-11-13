@@ -1,0 +1,4 @@
+{
+  "description": "A test that already has errors when it starts is never retried, by either of Jest's retry timings: jest.retryTimes(2) deferred, and with retryImmediately. A beforeAll that throws gives every test below it (nested describes too) its error before the test runs; the body never runs, the test fails with one attempt (retries 0), and nothing is parked for the end of the describe. A retry would clear that error, so Jest skips it. A control describe whose beforeAll passes still retries its failing test. Jest only: Vitest skips the tests under a failed beforeAll.",
+  "runners": ["jest"]
+}

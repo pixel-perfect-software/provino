@@ -632,6 +632,56 @@ describe('registration arguments', () => {
     assert.deepEqual(fileCodes(run), ['CORE_INVALID_ARGUMENT'])
   })
 
+  // The `retry` option is checked when a test or describe is registered (T5.10), so a wrong one is
+  // an error of the file naming it, not a silent 0 or a "condition is not a function" at the first
+  // failure.
+  for (const [label, retry, message] of [
+    ['a string', '2', /`retry` option's value must be a number or an object .*, got string/],
+    ['null', null, /value must be .*got null/],
+    ['an array', [2], /value must be .*got array/],
+    ['a count that is a string', { count: '2' }, /`count` must be a number, got string/],
+    ['a delay that is a string', { count: 1, delay: '50' }, /`delay` must be a number, got string/],
+    [
+      'a condition that is a string',
+      { condition: 'x' },
+      /`condition` must be a RegExp or a function, got string/,
+    ],
+    ['a condition that is an object', { condition: {} }, /`condition` must be .*got object/],
+  ] as const) {
+    test(`a test whose retry is ${label} fails the file with CORE_INVALID_ARGUMENT, at registration`, async () => {
+      const run = await runScript(({ test }, step) => {
+        test('x', { retry: retry as never }, () => step('ran'))
+      })
+      assert.deepEqual(fileCodes(run), ['CORE_INVALID_ARGUMENT'])
+      assert.match(run.file.errors[0]?.message ?? '', message)
+      assert.deepEqual(run.trace, [])
+    })
+  }
+
+  test('a describe whose retry is wrong fails the file with CORE_INVALID_ARGUMENT, at registration', async () => {
+    const run = await runScript(({ describe, test }) => {
+      describe('d', { retry: { condition: 5 } as never }, () => {
+        test('x', () => {})
+      })
+    })
+    assert.deepEqual(fileCodes(run), ['CORE_INVALID_ARGUMENT'])
+    assert.match(run.file.errors[0]?.message ?? '', /`condition` must be a RegExp or a function/)
+  })
+
+  test('a retry that is a number, an object or a condition of either kind is accepted', async () => {
+    const run = await runScript(({ test }) => {
+      test('number', { retry: 2 }, () => {})
+      test('object', { retry: { count: 2, delay: 5, condition: /x/ } }, () => {})
+      test('function', { retry: { count: 1, condition: () => true } }, () => {})
+      test('empty object', { retry: {} }, () => {})
+    })
+    assert.deepEqual(run.file.errors, [])
+    assert.deepEqual(
+      testsOf(run.tasks).map((task) => task.retry),
+      [2, 2, 1, 0],
+    )
+  })
+
   test('describe.shuffle fails with CORE_NOT_IMPLEMENTED', async () => {
     const run = await runScript(({ describe }) => {
       describe('d', { shuffle: true }, () => {})

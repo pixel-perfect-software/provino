@@ -136,6 +136,18 @@ export const coreClaims: Claims = {
       read: (g) => errorsOf(g, 'fails once, then passes').includes('Error: first attempt'),
     }),
   ),
+  // Vitest 5.0.5 never calls a function `retry.condition` and retries every failure; flipping to
+  // `call` makes core ask the function, which the recorded trace doesn't show. Jest has no
+  // condition, so its value is the neutral one and a core test pins what each value does.
+  'core.retry.functionCondition': each(
+    own(
+      'packages/core/src/executor/retry-timing.test.ts',
+      'functionCondition',
+      'call',
+      'Jest has no retry condition, so nothing reads the value; it is the neutral `call`, which core calls the function under',
+    ),
+    corpus('runtime', 'runtime/retry-condition-function'),
+  ),
   'core.retry.keepEarlierErrors': [
     golden('core-retry', {
       read: (g) => errorsOf(g, 'fails every attempt').includes('Error: attempt 1'),

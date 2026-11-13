@@ -4,9 +4,10 @@
 // `runTest` (immediate); `@provino/harness`'s runtime corpus (`runtime/retry-*`) holds the
 // recorded ground truth.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, mock, test } from 'node:test'
 import type { DefaultRetry } from '@provino/types'
 import FakeTimers from '@sinonjs/fake-timers'
+import type { RetryOption } from '../collector/retry.ts'
 import {
   clockOptions,
   eventLog,
@@ -435,6 +436,43 @@ describe('retry condition', () => {
     assert.equal(other.states.a, 'fail')
   })
 
+  // `RegExp.prototype.test` on a `g` or `y` RegExp starts at `lastIndex` and moves it, so the same
+  // failure would be retried once and then not (Vitest 5.0.5, `runtime/retry-condition-regexp-global`,
+  // DIVERGENCES). The condition is asked against the start of the message and the user's RegExp is
+  // left as it was.
+  for (const flags of ['g', 'y', 'gi']) {
+    test(`a RegExp with the ${flags} flag gives the same answer for every failure`, async () => {
+      const condition = new RegExp('network', flags)
+      const run = await runScript(failing('network', condition), {})
+      assert.deepEqual(run.trace, ['a#1', 'a#2', 'a#3', 'a#4'])
+      assert.equal(condition.lastIndex, 0)
+    })
+  }
+
+  test('one RegExp with the g flag shared by two tests does not carry its position from one to the other', async () => {
+    const shared = /boom/g
+    const run = await runScript(({ test }, step) => {
+      let calls = 0
+      test('first', { retry: { count: 3, condition: shared } }, () => {
+        step(`first#${++calls}`)
+        if (calls === 1) throw new Error('boom')
+      })
+      test('second', { retry: { count: 3, condition: shared } }, () => {
+        step('second')
+        throw new Error('boom')
+      })
+    }, {})
+    assert.deepEqual(run.trace, ['first#1', 'first#2', 'second', 'second', 'second', 'second'])
+    assert.equal(shared.lastIndex, 0)
+  })
+
+  test('a sticky RegExp is asked against the start of the message, as written', async () => {
+    const atStart = await runScript(failing('network', /^network/y), {})
+    assert.deepEqual(atStart.trace, ['a#1', 'a#2', 'a#3', 'a#4'])
+    const inside = await runScript(failing('a network', /network/y), {})
+    assert.deepEqual(inside.trace, ['a#1'])
+  })
+
   test('a function gets the error and decides; it is not asked after the last attempt', async () => {
     const asked: string[] = []
     const run = await runScript(
@@ -477,5 +515,202 @@ describe('retry condition', () => {
     assert.deepEqual(run.trace, ['a#1'])
     assert.equal(run.states.a, 'fail')
     assert.ok(run.errors.a?.includes('condition broke'))
+  })
+})
+
+// `retry.functionCondition`: `call` (neutral, the cases above) asks a function condition;
+// `ignore-warn` is Vitest 5.0.5's outcome (`runtime/retry-condition-function`: the function is never
+// called and every failure retries), kept under its dialect because honouring the function could
+// turn a green suite red (D7), with one warning a file.
+describe('retry.functionCondition', () => {
+  const IGNORE = { retry: { functionCondition: 'ignore-warn' } } as const
+
+  /** Two tests that fail every attempt: `no` with a function that says no, `yes` with one that says yes. */
+  const twoConditions =
+    (asked: string[]): Script =>
+    ({ test }, step) => {
+      for (const [name, answer] of [
+        ['no', false],
+        ['yes', true],
+      ] as const) {
+        let calls = 0
+        const condition = (): boolean => {
+          asked.push(name)
+          return answer
+        }
+        test(name, { retry: { count: 2, condition } }, () => {
+          step(`${name}#${++calls}`)
+          throw new Error(`${name} failure`)
+        })
+      }
+    }
+
+  /** The warnings `console.warn` gets while `body` runs. */
+  async function warnings(body: () => Promise<void>): Promise<string[]> {
+    const seen: string[] = []
+    const warn = mock.method(globalThis.console, 'warn', (message: unknown) => {
+      seen.push(String(message))
+    })
+    try {
+      await body()
+    } finally {
+      warn.mock.restore()
+    }
+    return seen
+  }
+
+  test('call (the neutral value) asks the function after each failed attempt but the last', async () => {
+    const asked: string[] = []
+    const seen = await warnings(async () => {
+      const run = await runScript(twoConditions(asked), {})
+      assert.deepEqual(run.trace, ['no#1', 'yes#1', 'yes#2', 'yes#3'])
+    })
+    assert.deepEqual(asked, ['no', 'yes', 'yes'])
+    assert.deepEqual(seen, [])
+  })
+
+  test('ignore-warn never asks the function and retries every failure, as Vitest 5.0.5 does', async () => {
+    const asked: string[] = []
+    const seen = await warnings(async () => {
+      const run = await runScript(twoConditions(asked), IGNORE)
+      assert.deepEqual(run.trace, ['no#1', 'no#2', 'no#3', 'yes#1', 'yes#2', 'yes#3'])
+      assert.equal(run.states.no, 'fail')
+    })
+    assert.deepEqual(asked, [])
+    assert.equal(seen.length, 1, 'one warning for the file')
+  })
+
+  test('the warning names the test and the fix', async () => {
+    const seen = await warnings(async () => {
+      await runScript(twoConditions([]), IGNORE)
+    })
+    assert.match(seen[0] ?? '', /retry\.condition of "no" is not called/)
+    assert.match(seen[0] ?? '', /Pass a RegExp .* or use the neutral mode/)
+  })
+
+  test('each file gets its own warning', async () => {
+    const seen = await warnings(async () => {
+      await runScript(twoConditions([]), IGNORE)
+      await runScript(twoConditions([]), IGNORE)
+    })
+    assert.equal(seen.length, 2)
+  })
+
+  test('a test that passes, or a function that was never needed, warns of nothing', async () => {
+    const seen = await warnings(async () => {
+      await runScript(({ test }, step) => {
+        test('passes', { retry: { count: 2, condition: () => false } }, () => step('passes'))
+        test('no condition', { retry: 1 }, () => {
+          throw new Error('x')
+        })
+      }, IGNORE)
+    })
+    assert.deepEqual(seen, [])
+  })
+
+  test('a RegExp condition is still tested, and a function that would throw is not called', async () => {
+    const seen = await warnings(async () => {
+      const regexp = await runScript(failing('logic', /network/), IGNORE)
+      assert.deepEqual(regexp.trace, ['a#1'])
+      const throwing = await runScript(
+        failing('network', () => {
+          throw new Error('condition broke')
+        }),
+        IGNORE,
+      )
+      assert.deepEqual(throwing.trace, ['a#1', 'a#2', 'a#3', 'a#4'])
+      assert.deepEqual(throwing.errors.a, ['network failure'])
+    })
+    assert.equal(seen.length, 1)
+  })
+
+  /** Fails every attempt with "<kind> failure", with `condition`. */
+  const failing =
+    (kind: string, condition: unknown): Script =>
+    ({ test }, step) => {
+      let calls = 0
+      test('a', { retry: { count: 3, condition } as never }, () => {
+        step(`a#${++calls}`)
+        throw new Error(`${kind} failure`)
+      })
+    }
+})
+
+// Jest's `handleRetry` (jest-circus run.ts) returns for a test that had errors before it ran,
+// deferred or `retryImmediately` alike; recorded as `runtime/retry-before-all-error`. An attached
+// `beforeAll` error meets every attempt again, so no policy retries it.
+describe('a test with errors before it ran (an attached beforeAll error)', () => {
+  /** A `beforeAll` that throws, then a test with `retry`, tracing the hook and the body. */
+  const afterFailedBeforeAll =
+    (options: { retry?: RetryOption }): Script =>
+    ({ describe, test, beforeAll }, step, runtime) => {
+      runtime.setDefaultRetry(retryTimes(2))
+      describe('d', () => {
+        beforeAll(() => {
+          step('beforeAll')
+          throw new Error('beforeAll failed')
+        })
+        test('t', options, () => step('body'))
+      })
+    }
+
+  for (const [label, overrides] of [
+    ['deferred', DEFERRED],
+    ['immediate', { retry: { timing: 'immediate' } }],
+  ] as const) {
+    test(`is not retried under ${label} timing: one attempt, no willRetry, the beforeAll error is its failure`, async () => {
+      const run = await runScript(afterFailedBeforeAll({}), overrides)
+      assert.deepEqual(run.trace, ['beforeAll'])
+      assert.equal(run.results['d > t']?.attempts, 1)
+      assert.equal(run.states['d > t'], 'fail')
+      assert.deepEqual(run.errors['d > t'], ['beforeAll failed'])
+      assert.ok(!eventLog(run).some((line) => line.includes('will-retry')))
+    })
+
+    test(`is not retried under ${label} timing with a retry option of its own`, async () => {
+      const run = await runScript(afterFailedBeforeAll({ retry: 3 }), overrides)
+      assert.deepEqual(run.trace, ['beforeAll'])
+      assert.equal(run.results['d > t']?.attempts, 1)
+    })
+  }
+
+  test('its retry condition is never asked', async () => {
+    const asked: string[] = []
+    const run = await runScript(
+      afterFailedBeforeAll({
+        retry: {
+          count: 2,
+          condition: (error) => {
+            asked.push(error.message)
+            return true
+          },
+        },
+      }),
+      DEFERRED,
+    )
+    assert.equal(run.results['d > t']?.attempts, 1)
+    assert.deepEqual(asked, [])
+  })
+
+  test('a sibling describe whose beforeAll passed still retries its failing test', async () => {
+    const run = await runScript(({ describe, test, beforeAll }, step, runtime) => {
+      runtime.setDefaultRetry(retryTimes(2))
+      describe('broken', () => {
+        beforeAll(() => {
+          throw new Error('beforeAll failed')
+        })
+        test('t', () => step('broken body'))
+      })
+      describe('fine', () => {
+        let calls = 0
+        test('t', () => {
+          step(`fine#${++calls}`)
+          if (calls === 1) throw new Error('first attempt fails')
+        })
+      })
+    }, DEFERRED)
+    assert.deepEqual(run.trace, ['fine#1', 'fine#2'])
+    assert.equal(run.results['broken > t']?.attempts, 1)
+    assert.equal(run.results['fine > t']?.attempts, 2)
   })
 })
