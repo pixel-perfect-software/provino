@@ -222,6 +222,12 @@ export interface RunProjectOptions {
    * in the sequenced order. They run only when some project has a file to run.
    */
   readonly globalSetup?: RunGlobalHooks
+  /**
+   * Collect each file and report what its tests would do, running none (Jest's `--collectTests`):
+   * no global setup or teardown runs, no hook or test body runs, no snapshot is written, and the
+   * results cache and the timings file are left as they were.
+   */
+  readonly collectOnly?: boolean
 }
 
 /**
@@ -698,6 +704,7 @@ export async function runProjects(
       file: entry.file.path,
       fileId: entry.info.fileId,
       updateSnapshots: member.snapshots.update,
+      ...(options.collectOnly === true ? { collectOnly: true as const } : {}),
       ...(options.testNamePattern === undefined
         ? {}
         : { testNamePattern: options.testNamePattern }),
@@ -769,6 +776,7 @@ export async function runProjects(
 
   /** Writes the history; it is a convenience, so a failure is a line on `stderr`, never a rejection. */
   async function writeCache(): Promise<void> {
+    if (options.collectOnly === true) return
     try {
       const written = new Set(members.flatMap((member) => member.cache ?? []))
       await Promise.all([...written].map((cache) => cache.write()))
@@ -877,7 +885,7 @@ export async function runProjects(
     // project with no file to run has no setup (Jest's `allTests` only holds projects with tests).
     // A run that was interrupted before this point sets nothing up: the pool never starts a file,
     // and the run ends with the signal's reason, as it would one moment later.
-    if (signal?.aborted !== true) {
+    if (signal?.aborted !== true && options.collectOnly !== true) {
       globalSetup = await runGlobalSetup(sequencedProjects(found, options.globalSetup), {
         hooks: options.globalSetup,
         signal,

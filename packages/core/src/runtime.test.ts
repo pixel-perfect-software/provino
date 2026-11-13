@@ -568,3 +568,95 @@ describe('file teardowns', () => {
     )
   })
 })
+
+describe('collectOnly (a collect-only pass)', () => {
+  /** What each test ended as, by full name, in the order they ended. */
+  const endings = (run: Awaited<ReturnType<typeof runScript>>): Array<[string, string]> =>
+    run.events.flatMap((event): Array<[string, string]> => {
+      if (event.type !== 'test-end') return []
+      const task = run.tasks.find((candidate) => candidate.id === event.id)
+      return [[task?.type === 'test' ? task.fullName.join(' ') : '', event.result.state]]
+    })
+
+  test('runs no hook and no body, and ends each test once as queued, skip or todo', async () => {
+    const run = await runScript(
+      ({ describe, test, beforeAll, beforeEach, afterEach, afterAll }, step) => {
+        beforeAll(() => step('beforeAll'))
+        beforeEach(() => step('beforeEach'))
+        afterEach(() => step('afterEach'))
+        afterAll(() => step('afterAll'))
+        describe('suite', () => {
+          test('runs', () => step('body'))
+          test.skip('skipped', () => step('skipped body'))
+          test.todo('todo')
+        })
+        test.each([1, 2])('each %i', () => step('each body'))
+      },
+      {},
+      { collectOnly: true },
+    )
+    assert.deepEqual(run.trace, [])
+    assert.equal(run.file.state, 'pass')
+    assert.deepEqual(endings(run), [
+      ['suite runs', 'queued'],
+      ['suite skipped', 'skip'],
+      ['suite todo', 'todo'],
+      ['each 1', 'queued'],
+      ['each 2', 'queued'],
+    ])
+    assert.equal(run.events.filter((event) => event.type === 'test-start').length, 5)
+    assert.equal(run.events.filter((event) => event.type.startsWith('hook')).length, 0)
+  })
+
+  test('a focused file queues only the focused test; the rest are skipped', async () => {
+    const run = await runScript(
+      ({ test }) => {
+        test('plain', () => {})
+        test.only('focused', () => {})
+      },
+      {},
+      { collectOnly: true },
+    )
+    assert.deepEqual(endings(run), [
+      ['plain', 'skip'],
+      ['focused', 'queued'],
+    ])
+  })
+
+  test('-t deselects the tests it does not match', async () => {
+    const run = await runScript(
+      ({ test }) => {
+        test('alpha one', () => {})
+        test('beta two', () => {})
+      },
+      {},
+      { collectOnly: true, testNamePattern: 'beta' },
+    )
+    assert.deepEqual(endings(run), [
+      ['alpha one', 'skip'],
+      ['beta two', 'queued'],
+    ])
+  })
+
+  test('a file that throws while collecting fails and reports no test', async () => {
+    const run = await runScript(
+      () => {
+        throw new Error('broken at import')
+      },
+      {},
+      { collectOnly: true },
+    )
+    assert.equal(run.file.state, 'fail')
+    assert.deepEqual(endings(run), [])
+  })
+
+  test('a value other than true fails the file, naming the option', async () => {
+    const { runtime, imports } = await runtimeWithEvents()
+    const result = await runtime.runFile('/project/x.test.ts', {
+      collectOnly: false,
+    } as unknown as RunFileOptions)
+    assert.deepEqual(imports, [])
+    assert.equal(result.state, 'fail')
+    assert.match(result.errors[0]?.message ?? '', /^Invalid collectOnly for x\.test\.ts/)
+  })
+})
