@@ -3,7 +3,6 @@
 // as `provino run`, and ended with Jest's exit codes.
 import { existsSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
-import { totalmem } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { type ResolvedProject, resolveNeutralProject } from '@provino/config'
 import {
@@ -95,26 +94,18 @@ function environmentsFor(request: RunRequest, project: NeutralProject): typeof J
 }
 
 /**
- * Jest's `workerIdleMemoryLimit` as the pool's recycle policy, read as jest-worker 30.5.1 reads
- * the number jest-config normalized it to (`stringToBytes`, which the config reader rebuilds):
- * `0` replaces the worker after every file, a number in (0, 1] is that fraction of the machine's
- * memory (one that floors to 0 bytes is no limit at all), any other is a count of bytes. Absent:
- * the pool's own default limit. A divergence
+ * Jest's `workerIdleMemoryLimit` as the pool's recycle policy. The config reader has already done
+ * what jest-config's `stringToBytes` does (`'512MB'`, `'50%'` and `0.2` are bytes by now), and
+ * jest-runner hands the number to jest-worker as it is: `0` replaces a child process after every
+ * file, any other is a count of bytes. Absent: the pool's own default limit. A divergence
  * (DIVERGENCES, B21a): jest-worker compares the child's `heapUsed`, the pool compares its RSS
  * (`heapUsed + external` for a thread), so Provino recycles a little earlier.
  * @internal
  */
-export function workerRecycle(
-  limit: number | undefined,
-  totalMemory: number = totalmem(),
-): { readonly recycle?: { readonly memoryLimitBytes: number } } {
-  if (limit === undefined) return {}
-  const bytes = limit > 0 && limit <= 1 ? Math.floor(totalMemory * limit) : Math.floor(limit)
-  // jest-worker restarts when `limit && heapUsed > limit`, with the limit floored first: a share
-  // of the memory that floors to 0 bytes is "no limit" there, and only a limit that is 0 to begin
-  // with means every file. No limit here is `Infinity`; omitting it would leave the pool's default.
-  if (bytes === 0 && limit !== 0) return { recycle: { memoryLimitBytes: Number.POSITIVE_INFINITY } }
-  return { recycle: { memoryLimitBytes: bytes } }
+export function workerRecycle(limit: number | undefined): {
+  readonly recycle?: { readonly memoryLimitBytes: number }
+} {
+  return limit === undefined ? {} : { recycle: { memoryLimitBytes: limit } }
 }
 
 /** A diagnostic as a line (or lines) for the user. Jest's own texts keep their form. */

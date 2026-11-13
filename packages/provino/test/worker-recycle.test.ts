@@ -1,17 +1,20 @@
-// T9.5: Jest's `workerIdleMemoryLimit` mapped onto the pool's recycle policy, checked against
-// jest-worker 30.5.1 itself (a real `Worker` with the same `idleMemoryLimit` restarts its child, or
-// doesn't, exactly where `workerRecycle` says a worker holding a typical amount would be
-// replaced). The strings Jest accepts (`'512MB'`, `'50%'`, `0.2`) are turned into this number by
-// jest-config's `stringToBytes`, which the Jest dialect's config reader rebuilds and checks
-// against jest-config (`dialect-jest`'s `normalize.test.ts`).
+// T9.5: Jest's `workerIdleMemoryLimit` mapped onto the pool's recycle policy, end to end. What a
+// config says (`'512MB'`, `'50%'`, `0.2`, `0`) goes through the Jest dialect's config reader, which
+// rebuilds jest-config's `stringToBytes`, as `provino jest` reads it. The number that comes out is
+// what jest-runner gives a real jest-worker 30.5.1 `Worker` as `idleMemoryLimit`, and what
+// `workerRecycle` maps: the worker restarts its child exactly where the pool would replace a worker
+// that holds a typical amount.
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { totalmem } from 'node:os'
-import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { describe, it } from 'node:test'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { isRunning } from './support.ts'
+import { createJestConfigReader, jestCli } from '@provino/dialect-jest/node'
+import type { ConfigSource } from '@provino/types'
+import { isRunning, trackedProjects } from './support.ts'
+
+const makeProject = trackedProjects()
 
 /**
  * `workerRecycle`, loaded by URL: the type-test project includes this directory but not the
@@ -20,10 +23,9 @@ import { isRunning } from './support.ts'
 const { workerRecycle } = (await import(
   new URL('../src/internal/jest-command.ts', import.meta.url).href
 )) as {
-  workerRecycle(
-    limit: number | undefined,
-    totalMemory?: number,
-  ): { readonly recycle?: { readonly memoryLimitBytes: number } }
+  workerRecycle(limit: number | undefined): {
+    readonly recycle?: { readonly memoryLimitBytes: number }
+  }
 }
 
 /** What `new Worker(file, options)` gives, as far as this test uses it. */
@@ -47,27 +49,10 @@ describe('workerRecycle', () => {
     assert.deepEqual(workerRecycle(undefined), {})
   })
 
-  it('reads a number as jest-worker does: 0 is every file, (0, 1] a share of the memory, else bytes', () => {
+  it('takes the reader’s number as it is: 0 is every file, any other a count of bytes', () => {
     assert.deepEqual(workerRecycle(0), { recycle: { memoryLimitBytes: 0 } })
-    assert.deepEqual(workerRecycle(0.5, 1000), { recycle: { memoryLimitBytes: 500 } })
-    assert.deepEqual(workerRecycle(1, 1000), { recycle: { memoryLimitBytes: 1000 } })
-    assert.deepEqual(workerRecycle(0.2, 1001), { recycle: { memoryLimitBytes: 200 } })
-    assert.deepEqual(workerRecycle(1.5), { recycle: { memoryLimitBytes: 1 } })
+    assert.deepEqual(workerRecycle(5000), { recycle: { memoryLimitBytes: 5000 } })
     assert.deepEqual(workerRecycle(536_870_912), { recycle: { memoryLimitBytes: 536_870_912 } })
-    assert.deepEqual(workerRecycle(536_870_912.7), { recycle: { memoryLimitBytes: 536_870_912 } })
-  })
-
-  it('reads a share that floors to 0 bytes as no limit, as jest-worker does, not as every file', () => {
-    // jest-worker restarts on `limit && heapUsed > limit` after flooring: 0 there is "never".
-    assert.deepEqual(workerRecycle(1e-9, 1000), {
-      recycle: { memoryLimitBytes: Number.POSITIVE_INFINITY },
-    })
-    assert.deepEqual(workerRecycle(0.0009, 1000), {
-      recycle: { memoryLimitBytes: Number.POSITIVE_INFINITY },
-    })
-    // Only a limit of 0 itself is every file; one that floors to 1 byte still replaces.
-    assert.deepEqual(workerRecycle(0), { recycle: { memoryLimitBytes: 0 } })
-    assert.deepEqual(workerRecycle(0.001, 1000), { recycle: { memoryLimitBytes: 1 } })
   })
 })
 
@@ -77,19 +62,18 @@ const RESTART_DEADLINE_MS = 30_000
 const NO_RESTART_SETTLE_MS = 1500
 
 describe('against jest-worker 30.5.1', () => {
-  let dir: string
-  let file: string
-  const made: Promise<void> = mkdtemp(join(process.env.TMPDIR ?? '/tmp', 'provino-jw-')).then(
-    async (path) => {
-      dir = path
-      file = join(path, 'worker.cjs')
-      await writeFile(file, 'exports.pid = () => process.pid\n')
-    },
-  )
-  after(async () => {
-    await made
-    await rm(dir, { recursive: true, force: true })
-  })
+  /** The `workerIdleMemoryLimit` the Jest dialect's reader makes of a config's value, as `provino jest` reads it. */
+  async function normalized(option: unknown): Promise<number | undefined> {
+    const project = await makeProject({})
+    const reader = createJestConfigReader({ argv: jestCli.parse([]).argv, cwd: project.dir })
+    const source: ConfigSource = {
+      kind: 'inline',
+      path: project.dir,
+      text: JSON.stringify({ workerIdleMemoryLimit: option }),
+    }
+    const resolved = await reader.resolve(await reader.load(source), source)
+    return resolved.value.globalConfig.workerIdleMemoryLimit
+  }
 
   /**
    * Whether jest-worker replaces its child after one call with this limit. The check is a message
@@ -99,13 +83,14 @@ describe('against jest-worker 30.5.1', () => {
    * needs. When none is expected there is nothing to observe, and the child gets a bounded time to
    * show that it is not killed: a slow machine can only make that assertion weaker, never fail it.
    */
-  async function restarts(limit: number, expected: boolean): Promise<boolean> {
-    await made
+  async function restarts(limit: number | undefined, expected: boolean): Promise<boolean> {
+    const project = await makeProject({ 'worker.cjs': 'exports.pid = () => process.pid\n' })
     const Worker = jestWorker()
-    const worker = new Worker(file, {
+    // As jest-runner builds it: the normalized number, or none.
+    const worker = new Worker(project.path('worker.cjs'), {
       numWorkers: 1,
       enableWorkerThreads: false,
-      idleMemoryLimit: limit,
+      idleMemoryLimit: typeof limit === 'number' ? limit : undefined,
       exposedMethods: ['pid'],
     })
     try {
@@ -113,7 +98,7 @@ describe('against jest-worker 30.5.1', () => {
       const until = Date.now() + (expected ? RESTART_DEADLINE_MS : NO_RESTART_SETTLE_MS)
       while (isRunning(first)) {
         if (Date.now() > until) return false
-        await new Promise((resolve) => setTimeout(resolve, 25))
+        await sleep(25)
       }
       return true
     } finally {
@@ -121,8 +106,8 @@ describe('against jest-worker 30.5.1', () => {
     }
   }
 
-  /** What the pool does for a worker holding `heapBytes` after a file, under `limit`. */
-  function poolReplaces(limit: number, heapBytes: number): boolean {
+  /** What the pool does for a worker holding `heapBytes` after a file, under the limit `provino jest` maps. */
+  function poolReplaces(limit: number | undefined, heapBytes: number): boolean {
     const recycle = workerRecycle(limit).recycle
     return recycle !== undefined && heapBytes > recycle.memoryLimitBytes
   }
@@ -130,7 +115,7 @@ describe('against jest-worker 30.5.1', () => {
   // A child that has just started holds a few MB of heap: the cases are far from that figure.
   const HEAP = 8 * 1024 * 1024
   const total = totalmem()
-  const cases: readonly [name: string, limit: number][] = [
+  const cases: readonly [name: string, option: number | string][] = [
     ['0: after every file', 0],
     ['a few KB', 5000],
     ['a tiny share of the memory (1e-7)', 1e-7],
@@ -139,13 +124,26 @@ describe('against jest-worker 30.5.1', () => {
     ['half the memory', 0.5],
     ['all of it (1)', 1],
     ['a terabyte', 1e12],
-    // Floors to 0 bytes: jest-worker never restarts (the pool must not read it as 0, every file).
+    // Jest's own examples (`multipleValidOptions(0.2, '50%')`) and a size with a unit.
+    ['0.2, a share', 0.2],
+    ['"50%"', '50%'],
+    ['"512MB", more than a child holds', '512MB'],
+    ['"1kb", less than a child holds', '1kb'],
+    // The reader floors this share to 0 bytes, and jest-worker reads that 0 as "after every file":
+    // not as "no limit", which is what the raw 1e-15 would be.
     ['a share that floors to 0 bytes (1e-15)', 1e-15],
   ]
-  for (const [name, limit] of cases) {
+  for (const [name, option] of cases) {
     it(`${name}: restarts where the pool replaces`, async () => {
+      const limit = await normalized(option)
       const replaces = poolReplaces(limit, HEAP)
-      assert.equal(await restarts(limit, replaces), replaces, `limit ${limit}`)
+      assert.equal(await restarts(limit, replaces), replaces, `config ${option}, read as ${limit}`)
     })
   }
+
+  it('reads a share that floors to 0 bytes as 0, and 0 as every file', async () => {
+    const limit = await normalized(1e-15)
+    assert.equal(limit, 0)
+    assert.deepEqual(workerRecycle(limit), { recycle: { memoryLimitBytes: 0 } })
+  })
 })
