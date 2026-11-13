@@ -7,13 +7,16 @@ import { dirname, join, resolve } from 'node:path'
 import { type ResolvedProject, resolveNeutralProject } from '@provino/config'
 import {
   createJestConfigReader,
+  createJestResults,
   type JestArgv,
   JestCliError,
   JestConfigError,
   type JestGlobalConfig,
+  type JestProjectConfig,
   jestCli,
   jestNodeDialect,
   jestRunGlobalHooks,
+  processJestResults,
 } from '@provino/dialect-jest/node'
 import {
   defaultCacheDir,
@@ -173,6 +176,8 @@ async function readProjects(
 ): Promise<{
   readonly neutral: readonly NeutralProject[]
   readonly globalConfig: JestGlobalConfig
+  /** Each project's Jest config, in the order of `neutral`. */
+  readonly configs: readonly JestProjectConfig[]
   readonly cache: boolean
   /** Jest's `verbose`: the global config's, or any project's. */
   readonly verbose: boolean
@@ -192,6 +197,7 @@ async function readProjects(
   return {
     neutral: neutral.value,
     globalConfig: resolved.value.globalConfig,
+    configs: resolved.value.configs,
     cache: resolved.value.configs.every((config) => config.cache),
     verbose:
       resolved.value.globalConfig.verbose === true ||
@@ -392,6 +398,18 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     }
     const runHooks = jestRunGlobalHooks(read.globalConfig)
     const shard = shardOf(read.globalConfig)
+    // `--json` and `testResultsProcessor` read the run as Jest's `AggregatedResult`: a collector
+    // first on the bus builds it from the events (`processResults`, runJest.ts L173-L213).
+    const results =
+      read.globalConfig.json || read.globalConfig.testResultsProcessor !== undefined
+        ? createJestResults({
+            globalConfig: read.globalConfig,
+            projectConfigs: neutrals.flatMap((neutral) => {
+              const config = read.configs[read.neutral.indexOf(neutral)]
+              return config === undefined ? [] : [config]
+            }),
+          })
+        : undefined
     const result = await executeProject({
       project,
       others,
@@ -400,6 +418,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       stdout,
       stderr,
       ...(io.reporters === undefined ? {} : { reporters: io.reporters }),
+      ...(results === undefined ? {} : { leadingReporters: [results.reporter] }),
       env: io.env ?? process.env,
       display: presentation(read, request),
       pool: {
@@ -426,6 +445,21 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     if (read.globalConfig.forceExit) {
       if (!read.globalConfig.detectOpenHandles) stderr.write(`${FORCE_EXIT_WARNING}\n`)
       io.onForceExit?.()
+    }
+    if (results !== undefined && result.summary !== null) {
+      const success = await processJestResults({
+        aggregated: results.aggregated(),
+        globalConfig: read.globalConfig,
+        cwd,
+        stdout,
+        outputStream: read.globalConfig.json || read.globalConfig.useStderr ? stderr : stdout,
+      })
+      // Jest ends `success ? 0 : testFailureExitCode` from the processed results; a signal, a
+      // usage error or anything else the run decided keeps its own code.
+      const failure = read.globalConfig.testFailureExitCode
+      if (result.exitCode === ExitCode.Pass || result.exitCode === failure) {
+        return success ? ExitCode.Pass : failure
+      }
     }
     return result.exitCode
   } catch (error) {

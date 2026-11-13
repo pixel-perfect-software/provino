@@ -271,8 +271,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Prints the test results in JSON. This mode will send all other test output and user messages to stderr.',
-    support: 'refuse',
-    owner: 'T11.8',
+    support: 'config',
   },
   lastCommit: {
     type: 'boolean',
@@ -392,8 +391,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'string',
     requiresArg: true,
     description: 'Write test results to a file when the --json option is also specified.',
-    support: 'refuse',
-    owner: 'T11.8',
+    support: 'config',
   },
   passWithNoTests: {
     type: 'boolean',
@@ -588,7 +586,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
   testLocationInResults: {
     type: 'boolean',
     description: 'Add `location` information to the test results',
-    support: 'accepted',
+    support: 'config',
   },
   testMatch: {
     type: 'array',
@@ -683,7 +681,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
       'Use this flag to re-record snapshots. Can be used together with a test suite pattern or with `--testNamePattern` to re-record snapshot for test matching the pattern',
     support: 'request',
   },
-  useStderr: { type: 'boolean', description: 'Divert all output to stderr.', support: 'accepted' },
+  useStderr: { type: 'boolean', description: 'Divert all output to stderr.', support: 'config' },
   verbose: {
     type: 'boolean',
     description: 'Display individual test results with the test suite hierarchy.',

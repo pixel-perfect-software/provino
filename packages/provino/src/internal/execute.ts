@@ -9,7 +9,7 @@ import {
   type ShardSpec,
 } from '@provino/orchestrator'
 import { createReporterBus, type Environment } from '@provino/reporters'
-import type { FileFilter, ReporterBus, RunSummary } from '@provino/types'
+import type { FileFilter, Reporter, ReporterBus, RunSummary } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
 import { workerStartupEnv } from './compile-cache.ts'
 import { type DisplayOptions, reportersFor } from './reporters.ts'
@@ -30,6 +30,8 @@ export interface ExecuteOptions {
   readonly stdout: NonNullable<RunOptions['stdout']>
   readonly stderr: NonNullable<RunOptions['stderr']>
   readonly reporters?: readonly ReporterChoice[] | undefined
+  /** Reporters that hear every event before the others (a result collector), whatever `reporters` says. */
+  readonly leadingReporters?: readonly Reporter[]
   /** What the reporters read for the terminal, CI, an agent and colour: resolved by the caller. */
   readonly env: Environment
   /** How text looks (Jest's `--verbose`, `--silent`, `--expand`, `--noStackTrace`, `--colors`). */
@@ -81,8 +83,9 @@ export function timingsOf(options: {
  */
 export async function executeProject(options: ExecuteOptions): Promise<RunResult> {
   const { project, cwd, stdout, stderr } = options
-  const bus = createReporterBus(
-    reportersFor(options.reporters, {
+  const bus = createReporterBus([
+    ...(options.leadingReporters ?? []),
+    ...reportersFor(options.reporters, {
       project,
       cwd,
       stdout,
@@ -90,7 +93,7 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
       env: options.env,
       ...(options.display === undefined ? {} : { display: options.display }),
     }),
-  )
+  ])
 
   let summary: RunSummary
   try {

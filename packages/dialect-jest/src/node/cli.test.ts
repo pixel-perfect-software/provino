@@ -996,7 +996,7 @@ describe('the options table', () => {
   it('classifies every option once, and counts the classes', (t) => {
     const counts = Object.fromEntries(supports)
     t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
-    assert.deepEqual(counts, { request: 16, config: 58, accepted: 7, warn: 4, refuse: 20 })
+    assert.deepEqual(counts, { request: 16, config: 62, accepted: 5, warn: 4, refuse: 18 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'
       assert.equal(option.owner !== undefined, needsOwner, name)
@@ -1035,8 +1035,6 @@ describe('the options table', () => {
       'ignoreProjects',
       'selectProjects',
       'skipFilter',
-      'testLocationInResults',
-      'useStderr',
       'watchman',
     ])
     assert.deepEqual(named('warn'), ['debug', 'logHeapUsage', 'notify', 'notifyMode'].sort())
@@ -1080,7 +1078,7 @@ describe('diagnostics', () => {
   }
 
   it('gives an error diagnostic for each refused flag, naming the task', () => {
-    assert.equal(Object.keys(REFUSED).length, 20)
+    assert.equal(Object.keys(REFUSED).length, 18)
     for (const [name, owner] of Object.entries(REFUSED)) {
       const { diagnostics } = parseJestCli(lineFor(name))
       assert.deepEqual(
@@ -1111,8 +1109,6 @@ describe('diagnostics', () => {
       findRelatedTests: 'Track 9, no task yet',
       onlyFailures: 'Track 9, no task yet',
       collectTests: 'T11.8',
-      json: 'T11.8',
-      outputFile: 'T11.8',
       reporters: 'T11.9',
       detectLeaks: 'T2.7',
       projects: 'the --projects flag, no task yet (a config `projects` runs)',
@@ -1167,7 +1163,7 @@ describe('diagnostics', () => {
     }
   })
 
-  it("lists several in the table's order, and lets --json and --outputFile shape --listTests", () => {
+  it("lists several in the table's order, and says nothing of the results flags", () => {
     const { diagnostics } = parseJestCli([
       '--watch',
       '--shard',
@@ -1182,13 +1178,16 @@ describe('diagnostics', () => {
     )
     // --shard (T9.6) is applied now, so it says nothing.
     assert.deepEqual(parseJestCli(['--shard', '1/2']).diagnostics, [])
-    assert.deepEqual(parseJestCli(['--listTests', '--json']).diagnostics, [])
-    assert.deepEqual(
-      parseJestCli(['--listTests', '--json', '--outputFile', 'o.json']).diagnostics,
-      [],
-    )
-    assert.equal(parseJestCli(['--json']).diagnostics[0]?.key, '--json')
-    assert.equal(parseJestCli(['--outputFile=o.json']).diagnostics[0]?.key, '--outputFile')
+    // `--json`, `--outputFile`, `--useStderr` and `--testLocationInResults` are applied (T11.8).
+    for (const line of [
+      ['--listTests', '--json'],
+      ['--listTests', '--json', '--outputFile', 'o.json'],
+      ['--json'],
+      ['--outputFile=o.json'],
+      ['--useStderr', '--testLocationInResults'],
+    ]) {
+      assert.deepEqual(parseJestCli(line).diagnostics, [], line.join(' '))
+    }
   })
 
   it('returns the argv the config reader takes, whatever the diagnostics say', () => {
@@ -1290,7 +1289,7 @@ describe('the run request', () => {
     // Jest acts on --showConfig, then --clearCache, then --listTests
     assert.equal(request(['--listTests', '--clearCache', '--showConfig']).mode, 'show-config')
     assert.equal(request(['--listTests', '--clearCache']).mode, 'clear-cache')
-    // --json without --listTests is a refused flag, not a request field
+    // --json without --listTests is the config's, not a request field
     assert.equal(request(['--showConfig', '--json']).json, false)
   })
 
