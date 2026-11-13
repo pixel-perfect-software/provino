@@ -63,8 +63,8 @@ const COORDINATOR = new RegExp(
     'reporters[\\/]src[\\/]',
     'config[\\/]src[\\/]',
     'snapshot[\\/]src[\\/]node[\\/]',
-    // provino's own files, but not the three the bin answers --version and --help from.
-    'provino[\\/]src[\\/](?!internal[\\/](?:usage|version|native-binding)\\.ts)',
+    // provino's own files, but not the four the bin answers --version and --help from.
+    'provino[\\/]src[\\/](?!internal[\\/](?:usage|version|native-binding|quick)\\.ts)',
     'policy[\\/]src[\\/]dialect\\.ts',
     'dialect-jest[\\/]src[\\/](?:dialect|expect-policy|hoist-policy|mock-policy)\\.ts',
   ]
@@ -72,9 +72,9 @@ const COORDINATOR = new RegExp(
     .join('|'),
 )
 
-/** The three files the bin answers `--version` and `--help` from, before it imports the rest. */
+/** The four files the bin answers `--version` and `--help` from, before it imports the rest. */
 const BIN_LIGHT =
-  /[\\/]packages[\\/]provino[\\/]src[\\/]internal[\\/](?:usage|version|native-binding)\.ts$/
+  /[\\/]packages[\\/]provino[\\/]src[\\/]internal[\\/](?:usage|version|native-binding|quick)\.ts$/
 
 /** A source file of a workspace package. */
 const SHARED = /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/

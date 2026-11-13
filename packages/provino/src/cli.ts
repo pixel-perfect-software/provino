@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 import { missingBindingMessage } from './internal/native-binding.ts'
-import { USAGE } from './internal/usage.ts'
-import { packageVersion } from './internal/version.ts'
+import { quickAnswer } from './internal/quick.ts'
 
 // `--version` and `--help` need nothing a run needs, so they answer before the rest is imported:
 // the rest includes the Oxc native bindings, which a machine may lack (T10.3).
 const argv = process.argv.slice(2)
-if (argv[0] === '--version') {
-  process.stdout.write(`${packageVersion()}\n`)
-} else if (argv[0] === '--help' || argv[0] === '-h') {
-  process.stdout.write(USAGE)
+const quick = quickAnswer(argv)
+if (quick !== undefined) {
+  process.stdout.write(quick)
 } else {
   try {
     const { main } = await import('./internal/cli.ts')
