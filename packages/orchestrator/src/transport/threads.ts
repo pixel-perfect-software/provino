@@ -69,7 +69,7 @@ export function threadsTransport(options: ThreadsTransportOptions): TransportFac
     // stops, so an OOM with no configured limit reads its limit here, early.
     let runningLimitMb = limitMb
     worker.once('online', () => {
-      const actual = worker.resourceLimits.maxOldGenerationSizeMb
+      const actual = worker.resourceLimits?.maxOldGenerationSizeMb
       if (limitMb === undefined && actual !== undefined && actual > 0) runningLimitMb = actual
     })
     // An uncaught error ends the thread with code 1, which the exit reports. Node prints it
