@@ -12,6 +12,8 @@
 
 **Isolation.** Each file gets a fresh registry for your own modules and its own test environment. Third-party modules under `node_modules` are evaluated once per worker and shared. A file can ask for a stricter tier with an `@provino-isolate` docblock, and the tier can be raised but never lowered. Under the `process` tier, the file gets a worker of its own.
 
+**Lazy variables.** They are neutral, so every dialect gets them. A worker puts the lazy runtime in a slot on `globalThis` (a `Symbol.for` key, not a global name) and removes it when it stops. `lazy` from `provino` is a thin function that reads the slot when it is called, so it adds nothing to the cost of `import 'provino'`. See [lazy variables](lazy-variables.md).
+
 **Transforms and caches.**
 - Oxc compiles TypeScript and JSX, unless the project's config names its own transformers, which run as Jest runs them.
 - `jest.mock` calls are hoisted at compile time and substituted when modules load.
