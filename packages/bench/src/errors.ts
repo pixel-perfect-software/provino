@@ -17,6 +17,10 @@ export type BenchErrorCode =
   | 'BENCH_UNKNOWN_SUITE'
   | 'BENCH_RUNNER_NOT_FOUND'
   | 'BENCH_USAGE'
+  | 'BENCH_CACHEGRIND_OUTPUT'
+  | 'BENCH_CACHEGRIND_UNAVAILABLE'
+  | 'BENCH_BASELINE_INVALID'
+  | 'BENCH_LEG_FAILED'
 
 /**
  * An error from `@provino/bench`. `cause` carries the underlying failure when there is one.

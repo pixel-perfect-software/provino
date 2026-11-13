@@ -1,0 +1,9 @@
+desc: I1 cache:         32768 B, 64 B, 8-way associative
+desc: D1 cache:         32768 B, 64 B, 8-way associative
+desc: LL cache:         8388608 B, 64 B, 16-way associative
+cmd: node bench.ts
+events: Ir I1mr ILmr Dr D1mr DLmr Dw D1mw DLmw
+fl=bench.ts
+fn=run
+3 500 2 1 200 10 5 100 3 1
+summary: 123456789 2048 512 45678901 1024 256 23456789 512 128

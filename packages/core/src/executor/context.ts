@@ -30,26 +30,34 @@ export interface ContextEnv {
   readonly callerLocation: (entry: (...args: never[]) => unknown) => SourceLocation | null
 }
 
+/** The context's own keys, as assignment gives them to the object or the callable. */
+interface ContextFields {
+  task: TestTask
+  signal: AbortSignal
+  skip: (conditionOrNote?: boolean | string, note?: string) => void
+  annotate: TestContext['annotate']
+  onTestFinished: TestContext['onTestFinished']
+  onTestFailed: TestContext['onTestFailed']
+}
+
 /**
- * A context for one test attempt. `attempt` returns the attempt the context belongs to; it is
- * called only once the test runs, so the attempt can hold the context it is built with.
+ * A context for one test attempt, built the first time something reads it (`Executor.#contextOf`),
+ * once the attempt exists. Its keys are plain own data properties assigned in order, as Vitest
+ * 5.0's `createTestContext` assigns them: writable and configurable (a write to `ctx.task` no
+ * longer throws in strict code; the Jest dialect hands no function a context, so nothing there can
+ * see it), and cheap to build, which matters once per attempt (T5.14: `Object.defineProperties`
+ * cost about 1 µs here).
  */
-export function createTestContext(
-  task: TestTask,
-  attempt: () => AttemptState,
-  env: ContextEnv,
-): TestContext {
+export function createTestContext(attempt: AttemptState, env: ContextEnv): TestContext {
+  const task = attempt.test.task as TestTask
   const { doneDeprecatedMessage } = env
-  const base: object =
+  const context = (
     doneDeprecatedMessage === null
       ? {}
       : () => {
           throw new Error(doneDeprecatedMessage)
         }
-  const skip = (conditionOrNote?: boolean | string, note?: string): void => {
-    if (conditionOrNote === false) return
-    throw new SkipSignal(typeof conditionOrNote === 'string' ? conditionOrNote : note)
-  }
+  ) as ContextFields
   const annotate = (message: string, kind: string = 'notice'): Promise<void> => {
     env.emit({
       type: 'annotation',
@@ -61,30 +69,20 @@ export function createTestContext(
     })
     return Promise.resolve()
   }
-  Object.defineProperties(base, {
-    task: { value: task, enumerable: true },
-    signal: {
-      get(): AbortSignal {
-        return attempt().controller.signal
-      },
-      enumerable: true,
-    },
-    skip: { value: skip, enumerable: true },
-    annotate: { value: annotate, enumerable: true },
-    onTestFinished: {
-      value(fn: (ctx: TestContext) => void | Promise<void>, timeoutMs?: number): void {
-        addCallback(attempt(), 'onTestFinished', fn, timeoutMs)
-      },
-      enumerable: true,
-    },
-    onTestFailed: {
-      value(fn: (ctx: TestContext) => void | Promise<void>, timeoutMs?: number): void {
-        addCallback(attempt(), 'onTestFailed', fn, timeoutMs)
-      },
-      enumerable: true,
-    },
-  })
-  return base as TestContext
+  context.task = task
+  context.signal = attempt.controller.signal
+  context.skip = (conditionOrNote?: boolean | string, note?: string): void => {
+    if (conditionOrNote === false) return
+    throw new SkipSignal(typeof conditionOrNote === 'string' ? conditionOrNote : note)
+  }
+  context.annotate = annotate
+  context.onTestFinished = (fn, timeoutMs) => {
+    addCallback(attempt, 'onTestFinished', fn, timeoutMs)
+  }
+  context.onTestFailed = (fn, timeoutMs) => {
+    addCallback(attempt, 'onTestFailed', fn, timeoutMs)
+  }
+  return context as TestContext
 }
 
 /** Adds an `onTestFinished`/`onTestFailed` callback to an attempt. */

@@ -45,12 +45,15 @@ function takesDone(policy: CorePolicy, arity: number, argCount: number): boolean
 /** Calls a user function; the result is its return value, or a promise for `done`. */
 export function invoke(env: InvokeEnv, call: Invocation): unknown {
   const { policy } = env
-  const { fn, thisArg, args } = call
+  const { fn, thisArg, args, contextArgs } = call
   if (takesDone(policy, call.arity, args.length)) return invokeWithDone(env, call)
+  // The arguments are only read, so whichever of the two is empty is passed as it is.
+  const all =
+    contextArgs.length === 0 ? args : args.length === 0 ? contextArgs : [...args, ...contextArgs]
   if (isGenerator(fn) && policy.allowGeneratorFns) {
-    return drive(Reflect.apply(fn, thisArg, [...args, ...call.contextArgs]) as Generator)
+    return drive(Reflect.apply(fn, thisArg, all) as Generator)
   }
-  const result = Reflect.apply(fn, thisArg, [...args, ...call.contextArgs])
+  const result = Reflect.apply(fn, thisArg, all)
   if (
     call.isTest &&
     policy.nonPromiseReturn === 'fail' &&

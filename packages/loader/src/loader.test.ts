@@ -10,6 +10,7 @@ import type {
   CompiledModuleEvent,
   HoistPolicy,
   Loader,
+  ModuleId,
   ModulePolicy,
   Resolver,
 } from '@provino/types'
@@ -253,6 +254,94 @@ test('JSON, builtins, import.meta and dynamic import', async () => {
   assert.equal(entry.resolved, `file://${join(root, 'later.ts')}`)
   assert.equal((await entry.loadLater()).late, true)
   assert.deepEqual(registry.require(join(root, 'data.json')), { answer: 42 })
+})
+
+test('import.meta has no prototype, and is one object per module', async () => {
+  const root = writeTree({
+    'other.ts': 'export const meta: object = import.meta\n',
+    'entry.test.ts':
+      "import { meta as other } from './other.ts'\nexport const meta: object = import.meta\nexport const same: boolean = meta === import.meta\nexport const distinct: boolean = meta !== other\n",
+  })
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  const entry = await registry.import<{ meta: object; same: boolean; distinct: boolean }>(
+    join(root, 'entry.test.ts'),
+  )
+  assert.equal(Object.getPrototypeOf(entry.meta), null)
+  assert.equal(Object.prototype.toString.call(entry.meta), '[object Object]')
+  assert.equal(entry.same, true)
+  assert.equal(entry.distinct, true)
+})
+
+test('import.meta.resolve names a file that is not there, as Node does, and throws for a package', async () => {
+  const root = writeTree({
+    'present.ts': 'export const here = true\n',
+    'entry.test.ts':
+      'export const resolve: (specifier: string) => string = (specifier) => import.meta.resolve(specifier)\n',
+  })
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  const { resolve } = await registry.import<{ resolve: (specifier: string) => string }>(
+    join(root, 'entry.test.ts'),
+  )
+  assert.equal(resolve('./present.ts'), `file://${join(root, 'present.ts')}`)
+  assert.equal(resolve('./nope.mjs'), `file://${join(root, 'nope.mjs')}`, 'relative: no lookup')
+  assert.equal(resolve('../up/nope.mjs'), `file://${join(root, '../up/nope.mjs')}`)
+  assert.equal(resolve('/abs/nope.mjs'), 'file:///abs/nope.mjs', 'absolute: no lookup')
+  assert.equal(resolve('file:///abs/nope.mjs'), 'file:///abs/nope.mjs')
+  assert.throws(() => resolve('nope-package'), { code: 'ERR_MODULE_NOT_FOUND' })
+})
+
+test('a CommonJS file’s import() runs in the registry that evaluated it', async () => {
+  // A `vm` script has no import callback, and one script serves every registry in the worker: the
+  // call reaches its registry through a binding the wrapper takes.
+  const root = writeTree({
+    'counter.mjs': 'export let count = 0\nexport function bump() { return ++count }\n',
+    'loads.cjs':
+      "exports.load = (specifier) => import(specifier)\nexports.counter = () => import('./counter.mjs')\n",
+    'entry.test.ts': '',
+  })
+  interface Loads {
+    readonly load: (specifier: string) => Promise<CounterModule>
+    readonly counter: () => Promise<CounterModule>
+  }
+  const loader = loaderFor(root)
+  const open = () => loader.createFileRegistry(join(root, 'entry.test.ts'), { tier: 'registry' })
+  const first = open()
+  const second = open()
+  const loads = (registry: ReturnType<typeof open>): Loads =>
+    registry.require<Loads>(join(root, 'loads.cjs'))
+
+  const inFirst = await loads(first).counter()
+  assert.equal(inFirst.bump(), 1)
+  assert.equal(inFirst.bump(), 2)
+  const inSecond = await loads(second).counter()
+  assert.equal(inSecond.bump(), 1, 'the other registry has an instance of its own')
+  // Called later, with a computed specifier, from the module's own directory.
+  const again = await loads(first).load('./counter.mjs')
+  assert.equal(again.count, 2, 'the first registry’s instance, whichever way it is reached')
+  assert.equal(loader.getSourceMap(join(root, 'loads.cjs') as ModuleId)?.version, 3)
+})
+
+test('a CommonJS file with import() still loads when it returns at the top level', async () => {
+  // Node wraps a CommonJS file in a function, so a top-level `return` is legal there; the runner
+  // form of the file must be read as CommonJS too, not as a module (which has no such `return`).
+  const root = writeTree({
+    'counter.mjs': 'export let count = 0\nexport function bump() { return ++count }\n',
+    'guarded.cjs':
+      "exports.counter = () => import('./counter.mjs')\nif (process.argv.length >= 0) return\nexports.counter = null\n",
+    'entry.test.ts': '',
+  })
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  const guarded = registry.require<{ counter: (() => Promise<CounterModule>) | null }>(
+    join(root, 'guarded.cjs'),
+  )
+  assert.notEqual(guarded.counter, null, 'the return ended the file before the second assignment')
+  assert.equal((await guarded.counter?.())?.bump(), 1)
 })
 
 test('node_modules are shared across registries, user modules are not', async () => {

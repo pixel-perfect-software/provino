@@ -1,7 +1,9 @@
+import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import type { BenchLabel } from '@provino/types'
 import { BenchError } from './errors.ts'
 import { DEFAULT_RUN_TIMEOUT_MS, isTimerMs, MAX_RUN_TIMEOUT_MS } from './exec.ts'
+import { DEFAULT_WORK_DIR, type InstructionsCommand, parseLegs } from './instructions/command.ts'
 import { errorMessage } from './internal/guards.ts'
 import { parseLabel, runsProblem } from './report.ts'
 import { DEFAULT_COLD_RUNS, DEFAULT_WARM_RUNS } from './run-bench.ts'
@@ -44,6 +46,7 @@ export type CliCommand =
       /** The longest one run may take, in milliseconds. */
       readonly timeoutMs: number
     }
+  | InstructionsCommand
 
 /**
  * The usage text.
@@ -60,6 +63,9 @@ Usage:
   provino-bench kill-check [--label local|desktop|pinned] [--dry-run] [--out <file>]
                     [--machine-id <id>] [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}]
   provino-bench list-tests <project dir>
+  provino-bench instructions [--legs a,b] [--baseline <record>] [--out <file>] [--runs 1]
+                    [--wall-runs 5] [--plant] [--no-cachegrind] [--no-signals] [--no-build]
+                    [--sha <commit>] [--work-dir <dir>] [--summary-file <file>]
 
 Suites: app-N, mock-heavy-N (N from 1 to 9999), isolate-heavy.
 Runners: jest, vitest, and provino, which runs the provino bin on the suite's jest/ tree (all cores
@@ -75,6 +81,15 @@ kill-check: Track 12 R6 on the R6 suite set: Provino against Jest, warm and cold
   or when no verdict was reached (a refusal or a failure: it prints an error and no VERDICT line).
   --dry-run runs Jest in Provino's place, so every ratio is about 1.0 and the verdict is NO-GO; it
   needs --label local and is never a result, and its exit 1 says nothing about the plumbing.
+instructions: T12.13's regression guard, with T2.12's, T5.14's and T3.12's. Each leg (the app-50,
+  mock-heavy-50 and isolate-heavy suites in one inline worker; the loader's e2e fixture; core's
+  workload; transform, hoist, resolve and the warm transform cache over fixed corpora) runs on the
+  built packages under valgrind cachegrind with V8 --single-threaded --no-opt --predictable
+  --no-incremental-marking-task, and its instruction count is compared with --baseline (a record
+  from main): +1.5% flags a suite or the loader leg, +20% core and the T3.12 legs. Wall times print
+  as local signals. The record goes to .results/. Linux only (valgrind); --no-cachegrind gives the
+  wall signals anywhere. --plant shows a real +2% rise flagged and a +1% one not. Exit 1 when a leg
+  regressed or failed.
 Options: each applies only to the commands above that show it.
   --warm, --cold   Timed runs per subject: whole numbers of 1 or more. The R5 protocol is
                    ${DEFAULT_WARM_RUNS} warm and ${DEFAULT_COLD_RUNS} cold. desktop and pinned records need at least that
@@ -95,6 +110,17 @@ const options = {
   out: { type: 'string' },
   'machine-id': { type: 'string' },
   timeout: { type: 'string' },
+  legs: { type: 'string' },
+  baseline: { type: 'string' },
+  runs: { type: 'string' },
+  'wall-runs': { type: 'string' },
+  plant: { type: 'boolean' },
+  'no-cachegrind': { type: 'boolean' },
+  'no-signals': { type: 'boolean' },
+  'no-build': { type: 'boolean' },
+  sha: { type: 'string' },
+  'work-dir': { type: 'string' },
+  'summary-file': { type: 'string' },
   help: { type: 'boolean', short: 'h' },
 } as const
 
@@ -102,13 +128,30 @@ type OptionName = keyof typeof options
 
 // Which options each command reads. Anything else on the command line is an error, not ignored.
 const COMMAND_OPTIONS: Readonly<
-  Record<'generate' | 'list-tests' | 'check' | 'run' | 'kill-check', readonly OptionName[]>
+  Record<
+    'generate' | 'list-tests' | 'check' | 'run' | 'kill-check' | 'instructions',
+    readonly OptionName[]
+  >
 > = {
   generate: [],
   'list-tests': [],
   check: ['runner', 'timeout'],
   run: ['runner', 'warm', 'cold', 'label', 'out', 'machine-id', 'timeout'],
   'kill-check': ['label', 'dry-run', 'out', 'machine-id', 'timeout'],
+  instructions: [
+    'legs',
+    'baseline',
+    'out',
+    'runs',
+    'wall-runs',
+    'plant',
+    'no-cachegrind',
+    'no-signals',
+    'no-build',
+    'sha',
+    'work-dir',
+    'summary-file',
+  ],
 }
 
 function read(argv: readonly string[]) {
@@ -207,6 +250,38 @@ export function parseCli(argv: readonly string[]): CliCommand {
       )
     }
     return { command, dryRun, ...recordOptions(values, label) }
+  }
+  if (command === 'instructions') {
+    if (suiteName !== undefined) throw usage(`instructions takes no suite; got ${suiteName}`)
+    onlyOptions(command, values)
+    const sha = nonEmpty(values.sha, '--sha')
+    if (sha !== undefined && !/^[0-9a-f]{7,40}$/.test(sha)) {
+      throw usage(`--sha must be a commit's hex id; got ${JSON.stringify(sha)}`)
+    }
+    const legs = parseLegs(values.legs)
+    // The plant is a regression in T12.13's suites; without one of them there is nothing to plant
+    // in, and a guard self-test that checked nothing would read as a pass.
+    if (values.plant === true && !legs.some((leg) => leg.task === 'T12.13')) {
+      throw usage(
+        '--plant needs a T12.13 suite leg (app-50, mock-heavy-50 or isolate-heavy) in --legs',
+      )
+    }
+    return {
+      command,
+      legs,
+      baseline: nonEmpty(values.baseline, '--baseline'),
+      out: nonEmpty(values.out, '--out'),
+      runs: count(values.runs, 1, '--runs'),
+      wallRuns: count(values['wall-runs'], 5, '--wall-runs'),
+      cachegrind: values['no-cachegrind'] !== true,
+      plant: values.plant === true,
+      signals: values['no-signals'] !== true,
+      build: values['no-build'] !== true,
+      sha,
+      // Absolute, once: every leg's child runs in the bench package, not in this process's cwd.
+      workDir: resolve(nonEmpty(values['work-dir'], '--work-dir') ?? DEFAULT_WORK_DIR),
+      summaryFile: nonEmpty(values['summary-file'], '--summary-file'),
+    }
   }
   if (command === 'list-tests') {
     onlyOptions(command, values)

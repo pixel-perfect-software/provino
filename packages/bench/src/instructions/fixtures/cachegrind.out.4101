@@ -1,0 +1,15 @@
+desc: I1 cache:         32768 B, 64 B, 8-way associative
+desc: D1 cache:         32768 B, 64 B, 8-way associative
+desc: LL cache:         8388608 B, 64 B, 16-way associative
+cmd: /usr/local/bin/node --single-threaded --no-opt --predictable --conditions=provino-source packages/bench/src/instructions/child.ts app-50 /work/.instructions
+events: Ir
+fl=/usr/local/bin/node
+fn=main
+1 1200
+2 340
+fn=uv_run
+10 100000
+fl=???
+fn=Builtins_InterpreterEntryTrampoline
+0 2399958460
+summary: 2400060000

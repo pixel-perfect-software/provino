@@ -20,6 +20,7 @@ import type {
 } from '@provino/types'
 import type { Site } from '../collector/location.ts'
 import type { RetrySpec } from '../collector/retry.ts'
+import type { InvokeEnv } from '../executor/invoke.ts'
 
 /** A user function as stored: any function is assignable; it is called with `Reflect.apply`. */
 export type UserFn = AnyFunction
@@ -178,7 +179,11 @@ export interface TestCallback {
 /** One run (attempt) of a test, while it runs. */
 export interface AttemptState {
   readonly test: TestNode
-  readonly ctx: TestContext
+  /**
+   * The test context, built on its first read (`Executor.#contextOf`): a policy that passes it to
+   * no hook or body (Jest's) and no reader never pays for it.
+   */
+  ctx: TestContext | undefined
   /**
    * `this` for the attempt's `beforeEach`, body and `afterEach`: one object they share (jest-circus's
    * per-test `testContext`), or `undefined` under `firstArg: 'context'`.
@@ -205,4 +210,6 @@ export interface AttemptState {
    * test with no timeout), set as the attempt starts; `undefined` when each call has its own.
    */
   deadline: number | undefined
+  /** What its user calls are invoked with, built on its first call (`Executor.#invokeEnv`). */
+  invokeEnv: InvokeEnv | undefined
 }

@@ -1,0 +1,8 @@
+{
+  "description": "import() from a CommonJS test file, with the call left as written and Jest not started with --experimental-vm-modules (B21f, D7). Jest compiles the file as a vm script without an import callback, so the call rejects with Node's TypeError 'A dynamic import callback was invoked without --experimental-vm-modules' and the test that awaits it fails (exit 1). provino jest loads the module through the file's registry instead (DV80). A black-box run.",
+  "runners": ["jest"],
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Tests):|^(PASS|FAIL) |without --experimental-vm-modules"
+  }
+}

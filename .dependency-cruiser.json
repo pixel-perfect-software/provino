@@ -1605,7 +1605,7 @@
       "path": "node_modules"
     },
     "exclude": {
-      "path": "(^|/)(?:dist|\\.tsc|\\.turbo|\\.suites|\\.results|\\.record)/"
+      "path": "(^|/)(?:dist|\\.tsc|\\.turbo|\\.suites|\\.results|\\.record|\\.instructions)/"
     },
     "tsPreCompilationDeps": true,
     "combinedDependencies": false,

@@ -80,6 +80,9 @@ export interface FileContext {
 /** No file's context: nothing is mocked, and a module that names a binding sees the global. */
 export const NO_FILE: FileContext = Object.freeze({ mocks: null, scope: null })
 
+/** A specifier that names a file or a URL, not a package or a builtin. */
+const FILE_SPECIFIER = /^(?:\.{1,2}\/|\/|file:)/
+
 /** Not mocked: the edge loads the real module. */
 const REAL: unique symbol = Symbol('real')
 
@@ -739,6 +742,7 @@ export class Registry {
           module,
           record.path,
           dirname(record.path),
+          record.dynamicImport ? this.#importFor(record) : undefined,
         )
       } else {
         const exports = instance.exports ?? {}
@@ -746,7 +750,7 @@ export class Registry {
           exports,
           this.#importMeta(record),
           (specifier: string) => this.#importEdge(record, specifier, 'sync'),
-          (specifier: string) => this.importFrom(specifier, record.path),
+          this.#importFor(record),
           (source: unknown) => exportAll(exports, source),
           (specifier: string) => this.#lateImportSync(record, specifier),
         )
@@ -765,6 +769,11 @@ export class Registry {
     }
   }
 
+  /** `import()` as `record`'s code makes it: the registry's `importFrom`, from the record's own path. */
+  #importFor(record: ModuleRecord): (specifier: string) => Promise<object> {
+    return (specifier) => this.importFrom(specifier, record.path)
+  }
+
   #evaluateAsync(record: ModuleRecord): Promise<object> {
     const existing = this.#instances.get(record.id)
     if (existing !== undefined) {
@@ -780,9 +789,9 @@ export class Registry {
           exports,
           this.#importMeta(record),
           (specifier: string) => this.#importEdge(record, specifier, 'async'),
-          (specifier: string) => this.importFrom(specifier, record.path),
+          this.#importFor(record),
           (source: unknown) => exportAll(exports, source),
-          (specifier: string) => this.importFrom(specifier, record.path),
+          this.#importFor(record),
         )
         instance.status = 'done'
         return exports
@@ -847,17 +856,24 @@ export class Registry {
   }
 
   #importMeta(record: ModuleRecord): object {
-    return {
+    // Node's `import.meta` has no prototype.
+    return Object.assign(Object.create(null), {
       url: pathToFileURL(record.path).href,
       filename: record.path,
       dirname: dirname(record.path),
       main: false,
       resolve: (specifier: string) => {
-        const target = resolveTarget(this.#state, specifier, record.path, 'import-meta-resolve')
+        const target = resolveOrMissing(this.#state, specifier, record.path, 'import-meta-resolve')
+        // Node doesn't look for a relative or absolute file, it answers the URL the specifier
+        // names; only a package that isn't found throws.
+        if (target.kind === 'missing' && FILE_SPECIFIER.test(specifier)) {
+          return new URL(specifier, pathToFileURL(record.path)).href
+        }
+        if (target.kind === 'missing' || target.kind === 'served') throw target.error
         return target.kind === 'builtin'
           ? target.id
           : pathToFileURL(target.kind === 'user' ? target.id : target.path).href
       },
-    }
+    })
   }
 }

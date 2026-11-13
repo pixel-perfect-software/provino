@@ -1,0 +1,5 @@
+cmd: node bench.ts
+events: Ir
+fl=bench.ts
+fn=run
+3 500

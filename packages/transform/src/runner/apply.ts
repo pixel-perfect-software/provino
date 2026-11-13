@@ -32,6 +32,9 @@ const OPTIONS: Options = {
   ...(RAW_TRANSFER ? { experimentalRawTransfer: true } : {}),
 }
 
+/** CommonJS is a function body to Node, so a top-level `return` is legal in it and not in a module. */
+const COMMONJS_OPTIONS: Options = { ...OPTIONS, sourceType: 'commonjs' }
+
 const IDENTIFIER = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200c\u200d]*$/u
 
 function member(object: string, name: string): string {
@@ -49,11 +52,12 @@ function removal(code: string, start: number, end: number): RunnerEdit {
 }
 
 /**
- * Rewrites `code` (stripped, hoisted JavaScript) into module-runner form.
+ * Rewrites `code` (stripped, hoisted JavaScript) into module-runner form. `commonjs` reads it as a
+ * CommonJS file (the loader's runner form of a file that calls `import()`), not as a module.
  * @throws RunnerParseError when the parser reports an error, with its text.
  */
-export function rewriteModule(filename: string, code: string): RunnerForm {
-  const parsed = parseSync(filename, code, OPTIONS)
+export function rewriteModule(filename: string, code: string, commonjs = false): RunnerForm {
+  const parsed = parseSync(filename, code, commonjs ? COMMONJS_OPTIONS : OPTIONS)
   for (const error of parsed.errors) {
     if (String(error.severity) === 'Error') throw new RunnerParseError(error.message)
   }

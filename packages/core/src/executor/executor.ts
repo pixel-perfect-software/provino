@@ -21,8 +21,10 @@ import type {
   RuntimeHookKind,
   SkipReason,
   SourceLocation,
+  SuiteHandle,
   SuiteTask,
   TaskId,
+  TaskInfo,
   TaskResult,
   TaskState,
   TestContext,
@@ -44,6 +46,7 @@ import type {
   TestNode,
   UserFn,
 } from '../internal/model.ts'
+import type { RunRegistry } from '../internal/run-registry.ts'
 import { type AroundCall, runAround } from './around.ts'
 import { type ContextEnv, createTestContext, SkipSignal } from './context.ts'
 import { type Deadlines, isBounded, type RealTimers, resolveTimeout, sleep } from './deadline.ts'
@@ -61,7 +64,7 @@ export interface ExecutorConfig {
   readonly timers: RealTimers
   readonly now: () => number
   /** Each test context's run, for `LazyHost.runOf`. */
-  readonly runs: WeakMap<object, TestRunHandle>
+  readonly runs: RunRegistry
   /** `CorePolicy.formatValue`, loaded: prints a value inside a message the runtime builds. */
   readonly formatValue: FormatValue
   /** Who an error the code did not handle is charged to (T5.11). */
@@ -97,6 +100,10 @@ export interface TimeoutDefaults {
 /** What a try-task listener is told about the attempt it brackets. */
 export interface TryTaskInfo {
   readonly test: TestTask
+  /**
+   * The attempt's test context, the same object its hooks and body get. A getter, built on the
+   * first read: it is not an own key, so a spread of the info or `Object.keys` does not carry it.
+   */
   readonly ctx: TestContext
   readonly attempt: number
   readonly repeat: number
@@ -153,6 +160,9 @@ interface RetryDecision {
 
 const RETRY: RetryDecision = Object.freeze({ willRetry: true, conditionFailure: undefined })
 const STOP: RetryDecision = Object.freeze({ willRetry: false, conditionFailure: undefined })
+
+/** No arguments: shared by every call that passes none, since `invoke` only reads them. */
+const NO_ARGS: readonly unknown[] = Object.freeze([])
 
 /** What a test's attempts have left so far. */
 interface Progress {
@@ -236,6 +246,13 @@ export class Executor {
   readonly #running = new Map<TaskId, AttemptState>()
   /** What every test context is built from. */
   readonly #contextEnv: ContextEnv
+  /** `#contextOf`, for a `TryInfo` to call. */
+  readonly #contextFor: (attempt: AttemptState) => TestContext = (attempt) =>
+    this.#contextOf(attempt)
+  /** Reports a `done(reason)` that came after its call was over (`late-done`). */
+  readonly #lateDone: (error: Error) => void
+  /** The `InvokeEnv` of a call outside any test (a suite hook), which is never over. */
+  readonly #outsideTestEnv: InvokeEnv
   /** The test that started last. */
   #lastTestId: TaskId | null = null
   /** The path of the file running now, for the location of a `ctx.annotate` call. */
@@ -249,6 +266,13 @@ export class Executor {
       emit: (event) => config.sink.emit(event),
       now: config.now,
       callerLocation: (entry) => this.#callerLocation(entry),
+    }
+    this.#lateDone = (error) => config.processErrors.report('late-done', error)
+    this.#outsideTestEnv = {
+      policy: config.policy,
+      format: config.formatValue,
+      over: () => false,
+      late: this.#lateDone,
     }
     this.#deadlines = config.deadlines
     const shared = config.policy.concurrency.limitHooks
@@ -576,7 +600,11 @@ export class Executor {
     const repeat = progress.repeatIndex
     for (let attempt = resuming ? 1 : 0; attempt <= plan.count; attempt++) {
       progress.attempts++
-      const result = await this.#runAttempt(run, test, attempt, repeat, scope)
+      // The first attempt starts in the same synchronous run as the test (no turn between
+      // `test-start` and here), so it carries the test's start time rather than reading the clock.
+      const startedAt =
+        attempt === 0 && repeat === 0 && progress.attempts === 1 ? progress.start : undefined
+      const result = await this.#runAttempt(run, test, attempt, repeat, scope, startedAt)
       const errors = result.errors
       // A skip that nothing failed after ends the test; a failure outranks it.
       progress.skipped = errors.length === 0 ? result.skipped : undefined
@@ -705,36 +733,29 @@ export class Executor {
     attempt: number,
     repeat: number,
     scope: Scope,
+    startedAt: number | undefined,
   ): Promise<{ readonly errors: unknown[]; readonly skipped: AttemptState['skipped'] }> {
     // Set by `finalize` for every node of a collected file.
     const task = test.task as TestTask
     const controller = new AbortController()
     const teardowns: Array<() => unknown> = []
     // The handle and the context read the attempt through getters, so they can be part of it.
-    const handle: TestRunHandle = {
-      test: { suite: test.parent.handle },
-      ctx: {
-        task: {
-          name: test.name,
-          fullName: test.fullName.join(this.#policy.nameSeparator),
-          file: run.file.relativePath,
-          retry: attempt,
-          repeat,
-        },
+    const handle = new RunHandle(
+      test.parent.handle,
+      {
+        name: test.name,
+        fullName: test.fullName.join(this.#policy.nameSeparator),
+        file: run.file.relativePath,
+        retry: attempt,
+        repeat,
       },
-      slots: new Map(),
-      signal: controller.signal,
-      get state(): 'running' | 'cleanup' | 'done' {
-        return state.state
-      },
-      addTeardown(fn: () => unknown): void {
-        teardowns.push(fn)
-      },
-    }
+      controller.signal,
+      teardowns,
+    )
     const frame: Frame = { test: task, hook: null, fileId: run.fileId, attempt, repeat }
     const state: AttemptState = {
       test,
-      ctx: createTestContext(task, () => state, this.#contextEnv),
+      ctx: undefined,
       thisArg: this.#policy.firstArg === 'context' ? undefined : Object.create(null),
       run: handle,
       lazy: { kind: 'test', run: handle, suite: test.parent.handle, file: run.file.handle },
@@ -748,11 +769,13 @@ export class Executor {
       inCallbacks: false,
       skipped: undefined,
       deadline: undefined,
+      invokeEnv: undefined,
     }
-    this.#config.runs.set(state.ctx, handle)
+    handle.attempt = state
     this.#running.set(test.id, state)
     const store = newStore({ frame, lazy: state.lazy, attempt: state })
-    this.#emit({ type: 'test-attempt-start', id: test.id, attempt, repeat, t: this.#now() })
+    const t = startedAt ?? this.#now()
+    this.#emit({ type: 'test-attempt-start', id: test.id, attempt, repeat, t })
     setRunningFrame(scope.concurrent ? undefined : frame)
     try {
       await runInStore(store, () => this.#attemptBody(run, test, state, store, scope))
@@ -779,10 +802,10 @@ export class Executor {
         ? this.#eachHooksOf(test.parent)
         : NO_EACH_HOOKS
     attempt.deadline = this.#attemptDeadline(test)
-    const inner = (): Promise<void> => this.#attemptSteps(run, test, attempt, eachHooks, scope)
     if (eachHooks.aroundEach.length === 0) {
-      await inner()
+      await this.#attemptSteps(run, test, attempt, eachHooks, scope)
     } else {
+      const inner = (): Promise<void> => this.#attemptSteps(run, test, attempt, eachHooks, scope)
       errors.push(
         ...(await runAround(
           eachHooks.aroundEach.map((hook) => this.#aroundCall(run, hook, attempt)),
@@ -821,7 +844,10 @@ export class Executor {
     }
     if (errors.length === 0 && attempt.skipped === undefined) await this.#runBody(test, attempt)
     if (eachHooks.afterEach.length > 0 || teardowns.length > 0) {
-      await this.#runAfterEach(run, eachHooks.afterEach, attempt, teardowns)
+      // Each level's `afterEach` hooks, innermost first, then the teardowns `beforeEach` returned.
+      errors.push(
+        ...(await this.#runAfter(run, eachHooks.afterEach, 'afterEach', attempt, teardowns)),
+      )
     }
     attempt.state = 'cleanup'
     if (attempt.teardowns.length > checkpoint) {
@@ -847,14 +873,12 @@ export class Executor {
   async #tryTask(kind: 'before' | 'after', test: TestNode, attempt: AttemptState): Promise<void> {
     const listeners = this.#config.tryTask[kind]
     if (listeners.length === 0) return
-    const info: TryTaskInfo = {
-      test: test.task as TestTask,
-      ctx: attempt.ctx,
-      attempt: attempt.frame.attempt,
-      repeat: attempt.frame.repeat,
-      failed: kind === 'after' && attempt.errors.length > 0,
-      fail: (error) => void attempt.errors.push(error),
-    }
+    const info = new TryInfo(
+      test.task as TestTask,
+      attempt,
+      kind === 'after' && attempt.errors.length > 0,
+      this.#contextFor,
+    )
     for (const listener of [...listeners]) {
       try {
         await listener(info)
@@ -925,16 +949,6 @@ export class Executor {
     }
   }
 
-  /** Each level's `afterEach` hooks, innermost first, then the teardowns `beforeEach` returned. */
-  async #runAfterEach(
-    run: FileRun,
-    levels: readonly SuiteNode[],
-    attempt: AttemptState,
-    teardowns: readonly Teardown[],
-  ): Promise<void> {
-    attempt.errors.push(...(await this.#runAfter(run, levels, 'afterEach', attempt, teardowns)))
-  }
-
   /**
    * The body. A test that runs with no function fails. Under `status.expectFail: 'body'` a
    * `.failing` test's result is reversed here (jest-circus), so a hook error still fails it.
@@ -948,8 +962,8 @@ export class Executor {
     const policy = this.#policy
     const contextArgs =
       test.passContext && (test.rowArgs !== undefined || policy.firstArg === 'context')
-        ? [attempt.ctx]
-        : []
+        ? [this.#contextOf(attempt)]
+        : NO_ARGS
     // Taken before the limiter: time spent waiting for a slot counts against the attempt.
     const ownMs = this.#testTimeout(test)
     const timeoutMs = this.#timeoutFor(attempt, ownMs)
@@ -962,7 +976,7 @@ export class Executor {
               fn,
               arity: test.arity,
               thisArg: attempt.thisArg,
-              args: test.rowArgs ?? [],
+              args: test.rowArgs ?? NO_ARGS,
               contextArgs,
               isTest: true,
             }),
@@ -980,14 +994,37 @@ export class Executor {
     attempt.errors.push(...this.#config.processErrors.take(attempt.frame))
   }
 
-  /** What a user call needs besides the policy: the printer, and what a late `done` does. */
+  /**
+   * An attempt's test context, built on its first read and recorded then for `LazyHost.runOf`:
+   * under a policy that hands it to no hook or body (Jest's), an attempt nobody asks about never
+   * builds one (T5.14). Every reader goes through here, so a context that exists is recorded.
+   */
+  #contextOf(attempt: AttemptState): TestContext {
+    const existing = attempt.ctx
+    if (existing !== undefined) return existing
+    const created = createTestContext(attempt, this.#contextEnv)
+    this.#config.runs.set(created, attempt.run)
+    attempt.ctx = created
+    return created
+  }
+
+  /**
+   * What a user call needs besides the policy: the printer, and what a late `done` does. One per
+   * attempt (and one for every call outside a test), built on its first call, not one per call.
+   */
   #invokeEnv(attempt: AttemptState | undefined): InvokeEnv {
-    return {
-      policy: this.#policy,
-      format: this.#config.formatValue,
-      over: () => attempt !== undefined && attempt.state !== 'running',
-      late: (error) => this.#config.processErrors.report('late-done', error),
+    if (attempt === undefined) return this.#outsideTestEnv
+    let env = attempt.invokeEnv
+    if (env === undefined) {
+      env = {
+        policy: this.#policy,
+        format: this.#config.formatValue,
+        over: () => attempt.state !== 'running',
+        late: this.#lateDone,
+      }
+      attempt.invokeEnv = env
     }
+    return env
   }
 
   /** Runs the attempt's `LazyHost` teardowns down to `keep`, last added first. */
@@ -1068,17 +1105,21 @@ export class Executor {
   ): Promise<unknown[]> {
     const failures: unknown[] = []
     if (items.length === 0) return failures
-    const one = async (item: T): Promise<void> => {
+    if (this.#parallel(kind)) {
+      await Promise.all(
+        items.map(async (item) => {
+          const result = await call(item)
+          if (result.ok) onValue?.(item, result.value)
+          else failures.push(result.error)
+        }),
+      )
+      return failures
+    }
+    // In sequence, each call is awaited here: no async wrapper per call (T5.14).
+    for (const item of this.#order(items, kind)) {
       const result = await call(item)
       if (result.ok) onValue?.(item, result.value)
       else failures.push(result.error)
-    }
-    if (this.#parallel(kind)) {
-      await Promise.all(items.map(one))
-      return failures
-    }
-    for (const item of this.#order(items, kind)) {
-      await one(item)
       if ((stop && failures.length > 0) || halted?.() === true) break
     }
     return failures
@@ -1092,12 +1133,11 @@ export class Executor {
   #callHook(run: FileRun, hook: HookNode, attempt: AttemptState | undefined): Promise<CallResult> {
     const policy = this.#policy
     const byContext = policy.firstArg === 'context'
-    const suiteArg = taskOf(attempt?.test.parent ?? hook.owner)
     const contextArgs = !byContext
-      ? []
+      ? NO_ARGS
       : attempt !== undefined
-        ? [attempt.ctx, suiteArg]
-        : [suiteArg]
+        ? [this.#contextOf(attempt), taskOf(attempt.test.parent)]
+        : [taskOf(hook.owner)]
     const thisArg = attempt !== undefined ? attempt.thisArg : byContext ? undefined : {}
     return this.#callUser(
       run,
@@ -1114,7 +1154,7 @@ export class Executor {
           fn: hook.fn,
           arity: hook.arity,
           thisArg,
-          args: [],
+          args: NO_ARGS,
           contextArgs,
           isTest: false,
         }),
@@ -1130,12 +1170,22 @@ export class Executor {
   ): Promise<CallResult> {
     const { attempt } = spec
     const store = this.#hookScope(run, spec.kind, spec.owner, attempt)
-    this.#emitHook(spec)
+    const startedAt = this.#emitHookStart(spec)
     let result: CallResult
     try {
-      const value = await this.#calls.run(() =>
-        runInStore(store, () => this.#deadlines.call(call, { what: 'hook', timeoutMs, attempt })),
-      )
+      const calls = this.#calls
+      // With no limiter the call starts at once, so `hook-start`'s time is its deadline's start
+      // too; a call that may wait for a slot reads the clock again when it gets one.
+      const bounded = (): Promise<unknown> =>
+        this.#deadlines.call(call, {
+          what: 'hook',
+          timeoutMs,
+          attempt,
+          start: calls === unlimited ? startedAt : undefined,
+        })
+      const value = await (calls === unlimited
+        ? runInStore(store, bounded)
+        : calls.run(() => runInStore(store, bounded)))
       result = { ok: true, value }
     } catch (error) {
       // `ctx.skip()` in an each-hook ends the test as skipped.
@@ -1146,7 +1196,7 @@ export class Executor {
         result = { ok: false, error }
       }
     }
-    this.#emitHook(spec, result)
+    this.#emitHookEnd(spec, result)
     return result
   }
 
@@ -1163,8 +1213,11 @@ export class Executor {
     const hook = { kind, ownerId: owner.id }
     if (attempt !== undefined) {
       // The attempt's frame with this hook: every other field (test, attempt, repeat) carries over.
+      const { test, fileId, attempt: index, repeat } = attempt.frame
       return newStore({
-        frame: { ...attempt.frame, hook },
+        // The attempt's frame with this hook, written out in `Frame`'s key order (a spread is
+        // slower, once per hook call).
+        frame: { test, hook, fileId, attempt: index, repeat },
         lazy: attempt.lazy,
         attempt,
         hook: kind,
@@ -1182,18 +1235,23 @@ export class Executor {
     })
   }
 
-  /** `hook-start` (with the hook's location), or `hook-end` once the call has its `result`. */
-  #emitHook(spec: HookCall, result?: CallResult): void {
+  /** `hook-end`, once the call has its `result`. */
+  #emitHookEnd(spec: HookCall, result: CallResult): void {
     const ownerId = spec.owner.id
     const testId = spec.attempt?.test.id ?? null
     const { kind, ordinal } = spec
-    if (result === undefined) {
-      const { location } = spec
-      this.#emit({ type: 'hook-start', ownerId, testId, kind, ordinal, location, t: this.#now() })
-      return
-    }
     const error = result.ok ? null : serializeError(result.error)
     this.#emit({ type: 'hook-end', ownerId, testId, kind, ordinal, error, t: this.#now() })
+  }
+
+  /** `hook-start`, with the hook's location; returns the time it carries. */
+  #emitHookStart(spec: HookCall): number {
+    const ownerId = spec.owner.id
+    const testId = spec.attempt?.test.id ?? null
+    const { kind, ordinal, location } = spec
+    const t = this.#now()
+    this.#emit({ type: 'hook-start', ownerId, testId, kind, ordinal, location, t })
+    return t
   }
 
   /** Runs the teardowns hooks returned, in the order of `hookOrder[after]`. */
@@ -1237,7 +1295,7 @@ export class Executor {
         run,
         { kind, owner: attempt.test.parent, ordinal, location: null, attempt },
         resolveTimeout(timeouts, callback.timeoutMs) ?? this.#hookTimeout(),
-        () => Reflect.apply(callback.fn, undefined, [attempt.ctx]),
+        () => Reflect.apply(callback.fn, undefined, [this.#contextOf(attempt)]),
       )
       if (!result.ok) attempt.errors.push(result.error)
     }
@@ -1255,16 +1313,16 @@ export class Executor {
     return {
       timeoutMs: hook.timeoutMs ?? this.#hookTimeout(),
       invoke: async (inner) => {
-        this.#emitHook(spec)
+        this.#emitHookStart(spec)
         try {
           const args =
             attempt === undefined
               ? [inner, taskOf(hook.owner)]
-              : [inner, attempt.ctx, taskOf(attempt.test.parent)]
+              : [inner, this.#contextOf(attempt), taskOf(attempt.test.parent)]
           await runInStore(store, () => Reflect.apply(hook.fn, undefined, args))
-          this.#emitHook(spec, PASSED)
+          this.#emitHookEnd(spec, PASSED)
         } catch (error) {
-          this.#emitHook(spec, { ok: false, error })
+          this.#emitHookEnd(spec, { ok: false, error })
           throw error
         }
       },
@@ -1339,6 +1397,73 @@ export function taskResult(
     passingAssertions: 0,
     ...(extra.skipReason === undefined ? {} : { skipReason: extra.skipReason }),
     ...(extra.note === undefined ? {} : { note: extra.note }),
+  }
+}
+
+/**
+ * One attempt's `TestRunHandle`. A class, so every handle shares one `state` getter: a literal with
+ * an accessor gives each attempt a map of its own, which cost about 0.3 µs per attempt (T5.14).
+ * `addTeardown` stays an own function, callable detached, as the literal's method was.
+ */
+class RunHandle implements TestRunHandle {
+  readonly test: { readonly suite: SuiteHandle }
+  readonly ctx: { readonly task: TaskInfo }
+  readonly slots: Map<symbol, unknown> = new Map()
+  readonly signal: AbortSignal
+  readonly addTeardown: (fn: () => unknown) => void
+  /** The attempt this handle reports on; set once the attempt holding the handle exists. */
+  attempt: AttemptState | undefined = undefined
+
+  constructor(
+    suite: SuiteHandle,
+    task: TaskInfo,
+    signal: AbortSignal,
+    teardowns: Array<() => unknown>,
+  ) {
+    this.test = { suite }
+    this.ctx = { task }
+    this.signal = signal
+    this.addTeardown = (fn) => {
+      teardowns.push(fn)
+    }
+  }
+
+  get state(): 'running' | 'cleanup' | 'done' {
+    return this.attempt?.state ?? 'running'
+  }
+}
+
+/**
+ * What `onBeforeTryTask`/`onAfterTryTask` listeners get. A class, so `ctx` can be a getter shared
+ * by every instance: the context is built only if a listener reads it. `fail` stays an own
+ * function, callable detached (the worker destructures it), as the literal's was.
+ */
+class TryInfo implements TryTaskInfo {
+  readonly test: TestTask
+  readonly attempt: number
+  readonly repeat: number
+  readonly failed: boolean
+  readonly fail: (error: unknown) => void
+  readonly #state: AttemptState
+  readonly #contextOf: (attempt: AttemptState) => TestContext
+
+  constructor(
+    test: TestTask,
+    state: AttemptState,
+    failed: boolean,
+    contextOf: (attempt: AttemptState) => TestContext,
+  ) {
+    this.test = test
+    this.attempt = state.frame.attempt
+    this.repeat = state.frame.repeat
+    this.failed = failed
+    this.#state = state
+    this.#contextOf = contextOf
+    this.fail = (error) => void state.errors.push(error)
+  }
+
+  get ctx(): TestContext {
+    return this.#contextOf(this.#state)
   }
 }
 

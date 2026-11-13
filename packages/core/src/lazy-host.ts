@@ -11,11 +11,12 @@ import { isOpen } from './collector/nodes.ts'
 import { currentStore } from './current/current-test.ts'
 import { CoreError } from './errors.ts'
 import type { SuiteNode } from './internal/model.ts'
+import type { RunRegistry } from './internal/run-registry.ts'
 
 /** What the host needs from the runtime. */
 export interface HostParts {
   readonly collector: Collector
-  readonly runs: WeakMap<object, TestRunHandle>
+  readonly runs: RunRegistry
   readonly workerTeardowns: Array<() => unknown>
   readonly workerSlots: Map<symbol, unknown>
 }

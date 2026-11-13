@@ -12,7 +12,6 @@ import type {
   TaskId,
   TaskNode,
   TaskResult,
-  TestRunHandle,
 } from '@provino/types'
 import { createApi, type RuntimeApi } from './collector/api.ts'
 import { Collector } from './collector/collector.ts'
@@ -32,6 +31,7 @@ import {
   taskResult,
 } from './executor/executor.ts'
 import type { FileState } from './internal/model.ts'
+import { createRunRegistry } from './internal/run-registry.ts'
 import { createLazyHost } from './lazy-host.ts'
 
 /**
@@ -164,7 +164,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   const formatValue = await options.behaviours.load(policy.formatValue)
   const orderHooks =
     policy.orderHooks === null ? undefined : await options.behaviours.load(policy.orderHooks)
-  const runs = new WeakMap<object, TestRunHandle>()
+  const runs = createRunRegistry()
   const workerTeardowns: Array<() => unknown> = []
   const collector = new Collector({
     policy,

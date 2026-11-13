@@ -55,6 +55,8 @@ const config: KnipConfig = {
         'vitest',
         'zod',
       ],
+      // A system tool, not a package: `provino-bench instructions` runs it on Linux (T12.13).
+      ignoreBinaries: ['valgrind'],
     },
     'packages/harness': {
       // Subjects the recorder runs (real Jest and Vitest), and Babel plugins its Jest config names.

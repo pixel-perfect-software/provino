@@ -77,6 +77,11 @@ export interface DeadlineOptions {
   readonly timeoutError: () => Error
   /** Called once when the deadline passes (to abort the test's signal). */
   readonly onTimeout?: ((error: Error) => void) | undefined
+  /**
+   * When the call started, if the caller read the clock for it just before (the `hook-start`
+   * event's time): saves reading it again. Default: `now()` as the call starts.
+   */
+  readonly start?: number | undefined
 }
 
 /**
@@ -88,7 +93,7 @@ export interface DeadlineOptions {
 export function withDeadline(invoke: () => unknown, options: DeadlineOptions): Promise<unknown> {
   const { timeoutMs, now } = options
   const bounded = isBounded(timeoutMs)
-  const start = bounded ? now() : 0
+  const start = bounded ? (options.start ?? now()) : 0
   const overran = (): boolean => bounded && options.catchSyncOverrun && now() - start > timeoutMs
   let result: unknown
   try {
@@ -166,6 +171,8 @@ export interface DeadlineCall {
   readonly attempt?: Abortable | undefined
   /** Default: `timeouts.catchSyncOverrun`. */
   readonly catchSyncOverrun?: boolean
+  /** When the call started, if the caller has just read the clock (`DeadlineOptions.start`). */
+  readonly start?: number | undefined
 }
 
 /** Where a teardown stack stops, and whose signal a timeout aborts. */
@@ -186,24 +193,53 @@ export interface Deadlines {
   drain(stack: Array<() => unknown>, options?: DrainOptions): Promise<unknown[]>
 }
 
+/**
+ * One call's `DeadlineOptions`, built for every bounded call. A class, so the timeout's error and
+ * the abort are methods shared by every call rather than two closures made per call (T5.14).
+ */
+class CallBound implements DeadlineOptions {
+  readonly timeoutMs: number
+  readonly catchSyncOverrun: boolean
+  readonly timers: RealTimers
+  readonly now: () => number
+  readonly start: number | undefined
+  readonly #spec: DeadlineCall
+
+  constructor(
+    spec: DeadlineCall,
+    catchSyncOverrun: boolean,
+    timers: RealTimers,
+    now: () => number,
+  ) {
+    this.#spec = spec
+    this.timeoutMs = spec.timeoutMs
+    this.catchSyncOverrun = catchSyncOverrun
+    this.timers = timers
+    this.now = now
+    this.start = spec.start
+  }
+
+  timeoutError(): Error {
+    const spec = this.#spec
+    return new CoreError(
+      'CORE_TIMEOUT',
+      TIMEOUT_MESSAGES[spec.what](spec.namedMs ?? spec.timeoutMs),
+    )
+  }
+
+  onTimeout(error: Error): void {
+    this.#spec.attempt?.controller.abort(error)
+  }
+}
+
 /** A runtime's deadlines, on the timers and clock it was given. */
 export function createDeadlines(
   timeouts: CorePolicy['timeouts'],
   timers: RealTimers,
   now: () => number,
 ): Deadlines {
-  const optionsFor = (spec: DeadlineCall): DeadlineOptions => {
-    const { attempt } = spec
-    const named = spec.namedMs ?? spec.timeoutMs
-    return {
-      timeoutMs: spec.timeoutMs,
-      catchSyncOverrun: spec.catchSyncOverrun ?? timeouts.catchSyncOverrun,
-      timers,
-      now,
-      timeoutError: () => new CoreError('CORE_TIMEOUT', TIMEOUT_MESSAGES[spec.what](named)),
-      onTimeout: attempt === undefined ? undefined : (error) => attempt.controller.abort(error),
-    }
-  }
+  const optionsFor = (spec: DeadlineCall): DeadlineOptions =>
+    new CallBound(spec, spec.catchSyncOverrun ?? timeouts.catchSyncOverrun, timers, now)
   return {
     call: (fn, spec) => withDeadline(fn, optionsFor(spec)),
     async drain(stack, { keep = 0, attempt } = {}) {
