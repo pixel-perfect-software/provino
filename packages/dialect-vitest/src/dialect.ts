@@ -212,6 +212,17 @@ export const vitestPolicy: PolicyOverrides = {
     globThresholdScope: 'aggregate',
     includeUntestedByDefault: true,
     reportsDirectory: './coverage',
+    // Not recorded for Vitest yet (B25); the neutral values stand.
+    v8Conversion: 'ast',
+    v8HitCounts: false,
+    istanbulVariable: '__coverage__',
+    thresholdMessages: {
+      belowMinimum:
+        'Coverage for {metric} ({actual}%) does not meet "{name}" threshold ({threshold}%)',
+      aboveMaximumUncovered:
+        'Uncovered count for {metric} ({actual}) exceeds {name} threshold ({threshold})',
+      notFound: 'Coverage data for {path} was not found.',
+    },
   },
 }
 

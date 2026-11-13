@@ -253,5 +253,16 @@ export const neutralPolicy: Policy = deepFreeze({
     globThresholdScope: 'aggregate',
     includeUntestedByDefault: true,
     reportsDirectory: 'coverage',
+    // The faster converter, which B25 builds; until then a run that reaches it is refused.
+    v8Conversion: 'ast',
+    v8HitCounts: false,
+    istanbulVariable: '__coverage__',
+    thresholdMessages: {
+      belowMinimum:
+        'Coverage for {metric} ({actual}%) does not meet "{name}" threshold ({threshold}%)',
+      aboveMaximumUncovered:
+        'Uncovered count for {metric} ({actual}) exceeds {name} threshold ({threshold})',
+      notFound: 'Coverage data for {path} was not found.',
+    },
   },
 })

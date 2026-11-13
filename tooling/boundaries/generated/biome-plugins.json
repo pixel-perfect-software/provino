@@ -6,6 +6,7 @@
       "includes": [
         "packages/config/**",
         "packages/core/**",
+        "packages/coverage/**",
         "packages/expect/**",
         "packages/lazy/**",
         "packages/loader/**",
