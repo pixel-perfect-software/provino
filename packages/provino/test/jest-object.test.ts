@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { FIXTURES } from './recorded.ts'
-import { spawnCli, trackedProjects } from './support.ts'
+import { jestConfigJson, spawnCli, trackedProjects } from './support.ts'
 
 const makeProject = trackedProjects()
 
@@ -20,7 +20,7 @@ async function recordedKeys(): Promise<readonly string[]> {
   return (JSON.parse(first) as { value: string[] }).value
 }
 
-const JEST_CONFIG = JSON.stringify({ testMatch: ['<rootDir>/tests/**/*.test.js'] })
+const JEST_CONFIG = jestConfigJson()
 
 describe('the module jest object', () => {
   it('has the keys Jest 30.5.2 has, in its order', async () => {

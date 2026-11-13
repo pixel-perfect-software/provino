@@ -12,7 +12,7 @@ import {
   type BuiltInReporterName,
   isBuiltInReporter,
   isDocumentReporter,
-} from './reporters.ts'
+} from './reporter-names.ts'
 import { USAGE } from './usage.ts'
 import { UsageError } from './usage-error.ts'
 

@@ -8,14 +8,11 @@
  * @public
  */
 export interface Style {
-  /** Whether the functions add anything. */
-  readonly enabled: boolean
   bold(text: string): string
   dim(text: string): string
   red(text: string): string
   green(text: string): string
   yellow(text: string): string
-  cyan(text: string): string
   magenta(text: string): string
   /**
    * A status word on a coloured block (inverse, bold): Jest's ` PASS ` and ` FAIL ` badges. With
@@ -24,7 +21,8 @@ export interface Style {
   badge(word: string, colour: 'green' | 'red' | 'yellow'): string
 }
 
-const ESC = String.fromCharCode(27)
+/** The escape character that starts every SGR sequence and the cursor moves of the live block. */
+export const ESC: string = String.fromCharCode(27)
 
 function wrap(open: number, close: number): (text: string) => string {
   const start = `${ESC}[${open}m`
@@ -42,13 +40,11 @@ export function createStyle(enabled: boolean): Style {
   if (!enabled) {
     const same = (text: string): string => text
     return {
-      enabled,
       bold: same,
       dim: same,
       red: same,
       green: same,
       yellow: same,
-      cyan: same,
       magenta: same,
       badge: (word) => word,
     }
@@ -56,13 +52,11 @@ export function createStyle(enabled: boolean): Style {
   const bold = wrap(1, 22)
   const inverse = wrap(7, 27)
   return {
-    enabled,
     bold,
     dim: wrap(2, 22),
     red: wrap(31, 39),
     green: wrap(32, 39),
     yellow: wrap(33, 39),
-    cyan: wrap(36, 39),
     magenta: wrap(35, 39),
     badge: (word, colour) =>
       `${ESC}[0m${inverse(bold(wrap(COLOURS[colour], 39)(` ${word} `)))}${ESC}[0m`,

@@ -34,8 +34,8 @@ function entryTitle(entry: ConsoleEntry): string {
 export interface ConsoleFormat {
   /** Spaces before each title: 4 under the default reporter, 2 under `--verbose`. */
   readonly titleIndent: number
-  /** Leave the `at` line out of a `warn` or `error` entry (Jest's `--noStackTrace`). Default `true`. */
-  readonly stackTrace?: boolean
+  /** Keep the `at` line of a `warn` or `error` entry; Jest's `--noStackTrace` leaves it out. */
+  readonly stackTrace: boolean
 }
 
 /**
@@ -54,7 +54,7 @@ export function consoleEntries(
       entry.level === 'warn' ? style.yellow : entry.level === 'error' ? style.red : undefined
     const message = indent(entry.text.trimEnd(), format.titleIndent + 2)
     const frame = originFrame(entry.origin)
-    const showFrame = frame !== undefined && (colour === undefined || format.stackTrace !== false)
+    const showFrame = frame !== undefined && (colour === undefined || format.stackTrace)
     return [
       `${pad}${(colour ?? style.dim)(entryTitle(entry))}`,
       colour === undefined ? message : colour(message),

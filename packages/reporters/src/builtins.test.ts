@@ -13,6 +13,7 @@ import { expectGolden } from './internal/golden.ts'
 import { FIXED_ENV, JEST_REPORT, type Output, playFixture } from './internal/test-support.ts'
 import { junitReporter } from './junit/reporter.ts'
 import { jsonReporter, normalizedJsonReporter } from './normalized-json/reporter.ts'
+import { ESC } from './style.ts'
 import type { TextReporterOptions } from './text/reporter.ts'
 import { verboseReporter } from './verbose/reporter.ts'
 
@@ -48,7 +49,7 @@ describe('the text reporters on the fixture run', () => {
       const { text } = await playFixture((out) =>
         make({ stream: out, report: JEST_REPORT, ...MODES.plain }),
       )
-      assert.doesNotMatch(text, new RegExp(String.fromCharCode(27)))
+      assert.doesNotMatch(text, new RegExp(ESC))
     }
   })
 

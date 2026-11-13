@@ -1,8 +1,10 @@
+import { BUILT_IN_REPORTERS } from './reporter-names.ts'
+
 /**
  * The text `provino --help` prints, and a usage error prints after its message.
  * @internal
  */
-export const USAGE = `Usage: provino <command> [options]
+export const USAGE: string = `Usage: provino <command> [options]
 
 Commands:
   jest     Run a Jest project with Jest's command line: provino jest [--config <file>] [patterns]
@@ -18,8 +20,7 @@ Options of provino run:
       --maxWorkers <n>              Run at most n workers (default: the cores, less one)
       --pool <kind>                 forks, threads or inline (default: the dialect's); inline
                                     runs in this process, so a leaked handle keeps it alive
-      --reporter <name>             default, verbose, dot, agent, json, junit, github-actions or
-                                    normalized-json (the same as json); repeat for several. With none,
+      --reporter <name>             One of the reporters below; repeat for several. With none,
                                     default: agent under an AI agent (CLAUDECODE, AI_AGENT, ...), and
                                     github-actions is added on GitHub Actions
       --outputFile <path>           Write the json or junit reporter's document here (one of them)
@@ -38,6 +39,8 @@ Options of provino run:
       --fileTimeout <ms>            Kill a worker that runs one file longer than this, and fail it
   -h, --help                        Print this text
       --version                     Print the version of provino
+
+Reporters: ${BUILT_IN_REPORTERS.join(', ')} (normalized-json is the same as json).
 
 Colour follows the terminal, FORCE_COLOR and NO_COLOR; the default reporter redraws the files that
 are running on a terminal that is not CI.

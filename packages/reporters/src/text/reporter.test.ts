@@ -14,16 +14,16 @@ import {
   NEUTRAL_REPORT,
   output,
   playRun,
+  playThrough,
   resultOf,
   testEndEvent,
 } from '../internal/test-support.ts'
+import { ESC } from '../style.ts'
 import { verboseReporter } from '../verbose/reporter.ts'
 import type { TextReporterOptions } from './reporter.ts'
 
 /** Jest's wording, without its one-file listing, which `listTestsForSingleFile` tests apart. */
 const REPORT: ReportPolicy = { ...JEST_REPORT, listTestsForSingleFile: false }
-
-const ESC = String.fromCharCode(27)
 
 /** Runs `files` through the reporter `make` builds, and returns what it wrote. */
 async function written(
@@ -31,11 +31,7 @@ async function written(
   files: readonly FileSpec[],
   options: Partial<TextReporterOptions> = {},
 ): Promise<string> {
-  const out = output()
-  const bus = createReporterBus([make({ stream: out, report: REPORT, ...options })])
-  await playRun(bus, files)
-  assert.deepEqual(bus.failures(), [])
-  return out.text()
+  return playThrough((stream) => make({ stream, report: REPORT, ...options }), files)
 }
 
 const CONSOLE_FILE: FileSpec = {

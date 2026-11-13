@@ -9,12 +9,13 @@ import assert from 'node:assert/strict'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ESC } from '../style.ts'
 
 const GOLDENS = fileURLToPath(new URL('../__goldens__/', import.meta.url))
 
 /** The text as a golden holds it: the escape character written out. */
 export function visible(text: string): string {
-  return text.replaceAll(String.fromCharCode(27), '<ESC>')
+  return text.replaceAll(ESC, '<ESC>')
 }
 
 /** Checks `actual` against `<name>.<extension>` in the goldens directory (or writes it when updating). */

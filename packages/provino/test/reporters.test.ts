@@ -11,7 +11,9 @@ import { runJest } from './live-jest.ts'
 import { loadFixture, materialize } from './recorded.ts'
 import {
   Collect,
+  ESC,
   failing,
+  jestConfigJson,
   passing,
   spawnCli,
   trackedProjects,
@@ -19,8 +21,6 @@ import {
 } from './support.ts'
 
 const makeProject = trackedProjects()
-
-const ESC = String.fromCharCode(27)
 
 /** Our stderr as the recording sees Jest's: the lines it kept, with each timing taken out. */
 function kept(stderr: string, keepLines: string): string[] {
@@ -127,8 +127,7 @@ describe('provino jest prints what Jest 30.5.2 printed (the lines each recording
 })
 
 describe('a run of one test file is verbose under provino jest, as Jest has it (runJest)', () => {
-  const config = (dir: string): string =>
-    JSON.stringify({ rootDir: dir, testMatch: ['<rootDir>/tests/**/*.test.js'] })
+  const config = (dir: string): string => jestConfigJson(dir)
 
   it('lists the test with no flag, for one file; two files list none', async () => {
     const one = await makeProject({ 'tests/a.test.js': passing('only one') })
@@ -222,18 +221,10 @@ describe('the environment picks the reporters when none are named', () => {
 
   it('provino jest gets the agent reporter under an agent, with --verbose too (Jest’s detectAgent comes first)', async () => {
     const project = await makeProject({ 'tests/ok.test.js': passing('ok') })
-    const ran = await spawnCli(
-      [
-        'jest',
-        '--config',
-        JSON.stringify({ rootDir: project.dir, testMatch: ['<rootDir>/tests/**/*.test.js'] }),
-        '--verbose',
-      ],
-      {
-        cwd: project.dir,
-        env: AGENT,
-      },
-    )
+    const ran = await spawnCli(['jest', '--config', jestConfigJson(project.dir), '--verbose'], {
+      cwd: project.dir,
+      env: AGENT,
+    })
     assert.equal(ran.code, 0, ran.stderr)
     assert.doesNotMatch(ran.stderr, /PASS|✓/)
   })
@@ -343,7 +334,7 @@ describe('colour', () => {
 
   it('provino jest --colors colours a pipe, --no-colors silences FORCE_COLOR', async () => {
     const project = await makeProject({ 'tests/ok.test.js': passing('ok') })
-    const config = `--config=${JSON.stringify({ rootDir: project.dir, testMatch: ['<rootDir>/tests/**/*.test.js'] })}`
+    const config = `--config=${jestConfigJson(project.dir)}`
     const coloured = await spawnCli(['jest', config, '--colors'], { cwd: project.dir })
     assert.match(coloured.stderr, new RegExp(`${ESC}\\[32m PASS `))
     const off = await spawnCli(['jest', config, '--no-colors'], {

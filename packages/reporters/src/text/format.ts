@@ -2,7 +2,13 @@
 // blocks `dot` ends with). Jest's wording where it was recorded from Jest 30.5.2 (`cli/report-*`:
 // the header line, the verbose list, the console block, the totals), Provino's own elsewhere (the
 // failure message, which has Provino's frames).
-import type { OpenHandle, ReportPolicy, SerializedError, SnapshotRunSummary } from '@provino/types'
+import type {
+  FileInfo,
+  OpenHandle,
+  ReportPolicy,
+  SerializedError,
+  SnapshotRunSummary,
+} from '@provino/types'
 import type { Style } from '../style.ts'
 
 /** How deep a `cause` or an aggregate's `errors` are shown. */
@@ -45,10 +51,20 @@ export function displayPath(path: string): string {
   return path.includes('/') ? path : `./${path}`
 }
 
+/** `ms` as seconds with three decimals, never negative: the Time line's, the JUnit schema's `time`. */
+export function seconds(ms: number): string {
+  return (Math.max(0, ms) / 1000).toFixed(3)
+}
+
+/** A file's name with its project before it: `server ./a.test.ts`, or just the path for a project with no name. */
+export function projectLabel(file: FileInfo, path: string): string {
+  return file.project === '' ? path : `${file.project} ${path}`
+}
+
 /** `(7.2 s)`, for a slow file, as Jest's `formatTime(runtime, 0)` writes it; `''` for any other. */
 function slowDetail(durationMs: number, style: Style): string {
   if (durationMs <= SLOW_FILE_MS) return ''
-  return ` (${style.red(`${Number((durationMs / 1000).toFixed(3))} s`)})`
+  return ` (${style.red(`${Number(seconds(durationMs))} s`)})`
 }
 
 /** A file's pass line, as Jest's: no timing unless the file was slow. */
@@ -84,41 +100,40 @@ function header(error: SerializedError): string {
  * Whether a frame is Node's or a dependency's, as Jest's `removeInternalStackEntries` has it:
  * `node:` internals and anything under `node_modules` say nothing about the user's code.
  */
-export function isLibraryFrame(frame: string): boolean {
+function isLibraryFrame(frame: string): boolean {
   return frame.includes('node:') || frame.includes('node_modules')
 }
 
 /** The stack's frame lines (`at …`), without the header V8 puts before them or a library's frames. */
-function frames(error: SerializedError): string[] {
+export function frames(error: SerializedError): string[] {
   return (error.stack ?? '')
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.startsWith('at ') && !isLibraryFrame(line))
 }
 
-/** What an error's text includes. */
-export interface ErrorFormat {
-  /** The stack's frames under the message. Default `true`; Jest's `--noStackTrace` turns it off. */
-  readonly stackTrace?: boolean
-}
-
 /**
- * An error as text: its message, the stack's frames under it (a library's left out), then its
- * cause and any errors it aggregates, each nested one level deeper. Not indented; callers indent
- * the block.
+ * An error as text: its message, the stack's frames under it (a library's left out; none with
+ * `stackTrace` off, Jest's `--noStackTrace`), then its cause and any errors it aggregates, each
+ * nested one level deeper. Not indented; callers indent the block.
  */
-export function formatError(error: SerializedError, options: ErrorFormat = {}, depth = 0): string {
-  const shown = options.stackTrace === false ? [] : frames(error)
+export function formatError(error: SerializedError, stackTrace = true, depth = 0): string {
+  const shown = stackTrace ? frames(error) : []
   const lines = [header(error), ...shown.map((frame) => `  ${frame}`)]
   if (depth < MAX_NESTING) {
     if (error.cause !== undefined) {
-      lines.push('', 'Caused by:', indent(formatError(error.cause, options, depth + 1), 2))
+      lines.push('', 'Caused by:', indent(formatError(error.cause, stackTrace, depth + 1), 2))
     }
     for (const nested of error.errors ?? []) {
-      lines.push('', 'Also:', indent(formatError(nested, options, depth + 1), 2))
+      lines.push('', 'Also:', indent(formatError(nested, stackTrace, depth + 1), 2))
     }
   }
   return lines.join('\n')
+}
+
+/** Several errors as text, a blank line apart. */
+export function formatErrors(errors: readonly SerializedError[], stackTrace = true): string {
+  return errors.map((error) => formatError(error, stackTrace)).join('\n\n')
 }
 
 /** A titled block: the title line, then each error indented under it, then a blank line. */
@@ -127,10 +142,9 @@ export function failureBlock(
   title: string,
   errors: readonly SerializedError[],
   style: Style,
-  options: ErrorFormat = {},
+  stackTrace = true,
 ): string {
-  const body = errors.map((error) => indent(formatError(error, options), 4))
-  return `${titleLine(report, title, style)}\n\n${body.join('\n\n')}\n`
+  return `${titleLine(report, title, style)}\n\n${indent(formatErrors(errors, stackTrace), 4)}\n`
 }
 
 function part(count: number, label: string): string {
@@ -253,7 +267,7 @@ export function summaryLines(
     `${bold('Test Suites:')} ${suites.join(', ')}`,
     `${bold('Tests:')}       ${counted.join(', ')}`,
     ...(snapshots === undefined ? [] : [snapshots]),
-    `${bold('Time:')}        ${(durationMs / 1000).toFixed(3)} s`,
+    `${bold('Time:')}        ${seconds(durationMs)} s`,
   ].join('\n')
 }
 

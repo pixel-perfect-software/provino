@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, it } from 'node:test'
-import { spawnCli } from './support.ts'
+import { jestConfigJson, spawnCli } from './support.ts'
 
 const made: string[] = []
 after(async () => {
@@ -22,7 +22,7 @@ async function project(
   made.push(dir)
   const files = {
     'package.json': '{"type":"commonjs"}\n',
-    'jest.config.json': JSON.stringify({ testMatch: ['<rootDir>/tests/**/*.test.js'], ...cleanup }),
+    'jest.config.json': jestConfigJson(undefined, cleanup),
     ...tests,
   }
   for (const [name, text] of Object.entries(files)) {

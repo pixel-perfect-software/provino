@@ -9,7 +9,9 @@ import {
   type FileSpec,
   JEST_REPORT,
   output,
+  type PlayOptions,
   playRun,
+  playThrough,
   resultOf,
   type TestSpec,
   testEndEvent,
@@ -19,19 +21,19 @@ import { githubActionsReporter } from './reporter.ts'
 
 async function annotations(
   files: readonly FileSpec[],
-  options: { readonly workspace?: string; readonly unhandled?: Parameters<typeof playRun>[2] } = {},
+  options: { readonly workspace?: string; readonly unhandled?: PlayOptions } = {},
 ): Promise<string[]> {
-  const out = output()
-  const bus = createReporterBus([
-    githubActionsReporter({
-      stream: out,
-      report: JEST_REPORT,
-      ...(options.workspace === undefined ? {} : { workspace: options.workspace }),
-    }),
-  ])
-  await playRun(bus, files, options.unhandled ?? {})
-  assert.deepEqual(bus.failures(), [])
-  return out.text().split('\n').filter(Boolean)
+  const text = await playThrough(
+    (stream) =>
+      githubActionsReporter({
+        stream,
+        report: JEST_REPORT,
+        ...(options.workspace === undefined ? {} : { workspace: options.workspace }),
+      }),
+    files,
+    options.unhandled ?? {},
+  )
+  return text.split('\n').filter(Boolean)
 }
 
 const fails = (

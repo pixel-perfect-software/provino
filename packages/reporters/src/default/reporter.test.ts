@@ -13,6 +13,7 @@ import {
   type Output,
   output,
   playRun,
+  playThrough,
   resultOf,
   taskId,
   testEndEvent,
@@ -31,13 +32,12 @@ async function report(
     readonly out?: Output
   } = {},
 ): Promise<string> {
-  const out = options.out ?? output()
-  const bus = createReporterBus([
-    defaultReporter({ stream: out, report: options.policy ?? JESTLIKE }),
-  ])
-  await playRun(bus, files, options.unhandled === undefined ? {} : { unhandled: options.unhandled })
-  assert.deepEqual(bus.failures(), [])
-  return out.text()
+  return playThrough(
+    (stream) => defaultReporter({ stream, report: options.policy ?? JESTLIKE }),
+    files,
+    options.unhandled === undefined ? {} : { unhandled: options.unhandled },
+    options.out,
+  )
 }
 
 const lines = (...text: string[]): string => `${text.join('\n')}\n`

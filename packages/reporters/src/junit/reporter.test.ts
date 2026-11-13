@@ -14,6 +14,7 @@ import {
   output,
   playFixture,
   playRun,
+  playThrough,
 } from '../internal/test-support.ts'
 import { junitReporter } from './reporter.ts'
 
@@ -63,14 +64,12 @@ describe('the junit reporter', () => {
   })
 
   test('a run with no files is a valid, empty document', async () => {
-    const out = output()
-    const bus = createReporterBus([junitReporter({ report: JEST_REPORT, stream: out })])
-    await playRun(bus, [])
+    const text = await playThrough((stream) => junitReporter({ report: JEST_REPORT, stream }), [])
     assert.match(
-      out.text(),
+      text,
       /<testsuites name="provino" tests="0" failures="0" errors="0" time="1\.234"\/>/,
     )
-    assert.ok((await validate(out.text())).ok)
+    assert.ok((await validate(text)).ok)
   })
 
   test('counts: a failed test is a failure, a file that did not run an error, a skipped or todo test skipped', async () => {
@@ -87,31 +86,29 @@ describe('the junit reporter', () => {
   })
 
   test('escapes names, messages and console text, and drops what XML cannot hold', async () => {
-    const out = output()
-    const bus = createReporterBus([
-      junitReporter({ report: JEST_REPORT, stream: out, name: 'a "b" & <c>' }),
-    ])
-    await playRun(bus, [
-      {
-        path: 'odd <&> "names".test.ts',
-        tests: [
-          {
-            path: ['x < y', 'tab\tand "quotes" & ampersand'],
-            state: 'fail',
-            errors: [
-              error(
-                'line one\nline two with \u001b[31mred\u001b[39m and a control \u0001 char ]]> end',
-                {
-                  name: 'Weird<Error>',
-                },
-              ),
-            ],
-            console: [{ text: 'out <b> & \u0007bell\n' }],
-          },
-        ],
-      },
-    ])
-    const text = out.text()
+    const text = await playThrough(
+      (stream) => junitReporter({ report: JEST_REPORT, stream, name: 'a "b" & <c>' }),
+      [
+        {
+          path: 'odd <&> "names".test.ts',
+          tests: [
+            {
+              path: ['x < y', 'tab\tand "quotes" & ampersand'],
+              state: 'fail',
+              errors: [
+                error(
+                  'line one\nline two with \u001b[31mred\u001b[39m and a control \u0001 char ]]> end',
+                  {
+                    name: 'Weird<Error>',
+                  },
+                ),
+              ],
+              console: [{ text: 'out <b> & \u0007bell\n' }],
+            },
+          ],
+        },
+      ],
+    )
     assert.match(text, /name="a &quot;b&quot; &amp; &lt;c&gt;"/)
     assert.match(text, /name="odd &lt;&amp;&gt; &quot;names&quot;\.test\.ts"/)
     assert.match(text, /name="x &lt; y › tab&#9;and &quot;quotes&quot; &amp; ampersand"/)
@@ -128,27 +125,27 @@ describe('the junit reporter', () => {
   })
 
   test('keeps each test’s console writes together and in order, and a write outside any test on the suite', async () => {
-    const out = output()
-    const bus = createReporterBus([junitReporter({ report: JEST_REPORT, stream: out })])
-    await playRun(bus, [
-      {
-        path: 'c.test.ts',
-        console: [{ text: 'file level\n' }],
-        tests: [
-          {
-            path: ['a'],
-            console: [
-              { text: 'one\n' },
-              { stream: 'stderr', level: 'warn', text: 'warned\n' },
-              { text: 'two\n' },
-              { text: 'three\n' },
-            ],
-          },
-          { path: ['b'], console: [{ text: 'other\n' }] },
-        ],
-      },
-    ])
-    const text = out.text()
+    const text = await playThrough(
+      (stream) => junitReporter({ report: JEST_REPORT, stream }),
+      [
+        {
+          path: 'c.test.ts',
+          console: [{ text: 'file level\n' }],
+          tests: [
+            {
+              path: ['a'],
+              console: [
+                { text: 'one\n' },
+                { stream: 'stderr', level: 'warn', text: 'warned\n' },
+                { text: 'two\n' },
+                { text: 'three\n' },
+              ],
+            },
+            { path: ['b'], console: [{ text: 'other\n' }] },
+          ],
+        },
+      ],
+    )
     assert.match(
       text,
       /<testcase name="a"[^>]*>\s*<system-out>one\ntwo\nthree\n<\/system-out>\s*<system-err>warned\n<\/system-err>\s*<\/testcase>/,

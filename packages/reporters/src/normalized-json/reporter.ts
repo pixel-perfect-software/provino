@@ -1,7 +1,6 @@
-import { resolve } from 'node:path'
 import type { Reporter, RunEnvironment } from '@provino/types'
 import { createCollector } from '../internal/collect.ts'
-import { writeAtomically } from '../internal/write-file.ts'
+import { writeDocument } from '../internal/write-file.ts'
 import type { TextSink } from '../sink.ts'
 import { buildNormalizedRun, type UnhandledErrors } from './build.ts'
 import { readRunEnvironment } from './environment.ts'
@@ -61,26 +60,21 @@ function runEnvironment(options: NormalizedJsonReporterOptions): RunEnvironment 
  * @public
  */
 export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): Reporter {
-  const now = options.now ?? Date.now
-  const { record, handlers } = createCollector()
-  let startedAt: string | undefined
+  const { record, handlers } = createCollector(
+    options.now === undefined ? {} : { now: options.now },
+  )
 
   return {
     name: 'normalized-json',
 
     ...handlers,
 
-    'run:start'(info, files) {
-      handlers['run:start'](info, files)
-      startedAt = new Date(now()).toISOString()
-    },
-
     async 'run:end'(summary) {
       const run = buildNormalizedRun({
         runner: options.runner,
         runnerVersion: options.runnerVersion,
         suite: options.suite,
-        startedAt: startedAt ?? new Date(now()).toISOString(),
+        startedAt: record.startedAt,
         env: runEnvironment(options),
         files: record.files,
         runErrors: record.runErrors,
@@ -90,13 +84,7 @@ export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): 
           ? {}
           : { snapshots: await normalizeSnapshots(summary.snapshots, record.root) }),
       })
-      const text = `${JSON.stringify(run, null, 2)}\n`
-      if (options.outputFile !== undefined) {
-        const path = resolve(options.outputFile)
-        await writeAtomically(path, text)
-      } else {
-        await (options.stream ?? process.stdout).write(text)
-      }
+      await writeDocument(options, `${JSON.stringify(run, null, 2)}\n`)
     },
   }
 }

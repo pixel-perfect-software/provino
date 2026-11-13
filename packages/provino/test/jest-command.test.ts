@@ -7,7 +7,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, it } from 'node:test'
-import { failing, passing, spawnCli } from './support.ts'
+import { failing, jestConfigJson, passing, spawnCli } from './support.ts'
 
 const made: string[] = []
 after(async () => {
@@ -25,7 +25,7 @@ async function tree(files: Readonly<Record<string, string>>): Promise<string> {
   return dir
 }
 
-const CONFIG = JSON.stringify({ testMatch: ['<rootDir>/tests/**/*.test.js'] })
+const CONFIG = jestConfigJson()
 const provino = (args: readonly string[], cwd: string) => spawnCli(['jest', ...args], { cwd })
 
 describe('what provino jest does not run is said, not ignored', () => {

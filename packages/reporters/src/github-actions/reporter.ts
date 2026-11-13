@@ -1,4 +1,4 @@
-import { isAbsolute, join, relative, sep } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import { stripVTControlCharacters } from 'node:util'
 import type {
   FileInfo,
@@ -6,12 +6,11 @@ import type {
   ReportPolicy,
   SerializedError,
   SourceLocation,
-  TaskId,
 } from '@provino/types'
-import { createCollector } from '../internal/collect.ts'
-import type { FileRecord } from '../normalized-json/build.ts'
+import { createCollector, type FileRecord, outcomeOf, suiteErrorsOf } from '../internal/collect.ts'
+import { posixRelative } from '../internal/posix-relative.ts'
 import type { TextSink } from '../sink.ts'
-import { formatError, isLibraryFrame } from '../text/format.ts'
+import { formatErrors, frames, testTitle } from '../text/format.ts'
 
 /**
  * Options for `githubActionsReporter`.
@@ -50,9 +49,8 @@ function frameLocation(frame: string): SourceLocation | undefined {
 /** Where an error happened: its own `location`, else the first frame of its stack that isn't a library's. */
 function errorLocation(error: SerializedError): SourceLocation | undefined {
   if (error.location !== undefined) return error.location
-  for (const line of (error.stack ?? '').split('\n')) {
-    if (!line.trim().startsWith('at ') || isLibraryFrame(line)) continue
-    const found = frameLocation(line)
+  for (const frame of frames(error)) {
+    const found = frameLocation(frame)
     if (found !== undefined) return found
   }
   return undefined
@@ -68,15 +66,13 @@ function errorLocation(error: SerializedError): SourceLocation | undefined {
  */
 export function githubActionsReporter(options: GitHubActionsReporterOptions): Reporter {
   const { stream, report } = options
-  const { record, handlers } = createCollector()
-  // The files that have ended in this run.
-  const ended = new Set<TaskId>()
+  // An annotation holds no console output, so none is kept; a file's record is freed as it ends.
+  const { record, handlers, release, isReleased } = createCollector({ console: false })
 
   /** The path GitHub wants: relative to the workspace, with `/`. */
   function repositoryPath(file: string): string {
     const absolute = isAbsolute(file) ? file : join(record.root, file)
-    const base = options.workspace ?? record.root
-    return relative(base, absolute).split(sep).join('/')
+    return posixRelative(options.workspace ?? record.root, absolute)
   }
 
   function annotation(
@@ -93,8 +89,7 @@ export function githubActionsReporter(options: GitHubActionsReporterOptions): Re
       ...(where === undefined ? [] : [`line=${where.line}`, `col=${where.column}`]),
       `title=${escapeProperty(stripVTControlCharacters(title))}`,
     ].join(',')
-    const message = errors.map((error) => formatError(error)).join('\n\n')
-    return `::error ${properties}::${escapeData(stripVTControlCharacters(message))}\n`
+    return `::error ${properties}::${escapeData(stripVTControlCharacters(formatErrors(errors)))}\n`
   }
 
   function fileAnnotations(
@@ -103,15 +98,14 @@ export function githubActionsReporter(options: GitHubActionsReporterOptions): Re
     own: readonly SerializedError[],
   ): string[] {
     const lines: string[] = []
-    for (const test of entry?.tests.values() ?? []) {
-      const result = entry?.results.get(test.id)
-      const errors = [...(result?.errors ?? []), ...(entry?.late.get(test.id) ?? [])]
-      if (errors.length === 0 || (result?.state !== 'fail' && !entry?.late.has(test.id))) continue
-      lines.push(
-        annotation(test.fullName.join(report.displaySeparator), errors, test.location, file),
-      )
+    if (entry === undefined)
+      return own.length === 0 ? lines : [annotation(file.path, own, null, file)]
+    for (const test of entry.tests.values()) {
+      const { failed, errors } = outcomeOf(entry, test)
+      if (!failed || errors.length === 0) continue
+      lines.push(annotation(testTitle(report, test.fullName), errors, test.location, file))
     }
-    const fileErrors = [...own, ...(entry?.suiteErrors ?? []), ...(entry?.unhandled ?? [])]
+    const fileErrors = [...own, ...suiteErrorsOf(entry), ...entry.unhandled]
     if (fileErrors.length > 0) lines.push(annotation(file.path, fileErrors, null, file))
     return lines
   }
@@ -121,29 +115,8 @@ export function githubActionsReporter(options: GitHubActionsReporterOptions): Re
 
     ...handlers,
 
-    'run:start'(info, files) {
-      handlers['run:start'](info, files)
-      ended.clear()
-    },
-
-    // A file that has ended has had its record printed and freed: a late event must not make a new one.
-    'file:collected'(file, event) {
-      if (!ended.has(file.fileId)) handlers['file:collected'](file, event)
-    },
-
-    'test:attempt-end'(task, event) {
-      if (!ended.has(task.fileId)) handlers['test:attempt-end'](task, event)
-    },
-
-    'task:end'(task, event) {
-      if (!ended.has(task.fileId)) handlers['task:end'](task, event)
-    },
-
-    // An annotation holds no console output, so none is kept.
-    console() {},
-
     async unhandled(file, event) {
-      if (file !== null && ended.has(file.fileId)) {
+      if (file !== null && isReleased(file.fileId)) {
         // Its annotations are written and its record gone: this one goes out now, on the file.
         await stream.write(annotation(file.path, [event.error], null, file))
         return
@@ -158,8 +131,7 @@ export function githubActionsReporter(options: GitHubActionsReporterOptions): Re
         record.files.get(result.file.fileId),
         result.errors,
       )
-      record.files.delete(result.file.fileId)
-      ended.add(result.file.fileId)
+      release(result.file.fileId)
       if (lines.length > 0) await stream.write(lines.join(''))
     },
 

@@ -18,59 +18,15 @@ import {
   verboseReporter,
 } from '@provino/reporters'
 import type { Reporter } from '@provino/types'
+import {
+  BUILT_IN_REPORTERS,
+  type BuiltInReporterName,
+  type DocumentReporterName,
+  isBuiltInReporter,
+  isDocumentReporter,
+} from './reporter-names.ts'
 import { UsageError } from './usage-error.ts'
 import { packageVersion } from './version.ts'
-
-/**
- * The reporters `run()` and the command line can name. A new one goes here, in `reporterFor`'s
- * switch (which the compiler holds to this list) and in `ReporterChoice`.
- * @internal
- */
-export const BUILT_IN_REPORTERS = [
-  'default',
-  'verbose',
-  'dot',
-  'agent',
-  'json',
-  'normalized-json',
-  'junit',
-  'github-actions',
-] as const
-
-/**
- * A built-in reporter's name.
- * @internal
- */
-export type BuiltInReporterName = (typeof BUILT_IN_REPORTERS)[number]
-
-/**
- * The reporters that write a document, to a file or to stdout: they go last, so each sees every
- * other reporter's failure before it writes.
- * @internal
- */
-export const DOCUMENT_REPORTERS = ['json', 'normalized-json', 'junit'] as const
-
-/**
- * The name of a reporter that writes a document.
- * @internal
- */
-export type DocumentReporterName = (typeof DOCUMENT_REPORTERS)[number]
-
-/**
- * Whether `name` is a built-in reporter.
- * @internal
- */
-export function isBuiltInReporter(name: string): name is BuiltInReporterName {
-  return BUILT_IN_REPORTERS.some((known) => known === name)
-}
-
-/**
- * Whether `name` is a reporter that writes a document.
- * @internal
- */
-export function isDocumentReporter(name: string): name is DocumentReporterName {
-  return DOCUMENT_REPORTERS.some((known) => known === name)
-}
 
 /**
  * What a command line or a config says about how text looks, whatever dialect it came from: Jest's
@@ -134,10 +90,8 @@ function optionalString(
 /** A reporter, and what `reportersFor` needs to know about it to order and check the set. */
 interface Built {
   readonly reporter: Reporter
-  /** It writes a document (`DOCUMENT_REPORTERS`). */
-  readonly document: boolean
-  /** It writes that document to stdout rather than to a file. */
-  readonly toStdout: boolean
+  /** A document reporter (`DOCUMENT_REPORTERS`): where it writes. Other reporters write none. */
+  readonly writes?: 'stdout' | 'file'
 }
 
 function isDirectory(path: string): boolean {
@@ -177,23 +131,36 @@ function documentPath(
   return path
 }
 
-function jsonDocument(
-  reporter: 'json' | 'normalized-json',
+/** The reporter `name` names, writing its document where `options` say: `{ outputFile }`, or stdout without one. */
+function documentReporter(
+  name: DocumentReporterName,
   context: ReporterContext,
   options: unknown,
 ): Built {
   if (options !== undefined && !isRecord(options)) {
-    throw new UsageError(`the options of the ${reporter} reporter must be an object`)
+    throw new UsageError(`the options of the ${name} reporter must be an object`)
   }
   const given = options ?? {}
-  const path = documentPath(reporter, context, given)
-  const suite = optionalString(reporter, given, 'suite')
+  const path = documentPath(name, context, given)
   const { project } = context
-  const make = reporter === 'json' ? jsonReporter : normalizedJsonReporter
+  const target = path === undefined ? { stream: context.stdout } : { outputFile: path }
+  const writes = path === undefined ? 'stdout' : 'file'
+  if (name === 'junit') {
+    const title = optionalString(name, given, 'name')
+    return {
+      reporter: junitReporter({
+        report: project.policy.report,
+        ...target,
+        ...(title === undefined ? {} : { name: title }),
+      }),
+      writes,
+    }
+  }
+  const make = name === 'json' ? jsonReporter : normalizedJsonReporter
   return {
     reporter: make({
-      ...(path === undefined ? { stream: context.stdout } : { outputFile: path }),
-      suite: suite ?? basename(project.rootDir),
+      ...target,
+      suite: optionalString(name, given, 'suite') ?? basename(project.rootDir),
       runner: `provino:${project.dialect?.name ?? 'neutral'}`,
       // Read here, as only this reporter needs it.
       runnerVersion: packageVersion(),
@@ -202,26 +169,7 @@ function jsonDocument(
       // The policy that decides the exit code, so the file's `success` agrees with it.
       unhandledErrors: project.policy.orchestrator.unhandledErrors,
     }),
-    document: true,
-    toStdout: path === undefined,
-  }
-}
-
-function junitDocument(context: ReporterContext, options: unknown): Built {
-  if (options !== undefined && !isRecord(options)) {
-    throw new UsageError('the options of the junit reporter must be an object')
-  }
-  const given = options ?? {}
-  const path = documentPath('junit', context, given)
-  const name = optionalString('junit', given, 'name')
-  return {
-    reporter: junitReporter({
-      report: context.project.policy.report,
-      ...(path === undefined ? { stream: context.stdout } : { outputFile: path }),
-      ...(name === undefined ? {} : { name }),
-    }),
-    document: true,
-    toStdout: path === undefined,
+    writes,
   }
 }
 
@@ -242,7 +190,7 @@ function textOptions(context: ReporterContext, output: OutputEnvironment): TextR
 }
 
 function text(reporter: Reporter): Built {
-  return { reporter, document: false, toStdout: false }
+  return { reporter }
 }
 
 /** A built-in reporter by name. No `default` arm: a name `BUILT_IN_REPORTERS` gains without one here fails to compile. */
@@ -272,9 +220,8 @@ function builtIn(
     }
     case 'json':
     case 'normalized-json':
-      return jsonDocument(name, context, undefined)
     case 'junit':
-      return junitDocument(context, undefined)
+      return documentReporter(name, context, undefined)
   }
 }
 
@@ -283,9 +230,8 @@ function reporterFor(choice: unknown, context: ReporterContext, output: OutputEn
     if (isBuiltInReporter(choice)) return builtIn(choice, context, output)
   } else if (Array.isArray(choice)) {
     const [name, options, ...rest]: unknown[] = choice
-    if (rest.length === 0) {
-      if (name === 'json' || name === 'normalized-json') return jsonDocument(name, context, options)
-      if (name === 'junit') return junitDocument(context, options)
+    if (rest.length === 0 && typeof name === 'string' && isDocumentReporter(name)) {
+      return documentReporter(name, context, options)
     }
   } else if (isReporter(choice)) {
     return text(choice)
@@ -333,7 +279,7 @@ export function reportersFor(
   const built = (choices ?? implicitChoices(context, output)).map((choice) =>
     reporterFor(choice, context, output),
   )
-  if (built.filter((entry) => entry.toStdout).length > 1) {
+  if (built.filter((entry) => entry.writes === 'stdout').length > 1) {
     throw new UsageError(
       'two reporters would both write to stdout; give each an outputFile (json, normalized-json and junit write there without one)',
     )
@@ -341,6 +287,6 @@ export function reportersFor(
   // Last, so it sees every other reporter's failure (the bus tells the reporters after a failing
   // one about it before they get the same event) before it writes its document.
   return built
-    .toSorted((a, b) => Number(a.document) - Number(b.document))
+    .toSorted((a, b) => Number(a.writes !== undefined) - Number(b.writes !== undefined))
     .map((entry) => entry.reporter)
 }

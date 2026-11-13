@@ -2,6 +2,7 @@
 // types. A `FileSpec` describes one file and the events it would produce; `playRun` sends a
 // whole run through a bus, as the coordinator will.
 
+import assert from 'node:assert/strict'
 import type {
   FileInfo,
   FileResult,
@@ -368,21 +369,24 @@ export async function emitFile(bus: ReporterBus, spec: FileSpec): Promise<FileRe
   return file.result
 }
 
+/** What `playRun` adds to a run of files. */
+export interface PlayOptions {
+  readonly unhandled?: readonly SerializedError[]
+  readonly durationMs?: number
+  readonly snapshots?: SnapshotRunSummary
+  /** The run's end reason; default `failed` when a file failed, else `passed`. */
+  readonly reason?: RunSummary['reason']
+  /** Files announced at `run:start` that never ran (a run that bailed). */
+  readonly notRun?: readonly string[]
+  /** What `detectOpenHandles` found, for the summary. */
+  readonly openHandles?: readonly OpenHandle[]
+}
+
 /** A run: `run:start`, every file, then `run:end` with a summary built from them. */
 export async function playRun(
   bus: ReporterBus,
   files: readonly FileSpec[],
-  options: {
-    readonly unhandled?: readonly SerializedError[]
-    readonly durationMs?: number
-    readonly snapshots?: SnapshotRunSummary
-    /** The run's end reason; default `failed` when a file failed, else `passed`. */
-    readonly reason?: RunSummary['reason']
-    /** Files announced at `run:start` that never ran (a run that bailed). */
-    readonly notRun?: readonly string[]
-    /** What `detectOpenHandles` found, for the summary. */
-    readonly openHandles?: readonly OpenHandle[]
-  } = {},
+  options: PlayOptions = {},
 ): Promise<RunSummary> {
   const infos = [
     ...files.map((spec) => fileInfo(spec.path, spec.project ?? '')),
@@ -611,17 +615,35 @@ export const FIXTURE_SNAPSHOTS: SnapshotRunSummary = {
   files: [],
 }
 
+/**
+ * Plays `files` through the reporter `make` builds around a buffer (`out`, a new one by default),
+ * checks that no reporter failed, and returns what it wrote with the run's summary.
+ */
+async function playInto(
+  make: (out: Output) => Reporter,
+  files: readonly FileSpec[],
+  extra: PlayOptions,
+  out: Output,
+): Promise<{ readonly text: string; readonly summary: RunSummary }> {
+  const bus = createReporterBus([make(out)])
+  const summary = await playRun(bus, files, extra)
+  assert.deepEqual(bus.failures(), [])
+  return { text: out.text(), summary }
+}
+
+/** `playRun` through the reporter `make` builds around a buffer: what it wrote, and no reporter failed. */
+export async function playThrough(
+  make: (out: Output) => Reporter,
+  files: readonly FileSpec[],
+  extra: PlayOptions = {},
+  out: Output = output(),
+): Promise<string> {
+  return (await playInto(make, files, extra, out)).text
+}
+
 /** Plays the fixture run through the reporter `make` builds around a buffer, and returns what it wrote. */
-export async function playFixture(
+export function playFixture(
   make: (out: Output) => Reporter,
 ): Promise<{ readonly text: string; readonly summary: RunSummary }> {
-  const out = output()
-  const bus = createReporterBus([make(out)])
-  const summary = await playRun(bus, FIXTURE_FILES, {
-    snapshots: FIXTURE_SNAPSHOTS,
-    durationMs: 1234,
-  })
-  const [failure] = bus.failures()
-  if (failure !== undefined) throw new Error(`a reporter failed: ${failure.message}`)
-  return { text: out.text(), summary }
+  return playInto(make, FIXTURE_FILES, { snapshots: FIXTURE_SNAPSHOTS, durationMs: 1234 }, output())
 }

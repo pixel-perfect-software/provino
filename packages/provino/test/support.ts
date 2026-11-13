@@ -60,6 +60,24 @@ export function withoutNodeNoise(stderr: string): string {
     .replaceAll(/ERROR: failed to copy trust settings of system certificate-\d+\n/g, '')
 }
 
+/** The escape character, as the coloured output has it. */
+export const ESC: string = String.fromCharCode(27)
+
+/**
+ * The text of a Jest config that finds `tests/**\/*.test.js` (the files of `makeProject`), as JSON
+ * for `--config`: `rootDir` is `dir` when given, and `extra` (more Jest keys) comes last.
+ */
+export function jestConfigJson(
+  dir?: string,
+  extra: Readonly<Record<string, unknown>> = {},
+): string {
+  return JSON.stringify({
+    ...(dir === undefined ? {} : { rootDir: dir }),
+    testMatch: ['<rootDir>/tests/**/*.test.js'],
+    ...extra,
+  })
+}
+
 /** A writable that keeps everything written to it. */
 export class Collect extends Writable {
   text = ''

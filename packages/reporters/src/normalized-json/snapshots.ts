@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { relative, sep } from 'node:path'
 import type { NormalizedRun, SnapshotRunSummary } from '@provino/types'
+import { posixRelative } from '../internal/posix-relative.ts'
 
 /**
  * A run's snapshots as the normalized run has them: Jest's totals, and each `.snap` file the run
@@ -19,7 +19,7 @@ export async function normalizeSnapshots(
         try {
           const bytes = await readFile(path)
           return {
-            file: relative(root, path).split(sep).join('/'),
+            file: posixRelative(root, path),
             sha256: createHash('sha256').update(bytes).digest('hex'),
           }
         } catch {

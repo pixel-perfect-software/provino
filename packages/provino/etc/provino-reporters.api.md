@@ -113,10 +113,7 @@ export interface Style {
     // (undocumented)
     bold(text: string): string;
     // (undocumented)
-    cyan(text: string): string;
-    // (undocumented)
     dim(text: string): string;
-    readonly enabled: boolean;
     // (undocumented)
     green(text: string): string;
     // (undocumented)

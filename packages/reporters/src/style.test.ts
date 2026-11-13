@@ -1,20 +1,16 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { createStyle } from './style.ts'
-
-const ESC = String.fromCharCode(27)
+import { createStyle, ESC } from './style.ts'
 
 describe('createStyle', () => {
   test('with colour off every style returns its text as given', () => {
     const style = createStyle(false)
-    assert.equal(style.enabled, false)
     for (const paint of [
       style.bold,
       style.dim,
       style.red,
       style.green,
       style.yellow,
-      style.cyan,
       style.magenta,
     ]) {
       assert.equal(paint('text'), 'text')

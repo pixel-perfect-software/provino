@@ -3,12 +3,10 @@
 // text is written above it. Without a terminal, in CI or under an agent nothing is redrawn: `print`
 // writes its text and `start` and `finish` do nothing.
 import type { TextSink } from '../sink.ts'
-import type { Style } from '../style.ts'
+import { ESC, type Style } from '../style.ts'
 
 /** How many running files the block names; the rest are counted. */
 const SHOWN = 4
-
-const ESC = String.fromCharCode(27)
 
 /** The sequence that moves the cursor up `lines` lines to their start and erases to the end of the screen. */
 function erase(lines: number): string {

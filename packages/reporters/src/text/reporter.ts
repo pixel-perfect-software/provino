@@ -1,27 +1,26 @@
 import type {
-  FileInfo,
   FileResult,
   Reporter,
   ReportPolicy,
   RunSummary,
   SerializedError,
-  TaskId,
   TaskNode,
-  TaskResult,
   TaskState,
 } from '@provino/types'
 import { DEFAULT_COLUMNS } from '../environment.ts'
+import { createCollector, type FileRecord, outcomeOf } from '../internal/collect.ts'
 import type { TextSink } from '../sink.ts'
 import { createStyle } from '../style.ts'
-import { type ConsoleEntry, consoleBlock, consoleEntries } from './console.ts'
+import { consoleBlock, consoleEntries } from './console.ts'
+import { createDots } from './dots.ts'
 import {
   displayPath,
-  type ErrorFormat,
   failLine,
   failureBlock,
   obsoleteBlock,
   openHandlesText,
   passLine,
+  projectLabel,
   snapshotLine,
   summaryLines,
   type TestCounts,
@@ -73,12 +72,25 @@ export type DefaultReporterOptions = TextReporterOptions
 /** What a text reporter prints about each file. */
 export type TextMode = 'default' | 'verbose' | 'agent' | 'dot'
 
-/** A test, or a suite with errors of its own, that failed; kept until its file ends. */
-interface FailedTest {
-  /** The task that failed: two tests may share a title (`test.each`), never an id. */
-  readonly id: TaskId
-  readonly title: string
-  readonly errors: readonly SerializedError[]
+/** What a mode does, so the engine asks a trait and never the mode's name. */
+interface Traits {
+  /** A passing file prints nothing: only the failures, and the totals. */
+  readonly quiet: boolean
+  /** The running files may be a block that is redrawn (the dots' row is not something a redraw can leave alone). */
+  readonly live: boolean
+  /** A file's console output is printed. */
+  readonly console: boolean
+  /** Whether each file's tests are listed: always, in a run of one file when the policy says so, or never. */
+  readonly list: 'always' | 'single-file' | 'never'
+  /** One character per test as it ends, and the failed files after them. */
+  readonly dots: boolean
+}
+
+const TRAITS: Readonly<Record<TextMode, Traits>> = {
+  default: { quiet: false, live: true, console: true, list: 'single-file', dots: false },
+  verbose: { quiet: false, live: true, console: true, list: 'always', dots: false },
+  agent: { quiet: true, live: false, console: false, list: 'never', dots: false },
+  dot: { quiet: true, live: false, console: false, list: 'never', dots: true },
 }
 
 /** How an `error` event is labelled, by where it came from. */
@@ -87,6 +99,12 @@ const ERROR_LABELS = {
   reporter: 'Reporter error',
   globalSetup: 'Global setup error',
 } as const
+
+/** A test, or a suite with errors of its own, that failed. */
+interface Failure {
+  readonly title: string
+  readonly errors: readonly SerializedError[]
+}
 
 /**
  * The text reporters: Jest-like text per file, then the totals. They keep their tallies in the
@@ -100,213 +118,181 @@ const ERROR_LABELS = {
  * - `dot`: one character per test as it ends (`.` passed, `F` failed, `-` skipped or todo), wrapped
  *   at the terminal's width; at the end the failed files, as `agent` prints them, and the totals.
  */
-export function createTextReporter(
-  mode: TextMode,
-  options: TextReporterOptions,
-  name: string = mode,
-): Reporter {
+export function createTextReporter(mode: TextMode, options: TextReporterOptions): Reporter {
   const { stream, report } = options
+  const traits = TRAITS[mode]
   const style = createStyle(options.colour === true)
-  const errorFormat: ErrorFormat = { stackTrace: options.noStackTrace !== true }
+  const stackTrace = options.noStackTrace !== true
   const columns = options.columns ?? DEFAULT_COLUMNS
-  // The block's redraw erases the lines above it, so it has no place over a row of dots it doesn't track.
   const out = createLiveOutput(stream, {
-    live: options.live === true && mode !== 'agent' && mode !== 'dot',
+    live: options.live === true && traits.live,
     columns,
     style,
   })
-  const quiet = mode === 'agent' || mode === 'dot'
-  // Whether each file's tests are listed: `verbose`, or `default` in a run of one file when asked
-  // (Jest's rule, decided at `run:start` from the files it announces).
-  let listing = mode === 'verbose'
-  let state = freshState()
+  const dots = traits.dots ? createDots(stream, columns, style) : undefined
+  // Each file's tests, results, console, tree and errors as its events come, until it ends.
+  const { record, handlers, release } = createCollector({
+    console: traits.console && options.silent !== true,
+  })
+  const { 'test:attempt-end': _attempts, ...collect } = handlers
+
+  /** Whether each file's tests are listed (Jest's one-file rule, decided at `run:start` from the files it announces). */
+  const lists = (files: number): boolean =>
+    traits.list === 'always' ||
+    (traits.list === 'single-file' &&
+      report.listTestsForSingleFile &&
+      options.silent !== true &&
+      options.verbose !== false &&
+      files === 1)
+  let listing = lists(0)
+  let files = zeroCounts()
+  let tests = zeroCounts()
+  /** How many files `run:start` announced; more than `files.total` when the run ended early (bail). */
+  let queued = 0
   // Whether the last thing printed ended in a blank line, so the totals don't add a second.
   let atBlank = true
-  // `dot`: the characters on the current row, whether the dots are the last thing written, and the
-  // failed files, printed after them.
-  let row = 0
-  let afterDots = false
-  let deferred: string[] = []
-
-  async function writeDot(testState: TaskState): Promise<void> {
-    const mark =
-      testState === 'pass'
-        ? style.green('.')
-        : testState === 'fail'
-          ? style.red('F')
-          : style.yellow('-')
-    row++
-    afterDots = true
-    if (row >= columns) {
-      row = 0
-      await stream.write(`${mark}\n`)
-    } else {
-      await stream.write(mark)
-    }
-  }
-
-  /**
-   * `dot`: before text goes under the dots, ends their row so the text doesn't land in the middle
-   * of it. Returns what that text starts with to leave a blank line under the dots: `'\n'`, or `''`
-   * when the dots are not the last thing written.
-   */
-  async function leaveDots(): Promise<string> {
-    if (!afterDots) return ''
-    afterDots = false
-    if (row > 0) {
-      row = 0
-      await stream.write('\n')
-    }
-    return '\n'
-  }
 
   async function print(text: string): Promise<void> {
     atBlank = text.endsWith('\n')
     await out.print(text)
   }
 
-  const labelOf = (file: FileInfo): string =>
-    file.project === '' ? displayPath(file.path) : `${file.project} ${displayPath(file.path)}`
+  /** The tests and suites of the file that failed, each with its errors, in the order they ended. */
+  function failuresOf(entry: FileRecord | undefined): Failure[] {
+    if (entry === undefined) return []
+    const failed: Failure[] = []
+    for (const [id, result] of entry.results) {
+      // A late error fails its test, so a test that passed can be here.
+      if (result.state !== 'fail' && !entry.late.has(id)) continue
+      const test = entry.tests.get(id)
+      if (test === undefined) continue
+      const outcome = outcomeOf(entry, test)
+      if (outcome.failed) {
+        failed.push({ title: testTitle(report, test.fullName), errors: outcome.errors })
+      }
+    }
+    for (const { task, errors } of entry.failedSuites) {
+      const path = suitePath(entry.tasks, task) ?? [task.name]
+      failed.push({ title: testTitle(report, path), errors })
+    }
+    return failed
+  }
+
+  /** What a file prints, or `undefined` for none (a skipped file; a passing one under `agent`). */
+  function fileText(result: FileResult, entry: FileRecord | undefined): string | undefined {
+    if (result.state === 'skip') return undefined
+    if (traits.quiet && result.state === 'pass') return undefined
+    const label = projectLabel(result.file, displayPath(result.file.path))
+    const header =
+      result.state === 'pass'
+        ? passLine(label, result.durationMs, style)
+        : failLine(label, result.durationMs, style)
+    const entries = entry?.console ?? []
+    const parts: string[] = []
+    if (listing) {
+      if (entries.length > 0) {
+        parts.push(consoleEntries(entries, { titleIndent: 2, stackTrace }, style))
+      }
+      parts.push(header)
+      if (entry !== undefined) {
+        parts.push(
+          ...verboseList(entry.tasks, (test) => outcomeOf(entry, test).result, style, {
+            expand: options.expand === true,
+          }),
+        )
+      }
+    } else {
+      parts.push(header)
+      if (entries.length > 0) parts.push(consoleBlock(entries, style, stackTrace))
+    }
+    if (result.state === 'fail') {
+      const failed = failuresOf(entry)
+      parts.push(
+        ...failed.map((test) => failureBlock(report, test.title, test.errors, style, stackTrace)),
+      )
+      if (result.errors.length > 0) {
+        const title = failed.length === 0 ? 'Test suite failed to run' : 'Errors outside the tests'
+        parts.push(failureBlock(report, title, result.errors, style, stackTrace))
+      }
+    }
+    return parts.join('\n')
+  }
 
   return {
-    name,
+    name: mode,
 
-    'run:start'(_info, files) {
-      state = freshState()
-      state.queued = files.length
-      listing =
-        mode === 'verbose' ||
-        (mode === 'default' &&
-          report.listTestsForSingleFile &&
-          options.silent !== true &&
-          options.verbose !== false &&
-          files.length === 1)
-      row = 0
-      afterDots = false
-      deferred = []
+    ...collect,
+
+    'run:start'(info, announced) {
+      collect['run:start'](info, announced)
+      files = zeroCounts()
+      tests = zeroCounts()
+      queued = announced.length
+      listing = lists(announced.length)
+      dots?.reset()
     },
 
     async 'file:start'(file) {
-      await out.start(file.fileId, labelOf(file))
-    },
-
-    // Kept until the file ends: a suite's name path is only built if that suite failed.
-    'file:collected'(file, event) {
-      state.collected.set(file.fileId, event.tasks)
+      await out.start(file.fileId, projectLabel(file, displayPath(file.path)))
     },
 
     async 'task:end'(task, event) {
-      if (task.type === 'suite' && event.type === 'suite-end') {
-        const { state: suiteState, errors } = event.result
-        if (suiteState !== 'fail' || errors.length === 0) return
-        const path = suitePath(state.collected.get(task.fileId), task) ?? [task.name]
-        push(state.suiteFailures, task.fileId, {
-          id: task.id,
-          title: testTitle(report, path),
-          errors,
-        })
-        return
-      }
+      collect['task:end'](task, event)
       if (task.type !== 'test' || event.type !== 'test-end') return
-      const { state: testState, errors } = event.result
-      state.tests = tally(state.tests, testState)
-      state.results.set(task.id, event.result)
-      if (mode === 'dot' && testState !== 'queued' && testState !== 'running') {
-        await writeDot(testState)
-      }
-      if (testState !== 'fail') return
-      push(state.failures, task.fileId, {
-        id: task.id,
-        title: testTitle(report, task.fullName),
-        errors,
-      })
-    },
-
-    console(file, event) {
-      if (options.silent === true || quiet) return
-      push(state.console, file.fileId, {
-        stream: event.stream,
-        level: event.level,
-        text: event.text,
-        origin: event.origin,
-      })
-    },
-
-    async 'file:end'(result) {
-      const { fileId } = result.file
-      state.files = tally(state.files, result.state)
-      const failed = state.failures.get(fileId) ?? []
-      const failedSuites = state.suiteFailures.get(fileId) ?? []
-      const tasks = state.collected.get(fileId) ?? []
-      const text = fileText(result, failed, failedSuites, tasks)
-      state.failures.delete(fileId)
-      state.suiteFailures.delete(fileId)
-      state.console.delete(fileId)
-      for (const task of tasks) state.results.delete(task.id)
-      state.collected.delete(fileId)
-      await out.finish(fileId)
-      if (text === undefined) return
-      if (mode === 'dot') deferred.push(text)
-      else await print(text)
+      const { state } = event.result
+      tests = tally(tests, state)
+      if (dots !== undefined && state !== 'queued' && state !== 'running') await dots.mark(state)
     },
 
     // An error charged to a test after it ended fails that test (and so its file): shown with it.
     unhandled(file, event) {
+      collect.unhandled(file, event)
       if (file === null || event.ownerId === null) return
-      const test = state.collected
-        .get(file.fileId)
-        ?.find((task) => task.id === event.ownerId && task.type === 'test')
-      if (test === undefined || test.type !== 'test') return
-      const ended = state.results.get(test.id)
-      const failures = state.failures.get(file.fileId)
-      // By id: tests with one full name (`test.each` with repeated titles) are told apart.
-      const listed = failures?.findIndex((entry) => entry.id === test.id) ?? -1
-      if (ended?.state === 'fail' && failures !== undefined && listed >= 0) {
-        // It already failed: the late error joins its entry, and the counts stand.
-        const entry = failures[listed]
-        if (entry !== undefined) {
-          failures[listed] = { ...entry, errors: [...entry.errors, event.error] }
-        }
-        return
-      }
+      const entry = record.files.get(file.fileId)
+      // Only the first late error moves the test between the counts: it is the failure itself.
+      if (entry?.late.get(event.ownerId)?.length !== 1) return
       // Only a test that passed moves from the passed count to the failed one.
-      if (ended?.state !== 'pass') return
-      push(state.failures, file.fileId, {
-        id: test.id,
-        title: testTitle(report, test.fullName),
-        errors: [event.error],
-      })
-      state.results.set(test.id, { ...ended, state: 'fail' })
-      const { passed, failed } = state.tests
-      state.tests = { ...state.tests, failed: failed + 1, passed: Math.max(0, passed - 1) }
+      if (entry.results.get(event.ownerId)?.state === 'pass') tests = passedToFailed(tests)
+    },
+
+    async 'file:end'(result) {
+      const { fileId } = result.file
+      files = tally(files, result.state)
+      const text = fileText(result, record.files.get(fileId))
+      release(fileId)
+      await out.finish(fileId)
+      if (text === undefined) return
+      if (dots === undefined) await print(text)
+      else dots.defer(text)
     },
 
     async error(error, origin) {
-      const lead = await leaveDots()
-      await print(lead + failureBlock(report, ERROR_LABELS[origin], [error], style, errorFormat))
+      const lead = (await dots?.leave()) ?? ''
+      await print(lead + failureBlock(report, ERROR_LABELS[origin], [error], style, stackTrace))
     },
 
     async 'run:end'(summary: RunSummary) {
       await out.close()
       // `dot`: the dots end the row they are on; the failed files follow, a blank line apart.
-      let lead = await leaveDots()
-      if (deferred.length > 0) {
-        await print(lead + deferred.join('\n'))
+      let lead = (await dots?.leave()) ?? ''
+      const deferred = dots?.deferred() ?? ''
+      if (deferred !== '') {
+        await print(lead + deferred)
         lead = ''
       }
       const unhandled = summary.unhandled.map((error) =>
-        failureBlock(report, 'Unhandled error', [error], style, errorFormat),
+        failureBlock(report, 'Unhandled error', [error], style, stackTrace),
       )
       const obsolete = obsoleteBlock(summary.snapshots)
       const parts = [
         ...unhandled,
         ...(obsolete === '' ? [] : [obsolete]),
         summaryLines(
-          state.files,
-          state.tests,
+          files,
+          tests,
           summary.durationMs,
           snapshotLine(summary.snapshots, style),
-          state.queued,
+          queued,
           style,
         ),
       ]
@@ -315,106 +301,15 @@ export function createTextReporter(
       if (summary.openHandles !== undefined) await print(openHandlesText(summary.openHandles))
     },
   }
-
-  /** What a file prints, or `undefined` for none (a skipped file; a passing one under `agent`). */
-  function fileText(
-    result: FileResult,
-    failed: readonly FailedTest[],
-    failedSuites: readonly FailedTest[],
-    tasks: readonly TaskNode[],
-  ): string | undefined {
-    if (result.state === 'skip') return undefined
-    if (quiet && result.state === 'pass') return undefined
-    const shown = labelOf(result.file)
-    const header =
-      result.state === 'pass'
-        ? passLine(shown, result.durationMs, style)
-        : failLine(shown, result.durationMs, style)
-    const entries = state.console.get(result.file.fileId) ?? []
-    const parts: string[] = []
-    if (listing) {
-      if (entries.length > 0) {
-        parts.push(
-          consoleEntries(
-            entries,
-            { titleIndent: 2, stackTrace: errorFormat.stackTrace !== false },
-            style,
-          ),
-        )
-      }
-      parts.push(header)
-      parts.push(...verboseList(tasks, state.results, style, { expand: options.expand === true }))
-    } else {
-      parts.push(header)
-      if (entries.length > 0 && mode === 'default') {
-        parts.push(consoleBlock(entries, style, errorFormat.stackTrace !== false))
-      }
-    }
-    if (result.state === 'fail') {
-      const blocks = [...failed, ...failedSuites].map((test) =>
-        failureBlock(report, test.title, test.errors, style, errorFormat),
-      )
-      if (result.errors.length > 0) {
-        const title =
-          failed.length + failedSuites.length === 0
-            ? 'Test suite failed to run'
-            : 'Errors outside the tests'
-        blocks.push(failureBlock(report, title, result.errors, style, errorFormat))
-      }
-      parts.push(...blocks)
-    }
-    return parts.join('\n')
-  }
-}
-
-/** Everything one run accumulates; `run:start` replaces it whole. */
-interface RunState {
-  failures: Map<TaskId, FailedTest[]>
-  /** Suites that ended `fail` with errors of their own, kept like failed tests. */
-  suiteFailures: Map<TaskId, FailedTest[]>
-  /** Each file's collected tasks, from `file:collected` until its `file:end`. */
-  collected: Map<TaskId, readonly TaskNode[]>
-  /** How each test ended, from its `task:end` until its file ends (a late error and the list read it). */
-  results: Map<TaskId, TaskResult>
-  /** Each file's console output, from the first write until its `file:end`. */
-  console: Map<TaskId, ConsoleEntry[]>
-  /** File tallies (`todo` stays 0) and test tallies. */
-  files: TestCounts
-  tests: TestCounts
-  /** How many files `run:start` announced; more than `files.total` when the run ended early (bail). */
-  queued: number
-}
-
-function freshState(): RunState {
-  return {
-    queued: 0,
-    failures: new Map(),
-    suiteFailures: new Map(),
-    collected: new Map(),
-    results: new Map(),
-    console: new Map(),
-    files: zeroCounts(),
-    tests: zeroCounts(),
-  }
 }
 
 function zeroCounts(): TestCounts {
   return { failed: 0, skipped: 0, passed: 0, total: 0, todo: 0 }
 }
 
-/** Adds `item` to `map`'s list for `id`, creating the list first. */
-function push<T>(map: Map<TaskId, T[]>, id: TaskId, item: T): void {
-  const list = map.get(id)
-  if (list === undefined) map.set(id, [item])
-  else list.push(item)
-}
-
 /** The names from the root suite down to `suite`, or `undefined` when its file's tree is unknown. */
-function suitePath(
-  tasks: readonly TaskNode[] | undefined,
-  suite: TaskNode,
-): readonly string[] | undefined {
-  if (tasks === undefined) return undefined
+function suitePath(tasks: readonly TaskNode[], suite: TaskNode): readonly string[] | undefined {
+  if (tasks.length === 0) return undefined
   const byId = new Map(tasks.map((task) => [task.id, task]))
   const path: string[] = []
   for (let at: TaskNode | undefined = suite; at?.type === 'suite'; ) {
@@ -441,4 +336,9 @@ function tally(counts: TestCounts, state: TaskState): TestCounts {
       // A test that ends in either never ran, so it is not counted.
       return counts
   }
+}
+
+/** A test counted as passed failed after all: it moves to the failed count, and the total stands. */
+function passedToFailed(counts: TestCounts): TestCounts {
+  return { ...counts, failed: counts.failed + 1, passed: Math.max(0, counts.passed - 1) }
 }

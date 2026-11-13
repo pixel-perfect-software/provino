@@ -1,4 +1,3 @@
-import { resolve } from 'node:path'
 import type {
   FileInfo,
   FileResult,
@@ -6,13 +5,18 @@ import type {
   ReportPolicy,
   RunSummary,
   SerializedError,
-  TaskId,
 } from '@provino/types'
-import { createCollector, type RunRecord } from '../internal/collect.ts'
-import { writeAtomically } from '../internal/write-file.ts'
-import type { FileRecord } from '../normalized-json/build.ts'
+import {
+  createCollector,
+  type FileRecord,
+  groupConsole,
+  outcomeOf,
+  type RunRecord,
+  suiteErrorsOf,
+} from '../internal/collect.ts'
+import { writeDocument } from '../internal/write-file.ts'
 import type { TextSink } from '../sink.ts'
-import { formatError } from '../text/format.ts'
+import { formatErrors, projectLabel, seconds, testTitle } from '../text/format.ts'
 import { type Element, write } from './xml.ts'
 
 /**
@@ -32,11 +36,6 @@ export interface JUnitReporterOptions {
   readonly now?: () => number
 }
 
-/** Seconds as the schema's `time` has them: at most three decimals. */
-function seconds(ms: number): string {
-  return (Math.max(0, ms) / 1000).toFixed(3)
-}
-
 /** The first line of a message, for the `message` attribute. */
 function firstLine(text: string): string {
   return text.split('\n')[0] ?? ''
@@ -51,7 +50,7 @@ function problem(kind: 'failure' | 'error', errors: readonly SerializedError[]):
       message: first === undefined ? '' : firstLine(first.message),
       type: first?.name ?? 'Error',
     },
-    text: errors.map((error) => formatError(error)).join('\n\n'),
+    text: formatErrors(errors),
   }
 }
 
@@ -65,13 +64,17 @@ function consoleElements(entries: readonly { stream: string; text: string }[]): 
   ]
 }
 
-/** What one `<testsuite>` adds up to. */
-interface SuiteElement {
-  readonly element: Element
+/** What a `<testsuite>` adds up to in `<testsuites>`. */
+interface Counts {
   readonly tests: number
   readonly failures: number
   readonly errors: number
-  readonly skipped: number
+}
+
+/** A `<testsuite>` and the counts the document sums. */
+interface SuiteElement {
+  readonly element: Element
+  readonly counts: Counts
 }
 
 /** The file's `<testsuite>`, from what the run recorded of it. */
@@ -79,59 +82,47 @@ function suiteOf(
   file: FileInfo,
   result: FileResult | undefined,
   entry: FileRecord | undefined,
-  options: { readonly separator: string; readonly timestamp: string },
+  options: { readonly report: ReportPolicy; readonly timestamp: string },
 ): SuiteElement {
-  const path = file.project === '' ? file.path : `${file.project} ${file.path}`
-  const tests = [...(entry?.tests.values() ?? [])]
-  const byTest = new Map<TaskId, { stream: string; text: string }[]>()
-  const fileConsole: { stream: string; text: string }[] = []
-  for (const event of entry?.console ?? []) {
-    const own = event.taskId === null ? undefined : entry?.tests.get(event.taskId)
-    if (own === undefined) {
-      fileConsole.push(event)
-      continue
-    }
-    const list = byTest.get(own.id)
-    if (list === undefined) byTest.set(own.id, [event])
-    else list.push(event)
-  }
+  const tests = entry === undefined ? [] : [...entry.tests.values()]
+  const grouped = entry === undefined ? undefined : groupConsole(entry)
 
   let failures = 0
   let skipped = 0
   const cases: Element[] = tests.map((test) => {
-    const taskResult = entry?.results.get(test.id)
-    const late = entry?.late.get(test.id) ?? []
-    const errors = [...(taskResult?.errors ?? []), ...late]
+    const outcome = entry === undefined ? undefined : outcomeOf(entry, test)
     const attributes = {
-      name: test.fullName.join(options.separator),
+      name: testTitle(options.report, test.fullName),
       classname: file.path,
-      time: seconds(taskResult?.durationMs ?? 0),
+      time: seconds(outcome?.result?.durationMs ?? 0),
     }
     const children: Element[] = []
-    if (taskResult === undefined) {
+    if (outcome?.failed === true) {
+      failures++
+      children.push(problem('failure', outcome.errors))
+    } else if (outcome?.result === undefined) {
       skipped++
       children.push({ name: 'skipped', attributes: { message: 'not run' } })
-    } else if (taskResult.state === 'fail' || late.length > 0) {
-      failures++
-      children.push(problem('failure', errors))
-    } else if (taskResult.state === 'skip' || taskResult.state === 'todo') {
+    } else if (outcome.result.state === 'skip' || outcome.result.state === 'todo') {
       skipped++
       children.push({
         name: 'skipped',
         attributes: {
           message:
-            taskResult.state === 'todo' ? 'todo' : (taskResult.note ?? taskResult.skipReason),
+            outcome.result.state === 'todo'
+              ? 'todo'
+              : (outcome.result.note ?? outcome.result.skipReason),
         },
       })
     }
-    children.push(...consoleElements(byTest.get(test.id) ?? []))
+    children.push(...consoleElements(grouped?.tests.get(test.id) ?? []))
     return { name: 'testcase', attributes, children }
   })
 
   // The file's own errors: it never collected, its worker died, a suite's `afterAll` threw.
   const own = [
     ...(result?.errors ?? []),
-    ...(entry?.suiteErrors ?? []),
+    ...(entry === undefined ? [] : suiteErrorsOf(entry)),
     ...(entry?.unhandled ?? []),
   ]
   let errored = 0
@@ -148,32 +139,26 @@ function suiteOf(
     })
   }
 
-  const count = cases.length
-  const children: Element[] = [...cases, ...consoleElements(fileConsole)]
+  const counts = { tests: cases.length, failures, errors: errored }
   return {
     element: {
       name: 'testsuite',
       attributes: {
-        name: path,
-        tests: count,
-        failures,
-        errors: errored,
+        name: projectLabel(file, file.path),
+        ...counts,
         skipped,
         time: seconds(result?.durationMs ?? 0),
         timestamp: options.timestamp,
         file: file.path,
       },
-      children,
+      children: [...cases, ...consoleElements(grouped?.file ?? [])],
     },
-    tests: count,
-    failures,
-    errors: errored,
-    skipped,
+    counts,
   }
 }
 
 /** A suite for the errors that belong to no file, one `<testcase>` each. */
-function runErrorSuite(record: RunRecord, timestamp: string): SuiteElement | undefined {
+function runErrorSuite(record: RunRecord): SuiteElement | undefined {
   if (record.runErrors.length === 0) return undefined
   const cases = record.runErrors.map(
     ({ error }): Element => ({
@@ -182,24 +167,20 @@ function runErrorSuite(record: RunRecord, timestamp: string): SuiteElement | und
       children: [problem('error', [error])],
     }),
   )
+  const counts = { tests: cases.length, failures: 0, errors: cases.length }
   return {
     element: {
       name: 'testsuite',
       attributes: {
         name: 'Errors outside any test file',
-        tests: cases.length,
-        failures: 0,
-        errors: cases.length,
+        ...counts,
         skipped: 0,
         time: '0.000',
-        timestamp,
+        timestamp: record.startedAt,
       },
       children: cases,
     },
-    tests: cases.length,
-    failures: 0,
-    errors: cases.length,
-    skipped: 0,
+    counts,
   }
 }
 
@@ -214,48 +195,39 @@ function runErrorSuite(record: RunRecord, timestamp: string): SuiteElement | und
  * @public
  */
 export function junitReporter(options: JUnitReporterOptions): Reporter {
-  const now = options.now ?? Date.now
-  const { record, handlers } = createCollector()
-  let timestamp = new Date(now()).toISOString()
+  const { record, handlers } = createCollector(
+    options.now === undefined ? {} : { now: options.now },
+  )
 
   return {
     name: 'junit',
 
     ...handlers,
 
-    'run:start'(info, files) {
-      handlers['run:start'](info, files)
-      timestamp = new Date(now()).toISOString()
-    },
-
     async 'run:end'(summary: RunSummary) {
+      const { report } = options
       const suites: SuiteElement[] = summary.files.map((result) =>
         suiteOf(result.file, result, record.files.get(result.file.fileId), {
-          separator: options.report.displaySeparator,
-          timestamp,
+          report,
+          timestamp: record.startedAt,
         }),
       )
-      const runErrors = runErrorSuite(record, timestamp)
+      const runErrors = runErrorSuite(record)
       if (runErrors !== undefined) suites.push(runErrors)
-      const sum = (pick: (suite: SuiteElement) => number): number =>
-        suites.reduce((total, suite) => total + pick(suite), 0)
+      const sum = (pick: (counts: Counts) => number): number =>
+        suites.reduce((total, suite) => total + pick(suite.counts), 0)
       const document: Element = {
         name: 'testsuites',
         attributes: {
           name: options.name ?? 'provino',
-          tests: sum((suite) => suite.tests),
-          failures: sum((suite) => suite.failures),
-          errors: sum((suite) => suite.errors),
+          tests: sum((counts) => counts.tests),
+          failures: sum((counts) => counts.failures),
+          errors: sum((counts) => counts.errors),
           time: seconds(summary.durationMs),
         },
         children: suites.map((suite) => suite.element),
       }
-      const text = `<?xml version="1.0" encoding="UTF-8"?>\n${write(document)}\n`
-      if (options.outputFile !== undefined) {
-        await writeAtomically(resolve(options.outputFile), text)
-      } else {
-        await (options.stream ?? process.stdout).write(text)
-      }
+      await writeDocument(options, `<?xml version="1.0" encoding="UTF-8"?>\n${write(document)}\n`)
     },
   }
 }
