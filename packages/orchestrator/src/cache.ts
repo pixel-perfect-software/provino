@@ -8,6 +8,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { hasProvinoTag } from '@provino/config'
 import type { FileHistory } from '@provino/types'
+import { isRecord } from './util.ts'
 
 /** The file's name inside the cache directory. */
 const FILE_NAME = 'results.json'
@@ -95,10 +96,6 @@ export interface ResultsCache {
 }
 
 type Projects = Map<string, Map<string, FileHistory>>
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function isHistory(value: unknown): value is FileHistory {
   return (

@@ -40,9 +40,11 @@ function freshUrl(file: string): string {
 /**
  * A CommonJS file compiled from `export default` (tsc, Babel) sets `exports.__esModule = true` and
  * `exports.default = …`, which Node's ESM loader hands over as `default` = the whole `exports`
- * object. Unwraps it as Jest's `interopRequireDefault` does.
+ * object. Unwraps it as Jest's `interopRequireDefault` does. Also how the coordinator reads the
+ * default export of a global setup module (`@provino/orchestrator`).
+ * @internal
  */
-function interopDefault(value: unknown): unknown {
+export function interopDefault(value: unknown): unknown {
   return isRecord(value) && value.__esModule === true && Object.hasOwn(value, 'default')
     ? value.default
     : value
