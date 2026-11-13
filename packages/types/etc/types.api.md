@@ -358,9 +358,9 @@ export interface CorePolicy {
     readonly orderHooks: Behaviour<OrderHooks> | null;
     readonly retry: {
         readonly timing: "deferred" | "immediate";
-        readonly logErrorsBeforeRetry: boolean;
         readonly keepEarlierErrors: boolean;
         readonly functionCondition: "call" | "ignore-warn";
+        readonly functionConditionWarning: string;
     };
     readonly status: {
         readonly todoUnderSkip: "skipped" | "todo";
@@ -504,8 +504,8 @@ export type DeepPartial<T> = T extends PolicyAtom ? T : string extends keyof T ?
 export interface DefaultRetry {
     readonly count: number;
     readonly delay: number;
-    readonly immediate: boolean;
-    readonly logErrors: boolean;
+    readonly keepEarlierErrors?: boolean;
+    readonly timing?: CorePolicy["retry"]["timing"];
 }
 
 // @public
@@ -1048,9 +1048,9 @@ export interface Frame {
 // @public
 export interface GlobalSetupArgs {
     // (undocumented)
-    readonly globalConfig: Readonly<Record<string, JsonValue>>;
+    readonly globalConfig: object;
     // (undocumented)
-    readonly projectConfig: Readonly<Record<string, JsonValue>>;
+    readonly projectConfig: object;
 }
 
 // @public
@@ -1065,6 +1065,12 @@ export interface GlobalSetupContext {
     // (undocumented)
     provide<K extends keyof ProvidedContext>(key: K, value: ProvidedContext[K]): void;
 }
+
+// @public
+export type GlobalSetupFailure = (thrown: unknown, context: {
+    readonly hook: "globalSetup" | "globalTeardown";
+    readonly path: string;
+}) => Error;
 
 // @public
 export type GlobalSetupFn = (context: GlobalSetupContext) => void | (() => void | Promise<void>) | Promise<void | (() => void | Promise<void>)>;
@@ -2021,9 +2027,7 @@ export interface OrchestratorPolicy {
     readonly globalSetup: {
         readonly signature: "global-and-project-config" | "project-with-teardown";
         readonly teardownOrder: "in-order" | "reverse";
-        readonly failureMessage: string;
-        readonly formatThrown: Behaviour<FormatValue>;
-        readonly reviveArgs: Behaviour<ReviveGlobalSetupArgs>;
+        readonly failure: Behaviour<GlobalSetupFailure>;
     };
     readonly globMatchesOn: "absolute-path" | "root-relative-path";
     readonly include: readonly string[];
@@ -2350,12 +2354,6 @@ export interface ResolverOptions {
 
 // @public
 export type ResolveSnapshotPath = (testPath: string, extension: string) => string;
-
-// @public
-export type ReviveGlobalSetupArgs = (args: GlobalSetupArgs) => {
-    readonly globalConfig: object;
-    readonly projectConfig: object;
-};
 
 // @public
 export type RpcCall<Methods> = { readonly [K in keyof Methods & string]: {
@@ -3284,7 +3282,8 @@ export type WorkerEvent = RuntimeEvent | {
 } | {
     readonly type: "deps";
     readonly fileId: TaskId;
-    readonly modules: readonly string[];
+    readonly added: readonly string[];
+    readonly ids: readonly number[];
     readonly t: number;
 };
 

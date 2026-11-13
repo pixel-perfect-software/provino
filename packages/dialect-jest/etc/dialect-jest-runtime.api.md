@@ -21,7 +21,6 @@ import { MockRegistry } from '@provino/mock';
 import { MockTarget } from '@provino/mock';
 import { Pragmas } from '@provino/types';
 import { Replaced } from '@provino/mock';
-import { ReviveGlobalSetupArgs } from '@provino/types';
 import { RuntimeApi } from '@provino/core';
 import { SnapshotPrinter } from '@provino/types';
 import { SpiedGetter } from '@provino/mock';
@@ -224,9 +223,6 @@ export interface JestTimerMembers<J> {
     useFakeTimers(config?: JestFakeTimersConfig): J;
     useRealTimers(): J;
 }
-
-// @public
-export const reviveGlobalSetupArgs: ReviveGlobalSetupArgs;
 
 // (No @packageDocumentation comment for this package)
 
