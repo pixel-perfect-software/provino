@@ -179,7 +179,11 @@ export interface TestCallback {
 /** One run (attempt) of a test, while it runs. */
 export interface AttemptState {
   readonly test: TestNode
-  readonly ctx: TestContext
+  /**
+   * The test context, built on its first read (`Executor.#contextOf`): a policy that passes it to
+   * no hook or body (Jest's) and no reader never pays for it.
+   */
+  ctx: TestContext | undefined
   /**
    * `this` for the attempt's `beforeEach`, body and `afterEach`: one object they share (jest-circus's
    * per-test `testContext`), or `undefined` under `firstArg: 'context'`.

@@ -242,6 +242,9 @@ export class Executor {
   readonly #running = new Map<TaskId, AttemptState>()
   /** What every test context is built from. */
   readonly #contextEnv: ContextEnv
+  /** `#contextOf`, for a `TryInfo` to call. */
+  readonly #contextFor: (attempt: AttemptState) => TestContext = (attempt) =>
+    this.#contextOf(attempt)
   /** Reports a `done(reason)` that came after its call was over (`late-done`). */
   readonly #lateDone: (error: Error) => void
   /** The `InvokeEnv` of a call outside any test (a suite hook), which is never over. */
@@ -748,7 +751,7 @@ export class Executor {
     const frame: Frame = { test: task, hook: null, fileId: run.fileId, attempt, repeat }
     const state: AttemptState = {
       test,
-      ctx: createTestContext(task, () => state, controller.signal, this.#contextEnv),
+      ctx: undefined,
       thisArg: this.#policy.firstArg === 'context' ? undefined : Object.create(null),
       run: handle,
       lazy: { kind: 'test', run: handle, suite: test.parent.handle, file: run.file.handle },
@@ -765,7 +768,6 @@ export class Executor {
       invokeEnv: undefined,
     }
     handle.attempt = state
-    this.#config.runs.set(state.ctx, handle)
     this.#running.set(test.id, state)
     const store = newStore({ frame, lazy: state.lazy, attempt: state })
     const t = startedAt ?? this.#now()
@@ -867,14 +869,12 @@ export class Executor {
   async #tryTask(kind: 'before' | 'after', test: TestNode, attempt: AttemptState): Promise<void> {
     const listeners = this.#config.tryTask[kind]
     if (listeners.length === 0) return
-    const info: TryTaskInfo = {
-      test: test.task as TestTask,
-      ctx: attempt.ctx,
-      attempt: attempt.frame.attempt,
-      repeat: attempt.frame.repeat,
-      failed: kind === 'after' && attempt.errors.length > 0,
-      fail: (error) => void attempt.errors.push(error),
-    }
+    const info = new TryInfo(
+      test.task as TestTask,
+      attempt,
+      kind === 'after' && attempt.errors.length > 0,
+      this.#contextFor,
+    )
     for (const listener of [...listeners]) {
       try {
         await listener(info)
@@ -958,7 +958,7 @@ export class Executor {
     const policy = this.#policy
     const contextArgs =
       test.passContext && (test.rowArgs !== undefined || policy.firstArg === 'context')
-        ? [attempt.ctx]
+        ? [this.#contextOf(attempt)]
         : NO_ARGS
     // Taken before the limiter: time spent waiting for a slot counts against the attempt.
     const ownMs = this.#testTimeout(test)
@@ -988,6 +988,27 @@ export class Executor {
     attempt.errors.push(...failures)
     // A rejection nobody handled by now is the test's own (jest-circus `test_fn_success`).
     attempt.errors.push(...this.#config.processErrors.take(attempt.frame))
+  }
+
+  /**
+   * An attempt's test context, built on its first read and recorded then for `LazyHost.runOf`:
+   * under a policy that hands it to no hook or body (Jest's), an attempt nobody asks about never
+   * builds one (T5.14). Every reader goes through here, so a context that exists is recorded.
+   */
+  #contextOf(attempt: AttemptState): TestContext {
+    let ctx = attempt.ctx
+    if (ctx === undefined) {
+      const created = createTestContext(
+        attempt.test.task as TestTask,
+        () => attempt,
+        attempt.controller.signal,
+        this.#contextEnv,
+      )
+      this.#config.runs.set(created, attempt.run)
+      attempt.ctx = created
+      ctx = created
+    }
+    return ctx
   }
 
   /**
@@ -1118,7 +1139,7 @@ export class Executor {
     const contextArgs = !byContext
       ? NO_ARGS
       : attempt !== undefined
-        ? [attempt.ctx, taskOf(attempt.test.parent)]
+        ? [this.#contextOf(attempt), taskOf(attempt.test.parent)]
         : [taskOf(hook.owner)]
     const thisArg = attempt !== undefined ? attempt.thisArg : byContext ? undefined : {}
     return this.#callUser(
@@ -1281,7 +1302,7 @@ export class Executor {
         run,
         { kind, owner: attempt.test.parent, ordinal, location: null, attempt },
         resolveTimeout(timeouts, callback.timeoutMs) ?? this.#hookTimeout(),
-        () => Reflect.apply(callback.fn, undefined, [attempt.ctx]),
+        () => Reflect.apply(callback.fn, undefined, [this.#contextOf(attempt)]),
       )
       if (!result.ok) attempt.errors.push(result.error)
     }
@@ -1304,7 +1325,7 @@ export class Executor {
           const args =
             attempt === undefined
               ? [inner, taskOf(hook.owner)]
-              : [inner, attempt.ctx, taskOf(attempt.test.parent)]
+              : [inner, this.#contextOf(attempt), taskOf(attempt.test.parent)]
           await runInStore(store, () => Reflect.apply(hook.fn, undefined, args))
           this.#emitHook(spec, PASSED)
         } catch (error) {
@@ -1417,6 +1438,40 @@ class RunHandle implements TestRunHandle {
 
   get state(): 'running' | 'cleanup' | 'done' {
     return this.attempt?.state ?? 'running'
+  }
+}
+
+/**
+ * What `onBeforeTryTask`/`onAfterTryTask` listeners get. A class, so `ctx` can be a getter shared
+ * by every instance: the context is built only if a listener reads it. `fail` stays an own
+ * function, callable detached (the worker destructures it), as the literal's was.
+ */
+class TryInfo implements TryTaskInfo {
+  readonly test: TestTask
+  readonly attempt: number
+  readonly repeat: number
+  readonly failed: boolean
+  readonly fail: (error: unknown) => void
+  readonly #state: AttemptState
+  readonly #contextOf: (attempt: AttemptState) => TestContext
+
+  constructor(
+    test: TestTask,
+    state: AttemptState,
+    failed: boolean,
+    contextOf: (attempt: AttemptState) => TestContext,
+  ) {
+    this.test = test
+    this.attempt = state.frame.attempt
+    this.repeat = state.frame.repeat
+    this.failed = failed
+    this.#state = state
+    this.#contextOf = contextOf
+    this.fail = (error) => void state.errors.push(error)
+  }
+
+  get ctx(): TestContext {
+    return this.#contextOf(this.#state)
   }
 }
 
