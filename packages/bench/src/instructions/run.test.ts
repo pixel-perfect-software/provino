@@ -24,12 +24,14 @@ const standIn = [
 ]
 
 test('the V8 flags are the ones Track 12 F7 measured a 0.05% spread with, and no GC task', () => {
-  // The last one is why loader-e2e repeats; determinism.test.ts shows what it changes.
+  // The last two are why loader-e2e repeats (marking, then scavenges on Node 22);
+  // determinism.test.ts shows what they change.
   assert.deepEqual(V8_FLAGS, [
     '--single-threaded',
     '--no-opt',
     '--predictable',
     '--no-incremental-marking-task',
+    '--no-minor-gc-task',
   ])
 })
 
@@ -49,8 +51,14 @@ test('Node below 22.18 is told to strip types; 22.18 and later strip them by def
   assert.deepEqual(stripTypesArgs('v26.1.0'), [])
 })
 
-test('the child sees a fixed environment: no compile cache, no colour, UTC, and no caller noise', () => {
-  const env = childEnv({ PATH: '/bin', HOME: '/h', NODE_OPTIONS: '--inspect', FORCE_COLOR: '1' })
+test('the child sees a fixed environment: no compile cache, no colour, UTC, one libuv thread, and no caller noise', () => {
+  const env = childEnv({
+    PATH: '/bin',
+    HOME: '/h',
+    NODE_OPTIONS: '--inspect',
+    FORCE_COLOR: '1',
+    UV_THREADPOOL_SIZE: '8',
+  })
   assert.deepEqual(env, {
     PATH: '/bin',
     HOME: '/h',
@@ -58,6 +66,7 @@ test('the child sees a fixed environment: no compile cache, no colour, UTC, and 
     NO_COLOR: '1',
     TZ: 'UTC',
     LANG: 'C',
+    UV_THREADPOOL_SIZE: '1',
   })
 })
 

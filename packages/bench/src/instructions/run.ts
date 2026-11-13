@@ -14,20 +14,32 @@ import type { WorkloadResult } from './workloads.ts'
 
 /**
  * V8's flags under cachegrind (Track 12 F7: 0.05% spread over 3 runs with them, 0.6% without):
- * one thread, no optimising tier, V8's deterministic mode, and no incremental-marking task.
+ * one thread, no optimising tier, V8's deterministic mode, and no GC from a foreground task.
  *
- * The last one closes the one time-dependent GC path `--predictable` leaves open (it implies no
- * memory reducer and single-threaded GC, not this). V8 starts and finishes incremental marking from
- * a foreground task (`IncrementalMarkingJob`) as well as from allocation (the stack guard). The task
- * runs on a turn of the event loop, and marking is paced by wall time, so which of the two ends a
- * marking cycle, and whether a cycle is still open when the process exits, is not fixed by the
- * input. A leg that never turns the loop never runs the task; `loader-e2e` turns it on every native
- * `import()` of a shared external (`magic-string`, `es-module-lexer`). Its Mark-Compact of a 70 MB
- * heap ("finalize incremental marking via task") was in 7 of 8 plain runs here and absent from the
- * 8th, and a full collection that size is tens of millions of instructions (a 1.8% spread on that
- * leg, under valgrind). With the task off, marking starts and finishes only on allocation, so the
- * same input does the same collections. `determinism.test.ts` pins it. The flag exists in V8 12.4
- * (Node 22.15) and later.
+ * The last two close the time-dependent GC paths `--predictable` leaves open (it implies no memory
+ * reducer and single-threaded GC, not these: `--print-flag-values` shows both tasks still on under
+ * it). V8 runs a collection from a foreground task in two places, on a turn of the event loop that
+ * wall time decides:
+ *
+ * - `--no-incremental-marking-task`: V8's incremental-marking job starts and finishes incremental
+ *   marking from a task as well as from allocation (the stack guard), and marking is paced by wall
+ *   time, so which of the two ends a marking cycle, and whether a cycle is still open when the
+ *   process exits, is not fixed by the input. A leg that never turns the loop never runs the task;
+ *   `loader-e2e` turns it on every native `import()` of a shared external (`magic-string`,
+ *   `es-module-lexer`). Its Mark-Compact of a 70 MB heap ("finalize incremental marking via task")
+ *   was in 7 of 8 plain runs here and absent from the 8th, and a full collection that size is tens
+ *   of millions of instructions (a 1.8% spread on that leg, under valgrind).
+ * - `--no-minor-gc-task`: V8's minor-GC job runs a scavenge from a task once the young generation
+ *   passes `--minor-gc-task-trigger` (80% by default), so a scavenge with the reason "task" lands
+ *   where an "allocation failure" one would, or in addition to it, and where it lands follows wall
+ *   time. On V8 12.4 (Node 22.15) the determinism test's `loader-e2e` trace had one in every one of
+ *   12 runs under the other three flags, 9 different collection sequences in all (CI run
+ *   43448228930: one more `Scavenge (task)` and one fewer `Scavenge (allocation failure)` than the
+ *   first run). Node 24 and 26 ran none in that leg; the flag is the same there and keeps it so.
+ *
+ * With both off, marking and scavenging start only on allocation, so the same input does the same
+ * collections. `determinism.test.ts` pins it. Both flags exist in V8 12.4 (Node 22.15), 13.6
+ * (Node 24) and 14.6 (Node 26).
  * @public
  */
 export const V8_FLAGS: readonly string[] = [
@@ -35,6 +47,7 @@ export const V8_FLAGS: readonly string[] = [
   '--no-opt',
   '--predictable',
   '--no-incremental-marking-task',
+  '--no-minor-gc-task',
 ]
 
 /**
@@ -79,7 +92,13 @@ const PLAIN_TIMEOUT_MS = 10 * 60_000
 
 /**
  * The child's environment: the same few variables every run, so a count never moves with the
- * caller's shell. No compile cache (a second run would read the first's), no colour, UTC.
+ * caller's shell. No compile cache (a second run would read the first's), no colour, UTC, and one
+ * libuv thread: on Node 22.15 the ES-module loader reads each file through the thread pool, so with
+ * several threads the order the reads finish in, and with it where the collections fall, moves from
+ * run to run (with the other flags in place, the heap sizes at every collection of `loader-e2e`
+ * differed in 30 of 30 runs, 5 runs of 76 had a scavenge more than the rest, and with the built
+ * packages 3 different collection sequences came out of 30). One thread finishes the reads in the
+ * order they were asked for: 30 of 30 runs identical on 22.15, from source and built.
  * @public
  */
 export function childEnv(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
@@ -90,6 +109,7 @@ export function childEnv(env: NodeJS.ProcessEnv = process.env): Record<string, s
     NO_COLOR: '1',
     TZ: 'UTC',
     LANG: 'C',
+    UV_THREADPOOL_SIZE: '1',
   }
   if (env.TMPDIR !== undefined) fixed.TMPDIR = env.TMPDIR
   return fixed
