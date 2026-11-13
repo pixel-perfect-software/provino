@@ -15,6 +15,10 @@ import type {
   Values,
 } from './types.ts'
 
+// The runtime's registration methods take the forwarder as a last, hidden argument, so a definition
+// is sited at the user's call and not at this file.
+type Forwarded = (...args: unknown[]) => never
+
 function runtime(): LazyRuntime {
   const found = currentLazyRuntime()
   if (found === undefined) {
@@ -33,14 +37,14 @@ function runtime(): LazyRuntime {
 export const lazy: LazyRoot = Object.freeze(
   Object.defineProperties(
     {
-      let(key, define, options) {
-        return runtime().lazy.let(key, define, options)
+      let: function letRoot(key, define, options) {
+        return (runtime().lazy.let as Forwarded)(key, define, options, letRoot)
       },
-      eager(key, define, options) {
-        return runtime().lazy.eager(key, define, options)
+      eager: function eagerRoot(key, define, options) {
+        return (runtime().lazy.eager as Forwarded)(key, define, options, eagerRoot)
       },
-      override(key, define) {
-        return runtime().lazy.override(key, define)
+      override: function overrideRoot(key, define) {
+        return (runtime().lazy.override as Forwarded)(key, define, overrideRoot)
       },
       from(ctx) {
         return runtime().lazy.from(ctx)
