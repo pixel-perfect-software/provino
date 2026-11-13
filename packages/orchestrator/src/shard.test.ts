@@ -7,7 +7,14 @@ import type { ScheduleInput } from '@provino/types'
 import type { DiscoveredFile } from './discover.ts'
 import { seededRandom } from './schedule-sim.ts'
 import { createHistorySequencer } from './sequencer.ts'
-import { checkShard, predictedWeights, sha1Shard, shardFiles, sliceShard } from './shard.ts'
+import {
+  checkShard,
+  predictedWeights,
+  sha1Shard,
+  shardFiles,
+  shardInputs,
+  sliceShard,
+} from './shard.ts'
 
 function file(path: string, timingMs?: number, project = 'p'): ScheduleInput {
   return { path, project, sizeBytes: 1, ...(timingMs === undefined ? {} : { timingMs }) }
@@ -252,6 +259,25 @@ describe('every file lands in exactly one shard (seeded property test)', () => {
     assert.deepEqual(
       paths(sha1.shard(timed, { index: 1, count: 2 })),
       paths(sliceShard(timed, { index: 1, count: 2 })),
+    )
+  })
+
+  it('a time that is not a number is no time: a set of only those takes the fallback', () => {
+    // JSON has no NaN, so only a programmatic caller gets here. `predictedWeights` already counts
+    // such a time as none; the choice of the split must agree, or the sha1 dialect cuts by count.
+    const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((p) => file(p, Number.NaN))
+    for (const index of [1, 2, 3]) {
+      const shard = { index, count: 3 }
+      assert.deepEqual(
+        paths(shardInputs(files, shard, 'sha1-slice')),
+        paths(sha1Shard(files, shard)),
+        `shard ${index}`,
+      )
+    }
+    // Where the two splits differ, so the assertion above can fail.
+    assert.notDeepEqual(
+      paths(sha1Shard(files, { index: 1, count: 3 })),
+      paths(sliceShard(files, { index: 1, count: 3 })),
     )
   })
 })

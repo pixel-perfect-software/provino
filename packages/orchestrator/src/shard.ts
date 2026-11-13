@@ -160,7 +160,7 @@ export function shardInputs(
   shard: ShardSpec,
   fallback: 'sha1-slice' | 'path-slice',
 ): readonly ScheduleInput[] {
-  const timed = files.some((file) => file.timingMs !== undefined)
+  const timed = files.some((file) => timeOf(file) !== undefined)
   return !timed && fallback === 'sha1-slice' ? sha1Shard(files, shard) : sliceShard(files, shard)
 }
 
