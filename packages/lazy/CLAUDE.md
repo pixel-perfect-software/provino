@@ -34,6 +34,10 @@ RSpec-style lazy variables (Track 6). Neutral: it reads only `LazyPolicy` and a 
 
 The worker (`packages/orchestrator/src/worker/runtime/runner.ts`) installs it after core and before the environment, and `stop` uninstalls it; `provino` re-exports the forwarders. `packages/provino/test/lazy.test.ts` runs it end to end on the built package. User docs: `wiki/lazy-variables.md`.
 
+## The failure report (B24e, T6.10)
+
+`LazyEvaluation` (`@provino/types`, plain data: key, site, override, ms, `failed`, `chain`) is what `evaluatedLazies(run)` returns. `run()` in `read.ts` marks a value a definition throws or rejects with under `LAZY_CHAIN` (`{ key, site }[]`, outermost read first; the first mark stays, a primitive is left alone) and records `failed` and the keys on the log entry; a thenable result is wrapped in one `then` so the rejection is marked on its way out and still unhandled if nobody reads it. The worker (`runner.ts`) hands a failed attempt's log to `lazyReportSink` (`orchestrator/src/worker/internal/runtime/lazy-sink.ts`) from `onAfterTryTask`, which sets `TaskResult.lazies` on a failed `test-end` only. A test that fails only from the end-of-test checks (`expect.assertions`) has no list, because `failed` is read before them. The text block is `lazyBlock` in `reporters/src/text/format.ts`.
+
 ## Not built yet
 
-`LazyEvaluation` in `@provino/types`, `LAZY_CHAIN` on thrown values and the reporter block (B24e); the read-cost gate (B24f); `fixtures.compile` (T6.9). B25's T5.9 moves the table into core behind a `LazyHost` method.
+The read-cost gate (B24f); `fixtures.compile` (T6.9). B25's T5.9 moves the table into core behind a `LazyHost` method.

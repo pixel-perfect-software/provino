@@ -1,13 +1,12 @@
 // The public entry points. Each one is a forwarder: it reads the runtime the worker installed in the
 // slot when it is called, and throws `LAZY_NO_RUNTIME` when there is none. `lazy.let(...)` reads the
 // slot once, so the handles it returns keep that runtime.
-import type { TestRunHandle } from '@provino/types'
+import type { LazyEvaluation, TestRunHandle } from '@provino/types'
 import { LazyError } from './errors.ts'
 import { setSiteVia } from './runtime/site.ts'
 import { currentLazyRuntime, type LazyRuntime } from './slot.ts'
 import type {
   ContextOutput,
-  EvaluatedLazy,
   Lazy,
   LazyRoot,
   SharedContext,
@@ -129,6 +128,6 @@ export function includeContext<
  * The lazy values a run evaluated, in order, for a reporter to print under a failure.
  * @public
  */
-export function evaluatedLazies(run: TestRunHandle): readonly EvaluatedLazy[] {
+export function evaluatedLazies(run: TestRunHandle): readonly LazyEvaluation[] {
   return runtime().evaluatedLazies(run)
 }

@@ -2,7 +2,7 @@
 // `parent()`, cycles and the read-time errors.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { LazyError } from './errors.ts'
+import { LAZY_CHAIN, LazyError } from './errors.ts'
 import { createWorld, type FileOutcome } from './internal/test-support.ts'
 
 function passed(outcome: FileOutcome): void {
@@ -342,5 +342,107 @@ describe('the evaluation log', () => {
     )
     assert.match(log[0]?.site.file ?? '', /read\.test\.ts$/)
     assert.ok((log[0]?.ms ?? -1) >= 0)
+  })
+})
+
+describe('the failure chain (T6.10)', () => {
+  test('a definition that throws marks the error with the chain that read it, outermost first', async () => {
+    const w = createWorld()
+    let caught: unknown
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy
+          .let('user', () => {
+            throw new Error('no such user')
+          })
+          .let('cart', ({ user }) => user)
+        w.test('t', () => {
+          try {
+            void $.cart
+          } catch (error) {
+            caught = error
+          }
+        })
+      }),
+    )
+    const marks = (caught as { [LAZY_CHAIN]?: { key: string }[] })[LAZY_CHAIN]
+    assert.deepEqual(
+      marks?.map((m) => m.key),
+      ['cart', 'user'],
+    )
+    const run = w.runs[0]
+    assert.ok(run)
+    const log = w.runtime.evaluatedLazies(run)
+    assert.deepEqual(
+      log.map((e) => [e.key, e.failed, e.chain]),
+      [
+        ['user', true, ['cart', 'user']],
+        ['cart', true, ['cart', 'user']],
+      ],
+    )
+  })
+
+  test('a rejection is marked and logged when it happens, and the consumer sees the same error', async () => {
+    const w = createWorld()
+    const boom = new Error('rejected')
+    let seen: unknown
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('slow', async () => {
+          throw boom
+        })
+        w.test('t', async () => {
+          try {
+            await $.slow
+          } catch (error) {
+            seen = error
+          }
+        })
+      }),
+    )
+    assert.equal(seen, boom)
+    const run = w.runs[0]
+    assert.ok(run)
+    const [entry] = w.runtime.evaluatedLazies(run)
+    assert.equal(entry?.failed, true)
+    assert.deepEqual(entry?.chain, ['slow'])
+  })
+
+  test('a value that evaluates fine is not failed and carries no chain', async () => {
+    const w = createWorld()
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('a', () => 1)
+        w.test('t', () => void $.a)
+      }),
+    )
+    const run = w.runs[0]
+    assert.ok(run)
+    const [entry] = w.runtime.evaluatedLazies(run)
+    assert.equal(entry?.failed, false)
+    assert.equal(Object.hasOwn(entry ?? {}, 'chain'), false)
+  })
+
+  test('a thrown primitive is left alone', async () => {
+    const w = createWorld()
+    let seen: unknown
+    passed(
+      await w.runFile('a.test.ts', () => {
+        const $ = w.lazy.let('a', () => {
+          throw 'plain'
+        })
+        w.test('t', () => {
+          try {
+            void $.a
+          } catch (error) {
+            seen = error
+          }
+        })
+      }),
+    )
+    assert.equal(seen, 'plain')
+    const run = w.runs[0]
+    assert.ok(run)
+    assert.equal(w.runtime.evaluatedLazies(run)[0]?.failed, true)
   })
 })

@@ -1,9 +1,15 @@
 // Reads: resolve a key from the test's innermost suite outward, find or make its memo cell, and run
 // the definition on the first read. A memoized read of a test-scoped value is the host's frame
 // lookup, two map reads on the resolved suite, one on the memo and a state check; it allocates nothing.
-import type { LazyFrame, Scope, SourceLocation, SuiteHandle, TaskInfo } from '@provino/types'
-import { LazyError } from '../errors.ts'
-import type { EvaluatedLazy } from '../types.ts'
+import type {
+  LazyEvaluation,
+  LazyFrame,
+  Scope,
+  SourceLocation,
+  SuiteHandle,
+  TaskInfo,
+} from '@provino/types'
+import { LAZY_CHAIN, LazyError } from '../errors.ts'
 import { registerCleanup, scopeSignal } from './cleanup.ts'
 import { formatSite } from './site.ts'
 import {
@@ -28,11 +34,15 @@ const realClearTimeout = globalThis.clearTimeout
 const RANK: Record<Scope, number> = { worker: 0, file: 1, test: 2 }
 
 /** An evaluated lazy value in a run's log. */
-class Logged implements EvaluatedLazy {
+class Logged implements LazyEvaluation {
   readonly key: string
   readonly site: SourceLocation
   readonly override: boolean
   readonly ms: number
+  /** Set when the definition threw (at once) or rejected (when it does). */
+  failed = false
+  /** The keys being evaluated when it failed; own only on a failed one. */
+  declare chain?: readonly string[]
 
   constructor(entry: LazyEntry, ms: number) {
     this.key = entry.key
@@ -40,6 +50,51 @@ class Logged implements EvaluatedLazy {
     this.override = entry.override
     this.ms = ms
   }
+
+  /** Records a failure and the chain the error was marked with. */
+  fail(chain: readonly string[] | undefined): void {
+    this.failed = true
+    if (chain !== undefined) this.chain = chain
+  }
+}
+
+/** One mark of the chain a thrown value carries under `LAZY_CHAIN`. */
+interface ChainMark {
+  readonly key: string
+  readonly site: SourceLocation
+}
+
+/**
+ * Marks a thrown definition value with the chain of lazies being evaluated when it was thrown
+ * (outermost first) and returns the keys. The first mark stays: it was made where the value was
+ * thrown, deepest. A primitive, or an object that refuses the property, is left unmarked.
+ */
+function markChain(error: unknown, path: readonly LazyEntry[]): readonly string[] | undefined {
+  if (error === null || (typeof error !== 'object' && typeof error !== 'function')) return undefined
+  try {
+    const existing: unknown = Reflect.get(error, LAZY_CHAIN)
+    if (Array.isArray(existing)) return (existing as ChainMark[]).map((mark) => mark.key)
+    const marks: ChainMark[] = path.map((entry) => ({ key: entry.key, site: entry.site }))
+    Object.defineProperty(error, LAZY_CHAIN, {
+      value: marks,
+      configurable: true,
+      enumerable: false,
+    })
+    return marks.map((mark) => mark.key)
+  } catch {
+    return undefined
+  }
+}
+
+/** The evaluations in progress down to `frame`, the outermost first. */
+function pathTo(engine: Engine, frame: EvalFrame, from: EvalFrame | null): LazyEntry[] {
+  const path: LazyEntry[] = []
+  if (from !== null) {
+    for (let f: EvalFrame | null = frame; f !== null; f = f.from) path.push(f.entry)
+    return path.reverse()
+  }
+  for (const f of engine.stack) path.push(f.entry)
+  return path
 }
 
 // A view's state sits under module-private symbols, so no lazy key (`suite`, `engine`, `from`, …)
@@ -270,15 +325,27 @@ function run(engine: Engine, entry: LazyEntry, frame: LazyFrame, from: EvalFrame
   }
   const start = performance.now()
   let outcome: Outcome
+  let failedChain: readonly string[] | undefined
+  let logged: Logged | undefined
   engine.stack.push(evalFrame)
   try {
     let value = entry.define(deps, ctx)
     if (controller !== undefined && entry.timeout !== undefined && isThenable(value)) {
       value = withTimeout(value, entry, entry.timeout, controller)
     }
+    if (isThenable(value)) {
+      // A rejection is marked on its way out; the consumer gets the same error, and a rejection
+      // nobody reads is still unhandled.
+      const path = pathTo(engine, evalFrame, from)
+      value = Promise.resolve(value).then(undefined, (error: unknown) => {
+        logged?.fail(markChain(error, path))
+        throw error
+      })
+    }
     outcome = { ok: true, value }
   } catch (error) {
     outcome = { ok: false, value: error }
+    failedChain = markChain(error, pathTo(engine, evalFrame, from))
   } finally {
     engine.stack.pop()
   }
@@ -288,7 +355,9 @@ function run(engine: Engine, entry: LazyEntry, frame: LazyFrame, from: EvalFrame
       log = []
       frame.run.slots.set(LOG, log)
     }
-    log.push(new Logged(entry, performance.now() - start))
+    logged = new Logged(entry, performance.now() - start)
+    if (!outcome.ok) logged.fail(failedChain)
+    log.push(logged)
   }
   return outcome
 }
@@ -390,6 +459,6 @@ export function peek(
 }
 
 /** The values a run evaluated, in the order they finished. */
-export function logOf(slots: Map<symbol, unknown>): readonly EvaluatedLazy[] {
+export function logOf(slots: Map<symbol, unknown>): readonly LazyEvaluation[] {
   return (slots.get(LOG) as Logged[] | undefined) ?? []
 }
