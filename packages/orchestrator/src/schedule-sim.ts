@@ -11,8 +11,10 @@
 // - the lower bound of a makespan: `max(total / workers, longest file)` (the oracle LPT row of the
 //   doc's table sits at 1.001 of it);
 // - "ideal" for a shard: the whole run's time divided by shards x workers;
-// - "files moved": of the original files, the share whose shard changes when 5% more files (random
-//   paths, no history) are added.
+// - "files moved": of the original files, the share whose shard changes when 5% more files (no
+//   history) are added. The doc does not say where the new files sort, so two models: random paths
+//   (`generateFiles`) and paths that sort after every old one (`sortedLast`, the new tests added at
+//   the end of the tree).
 import type { ScheduleInput } from '@provino/types'
 import { createHistorySequencer } from './sequencer.ts'
 import type { ShardSpec } from './shard.ts'
@@ -81,6 +83,11 @@ export function generateFiles(count: number, random: () => number, label = 'f'):
   })
 }
 
+/** `files` renamed to sort after every path `generateFiles` makes (its paths start with `f`). */
+export function sortedLast(files: readonly SimFile[]): SimFile[] {
+  return files.map((file) => ({ ...file, path: `z${file.path}` }))
+}
+
 /** `file` as a new one: no history, no time. */
 function unpredicted(file: SimFile): SimFile {
   const { predictedMs: _predicted, ...rest } = file
@@ -141,8 +148,36 @@ export function orderRatio(files: readonly SimFile[], order: Order, workers: num
   return makespan(orderOf(files, order), workers) / lowerBound(files, workers)
 }
 
-/** The strategies of the doc's "Sharding" table that the acceptance reads. */
-export type ShardStrategy = 'sha1' | 'contiguous'
+/**
+ * The strategies of the doc's "Sharding" table that the acceptance reads: `sha1` (Jest's split),
+ * `contiguous` (Bun's cuts by time, the real sequencer's) and `lpt` ("Duration LPT bin-pack": the
+ * longest predicted file first into the lightest shard, the best balance and the worst churn; a
+ * baseline here, nothing ships it).
+ */
+export type ShardStrategy = 'sha1' | 'contiguous' | 'lpt'
+
+/**
+ * Duration LPT bin-pack: files longest predicted first (ties by path), each into the shard with
+ * the least predicted time so far. A file with no prediction counts as the median of the others,
+ * as `sliceShard` counts it.
+ */
+function lptShards(files: readonly SimFile[], count: number): Map<string, number> {
+  const known = files.flatMap((file) => (file.predictedMs === undefined ? [] : [file.predictedMs]))
+  const fill = known.length === 0 ? 1 : median(known)
+  const weight = (file: SimFile): number => file.predictedMs ?? fill
+  const load = new Array<number>(count).fill(0)
+  const assigned = new Map<string, number>()
+  const longestFirst = files.toSorted((a, b) => weight(b) - weight(a) || (a.path < b.path ? -1 : 1))
+  for (const file of longestFirst) {
+    let lightest = 0
+    for (let shard = 1; shard < count; shard++) {
+      if ((load[shard] as number) < (load[lightest] as number)) lightest = shard
+    }
+    load[lightest] = (load[lightest] as number) + weight(file)
+    assigned.set(file.path, lightest + 1)
+  }
+  return assigned
+}
 
 /** The shard (1-based) each file belongs to, under `strategy`: the real sequencer, fed the model's data. */
 export function shardsOf(
@@ -150,6 +185,7 @@ export function shardsOf(
   count: number,
   strategy: ShardStrategy,
 ): Map<string, number> {
+  if (strategy === 'lpt') return lptShards(files, count)
   const sequencer = createHistorySequencer({
     unknownFirst: true,
     shardFallback: 'sha1-slice',
