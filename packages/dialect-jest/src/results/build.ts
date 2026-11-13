@@ -12,7 +12,7 @@ import type {
   TaskResult,
   TestTask,
 } from '@provino/types'
-import { createEmptyTestResult } from './helpers.ts'
+import { buildFailureTestResult, createEmptyTestResult } from './helpers.ts'
 import type { AggregatedResult, AssertionResult, Status, TestResult } from './types.ts'
 
 /**
@@ -25,8 +25,6 @@ export interface TestRecord {
   readonly result: TaskResult | undefined
   /** The coordinator's clock (ms since the epoch) when the test started. */
   readonly startedAt: number | null
-  /** The errors of each attempt that was retried, in order. */
-  readonly retried: readonly SerializedError[]
 }
 
 /**
@@ -135,15 +133,22 @@ export function toAssertionResult(record: TestRecord, options: BuildOptions): As
         : null,
     numPassingAsserts: result?.passingAssertions ?? 0,
     retryMessages: [],
-    retryReasons: record.retried.map(flattenSerializedError),
+    // Core keeps the earlier attempts' errors only when the policy asks (Jest's
+    // `logErrorsBeforeRetry`, circus `eventHandler.ts` `test_retry`), so `retryErrors` is empty
+    // otherwise: a retry on its own fills neither `retryReasons` nor `retryMessages`.
+    retryReasons: (result?.retryErrors ?? []).map(flattenSerializedError),
     startAt: record.startedAt,
     status,
     title,
   }
 }
 
-/** The tests of a tree in declaration order (depth first), each with what the events said of it. */
-function testsInOrder(
+/**
+ * The tests of a tree in declaration order (depth first), each with what the events said of it.
+ * The assertions of `toTestResult` are in this order.
+ * @public
+ */
+export function testsInOrder(
   tree: readonly TaskNode[],
   records: ReadonlyMap<TaskId, TestRecord>,
 ): TestRecord[] {
@@ -153,7 +158,7 @@ function testsInOrder(
     if (node === undefined) return
     if (node.type === 'test') {
       const record = records.get(node.id)
-      out.push(record ?? { task: node, result: undefined, startedAt: null, retried: [] })
+      out.push(record ?? { task: node, result: undefined, startedAt: null })
       return
     }
     for (const child of node.children) visit(byId.get(child))
@@ -191,6 +196,16 @@ export const NO_TESTS_MESSAGE = 'Your test suite must contain at least one test.
  * @public
  */
 export function toTestResult(file: FileEvents, options: BuildOptions): TestResult {
+  if (file.result.workerExit !== undefined) {
+    // A worker that died takes the file's results with it: Jest's runner fails the whole file
+    // (`TestScheduler.ts` `onFailure`, L185-L200), so even tests that ended before the crash
+    // leave no counts and no assertion.
+    const error = execErrorOf([...file.result.errors, ...file.unhandled]) ?? {
+      message: `the worker running the file exited (${JSON.stringify(file.result.workerExit)})`,
+      stack: null,
+    }
+    return buildFailureTestResult(file.testFilePath, error)
+  }
   const tests = file.tree === undefined ? [] : testsInOrder(file.tree, file.records)
   const assertionResults = tests.map((record) => toAssertionResult(record, options))
   const count = (status: Status): number =>

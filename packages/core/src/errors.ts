@@ -87,6 +87,16 @@ const MAX_DEPTH = 8
  */
 const MAX_ERRORS = 1000
 
+/**
+ * The longest `details` JSON that crosses (UTF-16 units: about 64 KiB of ASCII). `matcherResult`
+ * holds the whole `actual` and `expected` of a failed assertion, so a test that compares two huge
+ * values would clone megabytes to the coordinator on every failure, for a field only `--json`
+ * reads. 64 KiB holds any ordinary assertion (the failure message, which is what people read,
+ * truncates far earlier) and keeps the field bounded; past it `details` is left out and Jest's
+ * `failureDetails[i]` reads `{}`.
+ */
+const MAX_DETAILS_LENGTH = 64 * 1024
+
 /** One `serializeError` call's walk: the errors already expanded and the budget used. */
 interface Walk {
   readonly seen: Set<object>
@@ -123,7 +133,7 @@ function detailsOf(value: unknown): JsonValue | undefined {
     const json = JSON.stringify(value, (_key, inner: unknown) =>
       typeof inner === 'bigint' ? `${inner}n` : inner,
     )
-    if (json === undefined || json === '{}') return undefined
+    if (json === undefined || json === '{}' || json.length > MAX_DETAILS_LENGTH) return undefined
     return JSON.parse(json) as JsonValue
   } catch {
     return undefined

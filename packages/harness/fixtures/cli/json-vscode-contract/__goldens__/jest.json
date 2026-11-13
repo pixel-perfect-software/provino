@@ -358,7 +358,7 @@
               }
             ],
             "endTime": "<time>",
-            "message": "  ● sum › fails\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 3\n    Received: 2\n\n      4 |   })\n      5 |   it('fails', () => {\n    > 6 |     expect(1 + 1).toBe(3)\n        |                   ^\n      7 |   })\n      8 |   it.skip('is skipped', () => {})\n      9 |   it.todo('is todo')\n<frames>\n",
+            "message": "  ● sum › fails\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 3\n    Received: 2\n\n      4 |   })\n      5 |   it('fails', () => {\n    > 6 |     expect(1 + 1).toBe(3)\n        |                   ^\n      7 |   })\n      8 |   it.skip('is skipped', () => {})\n      9 |   it.todo('is todo')\n\n<frames>\n",
             "name": "<root>/sum.test.ts",
             "startTime": "<time>",
             "status": "failed",

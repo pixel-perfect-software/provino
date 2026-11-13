@@ -98,4 +98,55 @@ describe('processJestResults', () => {
       assert.equal((JSON.parse(stdout.text) as { added: number }).added, 1)
     })
   })
+
+  it('judges a run successful when the processor returns nothing and --json is off', async () => {
+    await inTempDir(async (dir) => {
+      const processor = join(dir, 'processor.cjs')
+      await writeFile(processor, 'module.exports = () => undefined\n')
+      const success = await processJestResults({
+        aggregated: makeEmptyAggregatedTestResult(),
+        globalConfig: { ...globalConfig, testResultsProcessor: processor },
+        cwd: dir,
+        stdout: new Sink(),
+        outputStream: new Sink(),
+      })
+      assert.equal(success, true)
+    })
+  })
+
+  it('throws, as Jest does, when --json meets a processor that returns nothing', async () => {
+    await inTempDir(async (dir) => {
+      const processor = join(dir, 'processor.cjs')
+      await writeFile(processor, 'module.exports = () => undefined\n')
+      const stdout = new Sink()
+      await assert.rejects(
+        processJestResults({
+          aggregated: makeEmptyAggregatedTestResult(),
+          globalConfig: { ...globalConfig, json: true, testResultsProcessor: processor },
+          cwd: dir,
+          stdout,
+          outputStream: new Sink(),
+        }),
+        TypeError,
+      )
+      assert.equal(stdout.text, '')
+    })
+  })
+
+  it('lets the error of a processor that throws as it loads out as it is, not as a config error', async () => {
+    await inTempDir(async (dir) => {
+      const processor = join(dir, 'processor.cjs')
+      await writeFile(processor, "throw new RangeError('boom at import')\n")
+      await assert.rejects(
+        processJestResults({
+          aggregated: makeEmptyAggregatedTestResult(),
+          globalConfig: { ...globalConfig, testResultsProcessor: processor },
+          cwd: dir,
+          stdout: new Sink(),
+          outputStream: new Sink(),
+        }),
+        (error) => error instanceof RangeError && error.message === 'boom at import',
+      )
+    })
+  })
 })

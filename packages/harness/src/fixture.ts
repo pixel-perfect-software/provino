@@ -150,6 +150,11 @@ export interface FixtureRun {
    */
   readonly capture: readonly string[]
   readonly emptyStreams?: readonly ('stdout' | 'stderr')[]
+  /**
+   * `json:<path>` captures (listed in `capture`) the run may leave unwritten, which record as
+   * `null`. Any other `json:` capture whose file is missing fails the recording.
+   */
+  readonly missingJson?: readonly string[]
   readonly keepLines?: string
   /**
    * `true` sorts the kept lines. `'json'` reads the kept lines as one JSON array of strings (Jest's
@@ -482,6 +487,7 @@ const RUN_KEYS: readonly string[] = [
   'emptyStreams',
   'keepLines',
   'mask',
+  'missingJson',
   'sortStdout',
   'timeKeys',
 ]
@@ -538,7 +544,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       throw bad(`has the unknown key "${key}" (expected ${RUN_KEYS.join(', ')})`)
     }
   }
-  const { argv, capture, emptyStreams, keepLines, mask, sortStdout, timeKeys } = run
+  const { argv, capture, emptyStreams, keepLines, mask, missingJson, sortStdout, timeKeys } = run
   if (
     !Array.isArray(capture) ||
     capture.length === 0 ||
@@ -559,6 +565,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     argv?: Partial<Record<FixtureRunner, string[]>>
     capture: string[]
     emptyStreams?: ('stdout' | 'stderr')[]
+    missingJson?: string[]
     keepLines?: string
     sortStdout?: true | 'json'
     timeKeys?: string[]
@@ -619,6 +626,20 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       )
     }
     out.emptyStreams = emptyStreams
+  }
+  if (missingJson !== undefined) {
+    if (
+      !Array.isArray(missingJson) ||
+      missingJson.length === 0 ||
+      new Set(missingJson).size !== missingJson.length ||
+      !missingJson.every(
+        (entry): entry is string =>
+          typeof entry === 'string' && entry.startsWith('json:') && capture.includes(entry),
+      )
+    ) {
+      throw bad('"missingJson" must list, once each, "json:" entries that "capture" lists')
+    }
+    out.missingJson = missingJson
   }
   if (sortStdout !== undefined) {
     if (sortStdout !== true && sortStdout !== 'json') {
