@@ -10,10 +10,12 @@ import { SourceMap } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
-import { istanbulInstrumenter, readInitialCoverage } from '@provino/coverage/runtime'
+import { loadInstrumenter } from '@provino/coverage/runtime'
 import { jestHoistPolicy } from '@provino/dialect-jest'
 import { createPipeline } from '@provino/transform'
 import type { IstanbulRange } from '@provino/types'
+
+const { istanbulInstrumenter, readInitialCoverage } = await loadInstrumenter()
 
 const roots: string[] = []
 after(() => {

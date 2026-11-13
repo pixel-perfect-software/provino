@@ -49,11 +49,14 @@
     "@provino/types": "workspace:*",
     "istanbul-lib-coverage": "catalog:",
     "magic-string": "catalog:",
-    "oxc-parser": "catalog:"
+    "oxc-parser": "catalog:",
+    "picomatch": "catalog:"
   },
   "devDependencies": {
     "@babel/core": "catalog:",
+    "@jest/transform": "catalog:",
     "@types/istanbul-lib-coverage": "catalog:",
+    "@types/picomatch": "catalog:",
     "babel-plugin-istanbul": "catalog:",
     "istanbul-lib-instrument": "catalog:"
   }
