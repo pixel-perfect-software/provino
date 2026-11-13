@@ -15,6 +15,7 @@ import {
 } from './changesets.ts'
 import { umbrellaDependencyProblems } from './hygiene.ts'
 import { installScriptProblems } from './install-scripts.ts'
+import { importedPackages, knipIgnoredDependencies, knipUmbrellaProblems } from './knip-config.ts'
 import type { PackageManifest } from './package-json.ts'
 import { lintReleaseWorkflow } from './release-lint.ts'
 import { ROOT, readWorkspacePackages, type WorkspacePackage } from './workspace.ts'
@@ -251,6 +252,90 @@ describe('the umbrella lists what it bundles (T1.10)', () => {
       'provino inlines packages that need real-dep, but does not list it',
       'provino inlines packages that need @standard-schema/spec, but does not list it',
       'provino lists dead-weight, but no package it inlines needs it',
+    ])
+  })
+})
+
+describe('knip.jsonc and the umbrella agree (T1.6)', () => {
+  test("the real ignore list is the dependencies provino's own files do not import, and nothing stale", () => {
+    const umbrella = readWorkspacePackages().find((pkg) => pkg.manifest.name === 'provino')
+    assert.ok(umbrella)
+    assert.deepEqual(
+      knipUmbrellaProblems({
+        declared: Object.keys(umbrella.manifest.dependencies),
+        ignored: knipIgnoredDependencies(ROOT, 'packages/provino'),
+        imported: importedPackages(ROOT, ['packages/provino/src', 'packages/provino/test']),
+      }),
+      [],
+    )
+  })
+
+  test('the three provino lists for its declarations, which no file of its own imports, are ignored', () => {
+    const ignored = knipIgnoredDependencies(ROOT, 'packages/provino')
+    for (const name of ['@jest/expect-utils', '@standard-schema/spec', 'oxc-parser']) {
+      assert.ok(ignored.includes(name), name)
+    }
+  })
+
+  test('a dependency no own file imports and knip does not ignore is reported: it passes only on a built checkout', () => {
+    assert.deepEqual(
+      knipUmbrellaProblems({
+        declared: ['bundled-dep', 'imported-dep', 'ignored-dep'],
+        ignored: ['ignored-dep'],
+        imported: new Set(['imported-dep']),
+      }),
+      [
+        `provino lists bundled-dep, which none of its own files imports and knip.jsonc doesn't ignore: knip passes only while a build's dist/*.d.ts imports it`,
+      ],
+    )
+  })
+
+  test('an ignore entry for something provino neither lists nor imports is stale; one it imports is not', () => {
+    assert.deepEqual(
+      knipUmbrellaProblems({
+        declared: ['a'],
+        ignored: ['a', 'gone', 'test-only'],
+        imported: new Set(['test-only']),
+      }),
+      ['knip.jsonc ignores gone for packages/provino, but provino neither lists nor imports it'],
+    )
+  })
+
+  test('the parsers read comments, strings and require.resolve as they are written', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'knip-config-'))
+    writeFileSync(
+      join(dir, 'knip.jsonc'),
+      [
+        '// a comment',
+        '{',
+        '  "$schema": "https://unpkg.com/knip@6/schema.json",',
+        '  "workspaces": {',
+        '    // another',
+        '    "packages/x": { "ignoreDependencies": ["a", "@s/b"] }',
+        '  }',
+        '}',
+      ].join('\n'),
+    )
+    assert.deepEqual(knipIgnoredDependencies(dir, 'packages/x'), ['a', '@s/b'])
+    assert.deepEqual(knipIgnoredDependencies(dir, 'packages/none'), [])
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'src', 'a.ts'),
+      [
+        "import { x } from 'pkg-a/deep'",
+        "import type { T } from '@s/types'",
+        "import './local.ts'",
+        "import 'node:fs'",
+        "const m = await import('dyn')",
+        "const r = require.resolve('resolved/package.json')",
+        '',
+      ].join('\n'),
+    )
+    assert.deepEqual([...importedPackages(dir, ['src'])].sort(), [
+      '@s/types',
+      'dyn',
+      'pkg-a',
+      'resolved',
     ])
   })
 })

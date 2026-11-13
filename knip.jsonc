@@ -98,7 +98,16 @@
     "packages/provino": {
       "ignoreDependencies": [
         // Bundled into `provino`: the packages `provino` inlines import these, and the build
-        // leaves them external. `pnpm hygiene` checks this list against those packages' own.
+        // leaves them external. `pnpm hygiene` (umbrella-deps) holds this list to `provino`'s
+        // dependencies: each one its own files don't import is here.
+        //
+        // The first three are also imported by `provino`'s built declarations (dist/*.d.ts: the
+        // `Tester` type of `@jest/expect-utils`, the Standard Schema types, Oxc's types). Knip
+        // reads those files when a build has made them, so without this it passes after a build
+        // and fails on a fresh checkout.
+        "@jest/expect-utils",
+        "@standard-schema/spec",
+        "oxc-parser",
         "@jest/get-type",
         "@jridgewell/remapping",
         "@sinonjs/fake-timers",
