@@ -1,0 +1,9 @@
+{
+  "description": "A run of exactly one test file, with no --verbose, under Jest 30.5.2 (T9.7, B21c): `@jest/core`'s runJest turns verbose on by itself when `allTests.length === 1` unless `--silent` or `verbose: false`, so the default run lists the file's tests under their describe titles (check, circle for skipped, pencil for todo; skipped and todo after the others), a blank line after the list, and prints the console block before the header, as `--verbose` does (report-verbose). One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^ +(✓|✕|○|✎) |^ +math$|^ +console\\.|^ {4}from the test$|^  ● Console$|^(Test Suites|Tests):"
+  }
+}
