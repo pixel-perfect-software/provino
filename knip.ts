@@ -87,6 +87,11 @@ const config: KnipConfig = {
     },
     'packages/core': { ignoreDependencies: ['@types/sinonjs__fake-timers'] },
     'packages/timers': { ignoreDependencies: ['@types/sinonjs__fake-timers'] },
+    'packages/coverage': {
+      // The oracles of T8.10 (`instrument.test.ts`, `initial-coverage.test.ts`): Jest 30.5.2's own
+      // Istanbul instrumenter and Babel, loaded by name through `createRequire`.
+      ignoreDependencies: ['@babel/core', 'babel-plugin-istanbul', 'istanbul-lib-instrument'],
+    },
     'packages/env-shared': {
       // Declared by the package map; not imported yet.
       ignoreDependencies: ['@provino/types'],

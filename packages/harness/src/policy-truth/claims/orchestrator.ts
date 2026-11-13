@@ -439,6 +439,23 @@ export const coverageClaims: Claims = {
   'coverage.globThresholdScope': coverageIsPhase2,
   'coverage.includeUntestedByDefault': coverageIsPhase2,
   'coverage.reportsDirectory': golden('defaults'),
+  // B23b records Jest's values with its coverage goldens (Phases 4-6); B25 records Vitest's.
+  'coverage.v8Conversion': each(
+    pending('B23b', "the goldens that compare Jest's v8 provider record it (T8.12)"),
+    pending('B25', "Vitest's converter is B25's"),
+  ),
+  'coverage.v8HitCounts': each(
+    pending('B23b', "the goldens that compare Jest's v8 provider record it (T8.12)"),
+    pending('B25', "Vitest's V8 collection is B25's"),
+  ),
+  'coverage.istanbulVariable': each(
+    pending('B23b', 'the golden `coverage/istanbul-variable` records it (T8.10)'),
+    pending('B25', "Vitest's Istanbul provider is B25's"),
+  ),
+  'coverage.thresholdMessages': each(
+    pending('B23b', "the threshold goldens record Jest's lines (T8.11)"),
+    pending('B25', "Vitest's threshold texts are B25's"),
+  ),
 }
 
 export const globalsClaims: Claims = {

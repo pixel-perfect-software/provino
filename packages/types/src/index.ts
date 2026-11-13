@@ -29,11 +29,16 @@ export type {
   CoverageOptions,
   CoverageProvider,
   CoverageSummary,
+  CoverageThresholdGroup,
   CoverageThresholds,
   CoverageTotals,
   ExecutedModuleInfo,
+  IstanbulFileCoverageData,
+  IstanbulRange,
   MetricThresholds,
   RawCoverage,
+  RunCoverageOptions,
+  SerializedCoverageConfig,
   TransformLookup,
   V8ScriptCoverage,
 } from './coverage.ts'
@@ -126,6 +131,7 @@ export type {
 export type { IsolationTier } from './isolation.ts'
 export type {
   CompiledModuleEvent,
+  CompiledModuleInfo,
   CreateLoader,
   EngineKind,
   FileRegistry,

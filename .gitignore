@@ -31,3 +31,4 @@ packages/provino/.work/
 
 # the Jest config oracle's preset projects, written at run time (pnpm bench:jest-config presets)
 packages/dialect-jest/oracle/presets/.work/
+.refs-istanbuljs/

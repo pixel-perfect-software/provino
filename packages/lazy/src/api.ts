@@ -3,6 +3,7 @@
 // slot once, so the handles it returns keep that runtime.
 import type { TestRunHandle } from '@provino/types'
 import { LazyError } from './errors.ts'
+import { setSiteVia } from './runtime/site.ts'
 import { currentLazyRuntime, type LazyRuntime } from './slot.ts'
 import type {
   ContextOutput,
@@ -14,6 +15,10 @@ import type {
   SharedLazy,
   Values,
 } from './types.ts'
+
+// The runtime's registration methods take the forwarder as a last, hidden argument, so a definition
+// is sited at the user's call and not at this file.
+type Forwarded = (...args: unknown[]) => never
 
 function runtime(): LazyRuntime {
   const found = currentLazyRuntime()
@@ -33,14 +38,14 @@ function runtime(): LazyRuntime {
 export const lazy: LazyRoot = Object.freeze(
   Object.defineProperties(
     {
-      let(key, define, options) {
-        return runtime().lazy.let(key, define, options)
+      let: function letRoot(key, define, options) {
+        return (runtime().lazy.let as Forwarded)(key, define, options, letRoot)
       },
-      eager(key, define, options) {
-        return runtime().lazy.eager(key, define, options)
+      eager: function eagerRoot(key, define, options) {
+        return (runtime().lazy.eager as Forwarded)(key, define, options, eagerRoot)
       },
-      override(key, define) {
-        return runtime().lazy.override(key, define)
+      override: function overrideRoot(key, define) {
+        return (runtime().lazy.override as Forwarded)(key, define, overrideRoot)
       },
       from(ctx) {
         return runtime().lazy.from(ctx)
@@ -73,7 +78,9 @@ export function itBehavesLike<R, A extends unknown[]>(
   $: NoInfer<Values<R>>,
   ...args: NoInfer<A>
 ): void {
-  runtime().itBehavesLike(group, $, ...args)
+  const rt = runtime()
+  setSiteVia(itBehavesLike)
+  rt.itBehavesLike(group, $, ...args)
 }
 
 /**
@@ -85,7 +92,9 @@ export function includeExamples<R, A extends unknown[]>(
   $: NoInfer<Values<R>>,
   ...args: NoInfer<A>
 ): void {
-  runtime().includeExamples(group, $, ...args)
+  const rt = runtime()
+  setSiteVia(includeExamples)
+  rt.includeExamples(group, $, ...args)
 }
 
 /**
@@ -111,7 +120,9 @@ export function includeContext<
   R,
   A,
 >($: Lazy<T, L, W, E>, context: SharedContext<R, A>): Lazy<Omit<T, keyof A> & A, L, W, E> {
-  return runtime().includeContext($, context)
+  const rt = runtime()
+  setSiteVia(includeContext)
+  return rt.includeContext($, context)
 }
 
 /**

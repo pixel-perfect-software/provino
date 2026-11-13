@@ -12,6 +12,10 @@
     "babel-plugin-jest-hoist": "hold",
     "expect": "hold",
     "pretty-format": "hold",
-    "@sinonjs/fake-timers": "hold"
+    "@sinonjs/fake-timers": "hold",
+    "istanbul-lib-*": "hold",
+    "@istanbuljs/*": "hold",
+    "@types/istanbul-lib-*": "hold",
+    "babel-plugin-istanbul": "hold"
   }
 }

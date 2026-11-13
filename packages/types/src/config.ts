@@ -2,6 +2,7 @@
 // the keys each feature needs.
 
 import type { JsonValue } from './clone-safe.ts'
+import type { SerializedCoverageConfig } from './coverage.ts'
 import type {
   Dialect,
   DialectName,
@@ -235,4 +236,6 @@ export interface SerializedProjectConfig {
   /** Absolute paths, imported after `setupFiles` and before each test file (Jest `setupFilesAfterEnv`, Vitest `setupFiles`). */
   readonly setupFilesAfterEnv: readonly string[]
   readonly loader: SerializedLoaderConfig
+  /** Present when the run collects coverage; absent means off. */
+  readonly coverage?: SerializedCoverageConfig
 }

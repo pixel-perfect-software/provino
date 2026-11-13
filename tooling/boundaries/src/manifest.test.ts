@@ -57,11 +57,12 @@ describe('the rules the real manifest must keep (CLAUDE.md non-negotiables 1 and
   const reaches = (from: string, to: string): boolean =>
     allowedDeps(real, nodeNamed(from)).some((dep) => dep.name === to || dep.parent === to)
 
-  test('the neutral packages are exactly the ten in non-negotiable 1', () => {
+  test('the neutral packages are exactly the eleven in non-negotiable 1', () => {
     const neutral = top.filter((n) => n.neutral).map((n) => n.name.replace('@provino/', ''))
     assert.deepEqual(neutral.sort(), [
       'config',
       'core',
+      'coverage',
       'expect',
       'lazy',
       'loader',

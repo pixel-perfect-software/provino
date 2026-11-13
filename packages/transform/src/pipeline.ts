@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { findPackageJSON } from 'node:module'
 import { dirname } from 'node:path'
 import type {
+  CoverageInstrumenter,
   HoistPolicy,
   Pipeline,
   SourceMapV3,
@@ -80,6 +81,16 @@ export interface PipelineOptions {
    * cache, so a warm run skips that step. The loader sets it; the strip-only benches don't.
    */
   readonly runnerForm?: boolean
+  /**
+   * Instruments a file that is requested with `instrument: true` (Istanbul coverage, B23b, U6): after
+   * TypeScript is stripped (or after the project's transformer, unless it reported `canInstrument`
+   * and was given `instrument: true`), before the hoister and the module-runner rewrite, with the
+   * input map the earlier steps composed. Its `name` is part of the cache fingerprint. Without one,
+   * a request with `instrument: true` is `TRANSFORM_OPTION_UNSUPPORTED` (on a transformer's file
+   * too, unless the transformer reports `canInstrument`). A file the instrumenter can't read gets
+   * a `COVERAGE_INSTRUMENT_FAILED` error diagnostic and its code unchanged.
+   */
+  readonly instrumenter?: CoverageInstrumenter
 }
 
 /**
@@ -271,6 +282,7 @@ export const createPipeline: CreatePipeline = (options) => {
     hoist: options.hoist,
     transformers: options.transformers?.fingerprint ?? null,
     runnerForm: options.runnerForm === true,
+    instrumenter: options.instrumenter?.name ?? null,
   })
   const cache = options.cache === false ? undefined : createTransformCache(options.cache.dir)
 
@@ -312,6 +324,36 @@ export const createPipeline: CreatePipeline = (options) => {
   }
 
   /**
+   * Instruments `code` when the request asks for it (U6): the stripped code, or a transformer's
+   * output, goes to the instrumenter with the map the earlier steps composed to the source; its
+   * step map joins the list. Runs before the hoister, as `babel-plugin-istanbul` runs in Jest's
+   * own transform (the hoister's factory rule allows the `cov_*` names it writes).
+   */
+  function applyInstrument(
+    code: string,
+    request: TransformRequest,
+    maps: (SourceMapV3 | null)[],
+    diagnostics: TransformDiagnostic[],
+  ): string {
+    const { instrumenter } = options
+    if (!request.instrument || instrumenter === undefined) return code
+    // A file that already failed to parse is not the instrumenter's to report on.
+    if (diagnostics.some((d) => d.severity === 'error')) return code
+    try {
+      const result = instrumenter.instrument(code, request.filename, composeMaps(maps))
+      maps.push(result.map)
+      return result.code
+    } catch (error) {
+      diagnostics.push({
+        severity: 'error',
+        code: 'COVERAGE_INSTRUMENT_FAILED',
+        message: error instanceof Error ? error.message : String(error),
+      })
+      return code
+    }
+  }
+
+  /**
    * The record for a file a user transformer produced (T3.8). The output is what Jest would run
    * (CommonJS: `supportsStaticESM` is false), so the format comes from its own syntax. Our hoister
    * runs on it unless the output carries one of the host's markers: a transformer that hoisted
@@ -324,12 +366,20 @@ export const createPipeline: CreatePipeline = (options) => {
     cacheKey: string,
   ) {
     const { filename } = request
+    if (request.instrument && options.instrumenter === undefined && !source.canInstrument) {
+      throw instrumenterMissing()
+    }
     const maps: (SourceMapV3 | null)[] = [source.map]
     const diagnostics: TransformDiagnostic[] = []
-    const alreadyHoisted = host.hoistedMarkers.some((marker) => source.code.includes(marker))
+    // Jest's ScriptTransformer: a transformer that says it can instrument does it itself, given
+    // `instrument: true`; otherwise the instrumenter runs on its output.
+    const instrumented = source.canInstrument
+      ? source.code
+      : applyInstrument(source.code, request, maps, diagnostics)
+    const alreadyHoisted = host.hoistedMarkers.some((marker) => instrumented.includes(marker))
     const { code, staticMocks, lateDeps } = alreadyHoisted
-      ? { code: source.code, staticMocks: [], lateDeps: [] }
-      : applyHoist(source.code, request, request.source, maps, diagnostics)
+      ? { code: instrumented, staticMocks: [], lateDeps: [] }
+      : applyHoist(instrumented, request, request.source, maps, diagnostics)
     const lang = /\.[cm]?[jt]sx$/.test(filename) ? 'jsx' : 'js'
     const facts = moduleFacts(filename, code, lang, 'unambiguous')
     const format = formatOf(facts, false)
@@ -348,8 +398,22 @@ export const createPipeline: CreatePipeline = (options) => {
     } satisfies TransformRecord
   }
 
-  /** A transformer that throws is a `TRANSFORMER_FAILED` error on the record, as for a parse error. */
+  function instrumenterMissing(): TransformError {
+    return new TransformError(
+      'TRANSFORM_OPTION_UNSUPPORTED',
+      'coverage instrumentation needs an `instrumenter` option (U6, B23b).',
+    )
+  }
+
+  /**
+   * A transformer that throws is a `TRANSFORMER_FAILED` error on the record, as for a parse error.
+   * A request the pipeline itself can't serve (no instrumenter) is the caller's error, as on the
+   * Oxc path, so it is thrown.
+   */
   function failedRecord(error: unknown): TransformRecord {
+    if (error instanceof TransformError && error.code === 'TRANSFORM_OPTION_UNSUPPORTED') {
+      throw error
+    }
     return {
       code: '',
       map: null,
@@ -416,11 +480,8 @@ export const createPipeline: CreatePipeline = (options) => {
         `no transform handles ${request.filename}`,
       )
     }
-    if (request.instrument) {
-      throw new TransformError(
-        'TRANSFORM_OPTION_UNSUPPORTED',
-        'coverage instrumentation is not supported yet (U6, with Track 8).',
-      )
+    if (request.instrument && options.instrumenter === undefined) {
+      throw instrumenterMissing()
     }
     const { filename, source } = request
     const config = found.lang === 'js' ? NO_CONFIG : configFor(filename)
@@ -451,6 +512,7 @@ export const createPipeline: CreatePipeline = (options) => {
       for (const error of result.errors) diagnostics.push(diagnostic(source, error))
     }
 
+    code = applyInstrument(code, request, maps, diagnostics)
     const hoisted = applyHoist(code, request, source, maps, diagnostics)
     code = hoisted.code
     const { staticMocks, lateDeps } = hoisted

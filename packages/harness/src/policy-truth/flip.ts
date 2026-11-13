@@ -88,6 +88,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'report.resultStatusSkipped': ['pending', 'skipped'],
   'coverage.thresholdGrouping': ['first-match', 'all-files'],
   'coverage.globThresholdScope': ['per-file', 'aggregate'],
+  'coverage.v8Conversion': ['v8-to-istanbul', 'ast'],
   'hoist.placement': ['enclosing-block', 'top-level-only'],
   'hoist.reExports': ['in-order', 'static'],
   'hoist.rewrittenCalls': ['detached', 'member'],

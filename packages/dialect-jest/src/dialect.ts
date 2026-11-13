@@ -376,6 +376,22 @@ export const jestPolicy: PolicyOverrides = {
     includeUntestedByDefault: true,
     // research: track-08 L520
     reportsDirectory: 'coverage',
+    // research: track-08 F10 (Jest's v8 provider runs v8-to-istanbul; B23b records it)
+    v8Conversion: 'v8-to-istanbul',
+    // research: track-08 F10 (jest-runtime starts precise coverage with `callCount: true`)
+    v8HitCounts: true,
+    // research: track-08 F9 (babel-plugin-istanbul's default `coverageVariable`)
+    istanbulVariable: '__coverage__',
+    thresholdMessages: {
+      // research: track-08 F11 (jest-reporters CoverageReporter.ts L271)
+      belowMinimum:
+        'Jest: Coverage for {metric} ({actual}%) does not meet "{name}" threshold ({threshold}%)',
+      // research: track-08 F11 (CoverageReporter.ts L265)
+      aboveMaximumUncovered:
+        'Jest: Uncovered count for {metric} ({actual}) exceeds {name} threshold ({threshold})',
+      // research: track-08 F11 (CoverageReporter.ts L448)
+      notFound: 'Jest: Coverage data for {path} was not found.',
+    },
   },
 }
 

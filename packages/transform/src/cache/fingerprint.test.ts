@@ -14,6 +14,7 @@ const base: FingerprintInputs = {
   hoist: blockPolicy,
   transformers: null,
   runnerForm: false,
+  instrumenter: null,
 }
 
 function differs(change: Partial<FingerprintInputs>): boolean {
@@ -33,6 +34,12 @@ test('the fingerprint is stable, and each input moves it', () => {
   assert.ok(differs({ transformers: 'a-host' }), 'transformer host')
   assert.ok(differs({ hoist: null }), 'no hoisting')
   assert.ok(differs({ runnerForm: true }), 'keeping the runner form')
+  assert.ok(differs({ instrumenter: 'istanbul:r1' }), 'a coverage instrumenter')
+  assert.ok(
+    pipelineFingerprint({ ...base, instrumenter: 'istanbul:r1' }) !==
+      pipelineFingerprint({ ...base, instrumenter: 'istanbul:r2' }),
+    'its revision',
+  )
 })
 
 test('the hoist policy moves it, in any of its parts', () => {
