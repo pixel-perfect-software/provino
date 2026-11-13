@@ -71,6 +71,12 @@ export interface FileOutcome {
    * snapshot state, or a file that never collected its tests.
    */
   readonly snapshot?: SnapshotFileReport
+  /**
+   * The modules the file loaded (absolute paths: its setup files, the test file and what they
+   * import), as the loader reports them. They go out as one `deps` event before `fileDone`, for
+   * affected-test selection (T9.12). Absent for a runner with no loader.
+   */
+  readonly deps?: readonly string[]
 }
 
 /**
@@ -240,6 +246,14 @@ export function startWorker(
       leakedHandles = outcome?.leakedHandles ?? 0
       leakedGlobals = outcome?.leakedGlobals ?? []
       snapshot = outcome?.snapshot ?? null
+      if (outcome?.deps !== undefined) {
+        packer.emit({
+          type: 'deps',
+          fileId: job.fileId,
+          modules: outcome.deps,
+          t: performance.now(),
+        })
+      }
     } catch (error) {
       // The runtime reports test failures as events; a runner that throws is a bug, charged to the file.
       charge(error, job.fileId)

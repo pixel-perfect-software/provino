@@ -238,6 +238,43 @@ describe('the file id (D23)', () => {
   })
 })
 
+describe('the deps event (U5)', () => {
+  const files = {
+    'leaf.js': 'module.exports = 1',
+    'mid.js': "module.exports = require('./leaf.js') + 1",
+    'setup.js': '',
+    'a.test.js': "const mid = require('./mid.js')\ntest('a', () => { expect(mid).toBe(2) })",
+    'b.test.js': "test('b', () => {})",
+  }
+
+  for (const isolation of ['registry', 'none'] as const) {
+    it(`sends one per file, under ${isolation}: the modules the file loaded, before its fileDone`, async () => {
+      const p = await project(files)
+      const config = runtimeConfig(p.dir, { setupFiles: [p.path('setup.js')] })
+      const jobs = [
+        runtimeJob(config, p.path('a.test.js')),
+        runtimeJob(config, p.path('b.test.js')),
+      ]
+      const run = await runJobs({ config, isolation, jobs })
+      const deps = eventsOf(run.events, 'deps')
+      assert.deepEqual(
+        deps.map((event) => event.fileId),
+        jobs.map((job) => job.fileId),
+        'one per file, in order',
+      )
+      const [first, second] = deps
+      assert.deepEqual(first?.modules.toSorted(), [
+        p.path('a.test.js'),
+        p.path('leaf.js'),
+        p.path('mid.js'),
+        p.path('setup.js'),
+      ])
+      assert.deepEqual(second?.modules.toSorted(), [p.path('b.test.js'), p.path('setup.js')])
+      for (const event of deps) assert.equal(typeof event.t, 'number')
+    })
+  }
+})
+
 describe('setup files are fresh for every file', () => {
   const files = {
     'dep.js': "__trace.push('dep evaluated')",
