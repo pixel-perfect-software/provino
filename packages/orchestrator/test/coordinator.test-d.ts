@@ -23,6 +23,7 @@ import {
   fileIdOf,
   isProvinoCacheDir,
   type OpenHandleOptions,
+  type OpenHandleTracker,
   OrchestratorError,
   type OrchestratorErrorCode,
   type Pool,
@@ -276,7 +277,11 @@ transportFor('forks', { entry: '/w.ts', memoryLimitMb: 64 })
 
 // ---- Open handles (T9.10).
 expectTypeOf(collectOpenHandles).parameters.toEqualTypeOf<[OpenHandleOptions]>()
-expectTypeOf(collectOpenHandles).returns.toEqualTypeOf<() => Promise<OpenHandle[]>>()
+expectTypeOf(collectOpenHandles).returns.toEqualTypeOf<OpenHandleTracker>()
+expectTypeOf<OpenHandleTracker['collect']>().returns.toEqualTypeOf<Promise<OpenHandle[]>>()
+expectTypeOf<OpenHandleTracker['dispose']>().returns.toEqualTypeOf<void>()
+// @ts-expect-error a tracker is not called: it has `collect` and `dispose`
+collectOpenHandles({ roots: ['/project'] })()
 collectOpenHandles({ roots: ['/project'] })
 // @ts-expect-error the roots are required: without them nothing is the user's
 collectOpenHandles({})

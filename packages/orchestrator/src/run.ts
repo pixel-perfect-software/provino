@@ -33,7 +33,7 @@ import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
 import { OrchestratorError } from './errors.ts'
 import { fileIdOf, relativePosix } from './file-id.ts'
 import { configHash, hashOf, workerKeyOf } from './key.ts'
-import { collectOpenHandles } from './open-handles.ts'
+import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
 import { selectFiles } from './select.ts'
 import { createHistorySequencer } from './sequencer.ts'
@@ -561,7 +561,7 @@ export async function runProjects(
     // file) kills it, as Jest's own exit does; Vitest's (after each test) lets it end.
     if (bailAfter === 'file') void pool.close()
   }
-  let collectHandles: (() => Promise<OpenHandle[]>) | undefined
+  let handles: OpenHandleTracker | undefined
 
   /** The files that have a result, in queue order. */
   const finishedFiles = (): FileResult[] => queue.flatMap((entry) => results.get(entry) ?? [])
@@ -731,7 +731,7 @@ export async function runProjects(
     // `runFile` asks the pool for its worker before its first `await`, so every file is requested
     // by the time `drain` runs: from here on an idle worker has nothing to wait for.
     if (options.detectOpenHandles === true) {
-      collectHandles = collectOpenHandles({ roots: members.map((m) => m.project.rootDir) })
+      handles = collectOpenHandles({ roots: members.map((m) => m.project.rootDir) })
     }
     const running = queue.map((entry) => runFile(entry))
     pool.drain()
@@ -739,8 +739,8 @@ export async function runProjects(
     // The history is complete; writing it overlaps the workers' shutdown.
     await Promise.all([pool.close(), writeCache()])
     // After the last worker has stopped: what it could not clean up is what is left.
-    const openHandles = (await collectHandles?.()) ?? []
-    collectHandles = undefined
+    const openHandles = (await handles?.collect()) ?? []
+    handles = undefined
 
     const failed =
       bailed ||
@@ -758,7 +758,7 @@ export async function runProjects(
   } catch (error) {
     await pool.close()
     // The hook that tracks resources is process-wide: it must not outlive the run.
-    await collectHandles?.().catch(() => [])
+    handles?.dispose()
     // Reporters that heard `run:start` hear how it ended, whatever threw.
     if (announced) {
       try {

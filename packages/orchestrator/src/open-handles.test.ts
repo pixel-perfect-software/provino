@@ -1,9 +1,9 @@
 // `collectOpenHandles` (T9.10) on real resources made by real modules, and `codeFrame` against the
 // text babel's code frame gives with colour off (what Jest prints).
 import assert from 'node:assert/strict'
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import { codeFrame, collectOpenHandles } from './open-handles.ts'
@@ -68,6 +68,7 @@ describe('collectOpenHandles', () => {
   /** A module of the "project": its functions make resources, and return them to be cleaned up. */
   async function project(name: string, text: string): Promise<Record<string, () => unknown>> {
     const file = join(dir, name)
+    mkdirSync(dirname(file), { recursive: true })
     writeFileSync(file, text)
     return (await import(pathToFileURL(file).href)) as Record<string, () => unknown>
   }
@@ -77,10 +78,10 @@ describe('collectOpenHandles', () => {
       'leaks.mjs',
       ['export function leak() {', '  return setInterval(() => {}, 1000)', '}', ''].join('\n'),
     )
-    const collect = collectOpenHandles({ roots: [dir] })
+    const tracker = collectOpenHandles({ roots: [dir] })
     const timer = mod.leak?.() as NodeJS.Timeout
     try {
-      const handles = await collect()
+      const handles = await tracker.collect()
       assert.equal(handles.length, 1)
       const [handle] = handles
       assert.equal(handle?.type, 'Timeout')
@@ -113,13 +114,13 @@ describe('collectOpenHandles', () => {
         '',
       ].join('\n'),
     )
-    const collect = collectOpenHandles({ roots: [dir] })
+    const tracker = collectOpenHandles({ roots: [dir] })
     mod.cleared?.()
     const unrefd = mod.unrefd?.() as NodeJS.Timeout
     // Made by this file, which is Provino's own: not the project's.
     const outside = setInterval(() => {}, 1000)
     try {
-      assert.deepEqual(await collect(), [])
+      assert.deepEqual(await tracker.collect(), [])
     } finally {
       clearInterval(outside)
       clearInterval(unrefd)
@@ -141,11 +142,11 @@ describe('collectOpenHandles', () => {
         '',
       ].join('\n'),
     )
-    const collect = collectOpenHandles({ roots: [dir] })
+    const tracker = collectOpenHandles({ roots: [dir] })
     const made = mod.same?.() as NodeJS.Timeout[]
     const one = mod.other?.() as NodeJS.Timeout
     try {
-      const handles = await collect()
+      const handles = await tracker.collect()
       assert.equal(handles.length, 2)
       assert.deepEqual(
         handles.map((handle) => /many\.mjs:(\d+):/.exec(handle.frames[0] ?? '')?.[1]).sort(),
@@ -161,16 +162,71 @@ describe('collectOpenHandles', () => {
       'after.mjs',
       ['export function leak() {', '  return setInterval(() => {}, 1000)', '}', ''].join('\n'),
     )
-    const collect = collectOpenHandles({ roots: [dir] })
-    assert.deepEqual(await collect(), [])
+    const tracker = collectOpenHandles({ roots: [dir] })
+    assert.deepEqual(await tracker.collect(), [])
     const late = mod.leak?.() as NodeJS.Timeout
     try {
       // A second collector, started now, sees the timer only if the first one's hook is gone and
       // this one's is on: it knows nothing of what came before it.
       const again = collectOpenHandles({ roots: [dir] })
-      assert.deepEqual(await again(), [], 'a timer made before it started is not its to report')
+      assert.deepEqual(
+        await again.collect(),
+        [],
+        'a timer made before it started is not its to report',
+      )
     } finally {
       clearInterval(late)
+    }
+  })
+
+  it('reports a handle a dependency made from a callback the project scheduled, under the project’s stack', async () => {
+    // The interval's own stack has no frame of the project (a timer's callback runs from Node, into
+    // a dependency): it is the project's because the timer that ran it was.
+    await project(
+      'node_modules/dep/index.mjs',
+      [
+        'export function start() {',
+        '  globalThis.__dependencyHandle = setInterval(() => {}, 1000)',
+        '}',
+        '',
+      ].join('\n'),
+    )
+    const mod = await project(
+      'chain.mjs',
+      [
+        "import { start } from './node_modules/dep/index.mjs'",
+        'export function leak() {',
+        '  setTimeout(start, 0)',
+        '}',
+        '',
+      ].join('\n'),
+    )
+    const tracker = collectOpenHandles({ roots: [dir] })
+    mod.leak?.()
+    try {
+      const handles = await tracker.collect()
+      assert.equal(handles.length, 1, JSON.stringify(handles))
+      assert.equal(handles[0]?.type, 'Timeout')
+      assert.match(handles[0]?.frames[0] ?? '', /\(chain\.mjs:3:3\)$/)
+    } finally {
+      clearInterval((globalThis as { __dependencyHandle?: NodeJS.Timeout }).__dependencyHandle)
+    }
+  })
+
+  it('stops tracking and forgets what it saw on dispose, with nothing to wait for', async () => {
+    const mod = await project(
+      'disposed.mjs',
+      ['export function leak() {', '  return setInterval(() => {}, 1000)', '}', ''].join('\n'),
+    )
+    const tracker = collectOpenHandles({ roots: [dir] })
+    const before = mod.leak?.() as NodeJS.Timeout
+    tracker.dispose()
+    const after = mod.leak?.() as NodeJS.Timeout
+    try {
+      assert.deepEqual(await tracker.collect(), [], 'neither the timer before nor after is kept')
+    } finally {
+      clearInterval(before)
+      clearInterval(after)
     }
   })
 })
