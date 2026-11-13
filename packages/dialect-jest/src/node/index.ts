@@ -21,6 +21,7 @@ import { type NormalizeOptions, readJestConfigs } from './normalize.ts'
 import { jestProjectToNeutral } from './to-neutral.ts'
 import type { JestGlobalConfig, JestLoadedConfig, JestProjectConfig } from './types.ts'
 
+export * from '@provino/dialect-jest/results'
 export {
   JEST_CLI_OPTIONS,
   type JestCliOption,
@@ -61,6 +62,10 @@ export {
 } from './normalize.ts'
 export { replaceRootDirInPath } from './paths.ts'
 export { setupPreset } from './preset.ts'
+export {
+  type ProcessJestResultsOptions,
+  processJestResults,
+} from './reporters/process-results.ts'
 export {
   createJestResolution,
   type FindNodeModuleOptions,

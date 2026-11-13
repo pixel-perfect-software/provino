@@ -934,6 +934,7 @@ export interface FileInfo {
     readonly path: string;
     // (undocumented)
     readonly project: string;
+    readonly projectIndex?: number;
     readonly runPath?: string;
 }
 
@@ -994,6 +995,7 @@ export interface FileResult {
     readonly errors: readonly SerializedError[];
     // (undocumented)
     readonly file: FileInfo;
+    readonly snapshot?: SnapshotFileReport;
     // (undocumented)
     readonly state: "pass" | "fail" | "skip";
     readonly workerExit?: WorkerExit;
@@ -2635,6 +2637,7 @@ export interface SerializedError {
     readonly cause?: SerializedError;
     // (undocumented)
     readonly code?: string;
+    readonly details?: JsonValue;
     readonly diff?: {
         readonly expected: string;
         readonly actual: string;

@@ -791,3 +791,27 @@ test('run.argv refuses an option the recorder or mockCleanup sets, in any spelli
   const run = { capture: ['stdout'], argv: { jest: args } }
   assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, run })).run, run)
 })
+
+test('run keeps json: captures with timeKeys and mask', () => {
+  const run = {
+    capture: ['json:.harness-out/jest.json', 'stderr'],
+    timeKeys: ['startTime', 'duration'],
+    mask: ['pid \\d+'],
+  }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, run })).run, run)
+})
+
+test('run refuses timeKeys without a json: capture, and a bad timeKeys or mask', () => {
+  const bad = (run: unknown): void =>
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, run })),
+      rejects('HARNESS_FIXTURE_BAD_RUN'),
+    )
+  bad({ capture: ['stderr'], timeKeys: ['a'] })
+  bad({ capture: ['json:a.json'], timeKeys: [] })
+  bad({ capture: ['json:a.json'], timeKeys: ['a', 'a'] })
+  bad({ capture: ['json:../a.json'] })
+  bad({ capture: ['stderr'], mask: [] })
+  bad({ capture: ['stderr'], mask: ['('] })
+  bad({ capture: ['stderr'], mask: [''] })
+})

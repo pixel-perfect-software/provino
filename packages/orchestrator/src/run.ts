@@ -360,6 +360,8 @@ interface Member {
    * that when another one's config is byte-identical.
    */
   readonly identity: string
+  /** The project's place in the run's `projects` (0-based): what a reporter keys its config by. */
+  readonly projectIndex: number
   /** What the project's files reported, its update mode and its policy. */
   readonly snapshots: SnapshotMember
   readonly cache: ResultsCache | undefined
@@ -490,6 +492,7 @@ export async function runProjects(
       // another project of the run has the same one.
       cacheProject: cacheKeyCounts.get(cacheKey)?.length === 1 ? cacheKey : identity,
       identity,
+      projectIndex: index,
       // What every file does with its snapshots (build-plan §6: the worker writes the `.snap` files).
       snapshots: snapshotMember(
         resolveUpdateMode({
@@ -1095,6 +1098,7 @@ function planQueue(
         fileId: fileIdOf(member.identity, file.relativePath),
         path: file.relativePath,
         project: project.name,
+        projectIndex: member.projectIndex,
         ...(runPath === file.relativePath ? {} : { runPath }),
       },
     })
@@ -1146,7 +1150,13 @@ function resultOf(
               message: `The worker finished ${file.path} without reporting its result`,
             },
           ])
-        : { file, state: stateOf(end.state, todo), durationMs: end.durationMs, errors: end.errors }
+        : {
+            file,
+            state: stateOf(end.state, todo),
+            durationMs: end.durationMs,
+            errors: end.errors,
+            ...(outcome.done.snapshot === undefined ? {} : { snapshot: outcome.done.snapshot }),
+          }
     default:
       return outcome satisfies never
   }

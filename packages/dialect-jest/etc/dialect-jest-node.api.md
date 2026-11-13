@@ -9,15 +9,152 @@ import { ConfigReader } from '@provino/types';
 import { ConfigSource } from '@provino/types';
 import { Diagnostic } from '@provino/types';
 import { Dialect } from '@provino/types';
+import { FileInfo } from '@provino/types';
+import { FileResult } from '@provino/types';
 import { FlagSpec } from '@provino/types';
 import { NeutralProject } from '@provino/types';
+import { Reporter } from '@provino/types';
 import { RunRequest } from '@provino/types';
+import { SerializedError } from '@provino/types';
+import { SnapshotRunSummary } from '@provino/types';
+import { TaskId } from '@provino/types';
+import { TaskNode } from '@provino/types';
+import { TaskResult } from '@provino/types';
+import { TestTask } from '@provino/types';
+
+// @public
+export function addResult(aggregated: AggregatedResult, testResult: TestResult): void;
+
+// @public
+export interface AggregatedResult {
+    // (undocumented)
+    numFailedTests: number;
+    // (undocumented)
+    numFailedTestSuites: number;
+    // (undocumented)
+    numPassedTests: number;
+    // (undocumented)
+    numPassedTestSuites: number;
+    // (undocumented)
+    numPendingTests: number;
+    // (undocumented)
+    numPendingTestSuites: number;
+    // (undocumented)
+    numRuntimeErrorTestSuites: number;
+    // (undocumented)
+    numTodoTests: number;
+    // (undocumented)
+    numTotalTests: number;
+    // (undocumented)
+    numTotalTestSuites: number;
+    // (undocumented)
+    openHandles: Error[];
+    // (undocumented)
+    runExecError?: SerializableError;
+    // (undocumented)
+    snapshot: SnapshotSummary;
+    // (undocumented)
+    startTime: number;
+    // (undocumented)
+    success: boolean;
+    // (undocumented)
+    testResults: TestResult[];
+    // (undocumented)
+    wasInterrupted: boolean;
+}
+
+// @public
+export interface AssertionResult {
+    // (undocumented)
+    ancestorTitles: string[];
+    // (undocumented)
+    duration?: number | null;
+    // (undocumented)
+    failing?: boolean;
+    // (undocumented)
+    failureDetails: unknown[];
+    // (undocumented)
+    failureMessages: string[];
+    // (undocumented)
+    fullName: string;
+    // (undocumented)
+    invocations?: number;
+    // (undocumented)
+    location?: {
+        column: number;
+        line: number;
+    } | null;
+    // (undocumented)
+    numPassingAsserts: number;
+    // (undocumented)
+    retryMessages?: string[];
+    // (undocumented)
+    retryReasons?: string[];
+    // (undocumented)
+    startAt?: number | null;
+    // (undocumented)
+    status: Status;
+    // (undocumented)
+    title: string;
+    wouldRun?: true;
+}
+
+// @public
+export function buildFailureTestResult(testPath: string, err: SerializableError): TestResult;
+
+// @public
+export interface BuildOptions {
+    // (undocumented)
+    readonly displayName: TestResult["displayName"];
+    readonly locations: boolean;
+    readonly slowTestThreshold?: number;
+}
+
+// @public
+export interface ConsoleEntry {
+    // (undocumented)
+    message: string;
+    // (undocumented)
+    origin: string;
+    // (undocumented)
+    type: string;
+}
+
+// @public
+export function createEmptyTestResult(): TestResult;
 
 // @public
 export function createJestConfigReader(options?: NormalizeOptions): ConfigReader<JestLoadedConfig, JestResolvedConfig>;
 
 // @public
 export function createJestResolution(requireResolve: JestRequireResolve): JestResolution;
+
+// @public
+export function createJestResults<Config extends ProjectConfigLike>(options: JestResultsOptions<Config>): JestResults<Config>;
+
+// @public
+export interface DisplayName {
+    // (undocumented)
+    color: string;
+    // (undocumented)
+    name: string;
+}
+
+// @public
+export interface FileEvents {
+    // (undocumented)
+    readonly endedAt: number;
+    // (undocumented)
+    readonly info: FileInfo;
+    // (undocumented)
+    readonly records: ReadonlyMap<TaskId, TestRecord>;
+    // (undocumented)
+    readonly result: FileResult;
+    readonly startedAt: number;
+    readonly testFilePath: string;
+    readonly tree: readonly TaskNode[] | undefined;
+    readonly unhandled: readonly SerializedError[];
+}
 
 // @public
 export function findJestConfig(cwd: string, explicit?: string): ConfigSource;
@@ -29,6 +166,56 @@ export interface FindNodeModuleOptions {
     // (undocumented)
     readonly extensions?: readonly string[] | undefined;
     readonly resolver?: string | null | undefined;
+}
+
+// @public
+export function finishAggregated(aggregated: AggregatedResult, end: RunEnd): void;
+
+// @public
+export function flattenSerializedError(error: SerializedError): string;
+
+// @public
+export function formatFileError(error: SerializableError, config: StackTraceConfig, options: StackTraceOptions, testPath: string): Promise<string>;
+
+// @public
+export function formatJson(results: AggregatedResult): FormattedTestResults;
+
+// @public
+export function formatRetryError(stack: string, config: StackTraceConfig, options: StackTraceOptions, testPath: string): Promise<string>;
+
+// @public
+export interface FormattedTestResult {
+    // (undocumented)
+    assertionResults: AssertionResult[];
+    // (undocumented)
+    coverage: unknown;
+    // (undocumented)
+    endTime: number;
+    // (undocumented)
+    message: string;
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    startTime: number;
+    // (undocumented)
+    status: "failed" | "passed" | "skipped" | "focused";
+    // (undocumented)
+    summary: string;
+}
+
+// @public
+export interface FormattedTestResults extends Omit<AggregatedResult, "testResults"> {
+    // (undocumented)
+    testResults: FormattedTestResult[];
+}
+
+// @public
+export function formatTestFailures(assertionResults: readonly AssertionResult[], config: StackTraceConfig, options: StackTraceOptions, testPath: string): Promise<string | null>;
+
+// @public
+export interface GlobalConfigLike {
+    // (undocumented)
+    readonly noStackTrace: boolean;
 }
 
 // @public
@@ -477,6 +664,23 @@ export interface JestResolvedConfig {
 }
 
 // @public
+export interface JestResults<Config extends ProjectConfigLike> {
+    aggregated(): AggregatedResult;
+    contexts(): Set<TestContext<Config>>;
+    readonly reporter: Reporter;
+    testOf(file: FileInfo): Test<Config>;
+    testResultOf(fileId: TaskId): TestResult | undefined;
+}
+
+// @public
+export interface JestResultsOptions<Config extends ProjectConfigLike> {
+    // (undocumented)
+    readonly globalConfig: GlobalConfigLike;
+    readonly now?: () => number;
+    readonly projectConfigs: readonly Config[];
+}
+
+// @public
 export function jestRunGlobalHooks(globalConfig: JestGlobalConfig): {
     readonly setup: readonly string[];
     readonly teardown: readonly string[];
@@ -492,7 +696,19 @@ export function loadJestConfig(source: ConfigSource): Promise<{
 }>;
 
 // @public
+export function makeCollectedTestResult(testResults: AssertionResult[], options: {
+    displayName: TestResult["displayName"];
+    testFilePath: string;
+}): TestResult;
+
+// @public
+export function makeEmptyAggregatedTestResult(): AggregatedResult;
+
+// @public
 export function neutralEnvironmentName(testEnvironment: string): string;
+
+// @public
+export const NO_TESTS_MESSAGE = "Your test suite must contain at least one test.";
 
 // @public
 export interface NormalizedJestOptions {
@@ -538,6 +754,38 @@ export function parseJestCli(args: readonly string[]): {
 };
 
 // @public
+export function processJestResults(options: ProcessJestResultsOptions): Promise<boolean>;
+
+// @public
+export interface ProcessJestResultsOptions {
+    // (undocumented)
+    readonly aggregated: AggregatedResult;
+    readonly cwd: string;
+    // (undocumented)
+    readonly globalConfig: {
+        readonly json: boolean;
+        readonly outputFile: string | undefined;
+        readonly testResultsProcessor: string | undefined;
+        readonly testFailureExitCode: number;
+    };
+    readonly outputStream: {
+        write(text: string): unknown;
+    };
+    readonly stdout: {
+        write(text: string): unknown;
+    };
+}
+
+// @public
+export interface ProjectConfigLike extends StackTraceConfig {
+    // (undocumented)
+    readonly displayName?: DisplayName | undefined;
+    // (undocumented)
+    readonly slowTestThreshold?: number;
+    readonly testLocationInResults: boolean;
+}
+
+// @public
 export function projectJestRequireResolve(rootDir: string): JestRequireResolve;
 
 // @public
@@ -569,9 +817,185 @@ export function resolveJestConfigPath(pathToResolve: string, cwd: string, option
 }): string;
 
 // @public
+export interface RunEnd {
+    // (undocumented)
+    readonly reason: "passed" | "failed" | "interrupted" | "terminated" | "hangup";
+    readonly reporterFailed: boolean;
+    // (undocumented)
+    readonly snapshots: SnapshotRunSummary | undefined;
+}
+
+// @public
+export interface SerializableError {
+    // (undocumented)
+    code?: unknown;
+    // (undocumented)
+    message: string;
+    // (undocumented)
+    stack: string | null | undefined;
+    // (undocumented)
+    type?: string;
+}
+
+// @public
+export function serializeToJson(value: unknown, space?: string | number): string;
+
+// @public
 export function setupPreset(options: Readonly<Options> & {
     readonly rootDir: string;
 }, optionsPreset: string, resolution: JestResolution): Promise<Options>;
+
+// @public
+export interface SnapshotSummary {
+    // (undocumented)
+    added: number;
+    // (undocumented)
+    didUpdate: boolean;
+    // (undocumented)
+    failure: boolean;
+    // (undocumented)
+    filesAdded: number;
+    // (undocumented)
+    filesRemoved: number;
+    // (undocumented)
+    filesRemovedList: string[];
+    // (undocumented)
+    filesUnmatched: number;
+    // (undocumented)
+    filesUpdated: number;
+    // (undocumented)
+    matched: number;
+    // (undocumented)
+    total: number;
+    // (undocumented)
+    unchecked: number;
+    // (undocumented)
+    uncheckedKeysByFile: UncheckedSnapshot[];
+    // (undocumented)
+    unmatched: number;
+    // (undocumented)
+    updated: number;
+}
+
+// @public
+export interface StackTraceConfig {
+    // (undocumented)
+    readonly rootDir: string;
+    // (undocumented)
+    readonly testMatch: readonly string[];
+}
+
+// @public
+export interface StackTraceOptions {
+    // (undocumented)
+    readonly noCodeFrame?: boolean;
+    // (undocumented)
+    readonly noStackTrace: boolean;
+}
+
+// @public
+export type Status = "passed" | "failed" | "skipped" | "pending" | "todo" | "disabled" | "focused";
+
+// @public
+export interface Test<Config = unknown> {
+    // (undocumented)
+    context: TestContext<Config>;
+    // (undocumented)
+    duration?: number;
+    // (undocumented)
+    path: string;
+}
+
+// @public
+export interface TestContext<Config = unknown> {
+    // (undocumented)
+    config: Config;
+}
+
+// @public
+export interface TestRecord {
+    readonly result: TaskResult | undefined;
+    readonly retried: readonly SerializedError[];
+    readonly startedAt: number | null;
+    // (undocumented)
+    readonly task: TestTask;
+}
+
+// @public
+export interface TestResult {
+    // (undocumented)
+    console?: ConsoleEntry[] | undefined;
+    // (undocumented)
+    coverage?: Record<string, unknown>;
+    // (undocumented)
+    displayName?: DisplayName | undefined;
+    // (undocumented)
+    failing?: boolean;
+    // (undocumented)
+    failureMessage?: string | null;
+    // (undocumented)
+    leaks: boolean;
+    // (undocumented)
+    memoryUsage?: number;
+    // (undocumented)
+    numFailingTests: number;
+    // (undocumented)
+    numPassingTests: number;
+    // (undocumented)
+    numPendingTests: number;
+    // (undocumented)
+    numTodoTests: number;
+    // (undocumented)
+    openHandles: Error[];
+    // (undocumented)
+    perfStats: {
+        end: number;
+        loadTestEnvironmentEnd: number;
+        loadTestEnvironmentStart: number;
+        runtime: number;
+        setupAfterEnvEnd: number;
+        setupAfterEnvStart: number;
+        setupFilesEnd: number;
+        setupFilesStart: number;
+        slow: boolean;
+        start: number;
+    };
+    // (undocumented)
+    skipped: boolean;
+    // (undocumented)
+    snapshot: {
+        added: number;
+        fileDeleted: boolean;
+        matched: number;
+        unchecked: number;
+        uncheckedKeys: string[];
+        unmatched: number;
+        updated: number;
+    };
+    // (undocumented)
+    testExecError?: SerializableError | undefined;
+    // (undocumented)
+    testFilePath: string;
+    // (undocumented)
+    testResults: AssertionResult[];
+}
+
+// @public
+export type TestResultsProcessor = (results: AggregatedResult) => AggregatedResult | Promise<AggregatedResult>;
+
+// @public
+export function toAssertionResult(record: TestRecord, options: BuildOptions): AssertionResult;
+
+// @public
+export function toTestResult(file: FileEvents, options: BuildOptions): TestResult;
+
+// @public
+export interface UncheckedSnapshot {
+    // (undocumented)
+    filePath: string;
+    // (undocumented)
+    keys: string[];
+}
 
 // @public
 export function validateJestConfig(options: Readonly<Record<string, unknown>>, isProject: boolean): ValidationOutcome;

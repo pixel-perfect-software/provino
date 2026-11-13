@@ -138,6 +138,15 @@ export interface SerializedError {
    * cross; the rest of the result (messages, `actual`, `expected`) can hold anything.
    */
   readonly matcherResult?: { readonly name: string; readonly pass: boolean }
+  /**
+   * The thrown value as JSON, as Jest's `failureDetails[i]` has it in its `--json` output: an
+   * error-like value is its own enumerable properties (an assertion error's `matcherResult` with
+   * `actual`, `expected`, `message`, `name` and `pass`), a `bigint` anywhere in it is its literal
+   * (`1n`). Absent when that JSON is `{}` (a plain `Error`, a thrown string, which Jest wraps in
+   * an error of its own) or when it can't be made (a cyclic value); a reader takes `{}` for it.
+   * Only the top-level error carries it, not its causes.
+   */
+  readonly details?: JsonValue
   readonly location?: SourceLocation
 }
 

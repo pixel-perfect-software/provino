@@ -6,6 +6,7 @@ import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/p
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { Json } from './mask.ts'
 
 /** `packages/harness/fixtures/`. */
 export const FIXTURES: string = fileURLToPath(new URL('../../harness/fixtures/', import.meta.url))
@@ -22,6 +23,10 @@ export interface RecordedManifest {
     readonly capture: readonly string[]
     /** The lines of a stream the recording kept: a regular expression's source. */
     readonly keepLines?: string
+    /** JSON keys whose numbers a `json:` capture recorded as `"<time>"`. */
+    readonly timeKeys?: readonly string[]
+    /** Regular-expression sources the recording replaced with `<masked>`. */
+    readonly mask?: readonly string[]
   }
 }
 
@@ -39,6 +44,8 @@ export interface RecordedGolden {
     readonly exitCode?: number | null
     readonly stderr?: string
     readonly files?: Readonly<Record<string, string | null>>
+    /** The parsed `json:` captures, as the recorder's `normalizedJson` leaves them. */
+    readonly json?: Readonly<Record<string, Json | null>>
   }
 }
 

@@ -30,6 +30,11 @@
       "types": "./dist/node/index.d.ts",
       "import": "./dist/node/index.js"
     },
+    "./results": {
+      "provino-source": "./src/results/index.ts",
+      "types": "./dist/results/index.d.ts",
+      "import": "./dist/results/index.js"
+    },
     "./runtime": {
       "provino-source": "./src/runtime/index.ts",
       "types": "./dist/runtime/index.d.ts",
@@ -66,6 +71,7 @@
   },
   "devDependencies": {
     "@edge-runtime/jest-environment": "catalog:",
+    "@jest/test-result": "catalog:",
     "expect": "catalog:",
     "jest-cli": "catalog:",
     "jest-config": "catalog:",

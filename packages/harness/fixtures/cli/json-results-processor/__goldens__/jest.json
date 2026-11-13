@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/json-results-processor",
+  "files": [
+    {
+      "file": "basic.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "basic.test.ts",
+            "path": [
+              "basic",
+              "passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "basic.test.ts",
+            "path": [
+              "basic",
+              "fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 2\nReceived: 1",
+              "matcher": "toBe",
+              "userFrame": "<root>/basic.test.ts:6:15"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "Test results written to: .harness-out/jest.json",
+    "files": {
+      "processor-keys.txt": "numFailedTestSuites\nnumFailedTests\nnumPassedTestSuites\nnumPassedTests\nnumPendingTestSuites\nnumPendingTests\nnumRuntimeErrorTestSuites\nnumTodoTests\nnumTotalTestSuites\nnumTotalTests\nopenHandles\nsnapshot\nstartTime\nsuccess\ntestResults\nwasInterrupted\n"
+    },
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 1,
+        "numFailedTests": 1,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 1,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 1,
+        "numTotalTests": 2,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "basic"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "basic passes",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 2
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "basic"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "actual": 1,
+                      "expected": 2,
+                      "message": "expect(received).toBe(expected) // Object.is equality\n\nExpected: 2\nReceived: 1",
+                      "name": "toBe",
+                      "pass": false
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 2\nReceived: 1\n<frames>"
+                ],
+                "fullName": "basic fails",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 5
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● basic › fails\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 2\n    Received: 1\n\n      4 |   })\n      5 |   it('fails', () => {\n    > 6 |     expect(1).toBe(2)\n        |               ^\n      7 |   })\n      8 | })\n      9 |\n<frames>\n",
+            "name": "<root>/basic.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false,
+        "addedByProcessor": true
+      }
+    }
+  }
+}

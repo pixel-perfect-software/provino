@@ -85,6 +85,40 @@ expectTypeOf<RpcClient<CoordinatorMethods>['readTimings']>().returns.toEqualType
 // @ts-expect-error workerExit is optional, not `| undefined`
 const bad: FileResult = { file, state: 'pass', durationMs: 1, errors: [], workerExit: undefined }
 
+// A file's snapshot report and a project's place among the run's projects are optional and clone-safe.
+const withSnapshot: FileResult = {
+  file,
+  state: 'pass',
+  durationMs: 1,
+  errors: [],
+  snapshot: {
+    file: null,
+    added: 0,
+    matched: 1,
+    unmatched: 0,
+    updated: 0,
+    unchecked: 0,
+    uncheckedKeys: [],
+    fileDeleted: false,
+  },
+}
+const partialSnapshot: FileResult = {
+  file,
+  state: 'pass',
+  durationMs: 1,
+  errors: [],
+  // @ts-expect-error a snapshot report has all its counters
+  snapshot: { file: null },
+}
+expectTypeOf<FileResult>().toExtend<CloneSafe<FileResult>>()
+expectTypeOf<FileInfo['projectIndex']>().toEqualTypeOf<number | undefined>()
+// @ts-expect-error a project index is a number
+const badIndex: FileInfo = { ...file, projectIndex: 'first' }
+// @ts-expect-error exactOptionalPropertyTypes: omitted, not undefined
+const undefinedIndex: FileInfo = { ...file, projectIndex: undefined }
+
+export { badIndex, partialSnapshot, undefinedIndex, withSnapshot }
+
 // One event model: the wire carries RuntimeEvents (plus the worker's own two), and every
 // runtime-originated bus event hands reporters the RuntimeEvent itself.
 expectTypeOf<RuntimeEvent>().toExtend<WorkerEvent>()

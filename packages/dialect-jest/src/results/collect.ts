@@ -1,0 +1,266 @@
+// The run's results as Jest has them (D103): a neutral reporter that folds the bus's events into
+// an `AggregatedResult`, the way `TestScheduler.scheduleTests` folds a runner's (TestScheduler.ts
+// 30.5.2 L100-L215). Register it before every other reporter, so that by the time one hears
+// `file:end` the file is already in the aggregate.
+import { join } from 'node:path'
+import type { FileInfo, Reporter, SerializedError, TaskId, TaskNode } from '@provino/types'
+import {
+  type BuildOptions,
+  type FileEvents,
+  finishAggregated,
+  type TestRecord,
+  toTestResult,
+} from './build.ts'
+import {
+  formatFileError,
+  formatRetryError,
+  formatTestFailures,
+  type StackTraceConfig,
+} from './failure-message.ts'
+import { addResult, makeEmptyAggregatedTestResult } from './helpers.ts'
+import type { AggregatedResult, DisplayName, Test, TestContext, TestResult } from './types.ts'
+
+/**
+ * What the collector reads of a project's config.
+ * @public
+ */
+export interface ProjectConfigLike extends StackTraceConfig {
+  readonly displayName?: DisplayName | undefined
+  readonly slowTestThreshold?: number
+  /** Jest reads `testLocationInResults` from the project's config (`--testLocationInResults`). */
+  readonly testLocationInResults: boolean
+}
+
+/**
+ * What the collector reads of the run's global config.
+ * @public
+ */
+export interface GlobalConfigLike {
+  readonly noStackTrace: boolean
+}
+
+/**
+ * What `createJestResults` needs.
+ * @public
+ */
+export interface JestResultsOptions<Config extends ProjectConfigLike> {
+  readonly globalConfig: GlobalConfigLike
+  /** The run's projects in the order of `FileInfo.projectIndex`. */
+  readonly projectConfigs: readonly Config[]
+  /** The clock (`Date.now`), injected so a test can fix it. */
+  readonly now?: () => number
+}
+
+/**
+ * The collector `createJestResults` returns.
+ * @public
+ */
+export interface JestResults<Config extends ProjectConfigLike> {
+  /** The neutral reporter, named `jest-results`. */
+  readonly reporter: Reporter
+  /** The run's results so far; complete after `run:end`. */
+  aggregated(): AggregatedResult
+  /** A finished file's result. */
+  testResultOf(fileId: TaskId): TestResult | undefined
+  /** The `Test` Jest's reporters get for a file. */
+  testOf(file: FileInfo): Test<Config>
+  /** The projects that have a file in the run. */
+  contexts(): Set<TestContext<Config>>
+}
+
+interface MutableFile {
+  info: FileInfo
+  startedAt: number
+  tree: readonly TaskNode[] | undefined
+  records: Map<TaskId, TestRecord>
+  unhandled: SerializedError[]
+}
+
+/**
+ * Builds the collector. `file:end` formats the file's failure text with `jest-message-util`, so the
+ * handler is async and the bus waits for it.
+ * @public
+ */
+export function createJestResults<Config extends ProjectConfigLike>(
+  options: JestResultsOptions<Config>,
+): JestResults<Config> {
+  const now = options.now ?? Date.now
+  const { globalConfig, projectConfigs } = options
+  let aggregated = makeEmptyAggregatedTestResult()
+  aggregated.success = false
+  const files = new Map<TaskId, MutableFile>()
+  const results = new Map<TaskId, TestResult>()
+  const contexts = new Map<Config, TestContext<Config>>()
+
+  const configOf = (info: FileInfo): Config => {
+    const config = projectConfigs[info.projectIndex ?? 0] ?? projectConfigs[0]
+    if (config === undefined) throw new Error('createJestResults needs a project config')
+    return config
+  }
+  const contextOf = (config: Config): TestContext<Config> => {
+    let context = contexts.get(config)
+    if (context === undefined) {
+      context = { config }
+      contexts.set(config, context)
+    }
+    return context
+  }
+  const pathOf = (info: FileInfo): string => join(configOf(info).rootDir, info.path)
+  const stateOf = (info: FileInfo): MutableFile => {
+    let file = files.get(info.fileId)
+    if (file === undefined) {
+      file = { info, startedAt: now(), tree: undefined, records: new Map(), unhandled: [] }
+      files.set(info.fileId, file)
+    }
+    return file
+  }
+  const record = (file: MutableFile, id: TaskId): TestRecord | undefined => {
+    const known = file.records.get(id)
+    if (known !== undefined) return known
+    const node = file.tree?.find((candidate) => candidate.id === id)
+    if (node?.type !== 'test') return undefined
+    const fresh: TestRecord = { task: node, result: undefined, startedAt: null, retried: [] }
+    file.records.set(id, fresh)
+    return fresh
+  }
+
+  const reporter: Reporter = {
+    name: 'jest-results',
+    'run:start': (_info, all) => {
+      aggregated = makeEmptyAggregatedTestResult()
+      aggregated.success = false
+      aggregated.numTotalTestSuites = all.length
+      aggregated.startTime = now()
+      files.clear()
+      results.clear()
+      contexts.clear()
+    },
+    'file:start': (info) => {
+      files.set(info.fileId, {
+        info,
+        startedAt: now(),
+        tree: undefined,
+        records: new Map(),
+        unhandled: [],
+      })
+    },
+    'file:collected': (info, event) => {
+      stateOf(info).tree = event.tasks
+    },
+    'task:start': (task) => {
+      if (task.type !== 'test') return
+      const file = files.get(task.fileId)
+      if (file === undefined) return
+      const known = record(file, task.id)
+      if (known !== undefined) file.records.set(task.id, { ...known, startedAt: now() })
+    },
+    'test:attempt-end': (test, event) => {
+      if (!event.willRetry) return
+      const file = files.get(test.fileId)
+      const known = file === undefined ? undefined : record(file, test.id)
+      if (file === undefined || known === undefined) return
+      file.records.set(test.id, { ...known, retried: [...known.retried, ...event.errors] })
+    },
+    'task:end': (task, event) => {
+      if (task.type !== 'test' || event.type !== 'test-end') return
+      const file = files.get(task.fileId)
+      const known = file === undefined ? undefined : record(file, task.id)
+      if (file === undefined || known === undefined) return
+      file.records.set(task.id, { ...known, result: event.result })
+    },
+    unhandled: (info, event) => {
+      if (info !== null) stateOf(info).unhandled.push(event.error)
+    },
+    'file:end': async (fileResult) => {
+      const info = fileResult.file
+      const file = stateOf(info)
+      const config = configOf(info)
+      const build: BuildOptions = {
+        locations: config.testLocationInResults,
+        displayName: config.displayName,
+        ...(config.slowTestThreshold === undefined
+          ? {}
+          : { slowTestThreshold: config.slowTestThreshold }),
+      }
+      const events: FileEvents = {
+        info,
+        testFilePath: pathOf(info),
+        tree: file.tree,
+        records: file.records,
+        result: fileResult,
+        unhandled: file.unhandled,
+        startedAt: file.startedAt,
+        endedAt: now(),
+      }
+      const testResult = toTestResult(events, build)
+      const stack = { noStackTrace: globalConfig.noStackTrace }
+      const retried = [...file.records.values()].filter((entry) => entry.retried.length > 0)
+      for (const entry of retried) {
+        const assertion = testResult.testResults.find(
+          (candidate) => candidate.fullName === entry.task.fullName.join(' '),
+        )
+        if (assertion !== undefined) {
+          assertion.retryMessages = await Promise.all(
+            entry.retried.map((error) =>
+              formatRetryError(error.stack ?? error.message, config, stack, events.testFilePath),
+            ),
+          )
+        }
+      }
+      const { testExecError } = testResult
+      if (testExecError !== undefined && testResult.testResults.length === 0) {
+        testResult.failureMessage = await formatFileError(
+          testExecError,
+          config,
+          stack,
+          events.testFilePath,
+        )
+      } else {
+        let message = await formatTestFailures(
+          testResult.testResults,
+          config,
+          stack,
+          events.testFilePath,
+        )
+        if (testExecError !== undefined) {
+          const errors = [...fileResult.errors, ...file.unhandled]
+          const text = await Promise.all(
+            errors.map((error) =>
+              formatFileError(
+                { message: error.message, stack: error.stack ?? null },
+                config,
+                stack,
+                events.testFilePath,
+              ),
+            ),
+          )
+          message = `${message ?? ''}\n\n${text.join('\n')}`
+        }
+        testResult.failureMessage = message
+      }
+      results.set(info.fileId, testResult)
+      addResult(aggregated, testResult)
+      contextOf(config)
+    },
+    'run:end': (summary) => {
+      finishAggregated(aggregated, {
+        reason: summary.reason,
+        snapshots: summary.snapshots,
+        reporterFailed: false,
+      })
+      aggregated.openHandles = (summary.openHandles ?? []).map((handle) =>
+        Object.assign(new Error(handle.type), {
+          stack: [`Error: ${handle.type}`, ...handle.frames].join('\n'),
+        }),
+      )
+    },
+  }
+
+  return {
+    reporter,
+    aggregated: () => aggregated,
+    testResultOf: (fileId) => results.get(fileId),
+    testOf: (info) => ({ context: contextOf(configOf(info)), path: pathOf(info) }),
+    contexts: () => new Set(contexts.values()),
+  }
+}

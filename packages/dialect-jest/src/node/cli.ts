@@ -315,8 +315,6 @@ export function parseJestCli(args: readonly string[]): {
 } {
   const argv = parseJestArgv(args)
   const diagnostics: Diagnostic[] = []
-  // `--json` and `--outputFile` write a run's results (T11.8); with `--listTests` they shape its list
-  const listing = isGiven(argv.listTests)
   for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
     if (!isGiven(argv[name])) continue
     if (option.support === 'warn') {
@@ -327,7 +325,6 @@ export function parseJestCli(args: readonly string[]): {
         message: `--${name} is read but not applied yet (${option.owner})`,
       })
     } else if (option.support === 'refuse') {
-      if (listing && (name === 'json' || name === 'outputFile')) continue
       diagnostics.push({
         level: 'error',
         code: NOT_SUPPORTED,

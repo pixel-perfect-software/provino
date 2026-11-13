@@ -177,6 +177,7 @@ export interface G {
     readonly cause?: G;
     // (undocumented)
     readonly code?: string;
+    readonly details?: O;
     readonly diff?: {
         readonly expected: string;
         readonly actual: string;

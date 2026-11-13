@@ -1,0 +1,12 @@
+{
+  "description": "--json for the three kinds of file that are not a plain pass or fail: one that throws at import (status failed, a message, no assertions), one whose every test is skipped (status skipped) and one with an it.only (status focused, the other test pending).",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--useStderr", "--testLocationInResults"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

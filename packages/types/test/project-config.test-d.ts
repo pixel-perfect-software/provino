@@ -238,6 +238,22 @@ const wholeResult: SerializedError = {
 // @ts-expect-error exactOptionalPropertyTypes: omitted, not undefined
 const undefinedResult: SerializedError = { name: 'Error', message: 'm', matcherResult: undefined }
 
+// `details` is the thrown value as JSON: clone-safe data, never a function or an error instance.
+expectTypeOf<SerializedError['details']>().toEqualTypeOf<JsonValue | undefined>()
+const withDetails: SerializedError = {
+  name: 'Error',
+  message: 'm',
+  details: { matcherResult: { actual: 1, expected: 2, name: 'toBe', pass: false } },
+}
+const noDetails: SerializedError = {
+  name: 'Error',
+  message: 'm',
+  // @ts-expect-error a function is not JSON
+  details: () => 1,
+}
+// @ts-expect-error exactOptionalPropertyTypes: omitted, not undefined
+const undefinedDetails: SerializedError = { name: 'Error', message: 'm', details: undefined }
+
 export {
   badTsconfig,
   badTypescript,
@@ -251,6 +267,7 @@ export {
   mapperObject,
   missingField,
   narrow,
+  noDetails,
   noGlobals,
   noHoist,
   noPass,
@@ -258,11 +275,13 @@ export {
   nullConfig,
   oldShape,
   returnsNothing,
+  undefinedDetails,
   undefinedResult,
   unrelated,
   wholeEnvironment,
   wholeResult,
   wide,
+  withDetails,
   withGlobals,
 }
 

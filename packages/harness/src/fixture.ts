@@ -143,6 +143,11 @@ export type FixtureConfigOverlay = Readonly<
  */
 export interface FixtureRun {
   readonly argv?: Readonly<Partial<Record<FixtureRunner, readonly string[]>>>
+  /**
+   * `exitCode`, `stdout`, `stderr`, `file:<path>` (the file's text) and `json:<path>` (the file
+   * parsed as JSON, under `timeKeys`, the work directory's path as `<root>` and each run of stack
+   * frames collapsed to `<frames>`; `null` when the run left none there).
+   */
   readonly capture: readonly string[]
   readonly emptyStreams?: readonly ('stdout' | 'stderr')[]
   readonly keepLines?: string
@@ -152,6 +157,17 @@ export interface FixtureRun {
    * depends on file sizes and timings is recorded as the set it is.
    */
   readonly sortStdout?: true | 'json'
+  /**
+   * JSON keys whose number values a `json:` capture records as `"<time>"`: the times and
+   * durations of a run, which no two runs share.
+   */
+  readonly timeKeys?: readonly string[]
+  /**
+   * Regular-expression sources applied (flags `gm`) to every captured stream, file and JSON
+   * string after the work directory's path is `<root>`; each match becomes `<masked>`. For what
+   * a run writes that differs between runs and isn't a time (a pid, a timestamp).
+   */
+  readonly mask?: readonly string[]
 }
 
 /**
@@ -460,7 +476,15 @@ function parseRunnerFiles(
 
 /** What `run.capture` may name besides `file:<path>`. */
 const RUN_STREAMS: readonly string[] = ['exitCode', 'stdout', 'stderr']
-const RUN_KEYS: readonly string[] = ['argv', 'capture', 'emptyStreams', 'keepLines', 'sortStdout']
+const RUN_KEYS: readonly string[] = [
+  'argv',
+  'capture',
+  'emptyStreams',
+  'keepLines',
+  'mask',
+  'sortStdout',
+  'timeKeys',
+]
 
 /**
  * The command-line options `run.argv` may not give, camel-cased: what the recorder passes (the
@@ -498,8 +522,9 @@ function optionOf(arg: string): string | undefined {
 const addsTextReporter = (arg: string): boolean => /^--reporter=(?!json$)[a-z-]+$/.test(arg)
 
 /**
- * `run` is `{ capture, argv?, keepLines?, emptyStreams?, sortStdout? }`: `capture` a non-empty list
- * of `exitCode`, `stdout`, `stderr` and `file:<relative path>`, each once; `argv` per listed
+ * `run` is `{ capture, argv?, keepLines?, emptyStreams?, sortStdout?, timeKeys?, mask? }`:
+ * `capture` a non-empty list of `exitCode`, `stdout`, `stderr`, `file:<relative path>` and
+ * `json:<relative path>`, each once; `argv` per listed
  * runner, a list of strings that sets no option the recorder owns (`OWNED_FLAGS`); `keepLines` a
  * regular-expression source; `emptyStreams` the captured streams `keepLines` may keep no line of
  * (else that is a broken run); `sortStdout` only `true`.
@@ -513,7 +538,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       throw bad(`has the unknown key "${key}" (expected ${RUN_KEYS.join(', ')})`)
     }
   }
-  const { argv, capture, emptyStreams, keepLines, sortStdout } = run
+  const { argv, capture, emptyStreams, keepLines, mask, sortStdout, timeKeys } = run
   if (
     !Array.isArray(capture) ||
     capture.length === 0 ||
@@ -522,10 +547,10 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     throw bad('"capture" must be a non-empty array of strings')
   }
   for (const entry of capture) {
-    const file = entry.startsWith('file:') ? entry.slice('file:'.length) : undefined
+    const file = /^(?:file|json):/.test(entry) ? entry.slice(entry.indexOf(':') + 1) : undefined
     if (file === undefined ? !RUN_STREAMS.includes(entry) : !staysInside(file)) {
       throw bad(
-        `"capture" lists "${entry}" (expected exitCode, stdout, stderr or file:<relative path>)`,
+        `"capture" lists "${entry}" (expected exitCode, stdout, stderr, file:<relative path> or json:<relative path>)`,
       )
     }
   }
@@ -536,6 +561,8 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     emptyStreams?: ('stdout' | 'stderr')[]
     keepLines?: string
     sortStdout?: true | 'json'
+    timeKeys?: string[]
+    mask?: string[]
   } = { capture }
   if (argv !== undefined) {
     if (!isRecord(argv) || Object.keys(argv).length === 0) {
@@ -598,6 +625,41 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       throw bad('"sortStdout" must be true or "json" (leave it out for off)')
     }
     out.sortStdout = sortStdout
+  }
+  if (timeKeys !== undefined) {
+    if (
+      !capture.some((entry) => entry.startsWith('json:')) ||
+      !Array.isArray(timeKeys) ||
+      timeKeys.length === 0 ||
+      new Set(timeKeys).size !== timeKeys.length ||
+      !timeKeys.every((key): key is string => typeof key === 'string' && key !== '')
+    ) {
+      throw bad(
+        '"timeKeys" must be a non-empty list of distinct key names, beside a "json:" capture',
+      )
+    }
+    out.timeKeys = timeKeys
+  }
+  if (mask !== undefined) {
+    if (
+      !Array.isArray(mask) ||
+      mask.length === 0 ||
+      !mask.every((source): source is string => typeof source === 'string' && source !== '')
+    ) {
+      throw bad('"mask" must be a non-empty list of regular-expression sources')
+    }
+    for (const pattern of mask) {
+      try {
+        new RegExp(pattern, 'gm')
+      } catch (cause) {
+        throw new HarnessError(
+          'HARNESS_FIXTURE_BAD_RUN',
+          `${source}: "run" "mask" has "${pattern}", which is not a regular expression`,
+          { path: source, cause },
+        )
+      }
+    }
+    out.mask = mask
   }
   return out
 }

@@ -621,6 +621,9 @@ importers:
       '@edge-runtime/jest-environment':
         specifier: 'catalog:'
         version: 4.0.0
+      '@jest/test-result':
+        specifier: 'catalog:'
+        version: 30.5.2
       expect:
         specifier: 'catalog:'
         version: 30.5.2
