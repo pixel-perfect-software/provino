@@ -49,6 +49,7 @@ Time:        1.412 s
 - 🧪 **Checked against the real Jest.** Behaviour is checked against goldens recorded from Jest 30.5, and against real Jest running beside it.
 - 📸 **Snapshots byte for byte,** with `-u`, `--ci` and obsolete snapshots handled as Jest handles them.
 - 🧩 **Your setup, as it is:** `projects`, `moduleNameMapper`, your transformers, `jsdom` and custom environments, and `globalSetup`.
+- 🦥 **Lazy variables,** RSpec style: `import { lazy } from 'provino'` for values that are built on first read, memoized per test and overridden in a nested `describe`. [Lazy variables →](wiki/lazy-variables.md)
 - 🧵 **Sharding that balances:** Jest's split, or by recorded time.
 - 🤖 **Output for people, CI and agents:** Jest's text in a terminal, annotations on GitHub Actions, and a compact report under an AI agent.
 
@@ -57,6 +58,21 @@ Time:        1.412 s
 - **Node.js** 22.15 or later, or 24 or later (24 recommended).
 - **A Jest project.** Provino matches Jest 30.5's behaviour.
 - **pnpm,** to build the package until it's published.
+
+```ts
+import { lazy } from 'provino'
+
+const $ = lazy.let('user', () => ({ name: 'Ada' })).let('greeting', ({ user }) => `hello ${user.name}`)
+
+describe('greeting', () => {
+  it('reads what it needs', () => expect($.greeting).toBe('hello Ada'))
+
+  describe('for Grace', () => {
+    $.override('user', () => ({ name: 'Grace' }))
+    it('sees the override', () => expect($.greeting).toBe('hello Grace'))
+  })
+})
+```
 
 ## 🚀 Install
 
@@ -91,12 +107,13 @@ pnpm exec provino jest                    # the whole suite
 
 ## 🚧 Not in place yet
 
-Coverage and watch mode are planned, and are refused by name until then. `provino vitest` and RSpec-style lazy variables come next. [Jest compatibility](wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, that's a bug: please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
+Coverage and watch mode are planned, and are refused by name until then. `provino vitest` comes next. [Jest compatibility](wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, that's a bug: please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
 
 ## 📚 Learn more
 
 - [Why Provino](wiki/why-provino.md): the problem, the goal, and the go/no-go bar.
 - [Jest compatibility](wiki/compatibility.md): what works, and every gap.
+- [Lazy variables](wiki/lazy-variables.md): `lazy`, scopes, shared examples.
 - [How it works](wiki/how-it-works.md)
 - [Troubleshooting](wiki/troubleshooting.md)
 
