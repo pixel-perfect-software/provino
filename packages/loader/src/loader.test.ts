@@ -239,6 +239,26 @@ test('JSON, builtins, import.meta and dynamic import', async () => {
   assert.deepEqual(registry.require(join(root, 'data.json')), { answer: 42 })
 })
 
+test('import.meta.resolve names a file that is not there, as Node does, and throws for a package', async () => {
+  const root = writeTree({
+    'present.ts': 'export const here = true\n',
+    'entry.test.ts':
+      'export const resolve: (specifier: string) => string = (specifier) => import.meta.resolve(specifier)\n',
+  })
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  const { resolve } = await registry.import<{ resolve: (specifier: string) => string }>(
+    join(root, 'entry.test.ts'),
+  )
+  assert.equal(resolve('./present.ts'), `file://${join(root, 'present.ts')}`)
+  assert.equal(resolve('./nope.mjs'), `file://${join(root, 'nope.mjs')}`, 'relative: no lookup')
+  assert.equal(resolve('../up/nope.mjs'), `file://${join(root, '../up/nope.mjs')}`)
+  assert.equal(resolve('/abs/nope.mjs'), 'file:///abs/nope.mjs', 'absolute: no lookup')
+  assert.equal(resolve('file:///abs/nope.mjs'), 'file:///abs/nope.mjs')
+  assert.throws(() => resolve('nope-package'), { code: 'ERR_MODULE_NOT_FOUND' })
+})
+
 test('a CommonJS file’s import() runs in the registry that evaluated it', async () => {
   // A `vm` script has no import callback, and one script serves every registry in the worker: the
   // call reaches its registry through a binding the wrapper takes.

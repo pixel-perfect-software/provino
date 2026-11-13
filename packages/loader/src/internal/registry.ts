@@ -80,6 +80,9 @@ export interface FileContext {
 /** No file's context: nothing is mocked, and a module that names a binding sees the global. */
 export const NO_FILE: FileContext = Object.freeze({ mocks: null, scope: null })
 
+/** A specifier that names a file or a URL, not a package or a builtin. */
+const FILE_SPECIFIER = /^(?:\.{1,2}\/|\/|file:)/
+
 /** Not mocked: the edge loads the real module. */
 const REAL: unique symbol = Symbol('real')
 
@@ -856,7 +859,13 @@ export class Registry {
       dirname: dirname(record.path),
       main: false,
       resolve: (specifier: string) => {
-        const target = resolveTarget(this.#state, specifier, record.path, 'import-meta-resolve')
+        const target = resolveOrMissing(this.#state, specifier, record.path, 'import-meta-resolve')
+        // Node doesn't look for a relative or absolute file, it answers the URL the specifier
+        // names; only a package that isn't found throws.
+        if (target.kind === 'missing' && FILE_SPECIFIER.test(specifier)) {
+          return new URL(specifier, pathToFileURL(record.path)).href
+        }
+        if (target.kind === 'missing' || target.kind === 'served') throw target.error
         return target.kind === 'builtin'
           ? target.id
           : pathToFileURL(target.kind === 'user' ? target.id : target.path).href
