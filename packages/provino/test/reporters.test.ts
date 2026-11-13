@@ -1,0 +1,323 @@
+// T9.7 through the bin: `provino jest` against the text real Jest 30.5.2 printed for the same
+// project (`cli/report-default`, `report-verbose`, `report-silent`: the lines each recording kept,
+// its `keepLines`), then what the environment and the flags change: an agent, GitHub Actions,
+// colour, and the reporters `provino run` names.
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { describe, it } from 'node:test'
+import { loadFixture, materialize } from './recorded.ts'
+import { failing, passing, spawnCli, trackedProjects } from './support.ts'
+
+const makeProject = trackedProjects()
+
+const ESC = String.fromCharCode(27)
+
+/** Our stderr as the recording sees Jest's: the lines it kept, with each timing taken out. */
+function kept(stderr: string, keepLines: string): string[] {
+  const keep = new RegExp(keepLines)
+  return stderr
+    .split('\n')
+    .filter((line) => keep.test(line))
+    .map((line) => line.replace(/ \((?:<dur>|\d+(?:\.\d+)? ms)\)$/, ''))
+}
+
+/** Provino on the fixture's project, with the flags the recording ran Jest with. */
+async function provinoOn(id: string): Promise<{
+  readonly code: number | null
+  readonly lines: string[]
+  readonly expected: string[]
+  readonly expectedCode: number | null | undefined
+  readonly stderr: string
+}> {
+  const fixture = await loadFixture(id)
+  const project = await materialize(fixture)
+  try {
+    const keepLines = fixture.manifest.run?.keepLines
+    assert.ok(keepLines !== undefined, `${id} keeps lines`)
+    const argv = fixture.manifest.run?.argv?.jest ?? []
+    const ended = await spawnCli(
+      ['jest', `--config=${join(project.root, 'jest.config.json')}`, '--ci', ...argv],
+      { cwd: project.root },
+    )
+    const golden = fixture.golden.observed
+    return {
+      code: ended.code,
+      lines: kept(ended.stderr, keepLines),
+      expected: kept(golden?.stderr ?? '', keepLines),
+      expectedCode: golden?.exitCode,
+      stderr: ended.stderr,
+    }
+  } finally {
+    await project.dispose()
+  }
+}
+
+describe('provino jest prints what Jest 30.5.2 printed (the lines each recording kept)', () => {
+  for (const [id, what] of [
+    ['cli/report-default', 'the default reporter: headers, the console block, the totals'],
+    [
+      'cli/report-verbose',
+      '--verbose: each test under its describe titles, console before the header',
+    ],
+    ['cli/report-silent', '--silent: the same headers and totals, and no console output'],
+  ] as const) {
+    it(`${what} (${id})`, async () => {
+      const run = await provinoOn(id)
+      assert.equal(run.code, run.expectedCode, run.stderr)
+      assert.ok(run.expected.length > 5, 'the recording kept lines')
+      assert.deepEqual(run.lines, run.expected, run.stderr)
+    })
+  }
+
+  it('--silent hides the console output the default run prints (cli/report-default against report-silent)', async () => {
+    const loud = await provinoOn('cli/report-default')
+    const quiet = await provinoOn('cli/report-silent')
+    assert.ok(loud.lines.some((line) => line === '  ● Console'))
+    assert.ok(loud.lines.some((line) => line.trim() === 'from the test'))
+    assert.ok(!quiet.lines.some((line) => /Console|from the test|a warning/.test(line)))
+    assert.doesNotMatch(quiet.stderr, /from the test|a warning/)
+  })
+
+  it('--verbose lists each test (cli/report-verbose)', async () => {
+    const run = await provinoOn('cli/report-verbose')
+    for (const line of [
+      '  ✓ stands alone',
+      '  math',
+      '    ✓ adds',
+      '      ✓ subtracts',
+      '    ✕ fails',
+      '  ○ skipped is skipped',
+      '  ✎ todo is planned',
+    ]) {
+      assert.ok(run.lines.includes(line), `lists "${line}":\n${run.lines.join('\n')}`)
+    }
+  })
+})
+
+const AGENT = { CLAUDECODE: '1' }
+
+describe('the environment picks the reporters when none are named', () => {
+  it('an agent gets the agent reporter: the failures and the totals, no PASS line', async () => {
+    const project = await makeProject({
+      'tests/ok.test.js': passing('ok'),
+      'tests/bad.test.js': failing('bad'),
+    })
+    const ran = await spawnCli(['run', '--config', project.config], {
+      cwd: project.dir,
+      env: AGENT,
+    })
+    assert.equal(ran.code, 1, ran.stderr)
+    assert.match(ran.stderr, /^FAIL tests\/bad\.test\.js$/m)
+    assert.doesNotMatch(ran.stderr, /ok\.test\.js/)
+    assert.match(ran.stderr, /Test Suites: 1 failed, 1 passed, 2 total/)
+  })
+
+  it('every variable the list names, and AI_AGENT, make it the agent reporter', async () => {
+    const project = await makeProject({ 'tests/ok.test.js': passing('ok') })
+    for (const env of [{ AI_AGENT: 'my-agent' }, { CURSOR_AGENT: '1' }, { GEMINI_CLI: '1' }]) {
+      const ran = await spawnCli(['run', '--config', project.config], { cwd: project.dir, env })
+      assert.equal(ran.code, 0, ran.stderr)
+      assert.doesNotMatch(ran.stderr, /PASS/, JSON.stringify(env))
+      assert.match(ran.stderr, /Test Suites: 1 passed, 1 total/)
+    }
+  })
+
+  it('a reporter named on the command line is never replaced, under an agent too', async () => {
+    const project = await makeProject({ 'tests/ok.test.js': passing('ok') })
+    const ran = await spawnCli(['run', '--config', project.config, '--reporter', 'default'], {
+      cwd: project.dir,
+      env: AGENT,
+    })
+    assert.match(ran.stderr, /^PASS tests\/ok\.test\.js$/m)
+  })
+
+  it('provino jest gets the agent reporter under an agent, with --verbose too (Jest’s detectAgent comes first)', async () => {
+    const project = await makeProject({ 'tests/ok.test.js': passing('ok') })
+    const ran = await spawnCli(
+      [
+        'jest',
+        '--config',
+        JSON.stringify({ rootDir: project.dir, testMatch: ['<rootDir>/tests/**/*.test.js'] }),
+        '--verbose',
+      ],
+      {
+        cwd: project.dir,
+        env: AGENT,
+      },
+    )
+    assert.equal(ran.code, 0, ran.stderr)
+    assert.doesNotMatch(ran.stderr, /PASS|✓/)
+  })
+
+  it('GitHub Actions adds the github-actions reporter beside the default one', async () => {
+    const project = await makeProject({ 'tests/bad.test.js': failing('bad') })
+    const ran = await spawnCli(['run', '--config', project.config], {
+      cwd: project.dir,
+      env: { GITHUB_ACTIONS: 'true', GITHUB_WORKSPACE: project.dir },
+    })
+    assert.equal(ran.code, 1, ran.stderr)
+    assert.match(ran.stderr, /^FAIL tests\/bad\.test\.js$/m)
+    assert.match(ran.stderr, /^::error file=tests\/bad\.test\.js,line=\d+,col=\d+,title=bad::/m)
+  })
+
+  it('and an agent on GitHub Actions gets both the agent reporter and the annotations', async () => {
+    const project = await makeProject({ 'tests/bad.test.js': failing('bad') })
+    const ran = await spawnCli(['run', '--config', project.config], {
+      cwd: project.dir,
+      env: { ...AGENT, GITHUB_ACTIONS: 'true' },
+    })
+    assert.match(ran.stderr, /^::error file=/m)
+    assert.match(ran.stderr, /^FAIL tests\/bad\.test\.js$/m)
+  })
+})
+
+describe('colour', () => {
+  it('is off for a pipe, on under FORCE_COLOR, off under NO_COLOR, and --colors and --no-colors win', async () => {
+    const project = await makeProject({ 'tests/ok.test.js': passing('ok') })
+    const run = (env: Record<string, string>, extra: readonly string[] = []) =>
+      spawnCli(['run', '--config', project.config, ...extra], { cwd: project.dir, env })
+    assert.doesNotMatch((await run({})).stderr, new RegExp(ESC))
+    assert.match((await run({ FORCE_COLOR: '1' })).stderr, new RegExp(`${ESC}\\[32m PASS `))
+    assert.doesNotMatch((await run({ NO_COLOR: '1' })).stderr, new RegExp(ESC))
+    assert.doesNotMatch((await run({ FORCE_COLOR: '0' })).stderr, new RegExp(ESC))
+  })
+
+  it('provino jest --colors colours a pipe, --no-colors silences FORCE_COLOR', async () => {
+    const project = await makeProject({ 'tests/ok.test.js': passing('ok') })
+    const config = `--config=${JSON.stringify({ rootDir: project.dir, testMatch: ['<rootDir>/tests/**/*.test.js'] })}`
+    const coloured = await spawnCli(['jest', config, '--colors'], { cwd: project.dir })
+    assert.match(coloured.stderr, new RegExp(`${ESC}\\[32m PASS `))
+    const off = await spawnCli(['jest', config, '--no-colors'], {
+      cwd: project.dir,
+      env: { FORCE_COLOR: '1' },
+    })
+    assert.doesNotMatch(off.stderr, new RegExp(ESC))
+  })
+
+  it('a terminal-less pipe never gets the live block', async () => {
+    const project = await makeProject({ 'tests/ok.test.js': passing('ok') })
+    const ran = await spawnCli(['run', '--config', project.config], {
+      cwd: project.dir,
+      env: { FORCE_COLOR: '1' },
+    })
+    assert.doesNotMatch(ran.stderr, /RUNS/)
+    assert.doesNotMatch(ran.stderr, new RegExp(`${ESC}\\[\\d+F`))
+  })
+})
+
+describe('the reporters provino run names', () => {
+  it('verbose lists the tests, dot prints characters, agent only the failures', async () => {
+    const project = await makeProject({
+      'tests/ok.test.js': passing('works'),
+      'tests/bad.test.js': failing('breaks'),
+    })
+    const run = (name: string) =>
+      spawnCli(['run', '--config', project.config, '--reporter', name], { cwd: project.dir })
+    const verbose = await run('verbose')
+    assert.match(verbose.stderr, /PASS tests\/ok\.test\.js\n {2}✓ works/)
+    assert.match(verbose.stderr, /FAIL tests\/bad\.test\.js\n {2}✕ breaks/)
+    const dot = await run('dot')
+    // Some sandboxes print a line of their own to stderr at every Node start: take it out.
+    const noise = /ERROR: failed to copy trust settings of system certificate-\d+\n/g
+    assert.match(dot.stderr.replaceAll(noise, ''), /^[.F]{2}\n\nFAIL tests\/bad\.test\.js/)
+    const agent = await run('agent')
+    assert.doesNotMatch(agent.stderr, /ok\.test\.js/)
+    assert.match(agent.stderr, /^FAIL tests\/bad\.test\.js/m)
+  })
+
+  it('json is the NormalizedRun, as normalized-json is', async () => {
+    const project = await makeProject({ 'tests/ok.test.js': passing('ok') })
+    const out = join(project.dir, 'out')
+    for (const name of ['json', 'normalized-json']) {
+      const file = join(out, `${name}.json`)
+      const ran = await spawnCli(
+        ['run', '--config', project.config, '--reporter', name, '--outputFile', file],
+        { cwd: project.dir },
+      )
+      assert.equal(ran.code, 0, ran.stderr)
+      const run = JSON.parse(await readFile(file, 'utf8')) as { success: boolean; runner: string }
+      assert.equal(run.success, true)
+      assert.equal(run.runner, 'provino:jest')
+    }
+    const stdout = await spawnCli(['run', '--config', project.config, '--reporter', 'json'], {
+      cwd: project.dir,
+    })
+    assert.equal((JSON.parse(stdout.stdout) as { success: boolean }).success, true)
+  })
+
+  it('junit writes the XML to the file, and a failure is a failure element', async () => {
+    const project = await makeProject({
+      'tests/ok.test.js': passing('works'),
+      'tests/bad.test.js': failing('breaks'),
+    })
+    const file = join(project.dir, 'reports', 'junit.xml')
+    const ran = await spawnCli(
+      ['run', '--config', project.config, '--reporter', 'junit', '--outputFile', file],
+      { cwd: project.dir },
+    )
+    assert.equal(ran.code, 1, ran.stderr)
+    const xml = await readFile(file, 'utf8')
+    assert.match(
+      xml,
+      /^<\?xml version="1\.0" encoding="UTF-8"\?>\n<testsuites name="provino" tests="2" failures="1" errors="0" time="/,
+    )
+    assert.match(
+      xml,
+      /<testcase name="breaks" classname="tests\/bad\.test\.js" time="[\d.]+">\n\s+<failure message=/,
+    )
+    assert.match(xml, /<testcase name="works" classname="tests\/ok\.test\.js" time="[\d.]+"\/>/)
+    // Nothing went to stdout: the document is in the file.
+    assert.equal(ran.stdout, '')
+  })
+
+  it('junit and json each write to stdout when they have no file, and two of them may not', async () => {
+    const project = await makeProject({ 'tests/ok.test.js': passing('ok') })
+    const junit = await spawnCli(['run', '--config', project.config, '--reporter', 'junit'], {
+      cwd: project.dir,
+    })
+    assert.match(junit.stdout, /^<\?xml /)
+    const both = await spawnCli(
+      ['run', '--config', project.config, '--reporter', 'junit', '--reporter', 'json'],
+      { cwd: project.dir },
+    )
+    assert.equal(both.code, 2)
+    assert.match(both.stderr, /both write to stdout/)
+  })
+
+  it('--outputFile with two document reporters is one path for two documents: refused', async () => {
+    const project = await makeProject({ 'tests/ok.test.js': passing('ok') })
+    const ran = await spawnCli(
+      [
+        'run',
+        '--config',
+        project.config,
+        '--reporter',
+        'json',
+        '--reporter',
+        'junit',
+        '--outputFile',
+        'x',
+      ],
+      { cwd: project.dir },
+    )
+    assert.equal(ran.code, 2)
+    assert.match(ran.stderr, /--outputFile is one path/)
+  })
+
+  it('github-actions prints annotations only', async () => {
+    const project = await makeProject({ 'tests/bad.test.js': failing('breaks') })
+    const ran = await spawnCli(
+      ['run', '--config', project.config, '--reporter', 'github-actions'],
+      { cwd: project.dir, env: { GITHUB_WORKSPACE: project.dir } },
+    )
+    assert.equal(ran.code, 1)
+    const lines = ran.stderr.split('\n').filter((line) => line.startsWith('::error'))
+    assert.equal(lines.length, 1, ran.stderr)
+    assert.match(
+      lines[0] ?? '',
+      /^::error file=tests\/bad\.test\.js,line=\d+,col=\d+,title=breaks::/,
+    )
+    assert.doesNotMatch(ran.stderr, /Test Suites/)
+  })
+})

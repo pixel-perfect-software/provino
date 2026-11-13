@@ -5,17 +5,65 @@
 ```ts
 
 // @public
+export const AGENT_VARIABLES: readonly (readonly [agent: string, variable: string])[];
+
+// @public
+export function agentReporter(options: TextReporterOptions): Reporter;
+
+// @public
+export function createStyle(enabled: boolean): Style;
+
+// @public
 export function defaultReporter(options: DefaultReporterOptions): Reporter;
 
 // @public
-export interface DefaultReporterOptions {
-    readonly report: ReportPolicy;
-    // (undocumented)
-    readonly stream: TextSink;
-}
+export type DefaultReporterOptions = TextReporterOptions;
 
 // @public
 export const defineReporter: DefineReporter;
+
+// @public
+export interface DetectOptions {
+    readonly ci?: boolean;
+    readonly colour?: boolean;
+    readonly env?: Environment;
+    readonly stream?: OutputStream;
+}
+
+// @public
+export function detectOutput(options?: DetectOptions): OutputEnvironment;
+
+// @public
+export function dotReporter(options: TextReporterOptions): Reporter;
+
+// @public
+export type Environment = Readonly<Record<string, string | undefined>>;
+
+// @public
+export function githubActionsReporter(options: GitHubActionsReporterOptions): Reporter;
+
+// @public
+export interface GitHubActionsReporterOptions {
+    readonly report: ReportPolicy;
+    // (undocumented)
+    readonly stream: TextSink;
+    readonly workspace?: string;
+}
+
+// @public
+export function jsonReporter(options: NormalizedJsonReporterOptions): Reporter;
+
+// @public
+export function junitReporter(options: JUnitReporterOptions): Reporter;
+
+// @public
+export interface JUnitReporterOptions {
+    readonly name?: string;
+    readonly now?: () => number;
+    readonly outputFile?: string;
+    readonly report: ReportPolicy;
+    readonly stream?: TextSink;
+}
 
 // @public
 export function normalizedJsonReporter(options: NormalizedJsonReporterOptions): Reporter;
@@ -34,6 +82,25 @@ export interface NormalizedJsonReporterOptions {
 }
 
 // @public
+export interface OutputEnvironment {
+    readonly agent: string | undefined;
+    readonly ci: boolean;
+    readonly colour: boolean;
+    readonly columns: number;
+    readonly githubActions: boolean;
+    readonly live: boolean;
+    readonly tty: boolean;
+}
+
+// @public
+export interface OutputStream {
+    // (undocumented)
+    readonly columns?: number | undefined;
+    // (undocumented)
+    readonly isTTY?: boolean | undefined;
+}
+
+// @public
 export interface Reporter extends ReporterHandlers {
     readonly lastError?: () => SerializedError | undefined;
     // (undocumented)
@@ -41,10 +108,46 @@ export interface Reporter extends ReporterHandlers {
 }
 
 // @public
+export interface Style {
+    badge(word: string, colour: "green" | "red" | "yellow"): string;
+    // (undocumented)
+    bold(text: string): string;
+    // (undocumented)
+    cyan(text: string): string;
+    // (undocumented)
+    dim(text: string): string;
+    readonly enabled: boolean;
+    // (undocumented)
+    green(text: string): string;
+    // (undocumented)
+    magenta(text: string): string;
+    // (undocumented)
+    red(text: string): string;
+    // (undocumented)
+    yellow(text: string): string;
+}
+
+// @public
+export interface TextReporterOptions {
+    readonly colour?: boolean;
+    readonly columns?: number;
+    readonly expand?: boolean;
+    readonly live?: boolean;
+    readonly noStackTrace?: boolean;
+    readonly report: ReportPolicy;
+    readonly silent?: boolean;
+    // (undocumented)
+    readonly stream: TextSink;
+}
+
+// @public
 export interface TextSink {
     // (undocumented)
     write(chunk: string): unknown;
 }
+
+// @public
+export function verboseReporter(options: TextReporterOptions): Reporter;
 
 // (No @packageDocumentation comment for this package)
 

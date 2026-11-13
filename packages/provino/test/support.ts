@@ -10,7 +10,25 @@ import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
 import { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { AGENT_VARIABLES } from '@provino/reporters'
 import { killGroup } from './sweep.ts'
+
+// What picks the reporters, and whether the text is coloured, comes from the environment: an agent
+// (`CLAUDECODE`, `AI_AGENT`, ...) gets the `agent` reporter, GitHub Actions gets `github-actions`
+// beside `default`, and `FORCE_COLOR` colours it. The tests assert on `default`'s plain text, and
+// they run under an agent's shell and on GitHub's runners, so none of it may leak in: this process
+// and every child it starts (they inherit `process.env`) run without. A test that wants one of them
+// sets it for its own child (`spawnCli`'s `env`) or passes `env` to `run()`.
+for (const name of [
+  ...AGENT_VARIABLES.map(([, variable]) => variable),
+  'AI_AGENT',
+  'GITHUB_ACTIONS',
+  'GITHUB_WORKSPACE',
+  'FORCE_COLOR',
+  'NO_COLOR',
+]) {
+  delete process.env[name]
+}
 
 /** A writable that keeps everything written to it. */
 export class Collect extends Writable {

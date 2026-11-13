@@ -48,12 +48,35 @@ describe('what provino jest does not run is said, not ignored', () => {
     }
   })
 
-  it('warns, and runs, for a flag that only changes how a run looks', async () => {
+  it('applies the flags that change how a run looks, and says nothing about them (D54, T9.7)', async () => {
     const dir = await tree({ 'jest.config.json': CONFIG, 'tests/a.test.js': passing('a') })
-    const ended = await provino(['--verbose', '--silent'], dir)
+    for (const flags of [
+      ['--verbose'],
+      ['--silent'],
+      ['--expand'],
+      ['--noStackTrace'],
+      ['--no-colors'],
+    ]) {
+      const ended = await provino(flags, dir)
+      assert.equal(ended.code, 0, ended.stderr)
+      assert.doesNotMatch(ended.stderr, /not applied yet/, flags.join(' '))
+      assert.match(ended.stderr, /PASS tests\/a\.test\.js/)
+    }
+    // --verbose lists the test under its file, as Jest's does.
+    const verbose = await provino(['--verbose'], dir)
+    assert.match(verbose.stderr, /PASS tests\/a\.test\.js\n {2}✓ a( \(\d+ ms\))?\n\n/)
+  })
+
+  it('warns, naming the task, for the flags that still do nothing', async () => {
+    const dir = await tree({ 'jest.config.json': CONFIG, 'tests/a.test.js': passing('a') })
+    const ended = await provino(
+      ['--debug', '--logHeapUsage', '--notify', '--notifyMode', 'always'],
+      dir,
+    )
     assert.equal(ended.code, 0, ended.stderr)
-    assert.match(ended.stderr, /--verbose is read but not applied yet \(T9\.7\)/)
-    assert.match(ended.stderr, /--silent is read but not applied yet \(T9\.7\)/)
+    for (const flag of ['debug', 'logHeapUsage', 'notify', 'notifyMode']) {
+      assert.match(ended.stderr, new RegExp(`--${flag} is read but not applied yet \\(T9\\.7\\)`))
+    }
     assert.match(ended.stderr, /PASS tests\/a\.test\.js/)
   })
 
@@ -83,7 +106,7 @@ describe('what provino jest does not run is said, not ignored', () => {
     })
     const run = await provino([], dir)
     assert.equal(run.code, 0, run.stderr)
-    assert.match(run.stderr, /PASS one\/a\.test\.js|PASS a\.test\.js/)
+    assert.match(run.stderr, /PASS one\/a\.test\.js|PASS \.\/a\.test\.js/)
     assert.match(run.stderr, /Test Suites: 2 passed, 2 total/)
 
     const listed = await provino(['--listTests'], dir)

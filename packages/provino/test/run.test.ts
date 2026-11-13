@@ -178,12 +178,12 @@ describe('run()', () => {
 
     it('a reporter that is not a built-in or a reporter', async () => {
       const project = await makeProject({ 'tests/a.test.js': passing('a') })
-      // @ts-expect-error "verbose" is not a reporter name
-      const ran = await runProject(project, { reporters: ['verbose'] })
+      // @ts-expect-error "tap" is not a reporter name
+      const ran = await runProject(project, { reporters: ['tap'] })
 
       assert.equal(ran.exitCode, 2)
       assert.equal(ran.summary, null)
-      assert.match(ran.stderr, /unknown reporter "verbose"/)
+      assert.match(ran.stderr, /unknown reporter "tap"/)
     })
 
     it('reporter options that make no sense', async () => {

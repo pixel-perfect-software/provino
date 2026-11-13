@@ -7,7 +7,7 @@ import type { ReporterChoice, RunOptions } from '../types.ts'
 import { detectProject } from './detect.ts'
 import { runJestCommand } from './jest-command.ts'
 import { quickAnswer } from './quick.ts'
-import { BUILT_IN_REPORTERS } from './reporters.ts'
+import { BUILT_IN_REPORTERS, DOCUMENT_REPORTERS } from './reporters.ts'
 import { USAGE } from './usage.ts'
 import { UsageError } from './usage-error.ts'
 
@@ -85,7 +85,31 @@ function parseWhole(text: string, flag: string, min: 0 | 1 = 1): number {
   return Number(text)
 }
 
-/** `--reporter` names, with `--outputFile` going to the `normalized-json` one. */
+/** One `--reporter` name as the choice it stands for; `outputFile` goes to a document reporter. */
+function choiceFor(name: string, outputFile: string | undefined): ReporterChoice {
+  switch (name) {
+    case 'json':
+    case 'normalized-json':
+      return outputFile === undefined ? name : [name, { outputFile }]
+    case 'junit':
+      return outputFile === undefined ? name : [name, { outputFile }]
+    case 'default':
+    case 'verbose':
+    case 'dot':
+    case 'agent':
+    case 'github-actions':
+      return name
+    default:
+      throw new UsageError(
+        `unknown reporter "${name}" (use ${BUILT_IN_REPORTERS.join(', ')}) for --reporter`,
+      )
+  }
+}
+
+/**
+ * `--reporter` names, with `--outputFile` going to the one reporter that writes a document
+ * (`json`, `normalized-json` or `junit`).
+ */
 function parseReporters(
   names: readonly string[],
   outputFile: string | undefined,
@@ -94,21 +118,21 @@ function parseReporters(
     if (names.indexOf(name) !== index) {
       throw new UsageError(`--reporter ${name} is given more than once`)
     }
-    if (!BUILT_IN_REPORTERS.includes(name)) {
+  }
+  if (outputFile !== undefined) {
+    const writers = names.filter((name) => DOCUMENT_REPORTERS.includes(name))
+    if (writers.length === 0) {
+      throw new UsageError('--outputFile needs --reporter json, normalized-json or junit')
+    }
+    if (writers.length > 1) {
       throw new UsageError(
-        `unknown reporter "${name}" (use ${BUILT_IN_REPORTERS.join(' or ')}) for --reporter`,
+        `--outputFile is one path, and ${writers.join(' and ')} each write a document: name one of them, or give each its outputFile in a script`,
       )
     }
   }
-  if (outputFile !== undefined && !names.includes('normalized-json')) {
-    throw new UsageError('--outputFile needs --reporter normalized-json')
-  }
-  return names.map((name): ReporterChoice => {
-    if (name === 'normalized-json') {
-      return outputFile === undefined ? name : [name, { outputFile }]
-    }
-    return 'default'
-  })
+  return names.map((name) =>
+    choiceFor(name, DOCUMENT_REPORTERS.includes(name) ? outputFile : undefined),
+  )
 }
 
 /**
@@ -216,6 +240,8 @@ export interface CliIo {
   readonly stdout?: TextSink
   readonly stderr?: NodeJS.WritableStream
   readonly cwd?: string
+  /** The environment the reporters and `ci` read (the terminal, CI, an agent, colour). Default: the process's. */
+  readonly env?: Readonly<Record<string, string | undefined>>
   /** Aborted by the first SIGINT or SIGTERM (the bin's `handleSignals`); the run ends 130 or 143. */
   readonly signal?: AbortSignal
   /** Aborted by the second signal: every worker is killed at once. */
@@ -299,6 +325,7 @@ function runBareJest(args: readonly string[], io: CliIo): Promise<number> {
     stdout: io.stdout ?? process.stdout,
     stderr: io.stderr ?? process.stderr,
     cwd: io.cwd ?? process.cwd(),
+    ...(io.env === undefined ? {} : { env: io.env }),
     ...(io.signal === undefined ? {} : { signal: io.signal }),
     ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
     ...(io.onForceExit === undefined ? {} : { onForceExit: io.onForceExit }),
@@ -312,11 +339,12 @@ async function helpExit(io: CliIo): Promise<number> {
 
 function ioOptions(
   io: CliIo,
-): Pick<RunOptions, 'stdout' | 'stderr' | 'cwd' | 'signal' | 'forceSignal'> {
+): Pick<RunOptions, 'stdout' | 'stderr' | 'cwd' | 'env' | 'signal' | 'forceSignal'> {
   return {
     stdout: io.stdout ?? process.stdout,
     stderr: io.stderr ?? process.stderr,
     ...(io.cwd === undefined ? {} : { cwd: io.cwd }),
+    ...(io.env === undefined ? {} : { env: io.env }),
     ...(io.signal === undefined ? {} : { signal: io.signal }),
     ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
   }

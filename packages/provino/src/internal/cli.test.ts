@@ -69,6 +69,38 @@ describe('parseRunArgs', () => {
     })
   })
 
+  it('names each built-in reporter, and gives --outputFile to the one document reporter', () => {
+    for (const name of ['default', 'verbose', 'dot', 'agent', 'github-actions', 'json', 'junit']) {
+      assert.deepEqual(parseRunArgs(['--config', 'c.mjs', '--reporter', name]), {
+        type: 'run',
+        options: { config: 'c.mjs', reporters: [name] },
+      })
+    }
+    assert.deepEqual(
+      parseRunArgs([
+        '--config',
+        'c.mjs',
+        '--reporter',
+        'dot',
+        '--reporter',
+        'junit',
+        '--outputFile',
+        'r/junit.xml',
+      ]),
+      {
+        type: 'run',
+        options: { config: 'c.mjs', reporters: ['dot', ['junit', { outputFile: 'r/junit.xml' }]] },
+      },
+    )
+    assert.deepEqual(
+      parseRunArgs(['--config', 'c.mjs', '--reporter', 'json', '--outputFile', 'r.json']),
+      {
+        type: 'run',
+        options: { config: 'c.mjs', reporters: [['json', { outputFile: 'r.json' }]] },
+      },
+    )
+  })
+
   it('reads -t=<pattern> and -c=<file> as the long options, without the =', () => {
     assert.deepEqual(parseRunArgs(['-c=c.mjs', '-t=adds up']), {
       type: 'run',
@@ -183,10 +215,17 @@ describe('parseRunArgs', () => {
     usageError(['--config', 'c.mjs', 'file.test.js'], /file\.test\.js/)
     usageError(['--config', 'c.mjs', '--pool', 'cluster'], /--pool/)
     usageError(['--config', 'c.mjs', '--reporter', 'tap'], /unknown reporter "tap"/)
-    usageError(['--config', 'c.mjs', '--outputFile', 'o.json'], /needs --reporter normalized-json/)
+    usageError(
+      ['--config', 'c.mjs', '--outputFile', 'o.json'],
+      /needs --reporter json, normalized-json or junit/,
+    )
     usageError(
       ['--config', 'c.mjs', '--reporter', 'default', '--outputFile', 'o.json'],
-      /needs --reporter normalized-json/,
+      /needs --reporter json, normalized-json or junit/,
+    )
+    usageError(
+      ['--config', 'c.mjs', '--reporter', 'json', '--reporter', 'junit', '--outputFile', 'o.json'],
+      /--outputFile is one path, and json and junit each write a document/,
     )
     for (const bad of ['0', '-1', '1.5', 'abc', '', '1e3', '99999999999999999999']) {
       usageError(['--config', 'c.mjs', '--maxWorkers', bad], /--maxWorkers/)

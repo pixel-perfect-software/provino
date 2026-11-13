@@ -53,7 +53,7 @@ async function execute(
   const project = await loadProject(resolve(cwd, options.config), {
     dialects: [jestDialect],
     environments: ENVIRONMENTS,
-    ci: options.ci ?? isCi(process.env),
+    ci: options.ci ?? isCi(options.env ?? process.env),
   })
   return executeProject({
     project,
@@ -61,6 +61,7 @@ async function execute(
     stdout,
     stderr,
     reporters: options.reporters,
+    env: options.env,
     pool,
     ...(options.cache === false ? { cache: false } : {}),
     testNamePattern: options.testNamePattern,
