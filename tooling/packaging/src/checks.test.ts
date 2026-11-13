@@ -120,6 +120,33 @@ describe('release workflow lint (T10.4)', () => {
       /runs npm, which D75 allows only in install-matrix\.yml/,
     ],
     [
+      'a block-form npx',
+      (t) =>
+        t.replace(
+          '      - run: pnpm build',
+          '      - run: |\n          pnpm install\n          npx tsdown\n          pnpm build',
+        ),
+      /runs npm, which D75 allows only in install-matrix\.yml: npx tsdown/,
+    ],
+    [
+      'a block-form yarn, after &&',
+      (t) =>
+        t.replace(
+          '      - run: pnpm build',
+          '      - run: |\n          pnpm build\n          cd packages/x && yarn build',
+        ),
+      /runs npm, which D75 allows only in install-matrix\.yml: cd packages\/x && yarn build/,
+    ],
+    [
+      'a block-form npm in a subshell',
+      (t) =>
+        t.replace(
+          '      - run: pnpm build',
+          '      - run: |\n          v=$(npm --version)\n          pnpm build',
+        ),
+      /runs npm, which D75 allows only in install-matrix\.yml: v=\$\(npm --version\)/,
+    ],
+    [
       'a pnpm publish that is not staged',
       (t) => t.replace('- run: pnpm -r stage publish', '- run: pnpm -r publish'),
       /publishes other than with `pnpm stage publish`/,
@@ -165,6 +192,19 @@ describe('release workflow lint (T10.4)', () => {
       const text = template.replace(/- run: pnpm -r stage publish.*/, `- run: ${command}`)
       assert.deepEqual(lintReleaseWorkflow(text, { draft: true }), [], command)
     }
+  })
+
+  test('a manager named as a value is not a command: an action input, an action, a step name', () => {
+    const text = template.replace(
+      '          node-version: 24\n',
+      '          node-version: 24\n          cache: npm\n          registry-url: https://registry.npmjs.org\n',
+    )
+    assert.deepEqual(lintReleaseWorkflow(text, { draft: true }), [])
+    const named = template.replace(
+      '      - run: pnpm build',
+      '      - name: npm is not run here\n        run: pnpm build',
+    )
+    assert.deepEqual(lintReleaseWorkflow(named, { draft: true }), [])
   })
 
   test('the draft publishes with pnpm and no npm anywhere (D75), and does not repack by hand', () => {

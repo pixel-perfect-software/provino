@@ -22,8 +22,29 @@ function activeLines(text: string): readonly string[] {
 const PUBLISH_ANY = /\b(?:npm|pnpm|yarn|bun)\b[^\n;&|]*\bpublish\b|\bchangeset\s+publish\b/
 /** `pnpm stage publish`, with pnpm's own flags before `stage` (`-r`, `--recursive`). */
 const PUBLISH_STAGED = /\bpnpm\b[^\n;&|]*\bstage\s+publish\b/
-/** A `run:` line that runs npm, npx, yarn or bun (D75: only install-matrix.yml may). */
-const OTHER_MANAGER = /\brun:.*(?:^|[\s;&|(`])(?:npm|npx|yarn|bunx?)(?=\s|$)/
+/**
+ * npm, npx, yarn or bun where a command starts (D75: only install-matrix.yml may): at the start of
+ * a line (a `run: npm ci`, a `- run:` step, or a line of a `run: |` block) or after `&&`, `||`,
+ * `;`, `|`, `(`, a backtick or `$(`. A key's value (`cache: npm`) is not at that position.
+ */
+const OTHER_MANAGER =
+  /(?:^\s*(?:-\s+)?(?:run:\s*)?|[;&|(`]\s*|\$\(\s*)(?:npm|npx|yarn|bunx?)(?=\s|$)/
+
+/**
+ * The lines that can hold a command: not an action reference (`uses:`) and not the inputs of one
+ * (the lines under `with:`, which are values and not commands).
+ */
+function commandLines(lines: readonly string[]): readonly string[] {
+  const out: string[] = []
+  let withIndent: number | undefined
+  for (const line of lines) {
+    const indent = line.length - line.trimStart().length
+    if (withIndent !== undefined && indent > withIndent) continue
+    withIndent = /^\s*(?:-\s+)?with:\s*$/.test(line) ? indent : undefined
+    if (withIndent === undefined && !/^\s*(?:-\s+)?uses:/.test(line)) out.push(line)
+  }
+  return out
+}
 const TOKEN_NAMES = /\b(?:NPM_TOKEN|NODE_AUTH_TOKEN|NPM_CONFIG_TOKEN|_authToken)\b/i
 const SECRET_REF = /\$\{\{\s*secrets\.(?!GITHUB_TOKEN\b)[A-Za-z0-9_]+/
 
@@ -51,7 +72,7 @@ export function lintReleaseWorkflow(text: string, options: ReleaseLintOptions): 
   for (const line of tokens) {
     problems.push(`names an npm token or a secret other than GITHUB_TOKEN: ${line.trim()}`)
   }
-  for (const line of lines.filter((line) => OTHER_MANAGER.test(line))) {
+  for (const line of commandLines(lines).filter((line) => OTHER_MANAGER.test(line))) {
     problems.push(`runs npm, which D75 allows only in install-matrix.yml: ${line.trim()}`)
   }
   const publishes = lines.filter((line) => PUBLISH_ANY.test(line))
