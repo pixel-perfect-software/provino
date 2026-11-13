@@ -85,17 +85,20 @@ test('import-meta-resolve-extensionless: a bare relative name is not completed b
   assert.equal(native.result, 'file://<root>/sibling')
 })
 
-test('import-meta-main-non-entry: import.meta.main of a module that is not the entry is false', async () => {
+test('import-meta-main-non-entry: import.meta.main is false in the entry and in a module it imports', async () => {
   // Node added import.meta.main in 24.2; before it the property is undefined. Provino defines it
-  // everywhere, and a test file is never the main module (F3).
+  // everywhere, and a test file is never the main module (F3). The native child imports the entry
+  // from its own script, so there too neither module is main: `node entry.mjs` would make the
+  // entry's `true`, which is the part of DV78 this harness can't observe.
   const both = await runBoth({
     entry: 'entry.mjs',
     files: {
       'sibling.mjs': 'export const main = import.meta.main\n',
-      'entry.mjs': "import { main } from './sibling.mjs'\nexport const result = { main }\n",
+      'entry.mjs':
+        "import { main } from './sibling.mjs'\nexport const result = { main, entry: import.meta.main }\n",
     },
   })
-  assert.deepEqual(both.provino.result, { main: false })
+  assert.deepEqual(both.provino.result, { main: false, entry: false })
   const native = (both.native.result as { main?: boolean }).main
   if (native === undefined) {
     // divergence DV78 (pending): a Node without import.meta.main (22.15) has no such property.

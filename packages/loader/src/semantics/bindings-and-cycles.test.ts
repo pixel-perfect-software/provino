@@ -178,7 +178,9 @@ test('tla-in-cycle: top-level await in a module of a cycle, entered from either 
     'a.mjs': `${TRACE}import { b } from './b.mjs'
 export const a = 'a'
 await Promise.resolve()
-trace.push('a done, b=' + b)
+let seen
+try { seen = b } catch (e) { seen = e.name }
+trace.push('a done, b: ' + seen)
 `,
     'b.mjs': `${TRACE}import { a } from './a.mjs'
 export const b = 'b'
@@ -188,7 +190,9 @@ trace.push('b start, a: ' + seen)
 `,
     'c.mjs': `${TRACE}import { d } from './d.mjs'
 export const c = 'c'
-trace.push('c done, d=' + d)
+let seen
+try { seen = d } catch (e) { seen = e.name }
+trace.push('c done, d: ' + seen)
 `,
     'd.mjs': `${TRACE}import { c } from './c.mjs'
 export const d = 'd'

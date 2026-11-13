@@ -183,12 +183,23 @@ function withoutMessage(observation: Observation): Observation {
   return { ...observation, threw: threw as Observation['threw'] & object }
 }
 
-/** Provino's observation equals native Node's. */
+/**
+ * Provino's observation equals native Node's. A load that throws on both sides is a case that is
+ * about the throw (`throws: true`); without it, a throw is a fixture that went wrong the same way
+ * twice (a typo, a dead-zone read the case did not mean), and fails here.
+ */
 export async function expectSame(
   fixture: Fixture,
-  options: { messages?: boolean } = {},
+  options: { messages?: boolean; throws?: boolean } = {},
 ): Promise<Compared> {
   const both = await runBoth(fixture)
+  if (options.throws !== true) {
+    assert.equal(
+      both.native.threw,
+      undefined,
+      'native Node threw: the fixture should run to the end (pass { throws: true } if it is about the throw)',
+    )
+  }
   const pick = options.messages === false ? withoutMessage : (o: Observation) => o
   assert.deepEqual(pick(both.provino), pick(both.native))
   return both
