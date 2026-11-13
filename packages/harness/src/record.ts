@@ -3,7 +3,7 @@ import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'nod
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { NormalizedRun, SnapshotFileState } from '@provino/types'
+import type { JsonValue, NormalizedRun, SnapshotFileState } from '@provino/types'
 import { convertJest } from './convert-jest.ts'
 import { convertVitest } from './convert-vitest.ts'
 import { readRunEnvironment } from './environment.ts'
@@ -221,11 +221,58 @@ function sortedJsonArray(lines: readonly string[], stream: string, source: strin
   return parsed.toSorted(compareStrings)
 }
 
+/** Each run of stack frames (`    at fn (file:1:2)` lines), which differs between machines and runners. */
+const FRAME_RUN = /(?:\n\s*at [^\n]*)+/g
+
+/**
+ * A `json:` capture's value as it is recorded: every string has each of `roots` as `<root>`, each
+ * run of stack frames as `\n<frames>` and each `mask` match as `<masked>`; every number under one
+ * of `timeKeys` is `"<time>"`. Keys are kept as they are. The Provino side of a comparison does the
+ * same walk (`packages/provino/test/mask.ts` is a copy).
+ */
+export function normalizedJson(
+  value: JsonValue,
+  options: {
+    readonly roots: readonly string[]
+    readonly timeKeys: readonly string[]
+    readonly mask: (text: string) => string
+  },
+): JsonValue {
+  const text = (raw: string): string => {
+    let out = raw
+    for (const root of options.roots) out = out.replaceAll(root, '<root>')
+    return options.mask(out.replace(FRAME_RUN, '\n<frames>'))
+  }
+  const walk = (node: JsonValue, key: string | undefined): JsonValue => {
+    if (typeof node === 'string') return text(node)
+    if (typeof node === 'number') {
+      return key !== undefined && options.timeKeys.includes(key) ? '<time>' : node
+    }
+    if (Array.isArray(node)) return node.map((item) => walk(item, key))
+    if (typeof node === 'object' && node !== null) {
+      return Object.fromEntries(
+        Object.entries(node).map(([name, inner]) => [name, walk(inner, name)]),
+      )
+    }
+    return node
+  }
+  return walk(value, undefined)
+}
+
+/** `mask`'s regular expressions (flags `gm`) as one function over a text. */
+function masker(sources: readonly string[] | undefined): (text: string) => string {
+  const expressions = (sources ?? []).map((pattern) => new RegExp(pattern, 'gm'))
+  return (text) =>
+    expressions.reduce((out, expression) => out.replace(expression, '<masked>'), text)
+}
+
 /**
  * What a black-box run shows, in `capture`'s order of kinds: the exit code, the normalized
- * streams (only `keepLines`' lines, sorted under `sortStdout`) and the named files. A stream
- * `keepLines` keeps no line of is `HARNESS_FIXTURE_BAD_RUN` (a pattern that matches nothing would
- * record an empty stream as the truth), unless `emptyStreams` lists it. `source` names the fixture.
+ * streams (only `keepLines`' lines, sorted under `sortStdout`), the named files and the parsed
+ * `json:` files. A stream `keepLines` keeps no line of is `HARNESS_FIXTURE_BAD_RUN` (a pattern
+ * that matches nothing would record an empty stream as the truth), unless `emptyStreams` lists it.
+ * `mask` is applied to each stream and file after `normalize`. `source` names the fixture, and
+ * `roots` are the work directory's spellings a `json:` file's text has as `<root>`.
  */
 export function observedOf(
   spec: FixtureRun,
@@ -233,8 +280,10 @@ export function observedOf(
   files: Readonly<Record<string, string | null>>,
   normalize: (text: string) => string,
   source: string,
+  roots: readonly string[] = [],
 ): GoldenObserved {
   const keep = spec.keepLines === undefined ? undefined : new RegExp(spec.keepLines)
+  const mask = masker(spec.mask)
   const stream = (name: 'stdout' | 'stderr'): string => {
     let lines = normalize(result[name]).split('\n')
     if (keep !== undefined) {
@@ -249,10 +298,11 @@ export function observedOf(
     }
     if (spec.sortStdout === true) lines = lines.toSorted(compareStrings)
     if (spec.sortStdout === 'json') lines = sortedJsonArray(lines, name, source)
-    return lines.join('\n')
+    return mask(lines.join('\n'))
   }
   const captured = (name: string): boolean => spec.capture.includes(name)
   const named = spec.capture.filter((entry) => entry.startsWith('file:'))
+  const parsed = spec.capture.filter((entry) => entry.startsWith('json:'))
   return {
     ...(captured('exitCode') ? { exitCode: result.exitCode } : {}),
     ...(captured('stdout') ? { stdout: stream('stdout') } : {}),
@@ -268,10 +318,34 @@ export function observedOf(
               const normalized = normalize(text)
               return [
                 file,
-                spec.sortStdout === 'json'
-                  ? sortedJsonArray([normalized], file, source).join('\n')
-                  : normalized,
+                mask(
+                  spec.sortStdout === 'json'
+                    ? sortedJsonArray([normalized], file, source).join('\n')
+                    : normalized,
+                ),
               ]
+            }),
+          ),
+        }),
+    ...(parsed.length === 0
+      ? {}
+      : {
+          json: Object.fromEntries(
+            parsed.map((entry) => {
+              const file = entry.slice('json:'.length)
+              const text = files[file] ?? null
+              if (text === null) return [file, null]
+              let value: JsonValue
+              try {
+                value = JSON.parse(text) as JsonValue
+              } catch (cause) {
+                throw new HarnessError(
+                  'HARNESS_FIXTURE_BAD_RUN',
+                  `${source}: "run" captures "json:${file}", which is not JSON`,
+                  { path: source, cause },
+                )
+              }
+              return [file, normalizedJson(value, { roots, timeKeys: spec.timeKeys ?? [], mask })]
             }),
           ),
         }),
@@ -426,15 +500,16 @@ async function runUnderRunner(
           Object.fromEntries(
             await Promise.all(
               spec.capture
-                .filter((entry) => entry.startsWith('file:'))
+                .filter((entry) => /^(?:file|json):/.test(entry))
                 .map(async (entry) => {
-                  const file = entry.slice('file:'.length)
+                  const file = entry.slice(entry.indexOf(':') + 1)
                   return [file, await readCaptured(path.join(workDir, file))] as const
                 }),
             ),
           ),
           (text) => normalizer.text(text),
           path.join(fixture.dir, 'fixture.json'),
+          [paths.realWorkDir, paths.workDir],
         )
 
   const base = {

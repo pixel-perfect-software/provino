@@ -1,0 +1,323 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/json-no-location",
+  "files": [
+    {
+      "file": "sum.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "sum.test.ts",
+            "path": [
+              "sum",
+              "adds"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1
+        },
+        {
+          "id": {
+            "file": "sum.test.ts",
+            "path": [
+              "sum",
+              "fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 3\nReceived: 2",
+              "matcher": "toBe",
+              "userFrame": "<root>/sum.test.ts:6:19"
+            }
+          ],
+          "passingAssertions": 0
+        },
+        {
+          "id": {
+            "file": "sum.test.ts",
+            "path": [
+              "sum",
+              "is skipped"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0
+        },
+        {
+          "id": {
+            "file": "sum.test.ts",
+            "path": [
+              "sum",
+              "is todo"
+            ],
+            "dupIndex": 0
+          },
+          "status": "todo",
+          "errors": [],
+          "passingAssertions": 0
+        },
+        {
+          "id": {
+            "file": "sum.test.ts",
+            "path": [
+              "sum",
+              "each 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1
+        },
+        {
+          "id": {
+            "file": "sum.test.ts",
+            "path": [
+              "sum",
+              "each 3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1
+        },
+        {
+          "id": {
+            "file": "sum.test.ts",
+            "path": [
+              "sum",
+              "matches a stored snapshot"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 1,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 1,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/sum.test.ts.snap",
+        "sha256": "4585ac894b854d68c09707b3363204f4a997027634c3f7c33dfb873d83dffc31"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "Test results written to: .harness-out/jest.json",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 1,
+        "numFailedTests": 1,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 4,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 1,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 1,
+        "numTotalTestSuites": 1,
+        "numTotalTests": 7,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 1,
+          "total": 1,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum adds",
+                "invocations": 1,
+                "location": null,
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "adds",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "actual": 2,
+                      "expected": 3,
+                      "message": "expect(received).toBe(expected) // Object.is equality\n\nExpected: 3\nReceived: 2",
+                      "name": "toBe",
+                      "pass": false
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 3\nReceived: 2\n<frames>"
+                ],
+                "fullName": "sum fails",
+                "invocations": 1,
+                "location": null,
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum is skipped",
+                "invocations": 1,
+                "location": null,
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "is skipped",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum is todo",
+                "invocations": 1,
+                "location": null,
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "todo",
+                "title": "is todo",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum each 1",
+                "invocations": 1,
+                "location": null,
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "each 1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum each 3",
+                "invocations": 1,
+                "location": null,
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "each 3",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum matches a stored snapshot",
+                "invocations": 1,
+                "location": null,
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "matches a stored snapshot",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● sum › fails\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 3\n    Received: 2\n\n      4 |   })\n      5 |   it('fails', () => {\n    > 6 |     expect(1 + 1).toBe(3)\n        |                   ^\n      7 |   })\n      8 |   it.skip('is skipped', () => {})\n      9 |   it.todo('is todo')\n<frames>\n",
+            "name": "<root>/sum.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

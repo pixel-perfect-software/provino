@@ -1,0 +1,34 @@
+{
+  "description": "--json results as vscode-jest reads them (Spike A rebuilt): one file with a pass, a failure, a skipped and a todo test, an each of two rows and a stored snapshot, run with --useStderr --testLocationInResults. The results file is captured as JSON with the times as <time> and each run of stack frames as <frames>; stderr keeps Jest's `Test results written to:` line.",
+  "runners": [
+    "jest"
+  ],
+  "files": {
+    "jest": {
+      "__snapshots__/sum.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`sum matches a stored snapshot 1`] = `\"stored\"`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": [
+        "--useStderr",
+        "--testLocationInResults"
+      ]
+    },
+    "capture": [
+      "exitCode",
+      "stderr",
+      "json:.harness-out/jest.json"
+    ],
+    "keepLines": "^Test results written to:",
+    "timeKeys": [
+      "startTime",
+      "endTime",
+      "duration",
+      "startAt",
+      "start",
+      "end",
+      "runtime"
+    ]
+  }
+}

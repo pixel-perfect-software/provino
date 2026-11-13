@@ -3,6 +3,7 @@ import path from 'node:path'
 import type {
   ConsoleEntry,
   FileStatus,
+  JsonValue,
   NormalizedError,
   NormalizedFile,
   NormalizedRun,
@@ -110,6 +111,12 @@ export interface GoldenObserved {
   readonly stdout?: string
   readonly stderr?: string
   readonly files?: Readonly<Record<string, string | null>>
+  /**
+   * The files `json:<path>` captures name, parsed (`null` when the run left none): the times a
+   * fixture's `timeKeys` name as `"<time>"`, the work directory as `<root>` and each run of
+   * stack frames as `<frames>`.
+   */
+  readonly json?: Readonly<Record<string, JsonValue | null>>
 }
 
 /**
@@ -193,6 +200,7 @@ function observedInOrder(observed: GoldenObserved): GoldenObserved {
     ...(observed.stdout === undefined ? {} : { stdout: observed.stdout }),
     ...(observed.stderr === undefined ? {} : { stderr: observed.stderr }),
     ...(observed.files === undefined ? {} : { files: observed.files }),
+    ...(observed.json === undefined ? {} : { json: observed.json }),
   }
 }
 

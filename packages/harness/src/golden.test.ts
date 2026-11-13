@@ -278,3 +278,61 @@ test('sortStdout "json" records the JSON array of paths in a stream or a file as
       /not one JSON array of strings/.test(error.message),
   )
 })
+
+test('a json: capture is parsed, with times, the root, frame runs and masks normalized', () => {
+  const file = JSON.stringify({
+    startTime: 1700000000000,
+    keep: 7,
+    nested: [{ duration: 12.5, name: 'x' }, { duration: null }],
+    message:
+      'boom in /work/a.ts\n    at fn (/work/a.ts:1:2)\n    at other (/work/b.ts:3:4)\nafter pid 4242',
+  })
+  const spec = {
+    capture: ['json:out.json', 'json:gone.json'],
+    timeKeys: ['startTime', 'duration'],
+    mask: ['pid \\d+'],
+  }
+  assert.deepEqual(
+    observedOf(
+      spec,
+      { exitCode: 0, stdout: '', stderr: '' },
+      { 'out.json': file, 'gone.json': null },
+      (text) => text,
+      'fixture.json',
+      ['/work'],
+    ),
+    {
+      json: {
+        'out.json': {
+          startTime: '<time>',
+          keep: 7,
+          nested: [{ duration: '<time>', name: 'x' }, { duration: null }],
+          message: 'boom in <root>/a.ts\n<frames>\nafter <masked>',
+        },
+        'gone.json': null,
+      },
+    },
+  )
+  assert.throws(
+    () =>
+      observedOf(
+        { capture: ['json:x.json'] },
+        { exitCode: 0, stdout: '', stderr: '' },
+        { 'x.json': 'nope' },
+        (text) => text,
+        'fixture.json',
+      ),
+    (error: unknown) => error instanceof HarnessError && error.code === 'HARNESS_FIXTURE_BAD_RUN',
+  )
+})
+
+test('mask applies to streams and files after normalization', () => {
+  const observed = observedOf(
+    { capture: ['stderr', 'file:a.txt'], mask: ['\\d{4}-\\d\\d'] },
+    { exitCode: 0, stdout: '', stderr: 'at 2026-11 ok' },
+    { 'a.txt': 'x 2026-11' },
+    (text) => text,
+    'fixture.json',
+  )
+  assert.deepEqual(observed, { stderr: 'at <masked> ok', files: { 'a.txt': 'x <masked>' } })
+})
