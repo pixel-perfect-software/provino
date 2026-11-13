@@ -1,9 +1,10 @@
 // `exitCodeFor`: which code a finished run exits with, and in what order the reasons are tried.
 import assert from 'node:assert/strict'
+import { constants } from 'node:os'
 import { describe, it } from 'node:test'
 import { neutralPolicy, resolvePolicy } from '@provino/policy'
 import type { FileResult, Policy, RunSummary } from '@provino/types'
-import { ExitCode, exitCodeFor } from './exit-code.ts'
+import { ExitCode, exitCodeFor, isRunSignal, RUN_SIGNALS } from './exit-code.ts'
 
 const policy: Policy = resolvePolicy({
   orchestrator: { exitCodes: { failure: 7, noTests: 8, unhandled: 9 } },
@@ -28,9 +29,42 @@ describe('ExitCode', () => {
       Pass: 0,
       TestFailure: 1,
       UsageError: 2,
+      Sighup: 129,
       Sigint: 130,
       Sigterm: 143,
     })
+  })
+})
+
+describe('RUN_SIGNALS', () => {
+  it('is the one table: each signal’s exit code is 128 plus its number', () => {
+    for (const [name, { exitCode }] of Object.entries(RUN_SIGNALS)) {
+      assert.equal(exitCode, 128 + constants.signals[name as keyof typeof constants.signals], name)
+    }
+    assert.deepEqual(Object.keys(RUN_SIGNALS), ['SIGINT', 'SIGTERM', 'SIGHUP'])
+  })
+
+  it('names a run’s reason for each signal, and no two signals share one', () => {
+    const reasons = Object.values(RUN_SIGNALS).map((entry) => entry.reason)
+    assert.deepEqual(reasons, ['interrupted', 'terminated', 'hangup'])
+    assert.equal(new Set(reasons).size, reasons.length)
+  })
+
+  it('tells a signal’s name from any other value, inherited keys included', () => {
+    for (const name of Object.keys(RUN_SIGNALS)) assert.equal(isRunSignal(name), true, name)
+    for (const other of [
+      'SIGUSR1',
+      'sigint',
+      'toString',
+      '__proto__',
+      '',
+      undefined,
+      null,
+      2,
+      {},
+    ]) {
+      assert.equal(isRunSignal(other), false, String(other))
+    }
   })
 })
 
@@ -86,10 +120,17 @@ describe('exitCodeFor', () => {
     assert.equal(exitCodeFor(unhandledOnly, { policy, reporterFailures: [1] }), 9)
   })
 
-  it('is 130 for an interrupted run, whatever else is true', () => {
-    const run = summary({ reason: 'interrupted', files: [file('fail')] })
-    assert.equal(exitCodeFor(run, { policy }), ExitCode.Sigint)
-    assert.equal(exitCodeFor(summary({ reason: 'interrupted', files: [] }), { policy }), 130)
+  it('is the signal’s code for a run a signal ended, whatever else is true', () => {
+    for (const { reason, exitCode } of Object.values(RUN_SIGNALS)) {
+      const run = summary({ reason, files: [file('fail')] })
+      assert.equal(exitCodeFor(run, { policy }), exitCode, reason)
+      assert.equal(exitCodeFor(summary({ reason, files: [] }), { policy }), exitCode, reason)
+    }
+    // The codes themselves, written out once: 130 for Ctrl+C, 143 for SIGTERM, 129 for SIGHUP.
+    assert.deepEqual(
+      Object.values(RUN_SIGNALS).map((entry) => entry.exitCode),
+      [130, 143, 129],
+    )
   })
 
   it('uses the neutral policy’s codes when nothing overrides them', () => {

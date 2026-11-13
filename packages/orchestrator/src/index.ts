@@ -27,7 +27,14 @@ export {
   type IdleDispatchOptions,
 } from './dispatch.ts'
 export { OrchestratorError, type OrchestratorErrorCode } from './errors.ts'
-export { ExitCode, type ExitCodeOptions, exitCodeFor } from './exit-code.ts'
+export {
+  ExitCode,
+  type ExitCodeOptions,
+  exitCodeFor,
+  isRunSignal,
+  RUN_SIGNALS,
+  type RunSignal,
+} from './exit-code.ts'
 export { fileIdOf, relativePosix } from './file-id.ts'
 export { sameWorkerKey, type WorkerKeyInput, workerKeyOf } from './key.ts'
 export {

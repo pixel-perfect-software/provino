@@ -22,6 +22,7 @@ import {
   type FileRequest,
   fileIdOf,
   isProvinoCacheDir,
+  isRunSignal,
   type OpenHandleOptions,
   type OpenHandleTracker,
   OrchestratorError,
@@ -31,7 +32,9 @@ import {
   type PoolErrorKind,
   type PoolOutcome,
   type ResultsCache,
+  RUN_SIGNALS,
   type RunProjectOptions,
+  type RunSignal,
   relativePosix,
   runProject,
   runProjects,
@@ -135,11 +138,21 @@ expectTypeOf(ExitCode).toEqualTypeOf<{
   readonly Pass: 0
   readonly TestFailure: 1
   readonly UsageError: 2
+  readonly Sighup: 129
   readonly Sigint: 130
   readonly Sigterm: 143
 }>()
 // @ts-expect-error the codes are constants
 ExitCode.Pass = 3
+// The signals that end a run: one table, each with the reason of the summary and the exit code.
+expectTypeOf<RunSignal>().toEqualTypeOf<'SIGINT' | 'SIGTERM' | 'SIGHUP'>()
+expectTypeOf(RUN_SIGNALS.SIGHUP).toEqualTypeOf<{
+  readonly reason: 'hangup'
+  readonly exitCode: 129
+}>()
+expectTypeOf(isRunSignal).guards.toEqualTypeOf<RunSignal>()
+// @ts-expect-error a signal that does not end a run has no entry
+RUN_SIGNALS.SIGUSR1
 expectTypeOf(exitCodeFor).parameters.toEqualTypeOf<[RunSummary, ExitCodeOptions]>()
 expectTypeOf(exitCodeFor).returns.toEqualTypeOf<number>()
 exitCodeFor(summary, { policy: project.policy })

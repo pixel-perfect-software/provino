@@ -462,10 +462,11 @@ export interface FileResult {
 
 /**
  * Why a run ended: every file passed, a file failed (or `bail` ended the run), the run was
- * interrupted (SIGINT: exit code 130), or it was terminated (SIGTERM: 143).
+ * interrupted (SIGINT: exit code 130), it was terminated (SIGTERM: 143), or the terminal went away
+ * (SIGHUP: 129, `hangup`).
  * @public
  */
-export type RunEndReason = 'passed' | 'failed' | 'interrupted' | 'terminated'
+export type RunEndReason = 'passed' | 'failed' | 'interrupted' | 'terminated' | 'hangup'
 
 /**
  * What a worker reports about one test file's snapshots when the file ends.

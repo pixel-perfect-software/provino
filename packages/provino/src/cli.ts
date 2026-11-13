@@ -2,10 +2,8 @@
 import { main } from './internal/cli.ts'
 import { handleSignals } from './internal/signals.ts'
 
-// How long the process gets to end by itself once a second signal has killed the workers. The run
-// ends on its own as soon as the pool reports its last worker gone; this is the bound on
-// everything else (a reporter that never settles), and the one place a bin exits with
-// `process.exit`: library code never does (T9.10).
+// How long the process gets to end by itself once a second signal has killed the workers. This bin is
+// the one place that calls `process.exit`: library code never does (T9.10).
 const FORCE_GRACE_MS = 750
 
 /** Waits until what was written to `stream` has been handed to the operating system. */
@@ -16,13 +14,12 @@ function flushed(stream: NodeJS.WriteStream): Promise<void> {
 }
 
 const signals = handleSignals(process, {
-  // The exit code is set as the signal lands, not once `main` returns: if the run is left with
-  // nothing to hold the event loop open (a reporter that never settles), Node ends the process on
-  // the unsettled `await` below with its own code, 13, and this is what it ends with instead.
+  // Set as the signal lands, not once `main` returns: a run left with nothing to hold the event loop
+  // open (a reporter that never settles) would otherwise end on the unsettled `await` below with
+  // Node's 13.
   onFirst: (exitCode) => {
     process.exitCode = exitCode
   },
-  // The second Ctrl+C: the workers are killed now; the process follows within the grace.
   onForce: () => {
     setTimeout(() => process.exit(signals.exitCode() ?? 1), FORCE_GRACE_MS).unref()
   },
@@ -36,23 +33,16 @@ const code = await main(process.argv.slice(2), {
     forceExit = true
   },
 })
-signals.dispose()
-// A run the user cut short ends with the signal's code (130, 143, 129) even when it had nothing left to
-// interrupt: Ctrl+C while the workers were still stopping is still a Ctrl+C.
+// A signal that came ends the process with its code even when there was nothing left to interrupt
+// (a Ctrl+C while the workers were still stopping, or during `--listTests`).
 const finalCode = signals.exitCode() ?? code
 process.exitCode = finalCode
-// The run is over. If something a test left open keeps the process alive (an inline pool), a signal
-// now means "stop waiting": the process ends at once, with the signal's code rather than by the
-// signal, so a Ctrl+C that lands just after the run is the same as one during it. Handlers do not
-// keep the event loop alive.
-process.once('SIGINT', () => process.exit(130))
-process.once('SIGTERM', () => process.exit(143))
-process.once('SIGHUP', () => process.exit(129))
+// A signal from now on means "stop waiting" for something a test left open.
+signals.afterRun()
 
-// `--forceExit`: end the process now, as Jest does, once what the run printed has been written. A
-// run that wasn't asked to leaves the exit to the event loop: with forks or threads the pool has
-// stopped every worker, so it ends on its own. `--pool inline` shares this process, so a test's
-// leaked handle (a timer, a socket) keeps it alive, as with Jest's `--runInBand`.
+// `--forceExit`: end now, as Jest does, once what the run printed has been written. Otherwise the
+// event loop ends the process: a pool has stopped its workers, but an inline one shares this process
+// and a leaked handle keeps it alive, as with Jest's `--runInBand`.
 if (forceExit) {
   await Promise.all([flushed(process.stdout), flushed(process.stderr)])
   process.exit(finalCode)

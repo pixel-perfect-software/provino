@@ -10,7 +10,6 @@ import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
 import {
-  ExitCode,
   exitCodeFor,
   type ResultsCache,
   type RunProjectOptions,
@@ -241,76 +240,70 @@ describe('bail options', () => {
 })
 
 describe('signals', () => {
-  it('SIGINT (an abort with no reason) is `interrupted`, exit code 130', async () => {
-    const controller = new AbortController()
-    const { reporter, seen } = recorder()
-    const made = await makeProject({ 'a.test.js': hanging })
-    const project = runtimeProject(made.dir)
-    const running = runProject(project, {
-      bus: createReporterBus([
-        reporter,
-        { name: 'abort', 'file:start': () => void setTimeout(() => controller.abort(), 100) },
-      ]),
-      cache: false,
-      stderr: new Collect(),
-      entry: PID_RECORDING_ENTRY,
-      pool: { kind: 'forks', maxWorkers: 1 },
-      signal: controller.signal,
-    })
-    const summary = await running
-    assert.equal(summary.reason, 'interrupted')
-    assert.equal(exitCodeFor(summary, { policy: project.policy }), ExitCode.Sigint)
-    assert.equal(exitCodeFor(summary, { policy: project.policy }), 130)
-    assert.deepEqual(eventsOf(seen, 'a.test.js'), ['file:start', 'file:end'])
-    // The worker was in a synchronous loop: only the kill got rid of it.
-    await assertNoWorkerLeft()
-  })
+  /** What each abort reason ends the run as, and the exit code that is (128 plus the signal's number). */
+  const SIGNALS = [
+    ['SIGINT (an abort with no reason)', undefined, 'interrupted', 130],
+    ['SIGINT (an abort with the reason "SIGINT")', 'SIGINT', 'interrupted', 130],
+    ['SIGTERM (an abort with the reason "SIGTERM")', 'SIGTERM', 'terminated', 143],
+    ['SIGHUP (an abort with the reason "SIGHUP")', 'SIGHUP', 'hangup', 129],
+  ] as const
 
-  it('SIGTERM (an abort with the reason "SIGTERM") is `terminated`, exit code 143', async () => {
-    const controller = new AbortController()
-    const made = await makeProject({ 'a.test.js': hanging })
-    const project = runtimeProject(made.dir)
-    const summary = await runProject(project, {
-      bus: createReporterBus([
-        {
-          name: 'abort',
-          'file:start': () => void setTimeout(() => controller.abort('SIGTERM'), 100),
-        },
-      ]),
-      cache: false,
-      stderr: new Collect(),
-      entry: PID_RECORDING_ENTRY,
-      pool: { kind: 'forks', maxWorkers: 1 },
-      signal: controller.signal,
+  for (const [label, reason, ended, code] of SIGNALS) {
+    it(`${label} ends the run ${ended}, exit code ${code}, and kills the file in a synchronous loop`, async () => {
+      const controller = new AbortController()
+      const { reporter, seen } = recorder()
+      const made = await makeProject({ 'a.test.js': hanging })
+      const project = runtimeProject(made.dir)
+      const summary = await runProject(project, {
+        bus: createReporterBus([
+          reporter,
+          {
+            name: 'abort',
+            'file:start': () => void setTimeout(() => controller.abort(reason), 100),
+          },
+        ]),
+        cache: false,
+        stderr: new Collect(),
+        entry: PID_RECORDING_ENTRY,
+        pool: { kind: 'forks', maxWorkers: 1 },
+        signal: controller.signal,
+      })
+      assert.equal(summary.reason, ended)
+      assert.equal(exitCodeFor(summary, { policy: project.policy }), code)
+      assert.deepEqual(
+        summary.files.map((file) => [file.file.path, file.state]),
+        [['a.test.js', 'fail']],
+        'the file that was running is the interrupted one',
+      )
+      assert.deepEqual(eventsOf(seen, 'a.test.js'), ['file:start', 'file:end'])
+      // The worker was in a synchronous loop: only the kill got rid of it.
+      await assertNoWorkerLeft()
     })
-    assert.equal(summary.reason, 'terminated')
-    assert.equal(exitCodeFor(summary, { policy: project.policy }), ExitCode.Sigterm)
-    assert.equal(exitCodeFor(summary, { policy: project.policy }), 143)
-    assert.deepEqual(
-      summary.files.map((file) => [file.file.path, file.state]),
-      [['a.test.js', 'fail']],
-      'the file that was running is the interrupted one, as under SIGINT',
-    )
-    await assertNoWorkerLeft()
-  })
+  }
 
-  it('an already aborted SIGTERM signal ends a run that finds files as `terminated` too', async () => {
-    const made = await makeProject({})
-    const project = runtimeProject(made.dir)
-    const summary = await runProject(project, {
-      bus: createReporterBus([]),
-      cache: false,
-      stderr: new Collect(),
-      pool: { kind: 'forks', maxWorkers: 1 },
-      signal: AbortSignal.abort('SIGTERM'),
+  for (const [reason, ended] of [
+    ['SIGTERM', 'terminated'],
+    ['SIGHUP', 'hangup'],
+  ] as const) {
+    it(`an already aborted ${reason} signal ends a run that finds files as ${ended} too`, async () => {
+      const made = await makeProject({})
+      const project = runtimeProject(made.dir)
+      const summary = await runProject(project, {
+        bus: createReporterBus([]),
+        cache: false,
+        stderr: new Collect(),
+        pool: { kind: 'forks', maxWorkers: 1 },
+        signal: AbortSignal.abort(reason),
+      })
+      assert.equal(summary.reason, ended)
     })
-    assert.equal(summary.reason, 'terminated')
-  })
+  }
 
   it('a signal that comes after every file has ended, while the run winds down, still ends it interrupted or terminated', async () => {
     for (const [reason, expected, code] of [
-      [undefined, 'interrupted', ExitCode.Sigint],
-      ['SIGTERM', 'terminated', ExitCode.Sigterm],
+      [undefined, 'interrupted', 130],
+      ['SIGTERM', 'terminated', 143],
+      ['SIGHUP', 'hangup', 129],
     ] as const) {
       const controller = new AbortController()
       const made = await makeProject({ 'a.test.js': passing() })

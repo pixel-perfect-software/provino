@@ -526,15 +526,23 @@ describe('run()', () => {
     })
   })
 
-  it('stops with exit code 130 and no files reported when the signal has aborted', async () => {
-    const project = await makeProject({
-      'tests/a.test.js': passing('a'),
-      'tests/b.test.js': passing('b'),
-    })
-    const ran = await runProject(project, { signal: AbortSignal.abort() })
+  // What a signal that has aborted the run means: the bin's own exit code for it, from a library call too.
+  for (const [what, signal, reason, exitCode] of [
+    ['with no reason', AbortSignal.abort(), 'interrupted', 130],
+    ['for SIGINT', AbortSignal.abort('SIGINT'), 'interrupted', 130],
+    ['for SIGTERM', AbortSignal.abort('SIGTERM'), 'terminated', 143],
+    ['for SIGHUP', AbortSignal.abort('SIGHUP'), 'hangup', 129],
+  ] as const) {
+    it(`stops with exit code ${exitCode} and no files reported when the signal has aborted ${what}`, async () => {
+      const project = await makeProject({
+        'tests/a.test.js': passing('a'),
+        'tests/b.test.js': passing('b'),
+      })
+      const ran = await runProject(project, { signal })
 
-    assert.equal(ran.exitCode, 130)
-    assert.equal(ran.summary?.reason, 'interrupted')
-    assert.deepEqual(ran.summary?.files, [])
-  })
+      assert.equal(ran.exitCode, exitCode)
+      assert.equal(ran.summary?.reason, reason)
+      assert.deepEqual(ran.summary?.files, [])
+    })
+  }
 })

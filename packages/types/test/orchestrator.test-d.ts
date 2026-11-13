@@ -59,7 +59,9 @@ const r = defineReporter({
     expectTypeOf(event.ordinal).toEqualTypeOf<number>()
   },
   'run:end'(summary) {
-    expectTypeOf(summary.reason).toEqualTypeOf<'passed' | 'failed' | 'interrupted' | 'terminated'>()
+    expectTypeOf(summary.reason).toEqualTypeOf<
+      'passed' | 'failed' | 'interrupted' | 'terminated' | 'hangup'
+    >()
     expectTypeOf(summary.openHandles).toEqualTypeOf<readonly OpenHandle[] | undefined>()
   },
 })
@@ -206,6 +208,7 @@ expectTypeOf<Transport['terminate']>().parameters.toEqualTypeOf<
 const badTerminate: Parameters<Transport['terminate']>[1] = { phase: 'stop', limitMs: 1 }
 expectTypeOf<TransportFactory['sharesProcess']>().toEqualTypeOf<boolean | undefined>()
 expectTypeOf<'terminated'>().toExtend<RunEndReason>()
+expectTypeOf<'hangup'>().toExtend<RunEndReason>()
 // @ts-expect-error a run does not end `killed`
 const badReason: RunEndReason = 'killed'
 expectTypeOf<OpenHandle>().toEqualTypeOf<{

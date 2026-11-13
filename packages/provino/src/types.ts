@@ -54,7 +54,7 @@ export interface RunOptions {
   readonly stderr?: NodeJS.WritableStream
   /**
    * Aborting stops the run: no file starts, running ones are killed, and the exit code is 130
-   * (143 when it is aborted with the reason `'SIGTERM'`, as the bin does for that signal).
+   * (143 when it is aborted with the reason `'SIGTERM'`, 129 for `'SIGHUP'`: the bin's own codes).
    */
   readonly signal?: AbortSignal
   /**
@@ -92,7 +92,7 @@ export interface RunOptions {
  * @public
  */
 export interface RunResult {
-  /** The process exit code the run calls for: 0, the policy's failure codes, 2 for bad input, 130 when interrupted. */
+  /** The process exit code the run calls for: 0, the policy's failure codes, 2 for bad input, 128 plus the signal's number when one ended it (130, 143, 129). */
   readonly exitCode: number
   /** `null` when the run never started: a usage or config error. */
   readonly summary: RunSummary | null

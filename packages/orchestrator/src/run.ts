@@ -15,6 +15,7 @@ import type {
   PoolOptions,
   RecyclePolicy,
   ReporterBus,
+  RunEndReason,
   RunInfo,
   RunSummary,
   ScheduleInput,
@@ -31,6 +32,7 @@ import { type DiscoveredFile, discoverFiles } from './discover.ts'
 import { discoverByRules } from './discover-rules.ts'
 import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
 import { OrchestratorError } from './errors.ts'
+import { isRunSignal, RUN_SIGNALS } from './exit-code.ts'
 import { fileIdOf, relativePosix } from './file-id.ts'
 import { configHash, hashOf, workerKeyOf } from './key.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
@@ -146,8 +148,9 @@ export interface RunProjectOptions {
    * Aborting stops the run: no file starts, and the workers running files are killed. A file that
    * had started ends as a failure (`file:end`, one error naming the interruption, in the summary);
    * a file that had not is not reported (no `file:start` or `file:end`, not in the summary). The
-   * run ends with `reason: 'interrupted'`, or `'terminated'` when the signal was aborted with the
-   * reason `'SIGTERM'` (`controller.abort('SIGTERM')`): the bin's exit codes 130 and 143.
+   * run ends with `reason: 'interrupted'`, `'terminated'` when the signal was aborted with the
+   * reason `'SIGTERM'` (`controller.abort('SIGTERM')`) and `'hangup'` for `'SIGHUP'`: the bin's exit
+   * codes 130, 143 and 129 (`RUN_SIGNALS`).
    */
   readonly signal?: AbortSignal
   /**
@@ -544,9 +547,11 @@ export async function runProjects(
   /** `--bail`: the failed tests counted so far, and whether the count has ended the run. */
   let failedTests = 0
   let bailed = false
-  /** What an aborted `signal` means: SIGTERM (143) when it says so, else an interruption (130). */
-  const cutShort = (): 'interrupted' | 'terminated' =>
-    signal?.reason === 'SIGTERM' ? 'terminated' : 'interrupted'
+  /** What an aborted `signal` means: the signal its reason names (`RUN_SIGNALS`), else an interruption. */
+  const cutShort = (): RunEndReason => {
+    const named: unknown = signal?.reason
+    return isRunSignal(named) ? RUN_SIGNALS[named].reason : RUN_SIGNALS.SIGINT.reason
+  }
   /** Adds failed tests to the run's count, and ends the run if that reaches `bail.count`. */
   function countFailed(count: number): void {
     failedTests += count
