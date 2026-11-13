@@ -91,12 +91,15 @@ export interface RunPoolOptions {
 /**
  * The memory a worker may hold before it is replaced, by default: `max(512 MiB, 25% of the
  * memory available to the process / maxWorkers)`, the memory being the container's cap
- * (`process.constrainedMemory()`) or else the machine's (Track 9 §Pool 3).
+ * (`process.constrainedMemory()`) or else the machine's (Track 9 §Pool 3). A cap is never more
+ * than the machine has: a cgroup with no limit reports about 2^64 bytes.
  * @public
  */
 export function defaultWorkerMemoryLimit(maxWorkers: number): number {
+  const machine = totalmem()
   const constrained: unknown = process.constrainedMemory()
-  const available = typeof constrained === 'number' && constrained > 0 ? constrained : totalmem()
+  const available =
+    typeof constrained === 'number' && constrained > 0 ? Math.min(constrained, machine) : machine
   return Math.max(512 * 1024 * 1024, Math.floor((0.25 * available) / Math.max(1, maxWorkers)))
 }
 
