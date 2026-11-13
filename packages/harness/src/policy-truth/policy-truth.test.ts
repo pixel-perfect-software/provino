@@ -64,6 +64,7 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest orchestrator.sequence.unknownFirst': 'B21',
   'vitest orchestrator.todoOnlyFile': 'T11.16',
   'vitest orchestrator.consoleOrigin': 'T11.16',
+  'vitest module.stackFrameNames': 'T11.16',
   'vitest orchestrator.processObject': 'T11.16',
   'vitest orchestrator.shard.fallback': 'T11.16',
   'vitest orchestrator.watch.initialRun': 'T9.11',

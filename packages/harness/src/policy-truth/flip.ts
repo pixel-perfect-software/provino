@@ -62,6 +62,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'module.mockValueOwner': ['module-registry', 'registration'],
   'module.mockResolveKind': ['require', 'import'],
   'module.automockShape': ['metadata', 'deep'],
+  'module.stackFrameNames': ['mapped-name', 'engine'],
   'snapshot.ciUpdate': ['new', 'none'],
   'snapshot.throwErrorBody': ['message', 'error'],
   'snapshot.inline.indent': ['column0', 'call'],

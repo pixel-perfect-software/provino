@@ -214,6 +214,8 @@ export const jestPolicy: PolicyOverrides = {
     mockResolveKind: 'require',
     // Recorded, Jest 30.5.2: `mod-shared-dep` and `mod-shared-dep-root` (a mock reaches the packages that require it).
     mocksReachShared: true,
+    // jest-source-map names a frame after the map's name at its own position (`cli/failure-frames`).
+    stackFrameNames: 'mapped-name',
     // research: track-04 L314
     automockShape: 'metadata',
     // research: track-04 L316

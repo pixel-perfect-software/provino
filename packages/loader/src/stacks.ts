@@ -9,6 +9,41 @@
 import { SourceMap, type SourceMapping } from 'node:module'
 import type { Loader, ModuleId, SourceMapV3 } from '@provino/types'
 
+/** Words that start an expression but name nothing a frame could be called after. */
+const RESERVED: ReadonlySet<string> = new Set([
+  'new',
+  'throw',
+  'await',
+  'yield',
+  'return',
+  'typeof',
+  'void',
+  'delete',
+  'function',
+  'class',
+  'async',
+  'this',
+  'super',
+  'import',
+  'if',
+  'for',
+  'while',
+  'switch',
+  'try',
+  'catch',
+  'var',
+  'let',
+  'const',
+  'null',
+  'true',
+  'false',
+  'in',
+  'of',
+  'do',
+  'else',
+  'with',
+])
+
 type PrepareStackTrace = (error: Error, sites: NodeJS.CallSite[]) => unknown
 
 /**
@@ -18,6 +53,15 @@ type PrepareStackTrace = (error: Error, sites: NodeJS.CallSite[]) => unknown
  * formatter it swapped out, so it never imports the loader.
  */
 export const MAP_CALL_SITES: unique symbol = Symbol.for('provino.mapCallSites')
+
+/** How `installSourceMappedStacks` reads a frame. */
+export interface StackOptions {
+  /**
+   * `mapped-name` names a frame after the name its map holds at the frame's own position
+   * (`ModulePolicy.stackFrameNames`); `engine` (the default) keeps the name V8 gave it.
+   */
+  readonly frameNames?: 'mapped-name' | 'engine'
+}
 
 /**
  * Installs an `Error.prepareStackTrace` that maps each frame in a module `loader` compiled through
@@ -31,7 +75,11 @@ export const MAP_CALL_SITES: unique symbol = Symbol.for('provino.mapCallSites')
  * Process-wide: the worker installs it once, after it made its loader.
  * @public
  */
-export function installSourceMappedStacks(loader: Pick<Loader, 'getSourceMap'>): () => void {
+export function installSourceMappedStacks(
+  loader: Pick<Loader, 'getSourceMap'>,
+  options: StackOptions = {},
+): () => void {
+  const renames = options.frameNames === 'mapped-name'
   const previous = Object.getOwnPropertyDescriptor(Error, 'prepareStackTrace')
   const format: unknown = previous?.value
   const decoded = new WeakMap<SourceMapV3, SourceMap | null>()
@@ -61,6 +109,38 @@ export function installSourceMappedStacks(loader: Pick<Loader, 'getSourceMap'>):
     return sourceMap
   }
 
+  const sourceLines = new WeakMap<SourceMapV3, Map<number, readonly string[]>>()
+
+  /**
+   * The name Jest's source-map support would give the frame: the map's own `names` entry, or, when
+   * the map has none (Oxc's don't), the identifier the original source holds at the mapped
+   * position, which is where Babel puts one. A reserved word (`new`, `throw`) isn't one.
+   */
+  function nameAt(file: string, entry: Partial<SourceMapping>): string | null {
+    // Node's `SourceMapping` carries the map's `name`, which its types leave out.
+    const named = (entry as { readonly name?: unknown }).name
+    if (typeof named === 'string' && named !== '') return named
+    const raw = loader.getSourceMap(file as ModuleId)
+    if (raw === null || typeof entry.originalSource !== 'string') return null
+    const index = raw.sources.indexOf(entry.originalSource)
+    const content = index === -1 ? undefined : raw.sourcesContent?.[index]
+    if (typeof content !== 'string') return null
+    let byIndex = sourceLines.get(raw)
+    if (byIndex === undefined) {
+      byIndex = new Map()
+      sourceLines.set(raw, byIndex)
+    }
+    let lines = byIndex.get(index)
+    if (lines === undefined) {
+      lines = content.split('\n')
+      byIndex.set(index, lines)
+    }
+    const text = lines[entry.originalLine ?? -1]
+    if (text === undefined) return null
+    const word = /^[A-Za-z_$][\w$]*/.exec(text.slice(entry.originalColumn ?? 0))?.[0]
+    return word === undefined || RESERVED.has(word) ? null : word
+  }
+
   function mapped(site: NodeJS.CallSite): NodeJS.CallSite {
     // A throw here would replace the whole stack with it: any failure leaves the frame as it was.
     try {
@@ -82,7 +162,8 @@ export function installSourceMappedStacks(loader: Pick<Loader, 'getSourceMap'>):
       ) {
         return site
       }
-      return new MappedCallSite(site, entry.originalLine + 1, entry.originalColumn + 1)
+      const name = renames ? nameAt(file as ModuleId, entry) : null
+      return new MappedCallSite(site, entry.originalLine + 1, entry.originalColumn + 1, name)
     } catch {
       return site
     }
@@ -125,11 +206,13 @@ class MappedCallSite implements NodeJS.CallSite {
   readonly #site: NodeJS.CallSite
   readonly #line: number
   readonly #column: number
+  readonly #name: string | null
 
-  constructor(site: NodeJS.CallSite, line: number, column: number) {
+  constructor(site: NodeJS.CallSite, line: number, column: number, name: string | null = null) {
     this.#site = site
     this.#line = line
     this.#column = column
+    this.#name = name
   }
 
   getLineNumber(): number {
@@ -141,6 +224,7 @@ class MappedCallSite implements NodeJS.CallSite {
   }
 
   toString(): string {
+    if (this.#name !== null) return this.#named(this.#name)
     const text = this.#site.toString()
     const position = `:${this.#site.getLineNumber()}:${this.#site.getColumnNumber()}`
     const at = text.lastIndexOf(position)
@@ -161,7 +245,34 @@ class MappedCallSite implements NodeJS.CallSite {
   }
 
   getFunctionName(): string | null {
-    return this.#site.getFunctionName()
+    return this.#name ?? this.#site.getFunctionName()
+  }
+
+  /**
+   * The frame with the map's name as its function name, laid out as V8 lays out a call site
+   * (`Type.name [as method] (file:line:column)`), the layout Jest's source-map support rebuilds
+   * (jest-source-map `callSiteToString`).
+   */
+  #named(name: string): string {
+    const site = this.#site
+    const file = site.getScriptNameOrSourceURL() ?? site.getFileName()
+    const where = `${file ?? '<anonymous>'}:${this.#line}:${this.#column}`
+    const constructing = site.isConstructor()
+    if (constructing) return `new ${name} (${where})`
+    if (site.isToplevel()) return `${name} (${where})`
+    const type = site.getTypeName()
+    const method = site.getMethodName()
+    let line = ''
+    if (type !== null && type !== '' && !name.startsWith(type)) line += `${type}.`
+    line += name
+    if (
+      method !== null &&
+      method !== '' &&
+      name.indexOf(`.${method}`) !== name.length - method.length - 1
+    ) {
+      line += ` [as ${method}]`
+    }
+    return `${line} (${where})`
   }
 
   getMethodName(): string | null {

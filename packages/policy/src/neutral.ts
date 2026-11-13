@@ -166,6 +166,8 @@ export const neutralPolicy: Policy = deepFreeze({
     mockResolveKind: 'import',
     // T2.6: R3 makes mock-aware inlining the default (D39, B13d Gap 11).
     mocksReachShared: true,
+    // Ours: a frame keeps the name V8 gave it.
+    stackFrameNames: 'engine',
     automockShape: 'deep',
     unmockedPathPatterns: [],
     // Empty: `@provino/mock` falls back to its own neutral text for every module message code.

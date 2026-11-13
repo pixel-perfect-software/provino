@@ -1,0 +1,9 @@
+{
+  "description": "The function name V8 gives a failing test's frames under Jest 30.5.2 (DV88). Kept: each failure's title and the `at` lines that name the test file. A black-box run, read by `provino`'s `failure-frames.test.ts`.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^  ● |^ +at .*\\bframes\\.test\\.ts:\\d+:\\d+\\)?$"
+  }
+}

@@ -135,6 +135,7 @@ declare const moduleMocks: ModuleMockRegistry
 expectTypeOf(moduleMocks.active).returns.toEqualTypeOf<boolean>()
 expectTypeOf(moduleMocks.generation).returns.toEqualTypeOf<number>()
 expectTypeOf<ModulePolicy['mocksReachShared']>().toEqualTypeOf<boolean>()
+expectTypeOf<ModulePolicy['stackFrameNames']>().toEqualTypeOf<'mapped-name' | 'engine'>()
 
 // T2.11: `tierFor` takes the sources of a tier and says which one won.
 expectTypeOf(loader.tierFor).parameters.toEqualTypeOf<[string, TierSources]>()

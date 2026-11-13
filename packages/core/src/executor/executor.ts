@@ -784,7 +784,12 @@ export class Executor {
     const state: AttemptState = {
       test,
       ctx: undefined,
-      thisArg: this.#policy.firstArg === 'context' ? undefined : Object.create(null),
+      // A row of a table is called plain, as jest-each's `() => test(...params)` does (its frame
+      // has no type name: `at toBe (x.test.ts:3:5)`, `cli/failure-frames`).
+      thisArg:
+        this.#policy.firstArg === 'context' || test.rowArgs !== undefined
+          ? undefined
+          : Object.create(null),
       run: handle,
       lazy: { kind: 'test', run: handle, suite: test.parent.handle, file: run.file.handle },
       frame,
