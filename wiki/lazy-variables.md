@@ -87,3 +87,4 @@ A mistake throws a `LazyError` with a `code` and the file and line of the defini
 
 - A cycle through `$` after an `await` waits for the test's timeout; read the other value through the dependencies argument to get `LAZY_CYCLE`.
 - The failure report lists the lazy values a failed test evaluated (key, where it is defined, time) in the text reporters (`default`, `verbose`, `agent`, `dot`), and for a definition that threw, the chain of reads that led to it (`chain: cart -> user`). The JSON, JUnit and GitHub Actions reporters do not carry it.
+- Lazy variables work in a jsdom file, but under `provino run` such a file needs `isolation: 'registry'` in the config today: the default for jsdom is the realm tier, which is not built yet. `provino jest` with `testEnvironment: 'jsdom'` runs the project's own `jest-environment-jsdom` and needs no setting.

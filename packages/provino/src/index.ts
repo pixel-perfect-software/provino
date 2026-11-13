@@ -6,10 +6,12 @@
 // and `timers` of Track 1's table arrive with the neutral API; today they are `jest.fn`,
 // `jest.spyOn`, `jest.mock` and `jest.useFakeTimers`, on the Jest facade.
 //
-// This file imports only the lazy forwarders at run time (a few small functions that read the slot
-// when called). The worker's engine is in its own chunks, which a test
-// file reaching `provino` must not load a second time: a copy of `expect` here would have its own
-// matchers and its own state, not the test's.
+// At run time this file imports only the lazy forwarders (a few small functions that read the slot
+// when called) and, through them, `dist/lazy-api.js`: the error class, the call-site marker and the
+// slot reader, in a chunk of their own (`tooling/packaging/src/umbrella.ts`, group `lazy-api`).
+// `import 'provino'` loads no `shared.js`, `loading.js` or coordinator chunk. The worker's engine is
+// in those, and a test file reaching `provino` must not load a second copy: a copy of `expect`
+// would have its own matchers and its own state, not the test's.
 import type { JestGlobals } from '@provino/dialect-jest/runtime'
 
 export {

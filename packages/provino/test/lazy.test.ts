@@ -5,8 +5,9 @@
 // file that asserts inside the worker; the outer test reads the verdict of the run.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, test } from 'node:test'
@@ -14,6 +15,9 @@ import { fileURLToPath } from 'node:url'
 import { childEnv, runBuilt, viewOfNormalized } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
+const require = createRequire(
+  fileURLToPath(new URL('../../dialect-jest/package.json', import.meta.url)),
+)
 
 /** The line of the one line of `text` that holds `marker` (1-based). */
 function lineOf(text: string, marker: string): number {
@@ -236,6 +240,14 @@ it('passes and lists nothing', () => {
 })
 `
 
+/** A worker-scope file for the recycling test: the value is the worker's own, so one per file. */
+const RECYCLED_FILE = `import { $, evaluated } from './worker-helper.ts'
+
+it('evaluates the worker value in this file\\'s own worker', () => {
+  expect($.pool.id).toBe(evaluated())
+})
+`
+
 /** The files every project holds. */
 const FILES: Readonly<Record<string, string>> = {
   'tests/memo.test.ts': MEMO,
@@ -323,7 +335,82 @@ describe('lazy variables on the built package', () => {
       { cwd: dir, env: ENV },
     )
     assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
-    assert.equal(viewOfNormalized(run.stdout).success, true)
+    const view = viewOfNormalized(run.stdout)
+    assert.equal(view.success, true)
+    const statuses = [...view.files.values()].flatMap((file) => [...file.tests.values()])
+    assert.equal(statuses.length, 7 + 2)
+    assert.ok(
+      statuses.every((status) => status === 'passed'),
+      statuses.join(','),
+    )
+  })
+
+  test('provino run --pool threads: the memo, file-scope and worker-scope files', async () => {
+    const dir = await project({
+      'tests/memo.test.ts': MEMO,
+      'tests/file-scope.test.ts': FILE_SCOPE,
+      'tests/worker-helper.ts': WORKER_HELPER,
+      'tests/worker-a.test.ts': WORKER_FILE,
+    })
+    const run = runBuilt(
+      [
+        'run',
+        '--config',
+        'provino.config.mjs',
+        '--maxWorkers',
+        '1',
+        '--pool',
+        'threads',
+        '--reporter',
+        'json',
+      ],
+      { cwd: dir, env: ENV },
+    )
+    assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+    const view = viewOfNormalized(run.stdout)
+    assert.equal(view.success, true)
+    const statuses = [...view.files.values()].flatMap((file) => [...file.tests.values()])
+    assert.equal(statuses.length, 7 + 2 + 1)
+    assert.ok(
+      statuses.every((status) => status === 'passed'),
+      statuses.join(','),
+    )
+  })
+
+  test('--maxFilesPerWorker 1: each file gets a fresh worker, so a worker value is evaluated once per file', async () => {
+    const dir = await project({
+      'tests/worker-helper.ts': WORKER_HELPER,
+      'tests/worker-a.test.ts': RECYCLED_FILE,
+      'tests/worker-b.test.ts': RECYCLED_FILE,
+      'tests/memo.test.ts': MEMO,
+    })
+    const run = runBuilt(
+      [
+        'run',
+        '--config',
+        'provino.config.mjs',
+        '--maxWorkers',
+        '1',
+        '--pool',
+        'forks',
+        '--maxFilesPerWorker',
+        '1',
+        '--reporter',
+        'json',
+      ],
+      { cwd: dir, env: ENV },
+    )
+    assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+    const view = viewOfNormalized(run.stdout)
+    assert.equal(view.success, true)
+    const statuses = [...view.files.values()].flatMap((file) => [...file.tests.values()])
+    assert.equal(statuses.length, 1 + 1 + 7)
+    assert.ok(
+      statuses.every((status) => status === 'passed'),
+      statuses.join(','),
+    )
+    // One evaluation per file that reads it, in a worker each: without recycling it would be one.
+    assert.equal(readFileSync(join(dir, 'evaluations.log'), 'utf8'), 'xx')
   })
 
   test('a jsdom file', async () => {
@@ -336,6 +423,18 @@ describe('lazy variables on the built package', () => {
     const view = viewOfNormalized(run.stdout)
     assert.equal(view.success, true)
     assert.equal(view.files.size, 1)
+  })
+
+  test("provino jest with testEnvironment jsdom: the project's own jest-environment-jsdom (D44)", async () => {
+    const dir = await project({ 'tests/dom.test.ts': DOM }, ',"testEnvironment":"jsdom"')
+    symlinkSync(
+      dirname(require.resolve('jest-environment-jsdom/package.json')),
+      join(dir, 'node_modules', 'jest-environment-jsdom'),
+      'dir',
+    )
+    const run = runBuilt(['jest', '--ci', '-w', '1', 'tests/dom.test.ts'], { cwd: dir, env: ENV })
+    assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+    assert.match(run.stderr, /Tests:\s+1 passed, 1 total/, run.stderr)
   })
 
   test('injectGlobals: false', async () => {

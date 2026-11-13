@@ -170,7 +170,12 @@ export interface CoverageCollector {
 }
 
 /**
- * Instruments code for Istanbul coverage (a Track 3 transform hook).
+ * Instruments code for Istanbul coverage (a Track 3 transform hook). The pipeline calls it on a
+ * file requested with `instrument: true`, after TypeScript is stripped (or the project's
+ * transformer ran) and before the hoister: `code` is that output and `inputMap` the map the earlier
+ * steps composed from it to the source (`null` when none changed positions). `map` leads the
+ * returned code back to `code` (`null` when the code is unchanged); it does not include `inputMap`,
+ * which the pipeline composes and the instrumenter embeds in the coverage data.
  * @public
  */
 export interface CoverageInstrumenter {
