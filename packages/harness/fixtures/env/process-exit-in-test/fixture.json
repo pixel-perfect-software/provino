@@ -1,9 +1,8 @@
 {
-  "description": "A test that calls `process.exit(3)`, run in band (`-i`): the runner's own process runs the file. The run captures the exit code and the stderr line that names the call (the code frame and the stack after it are left out).",
+  "description": "A test that calls `process.exit(3)`, run in band (`-i`): the runner's own process runs the file and exits with the test's code. Only the exit code is captured. Jest writes its `process.exit called with \"3\"` line and exits at once, and how much of that write reaches the pipe differs between macOS and Linux (CI lost the line's leading indent), so the line can't be held in a golden. `process-exit-in-test-worker` keeps the line, from a worker.",
   "runners": ["jest"],
   "run": {
     "argv": { "jest": ["-i"] },
-    "capture": ["exitCode", "stderr"],
-    "keepLines": "process\\.exit called with"
+    "capture": ["exitCode"]
   }
 }

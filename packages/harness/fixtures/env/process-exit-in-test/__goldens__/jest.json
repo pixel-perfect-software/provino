@@ -7,7 +7,6 @@
   "runErrors": [],
   "success": false,
   "observed": {
-    "exitCode": 3,
-    "stderr": "  ●  process.exit called with \"3\""
+    "exitCode": 3
   }
 }
