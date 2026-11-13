@@ -21,6 +21,7 @@ import { TaskId } from '@provino/types';
 import { TaskNode } from '@provino/types';
 import { TaskResult } from '@provino/types';
 import { TestTask } from '@provino/types';
+import { TextStyle } from '@provino/types';
 
 // @public
 export function addResult(aggregated: AggregatedResult, testResult: TestResult): void;
@@ -823,7 +824,22 @@ export function jestRunGlobalHooks(globalConfig: JestGlobalConfig): {
 } | undefined;
 
 // @public
+export function jestRunSummaryLine(globalConfig: Pick<JestGlobalConfig, "findRelatedTests" | "nonFlagArgs" | "onlyChanged" | "runTestsByPath" | "silent" | "testNamePattern" | "testPathPatterns">, run: {
+    readonly interrupted: boolean;
+    readonly contextCount: number;
+}, style: TextStyle): string | undefined;
+
+// @public
+export function jestSnapshotStatus(snapshot: TestResult["snapshot"], afterUpdate: boolean, style: TextStyle): readonly string[];
+
+// @public
+export function jestSnapshotSummary(snapshots: SnapshotSummary, globalConfig: Pick<JestGlobalConfig, "rootDir">, updateCommand: string, style: TextStyle): readonly string[];
+
+// @public
 export type JestTransformEntry = readonly [pattern: string, path: string, options: Readonly<Record<string, unknown>>];
+
+// @public
+export function jestUpdateCommand(env: Readonly<Record<string, string | undefined>>, watch: boolean): string;
 
 // @public
 export function loadJestConfig(source: ConfigSource): Promise<{

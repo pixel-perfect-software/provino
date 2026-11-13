@@ -1,0 +1,16 @@
+{
+  "description": "The closing line with two projects (B23a): `Ran all test suites in 2 projects.`; each file's header carries its project's display name. Projects come from --projects, as `global-setup-projects` does, as plain JavaScript. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--projects", "p1", "p2"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Snapshot Summary$|^ › |^ +[↳•] "
+  }
+}

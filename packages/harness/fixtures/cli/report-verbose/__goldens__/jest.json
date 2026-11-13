@@ -239,6 +239,6 @@
   "success": false,
   "observed": {
     "exitCode": 1,
-    "stderr": "PASS ./passes.test.ts\n  ✓ stands alone (<dur>)\n  math\n    ✓ adds (<dur>)\n    nested\n      ✓ subtracts (<dur>)\nFAIL ./fails.test.ts\n  group\n    ✕ fails (<dur>)\n    ✓ passes after (<dur>)\nPASS ./skipped.test.ts\n  ✓ runs (<dur>)\n  ○ skipped is skipped\n  ✎ todo is planned\n  console.log\n    from the test\n  console.warn\n    a warning\nPASS ./console.test.ts\n  ✓ logs and warns (<dur>)\nFAIL ./snapshot.test.ts\n  ✕ matches a stored snapshot (<dur>)\nTest Suites: 2 failed, 3 passed, 5 total\nTests:       2 failed, 1 skipped, 1 todo, 6 passed, 10 total"
+    "stderr": "PASS ./passes.test.ts\n  ✓ stands alone (<dur>)\n  math\n    ✓ adds (<dur>)\n    nested\n      ✓ subtracts (<dur>)\nFAIL ./fails.test.ts\n  group\n    ✕ fails (<dur>)\n    ✓ passes after (<dur>)\nPASS ./skipped.test.ts\n  ✓ runs (<dur>)\n  ○ skipped is skipped\n  ✎ todo is planned\n  console.log\n    from the test\n  console.warn\n    a warning\nPASS ./console.test.ts\n  ✓ logs and warns (<dur>)\nFAIL ./snapshot.test.ts\n  ✕ matches a stored snapshot (<dur>)\n › 1 snapshot failed.\nSnapshot Summary\n › 1 snapshot failed from 1 test suite. Inspect your code changes or re-run jest with `-u` to update them.\nTest Suites: 2 failed, 3 passed, 5 total\nTests:       2 failed, 1 skipped, 1 todo, 6 passed, 10 total\nRan all test suites."
   }
 }

@@ -62,6 +62,8 @@ export interface TextExtras {
   readonly separateSummary?: true
   /** Text printed in place of Provino's failure blocks for a failed file. */
   readonly failureText?: (file: FileResult) => string | undefined
+  /** Lines under a file's output (Jest's per-file snapshot lines). */
+  readonly fileNotes?: (file: FileResult, style: TextStyle) => readonly string[] | undefined
   /** The `summary` reporter's: reprint the failures when more suites than this ran. */
   readonly failureSummaryThreshold?: number
   readonly snapshotSummary?: (
@@ -247,6 +249,7 @@ function textOptions(context: ReporterContext, output: OutputEnvironment): TextR
     ...(display?.verbose === false ? { verbose: false as const } : {}),
     ...(display?.verbose === true ? { verboseRun: true as const } : {}),
     ...(context.text?.separateSummary === true ? { summary: false as const } : {}),
+    ...(context.text?.fileNotes === undefined ? {} : { fileNotes: context.text.fileNotes }),
     ...(context.text?.failureText === undefined ? {} : { failureText: context.text.failureText }),
     ...(context.text?.failureSummaryThreshold === undefined
       ? {}

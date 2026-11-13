@@ -9,6 +9,6 @@
   "config": { "jest": { "maxWorkers": 1 } },
   "run": {
     "capture": ["exitCode", "stderr"],
-    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^  ● Console$|^ {4}console\\.|^ {6}(from the test|a warning)$|^ {6}at Object\\.(log|warn) "
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^  ● Console$|^ {4}console\\.|^ {6}(from the test|a warning)$|^ {6}at Object\\.(log|warn) |^Ran all test suites|^Snapshot Summary$|^ › |^ +[↳•] "
   }
 }

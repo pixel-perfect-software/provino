@@ -239,6 +239,6 @@
   "success": false,
   "observed": {
     "exitCode": 1,
-    "stderr": "PASS ./passes.test.ts\nFAIL ./fails.test.ts\nPASS ./skipped.test.ts\nPASS ./console.test.ts\n  ● Console\n    console.log\n      from the test\n      at Object.log (console.test.ts:4:11)\n    console.warn\n      a warning\n      at Object.warn (console.test.ts:5:11)\nFAIL ./snapshot.test.ts\nTest Suites: 2 failed, 3 passed, 5 total\nTests:       2 failed, 1 skipped, 1 todo, 6 passed, 10 total\nSnapshots:   1 failed, 1 total"
+    "stderr": "PASS ./passes.test.ts\nFAIL ./fails.test.ts\nPASS ./skipped.test.ts\nPASS ./console.test.ts\n  ● Console\n    console.log\n      from the test\n      at Object.log (console.test.ts:4:11)\n    console.warn\n      a warning\n      at Object.warn (console.test.ts:5:11)\nFAIL ./snapshot.test.ts\n › 1 snapshot failed.\nSnapshot Summary\n › 1 snapshot failed from 1 test suite. Inspect your code changes or re-run jest with `-u` to update them.\nTest Suites: 2 failed, 3 passed, 5 total\nTests:       2 failed, 1 skipped, 1 todo, 6 passed, 10 total\nSnapshots:   1 failed, 1 total\nRan all test suites."
   }
 }

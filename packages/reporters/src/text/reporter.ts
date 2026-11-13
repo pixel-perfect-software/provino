@@ -73,6 +73,11 @@ export interface TextReporterOptions {
    * the blocks). A dialect that has its own failure text for a file passes it here.
    */
   readonly failureText?: (file: FileResult) => string | undefined
+  /**
+   * Lines printed under a file's header and failures (Jest's per-file snapshot lines); not part of
+   * the failures the summary reprints.
+   */
+  readonly fileNotes?: (file: FileResult, style: TextStyle) => readonly string[] | undefined
   /** `summaryReporter`: reprint the failures at the end when more suites than this ran. Default 20. */
   readonly failureSummaryThreshold?: number
   /**
@@ -220,7 +225,7 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
   function fileText(result: FileResult, entry: FileRecord | undefined): string | undefined {
     if (result.state === 'skip') return undefined
     if (traits.quiet && result.state === 'pass') return undefined
-    const label = projectLabel(result.file, displayPath(result.file.path))
+    const label = projectLabel(result.file, displayPath(result.file.runPath ?? result.file.path))
     const header =
       result.state === 'pass'
         ? passLine(label, result.durationMs, style)
@@ -258,7 +263,9 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
         parts.push(failureBlock(report, title, result.errors, style, stackTrace))
       }
     }
-    return parts.join('\n')
+    const text = parts.join('\n')
+    const notes = options.fileNotes?.(result, style) ?? []
+    return notes.length === 0 || !traits.files ? text : `${text}\n${notes.join('\n')}`
   }
 
   return {
@@ -282,7 +289,7 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     ...(live
       ? {
           async 'file:start'(file: FileInfo) {
-            await out.start(file.fileId, projectLabel(file, displayPath(file.path)))
+            await out.start(file.fileId, projectLabel(file, displayPath(file.runPath ?? file.path)))
           },
         }
       : {}),

@@ -118,6 +118,7 @@ export interface TextReporterOptions {
     readonly expand?: boolean;
     readonly failureSummaryThreshold?: number;
     readonly failureText?: (file: FileResult) => string | undefined;
+    readonly fileNotes?: (file: FileResult, style: TextStyle) => readonly string[] | undefined;
     readonly live?: boolean;
     readonly noStackTrace?: boolean;
     readonly report: ReportPolicy;

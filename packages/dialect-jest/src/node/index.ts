@@ -84,6 +84,12 @@ export {
   processJestResults,
 } from './reporters/process-results.ts'
 export {
+  jestRunSummaryLine,
+  jestSnapshotStatus,
+  jestSnapshotSummary,
+  jestUpdateCommand,
+} from './reporters/summary-text.ts'
+export {
   createJestResolution,
   type FindNodeModuleOptions,
   type JestRequireResolve,

@@ -1,0 +1,16 @@
+{
+  "description": "The closing line with a file pattern, under Jest 30.5.2 (B23a): `Ran all test suites matching snap.` after the totals. Two files, one matches the positional pattern. One worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["snap"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Snapshot Summary$|^ › |^ +[↳•] "
+  }
+}

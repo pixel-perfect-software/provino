@@ -132,4 +132,24 @@ describe('the text reporters beside the summary reporter', () => {
     assert.match(text, /JEST TEXT FOR .*broken\.test\.ts/)
     assert.doesNotMatch(text, /group › fails\n/)
   })
+
+  test('fileNotes go under each file it names, and stay out of the failures the summary reprints', async () => {
+    const { text } = await playFixture((out) =>
+      defaultReporter({
+        stream: out,
+        ...PLAIN,
+        fileNotes: (file) => (file.state === 'fail' ? [' \u203A NOTE'] : undefined),
+      }),
+    )
+    assert.match(text, /FAIL .*broken\.test\.ts[\s\S]*\n \u203A NOTE(\n|$)/)
+    const failures = await playFixture((out) =>
+      summaryReporter({
+        stream: out,
+        ...PLAIN,
+        failureSummaryThreshold: 1,
+        fileNotes: () => [' \u203A NOTE'],
+      }),
+    )
+    assert.doesNotMatch(failures.text, /NOTE/)
+  })
 })

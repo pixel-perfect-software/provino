@@ -8,10 +8,14 @@ import {
   type JestProjectConfig,
   type JestResults,
   jestReporterPlan,
+  jestRunSummaryLine,
+  jestSnapshotStatus,
+  jestSnapshotSummary,
+  jestUpdateCommand,
   loadJestReporters,
 } from '@provino/dialect-jest/node'
 import type { Environment, OutputEnvironment } from '@provino/reporters'
-import type { Reporter } from '@provino/types'
+import type { FileResult, Reporter, TextStyle } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
 import type { TextExtras } from './reporters.ts'
 import { UsageError } from './usage-error.ts'
@@ -59,6 +63,13 @@ export async function setUpJestReporters(options: {
     entries,
     showStatus: globalConfig.maxWorkers > 1,
   })
+  const afterUpdate = globalConfig.updateSnapshot === 'all'
+  const noteHooks = {
+    fileNotes: (file: FileResult, style: TextStyle) => {
+      const snapshot = results.testResultOf(file.file.fileId)?.snapshot
+      return snapshot === undefined ? undefined : jestSnapshotStatus(snapshot, afterUpdate, style)
+    },
+  }
   const release = hosts.at(-1)
   let hosted = 0
   const reporters: ReporterChoice[] = []
@@ -82,17 +93,35 @@ export async function setUpJestReporters(options: {
     return {
       reporters,
       text: {
+        ...noteHooks,
         separateSummary: true,
         snapshotsAlways: true,
         failureText: (file) => results.testResultOf(file.file.fileId)?.failureMessage ?? undefined,
         failureSummaryThreshold:
           typeof threshold === 'number' ? threshold : DEFAULT_SUMMARY_THRESHOLD,
+        snapshotSummary: (_summary, style) =>
+          jestSnapshotSummary(
+            results.aggregated().snapshot,
+            globalConfig,
+            jestUpdateCommand(options.env, globalConfig.watch || globalConfig.watchAll),
+            style,
+          ),
+        closingLine: (_summary, style) =>
+          jestRunSummaryLine(
+            globalConfig,
+            {
+              interrupted: results.aggregated().wasInterrupted,
+              contextCount: results.contexts().size,
+            },
+            style,
+          ),
       },
     }
   }
   return {
     reporters,
     text: {
+      ...noteHooks,
       failureText: (file) => results.testResultOf(file.file.fileId)?.failureMessage ?? undefined,
     },
   }
