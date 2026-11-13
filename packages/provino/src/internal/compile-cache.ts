@@ -5,7 +5,6 @@
 // rest, so it may import nothing that loads an Oxc binding.
 import { join } from 'node:path'
 import {
-  type CacheMode,
   cacheModeFor,
   enableNativeCompileCache,
   type NativeCompileCacheResult,
@@ -75,9 +74,7 @@ export function enableBinCompileCache(
   cwd: string,
 ): NativeCompileCacheResult {
   const dir = join(cwd, 'node_modules', '.cache', 'provino', 'compile')
-  const mode: CacheMode = cachesOff(argv)
-    ? 'off'
-    : cacheModeFor({ coverage: coverageOn(argv, env) })
+  const mode = cachesOff(argv) ? 'off' : cacheModeFor({ coverage: coverageOn(argv, env) })
   const result = enableNativeCompileCache(dir, mode)
   if (result.status === 'enabled' && env.NODE_COMPILE_CACHE === undefined) {
     env.NODE_COMPILE_CACHE = dir
