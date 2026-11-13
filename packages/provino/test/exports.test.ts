@@ -68,14 +68,22 @@ describe('the umbrella exports (T1.10)', () => {
   test('each subpath imports under plain Node and exports what it promises', () => {
     const expected: Readonly<Record<string, readonly string[]>> = {
       provino: [
+        'LazyError',
         'ProvinoWorkerApiError',
         'afterAll',
         'afterEach',
         'beforeAll',
         'beforeEach',
         'describe',
+        'evaluatedLazies',
         'expect',
+        'includeContext',
+        'includeExamples',
         'it',
+        'itBehavesLike',
+        'lazy',
+        'sharedContext',
+        'sharedExamples',
         'test',
       ],
       'provino/globals': [],

@@ -50,6 +50,7 @@
     "@provino/config": "workspace:*",
     "@provino/core": "workspace:*",
     "@provino/expect": "workspace:*",
+    "@provino/lazy": "workspace:*",
     "@provino/loader": "workspace:*",
     "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",

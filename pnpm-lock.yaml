@@ -892,6 +892,9 @@ importers:
       '@provino/expect':
         specifier: workspace:*
         version: link:../expect
+      '@provino/lazy':
+        specifier: workspace:*
+        version: link:../lazy
       '@provino/loader':
         specifier: workspace:*
         version: link:../loader
@@ -1002,6 +1005,9 @@ importers:
       '@provino/env-node':
         specifier: workspace:*
         version: link:../env-node
+      '@provino/lazy':
+        specifier: workspace:*
+        version: link:../lazy
       '@provino/orchestrator':
         specifier: workspace:*
         version: link:../orchestrator
