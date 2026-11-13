@@ -1,10 +1,17 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { binScript, runCommand } from './exec.ts'
-import { WORKER_ENTRIES, workerRefs } from './umbrella.ts'
+import { umbrellaEntries, WORKER_ENTRIES, workerRefs } from './umbrella.ts'
 import { ROOT } from './workspace.ts'
 
 /** The files of `dir` below `src/`, recursively, that aren't tests. */
@@ -99,13 +106,23 @@ describe('the umbrella names every module a worker is given by file (D21)', () =
     }
   })
 
-  test('each row is an entry file of the build, under worker/', () => {
-    for (const [specifier, entry] of Object.entries(WORKER_ENTRIES)) {
-      assert.match(entry.name, /^worker\/[a-z-]+$/, specifier)
-      assert.match(entry.source, /^\.\.\/[a-z-]+\/src\/.+\.ts$/, specifier)
+  test('each row is an entry file of the build, under worker/, with a source that exists', () => {
+    const dir = join(ROOT, 'packages', 'provino')
+    const entries = umbrellaEntries(dir)
+    for (const [specifier, name] of Object.entries(WORKER_ENTRIES)) {
+      assert.match(name, /^worker\/[a-z-]+$/, specifier)
+      assert.ok(existsSync(join(dir, entries[name] ?? 'missing')), `${specifier}: ${entries[name]}`)
     }
-    const names = Object.values(WORKER_ENTRIES).map((entry) => entry.name)
+    const names = Object.values(WORKER_ENTRIES)
     assert.equal(new Set(names).size, names.length)
+  })
+
+  test("the umbrella's own entries are its exports and its bin", () => {
+    const entries = umbrellaEntries(join(ROOT, 'packages', 'provino'))
+    assert.equal(entries.index, 'src/index.ts')
+    assert.equal(entries.jest, 'src/jest.ts')
+    assert.equal(entries.cli, 'src/cli.ts')
+    assert.equal(entries['worker/jest-runtime'], '../dialect-jest/src/runtime/index.ts')
   })
 })
 

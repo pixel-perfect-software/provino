@@ -13,6 +13,8 @@ export interface PackageManifest {
   /** `exports` as written: subpath → condition → target. */
   readonly exports: Readonly<Record<string, Readonly<Record<string, string>>>>
   readonly bin: Readonly<Record<string, string>>
+  /** `publishConfig.bin`: what `pnpm pack` writes over `bin` in the tarball. */
+  readonly publishBin: Readonly<Record<string, string>>
   readonly files: readonly string[]
   readonly scripts: Readonly<Record<string, string>>
   readonly dependencies: Readonly<Record<string, string>>
@@ -67,6 +69,7 @@ export function readManifest(dir: string): PackageManifest {
     type: typeof json.type === 'string' ? json.type : undefined,
     exports,
     bin,
+    publishBin: stringRecord(record(json.publishConfig).bin),
     files: Array.isArray(json.files)
       ? json.files.filter((file): file is string => typeof file === 'string')
       : [],

@@ -28,6 +28,7 @@ function pkg(name: string, parts: Partial<PackageManifest> = {}, rel = `packages
     type: 'module',
     exports: {},
     bin: {},
+    publishBin: {},
     files: [],
     scripts: {},
     dependencies: {},

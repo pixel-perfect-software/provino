@@ -25,6 +25,13 @@ export const PRESET: UserConfig = {
   minify: false,
 }
 
+/** Declarations only, from Oxc's generator: a types-only package, and the umbrella's second build. */
+export const DTS_ONLY: Exclude<UserConfig['dts'], boolean | undefined> = {
+  generator: 'oxc',
+  sourcemap: false,
+  emitDtsOnly: true,
+}
+
 /** One subpath of a package's `exports`: where its source is, and what the build writes. */
 export interface PackageEntry {
   /** The `exports` key: `.` or `./node`. */
@@ -89,7 +96,7 @@ export function packageConfig(dir: string): UserConfig {
   return {
     ...PRESET,
     // A types-only package writes declarations and no JavaScript.
-    ...(typesOnly ? { dts: { generator: 'oxc', sourcemap: false, emitDtsOnly: true } } : {}),
+    ...(typesOnly ? { dts: DTS_ONLY } : {}),
     // The config file lives elsewhere, so say which package this is.
     cwd: dir,
     entry: Object.fromEntries(entries.map((entry) => [entry.name, entry.source])),

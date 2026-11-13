@@ -2,7 +2,7 @@ import { rmSync } from 'node:fs'
 import { dirname, join, posix } from 'node:path'
 import type { UserConfig } from 'tsdown/config'
 import { readManifest, runtimeDependencyNames } from './package-json.ts'
-import { PRESET } from './preset.ts'
+import { DTS_ONLY, entriesOf, PRESET } from './preset.ts'
 
 /**
  * The modules a worker loads by file URL (DECISIONS D21): the coordinator resolves each with
@@ -12,39 +12,57 @@ import { PRESET } from './preset.ts'
  * from one chunk graph, with one copy of the engine, instead of a second copy per package.
  * @internal
  */
-export const WORKER_ENTRIES: Readonly<
-  Record<string, { readonly name: string; readonly source: string }>
-> = {
-  '@provino/orchestrator/worker/bootstrap': {
-    name: 'worker/bootstrap',
-    source: '../orchestrator/src/worker/bootstrap.ts',
-  },
-  '@provino/orchestrator/worker/main': {
-    name: 'worker/main',
-    source: '../orchestrator/src/worker/main.ts',
-  },
-  '@provino/dialect-jest/runtime': {
-    name: 'worker/jest-runtime',
-    source: '../dialect-jest/src/runtime/index.ts',
-  },
-  '@provino/policy/behaviours': {
-    name: 'worker/policy-behaviours',
-    source: '../policy/src/behaviours.ts',
-  },
-  '@provino/env-node': { name: 'worker/env-node', source: '../env-node/src/index.ts' },
-  '@provino/env-jsdom': { name: 'worker/env-jsdom', source: '../env-jsdom/src/index.ts' },
+export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
+  '@provino/orchestrator/worker/bootstrap': 'worker/bootstrap',
+  '@provino/orchestrator/worker/main': 'worker/main',
+  '@provino/dialect-jest/runtime': 'worker/jest-runtime',
+  '@provino/policy/behaviours': 'worker/policy-behaviours',
+  '@provino/env-node': 'worker/env-node',
+  '@provino/env-jsdom': 'worker/env-jsdom',
 }
 
-/** The umbrella's own subpaths: their entry name (the `import` condition) and source. */
-const OWN_ENTRIES: Readonly<Record<string, string>> = {
-  index: 'src/index.ts',
-  globals: 'src/globals.ts',
-  config: 'src/config.ts',
-  node: 'src/node.ts',
-  reporters: 'src/reporters.ts',
-  environment: 'src/environment.ts',
-  jest: 'src/jest.ts',
-  cli: 'src/cli.ts',
+/** Every `@provino/*` import is bundled from source. */
+const PROVINO_SCOPE: RegExp[] = [/^@provino\//]
+
+/**
+ * The files the bin answers `--version` and `--help` from before it imports the rest, and
+ * `native-binding`, which says what to do when Oxc's binding is missing: kept out of both chunk
+ * groups, so `dist/cli.js` and its own small chunks import nothing that loads an Oxc package.
+ */
+const BIN_LIGHT_FILES = ['usage', 'version', 'native-binding', 'quick']
+
+/**
+ * The umbrella's entries, name to source: the subpaths of `provino`'s own `exports`, its bin
+ * (`bin` is the source, `publishConfig.bin` names the file in `dist/`), and each worker module,
+ * whose source is the `provino-source` of that subpath in its package.
+ * @internal
+ */
+export function umbrellaEntries(dir: string): Readonly<Record<string, string>> {
+  const manifest = readManifest(dir)
+  const entries: Record<string, string> = {}
+  for (const entry of entriesOf(manifest)) entries[entry.name] = entry.source
+  for (const [bin, built] of Object.entries(manifest.publishBin)) {
+    const name = /^\.\/dist\/(.+)\.js$/.exec(built)?.[1]
+    const source = manifest.bin[bin]?.replace(/^\.\//, '')
+    if (name === undefined || source === undefined) {
+      throw new Error(
+        `${manifest.name}: bin "${bin}" needs a "bin" source and a publishConfig.bin of the form ./dist/<name>.js`,
+      )
+    }
+    entries[name] = source
+  }
+  for (const [specifier, name] of Object.entries(WORKER_ENTRIES)) {
+    const [, pkg = '', rest] = /^@provino\/([^/]+)(?:\/(.+))?$/.exec(specifier) ?? []
+    const subpath = rest === undefined ? '.' : `./${rest}`
+    const source = entriesOf(readManifest(join(dir, '..', pkg))).find(
+      (entry) => entry.subpath === subpath,
+    )?.source
+    if (source === undefined) {
+      throw new Error(`${specifier}: ${pkg} has no "${subpath}" export with a provino-source file`)
+    }
+    entries[name] = posix.join('..', pkg, source)
+  }
+  return entries
 }
 
 /** `import.meta.resolve` of a specifier the build can name, or of a package (`es-module-lexer`). */
@@ -63,8 +81,8 @@ const COORDINATOR = new RegExp(
     'reporters[\\/]src[\\/]',
     'config[\\/]src[\\/]',
     'snapshot[\\/]src[\\/]node[\\/]',
-    // provino's own files, but not the four the bin answers --version and --help from.
-    'provino[\\/]src[\\/](?!internal[\\/](?:usage|version|native-binding|quick)\\.ts)',
+    // provino's own files, but not the bin's light ones.
+    `provino[\\/]src[\\/](?!internal[\\/](?:${BIN_LIGHT_FILES.join('|')})\\.ts)`,
     'policy[\\/]src[\\/]dialect\\.ts',
     'dialect-jest[\\/]src[\\/](?:dialect|expect-policy|hoist-policy|mock-policy)\\.ts',
   ]
@@ -72,9 +90,10 @@ const COORDINATOR = new RegExp(
     .join('|'),
 )
 
-/** The four files the bin answers `--version` and `--help` from, before it imports the rest. */
-const BIN_LIGHT =
-  /[\\/]packages[\\/]provino[\\/]src[\\/]internal[\\/](?:usage|version|native-binding|quick)\.ts$/
+/** `BIN_LIGHT_FILES`, as a test of a module id. */
+const BIN_LIGHT = new RegExp(
+  `[\\\\/]packages[\\\\/]provino[\\\\/]src[\\\\/]internal[\\\\/](?:${BIN_LIGHT_FILES.join('|')})\\.ts$`,
+)
 
 /** A source file of a workspace package. */
 const SHARED = /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/
@@ -104,7 +123,7 @@ export function workerRefs(): NonNullable<UserConfig['plugins']> {
               )
             }
             changed = true
-            return `new URL(${JSON.stringify(`${MARK}${entry.name}.js`)}, import.meta.url).href`
+            return `new URL(${JSON.stringify(`${MARK}${entry}.js`)}, import.meta.url).href`
           })
           return changed ? { code: out, map: null } : null
         },
@@ -138,10 +157,7 @@ export function umbrellaConfig(dir: string): UserConfig[] {
     ...PRESET,
     cwd: dir,
     clean: false,
-    entry: {
-      ...OWN_ENTRIES,
-      ...Object.fromEntries(Object.values(WORKER_ENTRIES).map((e) => [e.name, e.source])),
-    },
+    entry: umbrellaEntries(dir),
     inputOptions: {
       resolve: { conditionNames: ['provino-source', 'import', 'node', 'default'] },
     },
@@ -151,7 +167,7 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       ...common,
       dts: false,
       deps: {
-        alwaysBundle: [/^@provino\//],
+        alwaysBundle: PROVINO_SCOPE,
         // Nothing from node_modules is bundled: the `@provino/*` packages are workspace sources.
         onlyBundle: [],
         // The output imports only what `provino` declares: a third-party package a bundled
@@ -191,8 +207,8 @@ export function umbrellaConfig(dir: string): UserConfig[] {
     },
     {
       ...common,
-      dts: { generator: 'oxc', sourcemap: false, emitDtsOnly: true },
-      deps: { alwaysBundle: [/^@provino\//], dts: { alwaysBundle: [/^@provino\//] } },
+      dts: DTS_ONLY,
+      deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
     },
   ]
 }

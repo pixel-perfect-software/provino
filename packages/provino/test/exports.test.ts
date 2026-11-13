@@ -25,6 +25,7 @@ const RECORDER = fileURLToPath(new URL('./load-recorder.ts', import.meta.url))
 const manifest = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as {
   readonly version: string
   readonly exports: Readonly<Record<string, Readonly<Record<string, string>>>>
+  readonly bin: Readonly<Record<string, string>>
   readonly publishConfig: { readonly bin: Readonly<Record<string, string>> }
 }
 
@@ -39,10 +40,14 @@ function inPackage(code: string, env: NodeJS.ProcessEnv = {}) {
   return { status: result.status, stdout: result.stdout, stderr: result.stderr }
 }
 
-const SUBPATHS = ['.', './globals', './config', './node', './reporters', './environment', './jest']
+/** The subpaths a user imports: the ones with a built `import` target. */
+const SUBPATHS = Object.entries(manifest.exports)
+  .filter(([, conditions]) => conditions.import !== undefined)
+  .map(([subpath]) => subpath)
 
 describe('the umbrella exports (T1.10)', () => {
-  test('lists the six public subpaths beside /node, and /package.json', () => {
+  test('every subpath but /package.json is source, types and import, in that order', () => {
+    assert.ok(SUBPATHS.includes('.') && SUBPATHS.includes('./jest'), SUBPATHS.join(', '))
     assert.deepEqual(Object.keys(manifest.exports), [...SUBPATHS, './package.json'])
     for (const subpath of SUBPATHS) {
       assert.deepEqual(
@@ -132,10 +137,7 @@ describe('the bin', () => {
 
   test('the packed bin is the built one (publishConfig), and the workspace bin stays the source', () => {
     assert.equal(manifest.publishConfig.bin.provino, './dist/cli.js')
-    const workspace = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as {
-      readonly bin: Readonly<Record<string, string>>
-    }
-    assert.equal(workspace.bin.provino, './src/cli.ts')
+    assert.equal(manifest.bin.provino, './src/cli.ts')
   })
 })
 
@@ -195,7 +197,7 @@ describe('a built worker (T1.10)', () => {
           .map((line) => line.split('\t')[1] ?? '')
           .filter((url) => url.startsWith('file://'))
           .map((url) => fileURLToPath(url))
-          .filter((path) => path.startsWith(dist) || path.startsWith(`${PACKAGE}dist/`)),
+          .filter((path) => path.startsWith(dist)),
       )
       assert.ok(
         files.size <= 10,
