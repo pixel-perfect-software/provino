@@ -40,12 +40,16 @@ export type ProtocolKey =
 export type ReservedKey = HandleMethodKey | ProtocolKey
 
 /**
- * The key itself, or a message naming it when it is reserved (the compiler prints the message).
+ * The key itself, or a message naming the problem when it is reserved or not a literal (the compiler
+ * prints the message). A `string` key would skip the reserved and re-declare checks and add an index
+ * signature, so it is refused.
  * @public
  */
-export type CheckKey<K extends string> = K extends ReservedKey
-  ? `Error: '${K}' is reserved and cannot be a lazy key`
-  : K
+export type CheckKey<K extends string> = string extends K
+  ? 'Error: lazy keys must be string literals'
+  : K extends ReservedKey
+    ? `Error: '${K}' is reserved and cannot be a lazy key`
+    : K
 
 /**
  * A flattened, read-only view of `T`: what `$.key` reads give.
