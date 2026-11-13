@@ -82,6 +82,7 @@ import {
   setupEnvironment,
 } from '../internal/runtime/environment.ts'
 import { installGlobals, splitGlobals } from '../internal/runtime/globals.ts'
+import { lazyReportSink } from '../internal/runtime/lazy-sink.ts'
 import { fileLeakEvent, leakedGlobalsOf, workerLeakEvent } from '../internal/runtime/leaks.ts'
 import { pragmaValue, readPragmas } from '../internal/runtime/pragmas.ts'
 import { assertionCountSink } from '../internal/runtime/sink.ts'
@@ -453,12 +454,15 @@ export function createRuntimeRunner(): WorkerRunner {
       if (shared) files.invalidate(path)
       return await files.import(path)
     }
+    const lazyReport = lazyReportSink(
+      observingSink(assertionCountSink(source, context.sink), (event) =>
+        openSnapshots?.lifecycle.observe(event),
+      ),
+    )
     const coreRuntime = await createRuntime({
       policy: policy.core,
       behaviours,
-      sink: observingSink(assertionCountSink(source, context.sink), (event) =>
-        openSnapshots?.lifecycle.observe(event),
-      ),
+      sink: lazyReport.sink,
       importFile,
       rootDir: config.rootDir,
       projectName: config.name,
@@ -490,13 +494,24 @@ export function createRuntimeRunner(): WorkerRunner {
     parts.stopProcessErrors = coreRuntime.captureProcessErrors()
     // Lazy variables: `import { lazy } from 'provino'` reaches this runtime through its slot. It is
     // neutral, so every dialect gets it, and it goes in before the environment is prepared.
-    parts.uninstallLazy = installLazyRuntime(
-      createLazyRuntime({
-        host: coreRuntime.lazyHost,
-        policy: policy.lazy,
-        describe: coreRuntime.api.describe,
-      }),
-    )
+    const lazyRuntime = createLazyRuntime({
+      host: coreRuntime.lazyHost,
+      policy: policy.lazy,
+      describe: coreRuntime.api.describe,
+    })
+    parts.uninstallLazy = installLazyRuntime(lazyRuntime)
+    // A failed attempt hands its lazy values to the failure report (T6.10); a passing one does
+    // nothing, so a test that passes pays for none of it.
+    coreRuntime.onAfterTryTask(({ test, failed }) => {
+      if (!failed) return
+      const frame = coreRuntime.lazyHost.current()
+      // Every failed attempt records, an empty list included, so an earlier attempt's values are
+      // never shown for a later one that evaluated none.
+      lazyReport.record(
+        test.id,
+        frame?.kind === 'test' ? lazyRuntime.evaluatedLazies(frame.run) : [],
+      )
+    })
 
     // The snapshot slice's behaviours, once: every file's state is built from them.
     const { snapshot } = policy

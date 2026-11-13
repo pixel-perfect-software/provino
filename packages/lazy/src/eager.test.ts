@@ -1,7 +1,7 @@
 // T6.6: `eager` runs as a hook at its declaration position and awaits its value.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { LazyError } from './errors.ts'
+import { LAZY_CHAIN, LazyError } from './errors.ts'
 import { createWorld, type FileOutcome } from './internal/test-support.ts'
 
 function passed(outcome: FileOutcome): void {
@@ -82,6 +82,30 @@ describe('eager', () => {
       w.test('t', () => {})
     })
     assert.equal(outcome.tests[0]?.error, boom)
+  })
+
+  test('a rejection the eager hook awaits is flagged on the log, with its chain', async () => {
+    // The hook awaits the value itself, so Provino sees this rejection (a lazy value's promise
+    // that only the test awaits is not flagged: read.test.ts).
+    const w = createWorld()
+    const boom = new Error('boom')
+    await w.runFile('a.test.ts', () => {
+      w.lazy.eager('db', async () => {
+        throw boom
+      })
+      w.test('t', () => {})
+    })
+    const run = w.runs[0]
+    assert.ok(run)
+    const log = w.runtime.evaluatedLazies(run)
+    assert.deepEqual(
+      log.map((e) => [e.key, e.failed, e.chain]),
+      [['db', true, ['db']]],
+    )
+    assert.deepEqual(
+      (boom as { [LAZY_CHAIN]?: { key: string }[] })[LAZY_CHAIN]?.map((m) => m.key),
+      ['db'],
+    )
   })
 
   test('a file-scoped eager value is evaluated in beforeAll', async () => {

@@ -33,7 +33,6 @@ export type {
   CheckKey,
   ContextOutput,
   DefineContext,
-  EvaluatedLazy,
   HandleMethodKey,
   Lazy,
   LazyApi,

@@ -1,6 +1,6 @@
 // `createLazyRuntime`: what the worker builds from the runtime's `LazyHost` and the `lazy` policy.
-import type { LazyHost, LazyPolicy, TestRunHandle } from '@provino/types'
-import type { EvaluatedLazy, LazyRoot } from '../types.ts'
+import type { LazyEvaluation, LazyHost, LazyPolicy, TestRunHandle } from '@provino/types'
+import type { LazyRoot } from '../types.ts'
 import { createHandles } from './handle.ts'
 import { logOf } from './read.ts'
 import { createShared, type DescribeFn, type SharedFunctions } from './shared.ts'
@@ -24,7 +24,7 @@ export interface LazyRuntimeOptions {
  */
 export interface LazyCore extends SharedFunctions {
   readonly lazy: LazyRoot
-  evaluatedLazies(run: TestRunHandle): readonly EvaluatedLazy[]
+  evaluatedLazies(run: TestRunHandle): readonly LazyEvaluation[]
 }
 
 /**

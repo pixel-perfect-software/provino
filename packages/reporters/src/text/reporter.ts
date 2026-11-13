@@ -1,6 +1,7 @@
 import type {
   FileInfo,
   FileResult,
+  LazyEvaluation,
   Reporter,
   ReportPolicy,
   RunSummary,
@@ -19,6 +20,7 @@ import {
   displayPath,
   failLine,
   failureBlock,
+  lazyBlock,
   obsoleteBlock,
   openHandlesText,
   passLine,
@@ -151,6 +153,8 @@ const ERROR_LABELS = {
 interface Failure {
   readonly title: string
   readonly errors: readonly SerializedError[]
+  /** The lazy values the test evaluated (a failed test with any). */
+  readonly lazies?: readonly LazyEvaluation[]
 }
 
 /**
@@ -216,7 +220,11 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       if (test === undefined) continue
       const outcome = outcomeOf(entry, test)
       if (outcome.failed) {
-        failed.push({ title: testTitle(report, test.fullName), errors: outcome.errors })
+        failed.push({
+          title: testTitle(report, test.fullName),
+          errors: outcome.errors,
+          ...(result.lazies === undefined ? {} : { lazies: result.lazies }),
+        })
       }
     }
     for (const { task, errors } of entry.failedSuites) {
@@ -274,7 +282,11 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     } else if (result.state === 'fail') {
       const failed = failuresOf(entry)
       parts.push(
-        ...failed.map((test) => failureBlock(report, test.title, test.errors, style, stackTrace)),
+        ...failed.map(
+          (test) =>
+            failureBlock(report, test.title, test.errors, style, stackTrace) +
+            lazyBlock(test.lazies, record.root, style),
+        ),
       )
       if (result.errors.length > 0) {
         const title = failed.length === 0 ? 'Test suite failed to run' : 'Errors outside the tests'

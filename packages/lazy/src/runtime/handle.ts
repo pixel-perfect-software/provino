@@ -1,13 +1,13 @@
 // The handle: a frozen object with one getter per key and the chained methods. It carries key names
 // only, never a suite: a read resolves from the running test's innermost suite.
 import { inspect } from 'node:util'
-import type { Scope } from '@provino/types'
+import type { LazyFrame, Scope, SuiteHandle } from '@provino/types'
 import { LazyError } from '../errors.ts'
 import type { Lazy, LetOptions, TestContextLike } from '../types.ts'
 import { eagerHook } from './eager.ts'
-import { peek, readFrom, viewOf } from './read.ts'
+import { peek, readEntry, viewOf } from './read.ts'
 import type { DefineFn, Engine, LazyEntry } from './state.ts'
-import { inheritedEagerScope, register } from './table.ts'
+import { inheritedEagerScope, register, resolveEntry } from './table.ts'
 
 /** A handle as the runtime builds it; the public types are applied at the boundary. */
 export type AnyLazy = Lazy<Record<string, unknown>, string, string, string>
@@ -20,24 +20,67 @@ type Via = ((...args: never[]) => unknown) | undefined
 
 const NOT_EVALUATED = Object.freeze({ [inspect.custom]: () => '<lazy>' })
 
+/** A read with no test running; out of the getter, so the getter stays small enough to inline. */
+function noTest(key: string): LazyError {
+  return new LazyError(
+    'LAZY_NO_TEST',
+    `\`${key}\` can only be read in a test or a beforeAll/afterAll hook, and no test is running here. Use $.from(ctx) to read it with a test's context.`,
+  )
+}
+
+/**
+ * One key's resolution cache: the suite it last resolved in and the entry it resolved to. Tests of
+ * one suite read the same key over and over, and a suite's resolution never changes, so a read
+ * from that suite skips `resolveEntry`'s two map lookups (T6.8's bar). The suite is held strongly
+ * (a `WeakRef` costs more than the lookups it saves) and dropped when its file's teardowns run.
+ */
+class ResolveCache {
+  suite: SuiteHandle | undefined = undefined
+  entry: LazyEntry | undefined = undefined
+}
+
 /** Builds handles for one engine. */
 export function createHandles(engine: Engine): (keys: readonly string[]) => AnyLazy {
   const descriptors = new Map<string, PropertyDescriptor>()
+  const caches: ResolveCache[] = []
+  // Marks a file whose teardowns already drop this engine's caches.
+  const dropsCaches = Symbol('provino.lazy.resolve-cache')
+
+  function dropCaches(): void {
+    for (const cache of caches) {
+      cache.suite = undefined
+      cache.entry = undefined
+    }
+  }
+
+  /** A cache miss: resolves, remembers, and makes sure the file's end forgets it. */
+  function resolveMiss(cache: ResolveCache, frame: LazyFrame, key: string): LazyEntry {
+    const entry = resolveEntry(frame.suite, key)
+    const file = frame.file
+    if (!file.slots.has(dropsCaches)) {
+      file.slots.set(dropsCaches, true)
+      file.teardowns.push(dropCaches)
+    }
+    cache.suite = frame.suite
+    cache.entry = entry
+    return entry
+  }
 
   function descriptorFor(key: string): PropertyDescriptor {
     let found = descriptors.get(key)
     if (found === undefined) {
+      const cache = new ResolveCache()
+      caches.push(cache)
       found = {
         enumerable: true,
         get(): unknown {
           const frame = engine.host.current()
-          if (frame === undefined) {
-            throw new LazyError(
-              'LAZY_NO_TEST',
-              `\`${key}\` can only be read in a test or a beforeAll/afterAll hook, and no test is running here. Use $.from(ctx) to read it with a test's context.`,
-            )
-          }
-          return readFrom(engine, frame, frame.suite, key, null)
+          if (frame === undefined) throw noTest(key)
+          const entry =
+            cache.suite === frame.suite && cache.entry !== undefined
+              ? cache.entry
+              : resolveMiss(cache, frame, key)
+          return readEntry(engine, frame, entry, null)
         },
         set(): void {
           throw new LazyError(

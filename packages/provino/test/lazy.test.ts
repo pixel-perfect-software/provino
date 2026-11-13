@@ -219,6 +219,27 @@ it('evaluates in a jsdom file', () => {
 })
 `
 
+const FAILING = `import { lazy } from 'provino'
+
+const $ = lazy
+  .let('db', () => ({ open: true }))
+  .let('user', ({ db }) => {
+    if (db.open) throw new Error('no such user') // LAZY_THROW_MARK
+    return 'ada'
+  })
+  .let('cart', ({ user }) => [user])
+  .let('later', () => 1)
+
+it('fails reading a cart whose user cannot be made', () => {
+  void $.later
+  void $.cart
+})
+
+it('passes and lists nothing', () => {
+  expect($.db.open).toBe(true)
+})
+`
+
 /** A worker-scope file for the recycling test: the value is the worker's own, so one per file. */
 const RECYCLED_FILE = `import { $, evaluated } from './worker-helper.ts'
 
@@ -432,5 +453,21 @@ try { lazy.let('x', () => 1) } catch (e) { console.log(e.code) }`
       env: childEnv(),
     })
     assert.equal(ran.stdout.trim(), 'LAZY_NO_RUNTIME', ran.stderr)
+  })
+
+  test('a failed test lists the lazy values it evaluated and the chain of the one that threw', async () => {
+    const dir = await project({ 'tests/failing.test.ts': FAILING })
+    const run = runBuilt(['jest', '--ci', '-w', '1'], { cwd: dir, env: ENV })
+    assert.equal(run.status, 1, `${run.stdout}\n${run.stderr}`)
+    const text = run.stderr
+    assert.match(text, /no such user/)
+    assert.equal(text.split('Lazy values evaluated before the failure:').length, 2, text)
+    const throwLine = lineOf(FAILING, 'LAZY_THROW_MARK')
+    assert.match(text, /later {2}tests\/failing\.test\.ts:\d+:\d+ {2}<?\d+ ms/)
+    assert.match(text, /db {2}tests\/failing\.test\.ts:\d+:\d+/)
+    assert.match(text, new RegExp(`user threw  tests/failing\\.test\\.ts:${throwLine - 1}:\\d+`))
+    assert.match(text, /cart threw {2}tests\/failing\.test\.ts/)
+    assert.equal(text.match(/chain: cart -> user/g)?.length, 1, text)
+    assert.match(text, /Tests:\s+1 failed, 1 passed, 2 total/)
   })
 })

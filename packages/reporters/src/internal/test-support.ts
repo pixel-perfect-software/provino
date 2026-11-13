@@ -7,6 +7,7 @@ import type {
   FileInfo,
   FileResult,
   FileTask,
+  LazyEvaluation,
   OpenHandle,
   Reporter,
   ReporterBus,
@@ -106,6 +107,8 @@ export interface TestSpec {
   readonly location?: { readonly line: number; readonly column: number }
   /** Console writes while the test ran, sent before its `test-end`. */
   readonly console?: readonly ConsoleSpec[]
+  /** The lazy values it evaluated (a failed test's `TaskResult.lazies`). */
+  readonly lazies?: readonly LazyEvaluation[]
 }
 
 /** One file in a run. */
@@ -294,6 +297,7 @@ export function resultOf(spec: TestSpec): TaskResult {
     ...(spec.durationMs === undefined ? {} : { durationMs: spec.durationMs }),
     ...(spec.skipReason === undefined ? {} : { skipReason: spec.skipReason }),
     ...(spec.passingAssertions === undefined ? {} : { passingAssertions: spec.passingAssertions }),
+    ...(spec.lazies === undefined ? {} : { lazies: spec.lazies }),
     attempts: spec.attempts ?? (spec.retries ?? 0) + (spec.repeats ?? 0) + 1,
     repeatIndex: spec.repeats ?? 0,
   })
