@@ -316,22 +316,6 @@ export function userEdgesOf(state: Records, path: string): readonly GraphEdge[] 
   })
 }
 
-/**
- * The paths `record`'s edges lead to, read from the targets already linked (`record.resolved`:
- * every static dep, and any specifier a `require` has resolved since): a user module's id, or an
- * external's path. Nothing is resolved again, which is what `userEdgesOf` does for a module the
- * graph's walk reaches before it is linked. A late dep is never linked (D38); the registry notes it
- * when its import runs.
- */
-export function linkedPathsOf(record: ModuleRecord): string[] {
-  const paths: string[] = []
-  for (const target of record.resolved.values()) {
-    if (target.kind === 'user') paths.push(target.id)
-    else if (target.kind === 'external') paths.push(target.path)
-  }
-  return paths
-}
-
 /** The key of an external or builtin in `externals` and `required`. */
 export function externalKey(target: Target): string {
   if (target.kind === 'builtin') return target.id

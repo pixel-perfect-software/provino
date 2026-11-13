@@ -26,7 +26,6 @@ import {
   externalKey,
   type Found,
   linkAsync,
-  linkedPathsOf,
   linkSync,
   type ModuleRecord,
   preloadAsync,
@@ -212,22 +211,28 @@ export class Registry {
   loadedByFile(): ModuleId[] {
     const touched = this.#touched
     if (touched === null) return this.loaded()
-    const live = new Set(this.loaded())
     const seen = new Set<ModuleId>(touched)
     const queue = [...touched]
     const reach = (target: ModuleId): void => {
-      if (seen.has(target) || !live.has(target)) return
+      if (seen.has(target) || !this.#maps.some((map) => map.has(target))) return
       seen.add(target)
       queue.push(target)
     }
     for (let at = 0; at < queue.length; at++) {
       const id = queue[at]
       if (id === undefined) continue
-      // The targets the record linked, not a new resolve of each specifier: the walk runs once per
-      // file over every module the file reaches.
+      // The targets the record linked (every static dep, and a `require`'s specifier once it has
+      // resolved), not a new resolve of each specifier: the walk runs once per file over every
+      // module the file reaches.
       const record = this.#state.records.get(id)
-      if (record !== undefined) for (const path of linkedPathsOf(record)) reach(toModuleId(path))
-      for (const target of this.#dynamicLoads.get(id) ?? []) reach(target)
+      if (record !== undefined) {
+        for (const target of record.resolved.values()) {
+          if (target.kind === 'user') reach(target.id)
+          else if (target.kind === 'external') reach(toModuleId(target.path))
+        }
+      }
+      const loads = this.#dynamicLoads.get(id)
+      if (loads !== undefined) for (const target of loads) reach(target)
     }
     return [...seen]
   }
@@ -354,6 +359,8 @@ export class Registry {
   async load(specifier: string, importer: string, isTest: boolean): Promise<object> {
     const target = resolveTarget(this.#state, specifier, importer, 'import')
     if (target.kind !== 'user') return this.#externalAsync(target)
+    // An entry the file asked for: no edge of another module leads to it.
+    this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, isTest)
     await linkAsync(this.#state, record)
     return this.#evaluateForImport(record)
@@ -363,6 +370,7 @@ export class Registry {
   loadSync(specifier: string, importer: string, isTest: boolean): unknown {
     const target = resolveTarget(this.#state, specifier, importer, 'require')
     if (target.kind !== 'user') return this.#requireExternal(target)
+    this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, isTest)
     linkSync(this.#state, record)
     return this.#requireRecord(record)
@@ -398,7 +406,8 @@ export class Registry {
     }
     const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#requireExternal(found)
-    this.#noteLoad(importer, found.id)
+    // A target the record linked is an edge the closure walk follows already.
+    if (record?.resolved.get(specifier) !== target) this.#noteLoad(importer, found.id)
     const dep = recordFor(this.#state, found.id, false)
     linkSync(this.#state, dep)
     return this.#requireRecord(dep)
@@ -595,6 +604,7 @@ export class Registry {
   #actualSync(id: string): unknown {
     const target = this.#maybeInline(this.#actualTarget(id))
     if (target.kind !== 'user') return this.#requireExternal(target)
+    this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, false)
     linkSync(this.#state, record)
     if (record.format === 'esm' && record.asyncGraph) {
@@ -611,6 +621,7 @@ export class Registry {
     if (target.kind !== 'user') {
       return cjsNamespace(this.#requireExternal(target), this.#interop, this.#cache)
     }
+    this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, false)
     await linkAsync(this.#state, record)
     // The instance this load evaluates, taken before its await: afterwards `#instances` may name
@@ -699,11 +710,12 @@ export class Registry {
       view: null,
     }
     this.#instances.set(record.id, instance)
+    // An instance found rather than made was reached by an edge or an entry that counts itself.
+    this.#touched?.add(record.id)
     return instance
   }
 
   #evaluateSync(record: ModuleRecord): Instance {
-    this.#touched?.add(record.id)
     const instances = this.#instances
     const existing = instances.get(record.id)
     if (existing !== undefined) {
@@ -754,7 +766,6 @@ export class Registry {
   }
 
   #evaluateAsync(record: ModuleRecord): Promise<object> {
-    this.#touched?.add(record.id)
     const existing = this.#instances.get(record.id)
     if (existing !== undefined) {
       if (existing.status === 'errored') return Promise.reject(existing.error)

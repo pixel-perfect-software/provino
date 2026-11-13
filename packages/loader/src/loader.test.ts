@@ -597,6 +597,19 @@ test('loadedModules: under none it is this file’s closure, not everything the 
   assert.deepEqual(c.loadedModules().toSorted(), [join(root, 'c.test.ts'), join(root, 'lonely.ts')])
 })
 
+test('loadedModules: under none a module the file imports itself counts, though an earlier file evaluated it', async () => {
+  const root = writeTree(CHAIN)
+  const loader = loaderFor(root)
+  const a = loader.createFileRegistry(join(root, 'a.test.ts'), { tier: 'none' })
+  await a.import(join(root, 'a.test.ts'))
+  a.dispose()
+
+  // No new instance and no edge from a module this file evaluated: only the entry itself says so.
+  const b = loader.createFileRegistry(join(root, 'b.test.ts'), { tier: 'none' })
+  await b.import(join(root, 'mid.ts'))
+  assert.deepEqual(b.loadedModules().toSorted(), [join(root, 'leaf.ts'), join(root, 'mid.ts')])
+})
+
 test('loadedModules: under none a reused module’s own require(variable) is still a dependency of the next file', async () => {
   const root = writeTree({
     'picked.ts': 'module.exports = { picked: true }\n',
