@@ -308,6 +308,25 @@ test('a CommonJS file’s import() runs in the registry that evaluated it', asyn
   assert.equal(loader.getSourceMap(join(root, 'loads.cjs') as ModuleId)?.version, 3)
 })
 
+test('a CommonJS file with import() still loads when it returns at the top level', async () => {
+  // Node wraps a CommonJS file in a function, so a top-level `return` is legal there; the runner
+  // form of the file must be read as CommonJS too, not as a module (which has no such `return`).
+  const root = writeTree({
+    'counter.mjs': 'export let count = 0\nexport function bump() { return ++count }\n',
+    'guarded.cjs':
+      "exports.counter = () => import('./counter.mjs')\nif (process.argv.length >= 0) return\nexports.counter = null\n",
+    'entry.test.ts': '',
+  })
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  const guarded = registry.require<{ counter: (() => Promise<CounterModule>) | null }>(
+    join(root, 'guarded.cjs'),
+  )
+  assert.notEqual(guarded.counter, null, 'the return ended the file before the second assignment')
+  assert.equal((await guarded.counter?.())?.bump(), 1)
+})
+
 test('node_modules are shared across registries, user modules are not', async () => {
   const root = writeTree({
     'node_modules/shared-esm/package.json': JSON.stringify({

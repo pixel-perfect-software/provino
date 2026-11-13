@@ -44,7 +44,7 @@ export function usesModuleRunnerForm(record: Pick<TransformRecord, 'format' | 'i
  */
 export function toModuleRunner(filename: string, record: TransformRecord): ModuleRunnerOutput {
   // A cached or pipeline-made runner form skips the step (`createPipeline({ runnerForm: true })`).
-  const form = record.runner ?? runnerFormOf(filename, record.code)
+  const form = record.runner ?? runnerFormOf(filename, record.code, record.format === 'cjs')
   let composed: SourceMapV3 | null | undefined
   return {
     code: form.code,
@@ -63,9 +63,9 @@ export function toModuleRunner(filename: string, record: TransformRecord): Modul
 }
 
 /** The module-runner form of `code`, or the per-file `TRANSFORM_RUNNER_FAILED` error. */
-function runnerFormOf(filename: string, code: string): RunnerForm {
+function runnerFormOf(filename: string, code: string, commonjs: boolean): RunnerForm {
   try {
-    return rewriteModule(filename, code)
+    return rewriteModule(filename, code, commonjs)
   } catch (error) {
     if (error instanceof RunnerParseError) {
       throw new TransformError(
