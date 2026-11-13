@@ -65,7 +65,7 @@ export interface JestReporterInstance {
     contexts: Set<TestContext>,
     aggregated: AggregatedResult,
   ) => Promise<void> | void
-  readonly getLastError?: () => Error | undefined
+  readonly getLastError?: () => unknown
 }
 
 /**
@@ -280,8 +280,12 @@ export function createJestReporterHost<Config extends ProjectConfigLike>(
         )
       },
       lastError() {
+        // Jest keeps any truthy value (`ReporterDispatcher.getErrors`).
         const error = instance?.getLastError?.()
-        return error instanceof Error ? serialize(error) : undefined
+        if (!error) return undefined
+        return error instanceof Error
+          ? serialize(error)
+          : { name: 'Error', message: String(error) }
       },
     }
   })

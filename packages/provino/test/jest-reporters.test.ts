@@ -2,7 +2,7 @@
 // printed for the same project (`cli/reporters-*`): the hooks a reporter class gets and in which
 // order, `reporters: ['summary']` and a `summaryThreshold`, and a reporter module that can't load.
 import assert from 'node:assert/strict'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { loadFixture, materialize } from './recorded.ts'
@@ -111,4 +111,44 @@ describe('provino jest names the built-in reporters as Jest does', () => {
       assert.equal(run.code, run.expectedCode, run.stderr)
     })
   }
+})
+
+/** A materialized fixture whose config is replaced by `overrides`, run with the bin. */
+async function runWithConfig(
+  id: string,
+  overrides: Readonly<Record<string, unknown>>,
+  files: Readonly<Record<string, string>> = {},
+): Promise<{ readonly code: number | null; readonly stderr: string; readonly stdout: string }> {
+  const fixture = await loadFixture(id)
+  const project = await materialize(fixture)
+  try {
+    const path = join(project.root, 'jest.config.json')
+    const base = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
+    await writeFile(path, JSON.stringify({ ...base, ...overrides }))
+    for (const [name, text] of Object.entries(files)) await writeFile(join(project.root, name), text)
+    const ended = await spawnCli(['jest', `--config=${path}`, '--ci'], { cwd: project.root })
+    return { code: ended.code, stderr: ended.stderr, stdout: ended.stdout }
+  } finally {
+    await project.dispose()
+  }
+}
+
+describe('summaryThreshold is checked as Jest checks it (SummaryReporter._validateOptions)', () => {
+  for (const value of [null, false, '', 0]) {
+    it(`accepts ${JSON.stringify(value)} and uses the default`, async () => {
+      const run = await runWithConfig('cli/reporters-summary-only', {
+        reporters: [['summary', { summaryThreshold: value }]],
+      })
+      assert.doesNotMatch(run.stderr, /summaryThreshold should be a number/)
+      assert.match(run.stderr, /^Tests:/m)
+    })
+  }
+
+  it('refuses a non-empty value that is not a number', async () => {
+    const run = await runWithConfig('cli/reporters-summary-only', {
+      reporters: [['summary', { summaryThreshold: '5' }]],
+    })
+    assert.match(run.stderr, /The option summaryThreshold should be a number/)
+    assert.equal(run.code, 1)
+  })
 })

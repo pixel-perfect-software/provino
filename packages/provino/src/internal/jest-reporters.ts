@@ -93,7 +93,7 @@ export async function setUpJestReporters(options: {
   if (release !== undefined) reporters.push(release)
   if (plan.summary !== undefined) {
     const threshold = plan.summary.options.summaryThreshold
-    if (threshold !== undefined && threshold !== 0 && typeof threshold !== 'number') {
+    if (threshold && typeof threshold !== 'number') {
       // SummaryReporter.ts L72-L78
       throw new UsageError('The option summaryThreshold should be a number')
     }

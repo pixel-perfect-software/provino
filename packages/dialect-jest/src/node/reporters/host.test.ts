@@ -260,6 +260,18 @@ describe('createJestReporterHost', () => {
     assert.equal(host?.lastError?.()?.message, 'deliberate')
   })
 
+  it('fails the run for any truthy getLastError, as Jest keeps it (a string, not only an Error)', async () => {
+    const path = await reporterModule(RECORDING)
+    const { reporters } = await play([path], ['a.test.ts'])
+    const host = reporters.find((reporter) => reporter.name.startsWith('jest-reporter:'))
+    const globals = globalThis as { __lastError?: unknown }
+    globals.__lastError = 'plain text'
+    assert.equal(host?.lastError?.()?.message, 'plain text')
+    globals.__lastError = 0
+    assert.equal(host?.lastError?.(), undefined)
+    delete globals.__lastError
+  })
+
   it('frees the console buffer once every reporter has seen the file', async () => {
     const path = await reporterModule(RECORDING)
     const { reporters } = await play([path], ['a.test.ts'])
