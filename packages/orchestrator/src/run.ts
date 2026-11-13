@@ -203,7 +203,8 @@ export interface RunProjectOptions {
      * keeping every other entry, and dropping the entries of files that no longer exist when the run
      * saw every file (no shard, no file filter). A run that is cut short writes the files that
      * ended. A file that already is there but isn't a timings file is replaced, unless the run also
-     * shards.
+     * shards. A run with a `testNamePattern` writes nothing (it times some of each file's tests,
+     * not the files) and says so on stderr.
      */
     readonly update?: boolean
   }
@@ -885,7 +886,13 @@ export async function runProjects(
     await Promise.all(running)
     // The history is complete; writing it overlaps the workers' shutdown.
     await Promise.all([pool.close(), writeCache()])
-    if (options.timings?.update === true) {
+    // A `-t` run executes only the matching tests of each file, so its durations are not the files'.
+    const partial = options.testNamePattern !== undefined && options.testNamePattern !== ''
+    if (options.timings?.update === true && partial) {
+      stderr.write(
+        'Provino: not updating the timings file: -t runs only some of each file’s tests, so the times are not the files’ times\n',
+      )
+    } else if (options.timings?.update === true) {
       // Dropping the entries of files that are gone is only right for a run that saw every file.
       const sawAll = shard === undefined && (options.fileFilters ?? []).length === 0
       await writeTimingsFile(

@@ -278,6 +278,26 @@ describe('run() with a shard and a timings file', () => {
     assert.ok(text.endsWith('}\n'))
   })
 
+  it('--update-timings with -t writes nothing: a run of some of each file’s tests times no file', async () => {
+    const project = await makeProject(FILES)
+    const file = project.path('provino.timings.json')
+    await writeFile(file, JSON.stringify({ version: 1, files: { 'tests/a.test.js': 4000 } }))
+    const before = await readFile(file, 'utf8')
+    const partial = await runWith(project.config, {
+      testNamePattern: 'a',
+      updateTimings: true,
+      cache: false,
+    })
+    assert.equal(partial.exitCode, 0, partial.stderr)
+    assert.match(partial.stderr, /Provino: not updating the timings file: -t runs only some/)
+    assert.equal(await readFile(file, 'utf8'), before)
+    // The same run without -t does write.
+    const whole = await runWith(project.config, { updateTimings: true, cache: false })
+    assert.equal(whole.exitCode, 0, whole.stderr)
+    assert.doesNotMatch(whole.stderr, /not updating the timings file/)
+    assert.notEqual(await readFile(file, 'utf8'), before)
+  })
+
   it('--update-timings replaces a timings file that is not one, and says so', async () => {
     const project = await makeProject(FILES)
     await writeFile(project.path('provino.timings.json'), 'not json')
