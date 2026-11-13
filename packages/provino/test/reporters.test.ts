@@ -9,7 +9,14 @@ import { describe, it } from 'node:test'
 import { run } from 'provino/node'
 import { runJest } from './live-jest.ts'
 import { loadFixture, materialize } from './recorded.ts'
-import { Collect, failing, passing, spawnCli, trackedProjects } from './support.ts'
+import {
+  Collect,
+  failing,
+  passing,
+  spawnCli,
+  trackedProjects,
+  withoutNodeNoise,
+} from './support.ts'
 
 const makeProject = trackedProjects()
 
@@ -369,9 +376,8 @@ describe('the reporters provino run names', () => {
     assert.match(verbose.stderr, /PASS tests\/ok\.test\.js\n {2}✓ works/)
     assert.match(verbose.stderr, /FAIL tests\/bad\.test\.js\n {2}✕ breaks/)
     const dot = await run('dot')
-    // Some sandboxes print a line of their own to stderr at every Node start: take it out.
-    const noise = /ERROR: failed to copy trust settings of system certificate-\d+\n/g
-    assert.match(dot.stderr.replaceAll(noise, ''), /^[.F]{2}\n\nFAIL tests\/bad\.test\.js/)
+    // The text starts after what Node (a type-stripping warning on 22.15) and some sandboxes print.
+    assert.match(withoutNodeNoise(dot.stderr), /^[.F]{2}\n\nFAIL tests\/bad\.test\.js/)
     const agent = await run('agent')
     assert.doesNotMatch(agent.stderr, /ok\.test\.js/)
     assert.match(agent.stderr, /^FAIL tests\/bad\.test\.js/m)

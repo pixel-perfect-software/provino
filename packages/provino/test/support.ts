@@ -43,6 +43,23 @@ export function outputFree(env: NodeJS.ProcessEnv = process.env): NodeJS.Process
   return kept
 }
 
+/**
+ * What a process writes to stderr before the run's own text, with the lines Node and the sandbox
+ * add taken out: Node 22.15 (CI runs it with `--experimental-strip-types`) prints an
+ * `ExperimentalWarning` and a `--trace-warnings` hint once per process that loads a `.ts` file,
+ * and some sandboxes print a certificate error at every Node start. For an assertion that anchors
+ * on the start of stderr.
+ */
+export function withoutNodeNoise(stderr: string): string {
+  return stderr
+    .replaceAll(/^\(node:\d+\) ExperimentalWarning: .*\n/gm, '')
+    .replaceAll(
+      /^\(Use `node --trace-warnings \.\.\.` to show where the warning was created\)\n/gm,
+      '',
+    )
+    .replaceAll(/ERROR: failed to copy trust settings of system certificate-\d+\n/g, '')
+}
+
 /** A writable that keeps everything written to it. */
 export class Collect extends Writable {
   text = ''
