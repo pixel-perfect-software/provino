@@ -436,6 +436,43 @@ describe('retry condition', () => {
     assert.equal(other.states.a, 'fail')
   })
 
+  // `RegExp.prototype.test` on a `g` or `y` RegExp starts at `lastIndex` and moves it, so the same
+  // failure would be retried once and then not (Vitest 5.0.5, `runtime/retry-condition-regexp-global`,
+  // DIVERGENCES). The condition is asked against the start of the message and the user's RegExp is
+  // left as it was.
+  for (const flags of ['g', 'y', 'gi']) {
+    test(`a RegExp with the ${flags} flag gives the same answer for every failure`, async () => {
+      const condition = new RegExp('network', flags)
+      const run = await runScript(failing('network', condition), {})
+      assert.deepEqual(run.trace, ['a#1', 'a#2', 'a#3', 'a#4'])
+      assert.equal(condition.lastIndex, 0)
+    })
+  }
+
+  test('one RegExp with the g flag shared by two tests does not carry its position from one to the other', async () => {
+    const shared = /boom/g
+    const run = await runScript(({ test }, step) => {
+      let calls = 0
+      test('first', { retry: { count: 3, condition: shared } }, () => {
+        step(`first#${++calls}`)
+        if (calls === 1) throw new Error('boom')
+      })
+      test('second', { retry: { count: 3, condition: shared } }, () => {
+        step('second')
+        throw new Error('boom')
+      })
+    }, {})
+    assert.deepEqual(run.trace, ['first#1', 'first#2', 'second', 'second', 'second', 'second'])
+    assert.equal(shared.lastIndex, 0)
+  })
+
+  test('a sticky RegExp is asked against the start of the message, as written', async () => {
+    const atStart = await runScript(failing('network', /^network/y), {})
+    assert.deepEqual(atStart.trace, ['a#1', 'a#2', 'a#3', 'a#4'])
+    const inside = await runScript(failing('a network', /network/y), {})
+    assert.deepEqual(inside.trace, ['a#1'])
+  })
+
   test('a function gets the error and decides; it is not asked after the last attempt', async () => {
     const asked: string[] = []
     const run = await runScript(

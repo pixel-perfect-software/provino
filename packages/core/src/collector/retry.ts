@@ -88,12 +88,21 @@ export function normalizeRetry(option: RetryOption | undefined): RetrySpec | und
 /**
  * Whether `condition` lets a failed attempt retry (Vitest's `passesRetryCondition`): with none,
  * every failure does; a `RegExp` is tested against the last error's message.
+ *
+ * A `g` or `y` RegExp is tested through a copy. Vitest 5.0.5 tests the user's own, whose
+ * `lastIndex` then carries from one failure to the next (and from one test to another that shares
+ * it), so the same failure is retried once and then not. The copy starts at 0 each time, a sticky
+ * one anchored at the start of the message as written, and the user's RegExp is left alone
+ * (D7: an order-dependent result is a bug, fixed in every mode).
  */
 export function passesCondition(
   condition: RetryCondition | undefined,
   error: SerializedError,
 ): boolean {
   if (condition === undefined) return true
-  if (condition instanceof RegExp) return condition.test(error.message || '')
+  if (condition instanceof RegExp) {
+    const pattern = condition.global || condition.sticky ? new RegExp(condition) : condition
+    return pattern.test(error.message || '')
+  }
   return condition(error)
 }

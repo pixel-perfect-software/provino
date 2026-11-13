@@ -1,0 +1,4 @@
+{
+  "description": "A RegExp with the g or y flag as Vitest's retry.condition. The condition is tested with RegExp.prototype.test, which carries lastIndex from one call to the next, so what it says depends on what it was asked before: a test that fails with the same message every attempt, with retry { count: 3, condition: /boom/g }, is retried or not by how many times that regular expression has already matched. The recording shows whether Vitest 5.0.5 gives the same answer for every failure; a flagless RegExp is the control, and one regular expression shared by two tests shows whether the state crosses tests.",
+  "runners": ["vitest"]
+}

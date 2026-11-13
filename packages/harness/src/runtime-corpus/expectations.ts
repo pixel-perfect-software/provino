@@ -66,4 +66,27 @@ export const DECLARED_TRACES: Readonly<Record<string, readonly string[]>> = {
     'function says yes #3',
     'function says no #1',
   ],
+  // Vitest tests the user's `g` or `y` RegExp itself, so its `lastIndex` carries: the same failure is
+  // retried once and then not, and a RegExp shared by two tests carries it from one to the other
+  // (`shared next` is not retried at all, after a test that matched it once). Core tests a copy.
+  'runtime/retry-condition-regexp-global (vitest)': [
+    'no flag #1',
+    'no flag #2',
+    'no flag #3',
+    'no flag #4',
+    'global flag #1',
+    'global flag #2',
+    'global flag #3',
+    'global flag #4',
+    'sticky flag #1',
+    'sticky flag #2',
+    'sticky flag #3',
+    'sticky flag #4',
+    'shared first #1',
+    'shared first #2',
+    'shared next #1',
+    'shared next #2',
+    'shared next #3',
+    'shared next #4',
+  ],
 }
