@@ -14,6 +14,20 @@ export interface Directive {
 const DIRECTIVE = /^\s*\/\/ @ts-expect-error (TS\d+) (\S.*)$/
 const BARE_DIRECTIVE = /^\s*\/\/ @ts-expect-error\b/
 
+/** A comment that starts with a directive the compiler honours: `//` or `/*`, then `@ts-ignore` and the like. */
+const SILENCER = /(?:\/\/|\/\*)\s*@ts-(?:ignore|nocheck|expect-error)\b/
+
+/** Throws on a comment that silences the compiler and that `parseDirectives` did not accept. */
+export function assertNoStraySilencers(source: string): void {
+  source.split('\n').forEach((text, index) => {
+    if (SILENCER.test(text) && !DIRECTIVE.test(text)) {
+      throw new Error(
+        `line ${index + 1}: a comment that silences the compiler must be a whole-line '// @ts-expect-error TSnnnn text': ${text.trim()}`,
+      )
+    }
+  })
+}
+
 /** The directives in `source`; a directive with no code and text is an error. */
 export function parseDirectives(source: string): Directive[] {
   const directives: Directive[] = []
@@ -69,6 +83,7 @@ export function compareDiagnostics(
 
 /** Strips the directives of `source`, compiles it on `compiler`, and returns every problem found. */
 export function checkTypeErrors(compiler: Compiler, source: string): string[] {
+  assertNoStraySilencers(source)
   const directives = parseDirectives(source)
   const result = compileFiles(compiler, { 'case.test-d.ts': stripDirectives(source) })
   return compareDiagnostics(directives, result.diagnostics)

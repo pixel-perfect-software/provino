@@ -8,6 +8,7 @@ import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { COMPILERS, compileFiles } from './support/tsc.ts'
 import {
+  assertNoStraySilencers,
   checkTypeErrors,
   compareDiagnostics,
   parseDirectives,
@@ -75,6 +76,30 @@ describe('lazy.test-d.ts directives', () => {
     const stripped = stripDirectives(source)
     assert.equal(stripped.split('\n').length, source.split('\n').length)
     assert.doesNotMatch(stripped, /^\s*\/\/ @ts-expect-error/m)
+  })
+})
+
+describe('a comment that silences the compiler', () => {
+  for (const line of ['// @ts-ignore', '// @ts-nocheck', '/* @ts-ignore */']) {
+    test(`${line} is refused`, () => {
+      assert.throws(
+        () => checkTypeErrors('typescript', `export {}\n${line}\n`),
+        /silences the compiler/,
+      )
+    })
+  }
+  test('a trailing directive is refused', () => {
+    assert.throws(
+      () =>
+        checkTypeErrors(
+          'typescript',
+          'export const x: number = 1 // @ts-expect-error TS2322 not assignable\n',
+        ),
+      /silences the compiler/,
+    )
+  })
+  test('a directive the parser accepts is not a stray', () => {
+    assert.doesNotThrow(() => assertNoStraySilencers('// @ts-expect-error TS2322 not assignable\n'))
   })
 })
 
