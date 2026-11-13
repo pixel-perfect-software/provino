@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
+import { NOTICES_FILE } from './pack-contents.ts'
 import { type PackageManifest, readManifest } from './package-json.ts'
 import { entriesOf, PRESET, packageConfig } from './preset.ts'
 import { scratchDir } from './test-support.ts'
@@ -139,7 +140,13 @@ describe('every published package is built by the preset', () => {
 
   test('lists provino-source, then types, then import for every subpath, and ships only dist', () => {
     for (const pkg of packages) {
-      assert.deepEqual(pkg.manifest.files, ['dist'], pkg.manifest.name)
+      // `dist`, and the notices file where the build holds copied code (`pnpm hygiene` `packs`
+      // fails a package that needs it and doesn't list it).
+      const files = JSON.stringify(pkg.manifest.files)
+      assert.ok(
+        [['dist'], ['dist', NOTICES_FILE]].some((allowed) => JSON.stringify(allowed) === files),
+        `${pkg.manifest.name}: files is ${files}`,
+      )
       for (const [subpath, conditions] of Object.entries(pkg.manifest.exports)) {
         assert.deepEqual(
           Object.keys(conditions),
