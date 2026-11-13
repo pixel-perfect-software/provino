@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { parseCli } from '../cli-args.ts'
 import { BenchError } from '../errors.ts'
@@ -77,10 +78,23 @@ test('instructions: usage errors', () => {
     ['instructions', '--sha', 'main'],
     ['instructions', '--label', 'pinned'],
     ['instructions', '--baseline', ' '],
+    // A plant needs a T12.13 suite to plant in: any other legs would run no self-test and pass.
+    ['instructions', '--plant', '--legs', 'core'],
+    ['instructions', '--plant', '--legs', 'transform,loader-e2e'],
   ]) {
     assert.throws(() => parseCli(argv), isUsage, argv.join(' '))
   }
   assert.throws(() => parseLegs('core,warm,nope'), /unknown leg "nope"/)
+})
+
+test('instructions: --plant with a suite leg among the legs is accepted', () => {
+  const command = parseCli(['instructions', '--plant', '--legs', 'core,isolate-heavy'])
+  assert.equal(command.command === 'instructions' && command.plant, true)
+})
+
+test('instructions: a relative --work-dir is made absolute once, for the parent and every child', () => {
+  const command = parseCli(['instructions', '--work-dir', 'some/dir'])
+  assert.equal(command.command === 'instructions' && command.workDir, resolve('some/dir'))
 })
 
 test('the TS corpus is the same every time, and its imports are what the resolve leg asks', () => {

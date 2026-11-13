@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import type { BenchLabel } from '@provino/types'
 import { BenchError } from './errors.ts'
@@ -256,9 +257,17 @@ export function parseCli(argv: readonly string[]): CliCommand {
     if (sha !== undefined && !/^[0-9a-f]{7,40}$/.test(sha)) {
       throw usage(`--sha must be a commit's hex id; got ${JSON.stringify(sha)}`)
     }
+    const legs = parseLegs(values.legs)
+    // The plant is a regression in T12.13's suites; without one of them there is nothing to plant
+    // in, and a guard self-test that checked nothing would read as a pass.
+    if (values.plant === true && !legs.some((leg) => leg.task === 'T12.13')) {
+      throw usage(
+        '--plant needs a T12.13 suite leg (app-50, mock-heavy-50 or isolate-heavy) in --legs',
+      )
+    }
     return {
       command,
-      legs: parseLegs(values.legs),
+      legs,
       baseline: nonEmpty(values.baseline, '--baseline'),
       out: nonEmpty(values.out, '--out'),
       runs: count(values.runs, 1, '--runs'),
@@ -268,7 +277,8 @@ export function parseCli(argv: readonly string[]): CliCommand {
       signals: values['no-signals'] !== true,
       build: values['no-build'] !== true,
       sha,
-      workDir: nonEmpty(values['work-dir'], '--work-dir') ?? DEFAULT_WORK_DIR,
+      // Absolute, once: every leg's child runs in the bench package, not in this process's cwd.
+      workDir: resolve(nonEmpty(values['work-dir'], '--work-dir') ?? DEFAULT_WORK_DIR),
       summaryFile: nonEmpty(values['summary-file'], '--summary-file'),
     }
   }

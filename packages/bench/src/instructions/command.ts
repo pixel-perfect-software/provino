@@ -26,6 +26,7 @@ import { median, wallStats } from '../stats.ts'
 import { PACKAGE_DIR } from '../suites.ts'
 import {
   anyRegressed,
+  assertBaselineCovers,
   assertComparable,
   benchIdOf,
   compareLeg,
@@ -34,9 +35,10 @@ import {
   type LegComparison,
   millions,
   signedPercent,
+  unjudgedLegs,
 } from './compare.ts'
 import { LEGS, type Leg, legOf } from './legs.ts'
-import { prepareWork } from './prepare.ts'
+import { assertEmptiable, prepareWork } from './prepare.ts'
 import { runCounted, runPlain, V8_FLAGS, valgrindVersion } from './run.ts'
 import { WORK_PATHS, type WorkloadResult } from './workloads.ts'
 
@@ -310,11 +312,16 @@ export async function instructionsCommand(command: InstructionsCommand, io: Io):
   const node = process.version
   const out = command.out ?? defaultOutPath(ref, `instructions-node${node.slice(1).split('.')[0]}`)
   await prepareOutput(out)
+  // Before the build: a work directory that must not be emptied is found at once, not after it.
+  await assertEmptiable(command.workDir)
   const baseline = command.baseline === undefined ? undefined : await readBaseline(command.baseline)
   if (baseline !== undefined) {
     assertComparable(baseline, { node, arch: process.arch, os: process.platform })
   }
   const valgrind = command.cachegrind ? valgrindVersion() : undefined
+  // A baseline that holds no count for any leg this run measures (a record made with
+  // --no-cachegrind or other --legs) would pass every leg as "no baseline", comparing nothing.
+  if (baseline !== undefined && valgrind !== undefined) assertBaselineCovers(baseline, command.legs)
   if (command.plant && valgrind === undefined) {
     throw new BenchError('BENCH_USAGE', '--plant needs cachegrind; drop --no-cachegrind')
   }
@@ -394,13 +401,19 @@ export async function instructionsCommand(command: InstructionsCommand, io: Io):
       ...failedLegs.map(({ leg }) => `FAIL ${leg.id}: a run did its work wrong`),
       regressed
         ? `RESULT: ${comparisons.filter((comparison) => comparison.status === 'regressed').length} leg(s) regressed`
-        : `RESULT: no leg regressed${baseline === undefined || valgrind === undefined ? ' (nothing was compared)' : ''}`,
+        : `RESULT: no leg regressed${resultNote(baseline !== undefined && valgrind !== undefined, unjudgedLegs(comparisons))}`,
     ]
     const text = lines.join('\n')
     io.out(text)
     if (command.summaryFile !== undefined) await appendFile(command.summaryFile, `${text}\n`)
     return regressed || failedLegs.length > 0 || plant?.ok === false ? 1 : 0
   })
+}
+
+/** What the passing result line adds: that nothing was compared, or which legs went unjudged. */
+function resultNote(compared: boolean, unjudged: readonly string[]): string {
+  if (!compared) return ' (nothing was compared)'
+  return unjudged.length === 0 ? '' : ` (no baseline count for ${unjudged.join(', ')}: not judged)`
 }
 
 async function fixtureFiles(dir: string): Promise<string[]> {

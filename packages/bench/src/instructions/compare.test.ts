@@ -4,11 +4,13 @@ import type { BenchRecord, BenchResult } from '@provino/types'
 import { BenchError } from '../errors.ts'
 import {
   anyRegressed,
+  assertBaselineCovers,
   assertComparable,
   compareLeg,
   comparisonLines,
   countsOf,
   signedPercent,
+  unjudgedLegs,
 } from './compare.ts'
 import { LEGS, legOf } from './legs.ts'
 
@@ -138,4 +140,29 @@ test('a baseline from another Node, OS or architecture is refused', () => {
       (error: unknown) => error instanceof BenchError && error.code === 'BENCH_BASELINE_INVALID',
     )
   }
+})
+
+test('a baseline with no count for any leg measured now is refused, not passed leg by leg', () => {
+  const invalid = (error: unknown): boolean =>
+    error instanceof BenchError && error.code === 'BENCH_BASELINE_INVALID'
+  // A --no-cachegrind record has results and no counts; a failed leg's count is no count.
+  const wall = record([
+    result('instructions/app-50', undefined),
+    result('instructions/core', 7, false),
+  ])
+  assert.throws(() => assertBaselineCovers(wall, LEGS), invalid)
+  // Counts for other legs than the ones measured now (a --legs subset).
+  const other = record([result('instructions/hoist', 5)])
+  assert.throws(() => assertBaselineCovers(other, [suite, core]), invalid)
+  // One leg in common is enough: a leg added since the baseline is named, not refused.
+  assertBaselineCovers(record([result('instructions/app-50', 5)]), [suite, core])
+})
+
+test('the legs the baseline has no count for are named as unjudged', () => {
+  const comparisons = [
+    compareLeg(suite, BASELINE, BASELINE),
+    compareLeg(core, BASELINE, undefined),
+    compareLeg(legOf('hoist') ?? core, undefined, BASELINE),
+  ]
+  assert.deepEqual(unjudgedLegs(comparisons), ['core'])
 })

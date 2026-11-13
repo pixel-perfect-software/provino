@@ -97,6 +97,32 @@ export function assertComparable(
 }
 
 /**
+ * Checks that a baseline can judge this run at all: it holds an instruction count for at least one
+ * of `legs`. A record made with `--no-cachegrind` (no counts), or with other `--legs`, holds none,
+ * and every leg would read as `no-baseline` and pass. Throws `BENCH_BASELINE_INVALID`.
+ * @public
+ */
+export function assertBaselineCovers(baseline: BenchRecord, legs: readonly Leg[]): void {
+  const counts = countsOf(baseline)
+  if (legs.some((leg) => counts.has(leg.id))) return
+  throw new BenchError(
+    'BENCH_BASELINE_INVALID',
+    `the baseline holds no instruction count for any leg this run measures (${legs.map((leg) => leg.id).join(', ')}); a record made with --no-cachegrind or with other --legs can't judge it`,
+  )
+}
+
+/**
+ * The legs measured now that the baseline has no count for: they pass unjudged, and the result
+ * line names them.
+ * @public
+ */
+export function unjudgedLegs(comparisons: readonly LegComparison[]): string[] {
+  return comparisons
+    .filter((comparison) => comparison.status === 'no-baseline')
+    .map((comparison) => comparison.leg.id)
+}
+
+/**
  * Whether any leg regressed.
  * @public
  */
