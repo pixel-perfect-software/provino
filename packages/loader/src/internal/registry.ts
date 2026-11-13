@@ -853,7 +853,8 @@ export class Registry {
   }
 
   #importMeta(record: ModuleRecord): object {
-    return {
+    // Node's `import.meta` has no prototype.
+    return Object.assign(Object.create(null), {
       url: pathToFileURL(record.path).href,
       filename: record.path,
       dirname: dirname(record.path),
@@ -870,6 +871,6 @@ export class Registry {
           ? target.id
           : pathToFileURL(target.kind === 'user' ? target.id : target.path).href
       },
-    }
+    })
   }
 }

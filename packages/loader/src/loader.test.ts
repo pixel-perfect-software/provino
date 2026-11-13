@@ -239,6 +239,24 @@ test('JSON, builtins, import.meta and dynamic import', async () => {
   assert.deepEqual(registry.require(join(root, 'data.json')), { answer: 42 })
 })
 
+test('import.meta has no prototype, and is one object per module', async () => {
+  const root = writeTree({
+    'other.ts': 'export const meta: object = import.meta\n',
+    'entry.test.ts':
+      "import { meta as other } from './other.ts'\nexport const meta: object = import.meta\nexport const same: boolean = meta === import.meta\nexport const distinct: boolean = meta !== other\n",
+  })
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  const entry = await registry.import<{ meta: object; same: boolean; distinct: boolean }>(
+    join(root, 'entry.test.ts'),
+  )
+  assert.equal(Object.getPrototypeOf(entry.meta), null)
+  assert.equal(Object.prototype.toString.call(entry.meta), '[object Object]')
+  assert.equal(entry.same, true)
+  assert.equal(entry.distinct, true)
+})
+
 test('import.meta.resolve names a file that is not there, as Node does, and throws for a package', async () => {
   const root = writeTree({
     'present.ts': 'export const here = true\n',
