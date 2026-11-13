@@ -5,7 +5,9 @@ const OXC_PACKAGES: readonly string[] = ['oxc-parser', 'oxc-transform', 'oxc-res
 
 /**
  * The platform part of an Oxc binding package's name: `darwin-arm64`, `linux-x64-gnu`,
- * `linux-arm64-musl`, `win32-x64-msvc`, `freebsd-x64`.
+ * `linux-arm64-musl`, `linux-arm-gnueabihf`, `android-arm-eabi`, `win32-x64-msvc`,
+ * `freebsd-x64`. `native-binding.test.ts` holds every one against the keys of the installed
+ * packages' `optionalDependencies`.
  * @internal
  */
 export function bindingTriple(platform: string, arch: string, musl: boolean): string {
@@ -13,7 +15,11 @@ export function bindingTriple(platform: string, arch: string, musl: boolean): st
     case 'win32':
       return `win32-${arch}-msvc`
     case 'linux':
-      return arch === 'arm' ? 'linux-arm-gnueabihf' : `linux-${arch}-${musl ? 'musl' : 'gnu'}`
+      return arch === 'arm'
+        ? `linux-arm-${musl ? 'musleabihf' : 'gnueabihf'}`
+        : `linux-${arch}-${musl ? 'musl' : 'gnu'}`
+    case 'android':
+      return arch === 'arm' ? 'android-arm-eabi' : `android-${arch}`
     default:
       return `${platform}-${arch}`
   }
@@ -70,36 +76,45 @@ function chainText(error: unknown): string {
   return parts.join('\n')
 }
 
+/** `oxc-parser|oxc-transform|oxc-resolver`, for the patterns below. */
+const OXC_NAMES = OXC_PACKAGES.join('|')
+
+/** An Oxc package named by its scope (`@oxc-parser/…`) or by its place in node_modules. */
+const NAMES_OXC = new RegExp(
+  `@(?:${OXC_NAMES})/|[\\\\/]node_modules[\\\\/](?:\\.pnpm[\\\\/][^\\\\/]+[\\\\/]node_modules[\\\\/])?(?:${OXC_NAMES})[\\\\/]`,
+)
+
+/** A binding file that is there and failed to load (the loader's own words for it). */
+const FAILED_TO_LOAD = /dlopen|\.node\b/
+
 /**
  * The one message for an Oxc binding that did not load, or `undefined` when `error` is anything
  * else. The parser, the transform and the resolver each load a native binding from an optional
  * dependency named for the platform, and each fails with a long message that names the last package
  * it tried, not this machine's. This names this machine's: `@oxc-parser/binding-darwin-arm64`
  * and the other two, those that can't be found (all three when the files are there but won't load).
+ *
+ * The probe decides first: when any of this platform's three packages can't be resolved, that is
+ * the message, whatever the error says (the loaders word it three ways, and the error is only
+ * what the first one tried). Only when all three resolve does the text matter, and then the error
+ * must say a binding file failed to load and name an Oxc package: swc, lightningcss and the rest
+ * ship the same loader, and theirs is not ours.
  * @internal
  */
 export function missingBindingMessage(
   error: unknown,
   probe: BindingProbe = machine(),
 ): string | undefined {
-  const text = chainText(error)
-  // A binding that did not load, and an Oxc package that says so: the napi-rs loader every native
-  // package ships (swc, lightningcss, ...) words its failure the same way, and that one is not ours.
-  const namesOxc =
-    /@oxc-(?:parser|transform|resolver)\//.test(text) ||
-    /[\\/]node_modules[\\/](?:\.pnpm[\\/][^\\/]+[\\/]node_modules[\\/])?oxc-(?:parser|transform|resolver)[\\/]/.test(
-      text,
-    )
-  const failedToLoad = /Cannot find native binding|Cannot find module '@oxc-|dlopen|\.node\b/.test(
-    text,
-  )
-  if (!(namesOxc && failedToLoad)) return undefined
   const triple = bindingTriple(probe.platform, probe.arch, probe.musl)
   const all = OXC_PACKAGES.map((name) => ({
     base: name,
     binding: `@${name}/binding-${triple}`,
   }))
   const missing = all.filter(({ base, binding }) => !probe.resolves(base, binding))
+  if (missing.length === 0) {
+    const text = chainText(error)
+    if (!(FAILED_TO_LOAD.test(text) && NAMES_OXC.test(text))) return undefined
+  }
   const named = (missing.length > 0 ? missing : all).map(({ binding }) => binding)
   const where = `${probe.platform} ${probe.arch}${probe.musl ? ' (musl)' : ''}`
   return [

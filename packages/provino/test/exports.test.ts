@@ -8,20 +8,18 @@ import {
   constants,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readdirSync,
   readFileSync,
-  realpathSync,
   symlinkSync,
-  writeFileSync,
 } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
+import { after, describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { childEnv, runBuilt, trackedProjects } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
-const RECORDER = fileURLToPath(new URL('./load-recorder.ts', import.meta.url))
 const manifest = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as {
   readonly version: string
   readonly exports: Readonly<Record<string, Readonly<Record<string, string>>>>
@@ -34,7 +32,7 @@ function inPackage(code: string, env: NodeJS.ProcessEnv = {}) {
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], {
     cwd: PACKAGE,
     encoding: 'utf8',
-    env: { ...process.env, ...env, NODE_OPTIONS: process.env.NODE_OPTIONS ?? '' },
+    env: childEnv([], env),
     timeout: 60_000,
   })
   return { status: result.status, stdout: result.stdout, stderr: result.stderr }
@@ -130,7 +128,7 @@ describe('the bin', () => {
   })
 
   test('--version prints the package version', () => {
-    const result = spawnSync(process.execPath, [bin, '--version'], { encoding: 'utf8' })
+    const result = runBuilt(['--version'], { cwd: PACKAGE })
     assert.equal(result.status, 0, result.stderr)
     assert.equal(result.stdout, `${manifest.version}\n`)
   })
@@ -141,19 +139,14 @@ describe('the bin', () => {
   })
 })
 
+const project = trackedProjects()
+
 /** A project that runs three files, one of which imports `provino` the way a user does. */
-function project(): string {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'provino-built-')))
-  mkdirSync(join(dir, 'node_modules'))
-  symlinkSync(PACKAGE, join(dir, 'node_modules', 'provino'), 'dir')
-  writeFileSync(
-    join(dir, 'package.json'),
-    '{"type":"module","jest":{"testMatch":["**/*.test.js"]}}\n',
-  )
-  writeFileSync(join(dir, 'a.test.js'), "test('globals', () => { expect(1 + 1).toBe(2) })\n")
-  writeFileSync(
-    join(dir, 'b.test.js'),
-    [
+async function builtProject(): Promise<string> {
+  const { dir } = await project({
+    'package.json': '{"type":"module","jest":{"testMatch":["**/*.test.js"]}}\n',
+    'a.test.js': "test('globals', () => { expect(1 + 1).toBe(2) })\n",
+    'b.test.js': [
       "import { describe, it, expect } from 'provino'",
       "describe('the entry', () => {",
       "  it('is the worker expect', () => {",
@@ -165,23 +158,22 @@ function project(): string {
       '})',
       '',
     ].join('\n'),
-  )
-  writeFileSync(join(dir, 'c.test.js'), "it('also passes', () => { expect('x').toMatch(/x/) })\n")
+    'c.test.js': "it('also passes', () => { expect('x').toMatch(/x/) })\n",
+  })
+  mkdirSync(join(dir, 'node_modules'))
+  symlinkSync(PACKAGE, join(dir, 'node_modules', 'provino'), 'dir')
   return dir
 }
 
 describe('a built worker (T1.10)', () => {
-  const bin = join(PACKAGE, 'dist', 'cli.js')
-
-  test('runs a project whose test imports `provino`, and starts with at most 10 files from the package', () => {
-    const dir = project()
-    const logs = mkdtempSync(join(tmpdir(), 'provino-loads-'))
-    const nodeOptions = `${process.env.NODE_OPTIONS ?? ''} --import=${RECORDER}`.trim()
-    const run = spawnSync(process.execPath, [bin, 'jest', '--ci'], {
+  test('runs a project whose test imports `provino`, and starts with at most 10 files from the package', async () => {
+    const dir = await builtProject()
+    const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
+    after(() => rm(logs, { recursive: true, force: true }))
+    const run = runBuilt(['jest', '--ci'], {
       cwd: dir,
-      encoding: 'utf8',
-      env: { ...process.env, PROVINO_LOAD_LOG: logs, NODE_OPTIONS: nodeOptions },
-      timeout: 120_000,
+      preloads: ['load-recorder'],
+      env: { PROVINO_LOAD_LOG: logs },
     })
     assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
     assert.match(run.stderr, /Tests:\s+3 passed, 3 total/)

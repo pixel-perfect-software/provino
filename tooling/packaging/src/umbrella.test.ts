@@ -1,12 +1,5 @@
 import assert from 'node:assert/strict'
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
@@ -69,6 +62,7 @@ describe('the worker-ref plugin', () => {
   test('a resolve whose specifier is not a literal fails the build: it could name any package', () => {
     for (const call of [
       'import.meta.resolve(name)',
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: the text of a call, not a template
       'import.meta.resolve(`@provino/${name}`)',
       "import.meta.resolve('@provino/' + name)",
       'import.meta.resolve(\n  name,\n)',

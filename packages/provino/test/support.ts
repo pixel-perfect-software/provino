@@ -1,8 +1,8 @@
 // Helpers for the tests: a small Jest-style project written to $TMPDIR as text (no `.js` is
 // committed, D13), a collecting stream, and a deadline for child processes.
 import assert from 'node:assert/strict'
-import { type ChildProcess, spawn } from 'node:child_process'
-import { mkdtempSync, realpathSync } from 'node:fs'
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, realpathSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -232,4 +232,54 @@ export function viewOfNormalized(text: string): NormalizedView {
     ci: record(run.env, 'env').ci,
     files,
   }
+}
+
+/** The built bin (`pnpm build` writes it; turbo's `test` depends on that). */
+export const BUILT_BIN: string = fileURLToPath(new URL('../dist/cli.js', import.meta.url))
+
+/**
+ * A preload in this directory that a child runs before anything else (`--import`): see the files.
+ * Each is read as text and passed as a `data:` URL, so it is plain JavaScript (no type syntax)
+ * and the child never loads a `.ts` file: on Node 22.15, which CI runs with
+ * `NODE_OPTIONS=--experimental-strip-types`, stripping types prints an ExperimentalWarning to the
+ * child's stderr, and the tests assert on that stream.
+ */
+export type Preload = 'block-oxc-bindings' | 'load-recorder'
+
+/**
+ * The environment of a child that runs the built package: this process's, then `env`, with each
+ * preload added to `NODE_OPTIONS` after whatever the parent already set. The one place that
+ * composes it.
+ */
+export function childEnv(
+  preloads: readonly Preload[] = [],
+  env: NodeJS.ProcessEnv = {},
+): NodeJS.ProcessEnv {
+  const imports = preloads.map((name) => {
+    const source = readFileSync(fileURLToPath(new URL(`./${name}.ts`, import.meta.url)), 'utf8')
+    return `--import=data:text/javascript,${encodeURIComponent(source)}`
+  })
+  return {
+    ...process.env,
+    ...env,
+    NODE_OPTIONS: [process.env.NODE_OPTIONS, ...imports].filter(Boolean).join(' '),
+  }
+}
+
+/** Runs the built bin to the end from `cwd`, with the preloads and `env` of `childEnv`. */
+export function runBuilt(
+  args: readonly string[],
+  options: {
+    readonly cwd: string
+    readonly preloads?: readonly Preload[]
+    readonly env?: NodeJS.ProcessEnv
+  },
+): { readonly status: number | null; readonly stdout: string; readonly stderr: string } {
+  const result = spawnSync(process.execPath, [BUILT_BIN, ...args], {
+    cwd: options.cwd,
+    encoding: 'utf8',
+    env: childEnv(options.preloads, options.env),
+    timeout: 120_000,
+  })
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr }
 }

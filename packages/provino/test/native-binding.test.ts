@@ -4,71 +4,49 @@
 // (`block-oxc-bindings.ts`), so it is the install that is wrong and nothing else: `pnpm
 // smoke:install` does the same by deleting the packages from a real tarball install.
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
-import {
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  realpathSync,
-  writeFileSync,
-} from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
+import { after, describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { runBuilt, trackedProjects } from './support.ts'
+
+/** `bindingTriple`, loaded by URL: the type-test project includes this directory but not the package's source. */
+const { bindingTriple } = (await import(
+  new URL('../src/internal/native-binding.ts', import.meta.url).href
+)) as { bindingTriple(platform: string, arch: string, musl: boolean): string }
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
-const BIN = join(PACKAGE, 'dist', 'cli.js')
-const BLOCKER = fileURLToPath(new URL('./block-oxc-bindings.ts', import.meta.url))
-const RECORDER = fileURLToPath(new URL('./load-recorder.ts', import.meta.url))
-const WARNING = fileURLToPath(new URL('./emit-type-stripping-warning.ts', import.meta.url))
-/**
- * This machine's Oxc binding suffix, worked out here and not by the code under test (this project
- * has no `src/`, so it cannot import it): `darwin-arm64`, `linux-x64-gnu`, `win32-x64-msvc`.
- */
-function platformTriple(): string {
-  const { platform, arch } = process
-  if (platform === 'win32') return `win32-${arch}-msvc`
-  if (platform !== 'linux') return `${platform}-${arch}`
-  const header = (process.report.getReport() as { header: object }).header
-  return `linux-${arch}-${'glibcVersionRuntime' in header ? 'gnu' : 'musl'}`
-}
-
 const manifest = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as {
   readonly version: string
 }
 
-/** A child's stderr without this sandbox's per-start certificate noise (it is nowhere else). */
-function quiet(stderr: string): string {
-  return stderr.replace(/^ERROR: failed to copy trust.*\n/gm, '')
+/** This machine's Oxc binding suffix, as the code under test names it. */
+function platformTriple(): string {
+  const header = (process.report.getReport() as { header: object }).header
+  return bindingTriple(
+    process.platform,
+    process.arch,
+    process.platform === 'linux' && !('glibcVersionRuntime' in header),
+  )
 }
 
-function run(args: readonly string[], preloads: readonly string[], env: NodeJS.ProcessEnv = {}) {
-  const imports = preloads.map((file) => `--import=${file}`).join(' ')
-  const result = spawnSync(process.execPath, [BIN, ...args], {
-    cwd: realpathSync(mkdtempSync(join(tmpdir(), 'provino-binding-'))),
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      ...env,
-      // --disable-warning: Node 22 prints an ExperimentalWarning to every child that strips types
-      // (CI's 22.15 leg sets NODE_OPTIONS=--experimental-strip-types), and the tests assert on stderr.
-      NODE_OPTIONS:
-        `${process.env.NODE_OPTIONS ?? ''} ${imports} --disable-warning=ExperimentalWarning`.trim(),
-    },
-    timeout: 60_000,
-  })
-  return { status: result.status, stdout: result.stdout, stderr: result.stderr }
-}
+const project = trackedProjects()
 
 describe('a missing Oxc binding (T10.3)', () => {
-  test('--version and --help answer without loading any Oxc package', () => {
-    const logs = mkdtempSync(join(tmpdir(), 'provino-loads-'))
+  test('--version and --help answer without loading any Oxc package', async () => {
+    const { dir } = await project({})
+    const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
+    after(() => rm(logs, { recursive: true, force: true }))
     for (const args of [['--version'], ['--help'], ['-h']]) {
-      const result = run(args, [RECORDER], { PROVINO_LOAD_LOG: logs })
+      const result = runBuilt(args, {
+        cwd: dir,
+        preloads: ['load-recorder'],
+        env: { PROVINO_LOAD_LOG: logs },
+      })
       assert.equal(result.status, 0, result.stderr)
-      assert.equal(quiet(result.stderr), '')
+      assert.equal(result.stderr, '')
       assert.ok(
         args[0] === '--version'
           ? result.stdout === `${manifest.version}\n`
@@ -86,64 +64,57 @@ describe('a missing Oxc binding (T10.3)', () => {
     )
   })
 
-  test('a child prints nothing to stderr on the Node whose type stripping is experimental either', () => {
-    // CI's 22.15 leg runs with NODE_OPTIONS=--experimental-strip-types, and Node 22 then writes an
-    // ExperimentalWarning to every child that loads a .ts file; the helper silences that one warning.
+  test('--version and --help still answer when the bindings are missing', async () => {
+    const { dir } = await project({})
     for (const args of [['--version'], ['--help']]) {
-      const result = run(args, [WARNING])
-      assert.equal(result.status, 0, result.stderr)
-      assert.equal(quiet(result.stderr), '', args.join(' '))
-    }
-  })
-
-  test('--version and --help still answer when the bindings are missing', () => {
-    for (const args of [['--version'], ['--help']]) {
-      const result = run(args, [BLOCKER])
+      const result = runBuilt(args, { cwd: dir, preloads: ['block-oxc-bindings'] })
       assert.equal(result.status, 0, result.stderr)
       assert.ok(result.stdout.length > 0)
     }
   })
 
-  test("a run ends with one message naming this platform's three binding packages, exit 1, no stack", () => {
+  test("a run ends with one message naming this platform's three binding packages, exit 1, no stack", async () => {
+    const { dir } = await project({})
     const triple = platformTriple()
     for (const args of [['jest', '--ci'], ['run', '--config', 'provino.config.mjs'], []]) {
-      const result = run(args, [BLOCKER])
-      const stderr = quiet(result.stderr)
-      assert.equal(result.status, 1, `${args.join(' ')}: ${stderr}`)
+      const result = runBuilt(args, { cwd: dir, preloads: ['block-oxc-bindings'] })
+      assert.equal(result.status, 1, `${args.join(' ')}: ${result.stderr}`)
       assert.equal(result.stdout, '')
       for (const name of ['parser', 'transform', 'resolver']) {
-        assert.ok(stderr.includes(`@oxc-${name}/binding-${triple}`), `${name}: ${stderr}`)
+        assert.ok(
+          result.stderr.includes(`@oxc-${name}/binding-${triple}`),
+          `${name}: ${result.stderr}`,
+        )
       }
-      assert.equal(stderr.match(/^Provino: /gm)?.length, 1, stderr)
+      assert.equal(result.stderr.match(/^Provino: /gm)?.length, 1, result.stderr)
       assert.doesNotMatch(
-        stderr,
+        result.stderr,
         /\n\s+at |file:\/\/|Cannot find native binding|node:internal/,
-        stderr,
+        result.stderr,
       )
     }
   })
 
-  test("another package's missing binding is not reported as an Oxc one: the error and its stack come through", () => {
-    const result = run(['jest', '--ci'], [BLOCKER], { PROVINO_BLOCK: 'other' })
-    const stderr = quiet(result.stderr)
-    assert.equal(result.status, 1, stderr)
-    assert.doesNotMatch(stderr, /^Provino: the native Oxc binding/m)
-    assert.match(stderr, /Cannot find native binding/)
-    assert.match(stderr, /@swc\/core-darwin-arm64/)
+  test("another package's missing binding is not reported as an Oxc one: the error and its stack come through", async () => {
+    const { dir } = await project({})
+    const result = runBuilt(['jest', '--ci'], {
+      cwd: dir,
+      preloads: ['block-oxc-bindings'],
+      env: { PROVINO_BLOCK: 'other' },
+    })
+    assert.equal(result.status, 1, result.stderr)
+    assert.doesNotMatch(result.stderr, /^Provino: the native Oxc binding/m)
+    assert.match(result.stderr, /Cannot find native binding/)
+    assert.match(result.stderr, /@swc\/core-darwin-arm64/)
     // Node's own uncaught-error report, with the stack that points at where it came from.
-    assert.match(stderr, /\n\s+at /)
+    assert.match(result.stderr, /\n\s+at /)
   })
 
-  test('with the bindings installed the same commands run as before', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'provino-binding-ok-'))
-    mkdirSync(join(dir, 'tests'))
-    writeFileSync(join(dir, 'package.json'), '{"type":"commonjs"}\n')
-    writeFileSync(join(dir, 'tests', 'a.test.js'), "test('a', () => { expect(1).toBe(1) })\n")
-    const result = spawnSync(process.execPath, [BIN, 'jest', '--ci'], {
-      cwd: dir,
-      encoding: 'utf8',
-      timeout: 60_000,
+  test('with the bindings installed the same commands run as before', async () => {
+    const { dir } = await project({
+      'tests/a.test.js': "test('a', () => { expect(1).toBe(1) })\n",
     })
+    const result = runBuilt(['jest', '--ci'], { cwd: dir })
     assert.equal(result.status, 0, result.stderr)
     assert.match(result.stderr, /Tests:\s+1 passed, 1 total/)
   })

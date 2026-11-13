@@ -1,4 +1,5 @@
-// Preloaded with `--import` (through NODE_OPTIONS): every `require` or `import` of an Oxc native
+// Preloaded with `--import` (through NODE_OPTIONS, by `runBuilt` in `support.ts`, as a `data:` URL
+// of this text: plain JavaScript, no type syntax, so the child never strips types): every `require` or `import` of an Oxc native
 // binding package (`@oxc-parser/binding-darwin-arm64` and the like) fails as if the optional
 // dependency was never installed (T10.3: `npm i --omit=optional`, a stale lockfile, pnpm's
 // `supportedArchitectures` for another platform). `native-binding.test.ts` runs the built bin
