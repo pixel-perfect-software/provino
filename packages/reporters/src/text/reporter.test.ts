@@ -5,7 +5,16 @@ import { agentReporter } from '../agent/reporter.ts'
 import { createReporterBus } from '../bus.ts'
 import { defaultReporter } from '../default/reporter.ts'
 import { dotReporter } from '../dot/reporter.ts'
-import { error, type FileSpec, output, playRun } from '../internal/test-support.ts'
+import {
+  buildFile,
+  collectedEvent,
+  error,
+  type FileSpec,
+  output,
+  playRun,
+  resultOf,
+  testEndEvent,
+} from '../internal/test-support.ts'
 import { verboseReporter } from '../verbose/reporter.ts'
 import type { TextReporterOptions } from './reporter.ts'
 
@@ -521,6 +530,45 @@ describe('the dot reporter', () => {
     assert.doesNotMatch(text, new RegExp(`${ESC}\\[\\d+F`))
     assert.doesNotMatch(text, /RUNS/)
     assert.match(text, /^\.\.\n\nTest Suites: 1 passed, 1 total\n/)
+  })
+
+  test('ends the row of dots before an error’s block, which starts under a blank line', async () => {
+    const out = output()
+    const bus = createReporterBus([dotReporter({ stream: out, report: REPORT, columns: 10 })])
+    const file = buildFile({
+      path: 'a.test.ts',
+      tests: [
+        { path: ['p'] },
+        { path: ['f'], state: 'fail', errors: [error('boom')] },
+        { path: ['q'] },
+      ],
+    })
+    await bus.emit('run:start', { root: '/p', projects: [''], startTime: 0, watch: false }, [
+      file.info,
+    ])
+    await bus.emit('file:start', file.info, 0)
+    await bus.emit('file:collected', file.info, collectedEvent(file))
+    for (const [index, { task, spec }] of file.tests.entries()) {
+      if (index === 1) await bus.emit('error', error('mid-run'), 'coordinator')
+      await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+    }
+    await bus.emit('file:end', file.result)
+    await bus.emit('run:end', {
+      reason: 'failed',
+      files: [file.result],
+      unhandled: [],
+      durationMs: 1,
+    })
+    const text = out.text()
+    assert.match(text, /^\.\n\n {2}● Run error\n\n {4}mid-run\n\nF\.\n\nFAIL \.\/a\.test\.ts\n/, text)
+  })
+
+  test('takes a width of zero, or none that makes sense, for the default 80', async () => {
+    const tests = Array.from({ length: 85 }, (_, i) => ({ path: [`t${i}`] }))
+    for (const columns of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const text = await written(dotReporter, [{ path: 'a.test.ts', tests }], { columns })
+      assert.match(text, new RegExp(`^\\.{80}\\n\\.{5}\\n\\nTest Suites:`), `columns ${columns}`)
+    }
   })
 
   test('starts its dots over at each run:start', async () => {

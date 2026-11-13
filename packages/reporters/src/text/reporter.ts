@@ -69,6 +69,15 @@ interface FailedTest {
   readonly errors: readonly SerializedError[]
 }
 
+/** The width a terminal is taken to have when its stream reports none that makes sense. */
+const DEFAULT_COLUMNS = 80
+
+/** The terminal's width: `columns` when it is a number of at least 1, else the default (a stream may report 0). */
+function widthOf(columns: number | undefined): number {
+  const whole = columns === undefined ? 0 : Math.floor(columns)
+  return Number.isFinite(whole) && whole >= 1 ? whole : DEFAULT_COLUMNS
+}
+
 /** How an `error` event is labelled, by where it came from. */
 const ERROR_LABELS = {
   coordinator: 'Run error',
@@ -96,19 +105,21 @@ export function createTextReporter(
   const { stream, report } = options
   const style = createStyle(options.colour === true)
   const errorFormat: ErrorFormat = { stackTrace: options.noStackTrace !== true }
+  const columns = widthOf(options.columns)
   // The block's redraw erases the lines above it, so it has no place over a row of dots it doesn't track.
   const out = createLiveOutput(stream, {
     live: options.live === true && mode !== 'agent' && mode !== 'dot',
-    columns: options.columns ?? 80,
+    columns,
     style,
   })
   const quiet = mode === 'agent' || mode === 'dot'
-  const columns = options.columns ?? 80
   let state = freshState()
   // Whether the last thing printed ended in a blank line, so the totals don't add a second.
   let atBlank = true
-  // `dot`: the characters on the current line, and the failed files, printed after the dots.
-  let dots = 0
+  // `dot`: the characters on the current row, whether the dots are the last thing written, and the
+  // failed files, printed after them.
+  let row = 0
+  let afterDots = false
   let deferred: string[] = []
 
   async function writeDot(testState: TaskState): Promise<void> {
@@ -118,8 +129,29 @@ export function createTextReporter(
         : testState === 'fail'
           ? style.red('F')
           : style.yellow('-')
-    dots++
-    await stream.write(dots % columns === 0 ? `${mark}\n` : mark)
+    row++
+    afterDots = true
+    if (row >= columns) {
+      row = 0
+      await stream.write(`${mark}\n`)
+    } else {
+      await stream.write(mark)
+    }
+  }
+
+  /**
+   * `dot`: before text goes under the dots, ends their row so the text doesn't land in the middle
+   * of it. Returns what that text starts with to leave a blank line under the dots: `'\n'`, or `''`
+   * when the dots are not the last thing written.
+   */
+  async function leaveDots(): Promise<string> {
+    if (!afterDots) return ''
+    afterDots = false
+    if (row > 0) {
+      row = 0
+      await stream.write('\n')
+    }
+    return '\n'
   }
 
   async function print(text: string): Promise<void> {
@@ -145,7 +177,8 @@ export function createTextReporter(
     'run:start'(_info, files) {
       state = freshState()
       state.queued = files.length
-      dots = 0
+      row = 0
+      afterDots = false
       deferred = []
     },
 
@@ -236,17 +269,17 @@ export function createTextReporter(
     },
 
     async error(error, origin) {
-      await print(failureBlock(report, ERROR_LABELS[origin], [error], style, errorFormat))
+      const lead = await leaveDots()
+      await print(lead + failureBlock(report, ERROR_LABELS[origin], [error], style, errorFormat))
     },
 
     async 'run:end'(summary: RunSummary) {
       await out.close()
-      if (mode === 'dot') {
-        // The dots end the line they are on; the failed files follow, a blank line apart.
-        if (dots % columns !== 0) await stream.write('\n')
-        if (deferred.length > 0) await print(['', ...deferred].join('\n'))
-        // Text follows the dots, so the totals' blank line goes between them.
-        else if (dots > 0) atBlank = false
+      // `dot`: the dots end the row they are on; the failed files follow, a blank line apart.
+      let lead = await leaveDots()
+      if (deferred.length > 0) {
+        await print(lead + deferred.join('\n'))
+        lead = ''
       }
       const unhandled = summary.unhandled.map((error) =>
         failureBlock(report, 'Unhandled error', [error], style, errorFormat),
@@ -264,7 +297,8 @@ export function createTextReporter(
           style,
         ),
       ]
-      await print((atBlank ? parts : ['', ...parts]).join('\n'))
+      // A blank line apart from whatever came before, unless that already ended in one.
+      await print(`${lead === '' && atBlank ? '' : '\n'}${parts.join('\n')}`)
       if (summary.openHandles !== undefined) await print(openHandlesText(summary.openHandles))
     },
   }
