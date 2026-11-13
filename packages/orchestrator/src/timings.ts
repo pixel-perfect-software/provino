@@ -41,7 +41,7 @@ export function parseTimings(text: string, file: string): TimingsFile {
     throw bad(file, `its version is ${JSON.stringify(data.version)}, and only version 1 is known`)
   }
   if (!isRecord(data.files)) throw bad(file, '"files" is not an object')
-  const files: Record<string, number> = {}
+  const entries: [string, number][] = []
   for (const [path, time] of Object.entries(data.files)) {
     if (typeof time !== 'number' || !Number.isFinite(time) || time < 0) {
       throw bad(
@@ -49,9 +49,10 @@ export function parseTimings(text: string, file: string): TimingsFile {
         `the time of ${JSON.stringify(path)} is not a number of milliseconds, 0 or more`,
       )
     }
-    files[path] = time
+    entries.push([path, time])
   }
-  return { version: 1, files }
+  // `fromEntries` defines each key as an own property; `files[path] = time` would drop `__proto__`.
+  return { version: 1, files: Object.fromEntries(entries) }
 }
 
 /**
@@ -82,12 +83,12 @@ export function mergeTimings(
   measured: ReadonlyMap<string, number>,
   keep?: ReadonlySet<string>,
 ): TimingsFile {
-  const files: Record<string, number> = {}
+  const files = new Map<string, number>()
   for (const [path, time] of Object.entries(existing?.files ?? {})) {
-    if (keep === undefined || keep.has(path)) files[path] = time
+    if (keep === undefined || keep.has(path)) files.set(path, time)
   }
-  for (const [path, time] of measured) files[path] = Math.round(time)
-  return { version: 1, files }
+  for (const [path, time] of measured) files.set(path, Math.round(time))
+  return { version: 1, files: Object.fromEntries(files) }
 }
 
 /**

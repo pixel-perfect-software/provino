@@ -196,10 +196,10 @@ export function shardFiles(
   const keyOf = (index: number): string => String(index).padStart(8, '0')
   const inputs = members.flatMap((member, index) =>
     member.files.map((file): ScheduleInput => {
-      const timingMs =
-        options.timings?.files[
-          relativePosix(options.runRoot, join(member.rootDir, file.relativePath))
-        ]
+      // Own entries only: `files['constructor']` is a function on an ordinary object.
+      const path = relativePosix(options.runRoot, join(member.rootDir, file.relativePath))
+      const times = options.timings?.files
+      const timingMs = times !== undefined && Object.hasOwn(times, path) ? times[path] : undefined
       return {
         path: file.relativePath,
         project: keyOf(index),

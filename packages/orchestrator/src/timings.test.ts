@@ -28,6 +28,16 @@ describe('parseTimings', () => {
     assert.deepEqual(parseTimings('{"version":1,"files":{}}', 'f'), { version: 1, files: {} })
   })
 
+  it('keeps a path named like an Object.prototype member, `__proto__` included, as a path', () => {
+    const parsed = parseTimings('{"version":1,"files":{"__proto__":3,"a":1}}', 'f')
+    assert.deepEqual(Object.keys(parsed.files), ['__proto__', 'a'])
+    assert.equal(Object.getOwnPropertyDescriptor(parsed.files, '__proto__')?.value, 3)
+    // The merge keeps it too, and the file's text names it.
+    const merged = mergeTimings(parsed, new Map([['b', 2]]))
+    assert.deepEqual(Object.keys(merged.files).toSorted(), ['__proto__', 'a', 'b'])
+    assert.match(formatTimings(merged), /"__proto__": 3/)
+  })
+
   it('ignores keys it does not know, as Bun’s file may carry its own', () => {
     assert.deepEqual(parseTimings('{"version":1,"files":{"a":1},"generatedBy":"x"}', 'f').files, {
       a: 1,

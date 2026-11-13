@@ -4,9 +4,10 @@ import assert from 'node:assert/strict'
 import { hash } from 'node:crypto'
 import { describe, it } from 'node:test'
 import type { ScheduleInput } from '@provino/types'
+import type { DiscoveredFile } from './discover.ts'
 import { seededRandom } from './schedule-sim.ts'
 import { createHistorySequencer } from './sequencer.ts'
-import { checkShard, predictedWeights, sha1Shard, sliceShard } from './shard.ts'
+import { checkShard, predictedWeights, sha1Shard, shardFiles, sliceShard } from './shard.ts'
 
 function file(path: string, timingMs?: number, project = 'p'): ScheduleInput {
   return { path, project, sizeBytes: 1, ...(timingMs === undefined ? {} : { timingMs }) }
@@ -252,6 +253,33 @@ describe('every file lands in exactly one shard (seeded property test)', () => {
       paths(sha1.shard(timed, { index: 1, count: 2 })),
       paths(sliceShard(timed, { index: 1, count: 2 })),
     )
+  })
+})
+
+describe('shardFiles', () => {
+  const found = (relativePath: string): DiscoveredFile => ({
+    path: `/root/${relativePath}`,
+    relativePath,
+    sizeBytes: 1,
+  })
+
+  it('looks a file up in the timings by its own entries: a path named like an Object.prototype member has no time', () => {
+    // `files['constructor']` is a function on an ordinary object; it is no time, so the file counts
+    // as one with none and still lands in exactly one shard.
+    const members = [
+      { rootDir: '/root', files: [found('constructor'), found('toString'), found('b')] },
+    ]
+    const options = {
+      fallback: 'path-slice',
+      runRoot: '/root',
+      timings: { version: 1, files: { b: 10 } },
+    } as const
+    const all = [1, 2].flatMap((index) =>
+      (shardFiles(members, { ...options, shard: { index, count: 2 } })[0] ?? []).map(
+        (file) => file.relativePath,
+      ),
+    )
+    assert.deepEqual(all.toSorted(), ['b', 'constructor', 'toString'])
   })
 })
 
