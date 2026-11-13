@@ -1,20 +1,49 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/provino-mark.png">
+    <img src="assets/provino-logo.png" alt="Provino" height="80">
+  </picture>
+</p>
+
 # Provino
 
-A fast, type-safe test runner for JavaScript and TypeScript, built to drop into an existing Jest or Vitest project.
+Provino is a test runner for JavaScript and TypeScript, for Node. One neutral core runs the tests, and Jest and Vitest are *dialects* on top of it, so Provino can take an existing project as it is. Today the Jest dialect works: `provino jest` reads a Jest project's config and command line, and runs its tests.
 
-> **Status: pre-alpha.** Nothing is published to npm yet. You can run it from a checkout against a Jest project today, within the limits below.
+## Status
 
-## How it works
+**Pre-alpha, and not on npm.** You can install the `provino` package from a tarball you build from this repository (below), and run it against a Jest project, within the limits listed under [What's not in place yet](#whats-not-in-place-yet). Two things are not built at all: `provino vitest`, and the RSpec-style lazy variables that are planned as the default way to define test values.
 
-One neutral core runs the tests. Jest and Vitest are *dialects* on top of it: a typed policy value for every place the two runners behave differently, plus the API each one exposes (`jest` or `vi`, `expect`, the globals). That lets Provino take your Jest config and command line as they are. The values it claims to match are checked against goldens recorded from the real Jest 30.5 and Vitest 5.0.
-
-RSpec-style lazy test variables are planned as the default way to define test values. They aren't built yet.
-
-Node only: 22.15+ or 24+.
+There are no benchmark results to quote. Benchmarks on pinned hardware are pending, and Provino makes no claim about speed.
 
 ## Try it on a Jest project
 
-Provino runs from source, so you need pnpm and a Node that strips types (22.18+, or 24+).
+You need Node 22.15 or later (24 recommended) and pnpm. Installing `provino` with pnpm is the route that is tested (`pnpm smoke:install` does it from a tarball into an empty directory). Start with one project that uses only what is listed under [What works](#what-works).
+
+### From a tarball
+
+Build and pack Provino once:
+
+```sh
+git clone https://github.com/pixel-perfect-software/provino.git
+cd provino
+pnpm install
+pnpm pack:all --out ~/provino-packs   # builds first, then packs every public package
+```
+
+Only `provino-0.0.0.tgz` is needed: it holds every `@provino/*` package inlined. In your Jest project:
+
+```sh
+pnpm add -D ~/provino-packs/provino-0.0.0.tgz
+pnpm exec provino jest --listTests              # the test files it would run
+pnpm exec provino jest path/to/one.test.ts      # one file first
+pnpm exec provino jest                          # the whole suite
+```
+
+`provino jest` takes Jest's own command line, reads the Jest config found from the working directory (or `-c`/`--config`), and exits with Jest's exit codes. Provino leaves your Jest config and Jest itself alone. It writes its cache to `node_modules/.cache/provino` (under the config's `cacheDirectory`, if it sets one; `provino jest --clearCache` removes it) and, as Jest does, `.snap` files. To take it out again, run `pnpm remove provino`.
+
+### From source
+
+Run the source directly, with a Node that strips types (22.18 or later, or 24):
 
 ```sh
 git clone https://github.com/pixel-perfect-software/provino.git
@@ -23,61 +52,85 @@ pnpm install
 alias provino="node --conditions=provino-source $PWD/packages/provino/src/cli.ts"
 ```
 
-Put the alias in your shell profile with the absolute path. Then, from your project's root:
+Then, from your project's root, run `provino jest --listTests` and the rest as above. Put the alias in your shell profile, with the checkout's absolute path.
 
-```sh
-provino jest --showConfig        # the config as Provino resolved it
-provino jest --listTests         # the test files it would run
-provino jest path/to/one.test.ts # one file first
-provino jest                     # the whole suite
-```
-
-`provino jest` takes Jest's own command line, reads the Jest config found from the working directory (or `-c`/`--config`), and exits with Jest's exit codes.
-
-To check discovery against Jest's without running any tests, run this from the Provino checkout:
+To check test discovery against Jest's without running anything, run this from the checkout:
 
 ```sh
 pnpm provino-bench list-tests ~/path/to/your-project
 ```
 
-It compares your project's `jest --listTests --json` with Provino's and names every difference. Exit 0 means they match.
-
-**A good first project** uses the `node` test environment, has one Jest project, and doesn't depend on `moduleNameMapper` or a Babel plugin.
-
-### What works
-
-- Test files in TypeScript, TSX/JSX or JavaScript. Provino compiles them itself with Oxc.
-- The `node` test environment.
-- Jest's globals: `describe`, `test`/`it`, hooks, `.only`/`.skip`, `.each` (with Jest's titles) and `done` callbacks.
-- `expect` with Jest's matchers.
-- Mock functions, spies and `jest.mock` (hoisted, with factories or automock), plus `clearMocks`, `resetMocks` and `restoreMocks`.
-- Modern fake timers (`jest.useFakeTimers()`).
-- `toMatchSnapshot`, writing `.snap` files byte-identical to Jest's; `-u` updates them.
-- These flags: test path patterns and `--runTestsByPath`, `-t`, `-u`/`--updateSnapshot`, `-w`/`-i`, `--ci`, `--passWithNoTests`, `--no-cache`, `--listTests [--json]`, `--showConfig`, `--clearCache`, and any config key as a flag (`--testMatch`, `--roots`, `--testTimeout`, …).
-
-### Not yet
-
-These config keys print a warning and the run goes ahead without them:
-
-- `transform`: custom transformers (`babel-jest`, `ts-jest`, `@swc/jest`) don't run. TypeScript and JSX still compile, but Babel plugins your tests rely on don't apply.
-- `moduleNameMapper`: path aliases and asset stubs aren't applied, so imports that need them fail.
-- `testEnvironment` other than `node` (`jsdom`, `happy-dom`, custom environments).
-- `fakeTimers.enableGlobally`.
-
-Other gaps:
-
-- These flags are refused by name, with exit code 1: `--watch`, `--coverage`, `--bail`, `--shard`, `--forceExit`, `--reporters`, `--json` for a run, `--onlyChanged`, `--findRelatedTests` and `--projects`.
-- Presentation flags (`--verbose`, `--silent`, `--colors`, …) warn that they aren't applied.
-- A config with several `projects` lists them but doesn't run them.
-- `import { jest } from '@jest/globals'` isn't bound to Provino's `jest` yet. Use the global `jest`.
-- Legacy fake timers aren't supported.
-- `provino vitest` isn't available yet.
+It compares your project's `jest --listTests --json` with Provino's, names every difference, and exits 0 when they match.
 
 If Provino and Jest disagree on a test, please open an issue. Include the test (or a minimal copy of it), Jest's result, Provino's result, and the output of `provino jest --showConfig`.
 
+## What works
+
+Provino's tests compare most of what is listed here with Jest 30.5, either with recordings of the real runner or with Jest itself running beside Provino on the same project. The exception is `--showConfig`, which prints Provino's own reading of the config and is not compared with Jest's output.
+
+**The command line and config**
+- Jest's own flags and config keys, including any config key given as a flag (`--testMatch`, `--roots`, `--testTimeout`, ...), and Jest's exit codes. A flag Provino can't run yet is refused by name, with the task that builds it, and never ignored without saying so.
+- A config with several `projects`, run in one pool. `--selectProjects` and `--ignoreProjects` work.
+- Test path patterns and `--runTestsByPath`, `-t`, `-u`/`--updateSnapshot`, `-w`/`-i`, `--ci`, `--passWithNoTests`, `--no-cache`, `--listTests [--json]`, `--showConfig` and `--clearCache`.
+- `--bail`, `--forceExit`, `--detectOpenHandles`, `workerIdleMemoryLimit`, and `--shard=i/n` (Jest's split, or cut by time from a timings file with Provino's own `--timings` and `--update-timings`).
+- Ctrl+C stops the run and exits 130, and a second Ctrl+C kills every worker at once. SIGTERM exits 143.
+- `globalSetup` and `globalTeardown`, run once per project and path as Jest runs them.
+
+**Your code**
+- TypeScript, TSX, JSX and JavaScript, compiled with Oxc: types are stripped, not checked.
+- The project's own transformers (`babel-jest` when the project has a Babel config, `ts-jest`, `@swc/jest`, ...), as Jest runs them.
+- `moduleNameMapper`, `moduleDirectories`, `modulePaths` and a custom `resolver`.
+- The `node` test environment, and `jsdom` or a custom environment through the project's own environment class (for `jsdom`, the project's `jest-environment-jsdom`, which must be installed, as with Jest). The `@jest-environment` docblock works.
+
+**Your tests**
+- Jest's globals: `describe`, `test`/`it`, the four hooks, `.only`/`.skip`, `.each` (with Jest's titles), `done` callbacks, and `import ... from '@jest/globals'`.
+- `expect` with Jest's matchers (copied from Jest), asymmetric matchers and `expect.extend`.
+- Mock functions, spies, `jest.mock` (hoisted, with a factory, automock or a `__mocks__` file), `clearMocks`, `resetMocks` and `restoreMocks`.
+- Modern fake timers (`jest.useFakeTimers()` and the `fakeTimers` config key).
+- `toMatchSnapshot`, writing `.snap` files that are checked byte for byte against recordings of Jest 30.5.2 (the `-u` and `--ci` cases, obsolete snapshots included).
+- Retries with `jest.retryTimes(n, options)`.
+
+**Output**
+- The `default` and `verbose` reporters print Jest's text (checked line by line against recordings of Jest, apart from the lines named in the table below), and `--verbose`, `--silent`, `--expand`, `--noStackTrace` and `--colors`/`--no-color` apply.
+- Under an AI agent (`CLAUDECODE`, `AI_AGENT`, ...) the `agent` reporter is chosen (failures and totals), and on GitHub Actions `github-actions` is added.
+- The `dot`, `json` and `junit` reporters exist, but `provino jest` can't choose them (`--reporters` and `--json` are refused). They are chosen with `provino run --config <file> --reporter <name>`, Provino's own config form.
+
+## What's not in place yet
+
+This is the list of gaps the code names; another one you hit is a bug worth an issue. Provino warns about the config keys it reads and can't apply (`collectCoverage`, `reporters`, `snapshotResolver`). A task number names the work in Provino's build plan, which is not public.
+
+| Gap | What happens today | Task |
+| --- | --- | --- |
+| Coverage: `--coverage`, `--collectCoverage` | The flags are refused (exit 1). `collectCoverage: true` in the config warns, and the run goes ahead without coverage | T8.8 |
+| Watch mode: `--watch`, `--watchAll` | Refused | T9.11 |
+| `--json`, `--outputFile`, `--collectTests` for a run | Refused. `--listTests --json` works | T11.8 |
+| Custom reporters: `--reporters`, the `reporters` config key | The flag is refused. The key warns, and the default reporter runs | T11.9 |
+| Run only what changed: `--onlyChanged`, `--changedSince`, `--lastCommit`, `--changedFilesWithAncestor`, `--findRelatedTests`, `--onlyFailures` | Refused | no task yet |
+| Random order: `--randomize`, `--seed`, `--showSeed` | Refused | no task yet |
+| `--detectLeaks` | Refused | T2.7 |
+| `--filter`, and the `--projects` flag | Refused. A `projects` key in the config does run | no task yet |
+| `--debug`, `--logHeapUsage`, `--notify`, `--notifyMode` | Warn, and are otherwise ignored | T9.7 |
+| `snapshotResolver` | Warns. Snapshots stay beside the test file | a later bundle |
+| Inline snapshots (`toMatchInlineSnapshot`) | A match passes and a mismatch fails, but one that would need to be written (a new one, or `-u`) fails, naming T7.11 | T7.11 |
+| Legacy fake timers | `legacyFakeTimers: true` throws when a test installs the timers, with a hint to use the modern ones. `jest.runAllImmediates` throws | not planned for v1 |
+| `jest.retryTimes(n, { entireDescribe })` | Throws | T5.10 |
+| `-i`/`--runInBand` | Still starts a worker, so a test doesn't see a global that `globalSetup` set, as it does in Jest | T9.9 |
+| A custom environment's `handleTestEvent` | Not called | T8 or T11, no number yet |
+| Jest's `Ran all test suites.` line and snapshot summary block | Not printed | no task yet |
+| `provino vitest` | Refused | T11.16 |
+| RSpec-style lazy variables | Not built | T6.2 and after |
+
+## How it works
+
+One neutral core runs the tests. It never asks which runner it is imitating: every place where Jest and Vitest behave differently is a typed *policy* value that a dialect supplies, and the API each one exposes (`jest` or `vi`, `expect`, the globals) is its own facade. A dialect is a value made of policy values, a config reader, a command-line parser and those facades, and `provino jest` is the Jest dialect plus the neutral core.
+
+A coordinator discovers and orders the test files, and a pool of workers (child processes, worker threads or the coordinator's own process) runs them, each file with a fresh module registry by default and its own test environment. Behaviour crosses between the two as a reference to a module, never as a function.
+
+The values Provino claims match Jest 30.5 or Vitest 5.0 are checked against fixtures recorded from the real runners (`pnpm test --filter @provino/harness` runs the checks); a few are still pending a recording. The tests also run real Jest beside Provino on the same projects and compare the result of each test.
+
 ## Development
 
-A pnpm workspace with Turborepo, TypeScript 7 and Biome. Provino's own tests use `node:test`.
+A pnpm workspace (pnpm 12) on Node 24, with Turborepo, TypeScript 7 and Biome. Provino's own tests use `node:test`.
 
 ```sh
 pnpm install
@@ -87,8 +140,8 @@ pnpm test:types
 pnpm lint
 ```
 
-The full command list is in [`CLAUDE.md`](CLAUDE.md) → Commands.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the rest: the commands, the conventions, and how to commit.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Provino includes code copied from Jest, Vitest and a few other projects, under their own MIT licenses: see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
