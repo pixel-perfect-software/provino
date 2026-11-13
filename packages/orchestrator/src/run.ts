@@ -277,17 +277,10 @@ function stateOf(state: TaskState): FileResult['state'] {
   }
 }
 
-function crashError(
-  file: FileInfo,
-  exit: WorkerExit,
-  fileTimeoutMs: number | undefined,
-): SerializedError {
-  const overran = exit.type === 'timeout' && exit.phase === 'file' && fileTimeoutMs !== undefined
+function crashError(file: FileInfo, exit: WorkerExit): SerializedError {
   return {
     name: 'WorkerCrash',
-    message: overran
-      ? `The worker running ${file.path} was killed: the file ran past its deadline of ${fileTimeoutMs} ms`
-      : `The worker running ${file.path} exited: ${describeExit(exit)}`,
+    message: `The worker running ${file.path} exited: ${describeExit(exit)}`,
     code: 'ORCH_WORKER_EXITED',
   }
 }
@@ -651,7 +644,7 @@ export async function runProjects(
         entry.member.snapshots.aggregate.add(outcome.done.snapshot, entry.file.path)
       }
       const elapsedMs = takenAt === undefined ? 0 : performance.now() - takenAt
-      const result = resultOf(entry.info, outcome, dispatch.result, elapsedMs, fileTimeoutMs)
+      const result = resultOf(entry.info, outcome, dispatch.result, elapsedMs)
       // A start failure or an interruption says nothing about the file; a skipped file isn't
       // remembered (as Jest's).
       if (
@@ -832,7 +825,6 @@ function resultOf(
   outcome: PoolOutcome,
   end: TaskResult | undefined,
   elapsedMs: number,
-  fileTimeoutMs: number | undefined,
 ): FileResult {
   const failed = (
     durationMs: number,
@@ -855,7 +847,7 @@ function resultOf(
         },
       ])
     case 'crashed':
-      return failed(elapsedMs, [crashError(file, outcome.exit, fileTimeoutMs)], outcome.exit)
+      return failed(elapsedMs, [crashError(file, outcome.exit)], outcome.exit)
     case 'failed':
       return failed(elapsedMs, [serializeError(outcome.error)])
     case 'start-failed':

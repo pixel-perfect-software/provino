@@ -165,7 +165,7 @@ function fake(
           else exits.push(listener)
           return () => {}
         },
-        async terminate(force) {
+        async terminate(force, timeout) {
           if (exit !== undefined) return
           if (extra.unkillable === true) {
             await new Promise<void>((resolve) => exits.push(() => resolve()))
@@ -177,8 +177,13 @@ function fake(
             finishInFlight = undefined
             await new Promise((resolve) => setImmediate(resolve))
             finish({ type: 'signal', signal: 'SIGKILL', likelyOom: false })
-          } else if (force) finish({ type: 'signal', signal: 'SIGKILL', likelyOom: false })
-          else if (extra.slowStop === true) {
+          } else if (force) {
+            finish(
+              timeout === undefined
+                ? { type: 'signal', signal: 'SIGKILL', likelyOom: false }
+                : { type: 'timeout', ...timeout },
+            )
+          } else if (extra.slowStop === true) {
             await new Promise<void>((resolve) => exits.push(() => resolve()))
           } else {
             await new Promise((resolve) => setImmediate(resolve))
@@ -906,7 +911,7 @@ describe('the file deadline (T9.5)', () => {
     assert.deepEqual(stuck, {
       type: 'crashed',
       workerId: 1,
-      exit: { type: 'timeout', phase: 'file' },
+      exit: { type: 'timeout', phase: 'file', limitMs: 40 },
     })
     const next = await pool.run(request('after'))
     await pool.close()

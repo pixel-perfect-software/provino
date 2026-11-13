@@ -188,9 +188,6 @@ function usable(slot: Slot): boolean {
   return slot.exit === undefined && slot.stopped === undefined && slot.killedFor === undefined
 }
 
-/** How a worker killed for running a file past its deadline ended, as the file's outcome says. */
-const FILE_TIMEOUT: WorkerExit = { type: 'timeout', phase: 'file' }
-
 /** The limits of `options`, each checked: a number that makes no sense is `ORCH_BAD_OPTION`. */
 function checkedLimits(options: PoolOptions): {
   readonly maxFilesPerWorker: number | undefined
@@ -277,13 +274,15 @@ export function workerExitOf(error: unknown): WorkerExit | undefined {
  * and the next file goes to another one.
  *
  * A file still running `fileTimeoutMs` after it was sent has its worker killed; its outcome is
- * `crashed` with `{ type: 'timeout', phase: 'file' }`. A bad `recycle` or `fileTimeoutMs` throws
+ * `crashed` with `{ type: 'timeout', phase: 'file', limitMs }`. A bad `recycle` or `fileTimeoutMs` throws
  * `ORCH_BAD_OPTION`.
  * @public
  */
 export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   const { recycle } = options
   const { maxFilesPerWorker, memoryLimitBytes, fileTimeoutMs } = checkedLimits(options)
+  const fileTimeout =
+    fileTimeoutMs === undefined ? undefined : ({ phase: 'file', limitMs: fileTimeoutMs } as const)
   const recycleOnLeak = recycle.onLeak !== false
   const factory = deps.transport(options.kind)
   // TODO(T5.12): a file that can be cancelled lets a kill end an in-process worker, and this goes.
@@ -374,7 +373,8 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
    */
   function kill(slot: Slot, cause: 'abort' | 'deadline'): void {
     slot.killedFor ??= cause
-    void slot.transport.terminate(true)
+    // The transport reports a deadline kill as the exit, with the limit (`{ type: 'timeout' }`).
+    void slot.transport.terminate(true, cause === 'deadline' ? fileTimeout : undefined)
   }
 
   /** The worker has exited: it takes up no place any more. */
@@ -612,7 +612,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       else pump()
       waiter.resolve({ type: 'done', workerId: slot.id, done })
     } catch (error) {
-      const exit = slot.killedFor === 'deadline' ? FILE_TIMEOUT : workerExitOf(error)
+      const exit = workerExitOf(error)
       if (controller.signal.aborted) waiter.resolve({ type: 'aborted' })
       else if (exit !== undefined) {
         forget(slot)

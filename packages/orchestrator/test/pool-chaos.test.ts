@@ -163,6 +163,7 @@ for (const kind of ['forks', 'threads'] as const) {
         assert.deepEqual(byPath.get('hang.test.js')?.workerExit, {
           type: 'timeout',
           phase: 'file',
+          limitMs: FILE_TIMEOUT_MS,
         })
         assert.match(
           byPath.get('hang.test.js')?.errors[0] ?? '',

@@ -63,7 +63,7 @@ export interface PoolOptions {
   readonly startTimeoutMs: number
   /**
    * The longest one file may run. A worker still on a file after this is killed (SIGKILL), and
-   * the file fails with `WorkerExit` `{ type: 'timeout', phase: 'file' }`. Absent: no deadline
+   * the file fails with `WorkerExit` `{ type: 'timeout', phase: 'file', limitMs }`. Absent: no deadline
    * (a test's own timeout cannot stop a synchronous loop).
    */
   readonly fileTimeoutMs?: number
@@ -77,7 +77,12 @@ export type WorkerExit =
   | { readonly type: 'signal'; readonly signal: NodeJS.Signals; readonly likelyOom: boolean }
   | { readonly type: 'exit'; readonly code: number }
   | { readonly type: 'oom'; readonly limitMb: number }
-  | { readonly type: 'timeout'; readonly phase: 'start' | 'stop' | 'idle' | 'file' }
+  | {
+      readonly type: 'timeout'
+      readonly phase: 'start' | 'stop' | 'idle' | 'file'
+      /** The wait that ran out, in ms: the start timeout, the teardown timeout or `fileTimeoutMs`. */
+      readonly limitMs: number
+    }
 
 /**
  * Data too big to structured-clone: a JSON string, a temp file, or transferred bytes.
@@ -288,8 +293,15 @@ export interface Transport {
   /**
    * Ends the worker. Graceful: send `stop`, wait the teardown timeout, then SIGTERM, then SIGKILL
    * after 500 ms. `force`: kill at once. Resolves once the worker has exited.
+   *
+   * `timeout` says the pool is ending the worker because a wait of its own ran out (a file past
+   * its deadline): the worker's exit is then `{ type: 'timeout', phase, limitMs }`, whatever signal
+   * ended it, unless another timeout was already the reason.
    */
-  terminate(force: boolean): Promise<void>
+  terminate(
+    force: boolean,
+    timeout?: { readonly phase: 'file'; readonly limitMs: number },
+  ): Promise<void>
 }
 
 /**

@@ -79,7 +79,7 @@ for (const kind of KINDS) {
         )
       assert.ok(error instanceof OrchestratorError)
       assert.equal(error.code, 'ORCH_WORKER_START_TIMEOUT')
-      assert.deepEqual(error.cause, { type: 'timeout', phase: 'start' })
+      assert.deepEqual(error.cause, { type: 'timeout', phase: 'start', limitMs: 100 })
     })
   })
 }
@@ -104,7 +104,7 @@ for (const kind of ['forks', 'threads'] as const) {
       })
       const running = connection.run(job('forever'))
       await transport.terminate(false)
-      const timedOut: WorkerExit = { type: 'timeout', phase: 'stop' }
+      const timedOut: WorkerExit = { type: 'timeout', phase: 'stop', limitMs: 50 }
       assert.deepEqual(await connection.exited, timedOut)
       await assert.rejects(running, (error: unknown) => {
         assert.ok(error instanceof OrchestratorError)
@@ -119,6 +119,19 @@ for (const kind of ['forks', 'threads'] as const) {
       void connection.run(job('forever')).catch(() => {})
       await transport.terminate(true)
       assert.deepEqual(await connection.exited, forceKilled(kind))
+    })
+
+    it('reports a force kill for a file past its deadline as that timeout, with its limit', async () => {
+      const { transport, connection } = await start(kind, 'hang-worker.ts')
+      const running = connection.run(job('forever'))
+      await transport.terminate(true, { phase: 'file', limitMs: 40 })
+      const timedOut: WorkerExit = { type: 'timeout', phase: 'file', limitMs: 40 }
+      assert.deepEqual(await connection.exited, timedOut)
+      await assert.rejects(running, (error: unknown) => {
+        assert.ok(error instanceof OrchestratorError)
+        assert.deepEqual(error.cause, timedOut)
+        return true
+      })
     })
 
     it('pipes the worker’s own stdout and stderr without ending the sinks', async () => {
@@ -156,7 +169,7 @@ describe('forks transport, escalation', () => {
     } finally {
       ChildProcess.prototype.kill = kill
     }
-    assert.deepEqual(await connection.exited, { type: 'timeout', phase: 'stop' })
+    assert.deepEqual(await connection.exited, { type: 'timeout', phase: 'stop', limitMs: 50 })
     assert.deepEqual(signals, ['SIGTERM', 'SIGKILL'])
   })
 })

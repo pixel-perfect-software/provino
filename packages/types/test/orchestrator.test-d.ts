@@ -23,6 +23,8 @@ import type {
   SuiteTask,
   TaskState,
   TestTask,
+  Transport,
+  TransportFactory,
   WorkerEvent,
   WorkerExit,
   WorkerInit,
@@ -190,10 +192,19 @@ export function busEventFor(event: WorkerEvent): keyof ReporterEvents | null {
 expectTypeOf<PoolOptions['fileTimeoutMs']>().toEqualTypeOf<number | undefined>()
 expectTypeOf<PoolOptions['recycle']['memoryLimitBytes']>().toEqualTypeOf<number | undefined>()
 expectTypeOf<PoolOptions['recycle']['maxFilesPerWorker']>().toEqualTypeOf<number | undefined>()
-expectTypeOf<{ type: 'timeout'; phase: 'file' }>().toExtend<WorkerExit>()
+expectTypeOf<{ type: 'timeout'; phase: 'file'; limitMs: number }>().toExtend<WorkerExit>()
 expectTypeOf<{ type: 'oom'; limitMb: number }>().toExtend<WorkerExit>()
 // @ts-expect-error a timeout has a phase, and `run` is not one
-const badPhase: WorkerExit = { type: 'timeout', phase: 'run' }
+const badPhase: WorkerExit = { type: 'timeout', phase: 'run', limitMs: 1 }
+// @ts-expect-error a timeout carries the limit it ran out of
+const noLimit: WorkerExit = { type: 'timeout', phase: 'file' }
+// A pool ends a worker for a file's deadline through the transport; only that wait is its own.
+expectTypeOf<Transport['terminate']>().parameters.toEqualTypeOf<
+  [force: boolean, timeout?: { readonly phase: 'file'; readonly limitMs: number } | undefined]
+>()
+// @ts-expect-error the start and stop timeouts are the transport's own, not the pool's to name
+const badTerminate: Parameters<Transport['terminate']>[1] = { phase: 'stop', limitMs: 1 }
+expectTypeOf<TransportFactory['sharesProcess']>().toEqualTypeOf<boolean | undefined>()
 expectTypeOf<'terminated'>().toExtend<RunEndReason>()
 // @ts-expect-error a run does not end `killed`
 const badReason: RunEndReason = 'killed'
@@ -209,10 +220,12 @@ export {
   bad,
   badPhase,
   badReason,
+  badTerminate,
   fileDoneClean,
   fileDoneSymbols,
   fileDoneWithout,
   noFrames,
+  noLimit,
   unknownCall,
   wrongArgs,
 }
