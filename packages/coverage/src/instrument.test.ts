@@ -181,4 +181,14 @@ describe('the vendored instrumenter against babel-plugin-istanbul 8.0.0', () => 
     assert.equal(found.path, `${ROOT}/src/read.js`)
     assert.deepEqual(essentials(found.coverageData), essentials(result.coverage))
   })
+
+  test('code babel-plugin-istanbul already instrumented gives its coverage back, unchanged', () => {
+    const code = `export function f(a) {\n  return a ? 1 : 2;\n}\n`
+    const filename = `${ROOT}/src/twice.js`
+    const theirs = babelCoverage(code, filename)
+    const result = istanbulInstrumenter().instrument(theirs.code, filename, null)
+    assert.equal(result.code, theirs.code)
+    assert.ok(result.coverage !== undefined)
+    assert.deepEqual(essentials(result.coverage), essentials(theirs.coverage))
+  })
 })
