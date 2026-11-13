@@ -25,7 +25,7 @@ Status: **pre-alpha, built in phases** from the research in `docs/research/`. No
 6. **Acceptance checks define done.** Never weaken, skip or loosen a check, golden or threshold to make it pass. The one allowed adaptation is rebuilding a spike corpus that no longer exists; follow the rule in PLAN.md → Ground rules. If a target can't be met, stop, record the measured number, and ask.
 7. **Benchmarks are honest.** Label every number `local`, `desktop` or `pinned` (see `.claude/rules/benchmarks.md`). Interleave runs, report ratios against Jest, and never present a `local` number as a result.
 8. **Quirk policy is DECISIONS D7.** Divergences go in `docs/plan/DIVERGENCES.md` (S5).
-9. **Ask Tyler before you:** add a runtime dependency the spec doesn't name; change a Decided entry or the package map; publish anything; open or merge a PR; touch CI secrets or release config. Pushing your own `task/*` branch is allowed (S2).
+9. **Ask Tyler before you:** add a runtime dependency the spec doesn't name; change a Decided entry or the package map; publish anything; merge a PR (Claude opens them once the pre-merge pass is done); touch CI secrets or release config. Pushing your own `task/*` branch is allowed (S2).
 
 ## Stack
 
