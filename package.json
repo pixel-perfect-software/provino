@@ -45,6 +45,7 @@
     "bench:expect-import": "pnpm --filter provino build && node --conditions=provino-source packages/bench/src/expect-import/cli.ts",
     "bench:env": "node --expose-gc --conditions=provino-source packages/bench/src/env/cli.ts",
     "bench:mock": "node --conditions=provino-source packages/bench/src/mock/cli.ts",
+    "bench:core": "node --conditions=provino-source packages/bench/src/core/cli.ts",
     "bench:hoist": "node --conditions=provino-source packages/bench/src/hoist/cli.ts",
     "bench:jest-config": "node --conditions=provino-source packages/bench/src/jest-config/cli.ts",
     "hoist:extract": "node --conditions=provino-source packages/harness/src/hoist-corpus/extract-upstream.ts",
