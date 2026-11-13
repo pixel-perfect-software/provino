@@ -1,8 +1,6 @@
 {
   "description": "testResultsProcessor: the processor receives the AggregatedResult (its keys are written to a file), its return value is what --json prints (it adds a key), and Jest still prints `Test results written to:`.",
-  "runners": [
-    "jest"
-  ],
+  "runners": ["jest"],
   "config": {
     "jest": {
       "testResultsProcessor": "<rootDir>/processor.cjs"
@@ -15,26 +13,10 @@
   },
   "run": {
     "argv": {
-      "jest": [
-        "--useStderr",
-        "--testLocationInResults"
-      ]
+      "jest": ["--useStderr", "--testLocationInResults"]
     },
-    "capture": [
-      "exitCode",
-      "stderr",
-      "file:processor-keys.txt",
-      "json:.harness-out/jest.json"
-    ],
+    "capture": ["exitCode", "stderr", "file:processor-keys.txt", "json:.harness-out/jest.json"],
     "keepLines": "^Test results written to:",
-    "timeKeys": [
-      "startTime",
-      "endTime",
-      "duration",
-      "startAt",
-      "start",
-      "end",
-      "runtime"
-    ]
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
   }
 }

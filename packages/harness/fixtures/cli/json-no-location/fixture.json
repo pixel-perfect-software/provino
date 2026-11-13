@@ -1,8 +1,6 @@
 {
   "description": "--json with --testLocationInResults=false: every assertion's location is null. The same file as json-vscode-contract.",
-  "runners": [
-    "jest"
-  ],
+  "runners": ["jest"],
   "files": {
     "jest": {
       "__snapshots__/sum.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`sum matches a stored snapshot 1`] = `\"stored\"`;\n"
@@ -10,25 +8,10 @@
   },
   "run": {
     "argv": {
-      "jest": [
-        "--useStderr",
-        "--testLocationInResults=false"
-      ]
+      "jest": ["--useStderr", "--testLocationInResults=false"]
     },
-    "capture": [
-      "exitCode",
-      "stderr",
-      "json:.harness-out/jest.json"
-    ],
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
     "keepLines": "^Test results written to:",
-    "timeKeys": [
-      "startTime",
-      "endTime",
-      "duration",
-      "startAt",
-      "start",
-      "end",
-      "runtime"
-    ]
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
   }
 }
