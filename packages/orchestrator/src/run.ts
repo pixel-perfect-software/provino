@@ -13,7 +13,6 @@ import type {
   OpenHandle,
   PoolKind,
   PoolOptions,
-  ProvidedContext,
   RecyclePolicy,
   ReporterBus,
   RunEndReason,
@@ -29,9 +28,9 @@ import type {
   WorkerKey,
 } from '@provino/types'
 import { cacheDirectories, createResultsCache, type ResultsCache } from './cache.ts'
+import { createDepsTable, type DepsTable } from './deps-table.ts'
 import { type DiscoveredFile, discoverFiles } from './discover.ts'
 import { discoverByRules } from './discover-rules.ts'
-import { createDepsTable, type DepsTable } from './deps-table.ts'
 import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
 import { OrchestratorError } from './errors.ts'
 import { isRunSignal, RUN_SIGNALS } from './exit-code.ts'
@@ -489,15 +488,10 @@ export async function runProjects(
   }
 
   const unhandled: SerializedError[] = []
-  /** What global setup's `provide` collected: every worker starts with it (`WorkerInit.provided`). */
-  let provided: Readonly<Partial<ProvidedContext>> = {}
   /** Global setup, once it has run (T9.15): its teardown comes after the run, whatever ends it. */
   let globalSetup: GlobalSetupRun | undefined
   /** The run ended in an error, so a failing teardown must not replace it. */
   let thrown = false
-  /** What a failing teardown threw after a run that ended well; thrown once the run is over. */
-  let teardownError: unknown
-  let ended: RunSummary | undefined
   /** Per worker, the file it ran last and when that file's `file:end` has been emitted. */
   const lastFile = new Map<number, { readonly info: FileInfo; readonly ended: Promise<void> }>()
   /** Per worker, the module paths its `deps` events have named: the ids are the worker's for its life. */
@@ -516,7 +510,8 @@ export async function runProjects(
         key: workerKey,
         workerId,
         isolation: member.project.isolation,
-        provided,
+        // What global setup's `provide` collected; a worker starts only once setup has run.
+        provided: globalSetup?.provided ?? {},
         config: member.project.config,
       }
     },
@@ -762,13 +757,12 @@ export async function runProjects(
     // A run that was interrupted before this point sets nothing up: the pool never starts a file,
     // and the run ends with the signal's reason, as it would one moment later.
     if (signal?.aborted !== true) {
-      globalSetup = await runGlobalSetup(sequencedProjects(found), {
+      globalSetup = await runGlobalSetup(sequencedProjects(found, options.globalSetup), {
         hooks: options.globalSetup,
         signal,
         forceSignal: options.forceSignal,
       })
     }
-    provided = globalSetup?.provided ?? {}
 
     announced = true
     await bus.emit(
@@ -804,7 +798,7 @@ export async function runProjects(
     const summary = summarize(cut ? cutShort() : failed ? 'failed' : 'passed', openHandles)
     await bus.emit('run:end', summary)
     pruneTransformCaches()
-    ended = summary
+    return summary
   } catch (error) {
     thrown = true
     await pool.close()
@@ -828,41 +822,63 @@ export async function runProjects(
     try {
       await globalSetup?.teardown()
     } catch (error) {
-      if (thrown) stderr.write(`Provino: global teardown failed: ${messageOf(error)}\n`)
-      else teardownError = error
+      // biome-ignore lint/correctness/noUnsafeFinally: the point: a teardown that fails replaces the summary of a run that ended well, and after a failed run it must not replace that run's own error
+      if (!thrown) throw error
+      stderr.write(`Provino: global teardown failed: ${messageOf(error)}\n`)
     }
   }
-  if (teardownError !== undefined) throw teardownError
-  if (ended === undefined) throw new Error('the run ended without a summary')
-  return ended
+}
+
+/** The sequencer a project's policy asks for. */
+function sequencerFor(project: ResolvedProject) {
+  return createHistorySequencer({
+    unknownFirst: project.policy.orchestrator.sequence.unknownFirst,
+  })
+}
+
+/**
+ * What the sequencer reads of a discovered file: its path, its size and its history. `key` names
+ * the project the file belongs to, which the order breaks ties by.
+ */
+function scheduleInputOf(member: Member, file: DiscoveredFile, key: string): ScheduleInput {
+  const history = member.cache?.get(member.cacheProject, file.relativePath)
+  return {
+    path: file.relativePath,
+    project: key,
+    sizeBytes: file.sizeBytes,
+    ...(history === undefined ? {} : { history }),
+  }
+}
+
+/** Whether `hooks` names a setup or a teardown module. */
+function hasHooks(hooks: RunGlobalHooks | undefined): boolean {
+  return hooks !== undefined && (hooks.setup.length > 0 || hooks.teardown.length > 0)
 }
 
 /**
  * The projects that have a file to run, in the order Jest's one sorted list of every project's
  * files reaches them (`allTests` after `sequencer.sort`, which `runGlobalHook` reads): the run's
  * global setup follows it, and so does which project's config a hook several share gets. The
- * queue itself goes project by project; this order is only for the hooks.
+ * queue itself goes project by project; this order is only for the hooks, so it is worked out
+ * only when there are hooks and more than one project to put in order.
  */
 function sequencedProjects(
   found: readonly { readonly member: Member; readonly discovered: readonly DiscoveredFile[] }[],
+  runHooks: RunGlobalHooks | undefined,
 ): SeededProject[] {
   const withFiles = found.filter((entry) => entry.discovered.length > 0)
   const [first] = withFiles
   if (first === undefined) return []
+  if (
+    withFiles.length < 2 ||
+    !(hasHooks(runHooks) || withFiles.some(({ member }) => hasHooks(member.project.globalSetup)))
+  ) {
+    return withFiles.map(({ member }) => member.project)
+  }
   const inputs: ScheduleInput[] = withFiles.flatMap(({ member, discovered }) =>
-    discovered.map((file): ScheduleInput => {
-      const history = member.cache?.get(member.cacheProject, file.relativePath)
-      return {
-        path: file.relativePath,
-        project: member.identity,
-        sizeBytes: file.sizeBytes,
-        ...(history === undefined ? {} : { history }),
-      }
-    }),
+    discovered.map((file) => scheduleInputOf(member, file, member.identity)),
   )
-  const sorted = createHistorySequencer({
-    unknownFirst: first.member.project.policy.orchestrator.sequence.unknownFirst,
-  }).sort(inputs)
+  const sorted = sequencerFor(first.member.project).sort(inputs)
   const byIdentity = new Map(withFiles.map(({ member }) => [member.identity, member.project]))
   return [...new Set(sorted.map((input) => input.project))].flatMap(
     (identity) => byIdentity.get(identity) ?? [],
@@ -897,17 +913,9 @@ function planQueue(
         ...(runPath === file.relativePath ? {} : { runPath }),
       },
     })
-    const history = cache?.get(cacheProject, file.relativePath)
-    return {
-      path: file.relativePath,
-      project: project.name,
-      sizeBytes: file.sizeBytes,
-      ...(history === undefined ? {} : { history }),
-    }
+    return scheduleInputOf(member, file, project.name)
   })
-  const ordered = createHistorySequencer({
-    unknownFirst: project.policy.orchestrator.sequence.unknownFirst,
-  }).sort(inputs)
+  const ordered = sequencerFor(project).sort(inputs)
   return ordered.flatMap((input) => entries.get(input.path) ?? [])
 }
 
