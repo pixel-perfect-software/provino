@@ -12,7 +12,7 @@ The reporter bus and the built-in reporters (coordinator side; imports `@provino
 | `src/text/format.ts` | Every string the text reporters print: the header line, failure blocks, the summary, snapshots, open handles. Jest's wording where `cli/report-*` records it |
 | `src/text/console.ts`, `verbose.ts`, `live.ts` | A file's console block; the verbose test list; the live `RUNS` block and its redraw |
 | `src/default/`, `verbose/`, `agent/`, `dot/` | `defaultReporter`, `verboseReporter`, `agentReporter`, `dotReporter`: each a line over `createTextReporter` |
-| `src/environment.ts` | `detectOutput({ env, stream, ci, colour })`: terminal, CI, agent (`AGENT_VARIABLES`), GitHub Actions, colour, live, width. Pure; reads `process.env` only without an `env` |
+| `src/environment.ts` | `detectOutput({ env, stream, ci, colour })`: terminal, CI, agent (`AGENT_VARIABLES`), GitHub Actions, colour, live, width. Pure; reads `process.env` only without an `env`. `OUTPUT_VARIABLES` (internal) lists every variable it reads, for a caller that must not inherit its shell's answers |
 | `src/style.ts` | `createStyle(enabled)`: the SGR codes the text reporters use; plain text when off |
 | `src/junit/reporter.ts`, `xml.ts` | `junitReporter`: the document at `run:end`; the XML escaping and writer. `vendor/junit-10.xsd` (see `vendor/UPSTREAM.md`) is read by the test only |
 | `src/github-actions/reporter.ts` | `githubActionsReporter`: `::error` annotations as each file ends |

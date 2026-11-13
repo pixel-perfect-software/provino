@@ -11,6 +11,7 @@ import {
   notedPids,
   noting,
   type Project,
+  QUIET_ENV,
   spawnCli,
   trackedProjects,
   viewOfNormalized,
@@ -67,6 +68,7 @@ describe('a test that segfaults its worker', { skip: process.platform === 'win32
       pool: 'forks',
       maxWorkers: 2,
       reporters: ['default', ['normalized-json', { outputFile }]],
+      env: QUIET_ENV,
       stdout,
       stderr,
     })

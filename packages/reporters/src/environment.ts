@@ -40,6 +40,26 @@ const AGENT_PATTERNS: readonly {
 ]
 
 /**
+ * Every environment variable `detectOutput` reads, for a caller that must not inherit its shell's
+ * answers (a test that runs a child, a build that runs a child): `CI`, `TERM`, the colour
+ * switches, `GITHUB_ACTIONS`, `AI_AGENT`, each of `AGENT_VARIABLES` and the variables the agent
+ * patterns look at (`EDITOR`, `TERM_PROGRAM`). `PATH` is read too (one agent is found by a
+ * directory in it) but is not listed: a child can't lose it, so such a caller drops the entry
+ * that names that agent and keeps the rest.
+ * @internal
+ */
+export const OUTPUT_VARIABLES: readonly string[] = [
+  'CI',
+  'TERM',
+  'NO_COLOR',
+  'FORCE_COLOR',
+  'GITHUB_ACTIONS',
+  'AI_AGENT',
+  ...AGENT_VARIABLES.map(([, variable]) => variable),
+  ...AGENT_PATTERNS.map(({ variable }) => variable).filter((variable) => variable !== 'PATH'),
+]
+
+/**
  * The environment variables, as `process.env` has them.
  * @public
  */

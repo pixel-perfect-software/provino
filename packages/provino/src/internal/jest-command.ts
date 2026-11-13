@@ -312,7 +312,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       stdout,
       stderr,
       ...(io.reporters === undefined ? {} : { reporters: io.reporters }),
-      ...(io.env === undefined ? {} : { env: io.env }),
+      env: io.env ?? process.env,
       display: presentation(read, request),
       pool: {
         ...(request.workerThreads === true ? { kind: 'threads' as const } : {}),

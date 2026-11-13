@@ -1,6 +1,6 @@
 import type { ResolvedProject } from '@provino/config'
 import { exitCodeFor, type RunProjectOptions, runProjects } from '@provino/orchestrator'
-import { createReporterBus } from '@provino/reporters'
+import { createReporterBus, type Environment } from '@provino/reporters'
 import type { FileFilter } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
 import { type DisplayOptions, reportersFor } from './reporters.ts'
@@ -21,8 +21,8 @@ export interface ExecuteOptions {
   readonly stdout: NonNullable<RunOptions['stdout']>
   readonly stderr: NonNullable<RunOptions['stderr']>
   readonly reporters?: readonly ReporterChoice[] | undefined
-  /** What the reporters read for the terminal, CI, an agent and colour. Default: `process.env`. */
-  readonly env?: Readonly<Record<string, string | undefined>> | undefined
+  /** What the reporters read for the terminal, CI, an agent and colour: resolved by the caller. */
+  readonly env: Environment
   /** How text looks (Jest's `--verbose`, `--silent`, `--expand`, `--noStackTrace`, `--colors`). */
   readonly display?: DisplayOptions
   readonly pool: NonNullable<RunProjectOptions['pool']>
@@ -55,7 +55,7 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
       cwd,
       stdout,
       stderr,
-      ...(options.env === undefined ? {} : { env: options.env }),
+      env: options.env,
       ...(options.display === undefined ? {} : { display: options.display }),
     }),
   )

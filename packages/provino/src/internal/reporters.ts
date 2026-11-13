@@ -6,6 +6,7 @@ import {
   defaultReporter,
   detectOutput,
   dotReporter,
+  type Environment,
   githubActionsReporter,
   jsonReporter,
   junitReporter,
@@ -102,8 +103,8 @@ export interface ReporterContext {
   readonly cwd: string
   readonly stdout: TextSink
   readonly stderr: NodeJS.WritableStream
-  /** What the run reads for the terminal, CI, an agent and colour. Default: `process.env`. */
-  readonly env?: Readonly<Record<string, string | undefined>>
+  /** What the run reads for the terminal, CI, an agent and colour: resolved by the caller. */
+  readonly env: Environment
   readonly display?: DisplayOptions
 }
 
@@ -260,7 +261,7 @@ function builtIn(
     case 'agent':
       return text(agentReporter(textOptions(context, output)))
     case 'github-actions': {
-      const workspace = (context.env ?? process.env).GITHUB_WORKSPACE
+      const workspace = context.env.GITHUB_WORKSPACE
       return text(
         githubActionsReporter({
           stream: context.stderr,
@@ -324,7 +325,7 @@ export function reportersFor(
     throw new UsageError('the reporters option must be an array')
   }
   const output = detectOutput({
-    env: context.env ?? process.env,
+    env: context.env,
     stream: outputStreamOf(context.stderr),
     ci: context.project.config.ci,
     ...(context.display?.colour === undefined ? {} : { colour: context.display.colour }),

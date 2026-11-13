@@ -50,10 +50,12 @@ async function execute(
   const pool = poolOptions(options)
   const cwd = resolve(options.cwd ?? process.cwd())
 
+  // The composition root resolves the environment once; everything below reads this.
+  const env = options.env ?? process.env
   const project = await loadProject(resolve(cwd, options.config), {
     dialects: [jestDialect],
     environments: ENVIRONMENTS,
-    ci: options.ci ?? isCi(options.env ?? process.env),
+    ci: options.ci ?? isCi(env),
   })
   return executeProject({
     project,
@@ -61,7 +63,7 @@ async function execute(
     stdout,
     stderr,
     reporters: options.reporters,
-    env: options.env,
+    env,
     pool,
     ...(options.cache === false ? { cache: false } : {}),
     testNamePattern: options.testNamePattern,

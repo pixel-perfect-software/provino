@@ -12,6 +12,7 @@ export {
   type DetectOptions,
   detectOutput,
   type Environment,
+  OUTPUT_VARIABLES,
   type OutputEnvironment,
   type OutputStream,
 } from './environment.ts'
