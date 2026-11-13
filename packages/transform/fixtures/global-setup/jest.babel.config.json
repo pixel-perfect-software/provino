@@ -1,0 +1,7 @@
+{
+  "rootDir": ".",
+  "testMatch": ["<rootDir>/src/**/*.test.ts"],
+  "transform": { "^.+\\.tsx?$": "babel-jest" },
+  "globalSetup": "<rootDir>/setup.ts",
+  "globalTeardown": "<rootDir>/teardown.ts"
+}

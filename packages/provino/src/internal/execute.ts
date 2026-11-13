@@ -1,7 +1,12 @@
 import type { ResolvedProject } from '@provino/config'
-import { exitCodeFor, type RunProjectOptions, runProjects } from '@provino/orchestrator'
+import {
+  exitCodeFor,
+  OrchestratorError,
+  type RunProjectOptions,
+  runProjects,
+} from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
-import type { FileFilter } from '@provino/types'
+import type { FileFilter, RunSummary } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
 import { reportersFor } from './reporters.ts'
 
@@ -47,7 +52,46 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
   const { project, cwd, stdout, stderr } = options
   const bus = createReporterBus(reportersFor(options.reporters, { project, cwd, stdout, stderr }))
 
-  const summary = await runProjects([project, ...(options.others ?? [])], {
+  let summary: RunSummary
+  try {
+    summary = await run(options, bus, [project, ...(options.others ?? [])])
+  } catch (error) {
+    if (!(error instanceof OrchestratorError) || error.code !== 'ORCH_GLOBAL_SETUP_FAILED') {
+      throw error
+    }
+    // A global setup or teardown that threw: the user's error, said as Jest says it (the error's
+    // own text, then the frames of what the hook threw), with the runner's failure exit code.
+    const frames =
+      error.cause instanceof Error ? (error.cause.stack ?? '').split('\n').slice(1) : []
+    stderr.write(`Error: ${error.message}\n${frames.map((line) => `${line}\n`).join('')}`)
+    return { exitCode: project.policy.orchestrator.exitCodes.failure, summary: null }
+  }
+
+  // A reporter that failed (a JSON file that couldn't be written) fails the run. The default
+  // reporter shows such an error itself; the others may not, so it is said here as well.
+  const reporterFailures = bus.failures()
+  for (const failure of reporterFailures) {
+    stderr.write(`Provino: a reporter failed: ${failure.message}\n`)
+  }
+  return {
+    exitCode: exitCodeFor(summary, {
+      policy: project.policy,
+      reporterFailures,
+      ...(options.passWithNoTests === undefined
+        ? {}
+        : { passWithNoTests: options.passWithNoTests }),
+    }),
+    summary,
+  }
+}
+
+function run(
+  options: ExecuteOptions,
+  bus: ReturnType<typeof createReporterBus>,
+  projects: readonly ResolvedProject[],
+): Promise<RunSummary> {
+  const { stderr, cwd } = options
+  return runProjects(projects, {
     ...(options.root === undefined ? {} : { root: options.root }),
     bus,
     pool: options.pool,
@@ -66,21 +110,4 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
     ...(options.bail === undefined ? {} : { bail: options.bail }),
     ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
   })
-
-  // A reporter that failed (a JSON file that couldn't be written) fails the run. The default
-  // reporter shows such an error itself; the others may not, so it is said here as well.
-  const reporterFailures = bus.failures()
-  for (const failure of reporterFailures) {
-    stderr.write(`Provino: a reporter failed: ${failure.message}\n`)
-  }
-  return {
-    exitCode: exitCodeFor(summary, {
-      policy: project.policy,
-      reporterFailures,
-      ...(options.passWithNoTests === undefined
-        ? {}
-        : { passWithNoTests: options.passWithNoTests }),
-    }),
-    summary,
-  }
 }
