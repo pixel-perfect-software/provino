@@ -44,8 +44,10 @@ interface ContextFields {
  * A context for one test attempt, whose abort signal is `signal`. `attempt` returns the attempt the
  * context belongs to; it is called only once the test runs, so the attempt can hold the context it
  * is built with. Its keys are plain own data properties assigned in order, as Vitest 5.0's
- * `createTestContext` assigns them: writable, so a dialect can add its own (`expect`), and cheap to
- * build, which matters once per attempt (T5.14: `Object.defineProperties` cost about 1 µs here).
+ * `createTestContext` assigns them: writable and configurable (a write to `ctx.task` no longer
+ * throws in strict code; the Jest dialect hands no function a context, so nothing there can see
+ * it), and cheap to build, which matters once per attempt (T5.14: `Object.defineProperties` cost
+ * about 1 µs here).
  */
 export function createTestContext(
   task: TestTask,

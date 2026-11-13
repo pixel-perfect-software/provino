@@ -100,6 +100,10 @@ export interface TimeoutDefaults {
 /** What a try-task listener is told about the attempt it brackets. */
 export interface TryTaskInfo {
   readonly test: TestTask
+  /**
+   * The attempt's test context, the same object its hooks and body get. A getter, built on the
+   * first read: it is not an own key, so a spread of the info or `Object.keys` does not carry it.
+   */
   readonly ctx: TestContext
   readonly attempt: number
   readonly repeat: number

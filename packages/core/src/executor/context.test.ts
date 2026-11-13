@@ -256,4 +256,104 @@ describe('onBeforeTryTask and onAfterTryTask', () => {
     })
     assert.deepEqual(run.trace, ['two'])
   })
+
+  test('`info.ctx` is the context the attempt’s hooks and body get, built when read', async () => {
+    const run = await runScript(({ test, beforeEach }, step, runtime) => {
+      let seen: TestContext | undefined
+      runtime.onBeforeTryTask((info) => {
+        // A getter on the prototype, not an own key: a spread of `info` does not carry it.
+        const first = info.ctx
+        step(`own ${Object.keys(info).includes('ctx')} read ${first === info.ctx}`)
+        seen = first
+      })
+      beforeEach(ctxFn((ctx) => step(`beforeEach same ${ctx === seen}`)))
+      test(
+        't',
+        ctxFn((ctx) => step(`body same ${ctx === seen}`)),
+      )
+    }, vitest)
+    assert.deepEqual(run.trace, ['own false read true', 'beforeEach same true', 'body same true'])
+  })
+})
+
+describe('the context object (B21f)', () => {
+  // The keys are assigned, as Vitest 5.0's `createTestContext` assigns them, so they are plain data
+  // properties and the object is the attempt's own: a write is seen by its hooks, its body and
+  // its callbacks, and by no other attempt.
+  test('each key is a writable data property, and a write reaches the whole attempt only', async () => {
+    const flagsOf = (ctx: TestContext): string =>
+      Object.keys(ctx)
+        .map((key) => {
+          const d = Object.getOwnPropertyDescriptor(ctx, key)
+          return `${key}:${d !== undefined && 'value' in d}${d?.writable === true}${d?.enumerable === true}`
+        })
+        .join(' ')
+    const run = await runScript(({ test, beforeEach, afterEach }, step) => {
+      type Marked = TestContext & { mark?: string }
+      beforeEach(
+        ctxFn((ctx: Marked) => {
+          step(`keys ${flagsOf(ctx)}`)
+          step(`mark before ${ctx.mark}`)
+          ctx.mark = 'set in beforeEach'
+        }),
+      )
+      test(
+        'one',
+        ctxFn((ctx: Marked) => {
+          step(`body ${ctx.mark}`)
+          ctx.onTestFinished(() => step(`finished ${ctx.mark}`))
+          ctx.mark = 'set in body'
+        }),
+      )
+      test(
+        'two',
+        ctxFn(() => undefined),
+      )
+      afterEach(ctxFn((ctx: Marked) => step(`afterEach ${ctx.mark}`)))
+    }, vitest)
+    const keys =
+      'keys task:truetruetrue signal:truetruetrue skip:truetruetrue annotate:truetruetrue onTestFinished:truetruetrue onTestFailed:truetruetrue'
+    assert.equal(run.states.one, 'pass')
+    assert.deepEqual(run.trace, [
+      keys,
+      'mark before undefined',
+      'body set in beforeEach',
+      'afterEach set in body',
+      'finished set in body',
+      // The next test's context is a new object: nothing written to the first one is on it.
+      keys,
+      'mark before undefined',
+      'afterEach set in beforeEach',
+    ])
+  })
+
+  // The Jest dialect's surface (`done-if-arity`) hands no function a context, so the keys'
+  // attributes can't change a Jest outcome: its `done` is its own function, and `this` is a
+  // null-prototype object. Recorded: `runtime/context-shape` and `runtime/done-callback`.
+  test('under done-if-arity no hook or body is handed a context, and `done` is not one', async () => {
+    const jest = {
+      firstArg: 'done-if-arity',
+      errors: { lateErrors: 'fail-owner', hasAssertionsWhenFailed: 'skip' },
+    } as const
+    const run = await runScript(({ test, beforeEach, afterEach }, step) => {
+      beforeEach(((...args: unknown[]) => step(`beforeEach ${args.length}`)) as never)
+      test('plain', ((...args: unknown[]) => step(`body ${args.length}`)) as never)
+      test('done', ((done: () => void) => {
+        step(`done ${typeof done} task:${'task' in done} signal:${'signal' in done}`)
+        done()
+      }) as never)
+      afterEach(function (this: object) {
+        step(`afterEach this ${Object.getPrototypeOf(this) === null}`)
+      })
+    }, jest)
+    assert.deepEqual(run.states, { plain: 'pass', done: 'pass' })
+    assert.deepEqual(run.trace, [
+      'beforeEach 0',
+      'body 0',
+      'afterEach this true',
+      'beforeEach 0',
+      'done function task:false signal:false',
+      'afterEach this true',
+    ])
+  })
 })
