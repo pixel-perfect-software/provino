@@ -3,7 +3,7 @@
 // this list is rebuilt from the behaviour table in the research. A behaviour passes when its function
 // resolves, and fails with the assertion that broke.
 import assert from 'node:assert/strict'
-import { LazyError } from '@provino/lazy'
+import { installLazyRuntime, LazyError, type LazyRuntime, lazy as publicLazy } from '@provino/lazy'
 import type { LazyFrame, Policy } from '@provino/types'
 import { type Env, type RunResult, runFile, runFiles } from './run.ts'
 
@@ -362,7 +362,7 @@ export const BEHAVIOURS: readonly Behaviour[] = [
       })
       allPass(result)
       assert.equal(code(thrown), 'LAZY_DUPLICATE')
-      assert.match(String((thrown as LazyError).site?.file), /run\.ts$|behaviours\.ts$/)
+      assert.match(String((thrown as LazyError).site?.file), /behaviours\.ts$/)
     },
   },
   {
@@ -601,6 +601,112 @@ export const BEHAVIOURS: readonly Behaviour[] = [
       })
       allPass(result)
       assert.deepEqual(seen, ['plain', 1, 2, 'big', 5, 10])
+    },
+  },
+  {
+    name: 'the public lazy root sites a definition at the caller: worker values of one key in two files stay apart',
+    async check(policy) {
+      const seen: unknown[] = []
+      let uninstall: (() => void) | undefined
+      const files: Array<(env: Env) => void> = [
+        ({ api, lazyRuntime }) => {
+          uninstall = installLazyRuntime({ lazy: lazyRuntime.lazy } as unknown as LazyRuntime)
+          const $ = publicLazy.let('db', () => 'postgres', { scope: 'worker' })
+          api.test('t', () => void seen.push($.db))
+        },
+        ({ api }) => {
+          const $ = publicLazy.let('db', () => 'redis', { scope: 'worker' })
+          api.test('t', () => void seen.push($.db))
+          const duplicate = attempt(() => publicLazy.let('db', () => 'again', { scope: 'worker' }))
+          assert.equal(code(duplicate), 'LAZY_DUPLICATE')
+          assert.match(String((duplicate as LazyError).site?.file), /behaviours\.ts$/)
+        },
+      ]
+      try {
+        allPass(await runFiles(policy, files))
+      } finally {
+        uninstall?.()
+      }
+      assert.deepEqual(seen, ['postgres', 'redis'])
+    },
+  },
+  {
+    name: 'keys named suite, engine, frame and from read as values through deps, $ and $.from(ctx)',
+    async check(policy) {
+      const seen: unknown[] = []
+      let ctx: object | undefined
+      let handle: { from(ctx: object): Record<string, unknown> } | undefined
+      const result = await runFile(policy, ({ api, lazy }) => {
+        const $ = lazy
+          .let('suite', () => 'checkout')
+          .let('engine', () => 'v8')
+          .let('frame', () => 'f')
+          .let('label', (deps) => [deps.suite, deps.engine, deps.frame])
+        handle = $ as never
+        api.test('t', () => {
+          seen.push($.suite, $.engine, $.frame, $.label)
+          api.onTestFinished((context) => {
+            ctx = context
+          })
+        })
+      })
+      allPass(result)
+      assert.ok(ctx !== undefined && handle !== undefined)
+      const view = handle.from(ctx)
+      seen.push(view.suite, view.engine, view.label)
+      const label = ['checkout', 'v8', 'f']
+      assert.deepEqual(seen, ['checkout', 'v8', 'f', label, 'checkout', 'v8', label])
+    },
+  },
+  {
+    name: 'an override of a file-scoped eager key inside a describe is evaluated before its tests',
+    async check(policy) {
+      const seen: unknown[] = []
+      const result = await runFile(policy, ({ api, lazy }) => {
+        const $ = lazy.eager('db', async () => 'root', { scope: 'file' })
+        api.test('outer', () => void seen.push($.db))
+        api.describe('d', () => {
+          $.override('db', async () => 'nested')
+          api.test('t', () => void seen.push($.db))
+        })
+      })
+      allPass(result)
+      assert.deepEqual(seen, ['root', 'nested'])
+    },
+  },
+  {
+    name: 'a nested eager re-declare runs after the describe’s earlier beforeEach',
+    async check(policy) {
+      const result = await runFile(policy, ({ api, lazy, step }) => {
+        const $ = lazy.eager('db', async () => {
+          step('root eager')
+          return 1
+        })
+        api.describe('d', () => {
+          api.beforeEach(() => step('d before'))
+          $.eager('db', async () => {
+            step('nested eager')
+            return 2
+          })
+          api.test('t', () => step('test'))
+        })
+      })
+      allPass(result)
+      assert.deepEqual(result.trace, ['d before', 'nested eager', 'test'])
+    },
+  },
+  {
+    name: 'readInBeforeAll allow: a test-scoped value read in beforeAll evaluates',
+    async check(policy) {
+      const allowing: Policy = { ...policy, lazy: { ...policy.lazy, readInBeforeAll: 'allow' } }
+      const seen: unknown[] = []
+      const result = await runFile(allowing, ({ api, lazy }) => {
+        const $ = lazy.let('user', () => 'ada')
+        api.beforeAll(() => void seen.push($.user))
+        api.test('t', () => void seen.push($.user))
+      })
+      allPass(result)
+      assert.deepEqual(seen, ['ada', 'ada'])
     },
   },
 ]

@@ -1,0 +1,12 @@
+{
+  "description": "--collectTests --json over two files: nested describes, a skipped test, a todo, an each of two rows, and a file with an it.only. Bodies must not run (the first test throws); each test is passed with wouldRun, pending or todo, with no duration, location or invocation.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--collectTests", "--useStderr", "--testLocationInResults"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

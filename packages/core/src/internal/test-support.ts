@@ -78,7 +78,7 @@ export async function runScript(
   overrides: CoreOverrides = {},
   options: Partial<RuntimeOptions> & RunFileOptions = {},
 ): Promise<ScriptRun> {
-  const { lines, fileId, ...runtimeOptions } = options
+  const { lines, fileId, collectOnly, ...runtimeOptions } = options
   const events: RuntimeEvent[] = []
   const trace: string[] = []
   const step = (name: string): void => {
@@ -107,6 +107,7 @@ export async function runScript(
     file = await runtime.runFile('/project/script.test.ts', {
       ...(lines === undefined ? {} : { lines }),
       ...(fileId === undefined ? {} : { fileId }),
+      ...(collectOnly === undefined ? {} : { collectOnly }),
     })
   } finally {
     clearInterval(keepAlive)

@@ -104,10 +104,27 @@ export function buildFailureTestResult(testPath: string, err: SerializableError)
 
 // @public
 export interface BuildOptions {
+    readonly collectOnly?: boolean;
     // (undocumented)
     readonly displayName: TestResult["displayName"];
     readonly locations: boolean;
     readonly slowTestThreshold?: number;
+}
+
+// @public
+export interface CollectedTextStyle {
+    // (undocumented)
+    bold(text: string): string;
+    // (undocumented)
+    dim(text: string): string;
+    // (undocumented)
+    green(text: string): string;
+    // (undocumented)
+    magenta(text: string): string;
+    // (undocumented)
+    red(text: string): string;
+    // (undocumented)
+    yellow(text: string): string;
 }
 
 // @public
@@ -278,6 +295,9 @@ export interface JestCliOption {
 
 // @public
 export type JestCliSupport = "request" | "config" | "accepted" | "warn" | "refuse";
+
+// @public
+export function jestCollectedText(results: AggregatedResult, style: CollectedTextStyle): string;
 
 // @public
 export class JestConfigError extends Error {
@@ -668,12 +688,14 @@ export interface JestResults<Config extends ProjectConfigLike> {
     aggregated(): AggregatedResult;
     contexts(): Set<TestContext<Config>>;
     readonly reporter: Reporter;
+    reportersFailed(failed: boolean): void;
     testOf(file: FileInfo): Test<Config>;
     testResultOf(fileId: TaskId): TestResult | undefined;
 }
 
 // @public
 export interface JestResultsOptions<Config extends ProjectConfigLike> {
+    readonly collectOnly?: boolean;
     // (undocumented)
     readonly globalConfig: GlobalConfigLike;
     readonly now?: () => number;
@@ -915,7 +937,6 @@ export interface TestContext<Config = unknown> {
 // @public
 export interface TestRecord {
     readonly result: TaskResult | undefined;
-    readonly retried: readonly SerializedError[];
     readonly startedAt: number | null;
     // (undocumented)
     readonly task: TestTask;

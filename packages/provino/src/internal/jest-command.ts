@@ -14,6 +14,7 @@ import {
   type JestGlobalConfig,
   type JestProjectConfig,
   jestCli,
+  jestCollectedText,
   jestNodeDialect,
   jestRunGlobalHooks,
   processJestResults,
@@ -35,7 +36,7 @@ import type { ReporterChoice } from '../types.ts'
 import { JEST_BUILT_INS, JEST_ENVIRONMENT, NODE_ENVIRONMENT } from './built-ins.ts'
 import { usageMessage } from './describe.ts'
 import { executeProject, timingsOf } from './execute.ts'
-import type { DisplayOptions } from './reporters.ts'
+import { type DisplayOptions, styleFor } from './reporters.ts'
 import {
   chooseProjects,
   noProjectsMessage,
@@ -385,6 +386,11 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     const [project, ...others] = projects
     if (project === undefined) {
       if (!noneSelected) throw new UsageError('the config has no project to run')
+      if (read.globalConfig.collectTests) {
+        // runJest.ts L333-L339: with no test, `--collectTests` says so on stdout and exits 0.
+        await stdout.write('No tests found.\n')
+        return ExitCode.Pass
+      }
       // A selection that left no project: Jest runs nothing and says there are no tests.
       const passWithNoTests = read.globalConfig.passWithNoTests
       const message = noProjectsMessage({
@@ -400,9 +406,13 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     const shard = shardOf(read.globalConfig)
     // `--json` and `testResultsProcessor` read the run as Jest's `AggregatedResult`: a collector
     // first on the bus builds it from the events (`processResults`, runJest.ts L173-L213).
+    // `--collectTests` (runJest.ts L334-L367) runs no global setup and no reporter: the collector
+    // alone hears the run, whose files report what their tests would do.
+    const collecting = read.globalConfig.collectTests
     const results =
-      read.globalConfig.json || read.globalConfig.testResultsProcessor !== undefined
+      collecting || read.globalConfig.json || read.globalConfig.testResultsProcessor !== undefined
         ? createJestResults({
+            ...(collecting ? { collectOnly: true } : {}),
             globalConfig: read.globalConfig,
             projectConfigs: neutrals.flatMap((neutral) => {
               const config = read.configs[read.neutral.indexOf(neutral)]
@@ -410,14 +420,22 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
             }),
           })
         : undefined
+    let reporterFailed = false
     const result = await executeProject({
       project,
+      onReporterFailures: (failures) => {
+        reporterFailed = failures.length > 0
+      },
       others,
       root: read.globalConfig.rootDir,
       cwd,
       stdout,
       stderr,
-      ...(io.reporters === undefined ? {} : { reporters: io.reporters }),
+      ...(collecting
+        ? { reporters: [], collectOnly: true }
+        : io.reporters === undefined
+          ? {}
+          : { reporters: io.reporters }),
       ...(results === undefined ? {} : { leadingReporters: [results.reporter] }),
       env: io.env ?? process.env,
       display: presentation(read, request),
@@ -446,14 +464,50 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       if (!read.globalConfig.detectOpenHandles) stderr.write(`${FORCE_EXIT_WARNING}\n`)
       io.onForceExit?.()
     }
-    if (results !== undefined && result.summary !== null) {
-      const success = await processJestResults({
-        aggregated: results.aggregated(),
-        globalConfig: read.globalConfig,
-        cwd,
-        stdout,
-        outputStream: read.globalConfig.json || read.globalConfig.useStderr ? stderr : stdout,
-      })
+    if (collecting && result.summary !== null && result.summary.files.length === 0) {
+      // Jest says so on stdout, whatever `--json` and `--useStderr` say, and writes no results.
+      if (result.summary.reason === 'passed' || result.summary.reason === 'failed') {
+        await stdout.write('No tests found.\n')
+        return ExitCode.Pass
+      }
+    }
+    // Jest processes the results (`processResults`, runJest.ts L173-L213) only when tests ran: with
+    // none and no `--passWithNoTests` it prints its message and exits 1 first (L369-L381), and a
+    // signal ends the process before it gets there.
+    const processing =
+      results !== undefined &&
+      result.summary !== null &&
+      !(result.summary.files.length === 0 && !read.globalConfig.passWithNoTests) &&
+      !results.aggregated().wasInterrupted
+    if (results !== undefined && result.summary !== null && processing) {
+      results.reportersFailed(reporterFailed)
+      if (collecting && !read.globalConfig.json) {
+        const style = styleFor({
+          env: io.env ?? process.env,
+          // chalk 4 follows stdout's terminal, also for what `--useStderr` sends to stderr.
+          stream: stdout,
+          ci: read.globalConfig.ci,
+          colour: request.colour,
+        })
+        const text = jestCollectedText(results.aggregated(), style)
+        if (read.globalConfig.useStderr) stderr.write(text)
+        else await stdout.write(text)
+      }
+      let success: boolean
+      try {
+        success = await processJestResults({
+          aggregated: results.aggregated(),
+          globalConfig: read.globalConfig,
+          cwd,
+          stdout,
+          outputStream: read.globalConfig.json || read.globalConfig.useStderr ? stderr : stdout,
+        })
+      } catch (error) {
+        // A processor that throws (or fails to load) ends Jest's `runCLI` with the error: jest-cli
+        // prints its stack and exits 1, whatever the run's own result was.
+        stderr.write(`${error instanceof Error ? (error.stack ?? String(error)) : String(error)}\n`)
+        return ExitCode.TestFailure
+      }
       // Jest ends `success ? 0 : testFailureExitCode` from the processed results; a signal, a
       // usage error or anything else the run decided keeps its own code.
       const failure = read.globalConfig.testFailureExitCode

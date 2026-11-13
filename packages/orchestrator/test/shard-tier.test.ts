@@ -183,6 +183,21 @@ describe('--shard in the coordinator', () => {
     })
   })
 
+  it('writes no timings when the run only collects: the durations are not the files', async () => {
+    const made = await makeProject(FILES)
+    const file = join(made.dir, 'provino.timings.json')
+    const project = runtimeProject(made.dir)
+    await run(project, {
+      pool: { kind: 'inline' },
+      collectOnly: true,
+      timings: { update: true },
+    })
+    await assert.rejects(readFile(file, 'utf8'), { code: 'ENOENT' })
+    // A run that executes the files does write it.
+    await run(project, { pool: { kind: 'inline' }, timings: { update: true } })
+    assert.ok(JSON.parse(await readFile(file, 'utf8')).files)
+  })
+
   it('refuses a shard that is not index of count, and a timings file that is not one, before anything runs', async () => {
     const made = await makeProject(FILES)
     const project = runtimeProject(made.dir)

@@ -1,0 +1,12 @@
+{
+  "description": "--collectTests -t inner: tests the pattern does not match are pending, those it matches are passed with wouldRun, a todo stays todo.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--collectTests", "--useStderr", "-t", "inner"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

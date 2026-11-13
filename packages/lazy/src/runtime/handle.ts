@@ -7,10 +7,16 @@ import type { Lazy, LetOptions, TestContextLike } from '../types.ts'
 import { eagerHook } from './eager.ts'
 import { peek, readFrom, viewOf } from './read.ts'
 import type { DefineFn, Engine, LazyEntry } from './state.ts'
-import { register } from './table.ts'
+import { inheritedEagerScope, register } from './table.ts'
 
 /** A handle as the runtime builds it; the public types are applied at the boundary. */
 export type AnyLazy = Lazy<Record<string, unknown>, string, string, string>
+
+/**
+ * A forwarder that called a registration method for the user (the public `lazy` root): the site is
+ * the caller of this function, not the forwarder's own line.
+ */
+type Via = ((...args: never[]) => unknown) | undefined
 
 const NOT_EVALUATED = Object.freeze({ [inspect.custom]: () => '<lazy>' })
 
@@ -55,27 +61,44 @@ export function createHandles(engine: Engine): (keys: readonly string[]) => AnyL
       key: string,
       fn: DefineFn,
       options: LetOptions<Scope> | undefined,
+      via: Via,
     ): AnyLazy {
-      const entry: LazyEntry = register(engine, kind, key, fn, options, api)
+      const entry: LazyEntry = register(engine, kind, key, fn, options, via ?? api)
       if (kind === 'eager') {
         engine.host.addHook(
           entry.suite,
           entry.declared === 'test' ? 'beforeEach' : 'beforeAll',
-          eagerHook(engine, key),
+          eagerHook(engine, entry),
         )
       }
       return makeHandle(keys.includes(key) ? keys : [...keys, key])
     }
 
     const methods = {
-      let: function letMethod(key: string, fn: DefineFn, options?: LetOptions<Scope>): AnyLazy {
-        return define('let', letMethod, key, fn, options)
+      let: function letMethod(
+        key: string,
+        fn: DefineFn,
+        options?: LetOptions<Scope>,
+        via?: Via,
+      ): AnyLazy {
+        return define('let', letMethod, key, fn, options, via)
       },
-      eager: function eagerMethod(key: string, fn: DefineFn, options?: LetOptions<Scope>): AnyLazy {
-        return define('eager', eagerMethod, key, fn, options)
+      eager: function eagerMethod(
+        key: string,
+        fn: DefineFn,
+        options?: LetOptions<Scope>,
+        via?: Via,
+      ): AnyLazy {
+        return define('eager', eagerMethod, key, fn, options, via)
       },
-      override: function overrideMethod(key: string, fn: DefineFn): unknown {
-        register(engine, 'override', key, fn, undefined, overrideMethod)
+      override: function overrideMethod(key: string, fn: DefineFn, via?: Via): unknown {
+        const entry = register(engine, 'override', key, fn, undefined, via ?? overrideMethod)
+        // An override of a file or worker eager value is evaluated where it is declared: the
+        // outer hook resolves from the outer suite and never sees it.
+        const scope = inheritedEagerScope(entry)
+        if (scope !== undefined && scope !== 'test') {
+          engine.host.addHook(entry.suite, 'beforeAll', eagerHook(engine, entry))
+        }
         return handle
       },
       from(ctx: TestContextLike): object {

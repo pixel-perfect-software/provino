@@ -96,6 +96,7 @@ export function buildFailureTestResult(testPath: string, err: SerializableError)
 
 // @public
 export interface BuildOptions {
+    readonly collectOnly?: boolean;
     // (undocumented)
     readonly displayName: TestResult["displayName"];
     readonly locations: boolean;
@@ -197,12 +198,14 @@ export interface JestResults<Config extends ProjectConfigLike> {
     aggregated(): AggregatedResult;
     contexts(): Set<TestContext<Config>>;
     readonly reporter: Reporter;
+    reportersFailed(failed: boolean): void;
     testOf(file: FileInfo): Test<Config>;
     testResultOf(fileId: TaskId): TestResult | undefined;
 }
 
 // @public
 export interface JestResultsOptions<Config extends ProjectConfigLike> {
+    readonly collectOnly?: boolean;
     // (undocumented)
     readonly globalConfig: GlobalConfigLike;
     readonly now?: () => number;
@@ -324,7 +327,6 @@ export interface TestContext<Config = unknown> {
 // @public
 export interface TestRecord {
     readonly result: TaskResult | undefined;
-    readonly retried: readonly SerializedError[];
     readonly startedAt: number | null;
     // (undocumented)
     readonly task: TestTask;

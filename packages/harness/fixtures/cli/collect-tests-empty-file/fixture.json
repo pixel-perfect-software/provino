@@ -1,0 +1,12 @@
+{
+  "description": "--collectTests over a file with no test beside a good one: Jest's scheduler fails the empty file (\"Your test suite must contain at least one test.\") as a runtime error, and the run does not succeed.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--collectTests", "--useStderr"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

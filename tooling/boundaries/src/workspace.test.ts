@@ -270,6 +270,28 @@ test('the workspace walk skips generated suites, bench records and recorder work
   )
 })
 
+test('the workspace walk files each entry under its own directory, however deep', async () => {
+  const dir = await scratchDir('walk-nested', {
+    'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+    'tsconfig.json': '{ "references": [] }\n',
+    'tsconfig.type-tests.json': '{ "references": [] }\n',
+    'packages/lazy/package.json':
+      '{ "name": "@provino/lazy", "scripts": { "test": "node --test" } }\n',
+    'packages/lazy/src/api.test.ts': 'export {}\n',
+    'packages/lazy/src/deep/er/b.test.ts': 'export {}\n',
+    'packages/lazy/test/support/tsc.ts': 'export {}\n',
+    'packages/lazy/node_modules/x/src/c.test.ts': 'export {}\n',
+  })
+  const [pkg] = (await readWorkspace(dir)).packages
+  assert.deepEqual(pkg?.files, [
+    'package.json',
+    'src/api.test.ts',
+    'src/deep/er/b.test.ts',
+    'test/support/tsc.ts',
+  ])
+  assert.equal(pkg?.unitTests, 2)
+})
+
 test('matches: `*` is one path segment', () => {
   assert.ok(matches('packages/native-*', 'packages/native-darwin-arm64'))
   assert.ok(!matches('packages/native-*', 'packages/native-a/b'))

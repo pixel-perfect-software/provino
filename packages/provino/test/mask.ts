@@ -10,17 +10,51 @@ export type Json =
   | readonly Json[]
   | { readonly [key: string]: Json }
 
-const FRAME_RUN = /(?:\n\s*at [^\n]*)+/g
+// A copy of the recorder's `FRAME_RUN` (`packages/harness/src/record.ts`): change both.
+const FRAME_RUN =
+  /(?:\n[ \t]+at (?:[^\n]* \((?:[^\n]*:\d+:\d+|<anonymous>|native|index \d+)\)|[^\n ]+:\d+:\d+)(?=\n|$))+/g
 
 function byName(a: Json, b: Json): number {
-  const name = (value: Json): string =>
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    typeof (value as { name?: unknown }).name === 'string'
-      ? (value as { name: string }).name
-      : ''
+  const name = (value: Json): string => {
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      typeof (value as { name?: unknown }).name === 'string'
+    ) {
+      return (value as { name: string }).name
+    }
+    throw new Error('a "testResults" entry has no string "name"')
+  }
   return name(a) < name(b) ? -1 : name(a) > name(b) ? 1 : 0
+}
+
+/**
+ * What the recorder does to a captured stream or file: each root as `<root>`, then (for a stream)
+ * only the lines `keepLines` matches, then each `mask` match as `<masked>`. Both sides of a
+ * comparison read their text through this, so they cannot differ in the steps.
+ */
+export function observedText(
+  raw: string,
+  options: {
+    readonly roots: readonly string[]
+    readonly keepLines?: string | undefined
+    readonly mask?: readonly string[] | undefined
+  },
+): string {
+  let out = raw
+  for (const root of options.roots) out = out.replaceAll(root, '<root>')
+  if (options.keepLines !== undefined) {
+    const keep = new RegExp(options.keepLines)
+    out = out
+      .split('\n')
+      .filter((line) => keep.test(line))
+      .join('\n')
+  }
+  return (options.mask ?? []).reduce(
+    (masked, source) => masked.replace(new RegExp(source, 'gm'), '<masked>'),
+    out,
+  )
 }
 
 export function normalizedJson(

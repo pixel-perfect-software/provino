@@ -26,6 +26,7 @@ Status: **pre-alpha, built in phases** from the research in `docs/research/`. No
 7. **Benchmarks are honest.** Label every number `local`, `desktop` or `pinned` (see `.claude/rules/benchmarks.md`). Interleave runs, report ratios against Jest, and never present a `local` number as a result.
 8. **Quirk policy is DECISIONS D7.** Divergences go in `docs/plan/DIVERGENCES.md` (S5).
 9. **Ask Tyler before you:** add a runtime dependency the spec doesn't name; change a Decided entry or the package map; publish anything; merge a PR (Claude opens them once the pre-merge pass is done); touch CI secrets or release config. Pushing your own `task/*` branch is allowed (S2).
+10. **Fastest unless compat (D115).** Pick the fastest dependency or approach that does the job. Copy what Jest or Vitest uses only when a dialect needs that runner's exact output (dialect compat). Every plan, decision and question to Tyler says which reason applies (`speed` or `compat`) and names the faster option when compat wins; compat-only code stays off the neutral path and loads only when that dialect feature is on.
 
 ## Stack
 

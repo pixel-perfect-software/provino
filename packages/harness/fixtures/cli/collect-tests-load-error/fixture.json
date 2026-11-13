@@ -1,0 +1,12 @@
+{
+  "description": "--collectTests over a file that throws when imported beside a good one: the broken file is a runtime error with its message and no tests; the run does not succeed.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--collectTests", "--useStderr"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
