@@ -132,8 +132,8 @@ function agentOf(env: Environment, tty: boolean): string | undefined {
  * terminal an agent runs in has none unless `FORCE_COLOR` asks.
  */
 function colourOf(env: Environment, tty: boolean, agent: string | undefined): boolean {
-  const forced = env.FORCE_COLOR
-  if (forced !== undefined) return forced.trim().toLowerCase() !== '0' && forced.trim() !== 'false'
+  const forced = env.FORCE_COLOR?.trim().toLowerCase()
+  if (forced !== undefined) return forced !== '0' && forced !== 'false'
   if (env.NO_COLOR !== undefined && env.NO_COLOR !== '') return false
   return tty && env.TERM !== 'dumb' && agent === undefined
 }

@@ -74,6 +74,12 @@ describe('detectOutput: colour', () => {
     assert.equal(detectOutput({ env: { FORCE_COLOR: 'false' }, stream: TTY }).colour, false)
   })
 
+  test('FORCE_COLOR reads 0 and false in any case and with spaces around them, as isSet does', () => {
+    for (const value of ['FALSE', 'False', ' false ', ' 0 ']) {
+      assert.equal(detectOutput({ env: { FORCE_COLOR: value }, stream: TTY }).colour, false, value)
+    }
+  })
+
   test('NO_COLOR turns it off when it is not empty', () => {
     assert.equal(detectOutput({ env: { NO_COLOR: '1' }, stream: TTY }).colour, false)
     assert.equal(detectOutput({ env: { NO_COLOR: '' }, stream: TTY }).colour, true)
