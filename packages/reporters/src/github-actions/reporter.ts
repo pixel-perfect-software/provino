@@ -10,7 +10,7 @@ import type {
 import { createCollector } from '../internal/collect.ts'
 import type { FileRecord } from '../normalized-json/build.ts'
 import type { TextSink } from '../sink.ts'
-import { formatError } from '../text/format.ts'
+import { formatError, isLibraryFrame } from '../text/format.ts'
 
 /**
  * Options for `githubActionsReporter`.
@@ -50,7 +50,7 @@ function frameLocation(frame: string): SourceLocation | undefined {
 function errorLocation(error: SerializedError): SourceLocation | undefined {
   if (error.location !== undefined) return error.location
   for (const line of (error.stack ?? '').split('\n')) {
-    if (!line.trim().startsWith('at ') || /node:|node_modules/.test(line)) continue
+    if (!line.trim().startsWith('at ') || isLibraryFrame(line)) continue
     const found = frameLocation(line)
     if (found !== undefined) return found
   }

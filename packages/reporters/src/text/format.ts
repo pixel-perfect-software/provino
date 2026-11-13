@@ -84,7 +84,7 @@ function header(error: SerializedError): string {
  * Whether a frame is Node's or a dependency's, as Jest's `removeInternalStackEntries` has it:
  * `node:` internals and anything under `node_modules` say nothing about the user's code.
  */
-function isLibraryFrame(frame: string): boolean {
+export function isLibraryFrame(frame: string): boolean {
   return frame.includes('node:') || frame.includes('node_modules')
 }
 
