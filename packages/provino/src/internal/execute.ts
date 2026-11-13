@@ -56,7 +56,6 @@ export interface ExecuteOptions {
   readonly timings?: NonNullable<RunProjectOptions['timings']>
 }
 
-/** The `timings` run option from `timingsFile` and `updateTimings`: only what was given. */
 /**
  * The `timings` run option from a timings file and `--update-timings`: only what was given.
  * @internal
