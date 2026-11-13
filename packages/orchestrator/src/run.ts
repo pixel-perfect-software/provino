@@ -201,10 +201,11 @@ export interface RunProjectOptions {
     /**
      * Write each file this run ran, with its time, into the file after the run (`--update-timings`),
      * keeping every other entry, and dropping the entries of files that no longer exist when the run
-     * saw every file (no shard, no file filter). A run that is cut short writes the files that
-     * ended. A file that already is there but isn't a timings file is replaced, unless the run also
-     * shards. A run with a `testNamePattern` writes nothing (it times some of each file's tests,
-     * not the files) and says so on stderr.
+     * saw every file (no file filter). A run that is cut short writes the files that ended. A file
+     * that already is there but isn't a timings file is replaced. A run with a `testNamePattern`
+     * writes nothing (it times some of each file's tests, not the files) and says so on stderr. It
+     * can't be combined with `shard` (`ORCH_BAD_OPTION`): shards that run one after another in one
+     * checkout would each read the timings the last one wrote, and cut the files differently.
      */
     readonly update?: boolean
   }
@@ -430,6 +431,12 @@ export async function runProjects(
   }
   const bailAfter = orchestrator.bail.checkAfter
   if (options.shard !== undefined) checkShard(options.shard)
+  if (options.shard !== undefined && options.timings?.update === true) {
+    throw new OrchestratorError(
+      'ORCH_BAD_OPTION',
+      '--update-timings can’t be used together with --shard: shards that run one after another in one checkout would read the timings the last one wrote, cut the files differently, and run some twice and some never. Refresh the timings file on an unsharded run',
+    )
+  }
 
   const caches = new Map<string, ResultsCache>()
   const cacheFor = (project: ResolvedProject): ResultsCache | undefined => {

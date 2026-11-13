@@ -168,6 +168,21 @@ describe('--shard in the coordinator', () => {
     }
   })
 
+  it('refuses --update-timings together with a shard, before anything runs', async () => {
+    const made = await makeProject(FILES)
+    await assert.rejects(
+      run(runtimeProject(made.dir), {
+        pool: { kind: 'inline' },
+        shard: { index: 1, count: 2 },
+        timings: { update: true },
+      }),
+      { code: 'ORCH_BAD_OPTION', message: /--update-timings.*--shard.*unsharded run/s },
+    )
+    await assert.rejects(readFile(join(made.dir, 'provino.timings.json'), 'utf8'), {
+      code: 'ENOENT',
+    })
+  })
+
   it('refuses a shard that is not index of count, and a timings file that is not one, before anything runs', async () => {
     const made = await makeProject(FILES)
     const project = runtimeProject(made.dir)

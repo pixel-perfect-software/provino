@@ -233,33 +233,13 @@ describe('run() with a shard and a timings file', () => {
     assert.match(badShard.stderr, /shard\.index .* from 1 to 2 \(got 3\)/)
   })
 
-  it('--update-timings writes what ran, merges into what was there, and keeps the other shards’ entries', async () => {
+  it('--update-timings writes what ran and drops the entry of a file that is gone', async () => {
     const project = await makeProject(FILES)
     const file = project.path('provino.timings.json')
     await writeFile(
       file,
       JSON.stringify({ version: 1, files: { 'tests/f.test.js': 7, 'tests/gone.test.js': 9 } }),
     )
-    // A shard: only its files are measured; every other entry stays, a removed file's included.
-    const shard = await runWith(project.config, {
-      shard: { index: 1, count: 3 },
-      updateTimings: true,
-      cache: false,
-    })
-    assert.equal(shard.exitCode, 0, shard.stderr)
-    const afterShard = JSON.parse(await readFile(file, 'utf8')) as {
-      version: number
-      files: Record<string, number>
-    }
-    assert.equal(afterShard.version, 1)
-    assert.deepEqual(Object.keys(afterShard.files).toSorted(), [
-      'tests/a.test.js',
-      'tests/b.test.js',
-      'tests/f.test.js',
-      'tests/gone.test.js',
-    ])
-    assert.equal(afterShard.files['tests/f.test.js'], 7)
-    assert.ok(Number.isInteger(afterShard.files['tests/a.test.js']))
     // A whole run measures every file, and drops the entry of a file that is gone.
     const whole = await runWith(project.config, { updateTimings: true, cache: false })
     assert.equal(whole.exitCode, 0, whole.stderr)
@@ -365,5 +345,54 @@ describe('provino jest takes --timings and --update-timings out of the command l
     assert.equal(ended.code, 1, ended.stderr)
     assert.doesNotMatch(ended.stderr, /PASS/)
     await assert.rejects(readFile(project.path('provino.timings.json'), 'utf8'), { code: 'ENOENT' })
+  })
+})
+
+describe('--update-timings is refused together with --shard', () => {
+  // Shards run one after another in one checkout would each read the timings the last one wrote, and
+  // cut the files differently: some would run twice, some never. Refresh on an unsharded run.
+  const NAMES = /--update-timings.*--shard|--shard.*--update-timings/s
+  const HINT = /unsharded run/
+
+  it('run(): a usage error (exit 2) before anything runs, and the file is not written', async () => {
+    const project = await makeProject(FILES)
+    const ran = await runWith(project.config, {
+      shard: { index: 1, count: 3 },
+      updateTimings: true,
+      cache: false,
+    })
+    assert.equal(ran.exitCode, 2, ran.stderr)
+    assert.equal(ran.summary, null)
+    assert.match(ran.stderr, NAMES)
+    assert.match(ran.stderr, HINT)
+    await assert.rejects(readFile(project.path('provino.timings.json'), 'utf8'), { code: 'ENOENT' })
+  })
+
+  it('provino run: exit 2', async () => {
+    const project = await makeProject(FILES)
+    const ended = await spawnCli([
+      'run',
+      '--config',
+      project.config,
+      '--shard=1/3',
+      '--update-timings',
+      '--no-cache',
+    ])
+    assert.equal(ended.code, 2, ended.stderr)
+    assert.match(ended.stderr, NAMES)
+    assert.match(ended.stderr, HINT)
+    assert.doesNotMatch(ended.stderr, /PASS/)
+  })
+
+  it('provino jest: exit 1, as Jest’s usage errors are', async () => {
+    const project = await makeProject(FILES)
+    const ended = await spawnCli(
+      ['jest', '--config', jestConfigJson(project.dir), '--shard=1/3', '--update-timings'],
+      { cwd: project.dir },
+    )
+    assert.equal(ended.code, 1, ended.stderr)
+    assert.match(ended.stderr, NAMES)
+    assert.match(ended.stderr, HINT)
+    assert.doesNotMatch(ended.stderr, /PASS/)
   })
 })

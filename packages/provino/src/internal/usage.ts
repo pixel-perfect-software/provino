@@ -43,7 +43,8 @@ Options of provino run:
       --timings <file>              The timings file --shard cuts by (default: provino.timings.json
                                     in the project root)
       --update-timings              After the run, write each file that ran, with its time, into the
-                                    timings file (provino jest takes this and --timings too)
+                                    timings file (provino jest takes this and --timings too). Not
+                                    with --shard: refresh it on an unsharded run
   -h, --help                        Print this text
       --version                     Print the version of provino
 

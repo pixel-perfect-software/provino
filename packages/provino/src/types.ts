@@ -128,7 +128,11 @@ export interface RunOptions {
   readonly shard?: { readonly index: number; readonly count: number }
   /** The timings file `shard` cuts by and `updateTimings` writes. Default: `provino.timings.json` in the project root. */
   readonly timingsFile?: string
-  /** After the run, write each file that ran, with its time, into the timings file (`--update-timings`). */
+  /**
+   * After the run, write each file that ran, with its time, into the timings file
+   * (`--update-timings`). Not together with `shard` (a usage error, exit 2): refresh the file on
+   * an unsharded run.
+   */
   readonly updateTimings?: boolean
 }
 
