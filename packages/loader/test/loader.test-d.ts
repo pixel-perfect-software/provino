@@ -1,5 +1,7 @@
 // The public API of @provino/loader.
 import {
+  type CoordinatorLoader,
+  createCoordinatorLoader,
   createLoader,
   createProjectLoader,
   type LoaderError,
@@ -95,3 +97,23 @@ buildThirdPartyGraph({ ...graphOptions, cacheDir: undefined })
 buildThirdPartyGraph({ root: '/repo' })
 // @ts-expect-error importersOf takes the graph first
 importersOf('/a.js', graph)
+
+// The coordinator-mode loader (U5): the same settings as a worker's, a module imported by its
+// absolute path, and the user modules it loaded.
+expectTypeOf(createCoordinatorLoader).parameters.toEqualTypeOf<
+  [root: string, config: SerializedLoaderConfig, policy: ModulePolicy]
+>()
+expectTypeOf(createCoordinatorLoader).returns.toEqualTypeOf<Promise<CoordinatorLoader>>()
+declare const coordinator: CoordinatorLoader
+expectTypeOf(coordinator.import<{ default: () => void }>('/setup.ts')).toEqualTypeOf<
+  Promise<{ default: () => void }>
+>()
+expectTypeOf(coordinator.import('/setup.ts')).toEqualTypeOf<Promise<unknown>>()
+expectTypeOf(coordinator.loadedModules()).toEqualTypeOf<readonly ModuleId[]>()
+expectTypeOf(coordinator.dispose()).toEqualTypeOf<void>()
+// @ts-expect-error a coordinator loader has no file registry or mocks: it imports files
+coordinator.createFileRegistry('/setup.ts', { tier: 'none' })
+// @ts-expect-error the file is an absolute path string
+void coordinator.import(1)
+// @ts-expect-error the policy is the `module` slice, never the whole policy
+void createCoordinatorLoader('/repo', loaderConfig)

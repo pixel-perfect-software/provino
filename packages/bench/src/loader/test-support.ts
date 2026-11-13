@@ -7,6 +7,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after } from 'node:test'
+import { createLoader } from '@provino/loader'
 import { createMockRegistry, createModuleMockRegistry } from '@provino/mock'
 import { neutralPolicy } from '@provino/policy'
 import { createResolver } from '@provino/resolver'
@@ -21,7 +22,6 @@ import type {
   ModuleMockRegistry,
   ModulePolicy,
 } from '@provino/types'
-import { createLoader } from '@provino/loader'
 
 const roots: string[] = []
 after(() => {

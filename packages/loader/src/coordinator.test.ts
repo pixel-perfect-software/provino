@@ -43,7 +43,7 @@ type Setup = (...args: readonly unknown[]) => unknown
 
 test('a globalSetup.ts loads through the transform and its default export runs', async () => {
   const root = writeTree({
-    'helper.ts': 'export function greet(name: string): string { return `hello ${name}` }\n',
+    'helper.ts': "export function greet(name: string): string { return 'hello ' + name }\n",
     'globalSetup.ts': [
       "import { greet } from './helper.ts'",
       'interface Config { readonly rootDir: string }',

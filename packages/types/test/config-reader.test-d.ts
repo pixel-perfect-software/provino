@@ -5,6 +5,7 @@ import type {
   ConfigReadOutcome,
   ConfigSource,
   Dialect,
+  JsonValue,
   NeutralProject,
   SerializedProjectConfig,
 } from '@provino/types'
@@ -55,3 +56,19 @@ expectTypeOf<NeutralProject['cacheDirectory']>().toEqualTypeOf<string | undefine
 // @ts-expect-error a pattern is a source, never a RegExp
 const pattern: RegExp = project.aliases[0]?.pattern ?? /x/
 void pattern
+
+// What a global setup or teardown is called with (T9.15): two configs as JSON, so they cross to
+// a worker, and absent when the project has no hooks.
+expectTypeOf<NeutralProject['globalSetup']>().toEqualTypeOf<readonly string[]>()
+expectTypeOf<NonNullable<NeutralProject['globalSetupArgs']>['globalConfig']>().toExtend<
+  Readonly<Record<string, JsonValue>>
+>()
+expectTypeOf<NonNullable<NeutralProject['globalSetupArgs']>['projectConfig']>().toExtend<
+  Readonly<Record<string, JsonValue>>
+>()
+const hookArgs: NeutralProject['globalSetupArgs'] = {
+  // @ts-expect-error a global config is JSON: no function in it
+  globalConfig: { f: () => 1 },
+  projectConfig: {},
+}
+void hookArgs

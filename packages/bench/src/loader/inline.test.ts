@@ -7,16 +7,9 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import type { LoaderWarning, ModuleId, ModuleMockRegistry } from '@provino/types'
 import { initLexer } from '@provino/loader/graph'
-import {
-  at,
-  fileWithMocks,
-  JESTISH,
-  loaderFor,
-  VITESTISH,
-  writeTree,
-} from './test-support.ts'
+import type { LoaderWarning, ModuleId, ModuleMockRegistry } from '@provino/types'
+import { at, fileWithMocks, JESTISH, loaderFor, VITESTISH, writeTree } from './test-support.ts'
 
 const factory = (value: unknown) => ({ kind: 'factory', factory: () => value }) as const
 
