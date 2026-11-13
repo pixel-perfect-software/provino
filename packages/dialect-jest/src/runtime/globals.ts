@@ -25,6 +25,7 @@ import {
   type TimerMembers,
 } from '@provino/timers'
 import type {
+  DefaultRetry,
   FileRegistry,
   GlobalsHost,
   MockFactory,
@@ -109,7 +110,9 @@ export interface JestTimerMembers<J> {
 }
 
 /**
- * What `jest.retryTimes` takes.
+ * What `jest.retryTimes` takes. `logErrorsBeforeRetry` keeps the errors of the attempts that were
+ * retried on the result (Jest prints them above the file's result); `waitBeforeRetry` is
+ * milliseconds. `entireDescribe` is not built.
  * @public
  */
 export interface JestRetryOptions {
@@ -125,7 +128,7 @@ export interface JestRetryOptions {
  * `isolateModulesAsync` refuse to nest or overlap (on one registry), as Jest does. The mock
  * functions (`fn`, `spyOn`, `replaceProperty`, the three `*AllMocks`) act on the mock registry of
  * the file running. `jest.mock` and friends (B13c) are on each module's own `jest`
- * (`JestModuleObject`); `retryTimes` is refused until deferred retries exist (T5.10).
+ * (`JestModuleObject`).
  * @public
  */
 export interface JestObject extends JestTimerMembers<JestObject> {
@@ -141,8 +144,10 @@ export interface JestObject extends JestTimerMembers<JestObject> {
    */
   setTimeout(timeout: number): JestObject
   /**
-   * Refused: Jest retries after the file's other tests (deferred retries, T5.10), which the core
-   * does not run yet. Throws, naming the task.
+   * Retries a failed test up to `numRetries` times, after the other tests of its describe unless
+   * `retryImmediately` (jest-circus's deferred retries). It sets one value for the whole file, as
+   * Jest does: each describe reads it when it starts running, and a later call replaces every
+   * option. `entireDescribe` (a describe-level retry) is refused: it throws, naming the task.
    */
   retryTimes(numRetries: number, options?: JestRetryOptions): JestObject
   /** The run's random seed (`--seed`, else one drawn per run), the same on every call. */
@@ -331,6 +336,20 @@ const TIMER_MEMBER_NAMES = [
   'setTimerTickMode',
 ] as const satisfies readonly (keyof TimerMembers)[]
 
+/**
+ * What `jest.retryTimes(n, options)` sets, read as jest-circus's `_runTestsForDescribeBlockOnce`
+ * reads the globals it left: a count and a wait through `Number.parseInt(String(…), 10) || 0`
+ * (so `'2'` is 2, `2.9` is 2, and anything that is not a number is 0), the other two by truthiness.
+ */
+function jestDefaultRetry(numRetries: number, options: JestRetryOptions | undefined): DefaultRetry {
+  return {
+    count: Number.parseInt(String(numRetries), 10) || 0,
+    delay: Number.parseInt(String(options?.waitBeforeRetry), 10) || 0,
+    immediate: Boolean(options?.retryImmediately),
+    logErrors: Boolean(options?.logErrorsBeforeRetry),
+  }
+}
+
 /** `jest`'s timer members over the clock of the file running now. */
 function timerMembers<J>(host: JestGlobalsHost, self: () => J): JestTimerMembers<J> {
   const all = createTimerMembers(() => host.timers(), host.timersPolicy, self)
@@ -418,13 +437,16 @@ function sharedMembers<J>(
       )
       return self()
     },
-    retryTimes() {
-      // jest-circus retries a failed test after the file's other tests; the core runs retries at
-      // once only (`retry.timing: 'deferred'` is T5.10), so a call that would run them in another
-      // order is refused by name instead.
-      throw new Error(
-        "jest.retryTimes is not supported yet: Jest retries a failed test after the file's other tests, which Provino does not run (T5.10)",
-      )
+    retryTimes(numRetries, options) {
+      // Describe-level retry (30.5's `entireDescribe`) reruns the block's hooks and every test;
+      // the core retries tests one at a time, so it is refused by name instead.
+      if (options?.entireDescribe) {
+        throw new Error(
+          'jest.retryTimes with `entireDescribe` is not supported yet: Provino retries a test, not a whole describe block (T5.10)',
+        )
+      }
+      host.setDefaultRetry(jestDefaultRetry(numRetries, options))
+      return self()
     },
     getSeed: () => host.seed,
     isEnvironmentTornDown: () => host.environmentTornDown(),
