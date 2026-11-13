@@ -82,9 +82,10 @@ export interface PipelineOptions {
    */
   readonly runnerForm?: boolean
   /**
-   * Instruments a file that is requested with `instrument: true` (Istanbul coverage, B23b). Run
-   * after TypeScript is stripped and before the hoister and the module-runner rewrite. Without
-   * one, `instrument` changes nothing.
+   * Declared for B23b's Istanbul instrumenter, which will run after TypeScript is stripped and
+   * before the hoister and the module-runner rewrite. Nothing reads it yet: a request with
+   * `instrument: true` is still refused with `TRANSFORM_OPTION_UNSUPPORTED` until the instrumenter
+   * is wired.
    */
   readonly instrumenter?: CoverageInstrumenter
 }
