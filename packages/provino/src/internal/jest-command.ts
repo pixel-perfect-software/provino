@@ -98,7 +98,8 @@ function environmentsFor(request: RunRequest, project: NeutralProject): typeof J
  * Jest's `workerIdleMemoryLimit` as the pool's recycle policy, read as jest-worker 30.5.1 reads
  * the number jest-config normalized it to (`stringToBytes`, which the config reader rebuilds):
  * `0` replaces the worker after every file, a number in (0, 1] is that fraction of the machine's
- * memory, any other is a count of bytes. Absent: the pool's own default limit. A divergence
+ * memory (one that floors to 0 bytes is no limit at all), any other is a count of bytes. Absent:
+ * the pool's own default limit. A divergence
  * (DIVERGENCES, B21a): jest-worker compares the child's `heapUsed`, the pool compares its RSS
  * (`heapUsed + external` for a thread), so Provino recycles a little earlier.
  * @internal
@@ -109,6 +110,10 @@ export function workerRecycle(
 ): { readonly recycle?: { readonly memoryLimitBytes: number } } {
   if (limit === undefined) return {}
   const bytes = limit > 0 && limit <= 1 ? Math.floor(totalMemory * limit) : Math.floor(limit)
+  // jest-worker restarts when `limit && heapUsed > limit`, with the limit floored first: a share
+  // of the memory that floors to 0 bytes is "no limit" there, and only a limit that is 0 to begin
+  // with means every file. No limit here is `Infinity`; omitting it would leave the pool's default.
+  if (bytes === 0 && limit !== 0) return { recycle: { memoryLimitBytes: Number.POSITIVE_INFINITY } }
   return { recycle: { memoryLimitBytes: bytes } }
 }
 

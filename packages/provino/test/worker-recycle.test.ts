@@ -11,6 +11,7 @@ import { totalmem } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { isRunning } from './support.ts'
 
 /**
  * `workerRecycle`, loaded by URL: the type-test project includes this directory but not the
@@ -55,7 +56,25 @@ describe('workerRecycle', () => {
     assert.deepEqual(workerRecycle(536_870_912), { recycle: { memoryLimitBytes: 536_870_912 } })
     assert.deepEqual(workerRecycle(536_870_912.7), { recycle: { memoryLimitBytes: 536_870_912 } })
   })
+
+  it('reads a share that floors to 0 bytes as no limit, as jest-worker does, not as every file', () => {
+    // jest-worker restarts on `limit && heapUsed > limit` after flooring: 0 there is "never".
+    assert.deepEqual(workerRecycle(1e-9, 1000), {
+      recycle: { memoryLimitBytes: Number.POSITIVE_INFINITY },
+    })
+    assert.deepEqual(workerRecycle(0.0009, 1000), {
+      recycle: { memoryLimitBytes: Number.POSITIVE_INFINITY },
+    })
+    // Only a limit of 0 itself is every file; one that floors to 1 byte still replaces.
+    assert.deepEqual(workerRecycle(0), { recycle: { memoryLimitBytes: 0 } })
+    assert.deepEqual(workerRecycle(0.001, 1000), { recycle: { memoryLimitBytes: 1 } })
+  })
 })
+
+/** How long a restart that is due may take, on a machine as loaded as it gets. */
+const RESTART_DEADLINE_MS = 30_000
+/** How long a child that is not to be restarted is watched for. */
+const NO_RESTART_SETTLE_MS = 1500
 
 describe('against jest-worker 30.5.1', () => {
   let dir: string
@@ -72,8 +91,15 @@ describe('against jest-worker 30.5.1', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  /** Whether jest-worker replaces its child after one call with this limit. */
-  async function restarts(limit: number): Promise<boolean> {
+  /**
+   * Whether jest-worker replaces its child after one call with this limit. The check is a message
+   * to the child and back, and a restart an asynchronous kill of the old child, after the call has
+   * ended: how long that takes is the machine's to say. So when a restart is expected the old
+   * child is waited for until it is gone, with a deadline far past anything a loaded machine
+   * needs. When none is expected there is nothing to observe, and the child gets a bounded time to
+   * show that it is not killed: a slow machine can only make that assertion weaker, never fail it.
+   */
+  async function restarts(limit: number, expected: boolean): Promise<boolean> {
     await made
     const Worker = jestWorker()
     const worker = new Worker(file, {
@@ -84,10 +110,12 @@ describe('against jest-worker 30.5.1', () => {
     })
     try {
       const first = await worker.pid()
-      // The memory check is a message to the child and back, after the call has ended.
-      await new Promise((resolve) => setTimeout(resolve, 300))
-      const second = await worker.pid()
-      return first !== second
+      const until = Date.now() + (expected ? RESTART_DEADLINE_MS : NO_RESTART_SETTLE_MS)
+      while (isRunning(first)) {
+        if (Date.now() > until) return false
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+      return true
     } finally {
       await worker.end()
     }
@@ -111,10 +139,13 @@ describe('against jest-worker 30.5.1', () => {
     ['half the memory', 0.5],
     ['all of it (1)', 1],
     ['a terabyte', 1e12],
+    // Floors to 0 bytes: jest-worker never restarts (the pool must not read it as 0, every file).
+    ['a share that floors to 0 bytes (1e-15)', 1e-15],
   ]
   for (const [name, limit] of cases) {
     it(`${name}: restarts where the pool replaces`, async () => {
-      assert.equal(await restarts(limit), poolReplaces(limit, HEAP), `limit ${limit}`)
+      const replaces = poolReplaces(limit, HEAP)
+      assert.equal(await restarts(limit, replaces), replaces, `limit ${limit}`)
     })
   }
 })
