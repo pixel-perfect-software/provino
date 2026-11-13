@@ -42,6 +42,7 @@ Every check has a case that must fail, and a real-repo case that must pass.
 
 ## Choices and gotchas
 
+- **Build inputs are exact.** `turbo.json` `build.inputs` names the import closure of the two tsdown configs (`preset.ts`, `package-json.ts`, `umbrella.ts`, the configs, and this package.json) and no glob, so editing a check (`hygiene.ts`) rebuilds nothing. `turbo.test.ts` derives the closure from the configs' imports and requires exactly that: a new file a config starts to import fails it until it is added.
 - **Tiers.** D67's semver packages (`SEMVER_PACKAGES`) have committed API reports and the changeset gate. The other published packages are `@beta` as a whole: their `@public` tags (the whole tree uses them) mark an export as intended, and promise nothing, so they have no report. Retagging them would touch every package.
 - **API Extractor** runs with `newlineKind: 'lf'`, `localBuild: true` into a temp folder (the committed report is compared by hand, so a difference needs a changeset and not only a rewrite), and `ae-forgotten-export` off (a bundled declaration file keeps the types it doesn't export). Reports are per entry point because it takes one; its own TypeScript is 6.0.3.
 - **The changeset gate** compares the report at the merge base of `--base` and HEAD (`git show <merge-base>:<path>`; the base branch's tip would blame another PR's changes on a stacked branch) with the one on disk (or the one `--update-api` writes) and looks for `.changeset/*.md` added since (committed, staged or untracked). A base it can't resolve fails the run.
