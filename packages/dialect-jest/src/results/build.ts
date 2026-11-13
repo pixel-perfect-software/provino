@@ -12,7 +12,11 @@ import type {
   TaskResult,
   TestTask,
 } from '@provino/types'
-import { buildFailureTestResult, createEmptyTestResult } from './helpers.ts'
+import {
+  buildFailureTestResult,
+  createEmptyTestResult,
+  makeCollectedTestResult,
+} from './helpers.ts'
 import type { AggregatedResult, AssertionResult, Status, TestResult } from './types.ts'
 
 /**
@@ -56,6 +60,12 @@ export interface BuildOptions {
   readonly displayName: TestResult['displayName']
   /** `slowTestThreshold`, in seconds (Jest's default 5). */
   readonly slowTestThreshold?: number
+  /**
+   * The run only collected (`--collectTests`): each test is reported as
+   * `collectTestsWithoutRunning` (jestAdapterInit.ts L174-L252) does, with no duration, location,
+   * start or invocation, and `makeCollectedTestResult` builds the file's result.
+   */
+  readonly collectOnly?: boolean
 }
 
 /**
@@ -93,7 +103,6 @@ function flatten(error: SerializedError, seen: Set<SerializedError>): string {
 function statusOf(state: TaskResult['state']): Status {
   switch (state) {
     case 'skip':
-    case 'queued':
       return 'pending'
     case 'todo':
       return 'todo'
@@ -101,6 +110,8 @@ function statusOf(state: TaskResult['state']): Status {
     case 'running':
       return 'failed'
     case 'pass':
+    case 'queued':
+      // `queued` is what a collect-only pass says of a test a run would start.
       return 'passed'
     default:
       return state satisfies never
@@ -119,6 +130,24 @@ export function toAssertionResult(record: TestRecord, options: BuildOptions): As
   const { location } = task
   const title = task.fullName.at(-1) ?? task.name
   const ran = status === 'passed' || status === 'failed'
+  if (options.collectOnly === true) {
+    return {
+      ancestorTitles: task.fullName.slice(0, -1),
+      duration: null,
+      failing: task.expectFail,
+      failureDetails: [],
+      failureMessages: [],
+      fullName: task.fullName.join(' '),
+      invocations: 0,
+      location: null,
+      numPassingAsserts: 0,
+      retryReasons: [],
+      startAt: null,
+      status,
+      title,
+      ...(result?.state === 'queued' ? { wouldRun: true as const } : {}),
+    }
+  }
   return {
     ancestorTitles: task.fullName.slice(0, -1),
     duration: ran && result !== undefined ? Math.round(result.durationMs) : null,
@@ -185,6 +214,44 @@ function execErrorOf(errors: readonly SerializedError[]): TestResult['testExecEr
 export const NO_TESTS_MESSAGE = 'Your test suite must contain at least one test.'
 
 /**
+ * The stack of `new Error(NO_TESTS_MESSAGE)` as Jest has it (TestScheduler.ts L144-L150): one
+ * frame, in Jest's own package under `node_modules`, so no code frame is printed for it. A real
+ * stack would point into this package, which prints one wherever it is not installed.
+ */
+function noTestsStack(): string {
+  return `Error: ${NO_TESTS_MESSAGE}\n    at TestScheduler.onResult (node_modules/@jest/core/build/index.js:1:1)`
+}
+
+function noTestsResult(testFilePath: string): TestResult {
+  return buildFailureTestResult(testFilePath, {
+    message: NO_TESTS_MESSAGE,
+    stack: noTestsStack(),
+  })
+}
+
+/**
+ * What `runTest.ts` L313-L337 sets on every file's result, a collected one too: `perfStats`,
+ * `skipped` and `displayName`.
+ */
+function withPerfStats(result: TestResult, file: FileEvents, options: BuildOptions): TestResult {
+  const runtime = file.endedAt - file.startedAt
+  const testCount =
+    result.numPassingTests + result.numFailingTests + result.numPendingTests + result.numTodoTests
+  return {
+    ...result,
+    displayName: options.displayName,
+    perfStats: {
+      ...result.perfStats,
+      end: file.endedAt,
+      runtime,
+      slow: runtime / 1000 > (options.slowTestThreshold ?? 5),
+      start: file.startedAt,
+    },
+    skipped: testCount === result.numPendingTests,
+  }
+}
+
+/**
  * One file's `TestResult`, with `failureMessage` left `null` (the text comes from
  * `jest-message-util`, asynchronously: `collect.ts` fills it).
  *
@@ -215,13 +282,31 @@ export function toTestResult(file: FileEvents, options: BuildOptions): TestResul
   const numPendingTests = count('pending')
   const numTodoTests = count('todo')
   const fileErrors = [...file.result.errors, ...file.unhandled]
+  // Core finalizes a file whose import threw too, with only the file node: a tree with anything
+  // else below it is a file that collected.
+  const collected = file.tree?.some((node) => node.type !== 'file') === true
+  if (options.collectOnly === true && collected) {
+    // `collectTestsWithoutRunning` never reads `state.unhandledErrors`, so an error circus files
+    // there (a hooks-only describe, say) is not the file's; a file that collected nothing is
+    // `TestScheduler.onResult`'s (L144-L150) "must contain at least one test".
+    if (assertionResults.length === 0) return noTestsResult(file.testFilePath)
+    return withPerfStats(
+      makeCollectedTestResult(assertionResults, {
+        displayName: options.displayName,
+        testFilePath: file.testFilePath,
+      }),
+      file,
+      options,
+    )
+  }
   const ran = tests.some((record) => record.result !== undefined)
   let testExecError: TestResult['testExecError']
   if (!ran) {
     testExecError =
       execErrorOf(fileErrors) ??
-      (file.result.state === 'fail' && assertionResults.length === 0
-        ? { message: NO_TESTS_MESSAGE, stack: new Error(NO_TESTS_MESSAGE).stack ?? null }
+      ((file.result.state === 'fail' || options.collectOnly === true) &&
+      assertionResults.length === 0
+        ? { message: NO_TESTS_MESSAGE, stack: noTestsStack() }
         : undefined)
   } else if (fileErrors.length > 0) {
     testExecError = {

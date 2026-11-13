@@ -1,0 +1,12 @@
+{
+  "description": "--collectTests over a file with a describe that holds only a hook (circus files an error under unhandledErrors on a run): collection never reads it, so the tree is printed, the file passes and the run succeeds.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--collectTests", "--useStderr"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

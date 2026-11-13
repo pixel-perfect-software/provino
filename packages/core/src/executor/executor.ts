@@ -295,6 +295,34 @@ export class Executor {
     })
   }
 
+  /**
+   * A collect-only pass (`--collectTests`): no hook, body or timer runs. Each test in declaration
+   * order starts and ends once with the mode `finalize` gave it: `skip` (skipped, unfocused or
+   * deselected by name), `todo`, or `queued` for a test that would run. A task that is blocked
+   * is reported by what it would do, not by its block.
+   */
+  collectFile(file: FileState): Outcome {
+    this.#filePath = file.path
+    const visit = (suite: SuiteNode): void => {
+      for (const child of suite.children) {
+        if (child.type !== 'test') {
+          visit(child)
+          continue
+        }
+        const t = this.#now()
+        this.#lastTestId = child.id
+        this.#emit({ type: 'test-start', id: child.id, t })
+        const state: TaskState =
+          child.mode === 'run' || child.mode === 'only' ? 'queued' : child.mode
+        const extra: ResultExtra | undefined =
+          state === 'skip' ? { skipReason: child.skipReason ?? 'unknown' } : undefined
+        this.#endTask('test-end', child.id, state, t, [], extra)
+      }
+    }
+    visit(file.root)
+    return 'pass'
+  }
+
   /** The attempt a frame belongs to while it runs, or `undefined` once it is over. */
   attemptFor(frame: Frame): AttemptState | undefined {
     if (frame.test === null) return undefined

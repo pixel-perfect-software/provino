@@ -118,8 +118,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Discover and report all test cases without executing them. Prints a tree of test suites and test names.',
-    support: 'refuse',
-    owner: 'T11.8',
+    support: 'config',
   },
   color: {
     type: 'boolean',

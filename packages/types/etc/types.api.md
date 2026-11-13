@@ -940,6 +940,7 @@ export interface FileInfo {
 
 // @public
 export interface FileJob {
+    readonly collectOnly?: true;
     // (undocumented)
     readonly file: string;
     // (undocumented)
