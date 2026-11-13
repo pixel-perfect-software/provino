@@ -32,7 +32,15 @@ expectTypeOf<'default'>().toExtend<ReporterChoice>()
 expectTypeOf<'normalized-json'>().toExtend<ReporterChoice>()
 expectTypeOf<readonly ['normalized-json', NormalizedJsonChoiceOptions]>().toExtend<ReporterChoice>()
 expectTypeOf<Reporter>().toExtend<ReporterChoice>()
-for (const name of ['verbose', 'dot', 'agent', 'github-actions', 'json', 'junit'] as const) {
+for (const name of [
+  'verbose',
+  'dot',
+  'agent',
+  'github-actions',
+  'summary',
+  'json',
+  'junit',
+] as const) {
   expectTypeOf(name).toExtend<ReporterChoice>()
 }
 expectTypeOf<readonly ['json', NormalizedJsonChoiceOptions]>().toExtend<ReporterChoice>()

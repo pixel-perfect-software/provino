@@ -99,11 +99,23 @@ function header(error: SerializedError): string {
 }
 
 /**
+ * The directory that holds Provino's own packages when this code runs from a workspace checkout
+ * (`<repo>/packages/`); `undefined` from an install, where Provino sits under `node_modules` and
+ * its frames are hidden as a dependency's are (D104: both runners hide their own internals).
+ */
+const PROVINO_PACKAGES: string | undefined =
+  /^file:\/\/(.*\/packages\/)reporters\/(?:src|dist)\//.exec(import.meta.url)?.[1]
+
+/**
  * Whether a frame is Node's or a dependency's, as Jest's `removeInternalStackEntries` has it:
  * `node:` internals and anything under `node_modules` say nothing about the user's code.
  */
 function isLibraryFrame(frame: string): boolean {
-  return frame.includes('node:') || frame.includes('node_modules')
+  return (
+    frame.includes('node:') ||
+    frame.includes('node_modules') ||
+    (PROVINO_PACKAGES !== undefined && frame.includes(PROVINO_PACKAGES))
+  )
 }
 
 /** The stack's frame lines (`at …`), without the header V8 puts before them or a library's frames. */
@@ -201,10 +213,13 @@ export function obsoleteBlock(snapshots: SnapshotRunSummary | undefined): string
 export function snapshotLine(
   snapshots: SnapshotRunSummary | undefined,
   style: Style,
+  always = false,
 ): string | undefined {
-  if (snapshots === undefined) return undefined
+  if (snapshots === undefined) {
+    return always ? `${style.bold('Snapshots:')}   0 total` : undefined
+  }
   const { counters } = snapshots
-  if (counters.total === 0 && counters.unchecked === 0 && counters.filesRemoved === 0) {
+  if (!always && counters.total === 0 && counters.unchecked === 0 && counters.filesRemoved === 0) {
     return undefined
   }
   const gone = snapshots.update === 'all' ? 'removed' : 'obsolete'

@@ -2019,6 +2019,7 @@ export interface OrchestratorPolicy {
     readonly bail: {
         readonly checkAfter: "file" | "test";
     };
+    readonly consoleOrigin: "stack" | "none";
     readonly coverageProvider: "v8" | "istanbul";
     readonly coverageReporters: readonly string[];
     readonly envDefault: string;
@@ -3084,6 +3085,23 @@ export interface TestTask extends TaskBase {
     readonly timeoutMs: number;
     // (undocumented)
     readonly type: "test";
+}
+
+// @public
+export interface TextStyle {
+    badge(word: string, colour: "green" | "red" | "yellow"): string;
+    // (undocumented)
+    bold(text: string): string;
+    // (undocumented)
+    dim(text: string): string;
+    // (undocumented)
+    green(text: string): string;
+    // (undocumented)
+    magenta(text: string): string;
+    // (undocumented)
+    red(text: string): string;
+    // (undocumented)
+    yellow(text: string): string;
 }
 
 // @public

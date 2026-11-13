@@ -1,0 +1,36 @@
+Summary of all failing tests
+FAIL ./fails.test.ts
+  ● group › fails
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+      at Object.<anonymous> (/project/fails.test.ts:3:15)
+
+FAIL ./snapshot.test.ts
+  ● matches a stored snapshot
+
+    expect(received).toMatchSnapshot()
+
+    Snapshot name: `matches a stored snapshot 1`
+
+    - Snapshot  - 1
+    + Received  + 1
+
+      {
+    -   "value": "old",
+    +   "value": "new",
+      }
+      at Object.<anonymous> (/project/snapshot.test.ts:2:28)
+
+FAIL ./broken.test.ts
+  ● Test suite failed to run
+
+    ImportError: Cannot find module './missing.ts'
+
+
+Test Suites: 3 failed, 1 skipped, 4 passed, 7 of 8 total
+Tests:       2 failed, 3 skipped, 2 todo, 6 passed, 13 total
+Snapshots:   1 failed, 1 total
+Time:        1.234 s

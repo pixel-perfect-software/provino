@@ -280,6 +280,7 @@ export type {
   TaskState,
   TestTask,
 } from './runtime/tree.ts'
+export type { TextStyle } from './text-style.ts'
 export type {
   DefineHoistPolicy,
   ImportRecord,

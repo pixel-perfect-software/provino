@@ -1,0 +1,4 @@
+Test Suites: 3 failed, 1 skipped, 4 passed, 7 of 8 total
+Tests:       2 failed, 3 skipped, 2 todo, 6 passed, 13 total
+Snapshots:   1 failed, 1 total
+Time:        1.234 s
