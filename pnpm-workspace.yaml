@@ -108,6 +108,12 @@ catalog:
   jest-environment-jsdom-29: npm:jest-environment-jsdom@29.7.0
   jest-environment-node: 30.5.2
   jest-fixed-jsdom: 0.0.11
+  # B23a, T11.9: the third-party reporters `cli/reporters-twenty` and `provino`'s
+  # `reporters-third-party.test.ts` run beside Jest, named in a Jest config as strings.
+  jest-html-reporters: 3.1.7
+  jest-junit: 17.0.0
+  jest-silent-reporter: 0.6.0
+  jest-sonar-reporter: 2.0.0
   jest-serializer-vue: 3.1.0
   jest-util: 30.5.1
   # jsdom (Track 8's version): the propagation test's DOM rows, later the jsdom environment.

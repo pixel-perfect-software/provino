@@ -542,7 +542,13 @@ async function runUnderRunner(
                 }),
             ),
           ),
-          (text) => normalizer.text(text),
+          spec.raw === true
+            ? (text) =>
+                [paths.realWorkDir, paths.workDir].reduce(
+                  (out, root) => out.replaceAll(root, '<root>'),
+                  text,
+                )
+            : (text) => normalizer.text(text),
           path.join(fixture.dir, 'fixture.json'),
           [paths.realWorkDir, paths.workDir],
         )

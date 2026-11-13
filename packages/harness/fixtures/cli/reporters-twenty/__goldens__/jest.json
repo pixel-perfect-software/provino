@@ -1,0 +1,870 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/reporters-twenty",
+  "files": [
+    {
+      "file": "all-skipped.test.ts",
+      "status": "skipped",
+      "tests": [
+        {
+          "id": {
+            "file": "all-skipped.test.ts",
+            "path": [
+              "skipped",
+              "one"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "all-skipped.test.ts",
+            "path": [
+              "skipped",
+              "two"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 6
+          }
+        }
+      ]
+    },
+    {
+      "file": "async.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "async.test.ts",
+            "path": [
+              "async",
+              "awaits a promise"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "async.test.ts",
+            "path": [
+              "async",
+              "rejects"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 9,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "before-all-fail.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "before-all-fail.test.ts",
+            "path": [
+              "hooks",
+              "never gets a good setup"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: setup broke",
+              "userFrame": "<root>/before-all-fail.test.ts:3:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "console.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "console.test.ts",
+            "path": [
+              "console",
+              "logs and warns"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "each.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "each",
+              "adds 1 and 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 6,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "each",
+              "adds 2 and 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 6,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "each",
+              "adds 3 and 3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 7\nReceived: 6",
+              "matcher": "toBe",
+              "userFrame": "<root>/each.test.ts:7:19"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "each",
+              "template 1 + 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 14,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "each.test.ts",
+            "path": [
+              "each",
+              "template 2 + 3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 14,
+            "column": 4
+          }
+        }
+      ]
+    },
+    {
+      "file": "fail-tobe.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "fail-tobe.test.ts",
+            "path": [
+              "toBe",
+              "fails with numbers"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 2\nReceived: 1",
+              "matcher": "toBe",
+              "userFrame": "<root>/fail-tobe.test.ts:4:22"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fail-tobe.test.ts",
+            "path": [
+              "toBe",
+              "passes beside it"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "fail-toequal.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "fail-toequal.test.ts",
+            "path": [
+              "toEqual",
+              "fails with a diff"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toEqual(expected) // deep equality\n\n- Expected  - 2\n+ Received  + 2\n\n  Object {\n    \"list\": Array [\n      1,\n      2,\n-     4,\n+     3,\n    ],\n-   \"name\": \"b\",\n+   \"name\": \"a\",\n    \"nested\": Object {\n      \"x\": 1,\n    },\n  }",
+              "matcher": "toEqual",
+              "userFrame": "<root>/fail-toequal.test.ts:3:62"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "fail-tothrow.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "fail-tothrow.test.ts",
+            "path": [
+              "toThrow",
+              "fails when nothing throws"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toThrow(expected)\n\nExpected substring: \"x\"\n\nReceived function did not throw",
+              "userFrame": "<root>/fail-tothrow.test.ts:3:21"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fail-tothrow.test.ts",
+            "path": [
+              "toThrow",
+              "fails with another message"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toThrow(expected)\n\nExpected substring: \"expected\"\nReceived message:   \"actual\"",
+              "userFrame": "<root>/fail-tothrow.test.ts:9:8"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "failing-marker.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "failing-marker.test.ts",
+            "path": [
+              "failing",
+              "is expected to fail and does"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 6
+          },
+          "expectedToFail": true
+        },
+        {
+          "id": {
+            "file": "failing-marker.test.ts",
+            "path": [
+              "failing",
+              "is expected to fail and passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.",
+              "userFrame": "<root>/failing-marker.test.ts:6:6"
+            }
+          ],
+          "passingAssertions": 1,
+          "location": {
+            "line": 6,
+            "column": 6
+          },
+          "expectedToFail": true
+        }
+      ]
+    },
+    {
+      "file": "hooks.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "hooks.test.ts",
+            "path": [
+              "hooks",
+              "first"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 17,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "hooks.test.ts",
+            "path": [
+              "hooks",
+              "second"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 21,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "import-failure.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    Cannot find module './does-not-exist' from 'import-failure.test.ts'",
+        "userFrame": "<root>/import-failure.test.ts:1:17"
+      },
+      "tests": []
+    },
+    {
+      "file": "matchers.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "matchers.test.ts",
+            "path": [
+              "matchers",
+              "matches text and arrays"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 4,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "mock.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "mock.test.ts",
+            "path": [
+              "mocks",
+              "records calls"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "mock.test.ts",
+            "path": [
+              "mocks",
+              "fails a call count"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\nExpected number of calls: 2\nReceived number of calls: 1",
+              "userFrame": "<root>/mock.test.ts:13:16"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "nested.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "nested.test.ts",
+            "path": [
+              "outer",
+              "middle",
+              "inner",
+              "is deep"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 4,
+            "column": 7
+          }
+        },
+        {
+          "id": {
+            "file": "nested.test.ts",
+            "path": [
+              "outer",
+              "middle",
+              "is shallow"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 9,
+            "column": 5
+          }
+        }
+      ]
+    },
+    {
+      "file": "pass-basic.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "pass-basic.test.ts",
+            "path": [
+              "basics",
+              "adds"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "pass-basic.test.ts",
+            "path": [
+              "basics",
+              "compares objects"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "retry.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "retry.test.ts",
+            "path": [
+              "retry",
+              "passes on its second attempt"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "retries": 1,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "retry.test.ts",
+            "path": [
+              "retry",
+              "fails every attempt"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: always",
+              "userFrame": "<root>/retry.test.ts:12:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "retries": 2,
+          "location": {
+            "line": 11,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "skip-todo.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "skip-todo.test.ts",
+            "path": [
+              "pending kinds",
+              "runs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "skip-todo.test.ts",
+            "path": [
+              "pending kinds",
+              "is skipped"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "skip-todo.test.ts",
+            "path": [
+              "pending kinds",
+              "is a todo"
+            ],
+            "dupIndex": 0
+          },
+          "status": "todo",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "skip-todo.test.ts",
+            "path": [
+              "pending kinds",
+              "is also skipped"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 12,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "snapshot-match.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "snapshot-match.test.ts",
+            "path": [
+              "snapshots",
+              "matches a stored snapshot"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "thrown.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "thrown.test.ts",
+            "path": [
+              "thrown",
+              "throws an error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: boom",
+              "userFrame": "<root>/thrown.test.ts:3:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "thrown.test.ts",
+            "path": [
+              "thrown",
+              "throws a string"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: thrown: \"just a string\"\n\n[cause]: Error: thrown: \"just a string\"",
+              "userFrame": "<root>/thrown.test.ts:6:3"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "timers.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "timers.test.ts",
+            "path": [
+              "timers",
+              "advances fake time"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 1,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 1,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/snapshot-match.test.ts.snap",
+        "sha256": "676d889defe4e6c9a587c83e82f2a8e1dd7882e66cb309abcee805318c1f8588"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stdout": "📦 report is created on: <root>/reports/html/report.html\n",
+    "stderr": "onRunStart: numTotalTestSuites: 20\r\nPASS ./hooks.test.ts\nFAIL ./each.test.ts\n  ● each › adds 3 and 3\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 7\n    Received: 6\n\n       5 |     [3, 3, 7],\n       6 |   ])('adds %i and %i', (a: number, b: number, sum: number) => {\n    >  7 |     expect(a + b).toBe(sum)\n         |                   ^\n       8 |   })\n       9 |\n      10 |   it.each`\n\n      at toBe (each.test.ts:7:19)\n\n\n::error file=<root>/each.test.ts,line=7,title=each › adds 3 and 3::expect(received).toBe(expected) // Object.is equality%0A%0AExpected: 7%0AReceived: 6%0A    at toBe (each.test.ts:7:19)\n\n  ● each › adds 3 and 3\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 7\n    Received: 6\n\n       5 |     [3, 3, 7],\n       6 |   ])('adds %i and %i', (a: number, b: number, sum: number) => {\n    >  7 |     expect(a + b).toBe(sum)\n         |                   ^\n       8 |   })\n       9 |\n      10 |   it.each`\n\n      at toBe (each.test.ts:7:19)\n\nonTestFileResult: encountered errors\r\nPASS ./async.test.ts\nFAIL ./mock.test.ts\n  ● mocks › fails a call count\n\n    expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\n    Expected number of calls: 2\n    Received number of calls: 1\n\n      11 |     const fn = jest.fn()\n      12 |     fn()\n    > 13 |     expect(fn).toHaveBeenCalledTimes(2)\n         |                ^\n      14 |   })\n      15 | })\n      16 |\n\n      at Object.toHaveBeenCalledTimes (mock.test.ts:13:16)\n\n\n::error file=<root>/mock.test.ts,line=13,title=mocks › fails a call count::expect(jest.fn()).toHaveBeenCalledTimes(expected)%0A%0AExpected number of calls: 2%0AReceived number of calls: 1%0A    at Object.toHaveBeenCalledTimes (mock.test.ts:13:16)\n\n  ● mocks › fails a call count\n\n    expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\n    Expected number of calls: 2\n    Received number of calls: 1\n\n      11 |     const fn = jest.fn()\n      12 |     fn()\n    > 13 |     expect(fn).toHaveBeenCalledTimes(2)\n         |                ^\n      14 |   })\n      15 | })\n      16 |\n\n      at Object.toHaveBeenCalledTimes (mock.test.ts:13:16)\n\nonTestFileResult: encountered errors\r\nPASS ./timers.test.ts\nPASS ./nested.test.ts\nPASS ./matchers.test.ts\nFAIL ./fail-tothrow.test.ts\n  ● toThrow › fails when nothing throws\n\n    expect(received).toThrow(expected)\n\n    Expected substring: \"x\"\n\n    Received function did not throw\n\n      1 | describe('toThrow', () => {\n      2 |   it('fails when nothing throws', () => {\n    > 3 |     expect(() => 1).toThrow('x')\n        |                     ^\n      4 |   })\n      5 |\n      6 |   it('fails with another message', () => {\n\n      at Object.toThrow (fail-tothrow.test.ts:3:21)\n\n  ● toThrow › fails with another message\n\n    expect(received).toThrow(expected)\n\n    Expected substring: \"expected\"\n    Received message:   \"actual\"\n\n           6 |   it('fails with another message', () => {\n           7 |     expect(() => {\n        >  8 |       throw new Error('actual')\n             |             ^\n           9 |     }).toThrow('expected')\n          10 |   })\n          11 | })\n\n      at fail-tothrow.test.ts:8:13\n      at Object.toThrow (fail-tothrow.test.ts:9:8)\n      at Object.toThrow (fail-tothrow.test.ts:9:8)\n\n\n::error file=<root>/fail-tothrow.test.ts,line=3,title=toThrow › fails when nothing throws::expect(received).toThrow(expected)%0A%0AExpected substring: \"x\"%0A%0AReceived function did not throw%0A    at Object.toThrow (fail-tothrow.test.ts:3:21)\n\n::error file=fail-tothrow.test.ts,line=8,title=toThrow › fails with another message::expect(received).toThrow(expected)%0A%0AExpected substring: \"expected\"%0AReceived message:   \"actual\"%0A%0A       6 |   it('fails with another message', () => {%0A       7 |     expect(() => {%0A    >  8 |       throw new Error('actual')%0A         |             ^%0A       9 |     }).toThrow('expected')%0A      10 |   })%0A      11 | })%0A      at fail-tothrow.test.ts:8:13%0A      at Object.toThrow (fail-tothrow.test.ts:9:8)%0A    at Object.toThrow (fail-tothrow.test.ts:9:8)\n\n  ● toThrow › fails when nothing throws\n\n    expect(received).toThrow(expected)\n\n    Expected substring: \"x\"\n\n    Received function did not throw\n\n      1 | describe('toThrow', () => {\n      2 |   it('fails when nothing throws', () => {\n    > 3 |     expect(() => 1).toThrow('x')\n        |                     ^\n      4 |   })\n      5 |\n      6 |   it('fails with another message', () => {\n\n      at Object.toThrow (fail-tothrow.test.ts:3:21)\n\n  ● toThrow › fails with another message\n\n    expect(received).toThrow(expected)\n\n    Expected substring: \"expected\"\n    Received message:   \"actual\"\n\n           6 |   it('fails with another message', () => {\n           7 |     expect(() => {\n        >  8 |       throw new Error('actual')\n             |             ^\n           9 |     }).toThrow('expected')\n          10 |   })\n          11 | })\n\n      at fail-tothrow.test.ts:8:13\n      at Object.toThrow (fail-tothrow.test.ts:9:8)\n      at Object.toThrow (fail-tothrow.test.ts:9:8)\n\nonTestFileResult: encountered errors\r\nFAIL ./retry.test.ts\n  ● retry › fails every attempt\n\n    always\n\n      10 |\n      11 |   it('fails every attempt', () => {\n    > 12 |     throw new Error('always')\n         |           ^\n      13 |   })\n      14 | })\n      15 |\n\n      at Object.<anonymous> (retry.test.ts:12:11)\n\n\n::error file=<root>/retry.test.ts,line=12,title=retry › fails every attempt::always%0A    at Object.<anonymous> (retry.test.ts:12:11)\n\n  ● retry › fails every attempt\n\n    always\n\n      10 |\n      11 |   it('fails every attempt', () => {\n    > 12 |     throw new Error('always')\n         |           ^\n      13 |   })\n      14 | })\n      15 |\n\n      at Object.<anonymous> (retry.test.ts:12:11)\n\nonTestFileResult: encountered errors\r\nFAIL ./fail-toequal.test.ts\n  ● toEqual › fails with a diff\n\n    expect(received).toEqual(expected) // deep equality\n\n    - Expected  - 2\n    + Received  + 2\n\n      Object {\n        \"list\": Array [\n          1,\n          2,\n    -     4,\n    +     3,\n        ],\n    -   \"name\": \"b\",\n    +   \"name\": \"a\",\n        \"nested\": Object {\n          \"x\": 1,\n        },\n      }\n\n      1 | describe('toEqual', () => {\n      2 |   it('fails with a diff', () => {\n    > 3 |     expect({ name: 'a', list: [1, 2, 3], nested: { x: 1 } }).toEqual({\n        |                                                              ^\n      4 |       name: 'b',\n      5 |       list: [1, 2, 4],\n      6 |       nested: { x: 1 },\n\n      at Object.toEqual (fail-toequal.test.ts:3:62)\n\n\n::error file=<root>/fail-toequal.test.ts,line=3,title=toEqual › fails with a diff::expect(received).toEqual(expected) // deep equality%0A%0A- Expected  - 2%0A+ Received  + 2%0A%0A  Object {%0A    \"list\": Array [%0A      1,%0A      2,%0A-     4,%0A+     3,%0A    ],%0A-   \"name\": \"b\",%0A+   \"name\": \"a\",%0A    \"nested\": Object {%0A      \"x\": 1,%0A    },%0A  }%0A    at Object.toEqual (fail-toequal.test.ts:3:62)\n\n  ● toEqual › fails with a diff\n\n    expect(received).toEqual(expected) // deep equality\n\n    - Expected  - 2\n    + Received  + 2\n\n      Object {\n        \"list\": Array [\n          1,\n          2,\n    -     4,\n    +     3,\n        ],\n    -   \"name\": \"b\",\n    +   \"name\": \"a\",\n        \"nested\": Object {\n          \"x\": 1,\n        },\n      }\n\n      1 | describe('toEqual', () => {\n      2 |   it('fails with a diff', () => {\n    > 3 |     expect({ name: 'a', list: [1, 2, 3], nested: { x: 1 } }).toEqual({\n        |                                                              ^\n      4 |       name: 'b',\n      5 |       list: [1, 2, 4],\n      6 |       nested: { x: 1 },\n\n      at Object.toEqual (fail-toequal.test.ts:3:62)\n\nonTestFileResult: encountered errors\r\nPASS ./skip-todo.test.ts\nFAIL ./fail-tobe.test.ts\n  ● toBe › fails with numbers\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 2\n    Received: 1\n\n      2 |   it('fails with numbers', () => {\n      3 |     const received: number = 1\n    > 4 |     expect(received).toBe(2)\n        |                      ^\n      5 |   })\n      6 |\n      7 |   it('passes beside it', () => {\n\n      at Object.toBe (fail-tobe.test.ts:4:22)\n\n\n::error file=<root>/fail-tobe.test.ts,line=4,title=toBe › fails with numbers::expect(received).toBe(expected) // Object.is equality%0A%0AExpected: 2%0AReceived: 1%0A    at Object.toBe (fail-tobe.test.ts:4:22)\n\n  ● toBe › fails with numbers\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 2\n    Received: 1\n\n      2 |   it('fails with numbers', () => {\n      3 |     const received: number = 1\n    > 4 |     expect(received).toBe(2)\n        |                      ^\n      5 |   })\n      6 |\n      7 |   it('passes beside it', () => {\n\n      at Object.toBe (fail-tobe.test.ts:4:22)\n\nonTestFileResult: encountered errors\r\nFAIL ./failing-marker.test.ts\n  ● failing › is expected to fail and passes\n\n    Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.\n\n      4 |   })\n      5 |\n    > 6 |   it.failing('is expected to fail and passes', () => {\n        |      ^\n      7 |     expect(1).toBe(1)\n      8 |   })\n      9 | })\n\n      at failing (failing-marker.test.ts:6:6)\n      at Object.describe (failing-marker.test.ts:1:1)\n\n\n::error file=<root>/failing-marker.test.ts,line=6,title=failing › is expected to fail and passes::Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.%0A    at failing (failing-marker.test.ts:6:6)%0A    at Object.describe (failing-marker.test.ts:1:1)\n\n  ● failing › is expected to fail and passes\n\n    Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.\n\n      4 |   })\n      5 |\n    > 6 |   it.failing('is expected to fail and passes', () => {\n        |      ^\n      7 |     expect(1).toBe(1)\n      8 |   })\n      9 | })\n\n      at failing (failing-marker.test.ts:6:6)\n      at Object.describe (failing-marker.test.ts:1:1)\n\nonTestFileResult: encountered errors\r\nPASS ./console.test.ts\n  ● Console\n\n    console.log\n      a log line\n\n      at Object.log (console.test.ts:3:13)\n\n    console.warn\n      a warning\n\n      2 |   it('logs and warns', () => {\n      3 |     console.log('a log line')\n    > 4 |     console.warn('a warning')\n        |             ^\n      5 |     console.error('an error line')\n      6 |     expect(1).toBe(1)\n      7 |   })\n\n      at Object.warn (console.test.ts:4:13)\n\n    console.error\n      an error line\n\n      3 |     console.log('a log line')\n      4 |     console.warn('a warning')\n    > 5 |     console.error('an error line')\n        |             ^\n      6 |     expect(1).toBe(1)\n      7 |   })\n      8 | })\n\n      at Object.error (console.test.ts:5:13)\n\nPASS ./pass-basic.test.ts\nFAIL ./thrown.test.ts\n  ● thrown › throws an error\n\n    boom\n\n      1 | describe('thrown', () => {\n      2 |   it('throws an error', () => {\n    > 3 |     throw new Error('boom')\n        |           ^\n      4 |   })\n      5 |\n      6 |   it('throws a string', () => {\n\n      at Object.<anonymous> (thrown.test.ts:3:11)\n\n  ● thrown › throws a string\n\n    thrown: \"just a string\"\n\n      at _getError (../../../../node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1985:12)\n          at Array.map (<anonymous>)\n\n    Cause:\n        thrown: \"just a string\"\n\n          4 |   })\n          5 |\n        > 6 |   it('throws a string', () => {\n            |   ^\n          7 |     throw 'just a string'\n          8 |   })\n          9 | })\n\n          at it (thrown.test.ts:6:3)\n          at Object.describe (thrown.test.ts:1:1)\n\n\n::error file=<root>/thrown.test.ts,line=3,title=thrown › throws an error::boom%0A    at Object.<anonymous> (thrown.test.ts:3:11)\n\n::error file=<root>/thrown.test.ts,line=6,title=thrown › throws a string::thrown: \"just a string\"%0A    at _getError (../../../../node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1985:12)%0A    at Array.map (<anonymous>)%0A[cause]: Error: thrown: \"just a string\"%0A    at it (thrown.test.ts:6:3)%0A    at Object.describe (thrown.test.ts:1:1)\n\n  ● thrown › throws an error\n\n    boom\n\n      1 | describe('thrown', () => {\n      2 |   it('throws an error', () => {\n    > 3 |     throw new Error('boom')\n        |           ^\n      4 |   })\n      5 |\n      6 |   it('throws a string', () => {\n\n      at Object.<anonymous> (thrown.test.ts:3:11)\n\n  ● thrown › throws a string\n\n    thrown: \"just a string\"\n\n      at _getError (../../../../node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1985:12)\n          at Array.map (<anonymous>)\n\n    Cause:\n        thrown: \"just a string\"\n\n          4 |   })\n          5 |\n        > 6 |   it('throws a string', () => {\n            |   ^\n          7 |     throw 'just a string'\n          8 |   })\n          9 | })\n\n          at it (thrown.test.ts:6:3)\n          at Object.describe (thrown.test.ts:1:1)\n\nonTestFileResult: encountered errors\r\nFAIL ./before-all-fail.test.ts\n  ● hooks › never gets a good setup\n\n    setup broke\n\n      1 | describe('hooks', () => {\n      2 |   beforeAll(() => {\n    > 3 |     throw new Error('setup broke')\n        |           ^\n      4 |   })\n      5 |\n      6 |   it('never gets a good setup', () => {\n\n      at Object.<anonymous> (before-all-fail.test.ts:3:11)\n\n\n::error file=<root>/before-all-fail.test.ts,line=3,title=hooks › never gets a good setup::setup broke%0A    at Object.<anonymous> (before-all-fail.test.ts:3:11)\n\n  ● hooks › never gets a good setup\n\n    setup broke\n\n      1 | describe('hooks', () => {\n      2 |   beforeAll(() => {\n    > 3 |     throw new Error('setup broke')\n        |           ^\n      4 |   })\n      5 |\n      6 |   it('never gets a good setup', () => {\n\n      at Object.<anonymous> (before-all-fail.test.ts:3:11)\n\nonTestFileResult: encountered errors\r\nFAIL ./import-failure.test.ts\n  ● Test suite failed to run\n\n    Cannot find module './does-not-exist' from 'import-failure.test.ts'\n\n    > 1 | const missing = require('./does-not-exist')\n        |                 ^\n      2 |\n      3 | describe('never reached', () => {\n      4 |   it('does not run', () => {\n\n      at Resolver._throwModNotFoundError (../../../../node_modules/.pnpm/jest-resolve@30.5.1/node_modules/jest-resolve/build/index.js:1031:11)\n      at Object.require (import-failure.test.ts:1:17)\n\n\n  ● Test suite failed to run\n\n    Cannot find module './does-not-exist' from 'import-failure.test.ts'\n\n    > 1 | const missing = require('./does-not-exist')\n        |                 ^\n      2 |\n      3 | describe('never reached', () => {\n      4 |   it('does not run', () => {\n\n      at Resolver._throwModNotFoundError (../../../../node_modules/.pnpm/jest-resolve@30.5.1/node_modules/jest-resolve/build/index.js:1031:11)\n      at Object.require (import-failure.test.ts:1:17)\n\nonTestFileResult: encountered errors\r\nPASS ./snapshot-match.test.ts\nonRunComplete\r\n\nSummary of all failing tests\nFAIL ./each.test.ts\n  ● each › adds 3 and 3\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 7\n    Received: 6\n\n       5 |     [3, 3, 7],\n       6 |   ])('adds %i and %i', (a: number, b: number, sum: number) => {\n    >  7 |     expect(a + b).toBe(sum)\n         |                   ^\n       8 |   })\n       9 |\n      10 |   it.each`\n\n      at toBe (each.test.ts:7:19)\n\nFAIL ./mock.test.ts\n  ● mocks › fails a call count\n\n    expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\n    Expected number of calls: 2\n    Received number of calls: 1\n\n      11 |     const fn = jest.fn()\n      12 |     fn()\n    > 13 |     expect(fn).toHaveBeenCalledTimes(2)\n         |                ^\n      14 |   })\n      15 | })\n      16 |\n\n      at Object.toHaveBeenCalledTimes (mock.test.ts:13:16)\n\nFAIL ./fail-tothrow.test.ts\n  ● toThrow › fails when nothing throws\n\n    expect(received).toThrow(expected)\n\n    Expected substring: \"x\"\n\n    Received function did not throw\n\n      1 | describe('toThrow', () => {\n      2 |   it('fails when nothing throws', () => {\n    > 3 |     expect(() => 1).toThrow('x')\n        |                     ^\n      4 |   })\n      5 |\n      6 |   it('fails with another message', () => {\n\n      at Object.toThrow (fail-tothrow.test.ts:3:21)\n\n  ● toThrow › fails with another message\n\n    expect(received).toThrow(expected)\n\n    Expected substring: \"expected\"\n    Received message:   \"actual\"\n\n           6 |   it('fails with another message', () => {\n           7 |     expect(() => {\n        >  8 |       throw new Error('actual')\n             |             ^\n           9 |     }).toThrow('expected')\n          10 |   })\n          11 | })\n\n      at fail-tothrow.test.ts:8:13\n      at Object.toThrow (fail-tothrow.test.ts:9:8)\n      at Object.toThrow (fail-tothrow.test.ts:9:8)\n\nFAIL ./retry.test.ts\n  ● retry › fails every attempt\n\n    always\n\n      10 |\n      11 |   it('fails every attempt', () => {\n    > 12 |     throw new Error('always')\n         |           ^\n      13 |   })\n      14 | })\n      15 |\n\n      at Object.<anonymous> (retry.test.ts:12:11)\n\nFAIL ./fail-toequal.test.ts\n  ● toEqual › fails with a diff\n\n    expect(received).toEqual(expected) // deep equality\n\n    - Expected  - 2\n    + Received  + 2\n\n      Object {\n        \"list\": Array [\n          1,\n          2,\n    -     4,\n    +     3,\n        ],\n    -   \"name\": \"b\",\n    +   \"name\": \"a\",\n        \"nested\": Object {\n          \"x\": 1,\n        },\n      }\n\n      1 | describe('toEqual', () => {\n      2 |   it('fails with a diff', () => {\n    > 3 |     expect({ name: 'a', list: [1, 2, 3], nested: { x: 1 } }).toEqual({\n        |                                                              ^\n      4 |       name: 'b',\n      5 |       list: [1, 2, 4],\n      6 |       nested: { x: 1 },\n\n      at Object.toEqual (fail-toequal.test.ts:3:62)\n\nFAIL ./fail-tobe.test.ts\n  ● toBe › fails with numbers\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 2\n    Received: 1\n\n      2 |   it('fails with numbers', () => {\n      3 |     const received: number = 1\n    > 4 |     expect(received).toBe(2)\n        |                      ^\n      5 |   })\n      6 |\n      7 |   it('passes beside it', () => {\n\n      at Object.toBe (fail-tobe.test.ts:4:22)\n\nFAIL ./failing-marker.test.ts\n  ● failing › is expected to fail and passes\n\n    Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.\n\n      4 |   })\n      5 |\n    > 6 |   it.failing('is expected to fail and passes', () => {\n        |      ^\n      7 |     expect(1).toBe(1)\n      8 |   })\n      9 | })\n\n      at failing (failing-marker.test.ts:6:6)\n      at Object.describe (failing-marker.test.ts:1:1)\n\nFAIL ./thrown.test.ts\n  ● thrown › throws an error\n\n    boom\n\n      1 | describe('thrown', () => {\n      2 |   it('throws an error', () => {\n    > 3 |     throw new Error('boom')\n        |           ^\n      4 |   })\n      5 |\n      6 |   it('throws a string', () => {\n\n      at Object.<anonymous> (thrown.test.ts:3:11)\n\n  ● thrown › throws a string\n\n    thrown: \"just a string\"\n\n      at _getError (../../../../node_modules/.pnpm/jest-circus@30.5.2_supports-color@8.1.1/node_modules/jest-circus/build/jestAdapterInit.js:1985:12)\n          at Array.map (<anonymous>)\n\n    Cause:\n        thrown: \"just a string\"\n\n          4 |   })\n          5 |\n        > 6 |   it('throws a string', () => {\n            |   ^\n          7 |     throw 'just a string'\n          8 |   })\n          9 | })\n\n          at it (thrown.test.ts:6:3)\n          at Object.describe (thrown.test.ts:1:1)\n\nFAIL ./before-all-fail.test.ts\n  ● hooks › never gets a good setup\n\n    setup broke\n\n      1 | describe('hooks', () => {\n      2 |   beforeAll(() => {\n    > 3 |     throw new Error('setup broke')\n        |           ^\n      4 |   })\n      5 |\n      6 |   it('never gets a good setup', () => {\n\n      at Object.<anonymous> (before-all-fail.test.ts:3:11)\n\nFAIL ./import-failure.test.ts\n  ● Test suite failed to run\n\n    Cannot find module './does-not-exist' from 'import-failure.test.ts'\n\n    > 1 | const missing = require('./does-not-exist')\n        |                 ^\n      2 |\n      3 | describe('never reached', () => {\n      4 |   it('does not run', () => {\n\n      at Resolver._throwModNotFoundError (../../../../node_modules/.pnpm/jest-resolve@30.5.1/node_modules/jest-resolve/build/index.js:1031:11)\n      at Object.require (import-failure.test.ts:1:17)\n\n\nTest Suites: 10 failed, 1 skipped, 9 passed, 19 of 20 total\nTests:       11 failed, 4 skipped, 1 todo, 21 passed, 37 total\nSnapshots:   1 passed, 1 total\n<masked>\nRan all test suites.\nTest results written to: .harness-out/jest.json\n",
+    "files": {
+      "reports/junit.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<testsuites name=\"jest tests\" tests=\"36\" failures=\"11\" errors=\"0\" <masked>>\n  <testsuite name=\"hooks\" errors=\"0\" failures=\"0\" skipped=\"0\" <masked> <masked> tests=\"2\">\n    <testcase classname=\"hooks first\" name=\"hooks first\" <masked>>\n    </testcase>\n    <testcase classname=\"hooks second\" name=\"hooks second\" <masked>>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"each\" errors=\"0\" failures=\"1\" skipped=\"0\" <masked> <masked> tests=\"5\">\n    <testcase classname=\"each adds 1 and 1\" name=\"each adds 1 and 1\" <masked>>\n    </testcase>\n    <testcase classname=\"each adds 2 and 2\" name=\"each adds 2 and 2\" <masked>>\n    </testcase>\n    <testcase classname=\"each adds 3 and 3\" name=\"each adds 3 and 3\" <masked>>\n      <failure>expect(received).toBe(expected) // Object.is equality\n\nExpected: 7\nReceived: 6</failure>\n    </testcase>\n    <testcase classname=\"each template 1 + 2\" name=\"each template 1 + 2\" <masked>>\n    </testcase>\n    <testcase classname=\"each template 2 + 3\" name=\"each template 2 + 3\" <masked>>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"async\" errors=\"0\" failures=\"0\" skipped=\"0\" <masked> <masked> tests=\"2\">\n    <testcase classname=\"async awaits a promise\" name=\"async awaits a promise\" <masked>>\n    </testcase>\n    <testcase classname=\"async rejects\" name=\"async rejects\" <masked>>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"mocks\" errors=\"0\" failures=\"1\" skipped=\"0\" <masked> <masked> tests=\"2\">\n    <testcase classname=\"mocks records calls\" name=\"mocks records calls\" <masked>>\n    </testcase>\n    <testcase classname=\"mocks fails a call count\" name=\"mocks fails a call count\" <masked>>\n      <failure>expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\nExpected number of calls: 2\nReceived number of calls: 1</failure>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"timers\" errors=\"0\" failures=\"0\" skipped=\"0\" <masked> <masked> tests=\"1\">\n    <testcase classname=\"timers advances fake time\" name=\"timers advances fake time\" <masked>>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"outer\" errors=\"0\" failures=\"0\" skipped=\"0\" <masked> <masked> tests=\"2\">\n    <testcase classname=\"outer middle inner is deep\" name=\"outer middle inner is deep\" <masked>>\n    </testcase>\n    <testcase classname=\"outer middle is shallow\" name=\"outer middle is shallow\" <masked>>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"matchers\" errors=\"0\" failures=\"0\" skipped=\"0\" <masked> <masked> tests=\"1\">\n    <testcase classname=\"matchers matches text and arrays\" name=\"matchers matches text and arrays\" <masked>>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"toThrow\" errors=\"0\" failures=\"2\" skipped=\"0\" <masked> <masked> tests=\"2\">\n    <testcase classname=\"toThrow fails when nothing throws\" name=\"toThrow fails when nothing throws\" <masked>>\n      <failure>expect(received).toThrow(expected)\n\nExpected substring: &quot;x&quot;\n\nReceived function did not throw</failure>\n    </testcase>\n    <testcase classname=\"toThrow fails with another message\" name=\"toThrow fails with another message\" <masked>>\n      <failure>expect(received).toThrow(expected)\n\nExpected substring: &quot;expected&quot;\nReceived message:   &quot;actual&quot;\n\n       6 |   it(&apos;fails with another message&apos;, () =&gt; {\n       7 |     expect(() =&gt; {\n    &gt;  8 |       throw new Error(&apos;actual&apos;)\n         |             ^\n       9 |     }).toThrow(&apos;expected&apos;)\n      10 |   })\n      11 | })\n\n      at fail-tothrow.test.ts:8:13\n      at Object.toThrow (fail-tothrow.test.ts:9:8)</failure>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"retry\" errors=\"0\" failures=\"1\" skipped=\"0\" <masked> <masked> tests=\"2\">\n    <testcase classname=\"retry passes on its second attempt\" name=\"retry passes on its second attempt\" <masked>>\n    </testcase>\n    <testcase classname=\"retry fails every attempt\" name=\"retry fails every attempt\" <masked>>\n      <failure>always</failure>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"toEqual\" errors=\"0\" failures=\"1\" skipped=\"0\" <masked> <masked> tests=\"1\">\n    <testcase classname=\"toEqual fails with a diff\" name=\"toEqual fails with a diff\" <masked>>\n      <failure>expect(received).toEqual(expected) // deep equality\n\n- Expected  - 2\n+ Received  + 2\n\n  Object {\n    &quot;list&quot;: Array [\n      1,\n      2,\n-     4,\n+     3,\n    ],\n-   &quot;name&quot;: &quot;b&quot;,\n+   &quot;name&quot;: &quot;a&quot;,\n    &quot;nested&quot;: Object {\n      &quot;x&quot;: 1,\n    },\n  }</failure>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"pending kinds\" errors=\"0\" failures=\"0\" skipped=\"2\" <masked> <masked> tests=\"3\">\n    <testcase classname=\"pending kinds runs\" name=\"pending kinds runs\" <masked>>\n    </testcase>\n    <testcase classname=\"pending kinds is skipped\" name=\"pending kinds is skipped\" <masked>>\n      <skipped/>\n    </testcase>\n    <testcase classname=\"pending kinds is a todo\" name=\"pending kinds is a todo\" <masked>>\n    </testcase>\n    <testcase classname=\"pending kinds is also skipped\" name=\"pending kinds is also skipped\" <masked>>\n      <skipped/>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"toBe\" errors=\"0\" failures=\"1\" skipped=\"0\" <masked> <masked> tests=\"2\">\n    <testcase classname=\"toBe fails with numbers\" name=\"toBe fails with numbers\" <masked>>\n      <failure>expect(received).toBe(expected) // Object.is equality\n\nExpected: 2\nReceived: 1</failure>\n    </testcase>\n    <testcase classname=\"toBe passes beside it\" name=\"toBe passes beside it\" <masked>>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"failing\" errors=\"0\" failures=\"1\" skipped=\"0\" <masked> <masked> tests=\"2\">\n    <testcase classname=\"failing is expected to fail and does\" name=\"failing is expected to fail and does\" <masked>>\n    </testcase>\n    <testcase classname=\"failing is expected to fail and passes\" name=\"failing is expected to fail and passes\" <masked>>\n      <failure>Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.</failure>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"console\" errors=\"0\" failures=\"0\" skipped=\"0\" <masked> <masked> tests=\"1\">\n    <testcase classname=\"console logs and warns\" name=\"console logs and warns\" <masked>>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"basics\" errors=\"0\" failures=\"0\" skipped=\"0\" <masked> <masked> tests=\"2\">\n    <testcase classname=\"basics adds\" name=\"basics adds\" <masked>>\n    </testcase>\n    <testcase classname=\"basics compares objects\" name=\"basics compares objects\" <masked>>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"thrown\" errors=\"0\" failures=\"2\" skipped=\"0\" <masked> <masked> tests=\"2\">\n    <testcase classname=\"thrown throws an error\" name=\"thrown throws an error\" <masked>>\n      <failure>boom</failure>\n    </testcase>\n    <testcase classname=\"thrown throws a string\" name=\"thrown throws a string\" <masked>>\n      <failure>thrown: &quot;just a string&quot;</failure>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"hooks\" errors=\"0\" failures=\"1\" skipped=\"0\" <masked> <masked> tests=\"1\">\n    <testcase classname=\"hooks never gets a good setup\" name=\"hooks never gets a good setup\" <masked>>\n      <failure>setup broke</failure>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"snapshots\" errors=\"0\" failures=\"0\" skipped=\"0\" <masked> <masked> tests=\"1\">\n    <testcase classname=\"snapshots matches a stored snapshot\" name=\"snapshots matches a stored snapshot\" <masked>>\n    </testcase>\n  </testsuite>\n  <testsuite name=\"skipped\" errors=\"0\" failures=\"0\" skipped=\"2\" <masked> <masked> tests=\"2\">\n    <testcase classname=\"skipped one\" name=\"skipped one\" <masked>>\n      <skipped/>\n    </testcase>\n    <testcase classname=\"skipped two\" name=\"skipped two\" <masked>>\n      <skipped/>\n    </testcase>\n  </testsuite>\n</testsuites>"
+    }
+  }
+}

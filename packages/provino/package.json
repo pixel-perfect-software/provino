@@ -110,7 +110,11 @@
     "@provino/orchestrator": "workspace:*",
     "@provino/reporters": "workspace:*",
     "@provino/transform": "workspace:*",
-    "@provino/types": "workspace:*"
+    "@provino/types": "workspace:*",
+    "jest-html-reporters": "catalog:",
+    "jest-junit": "catalog:",
+    "jest-silent-reporter": "catalog:",
+    "jest-sonar-reporter": "catalog:"
   },
   "peerDependencies": {
     "jsdom": ">=26 <31"
