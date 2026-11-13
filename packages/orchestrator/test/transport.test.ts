@@ -4,6 +4,10 @@
 import assert from 'node:assert/strict'
 import { ChildProcess, spawn } from 'node:child_process'
 import { once } from 'node:events'
+import { readFileSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
@@ -13,7 +17,16 @@ import {
   type WorkerConnection,
 } from '@provino/orchestrator'
 import type { PoolKind, Transport, WorkerExit, WorkerInit } from '@provino/types'
-import { Collect, fixture, forceKilled, initFor, job, KINDS, methods } from './support.ts'
+import {
+  Collect,
+  fixture,
+  forceKilled,
+  initFor,
+  isRunning,
+  job,
+  KINDS,
+  methods,
+} from './support.ts'
 
 async function start(
   kind: PoolKind,
@@ -79,7 +92,7 @@ for (const kind of KINDS) {
         )
       assert.ok(error instanceof OrchestratorError)
       assert.equal(error.code, 'ORCH_WORKER_START_TIMEOUT')
-      assert.deepEqual(error.cause, { type: 'timeout', phase: 'start' })
+      assert.deepEqual(error.cause, { type: 'timeout', phase: 'start', limitMs: 100 })
     })
   })
 }
@@ -104,7 +117,7 @@ for (const kind of ['forks', 'threads'] as const) {
       })
       const running = connection.run(job('forever'))
       await transport.terminate(false)
-      const timedOut: WorkerExit = { type: 'timeout', phase: 'stop' }
+      const timedOut: WorkerExit = { type: 'timeout', phase: 'stop', limitMs: 50 }
       assert.deepEqual(await connection.exited, timedOut)
       await assert.rejects(running, (error: unknown) => {
         assert.ok(error instanceof OrchestratorError)
@@ -119,6 +132,19 @@ for (const kind of ['forks', 'threads'] as const) {
       void connection.run(job('forever')).catch(() => {})
       await transport.terminate(true)
       assert.deepEqual(await connection.exited, forceKilled(kind))
+    })
+
+    it('reports a force kill for a file past its deadline as that timeout, with its limit', async () => {
+      const { transport, connection } = await start(kind, 'hang-worker.ts')
+      const running = connection.run(job('forever'))
+      await transport.terminate(true, { phase: 'file', limitMs: 40 })
+      const timedOut: WorkerExit = { type: 'timeout', phase: 'file', limitMs: 40 }
+      assert.deepEqual(await connection.exited, timedOut)
+      await assert.rejects(running, (error: unknown) => {
+        assert.ok(error instanceof OrchestratorError)
+        assert.deepEqual(error.cause, timedOut)
+        return true
+      })
     })
 
     it('pipes the worker’s own stdout and stderr without ending the sinks', async () => {
@@ -138,6 +164,25 @@ for (const kind of ['forks', 'threads'] as const) {
   })
 }
 
+describe('forks transport, a grandchild that holds the stderr pipe', () => {
+  it('reports a clean exit at once, not after the grace a held pipe would cost', async () => {
+    const pidFile = join(tmpdir(), `provino-grandchild-${process.pid}`)
+    const { transport, connection } = await start('forks', 'grandchild-worker.ts')
+    const grandchild = Number(readFileSync(pidFile, 'utf8'))
+    try {
+      const started = performance.now()
+      await transport.terminate(false)
+      assert.deepEqual(await connection.exited, { type: 'exit', code: 0 })
+      // Waiting for the pipe would cost the transport's 1 s grace (`DISCONNECT_GRACE_MS`).
+      assert.ok(performance.now() - started < 1000, 'the exit did not wait for the pipe to close')
+      assert.equal(isRunning(grandchild), true, 'the grandchild still holds the pipe')
+    } finally {
+      process.kill(grandchild, 'SIGKILL')
+      await rm(pidFile, { force: true })
+    }
+  })
+})
+
 describe('forks transport, escalation', () => {
   it('sends SIGKILL 500 ms after a SIGTERM the worker ignores', async () => {
     const { transport, connection } = await start('forks', 'stubborn-worker.ts', {
@@ -156,7 +201,7 @@ describe('forks transport, escalation', () => {
     } finally {
       ChildProcess.prototype.kill = kill
     }
-    assert.deepEqual(await connection.exited, { type: 'timeout', phase: 'stop' })
+    assert.deepEqual(await connection.exited, { type: 'timeout', phase: 'stop', limitMs: 50 })
     assert.deepEqual(signals, ['SIGTERM', 'SIGKILL'])
   })
 })

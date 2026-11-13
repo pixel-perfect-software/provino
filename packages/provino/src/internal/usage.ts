@@ -25,6 +25,17 @@ Options of provino run:
       --ci                          Treat this as a CI run (default: from the CI variable)
       --passWithNoTests             Pass when no test files are found
       --no-cache                    Neither read nor write the results cache or the transform cache
+      --bail[=n]                    End the run once n tests have failed (default 1; 0 is off)
+      --forceExit                   Exit the process when the run is over, whatever a test left open
+      --detectOpenHandles           Report what is still open after the run, and where it was made;
+                                    runs in this process, and slows every timer and socket
+      --workerMemoryLimit <n>       Replace a worker that holds more than n bytes after a file (512MB
+                                    is 512,000,000, 512MiB is 2^29); 0 replaces it after every file
+      --maxFilesPerWorker <n>       Replace a worker after it has run n files
+      --fileTimeout <ms>            Kill a worker that runs one file longer than this, and fail it
   -h, --help                        Print this text
       --version                     Print the version of provino
+
+Ctrl+C (SIGINT) ends the run: no file starts, the running ones are killed, exit code 130. A second
+Ctrl+C kills every worker at once. SIGTERM and SIGHUP do the same and exit 143 and 129.
 `

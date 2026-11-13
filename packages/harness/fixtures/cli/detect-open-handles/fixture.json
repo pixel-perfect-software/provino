@@ -1,0 +1,9 @@
+{
+  "description": "--detectOpenHandles (T9.10): a test leaves a setInterval running. Jest runs in band, then prints how many open handles it found and each one's kind and the stack that created it (the line of the test file that called setInterval). The run passes, and Jest then waits on the interval, so the fixture adds --forceExit, which ends it. A black-box run.",
+  "runners": ["jest"],
+  "run": {
+    "argv": { "jest": ["--detectOpenHandles", "--forceExit"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Jest has detected|  ●|at <root>/leak\\.test\\.ts)"
+  }
+}

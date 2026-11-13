@@ -2,6 +2,7 @@
 // replacement after a leak or a crash, start failures, abort and close.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { setTimeout as sleep } from 'node:timers/promises'
 import type {
   CoordinatorToWorker,
   FileJob,
@@ -27,7 +28,16 @@ import {
 } from './pool.ts'
 
 /** How a fake worker treats a file, by its name. */
-type Plan = 'ok' | 'leak' | 'crash' | 'hang' | 'late-console' | 'idle-console'
+type Plan =
+  | 'ok'
+  | 'leak'
+  | 'crash'
+  | 'hang'
+  | 'big'
+  | 'late-console'
+  | 'idle-console'
+  // Never finishes by itself; when it is killed, its `fileDone` (already on the way) arrives first.
+  | 'done-while-killed'
 
 interface Fake {
   readonly factory: TransportFactory
@@ -39,6 +49,8 @@ interface Fake {
   readonly peak: () => number
   /** Files each worker ran, by worker id. */
   readonly ran: Map<number, string[]>
+  /** Ends a worker that `unkillable` kept alive, as the operating system eventually would. */
+  readonly end: (workerId: number) => void
 }
 
 function fake(
@@ -49,16 +61,27 @@ function fake(
     readonly createMs?: number
     /** How a worker ends when told to stop. */
     readonly stopExit?: WorkerExit
+    /** A worker that never finishes a graceful stop: only a kill ends it. */
+    readonly slowStop?: boolean
+    /** A worker that no stop and no kill ends: only `Fake.end` does (code stuck in-process). */
+    readonly unkillable?: boolean
+    /** The transport kind the factory and its workers report. Default: `'inline'`. */
+    readonly kind?: PoolKind
+    /** The factory's `sharesProcess`: its workers run in this process, so a kill can't end one. */
+    readonly sharesProcess?: boolean
   } = {},
 ): Fake {
   const started: number[] = []
   const exited = new Set<number>()
   const ran = new Map<number, string[]>()
+  const enders = new Map<number, () => void>()
   let attempts = 0
   let running = 0
   let peak = 0
+  const kind = extra.kind ?? 'inline'
   const factory: TransportFactory = {
-    kind: 'inline',
+    kind,
+    ...(extra.sharesProcess === true ? { sharesProcess: true } : {}),
     async create(init: WorkerInit, signal?: AbortSignal): Promise<Transport> {
       attempts++
       if (extra.createMs !== undefined) {
@@ -76,6 +99,7 @@ function fake(
       const exits: ((exit: WorkerExit) => void)[] = []
       let exit: WorkerExit | undefined
       let current: string | undefined
+      let finishInFlight: (() => void) | undefined
       const finish = (workerExit: WorkerExit): void => {
         if (exit !== undefined) return
         exit = workerExit
@@ -86,11 +110,14 @@ function fake(
       const emit = (message: WorkerToCoordinator): void => {
         for (const listener of messages) listener(message)
       }
+      enders.set(init.workerId, () =>
+        finish({ type: 'signal', signal: 'SIGKILL', likelyOom: false }),
+      )
       const transport: Transport = {
-        kind: 'inline',
+        kind,
         pid: undefined,
         send(message: CoordinatorToWorker) {
-          if (message.t === 'stop') {
+          if (message.t === 'stop' && extra.slowStop !== true && extra.unkillable !== true) {
             setImmediate(() => finish(extra.stopExit ?? { type: 'exit', code: 0 }))
           }
           if (message.t !== 'run') return
@@ -100,8 +127,15 @@ function fake(
           peak = Math.max(peak, running)
           ran.set(init.workerId, [...(ran.get(init.workerId) ?? []), job.file])
           const behaviour = plan(job.file)
+          if (behaviour === 'done-while-killed') {
+            finishInFlight = () => {
+              running--
+              current = undefined
+              emit({ t: 'fileDone', seq, memoryBytes: 1, leakedHandles: 0, leakedGlobals: [] })
+            }
+          }
           setImmediate(() => {
-            if (behaviour === 'hang') return
+            if (behaviour === 'hang' || behaviour === 'done-while-killed') return
             if (behaviour === 'crash') {
               finish({ type: 'signal', signal: 'SIGSEGV', likelyOom: false })
               return
@@ -117,7 +151,7 @@ function fake(
             emit({
               t: 'fileDone',
               seq,
-              memoryBytes: 1,
+              memoryBytes: behaviour === 'big' ? 10_000 : 1,
               leakedHandles: 0,
               leakedGlobals: behaviour === 'leak' ? ['leaked'] : [],
             })
@@ -132,10 +166,27 @@ function fake(
           else exits.push(listener)
           return () => {}
         },
-        async terminate(force) {
+        async terminate(force, timeout) {
           if (exit !== undefined) return
-          if (force) finish({ type: 'signal', signal: 'SIGKILL', likelyOom: false })
-          else {
+          if (extra.unkillable === true) {
+            await new Promise<void>((resolve) => exits.push(() => resolve()))
+            return
+          }
+          if (finishInFlight !== undefined) {
+            // The worker finished its file just as it was killed: the message arrives, then the exit.
+            finishInFlight()
+            finishInFlight = undefined
+            await new Promise((resolve) => setImmediate(resolve))
+            finish({ type: 'signal', signal: 'SIGKILL', likelyOom: false })
+          } else if (force) {
+            finish(
+              timeout === undefined
+                ? { type: 'signal', signal: 'SIGKILL', likelyOom: false }
+                : { type: 'timeout', ...timeout },
+            )
+          } else if (extra.slowStop === true) {
+            await new Promise<void>((resolve) => exits.push(() => resolve()))
+          } else {
             await new Promise((resolve) => setImmediate(resolve))
             finish(extra.stopExit ?? { type: 'exit', code: 0 })
           }
@@ -144,7 +195,7 @@ function fake(
       return transport
     },
   }
-  return { factory, started, exited, peak: () => peak, ran }
+  return { factory, started, exited, peak: () => peak, ran, end: (id) => enders.get(id)?.() }
 }
 
 const consoleEvent = (file: string): WorkerEvent => ({
@@ -167,12 +218,17 @@ const key = workerKeyOf({
 
 const otherKey: WorkerKey = { ...key, environment: 'jsdom' }
 
-const options = (maxWorkers: number, onLeak?: boolean): PoolOptions => ({
+const options = (
+  maxWorkers: number,
+  onLeak?: boolean,
+  extra: Partial<PoolOptions> = {},
+): PoolOptions => ({
   kind: 'inline',
   maxWorkers,
   recycle: onLeak === undefined ? {} : { onLeak },
   teardownTimeoutMs: 1000,
   startTimeoutMs: 1000,
+  ...extra,
 })
 
 function deps(f: Fake, extra: Partial<PoolDeps> = {}): PoolDeps {
@@ -195,6 +251,16 @@ function deps(f: Fake, extra: Partial<PoolDeps> = {}): PoolDeps {
 function request(file: string, extra: Partial<FileRequest> = {}): FileRequest {
   const job: FileJob = { file, fileId: `id:${file}` as TaskId, updateSnapshots: 'none' }
   return { key, job, onEvents: () => {}, ...extra }
+}
+
+/** Whether `promise` has settled, as of whenever `settled` is read: for a test that says it has not yet. */
+function watch(promise: Promise<unknown>): { readonly settled: boolean } {
+  const state = { settled: false }
+  const done = (): void => {
+    state.settled = true
+  }
+  void promise.then(done, done)
+  return state
 }
 
 /** Runs the files and closes the pool, returning each file's outcome. */
@@ -443,12 +509,9 @@ describe('createPool', () => {
     )
     const outcomes = Promise.all(['a', 'b', 'c', 'd', 'e'].map((file) => pool.run(request(file))))
     // Starts 2, 3 and 4 fail at once; the first, slow one is still starting.
-    let settled = false
-    void outcomes.then(() => {
-      settled = true
-    })
+    const state = watch(outcomes)
     for (let turn = 0; turn < 5; turn++) await new Promise((resolve) => setImmediate(resolve))
-    assert.equal(settled, false, 'e waits: a worker is still starting')
+    assert.equal(state.settled, false, 'e waits: a worker is still starting')
     gate.resolve()
     const results = await outcomes
     await pool.close()
@@ -656,7 +719,7 @@ describe('createPool', () => {
       }),
     )
     await pool.run(request('late'))
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await sleep(20)
     await pool.close()
     assert.deepEqual(kinds.toSorted(), ['other', 'worker-lost'])
   })
@@ -697,10 +760,10 @@ describe('createPool', () => {
     const f = fake(() => 'ok')
     const pool = createPool(options(2), deps(f))
     await pool.run(request('a'))
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await sleep(20)
     assert.deepEqual([...f.exited], [], 'an idle worker waits for a next file')
     pool.drain()
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await sleep(20)
     assert.deepEqual([...f.exited], [1])
     await pool.close()
   })
@@ -712,7 +775,7 @@ describe('createPool', () => {
     const quick = pool.run(request('b'))
     pool.drain()
     await quick
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await sleep(20)
     assert.deepEqual([...f.exited], [2], 'the worker with nothing left to do is gone')
     const closed = pool.close()
     assert.deepEqual(await slow, { type: 'aborted' })
@@ -730,13 +793,266 @@ describe('createPool', () => {
     assert.deepEqual([...f.exited], [1])
   })
 
-  it('refuses recycling by memory or file count, which are not built', () => {
+  it('refuses a recycle limit or a deadline that makes no sense, with ORCH_BAD_OPTION', () => {
     const f = fake(() => 'ok')
-    for (const recycle of [{ memoryLimitBytes: 1 }, { maxFilesPerWorker: 1 }]) {
-      assert.throws(() => createPool({ ...options(1), recycle }, deps(f)), {
-        code: 'ORCH_NOT_IMPLEMENTED',
-        message: /T9\.5/,
+    const bad: readonly Partial<PoolOptions>[] = [
+      { recycle: { maxFilesPerWorker: 0 } },
+      { recycle: { maxFilesPerWorker: 1.5 } },
+      { recycle: { memoryLimitBytes: -1 } },
+      { recycle: { memoryLimitBytes: Number.NaN } },
+      { fileTimeoutMs: 0 },
+      { fileTimeoutMs: Number.POSITIVE_INFINITY },
+    ]
+    for (const extra of bad) {
+      assert.throws(() => createPool({ ...options(1), ...extra }, deps(f)), {
+        code: 'ORCH_BAD_OPTION',
       })
     }
+    // Infinity switches the memory check off; 0 is "after every file".
+    createPool({ ...options(1), recycle: { memoryLimitBytes: Number.POSITIVE_INFINITY } }, deps(f))
+    createPool({ ...options(1), recycle: { memoryLimitBytes: 0 } }, deps(f))
+  })
+})
+
+describe('recycling (T9.5)', () => {
+  it('replaces a worker every maxFilesPerWorker files', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(1, undefined, { recycle: { maxFilesPerWorker: 3 } }), deps(f))
+    const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
+    const outcomes = await runAll(pool, files)
+    assert.ok(outcomes.every((o) => o.type === 'done'))
+    assert.deepEqual(
+      outcomes.map((o) => o.type === 'done' && o.workerId),
+      [1, 1, 1, 2, 2, 2, 3],
+      'a fresh worker every 3 files',
+    )
+    assert.deepEqual(f.ran.get(1), ['a', 'b', 'c'])
+    assert.deepEqual(f.ran.get(2), ['d', 'e', 'f'])
+    assert.deepEqual([...f.exited].sort(), [1, 2, 3], 'each retired worker has exited')
+  })
+
+  it('counts files per worker, not per pool', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(2, undefined, { recycle: { maxFilesPerWorker: 2 } }), deps(f))
+    const outcomes = await runAll(pool, ['a', 'b', 'c', 'd', 'e', 'f'])
+    assert.ok(outcomes.every((o) => o.type === 'done'))
+    for (const files of f.ran.values()) assert.ok(files.length <= 2, files.join())
+  })
+
+  it('replaces a worker whose file left it over memoryLimitBytes, and keeps one under it', async () => {
+    const f = fake((file) => (file.startsWith('big') ? 'big' : 'ok'))
+    const pool = createPool(options(1, undefined, { recycle: { memoryLimitBytes: 5000 } }), deps(f))
+    const outcomes = await runAll(pool, ['a', 'big-1', 'b', 'c', 'big-2', 'd'])
+    assert.deepEqual(
+      outcomes.map((o) => o.type === 'done' && o.workerId),
+      [1, 1, 2, 2, 2, 3],
+      'a worker is replaced after the file that took it over the limit, not before',
+    )
+    assert.deepEqual(f.ran.get(1), ['a', 'big-1'])
+    assert.deepEqual(f.ran.get(2), ['b', 'c', 'big-2'])
+  })
+
+  it('replaces the worker after every file when the limit is 0 (Jest: workerIdleMemoryLimit 0)', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(1, undefined, { recycle: { memoryLimitBytes: 0 } }), deps(f))
+    const outcomes = await runAll(pool, ['a', 'b', 'c'])
+    assert.deepEqual(
+      outcomes.map((o) => o.type === 'done' && o.workerId),
+      [1, 2, 3],
+    )
+  })
+
+  it('never replaces a worker that shares the process for its memory: what it measures is the coordinator’s own', async () => {
+    // The in-process worker's `memoryBytes` is the whole process's heap, which no replacement
+    // frees. The other rules still apply to it.
+    for (const memoryLimitBytes of [0, 5000]) {
+      const f = fake(() => 'big', undefined, { sharesProcess: true })
+      const pool = createPool(options(1, undefined, { recycle: { memoryLimitBytes } }), deps(f))
+      const outcomes = await runAll(pool, ['a', 'b', 'c'])
+      assert.deepEqual(
+        outcomes.map((o) => o.type === 'done' && o.workerId),
+        [1, 1, 1],
+        `a limit of ${memoryLimitBytes}: one worker took every file`,
+      )
+    }
+    const files = fake(() => 'ok', undefined, { sharesProcess: true })
+    const counted = createPool(
+      options(1, undefined, { recycle: { maxFilesPerWorker: 2, memoryLimitBytes: 0 } }),
+      deps(files),
+    )
+    const byCount = await runAll(counted, ['a', 'b', 'c'])
+    assert.deepEqual(
+      byCount.map((o) => o.type === 'done' && o.workerId),
+      [1, 1, 2],
+      'the file count still replaces it',
+    )
+    const leaky = fake(() => 'leak', undefined, { sharesProcess: true })
+    const byLeak = await runAll(
+      createPool(options(1, undefined, { recycle: { memoryLimitBytes: 0 } }), deps(leaky)),
+      ['a', 'b'],
+    )
+    assert.deepEqual(
+      byLeak.map((o) => o.type === 'done' && o.workerId),
+      [1, 2],
+      'and so does a leak of globals',
+    )
+  })
+
+  it('does no memory check when the limit is Infinity, and keeps its worker', async () => {
+    const f = fake(() => 'big')
+    const pool = createPool(
+      options(1, undefined, { recycle: { memoryLimitBytes: Number.POSITIVE_INFINITY } }),
+      deps(f),
+    )
+    await runAll(pool, ['a', 'b', 'c'])
+    assert.deepEqual(f.started, [1])
+  })
+})
+
+describe('the file deadline (T9.5)', () => {
+  it('kills the worker of a file that runs past it: crashed, with a file timeout, and goes on', async () => {
+    const f = fake((file) => (file === 'stuck' ? 'hang' : 'ok'))
+    const pool = createPool(options(1, undefined, { fileTimeoutMs: 40 }), deps(f))
+    const started = performance.now()
+    const stuck = await pool.run(request('stuck'))
+    assert.ok(performance.now() - started >= 35, 'it waited for the deadline')
+    assert.deepEqual(stuck, {
+      type: 'crashed',
+      workerId: 1,
+      exit: { type: 'timeout', phase: 'file', limitMs: 40 },
+    })
+    const next = await pool.run(request('after'))
+    await pool.close()
+    assert.equal(next.type === 'done' && next.workerId, 2, 'a replacement serves the next file')
+    assert.ok(f.exited.has(1))
+  })
+
+  it('keeps the result of a file that finished as the deadline fired, and blames no other file', async () => {
+    const f = fake((file) => (file === 'edge' ? 'done-while-killed' : 'ok'))
+    const pool = createPool(options(1, undefined, { fileTimeoutMs: 20 }), deps(f))
+    const [edge, after] = await Promise.all([pool.run(request('edge')), pool.run(request('after'))])
+    await pool.close()
+    assert.equal(edge.type, 'done', 'the file that finished keeps its result')
+    assert.equal(edge.type === 'done' && edge.workerId, 1)
+    assert.deepEqual(f.ran.get(1), ['edge'], 'the dying worker was given no second file')
+    assert.equal(after.type, 'done', 'the next file is not charged with the deadline')
+    assert.equal(after.type === 'done' && after.workerId, 2, 'a replacement ran it')
+  })
+
+  it('does not fire for a file that ends in time, and does not leave a timer behind', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(1, undefined, { fileTimeoutMs: 50 }), deps(f))
+    const outcomes = await runAll(pool, ['a', 'b', 'c'])
+    assert.ok(outcomes.every((o) => o.type === 'done'))
+    await sleep(80)
+    assert.deepEqual(f.started, [1], 'no worker was killed after its file ended')
+  })
+
+  it('counts from when the job is sent, so a slow onStart does not eat the deadline', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(1, undefined, { fileTimeoutMs: 40 }), deps(f))
+    const outcome = await pool.run(request('a', { onStart: () => sleep(80) }))
+    await pool.close()
+    assert.equal(outcome.type, 'done')
+  })
+
+  it('is not a timeout for a file the run aborted', async () => {
+    const f = fake((file) => (file === 'stuck' ? 'hang' : 'ok'))
+    const controller = new AbortController()
+    const pool = createPool(
+      options(1, undefined, { fileTimeoutMs: 5000 }),
+      deps(f, { signal: controller.signal }),
+    )
+    const stuck = pool.run(request('stuck'))
+    await sleep(10)
+    controller.abort()
+    assert.deepEqual(await stuck, { type: 'aborted' })
+    await pool.close()
+  })
+})
+
+describe('cancelling and forcing', () => {
+  it('cancelQueued gives up the waiting files and lets the running one finish', async () => {
+    const f = fake((file) => (file === 'slow' ? 'hang' : 'ok'))
+    const pool = createPool(options(1), deps(f))
+    const slow = pool.run(request('slow'))
+    const waiting = [pool.run(request('b')), pool.run(request('c'))]
+    await sleep(10)
+    pool.cancelQueued()
+    assert.deepEqual(await Promise.all(waiting), [{ type: 'aborted' }, { type: 'aborted' }])
+    assert.deepEqual(await pool.run(request('d')), { type: 'aborted' }, 'nothing starts after it')
+    assert.deepEqual(f.ran.get(1), ['slow'], 'the running file was not touched')
+    assert.equal(f.exited.size, 0, 'and neither was its worker')
+    const closed = pool.close()
+    assert.deepEqual(await slow, { type: 'aborted' })
+    await closed
+  })
+
+  it('a force signal kills every worker at once, even one that is stopping slowly', async () => {
+    // Workers whose graceful stop never ends: only a kill does.
+    const f = fake(() => 'ok', undefined, { slowStop: true })
+    const force = new AbortController()
+    const pool = createPool(options(2), deps(f, { forceSignal: force.signal }))
+    await Promise.all([pool.run(request('a')), pool.run(request('b'))])
+    pool.drain()
+    await sleep(20)
+    assert.equal(f.exited.size, 0, 'the graceful stops are hanging')
+    const closing = pool.close()
+    await sleep(20)
+    assert.equal(f.exited.size, 0, 'and close is waiting for them')
+    force.abort()
+    await closing
+    assert.deepEqual([...f.exited].sort(), [1, 2], 'the force kill ended both at once')
+  })
+
+  it('a force signal gives up on a file an inline worker is stuck in, and does not wait for it to wind down', {
+    timeout: 10_000,
+  }, async () => {
+    // A worker no stop and no kill ends: what a file that can't be cancelled does to the process
+    // that is running it. Only the force signal is allowed to stop waiting for it.
+    const f = fake(() => 'hang', undefined, { unkillable: true, sharesProcess: true })
+    const abort = new AbortController()
+    const force = new AbortController()
+    const pool = createPool(
+      options(1),
+      deps(f, { signal: abort.signal, forceSignal: force.signal }),
+    )
+    const running = pool.run(request('stuck'))
+    await sleep(10)
+    abort.abort()
+    const closing = pool.close()
+    const state = watch(Promise.all([running, closing]))
+    await sleep(20)
+    assert.equal(state.settled, false, 'the first abort still waits for the worker')
+    force.abort()
+    assert.deepEqual(await running, { type: 'aborted' })
+    await closing
+    assert.equal(f.exited.size, 0, 'the worker is still there: nothing could end it')
+  })
+
+  it('a force signal still waits for the exit of a worker that does not share the process', async () => {
+    const f = fake(() => 'hang', undefined, { unkillable: true, kind: 'forks' })
+    const force = new AbortController()
+    const pool = createPool(options(1), deps(f, { forceSignal: force.signal }))
+    const running = pool.run(request('stuck'))
+    await sleep(10)
+    const closing = pool.close()
+    force.abort()
+    const state = watch(Promise.all([running, closing]))
+    await sleep(20)
+    assert.equal(state.settled, false, 'a child that is still alive is waited for')
+    f.end(1)
+    await closing
+    assert.deepEqual(await running, { type: 'aborted' })
+  })
+
+  it('a force signal already aborted starts no worker', async () => {
+    const f = fake(() => 'ok')
+    const force = new AbortController()
+    force.abort()
+    const pool = createPool(options(1), deps(f, { forceSignal: force.signal }))
+    assert.deepEqual(await pool.run(request('a')), { type: 'aborted' })
+    await pool.close()
+    assert.deepEqual(f.started, [])
   })
 })

@@ -34,10 +34,9 @@ describe('what provino jest does not run is said, not ignored', () => {
     // A refusal names the flag by its long name, whatever alias was typed.
     for (const [flag, task, named] of [
       ['--coverage', 'T8.8'],
-      ['--bail', 'T9.10'],
       ['--shard=1/2', 'T9.6'],
-      ['-b', 'T9.10', '--bail'],
-      ['--forceExit', 'T9.10'],
+      ['--watch', 'T9.11'],
+      ['-o', 'Track 9', '--onlyChanged'],
     ] as readonly (readonly [string, string, string?])[]) {
       const ended = await provino([flag], dir)
       assert.equal(ended.code, 1, `${flag}: ${ended.stderr}`)

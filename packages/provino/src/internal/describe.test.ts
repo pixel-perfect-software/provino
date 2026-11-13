@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ConfigError } from '@provino/config'
+import { OrchestratorError } from '@provino/orchestrator'
 import { usageMessage } from './describe.ts'
 
 describe('usageMessage', () => {
@@ -36,5 +37,20 @@ describe('usageMessage', () => {
       cause: { reason: 'object boom' },
     })
     assert.match(usageMessage(asObject) ?? '', /caused by: .*object boom/)
+  })
+
+  it('says a pattern or an option the orchestrator refused as the message has it, and no other orchestrator error', () => {
+    assert.equal(
+      usageMessage(new OrchestratorError('ORCH_BAD_PATTERN', 'The pattern "(" is bad')),
+      'Provino: The pattern "(" is bad',
+    )
+    assert.equal(
+      usageMessage(
+        new OrchestratorError('ORCH_BAD_OPTION', 'fileTimeoutMs must be a number (got 0)'),
+      ),
+      'Provino: fileTimeoutMs must be a number (got 0)',
+    )
+    // A worker entry that is not a worker is a bug in whoever wired it, not a mistake of the user.
+    assert.equal(usageMessage(new OrchestratorError('ORCH_BAD_ENTRY', 'no default')), undefined)
   })
 })

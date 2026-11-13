@@ -34,7 +34,8 @@ import {
 export type InlineTransportOptions = TransportOptions
 
 /**
- * Runs each worker in this process. At most one is alive at a time (`maxWorkers: 1`).
+ * Runs each worker in this process (`sharesProcess`). At most one is alive at a time
+ * (`maxWorkers: 1`).
  * @public
  */
 export function inlineTransport(options: InlineTransportOptions): TransportFactory {
@@ -81,5 +82,5 @@ export function inlineTransport(options: InlineTransportOptions): TransportFacto
       },
     }
   })
-  return { ...factory, maxWorkers: 1 }
+  return { ...factory, maxWorkers: 1, sharesProcess: true }
 }

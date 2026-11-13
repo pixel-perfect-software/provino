@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/bail-two",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./a-fails.test.ts\nFAIL ./b-fails.test.ts\nTest Suites: 2 failed, 2 of 3 total\nTests:       2 failed, 2 total"
+  }
+}

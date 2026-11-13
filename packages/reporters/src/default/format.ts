@@ -1,6 +1,6 @@
 // The default reporter's text, all in one place. It is Jest-like, not a golden: T9.7 records the
 // real format and decides what to match.
-import type { ReportPolicy, SerializedError, SnapshotRunSummary } from '@provino/types'
+import type { OpenHandle, ReportPolicy, SerializedError, SnapshotRunSummary } from '@provino/types'
 
 /** How deep a `cause` or an aggregate's `errors` are shown. */
 const MAX_NESTING = 3
@@ -165,24 +165,33 @@ export function snapshotLine(snapshots: SnapshotRunSummary | undefined): string 
   return `Snapshots:   ${parts.join(', ')}`
 }
 
-/** Jest's summary: zero parts are left out except `passed` and `total`. */
+/**
+ * Jest's summary (`getSummary` in `@jest/reporters`): a count of zero is left out, `total` apart.
+ * The suites' total reads `N of M total` whenever the suites that ran (failed plus passed: a
+ * skipped file is not one that ran) differ from the files queued, as Jest's does. That is a run
+ * that bailed (`1 of 3 total`) and a run with a skipped file (`1 skipped, 1 passed, 1 of 2 total`,
+ * and `1 skipped, 0 of 1 total` for a project whose only file is skipped).
+ */
 export function summaryLines(
   files: FileCounts,
   tests: TestCounts,
   durationMs: number,
   snapshots?: string,
+  queued = 0,
 ): string {
+  const ran = files.failed + files.passed
+  const suitesTotal = Math.max(queued, files.total)
   const suites = [
     ...(files.failed > 0 ? [part(files.failed, 'failed')] : []),
     ...(files.skipped > 0 ? [part(files.skipped, 'skipped')] : []),
-    part(files.passed, 'passed'),
-    part(files.total, 'total'),
+    ...(files.passed > 0 ? [part(files.passed, 'passed')] : []),
+    ran === suitesTotal ? part(suitesTotal, 'total') : `${ran} of ${suitesTotal} total`,
   ]
   const counted = [
     ...(tests.failed > 0 ? [part(tests.failed, 'failed')] : []),
     ...(tests.skipped > 0 ? [part(tests.skipped, 'skipped')] : []),
     ...(tests.todo > 0 ? [part(tests.todo, 'todo')] : []),
-    part(tests.passed, 'passed'),
+    ...(tests.passed > 0 ? [part(tests.passed, 'passed')] : []),
     part(tests.total, 'total'),
   ]
   return [
@@ -191,4 +200,22 @@ export function summaryLines(
     ...(snapshots === undefined ? [] : [snapshots]),
     `Time:        ${(durationMs / 1000).toFixed(3)} s`,
   ].join('\n')
+}
+
+/**
+ * Jest's report of what a run left open (`--detectOpenHandles`): how many handles, then each one's
+ * kind, a code frame around the line that made it, and the stack that made it. Handles with the
+ * same stack are one entry whose kinds are joined by `,` (the collector does that). Only for a
+ * run that found some: the summary has no `openHandles` when it found none.
+ */
+export function openHandlesText(handles: readonly OpenHandle[]): string {
+  const count = counted(handles.length, 'open handle')
+  const blocks = handles.map((handle) => {
+    const frames = handle.frames.map((frame) => `      ${frame}`).join('\n')
+    const parts = [`  ●  ${handle.type}`]
+    if (handle.codeFrame !== undefined) parts.push(indent(handle.codeFrame, 4))
+    if (frames !== '') parts.push(frames)
+    return `${parts.join('\n\n')}\n`
+  })
+  return `\nJest has detected the following ${count} potentially keeping Jest from exiting:\n\n${blocks.join('\n\n')}`
 }

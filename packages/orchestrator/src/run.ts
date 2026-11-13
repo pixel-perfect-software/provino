@@ -1,5 +1,6 @@
 // The coordinator's run (U3, minimal): discover the project's files, order them, push them
 // through the pool, and report to the bus. The CLI, `run()` and config loading are `provino`'s.
+import { totalmem } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pruneTransformCache, type ResolvedProject, withTransformCache } from '@provino/config'
 import { serializeError } from '@provino/rpc'
@@ -9,10 +10,12 @@ import type {
   FileInfo,
   FileJob,
   FileResult,
+  OpenHandle,
   PoolKind,
   PoolOptions,
   RecyclePolicy,
   ReporterBus,
+  RunEndReason,
   RunInfo,
   RunSummary,
   ScheduleInput,
@@ -29,8 +32,10 @@ import { type DiscoveredFile, discoverFiles } from './discover.ts'
 import { discoverByRules } from './discover-rules.ts'
 import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
 import { OrchestratorError } from './errors.ts'
+import { isRunSignal, RUN_SIGNALS } from './exit-code.ts'
 import { fileIdOf, relativePosix } from './file-id.ts'
 import { configHash, hashOf, workerKeyOf } from './key.ts'
+import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
 import { selectFiles } from './select.ts'
 import { createHistorySequencer } from './sequencer.ts'
@@ -40,7 +45,7 @@ import {
   snapshotMember,
   snapshotsFailRun,
 } from './snapshot-members.ts'
-import { type TransportForOptions, transportFor } from './transport/for-kind.ts'
+import { transportFor } from './transport/for-kind.ts'
 import { describeExit } from './transport/shared.ts'
 import { messageOf } from './util.ts'
 
@@ -60,11 +65,44 @@ export interface RunPoolOptions {
    * exactly one worker (`--runInBand`; see `TransportFactory.maxWorkers`).
    */
   readonly maxWorkers?: number
+  /**
+   * When a worker is replaced (`RecyclePolicy`). The memory limit defaults to
+   * `defaultWorkerMemoryLimit` (`max(512 MiB, 25% of the machine's, or the container's, memory
+   * / maxWorkers)`); `Number.POSITIVE_INFINITY` turns the check off.
+   */
   readonly recycle?: RecyclePolicy
   readonly startTimeoutMs?: number
   readonly teardownTimeoutMs?: number
   /** Node flags for the workers (forks and threads). Default: this process's, for the pool key. */
   readonly execArgv?: readonly string[]
+  /**
+   * The most one test file may run, in ms. A worker still on a file after it is killed and the
+   * file fails with the worker's exit `{ type: 'timeout', phase: 'file' }`. Default: none (Jest
+   * has none either: a synchronous loop in a test hangs it too). An inline worker shares this
+   * process, so a synchronous hang can't be stopped, and an asynchronous one only loses its link.
+   */
+  readonly fileTimeoutMs?: number
+  /**
+   * The old-generation heap limit of each worker, in MB: a fork gets `--max-old-space-size`, a
+   * thread `resourceLimits`. A worker that goes over it fails its file with `{ type: 'oom' }`.
+   * Default: V8's.
+   */
+  readonly heapLimitMb?: number
+}
+
+/**
+ * The memory a worker may hold before it is replaced, by default: `max(512 MiB, 25% of the
+ * memory available to the process / maxWorkers)`, the memory being the container's cap
+ * (`process.constrainedMemory()`) or else the machine's (Track 9 §Pool 3). A cap is never more
+ * than the machine has: a cgroup with no limit reports about 2^64 bytes.
+ * @public
+ */
+export function defaultWorkerMemoryLimit(maxWorkers: number): number {
+  const machine = totalmem()
+  const constrained: unknown = process.constrainedMemory()
+  const available =
+    typeof constrained === 'number' && constrained > 0 ? Math.min(constrained, machine) : machine
+  return Math.max(512 * 1024 * 1024, Math.floor((0.25 * available) / Math.max(1, maxWorkers)))
 }
 
 /**
@@ -110,9 +148,32 @@ export interface RunProjectOptions {
    * Aborting stops the run: no file starts, and the workers running files are killed. A file that
    * had started ends as a failure (`file:end`, one error naming the interruption, in the summary);
    * a file that had not is not reported (no `file:start` or `file:end`, not in the summary). The
-   * run ends with `reason: 'interrupted'`.
+   * run ends with `reason: 'interrupted'`, `'terminated'` when the signal was aborted with the
+   * reason `'SIGTERM'` (`controller.abort('SIGTERM')`) and `'hangup'` for `'SIGHUP'`: the bin's exit
+   * codes 130, 143 and 129 (`RUN_SIGNALS`).
    */
   readonly signal?: AbortSignal
+  /**
+   * Aborting it kills every worker at once, the ones still stopping gracefully included, so the
+   * run ends without waiting for a slow teardown: the second Ctrl+C. It also aborts the run, as
+   * `signal` does.
+   */
+  readonly forceSignal?: AbortSignal
+  /**
+   * End the run once this many tests have failed (`--bail`). When it is checked is the policy's
+   * `orchestrator.bail.checkAfter` (the first project's): after each file (Jest: the files that
+   * have ended are all reported, the others are never started, the files still running are killed
+   * and, as in Jest, not reported, and the run ends `failed`), or after each test (Vitest: no
+   * file starts, and the files running go on to their end, since a running file can't be
+   * cancelled before T5.12).
+   */
+  readonly bail?: { readonly count: number }
+  /**
+   * Report what is still open after the last file, and where it was made (`--detectOpenHandles`).
+   * It needs the files to run in this process, so the pool is `inline` whatever `pool.kind` says.
+   * The handles are `RunSummary.openHandles`.
+   */
+  readonly detectOpenHandles?: boolean
   /** `RunInfo.root` of a run over several projects (Jest's config `rootDir`). Default: the first project's root. */
   readonly root?: string
 }
@@ -300,8 +361,20 @@ export async function runProjects(
   for (const project of projects) {
     checkPattern(options.testNamePattern, project.policy.core.testNamePatternFlags)
   }
-  const kind = options.pool?.kind ?? orchestrator.pool.default
+  // Open handles are found with `async_hooks` in this process, so the files run in it.
+  const kind: PoolKind =
+    options.detectOpenHandles === true
+      ? 'inline'
+      : (options.pool?.kind ?? orchestrator.pool.default)
   const execArgv = options.pool?.execArgv
+  const { bail } = options
+  if (bail !== undefined && !(Number.isSafeInteger(bail.count) && bail.count >= 1)) {
+    throw new OrchestratorError(
+      'ORCH_BAD_OPTION',
+      `bail.count (the failed tests that end the run) must be a whole number of at least 1 (got ${String(bail.count)})`,
+    )
+  }
+  const bailAfter = orchestrator.bail.checkAfter
 
   const caches = new Map<string, ResultsCache>()
   const cacheFor = (project: ResolvedProject): ResultsCache | undefined => {
@@ -374,20 +447,35 @@ export async function runProjects(
 
   const startedAt = performance.now()
   const stderr = options.stderr ?? process.stderr
-  const poolOptions: PoolOptions = {
-    kind,
-    maxWorkers: options.pool?.maxWorkers ?? defaultMaxWorkers(),
-    recycle: options.pool?.recycle ?? {},
-    teardownTimeoutMs: options.pool?.teardownTimeoutMs ?? TEARDOWN_TIMEOUT_MS,
-    startTimeoutMs: options.pool?.startTimeoutMs ?? START_TIMEOUT_MS,
-  }
-  const transportOptions: TransportForOptions = {
+  const startTimeoutMs = options.pool?.startTimeoutMs ?? START_TIMEOUT_MS
+  const teardownTimeoutMs = options.pool?.teardownTimeoutMs ?? TEARDOWN_TIMEOUT_MS
+  const factory = transportFor(kind, {
     entry: options.entry ?? import.meta.resolve('@provino/orchestrator/worker/main'),
-    startTimeoutMs: poolOptions.startTimeoutMs,
-    teardownTimeoutMs: poolOptions.teardownTimeoutMs,
+    startTimeoutMs,
+    teardownTimeoutMs,
     ...(options.stdout === undefined ? {} : { stdout: options.stdout }),
     ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
     ...(execArgv === undefined ? {} : { execArgv }),
+    ...(options.pool?.heapLimitMb === undefined ? {} : { memoryLimitMb: options.pool.heapLimitMb }),
+  })
+  // The transport can cap the workers, whatever is asked for: an inline pool runs one.
+  const maxWorkers = Math.min(
+    options.pool?.maxWorkers ?? defaultMaxWorkers(),
+    factory.maxWorkers ?? Number.POSITIVE_INFINITY,
+  )
+  const recycle: RecyclePolicy = {
+    ...options.pool?.recycle,
+    memoryLimitBytes:
+      options.pool?.recycle?.memoryLimitBytes ?? defaultWorkerMemoryLimit(maxWorkers),
+  }
+  const fileTimeoutMs = options.pool?.fileTimeoutMs
+  const poolOptions: PoolOptions = {
+    kind,
+    maxWorkers,
+    recycle,
+    teardownTimeoutMs,
+    startTimeoutMs,
+    ...(fileTimeoutMs === undefined ? {} : { fileTimeoutMs }),
   }
 
   const unhandled: SerializedError[] = []
@@ -396,7 +484,7 @@ export async function runProjects(
   // Nothing starts until a file is run, but this is where a bad option throws (`recycle`, the
   // transport's own entry), so it comes before `run:start`.
   const pool = createPool(poolOptions, {
-    transport: (poolKind) => transportFor(poolKind, transportOptions),
+    transport: () => factory,
     init: (workerKey, workerId) => {
       // A worker is bound to the project its key names, for its whole life.
       const member = byIdentity.get(workerKey.project)
@@ -431,6 +519,7 @@ export async function runProjects(
       void bus.emit('error', serializeError(error), 'coordinator')
     },
     ...(signal === undefined ? {} : { signal }),
+    ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
   })
 
   /** What a worker sends while it stops reaches the bus under its last file, after that file's `file:end`. */
@@ -455,11 +544,37 @@ export async function runProjects(
   let queue: readonly QueuedFile[] = []
   let interrupted = false
   let announced = false
+  /** `--bail`: the failed tests counted so far, and whether the count has ended the run. */
+  let failedTests = 0
+  let bailed = false
+  /** What an aborted `signal` means: the signal its reason names (`RUN_SIGNALS`), else an interruption. */
+  const cutShort = (): RunEndReason => {
+    const named: unknown = signal?.reason
+    return isRunSignal(named) ? RUN_SIGNALS[named].reason : RUN_SIGNALS.SIGINT.reason
+  }
+  /** Adds failed tests to the run's count, and ends the run if that reaches `bail.count`. */
+  function countFailed(count: number): void {
+    failedTests += count
+    checkBail()
+  }
+  /** Reached `bail.count`: no more files start, and under Jest's rule the running ones are killed. */
+  function checkBail(): void {
+    if (bail === undefined || bailed || failedTests < bail.count) return
+    bailed = true
+    pool.cancelQueued()
+    // A file already running can't be cancelled before T5.12: Jest's rule (checked after each
+    // file) kills it, as Jest's own exit does; Vitest's (after each test) lets it end.
+    if (bailAfter === 'file') void pool.close()
+  }
+  let handles: OpenHandleTracker | undefined
 
   /** The files that have a result, in queue order. */
   const finishedFiles = (): FileResult[] => queue.flatMap((entry) => results.get(entry) ?? [])
 
-  const summarize = (reason: RunSummary['reason']): RunSummary => {
+  const summarize = (
+    reason: RunSummary['reason'],
+    openHandles: readonly OpenHandle[] = [],
+  ): RunSummary => {
     const run = mergedSnapshots(snapshotMembers)
     return {
       reason,
@@ -469,16 +584,23 @@ export async function runProjects(
       ...(run === undefined
         ? {}
         : { snapshots: run, snapshotsFail: snapshotsFailRun(snapshotMembers) }),
+      ...(openHandles.length === 0 ? {} : { openHandles }),
     }
   }
 
   /** One file, from its turn in the queue to its `file:end`. */
   async function runFile(entry: QueuedFile): Promise<void> {
     const { member } = entry
+    /** This file's failed tests: added to the run's count as they fail, or when the file ends. */
+    let failedInFile = 0
     const dispatch = createFileDispatch({
       bus,
       file: entry.info,
       onUnhandled: (error) => void unhandled.push(error),
+      onTestFailed: () => {
+        failedInFile++
+        if (bailAfter === 'test') countFailed(1)
+      },
     })
     const job: FileJob = {
       file: entry.file.path,
@@ -500,8 +622,17 @@ export async function runProjects(
           await bus.emit('file:start', entry.info, workerId)
         },
         onEvents: dispatch.handle,
+        // Jest's rule counts a file's failed tests when the file ends: before its worker takes
+        // another file, or `--bail` would start one it is about to give up.
+        onDone: () => {
+          if (bailAfter === 'file') countFailed(failedInFile)
+        },
       })
       if (outcome.type === 'aborted') {
+        // The run's own bail cut this file short: Jest reports no result for a file it kills, so
+        // neither do we (the one exception to `file:start` having a `file:end`). A signal that
+        // came too is the stronger reason.
+        if (bailed && signal?.aborted !== true) return
         interrupted = true
         // A file that never started was never announced as started: nothing to end.
         if (takenAt === undefined) return
@@ -582,7 +713,7 @@ export async function runProjects(
       announced = true
       await bus.emit('run:start', info, [])
       await pool.close()
-      const summary = summarize(signal?.aborted === true ? 'interrupted' : 'passed')
+      const summary = summarize(signal?.aborted === true ? cutShort() : 'passed')
       await bus.emit('run:end', summary)
       return summary
     }
@@ -604,22 +735,35 @@ export async function runProjects(
 
     // `runFile` asks the pool for its worker before its first `await`, so every file is requested
     // by the time `drain` runs: from here on an idle worker has nothing to wait for.
+    if (options.detectOpenHandles === true) {
+      handles = collectOpenHandles({ roots: members.map((m) => m.project.rootDir) })
+    }
     const running = queue.map((entry) => runFile(entry))
     pool.drain()
     await Promise.all(running)
     // The history is complete; writing it overlaps the workers' shutdown.
     await Promise.all([pool.close(), writeCache()])
+    // After the last worker has stopped: what it could not clean up is what is left.
+    const openHandles = (await handles?.collect()) ?? []
+    handles = undefined
 
     const failed =
+      bailed ||
       finishedFiles().some((file) => file.state === 'fail') ||
       snapshotsFailRun(snapshotMembers) ||
       (orchestrator.unhandledErrors === 'fail-run' && unhandled.length > 0)
-    const summary = summarize(interrupted ? 'interrupted' : failed ? 'failed' : 'passed')
+    // A signal that came while the run was winding down (the pool closing, the cache being written,
+    // the open handles being collected) leaves no file in the middle of anything, but it is still
+    // the user's interruption: the summary says so, and the exit code is the signal's.
+    const cut = interrupted || signal?.aborted === true
+    const summary = summarize(cut ? cutShort() : failed ? 'failed' : 'passed', openHandles)
     await bus.emit('run:end', summary)
     pruneTransformCaches()
     return summary
   } catch (error) {
     await pool.close()
+    // The hook that tracks resources is process-wide: it must not outlive the run.
+    handles?.dispose()
     // Reporters that heard `run:start` hear how it ended, whatever threw.
     if (announced) {
       try {

@@ -18,10 +18,15 @@ export function run(options: RunOptions): Promise<RunResult>;
 
 // @public
 export interface RunOptions {
+    readonly bail?: number;
     readonly cache?: boolean;
     readonly ci?: boolean;
     readonly config: string;
     readonly cwd?: string;
+    readonly detectOpenHandles?: boolean;
+    readonly fileTimeoutMs?: number;
+    readonly forceSignal?: AbortSignal;
+    readonly maxFilesPerWorker?: number;
     readonly maxWorkers?: number;
     readonly passWithNoTests?: boolean;
     readonly pool?: PoolKind;
@@ -31,6 +36,7 @@ export interface RunOptions {
     readonly stdout?: TextSink;
     readonly testNamePattern?: string;
     readonly updateSnapshot?: boolean;
+    readonly workerMemoryLimit?: number;
 }
 
 // @public

@@ -1976,6 +1976,13 @@ export interface NormalizedTest {
 }
 
 // @public
+export interface OpenHandle {
+    readonly codeFrame?: string;
+    readonly frames: readonly string[];
+    readonly type: string;
+}
+
+// @public
 export interface OrchestratorPolicy {
     readonly bail: {
         readonly checkAfter: "file" | "test";
@@ -2098,6 +2105,7 @@ export type PoolKind = "forks" | "threads" | "inline";
 
 // @public
 export interface PoolOptions {
+    readonly fileTimeoutMs?: number;
     // (undocumented)
     readonly kind: PoolKind;
     readonly maxWorkers: number;
@@ -2160,7 +2168,6 @@ export interface Realm {
 
 // @public
 export interface RecyclePolicy {
-    // (undocumented)
     readonly maxFilesPerWorker?: number;
     readonly memoryLimitBytes?: number;
     readonly onLeak?: boolean;
@@ -2349,7 +2356,7 @@ export type RpcReply<Methods> = {
 export type RpcSchema<Methods> = { readonly [K in keyof Methods]: Methods[K] extends ((...args: infer A) => infer R) ? [A] extends [CloneSafe<A>] ? [Awaited<R>] extends [CloneSafe<Awaited<R>>] ? Methods[K] : never : never : never; };
 
 // @public
-export type RunEndReason = "passed" | "failed" | "interrupted";
+export type RunEndReason = "passed" | "failed" | "interrupted" | "terminated" | "hangup";
 
 // @public
 export interface RunEnvironment {
@@ -2445,6 +2452,7 @@ export interface RunSummary {
     readonly durationMs: number;
     // (undocumented)
     readonly files: readonly FileResult[];
+    readonly openHandles?: readonly OpenHandle[];
     // (undocumented)
     readonly reason: RunEndReason;
     readonly snapshots?: SnapshotRunSummary;
@@ -3166,7 +3174,10 @@ export interface Transport {
     readonly pid: number | undefined;
     // (undocumented)
     send(message: CoordinatorToWorker, transfer?: readonly ArrayBuffer[]): void;
-    terminate(force: boolean): Promise<void>;
+    terminate(force: boolean, timeout?: {
+        readonly phase: "file";
+        readonly limitMs: number;
+    }): Promise<void>;
 }
 
 // @public
@@ -3175,6 +3186,7 @@ export interface TransportFactory {
     // (undocumented)
     readonly kind: PoolKind;
     readonly maxWorkers?: number;
+    readonly sharesProcess?: boolean;
 }
 
 // @public
@@ -3260,7 +3272,8 @@ export type WorkerExit = {
     readonly limitMb: number;
 } | {
     readonly type: "timeout";
-    readonly phase: "start" | "stop" | "idle";
+    readonly phase: "start" | "stop" | "idle" | "file";
+    readonly limitMs: number;
 };
 
 // @public

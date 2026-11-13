@@ -106,7 +106,7 @@ describe('connect', () => {
       connect('forks', fake.spawned, init, { entry: 'x', startTimeoutMs: 1 }),
       (error: unknown) => {
         assert.equal((error as { code?: unknown }).code, 'ORCH_WORKER_START_TIMEOUT')
-        assert.deepEqual((error as Error).cause, { type: 'timeout', phase: 'start' })
+        assert.deepEqual((error as Error).cause, { type: 'timeout', phase: 'start', limitMs: 1 })
         return true
       },
     )
@@ -129,5 +129,36 @@ describe('connect', () => {
       return true
     })
     assert.deepEqual(fake.kills, ['SIGKILL'])
+  })
+
+  it('reports a kill for a timeout of the pool as that timeout, once, and keeps the first reason', async () => {
+    const fake = fakeSpawned({
+      onKill: (f) =>
+        setImmediate(() => f.exit({ type: 'signal', signal: 'SIGKILL', likelyOom: false })),
+    })
+    const pending = connect('forks', fake.spawned, init, { entry: 'x' })
+    fake.deliver({ t: 'ready' })
+    const transport = await pending
+    const exits: WorkerExit[] = []
+    transport.onExit((exit) => void exits.push(exit))
+    const first = transport.terminate(true, { phase: 'file', limitMs: 25 })
+    // A second reason, while the worker is going: the first one stays.
+    const second = transport.terminate(true, { phase: 'file', limitMs: 99 })
+    await Promise.all([first, second])
+    assert.deepEqual(exits, [{ type: 'timeout', phase: 'file', limitMs: 25 }])
+  })
+
+  it('reports a kill with no timeout as the signal that ended the worker', async () => {
+    const fake = fakeSpawned({
+      onKill: (f) =>
+        setImmediate(() => f.exit({ type: 'signal', signal: 'SIGKILL', likelyOom: false })),
+    })
+    const pending = connect('forks', fake.spawned, init, { entry: 'x' })
+    fake.deliver({ t: 'ready' })
+    const transport = await pending
+    const exits: WorkerExit[] = []
+    transport.onExit((exit) => void exits.push(exit))
+    await transport.terminate(true)
+    assert.deepEqual(exits, [{ type: 'signal', signal: 'SIGKILL', likelyOom: false }])
   })
 })

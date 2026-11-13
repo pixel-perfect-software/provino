@@ -1,0 +1,10 @@
+{
+  "description": "--bail (T9.10, B21a review): a file that throws when it is loaded (a suite that failed to run, `testExecError`) is not a failed test, so it does not count towards the bail. Jest checks `numFailedTests >= bail` only when a file's result arrives (TestScheduler's `onResult`; `onFailure` never checks it) and a suite that failed to run adds no failed test (`buildFailureTestResult`), so the later files all run and the summary counts every suite. One Jest worker (maxWorkers 1), and the throwing file is the largest, so it runs first. A black-box run.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--bail"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Test Suites|Tests):|^(PASS|FAIL) "
+  }
+}

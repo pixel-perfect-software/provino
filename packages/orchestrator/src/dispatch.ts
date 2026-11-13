@@ -38,6 +38,8 @@ export interface FileDispatchOptions {
   readonly file: FileInfo
   /** Called for every unhandled error of the file, as it arrives. */
   readonly onUnhandled: (error: SerializedError) => void
+  /** Called after each test of the file ends as `fail`, once reporters have heard of it. */
+  readonly onTestFailed?: () => void
 }
 
 function badEvent(event: WorkerEvent, why: string): OrchestratorError {
@@ -53,7 +55,7 @@ function badEvent(event: WorkerEvent, why: string): OrchestratorError {
  * @public
  */
 export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
-  const { bus, file, onUnhandled } = options
+  const { bus, file, onUnhandled, onTestFailed } = options
   const nodes = new Map<TaskId, TaskNode>()
   let result: TaskResult | undefined
   let tests = 0
@@ -101,8 +103,12 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
       case 'test-attempt-end':
         return await bus.emit('test:attempt-end', test(event, event.id), event)
       case 'suite-end':
-      case 'test-end':
         return await bus.emit('task:end', suiteOrTest(event, event.id), event)
+      case 'test-end': {
+        await bus.emit('task:end', suiteOrTest(event, event.id), event)
+        if (event.result.state === 'fail') onTestFailed?.()
+        return
+      }
       case 'hook-start':
         return await bus.emit('hook:start', owner(event, event.ownerId), event)
       case 'hook-end':

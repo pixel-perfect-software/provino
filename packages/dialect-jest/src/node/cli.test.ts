@@ -996,7 +996,7 @@ describe('the options table', () => {
   it('classifies every option once, and counts the classes', (t) => {
     const counts = Object.fromEntries(supports)
     t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
-    assert.deepEqual(counts, { request: 14, config: 50, accepted: 7, warn: 10, refuse: 24 })
+    assert.deepEqual(counts, { request: 14, config: 53, accepted: 7, warn: 10, refuse: 21 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'
       assert.equal(option.owner !== undefined, needsOwner, name)
@@ -1092,7 +1092,7 @@ describe('diagnostics', () => {
   }
 
   it('gives an error diagnostic for each refused flag, naming the task', () => {
-    assert.equal(Object.keys(REFUSED).length, 24)
+    assert.equal(Object.keys(REFUSED).length, 21)
     for (const [name, owner] of Object.entries(REFUSED)) {
       const { diagnostics } = parseJestCli(lineFor(name))
       assert.deepEqual(
@@ -1114,7 +1114,6 @@ describe('diagnostics', () => {
     const owners: Readonly<Record<string, string>> = {
       watch: 'T9.11',
       watchAll: 'T9.11',
-      bail: 'T9.10',
       coverage: 'T8.8',
       collectCoverage: 'T8.8',
       shard: 'T9.6',
@@ -1128,8 +1127,6 @@ describe('diagnostics', () => {
       json: 'T11.8',
       outputFile: 'T11.8',
       reporters: 'T11.9',
-      forceExit: 'T9.10',
-      detectOpenHandles: 'T9.10',
       detectLeaks: 'T2.7',
       projects: 'the --projects flag, no task yet (a config `projects` runs)',
       randomize: 'Track 9, no task yet',
@@ -1180,10 +1177,10 @@ describe('diagnostics', () => {
   })
 
   it("lists several in the table's order, and lets --json and --outputFile shape --listTests", () => {
-    const { diagnostics } = parseJestCli(['--watch', '--bail', '--verbose', '--coverage'])
+    const { diagnostics } = parseJestCli(['--watch', '--shard', '1/2', '--verbose', '--coverage'])
     assert.deepEqual(
       diagnostics.map((diagnostic) => diagnostic.key),
-      ['--bail', '--coverage', '--verbose', '--watch'],
+      ['--coverage', '--shard', '--verbose', '--watch'],
     )
     assert.deepEqual(parseJestCli(['--listTests', '--json']).diagnostics, [])
     assert.deepEqual(
@@ -1305,6 +1302,20 @@ describe('the run request', () => {
       cache: false,
       configPath: 'jest.config.ts',
     })
+  })
+
+  it('leaves --bail, --forceExit and --detectOpenHandles to the config they are keys of (T9.10)', () => {
+    // They are in the argv (the reader merges them into the global config, where a run reads them
+    // together with the config's own), and the request has no field for them.
+    for (const [line, key] of [
+      [['--bail'], 'bail'],
+      [['-b'], 'bail'],
+      [['--forceExit'], 'forceExit'],
+      [['--detectOpenHandles'], 'detectOpenHandles'],
+    ] as const) {
+      assert.equal(parseJestCli([...line]).argv[key], true, line.join(' '))
+      assert.deepEqual(request([...line]), request([]), line.join(' '))
+    }
   })
 
   it('is what jestCli.parse and jestCli.toRunRequest give', () => {

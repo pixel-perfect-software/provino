@@ -174,6 +174,7 @@ export interface H {
     readonly durationMs: number;
     // (undocumented)
     readonly files: readonly FileResult[];
+    readonly openHandles?: readonly OpenHandle[];
     // (undocumented)
     readonly reason: RunEndReason;
     readonly snapshots?: SnapshotRunSummary;

@@ -1,0 +1,10 @@
+{
+  "description": "--bail (T9.10): the first file's one failing test ends the run. Jest reports the run so far (its summary counts the files that finished, out of all of them), starts no other file, and exits with testFailureExitCode, 1. The flag's count is 1: in Jest 30.5.2 --bail is a boolean flag (--bail=1 parses as false, so it bails on nothing), and a count comes only from the config's bail (bail-two). One Jest worker (maxWorkers 1), and the failing file is the largest, so it runs first. A black-box run.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--bail"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Test Suites|Tests):|^(PASS|FAIL) "
+  }
+}

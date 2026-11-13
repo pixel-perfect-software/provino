@@ -2,8 +2,19 @@
 // `resourceLimits`, and no isolation from a native fault, which ends the whole process.
 import { Worker } from 'node:worker_threads'
 import { workerLink } from '@provino/rpc'
-import type { CoordinatorToWorker, TransportFactory, WorkerToCoordinator } from '@provino/types'
-import { createTransport, forwardStdio, printError, type TransportOptions } from './shared.ts'
+import type {
+  CoordinatorToWorker,
+  TransportFactory,
+  WorkerExit,
+  WorkerToCoordinator,
+} from '@provino/types'
+import {
+  createTransport,
+  forwardStdio,
+  oomExit,
+  printError,
+  type TransportOptions,
+} from './shared.ts'
 
 /**
  * Options for `threadsTransport`.
@@ -17,8 +28,24 @@ export interface ThreadsTransportOptions extends TransportOptions {
   readonly execArgv?: readonly string[]
   /** The thread's `process.env`, a copy. Default: a copy of this process's. */
   readonly env?: NodeJS.ProcessEnv
-  /** The thread's old-generation heap limit; going over it ends the thread with `oom`. */
+  /**
+   * The thread's old-generation heap limit; going over it ends the thread with `oom` and this
+   * limit. Without one the thread runs under Node's default, and an OOM is `oom` all the same.
+   */
   readonly memoryLimitMb?: number
+}
+
+/**
+ * How a thread that ended with `code` ended. A thread that went over its heap limit has `oom` and
+ * the limit it ran under: the one the transport set, else the one Node gave it (`limitMb`), else
+ * V8's default for this process, as a fork has.
+ */
+export function threadExit(
+  code: number,
+  outOfMemory: boolean,
+  limitMb: number | undefined,
+): WorkerExit {
+  return outOfMemory ? oomExit(limitMb) : { type: 'exit', code }
 }
 
 /**
@@ -39,6 +66,13 @@ export function threadsTransport(options: ThreadsTransportOptions): TransportFac
     })
     const stderr = forwardStdio(worker, options)
     let outOfMemory = false
+    // Node fills in the limits a thread runs under once it is online, and empties them when it
+    // stops, so an OOM with no configured limit reads its limit here, early.
+    let runningLimitMb = limitMb
+    worker.once('online', () => {
+      const actual = worker.resourceLimits?.maxOldGenerationSizeMb
+      if (limitMb === undefined && actual !== undefined && actual > 0) runningLimitMb = actual
+    })
     // An uncaught error ends the thread with code 1, which the exit reports. Node prints it
     // nowhere, so it goes to the stderr sink, as a fork's would; only the OOM code changes what
     // the exit means.
@@ -51,11 +85,7 @@ export function threadsTransport(options: ThreadsTransportOptions): TransportFac
       pid: undefined,
       onExit(listener) {
         worker.once('exit', (code) => {
-          listener(
-            outOfMemory && limitMb !== undefined
-              ? { type: 'oom', limitMb }
-              : { type: 'exit', code },
-          )
+          listener(threadExit(code, outOfMemory, runningLimitMb))
         })
       },
       kill() {

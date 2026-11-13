@@ -1,0 +1,9 @@
+{
+  "description": "A run whose only file has every test skipped (T9.10, B21a review): no suite ran, so Jest's summary reads `1 skipped, 0 of 1 total` (getSummary's `suitesRun` is failed + passed, here 0, against the 1 queued), the run passes and exits 0. A black-box run with the default reporter.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Test Suites|Tests):|^(PASS|FAIL|SKIP) "
+  }
+}
