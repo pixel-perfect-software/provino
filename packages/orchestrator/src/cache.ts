@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { hasProvinoTag } from '@provino/config'
+import { isIsolationTier } from '@provino/loader'
 import type { FileHistory } from '@provino/types'
 import { isRecord } from './util.ts'
 
@@ -101,8 +102,6 @@ export interface ResultsCache {
 
 type Projects = Map<string, Map<string, FileHistory>>
 
-const TIERS: ReadonlySet<unknown> = new Set(['none', 'registry', 'realm', 'process'])
-
 /** `coverage`: test ids to lists of function ids, all text. */
 function isCoverageMap(value: unknown): boolean {
   return (
@@ -124,7 +123,7 @@ function isHistory(value: unknown): value is FileHistory {
     typeof value.tests === 'number' &&
     typeof value.at === 'number' &&
     (value.inputsHash === undefined || typeof value.inputsHash === 'string') &&
-    (value.tier === undefined || TIERS.has(value.tier)) &&
+    (value.tier === undefined || (typeof value.tier === 'string' && isIsolationTier(value.tier))) &&
     (value.coverage === undefined || isCoverageMap(value.coverage))
   )
 }
