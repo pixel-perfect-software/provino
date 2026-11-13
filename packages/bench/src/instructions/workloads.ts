@@ -58,7 +58,7 @@ const SUITE_TESTS: Readonly<Record<'app-50' | 'mock-heavy-50' | 'isolate-heavy',
 }
 
 /** Hoisting calls the `hoist` leg makes. */
-export const HOIST_CALLS = 60
+const HOIST_CALLS = 60
 
 function sortedFiles(dir: string, suffix: string): string[] {
   return readdirSync(dir)
