@@ -551,7 +551,12 @@ test('per-file: twelve files that each add an exit listener stay under the liste
   }
   assert.deepEqual(seen, Array(12).fill(1), 'each file sees its own listener only')
   assert.equal(worker.listenerCount('exit'), before, 'no listener reached the worker’s process')
-  assert.deepEqual(warnings, [], 'no MaxListenersExceededWarning')
+  // Only the listener warning counts: Node 26 also emits an unrelated `ExperimentalWarning` here.
+  assert.deepEqual(
+    warnings.filter((name) => name === 'MaxListenersExceededWarning'),
+    [],
+    'no MaxListenersExceededWarning',
+  )
   assert.equal(ran, 0)
 })
 
