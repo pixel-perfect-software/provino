@@ -8,7 +8,21 @@ import { Context } from 'node:vm';
 import { StandardSchemaV1 } from '@standard-schema/spec';
 
 // @public
-export type $ = (port: WorkerPort) => void | Promise<void>;
+export interface $ {
+    readonly advanceToNextTimerHonorsSteps: boolean;
+    readonly enableGlobally: boolean;
+    readonly facadeReturns: "lifecycle" | "all";
+    readonly fakeTemporal: boolean;
+    readonly legacyAvailable: boolean;
+    readonly loopLimit: number;
+    readonly messages: {
+        readonly notFaked: string;
+    };
+    readonly notFaked: "warn" | "throw";
+    readonly optionNames: "do-not-fake" | "to-fake";
+    readonly setSystemTimeWithoutFakes: "warn-noop" | "fake-date-only";
+    readonly toFakeDefault: "all" | "all-but-microtasks";
+}
 
 // @public
 export interface _ {
@@ -16,7 +30,9 @@ export interface _ {
 }
 
 // @public
-export type A = (received: never, ...expected: never[]) => MatcherResult | Promise<MatcherResult>;
+export type A = string | number | boolean | null | readonly A[] | {
+    readonly [key: string]: A;
+};
 
 // @public
 export interface a<Name extends string = string, Options = unknown> {
@@ -40,7 +56,7 @@ export interface a<Name extends string = string, Options = unknown> {
     readonly name: Name;
     readonly options?: StandardSchemaV1<unknown, Options>;
     // (undocumented)
-    readonly policy: F | DialectPolicyFactory<Options>;
+    readonly policy: I | DialectPolicyFactory<Options>;
     // (undocumented)
     readonly reporterAdapters?: readonly ReporterAdapter[];
     readonly typeEntries?: readonly string[];
@@ -48,7 +64,7 @@ export interface a<Name extends string = string, Options = unknown> {
 }
 
 // @public
-export interface B extends z, TopLevelKeys {}
+export interface B extends t, ProjectKeys, o, F {}
 
 // @public
 export interface b extends InvertibleAsymmetric {
@@ -68,7 +84,7 @@ export interface b extends InvertibleAsymmetric {
     // (undocumented)
     extend(matchers: MatcherSet): void;
     // (undocumented)
-    getState(): j;
+    getState(): M;
     // (undocumented)
     hasAssertions(): void;
     // (undocumented)
@@ -77,30 +93,30 @@ export interface b extends InvertibleAsymmetric {
     };
     poll?: (fn: (context: PollContext) => unknown, options?: PollOptions) => PollAssertion;
     // (undocumented)
-    setState(state: Partial<j>): void;
+    setState(state: Partial<M>): void;
     soft?: (actual: unknown) => Assertion;
     unreachable?: (message?: string) => never;
 }
 
 // @public
-export interface C extends TaskBase {
+export interface C {
     // (undocumented)
-    readonly children: readonly TaskId[];
-    readonly path: string;
+    readonly durationMs: number;
     // (undocumented)
-    readonly projectName: string;
+    readonly errors: readonly q[];
     // (undocumented)
-    readonly type: "file";
+    readonly file: S;
+    readonly snapshot?: SnapshotFileReport;
+    // (undocumented)
+    readonly state: "pass" | "fail" | "skip";
+    readonly workerExit?: WorkerExit;
 }
 
 // @public
 export type c = "rows" | "template" | "mixed";
 
 // @public
-export type D = (thrown: unknown, context: {
-    readonly hook: "globalSetup" | "globalTeardown";
-    readonly path: string;
-}) => Error;
+export type D = (value: unknown) => string;
 
 // @public
 export interface d<G extends object = typeof globalThis> {
@@ -111,10 +127,13 @@ export interface d<G extends object = typeof globalThis> {
 }
 
 // @public
-export type E = (value: unknown) => string;
+export type E = (miss: MapperMiss) => string;
 
 // @public
-export type F = { readonly [K in SliceName]?: DeepPartial<PolicySlices[K]>; };
+export type et = (port: WorkerPort) => void | Promise<void>;
+
+// @public
+export type F = { readonly [N in keyof PluginRegistry & string as N extends W | DialectName ? never : N]?: PluginRegistry[N]; };
 
 // @public
 export interface f {
@@ -141,16 +160,17 @@ export interface f {
 // @public
 export interface G {
     // (undocumented)
-    readonly durationMs: number;
+    readonly arch: string;
     // (undocumented)
-    readonly files: readonly S[];
-    readonly openHandles?: readonly OpenHandle[];
+    readonly ci: boolean;
+    readonly cpuCount: number;
     // (undocumented)
-    readonly reason: RunEndReason;
-    readonly snapshots?: SnapshotRunSummary;
-    readonly snapshotsFail?: boolean;
-    // (undocumented)
-    readonly unhandled: readonly K[];
+    readonly cpuModel: string;
+    readonly memoryMb: number;
+    readonly node: string;
+    readonly os: string;
+    readonly osRelease: string;
+    readonly runners: Readonly<Record<string, string>>;
 }
 
 // @public
@@ -159,8 +179,8 @@ export interface g<Options> {
     readonly console: Console;
     // (undocumented)
     readonly options: Options;
-    readonly pragmas: L;
-    readonly processObject?: R;
+    readonly pragmas: R;
+    readonly processObject?: z;
     // (undocumented)
     readonly realm: p;
     // (undocumented)
@@ -171,34 +191,80 @@ export interface g<Options> {
 }
 
 // @public
-export interface H extends ReporterHandlers {
-    readonly lastError?: () => K | undefined;
-    // (undocumented)
-    readonly name: string;
+export interface H {
+    readonly defaultReporters: readonly string[];
+    readonly displaySeparator: string;
+    readonly failureTitleBullet: string | null;
+    readonly listTestsForSingleFile: boolean;
+    readonly resultStatusSkipped: "pending" | "skipped";
 }
 
 // @public
 export type h = "file" | "worker";
 
 // @public
-export type I = "forks" | "threads" | "inline";
+export type I = { readonly [K in SliceName]?: DeepPartial<PolicySlices[K]>; };
 
 // @public
-export type i = <const N extends string>(reporter: H & {
+export type i = <const N extends string>(reporter: U & {
     readonly name: N;
-}) => H & {
+}) => U & {
     readonly name: N;
 };
 
 // @public
-export interface J {
+export type J = (fullName: string, count: number) => string;
+
+// @public
+export type j = (received: never, ...expected: never[]) => MatcherResult | Promise<MatcherResult>;
+
+// @public
+export interface K {
     // (undocumented)
-    readonly messages: SnapshotMessages;
-    serialize(value: unknown, options: SnapshotSerializeOptions): string;
+    readonly durationMs: number;
+    // (undocumented)
+    readonly files: readonly C[];
+    readonly openHandles?: readonly OpenHandle[];
+    // (undocumented)
+    readonly reason: RunEndReason;
+    readonly snapshots?: SnapshotRunSummary;
+    readonly snapshotsFail?: boolean;
+    // (undocumented)
+    readonly unhandled: readonly q[];
 }
 
 // @public
-export interface j {
+export interface k {
+    readonly api: object;
+    environmentTornDown(): boolean;
+    readonly expect: object;
+    readonly mockPolicy: P;
+    mocks(): object;
+    moduleMocks(): ModuleMockRegistry;
+    registry(): FileRegistry;
+    readonly seed: number;
+    setDefaultRetry(retry: DefaultRetry | undefined): void;
+    setDefaultTimeout(ms: number | undefined): void;
+    timers(): object;
+    readonly timersPolicy: $;
+}
+
+// @public
+export type L = "forks" | "threads" | "inline";
+
+// @public
+export interface l<Name extends string = string, Options = Record<string, never>, G extends object = typeof globalThis> {
+    readonly conditions?: readonly string[];
+    // (undocumented)
+    readonly name: Name;
+    prepare?(options: Options): unknown;
+    readonly realms: readonly p[];
+    // (undocumented)
+    setup(context: g<Options>, prepared: unknown): d<G> | Promise<d<G>>;
+}
+
+// @public
+export interface M {
     [key: string]: unknown;
     // (undocumented)
     assertionCalls: number;
@@ -225,62 +291,32 @@ export interface j {
 }
 
 // @public
-export interface K {
-    readonly __record?: never;
-    // (undocumented)
-    readonly cause?: K;
-    // (undocumented)
-    readonly code?: string;
-    readonly details?: k;
-    readonly diff?: {
-        readonly expected: string;
-        readonly actual: string;
-    };
-    // (undocumented)
-    readonly errors?: readonly K[];
-    // (undocumented)
-    readonly location?: SourceLocation;
-    readonly matcherResult?: {
-        readonly name: string;
-        readonly pass: boolean;
-    };
-    // (undocumented)
-    readonly message: string;
-    // (undocumented)
-    readonly name: string;
-    // (undocumented)
-    readonly stack?: string;
-}
-
-// @public
-export type k = string | number | boolean | null | readonly k[] | {
-    readonly [key: string]: k;
-};
-
-// @public
-export type L = Readonly<Record<string, string | readonly string[]>>;
-
-// @public
-export interface l<Name extends string = string, Options = Record<string, never>, G extends object = typeof globalThis> {
-    readonly conditions?: readonly string[];
-    // (undocumented)
-    readonly name: Name;
-    prepare?(options: Options): unknown;
-    readonly realms: readonly p[];
-    // (undocumented)
-    setup(context: g<Options>, prepared: unknown): d<G> | Promise<d<G>>;
-}
-
-// @public
-export type M = "clear" | "reset" | "restore" | "unstubEnvs" | "unstubGlobals";
-
-// @public
 export type m = (request: EnvironmentPragmaRequest) => EnvironmentRef | Promise<EnvironmentRef>;
 
 // @public
-export interface N {
+export type N = "clear" | "reset" | "restore" | "unstubEnvs" | "unstubGlobals";
+
+// @public
+export interface n {
+    // (undocumented)
+    readonly command: "run" | "watch";
+    // (undocumented)
+    readonly mode: string;
+}
+
+// @public
+export type O = (thrown: unknown, context: {
+    readonly hook: "globalSetup" | "globalTeardown";
+    readonly path: string;
+}) => Error;
+
+// @public
+export type o = { readonly [N in DialectName as N extends W ? never : N]?: DialectRegistry[N]; };
+
+// @public
+export interface P {
     readonly between: {
-        readonly order: readonly M[];
+        readonly order: readonly N[];
         readonly clear: boolean;
         readonly reset: boolean;
         readonly restore: boolean;
@@ -309,83 +345,75 @@ export interface N {
 }
 
 // @public
-export interface n {
-    // (undocumented)
-    readonly command: "run" | "watch";
-    // (undocumented)
-    readonly mode: string;
-}
-
-// @public
-export interface O {
-    readonly api: object;
-    environmentTornDown(): boolean;
-    readonly expect: object;
-    readonly mockPolicy: N;
-    mocks(): object;
-    moduleMocks(): ModuleMockRegistry;
-    registry(): FileRegistry;
-    readonly seed: number;
-    setDefaultRetry(retry: DefaultRetry | undefined): void;
-    setDefaultTimeout(ms: number | undefined): void;
-    timers(): object;
-    readonly timersPolicy: Q;
-}
-
-// @public
-export type o = { readonly [N in DialectName as N extends U ? never : N]?: DialectRegistry[N]; };
-
-// @public
-export type P = { readonly [N in keyof PluginRegistry & string as N extends U | DialectName ? never : N]?: PluginRegistry[N]; };
-
-// @public
 export type p = "worker" | "context";
 
 // @public
 export interface Q {
-    readonly advanceToNextTimerHonorsSteps: boolean;
-    readonly enableGlobally: boolean;
-    readonly facadeReturns: "lifecycle" | "all";
-    readonly fakeTemporal: boolean;
-    readonly legacyAvailable: boolean;
-    readonly loopLimit: number;
-    readonly messages: {
-        readonly notFaked: string;
-    };
-    readonly notFaked: "warn" | "throw";
-    readonly optionNames: "do-not-fake" | "to-fake";
-    readonly setSystemTimeWithoutFakes: "warn-noop" | "fake-date-only";
-    readonly toFakeDefault: "all" | "all-but-microtasks";
+    badge(word: string, colour: "green" | "red" | "yellow"): string;
+    // (undocumented)
+    bold(text: string): string;
+    // (undocumented)
+    dim(text: string): string;
+    // (undocumented)
+    green(text: string): string;
+    // (undocumented)
+    magenta(text: string): string;
+    // (undocumented)
+    red(text: string): string;
+    // (undocumented)
+    yellow(text: string): string;
 }
 
 // @public
-export type q = (fullName: string, count: number) => string;
+export interface q {
+    readonly __record?: never;
+    // (undocumented)
+    readonly cause?: q;
+    // (undocumented)
+    readonly code?: string;
+    readonly details?: A;
+    readonly diff?: {
+        readonly expected: string;
+        readonly actual: string;
+    };
+    // (undocumented)
+    readonly errors?: readonly q[];
+    // (undocumented)
+    readonly location?: SourceLocation;
+    readonly matcherResult?: {
+        readonly name: string;
+        readonly pass: boolean;
+    };
+    // (undocumented)
+    readonly message: string;
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly stack?: string;
+}
 
 // @public
-export type R = "per-file" | "shared";
+export type R = Readonly<Record<string, string | readonly string[]>>;
 
 // @public
 export type r = <const Name extends string, Options = Record<string, never>, G extends object = typeof globalThis>(environment: l<Name, Options, G>) => l<Name, Options, G>;
 
-// @public
+// @beta
 export interface S {
     // (undocumented)
-    readonly durationMs: number;
+    readonly fileId: TaskId;
+    readonly path: string;
     // (undocumented)
-    readonly errors: readonly K[];
-    // (undocumented)
-    readonly file: FileInfo;
-    readonly snapshot?: SnapshotFileReport;
-    // (undocumented)
-    readonly state: "pass" | "fail" | "skip";
-    readonly workerExit?: WorkerExit;
+    readonly project: string;
+    readonly projectIndex?: number;
+    readonly runPath?: string;
 }
 
 // @public
 export type s<Row> = [Row] extends [readonly unknown[]] ? [...Row] : [Row];
 
 // @public
-export type T = (miss: MapperMiss) => string;
+export type T = (template: string, row: readonly unknown[] | Readonly<Record<string, unknown>>, index: number, kind?: c) => string;
 
 // @public
 export interface t {
@@ -406,74 +434,37 @@ export interface t {
 }
 
 // @public
-export type U = keyof t | keyof ProjectKeys | keyof TopLevelKeys;
+export interface U extends ReporterHandlers {
+    readonly lastError?: () => q | undefined;
+    // (undocumented)
+    readonly name: string;
+}
 
 // @public
 export type u = (env: EnvironmentRequest) => readonly string[];
 
 // @public
-export interface V {
-    readonly defaultReporters: readonly string[];
-    readonly displaySeparator: string;
-    readonly failureTitleBullet: string | null;
-    readonly listTestsForSingleFile: boolean;
-    readonly resultStatusSkipped: "pending" | "skipped";
-}
+export interface V extends B, TopLevelKeys {}
 
 // @public
 export type v = (this: TesterContext, a: unknown, b: unknown, customTesters: v[]) => boolean | undefined;
 
 // @public
-export interface W {
+export type W = keyof t | keyof ProjectKeys | keyof TopLevelKeys;
+
+// @public
+export interface w extends TaskBase {
     // (undocumented)
-    readonly arch: string;
+    readonly children: readonly TaskId[];
+    readonly path: string;
     // (undocumented)
-    readonly ci: boolean;
-    readonly cpuCount: number;
+    readonly projectName: string;
     // (undocumented)
-    readonly cpuModel: string;
-    readonly memoryMb: number;
-    readonly node: string;
-    readonly os: string;
-    readonly osRelease: string;
-    readonly runners: Readonly<Record<string, string>>;
+    readonly type: "file";
 }
 
 // @public
-export type w = (template: string, row: readonly unknown[] | Readonly<Record<string, unknown>>, index: number, kind?: c) => string;
-
-// @public
-export interface X {
-    // (undocumented)
-    annotate(message: string, kind?: string): Promise<void>;
-    // (undocumented)
-    onTestFailed(fn: (ctx: X) => void | Promise<void>, timeoutMs?: number): void;
-    // (undocumented)
-    onTestFinished(fn: (ctx: X) => void | Promise<void>, timeoutMs?: number): void;
-    readonly signal: AbortSignal;
-    // (undocumented)
-    skip(note?: string): never;
-    // (undocumented)
-    skip(condition: boolean, note?: string): void;
-    // (undocumented)
-    readonly task: Readonly<TestTask>;
-}
-
-// @public
-export interface x {
-    readonly asymmetric: AsymmetricFactories;
-    readonly asymmetricNot: AsymmetricFactories;
-    customAsymmetric(name: string, matcher: A): CustomAsymmetricBuilder;
-    // (undocumented)
-    readonly matchers: MatcherSet;
-    // (undocumented)
-    readonly messages: ExpectMessages;
-    readonly promiseMatchers: MatcherSet;
-    readonly utils: object;
-}
-
-// @public
-export interface Y extends TaskBase {
+export interface X extends TaskBase {
     // (undocumented)
     readonly children: readonly TaskId[];
     // (undocumented)
@@ -484,6 +475,26 @@ export interface Y extends TaskBase {
     readonly shuffle: boolean;
     // (undocumented)
     readonly type: "suite";
+}
+
+// @public
+export interface x {
+    readonly asymmetric: AsymmetricFactories;
+    readonly asymmetricNot: AsymmetricFactories;
+    customAsymmetric(name: string, matcher: j): CustomAsymmetricBuilder;
+    // (undocumented)
+    readonly matchers: MatcherSet;
+    // (undocumented)
+    readonly messages: ExpectMessages;
+    readonly promiseMatchers: MatcherSet;
+    readonly utils: object;
+}
+
+// @public
+export interface Y {
+    // (undocumented)
+    readonly messages: SnapshotMessages;
+    serialize(value: unknown, options: SnapshotSerializeOptions): string;
 }
 
 // @public
@@ -510,23 +521,23 @@ export interface y {
 
 // @public
 export interface Z {
-    badge(word: string, colour: "green" | "red" | "yellow"): string;
     // (undocumented)
-    bold(text: string): string;
+    annotate(message: string, kind?: string): Promise<void>;
     // (undocumented)
-    dim(text: string): string;
+    onTestFailed(fn: (ctx: Z) => void | Promise<void>, timeoutMs?: number): void;
     // (undocumented)
-    green(text: string): string;
+    onTestFinished(fn: (ctx: Z) => void | Promise<void>, timeoutMs?: number): void;
+    readonly signal: AbortSignal;
     // (undocumented)
-    magenta(text: string): string;
+    skip(note?: string): never;
     // (undocumented)
-    red(text: string): string;
+    skip(condition: boolean, note?: string): void;
     // (undocumented)
-    yellow(text: string): string;
+    readonly task: Readonly<TestTask>;
 }
 
 // @public
-export interface z extends t, ProjectKeys, o, P {}
+export type z = "per-file" | "shared";
 
 // (No @packageDocumentation comment for this package)
 

@@ -1770,6 +1770,7 @@ export interface ModulePolicy {
     readonly resetModulesBetween: boolean;
     readonly resetModulesClearsMocks: boolean;
     readonly rootMocksAutoApply: boolean;
+    readonly stackFrameNames: "mapped-name" | "engine";
     readonly unmockedPathPatterns: readonly RegExp[];
     readonly virtualRelative: boolean;
 }

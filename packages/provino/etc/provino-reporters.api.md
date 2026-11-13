@@ -115,6 +115,7 @@ export interface TextReporterOptions {
     readonly closingLine?: (summary: RunSummary, style: TextStyle) => string | undefined;
     readonly colour?: boolean;
     readonly columns?: number;
+    readonly consoleTrace?: (file: FileInfo, entry: ConsoleEntry) => string;
     readonly expand?: boolean;
     readonly failureSummaryThreshold?: number;
     readonly failureText?: (file: FileResult) => string | undefined;

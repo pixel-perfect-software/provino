@@ -323,6 +323,11 @@ export type JestConfigErrorCode = "JEST_CONFIG_NOT_FOUND" | "JEST_CONFIG_NO_ROOT
 export const jestConfigReader: ConfigReader<JestLoadedConfig, JestResolvedConfig>;
 
 // @public
+export function jestConsoleTrace(origin: string, level: string | null, config: StackTraceConfig, globalConfig: {
+    readonly noStackTrace?: boolean;
+}): string;
+
+// @public
 export function jestDefaults(ci: boolean): Readonly<Options$1>;
 
 // @public (undocumented)
