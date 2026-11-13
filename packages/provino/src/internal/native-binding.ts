@@ -55,12 +55,12 @@ function machine(): BindingProbe {
   }
 }
 
-/** The error and its `cause` chain, as the text a loader failure would carry. */
+/** The error and its `cause` chain: each message, and each stack (which names the package that threw). */
 function chainText(error: unknown): string {
   const parts: string[] = []
   for (let current: unknown = error, depth = 0; current !== undefined && depth < 6; depth++) {
     if (current instanceof Error) {
-      parts.push(current.message)
+      parts.push(current.message, current.stack ?? '')
       current = current.cause
     } else {
       parts.push(String(current))
@@ -83,11 +83,17 @@ export function missingBindingMessage(
   probe: BindingProbe = machine(),
 ): string | undefined {
   const text = chainText(error)
-  const isBinding =
-    /Cannot find native binding/.test(text) ||
-    /Cannot find module '@oxc-(?:parser|transform|resolver)\/binding-/.test(text) ||
-    /@oxc-(?:parser|transform|resolver)\/binding-[^\s'"]*\.node/.test(text)
-  if (!isBinding) return undefined
+  // A binding that did not load, and an Oxc package that says so: the napi-rs loader every native
+  // package ships (swc, lightningcss, ...) words its failure the same way, and that one is not ours.
+  const namesOxc =
+    /@oxc-(?:parser|transform|resolver)\//.test(text) ||
+    /[\\/]node_modules[\\/](?:\.pnpm[\\/][^\\/]+[\\/]node_modules[\\/])?oxc-(?:parser|transform|resolver)[\\/]/.test(
+      text,
+    )
+  const failedToLoad = /Cannot find native binding|Cannot find module '@oxc-|dlopen|\.node\b/.test(
+    text,
+  )
+  if (!(namesOxc && failedToLoad)) return undefined
   const triple = bindingTriple(probe.platform, probe.arch, probe.musl)
   const all = OXC_PACKAGES.map((name) => ({
     base: name,

@@ -81,6 +81,42 @@ describe('missingBindingMessage', () => {
     }
   })
 
+  it("leaves another napi-rs package's missing binding alone, with its own stack", () => {
+    // swc, lightningcss and the rest ship the same loader, with the same words.
+    const probe = machine('darwin', 'arm64', false)
+    const swc = new Error(
+      'Cannot find native binding. npm has a bug related to optional dependencies (https://github.com/npm/cli/issues/4828). Please try `npm i` again after removing both package-lock.json and node_modules directory.',
+      { cause: new Error("Cannot find module '@swc/core-darwin-arm64'") },
+    )
+    swc.stack =
+      'Error: Cannot find native binding.\n    at Object.<anonymous> (/p/node_modules/.pnpm/@swc+core@1.16.22/node_modules/@swc/core/binding.js:333:11)'
+    assert.equal(missingBindingMessage(swc, probe), undefined)
+    const lightning = new Error("Cannot find module 'lightningcss-darwin-arm64'")
+    assert.equal(missingBindingMessage(lightning, probe), undefined)
+    const generic = new Error('Cannot find native binding')
+    assert.equal(missingBindingMessage(generic, probe), undefined)
+  })
+
+  it('leaves an Oxc error that is not a binding failing to load alone', () => {
+    const probe = machine('darwin', 'arm64', false)
+    const parse = new Error('Expected a semicolon')
+    parse.stack =
+      'Error: Expected a semicolon\n    at parseSync (/p/node_modules/.pnpm/oxc-parser@0.157.0/node_modules/oxc-parser/src-js/index.js:10:5)'
+    assert.equal(missingBindingMessage(parse, probe), undefined)
+  })
+
+  it("knows an Oxc package by its stack when the message names only the loader's text", () => {
+    const error = new Error(
+      'Cannot find native binding. npm has a bug related to optional dependencies.',
+    )
+    error.stack =
+      'Error: Cannot find native binding.\n    at file:///p/node_modules/.pnpm/oxc-transform@0.157.0/node_modules/oxc-transform/index.js:762:19'
+    assert.match(
+      missingBindingMessage(error, machine('linux', 'x64', false)) ?? '',
+      /@oxc-transform\/binding-linux-x64-gnu/,
+    )
+  })
+
   it('leaves every other error alone', () => {
     const probe = machine('darwin', 'arm64', false)
     for (const error of [

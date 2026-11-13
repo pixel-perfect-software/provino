@@ -104,6 +104,17 @@ describe('a missing Oxc binding (T10.3)', () => {
     }
   })
 
+  test("another package's missing binding is not reported as an Oxc one: the error and its stack come through", () => {
+    const result = run(['jest', '--ci'], [BLOCKER], { PROVINO_BLOCK: 'other' })
+    const stderr = result.stderr.replace(/^ERROR: failed to copy trust.*\n/gm, '')
+    assert.equal(result.status, 1, stderr)
+    assert.doesNotMatch(stderr, /^Provino: the native Oxc binding/m)
+    assert.match(stderr, /Cannot find native binding/)
+    assert.match(stderr, /@swc\/core-darwin-arm64/)
+    // Node's own uncaught-error report, with the stack that points at where it came from.
+    assert.match(stderr, /\n\s+at /)
+  })
+
   test('with the bindings installed the same commands run as before', () => {
     const dir = mkdtempSync(join(tmpdir(), 'provino-binding-ok-'))
     mkdirSync(join(dir, 'tests'))
