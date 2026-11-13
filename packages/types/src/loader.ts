@@ -146,7 +146,9 @@ export interface LoaderOptions {
   /**
    * Whether the transformer instruments the user module at this absolute path (Istanbul coverage,
    * B23b): the loader asks it for each module it transforms, and passes the answer as the
-   * request's `instrument` flag. Never asked for a test file. Absent: nothing is instrumented.
+   * request's `instrument` flag. Asked for every user module, test files included, as Jest's
+   * transformer is: the filter rejects a test file unless `forceCoverageMatch` names it. Absent:
+   * nothing is instrumented.
    */
   readonly shouldInstrument?: (path: string) => boolean
 }

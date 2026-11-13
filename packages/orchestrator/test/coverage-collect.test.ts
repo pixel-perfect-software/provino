@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { mkdtempSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { describe, it } from 'node:test'
 import { createRawCoverageStore } from '@provino/orchestrator'
 import type {
@@ -48,7 +48,8 @@ function coverageOf(
 ): SerializedCoverageConfig {
   return {
     provider,
-    root: dir,
+    globalRoot: dir,
+    projectRoot: dir,
     include: [],
     includeRoot: true,
     force: [],
@@ -170,6 +171,41 @@ for (const pool of KINDS) {
     })
   })
 }
+
+describe('forceCoverageMatch on a test file', () => {
+  const FORCED = {
+    'sum.t.js': [
+      'function sum(a, b) { return a + b }',
+      "test('sums', () => { expect(sum(1, 2)).toBe(3) })",
+      '',
+    ].join('\n'),
+  }
+  const names = (raw: RawCoverage | undefined): string[] => {
+    if (raw?.kind === 'istanbul') return Object.keys(raw.data).map((path) => basename(path))
+    if (raw?.kind === 'v8') return raw.scripts.map((script) => basename(script.url))
+    return []
+  }
+  for (const provider of ['istanbul', 'v8'] as const) {
+    for (const [what, force, expected] of [
+      ['counts a test file the force globs match', ['**/*.t.js'], ['sum.t.js']],
+      ['leaves a test file alone otherwise', [], []],
+    ] as const) {
+      it(`${provider}: ${what}`, async () => {
+        const p = await project(FORCED)
+        const config = runtimeConfig(p.dir, {
+          coverage: coverageOf(p.dir, provider, { testFiles: ['**/*.t.js'], force }),
+        })
+        const run = await runJobs({
+          pool: 'forks',
+          config,
+          jobs: [runtimeJob(config, p.path('sum.t.js'))],
+        })
+        assert.deepEqual(run.exit, { type: 'exit', code: 0 })
+        assert.deepEqual(names(collect(run.events)[0]), expected)
+      })
+    }
+  }
+})
 
 describe('a warm transform cache', () => {
   it('v8: gives the same ranges as a cold run', async () => {
