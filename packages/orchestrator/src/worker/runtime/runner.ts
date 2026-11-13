@@ -662,6 +662,8 @@ export function createRuntimeRunner(): WorkerRunner {
     return {
       ...(job.testNamePattern === undefined ? {} : { testNamePattern: job.testNamePattern }),
       ...(job.testIds === undefined ? {} : { testIds: job.testIds }),
+      // Whatever the job carries is forwarded: core fails the file for a value that is not `true`.
+      ...(job.collectOnly === undefined ? {} : { collectOnly: job.collectOnly }),
     }
   }
 
@@ -766,7 +768,9 @@ export function createRuntimeRunner(): WorkerRunner {
         await fileScope.run(thisFile, () =>
           worker.runtime.runFile(job.file, { fileId: job.fileId, ...filtersOf(job) }),
         )
-        snapshotReport = snapshots.lifecycle.finish()
+        // A collect-only file ran no test: `finish` would save the file and report every stored
+        // snapshot as unchecked.
+        if (job.collectOnly !== true) snapshotReport = snapshots.lifecycle.finish()
       } catch (error) {
         errors.push(error)
       } finally {

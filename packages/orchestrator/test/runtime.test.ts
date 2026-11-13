@@ -507,6 +507,20 @@ describe('per-file filters', () => {
     })
   })
 
+  it('fails a file whose collectOnly is not exactly true, instead of running it', async () => {
+    const p = await project({ 'a.test.js': file('a') })
+    const config = runtimeConfig(p.dir)
+    const run = await runJobs({
+      config,
+      jobs: [{ ...runtimeJob(config, p.path('a.test.js')), collectOnly: 'yes' as never }],
+    })
+    const [ended] = eventsOf(run.events, 'file-end')
+    assert.equal(ended?.result.state, 'fail')
+    assert.equal(ended?.result.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
+    assert.match(ended?.result.errors[0]?.message ?? '', /collectOnly/)
+    assert.deepEqual(states(run.events), {})
+  })
+
   it('runs only the job’s testIds', async () => {
     const p = await project({ 'a.test.js': file('a') })
     const config = runtimeConfig(p.dir)

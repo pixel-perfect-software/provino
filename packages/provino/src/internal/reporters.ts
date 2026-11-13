@@ -3,6 +3,7 @@ import { basename, resolve } from 'node:path'
 import type { ResolvedProject } from '@provino/config'
 import {
   agentReporter,
+  createStyle,
   defaultReporter,
   detectOutput,
   dotReporter,
@@ -13,6 +14,7 @@ import {
   normalizedJsonReporter,
   type OutputEnvironment,
   type OutputStream,
+  type Style,
   type TextReporterOptions,
   type TextSink,
   verboseReporter,
@@ -103,13 +105,34 @@ function isDirectory(path: string): boolean {
 }
 
 /** The stream as the reporters' detection reads it: whether it is a terminal, and how wide. */
-function outputStreamOf(stream: NodeJS.WritableStream): OutputStream {
+function outputStreamOf(stream: object): OutputStream {
   const isTTY: unknown = Reflect.get(stream, 'isTTY')
   const columns: unknown = Reflect.get(stream, 'columns')
   return {
     ...(typeof isTTY === 'boolean' ? { isTTY } : {}),
     ...(typeof columns === 'number' ? { columns } : {}),
   }
+}
+
+/**
+ * The colours for text written outside a reporter (`--collectTests`' tree): on when `detectOutput`
+ * says the output is coloured, from the same stream and environment the reporters read.
+ * @internal
+ */
+export function styleFor(context: {
+  readonly env: Environment
+  /** The stream whose terminal decides the colour: Jest's chalk reads stdout's. */
+  readonly stream: object
+  readonly ci: boolean
+  readonly colour?: boolean | undefined
+}): Style {
+  const output = detectOutput({
+    env: context.env,
+    stream: outputStreamOf(context.stream),
+    ci: context.ci,
+    ...(context.colour === undefined ? {} : { colour: context.colour }),
+  })
+  return createStyle(output.colour)
 }
 
 /** Where a document reporter's `outputFile` is, checked now so a path that can never be written doesn't cost a whole run. */

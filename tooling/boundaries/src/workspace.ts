@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
-import { join, relative, sep } from 'node:path'
+import { join } from 'node:path'
 import {
   type Manifest,
   type ManifestNode,
@@ -328,15 +328,27 @@ async function references(path: string): Promise<ReadonlySet<string>> {
   return new Set(refs.map((ref: unknown) => String(asRecord(ref).path)))
 }
 
-/** Files under `dir`, relative to it with `/` separators, skipping build output and dependencies. */
+/**
+ * Files under `dir`, relative to it with `/` separators, skipping build output and dependencies.
+ * It walks one directory at a time: `readdir`'s `recursive` option reports each entry's
+ * `parentPath` differently across Node 22 releases, and a wrong one files `src/a.test.ts` as
+ * `a.test.ts`.
+ */
 async function listFiles(dir: string): Promise<readonly string[]> {
-  const entries = await readdir(dir, { withFileTypes: true, recursive: true }).catch(() => [])
-  return entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => relative(dir, join(entry.parentPath, entry.name)).split(sep))
-    .filter((parts) => !parts.some((part) => SKIP_DIRS.has(part)))
-    .map((parts) => parts.join('/'))
-    .sort(compare)
+  const files: string[] = []
+  const walk = async (prefix: string): Promise<void> => {
+    const entries = await readdir(join(dir, prefix), { withFileTypes: true }).catch(() => [])
+    await Promise.all(
+      entries.map(async (entry) => {
+        if (SKIP_DIRS.has(entry.name)) return
+        const path = prefix === '' ? entry.name : `${prefix}/${entry.name}`
+        if (entry.isDirectory()) await walk(path)
+        else if (entry.isFile()) files.push(path)
+      }),
+    )
+  }
+  await walk('')
+  return files.sort(compare)
 }
 
 function asRecord(value: unknown): Readonly<Record<string, unknown>> {
