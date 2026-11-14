@@ -48,11 +48,24 @@ async function findRepos(
 }
 
 /**
+ * A changed-files provider and the adapters it keeps: what Jest keeps per process (whether `sl` is
+ * the steam locomotive) lives as long as the provider does.
+ */
+export function createChangedFilesProvider(): (
+  options: ChangedFilesOptions,
+) => Promise<ChangedFiles> {
+  const adapters = { git: gitAdapter, hg: hgAdapter, sl: slAdapter() }
+  return (options) => changedFilesForRoots(options, adapters)
+}
+
+/**
  * `getChangedFilesForRoots` (`index.ts` L26-L60): every changed file of every repository the roots
  * are in, with the roots as `includePaths`. A failing command rejects with execa's message.
  */
-export async function changedFilesForRoots(options: ChangedFilesOptions): Promise<ChangedFiles> {
-  const adapters = { git: gitAdapter, hg: hgAdapter, sl: slAdapter() }
+async function changedFilesForRoots(
+  options: ChangedFilesOptions,
+  adapters: { readonly git: ScmAdapter; readonly hg: ScmAdapter; readonly sl: ScmAdapter },
+): Promise<ChangedFiles> {
   const { roots } = options
   const repos = await findRepos(roots, adapters)
   const changedFilesOptions = {

@@ -119,11 +119,16 @@ export const hgAdapter: ScmAdapter = {
 
 /**
  * jest-changed-files `src/sl.ts` L22-L76. `sl` may be the steam locomotive, which draws with escape
- * codes: a first chunk that starts with ESC kills it and no Sapling root is looked for again. Jest
- * keeps that in a module variable; here it lives for one provider call (no module state).
+ * codes: a first chunk that starts with ESC kills it, and no Sapling root is looked for again by
+ * this adapter. Jest keeps that in a module variable for its process; here the adapter holds it,
+ * and the provider that owns the adapter lives as long as the coordinator (`index.ts`). The first
+ * locomotive also stops every other `sl root` still running, so up to five probes started at
+ * once don't all draw: each is killed and reaped before its lookup returns.
  */
 export function slAdapter(): ScmAdapter {
   let isSteamLocomotive = false
+  /** Aborted by the first locomotive: every `sl root` still running is killed. */
+  const locomotive = new AbortController()
   return {
     async findChangedFiles(cwd, options) {
       return toPaths(await stdoutOf('sl', statusArgs(options), cwd, plainEnv()), cwd)
@@ -134,8 +139,12 @@ export function slAdapter(): ScmAdapter {
         const out = await runCommand('sl', ['root'], {
           cwd,
           env: plainEnv(),
+          signal: locomotive.signal,
           firstChunk: (chunk) => {
-            if (chunk.codePointAt(0) === 27) isSteamLocomotive = true
+            if (chunk.codePointAt(0) === 27) {
+              isSteamLocomotive = true
+              locomotive.abort()
+            }
             return isSteamLocomotive
           },
         })
