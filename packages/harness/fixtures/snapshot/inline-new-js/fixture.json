@@ -1,0 +1,19 @@
+{
+  "description": "New inline snapshots in a plain JavaScript test (B23d B1, T7.11): Jest 30.5.2 writes each one into its call with Babel's reprint and no Prettier (`prettierPath: null`): objects, a string with a backtick, `${` and a backslash (escaped), a multi-line string, a number, undefined, a Map, one inside a nested function and one at the top level.",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "prettierPath": null
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:inline-new-js.test.ts", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]"
+  }
+}

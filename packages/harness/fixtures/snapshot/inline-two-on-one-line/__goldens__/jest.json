@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/inline-two-on-one-line",
+  "files": [
+    {
+      "file": "inline-two-on-one-line.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "inline-two-on-one-line.test.ts",
+            "path": [
+              "two calls on one line"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 2,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 2,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "PASS ./inline-two-on-one-line.test.ts\n › 2 snapshots written.\n › 2 snapshots written from 1 test suite.\nTest Suites: 1 passed, 1 total\nTests:       1 passed, 1 total\nSnapshots:   2 written, 2 total",
+    "files": {
+      "inline-two-on-one-line.test.ts": "test('two calls on one line', () => {\n  // biome-ignore format: the two calls must stay on one line\n  const calls = [expect(1).toMatchInlineSnapshot(`1`), expect('b').toMatchInlineSnapshot(`\"b\"`)]\n  expect(calls).toHaveLength(2)\n})\n"
+    }
+  }
+}

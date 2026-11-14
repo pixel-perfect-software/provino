@@ -154,6 +154,9 @@ catalog:
   # `globsToMatcher` does (DECISIONS D26): a runtime dependency of `@provino/orchestrator`.
   picomatch: 4.0.7
   pretty-format: 30.5.1
+  # Inline snapshots under the Jest dialect (B23d B1, D113): Jest formats the edit with the
+  # project's own Prettier 3 when it finds one. Recording and tests only, never a runtime dependency.
+  prettier: 3.9.8
   # T1.6: package.json `exports` and file-layout lint, run on every `pnpm pack`.
   publint: 0.3.25
   # File discovery in the coordinator (B11): include/exclude globs.

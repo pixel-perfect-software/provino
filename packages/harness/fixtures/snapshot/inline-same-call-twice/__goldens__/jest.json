@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/inline-same-call-twice",
+  "files": [
+    {
+      "file": "inline-same-call-twice.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    Jest: Multiple inline snapshots for the same call are not supported."
+      },
+      "tests": []
+    },
+    {
+      "file": "same-value.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    Jest: Multiple inline snapshots for the same call are not supported."
+      },
+      "tests": []
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./same-value.test.ts\n  ● Test suite failed to run\n    Jest: Multiple inline snapshots for the same call are not supported.\nFAIL ./inline-same-call-twice.test.ts\n  ● Test suite failed to run\n    Jest: Multiple inline snapshots for the same call are not supported.\nTest Suites: 2 failed, 2 total\nTests:       0 total\nSnapshots:   0 total",
+    "files": {
+      "inline-same-call-twice.test.ts": "const check = (value) => {\n  expect(value).toMatchInlineSnapshot()\n}\n\ntest('one call, two values', () => {\n  check(1)\n  check(2)\n})\n",
+      "same-value.test.ts": "const same = () => {\n  expect('again').toMatchInlineSnapshot()\n}\n\ntest('one call, the same value twice', () => {\n  same()\n  same()\n})\n"
+    }
+  }
+}

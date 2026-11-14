@@ -1,0 +1,19 @@
+{
+  "description": "A `snapshotResolver` whose two functions don't invert each other (B23d B1): Jest 30.5.2's consistency check fails every test file with \"Custom snapshot resolver functions must transform paths consistently\".",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "snapshotResolver": "<rootDir>/resolver.ts"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^ +Custom "
+  }
+}

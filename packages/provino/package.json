@@ -119,7 +119,8 @@
     "jest-html-reporters": "catalog:",
     "jest-junit": "catalog:",
     "jest-silent-reporter": "catalog:",
-    "jest-sonar-reporter": "catalog:"
+    "jest-sonar-reporter": "catalog:",
+    "prettier": "catalog:"
   },
   "peerDependencies": {
     "jsdom": ">=26 <31"

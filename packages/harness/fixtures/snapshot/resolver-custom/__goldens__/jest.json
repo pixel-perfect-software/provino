@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/resolver-custom",
+  "files": [
+    {
+      "file": "stored.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "stored.test.ts",
+            "path": [
+              "read from where the resolver says"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "written.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "written.test.ts",
+            "path": [
+              "written where the resolver says"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 1,
+      "matched": 1,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 2,
+      "filesAdded": 1,
+      "filesRemoved": 1,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snaps__/gone.test.ts.snap",
+        "sha256": "e511f8f36347518c9914ad0fc3af44bd70320ade296bbd14d2090a52d608af39"
+      },
+      {
+        "file": "__snaps__/stored.test.ts.snap",
+        "sha256": "f45eefa0681e0d8122f355f8076408cb43fed64b322c7c0b34e87b1f6b1d656d"
+      },
+      {
+        "file": "__snaps__/written.test.ts.snap",
+        "sha256": "0427a8f6bfcfe3debe9dd2bcba35e55bd99d432ba01d387e8d3428887d93a752"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "PASS ./written.test.ts\n › 1 snapshot written.\nPASS ./stored.test.ts\nSnapshot Summary\n › 1 snapshot written from 1 test suite.\n › 1 snapshot file obsolete from 1 test suite. To remove it, re-run jest with `-u`.\n   ↳   • __snaps__/gone.test.ts.snap\nTest Suites: 2 passed, 2 total\nTests:       2 passed, 2 total\nSnapshots:   1 file obsolete, 1 written, 1 passed, 2 total",
+    "files": {
+      "__snaps__/written.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`written where the resolver says 1`] = `\n{\n  \"where\": \"custom\",\n}\n`;\n",
+      "__snaps__/gone.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`orphan 1`] = `1`;\n"
+    }
+  }
+}

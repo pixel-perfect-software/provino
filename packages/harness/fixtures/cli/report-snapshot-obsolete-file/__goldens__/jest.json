@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/report-snapshot-obsolete-file",
+  "files": [
+    {
+      "file": "kept.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "kept.test.ts",
+            "path": [
+              "kept"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 1,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 1,
+      "filesAdded": 0,
+      "filesRemoved": 1,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/gone.test.ts.snap",
+        "sha256": "c641b26731c85569cc517965bfb1f18880f0efe94d7e4e3104df6dcd3ce5648c"
+      },
+      {
+        "file": "__snapshots__/kept.test.ts.snap",
+        "sha256": "38a27c8fd84ff1ce0af4d8a9f293a753abc43f23cd7f4eadf8b70de40e5dcfae"
+      },
+      {
+        "file": "ignored/__snapshots__/away.test.ts.snap",
+        "sha256": "f85c35cd64ea9ba088e34865e7cb88aff975a399f66eb93645148bb56e9627f4"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "PASS ./kept.test.ts\nSnapshot Summary\n › 1 snapshot file obsolete from 1 test suite. To remove it, re-run jest with `-u`.\n   ↳   • __snapshots__/gone.test.ts.snap\nTest Suites: 1 passed, 1 total\nTests:       1 passed, 1 total\nSnapshots:   1 file obsolete, 1 passed, 1 total",
+    "files": {
+      "__snapshots__/gone.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`gone 1`] = `1`;\n"
+    }
+  }
+}
