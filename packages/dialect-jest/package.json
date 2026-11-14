@@ -20,6 +20,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./affected": {
+      "provino-source": "./src/affected/index.ts",
+      "types": "./dist/affected/index.d.ts",
+      "import": "./dist/affected/index.js"
+    },
     "./global-setup": {
       "provino-source": "./src/global-setup/index.ts",
       "types": "./dist/global-setup/index.d.ts",
