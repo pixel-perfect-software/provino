@@ -103,6 +103,8 @@ export interface TextReporterOptions {
   ) => readonly string[] | undefined
   /** `summaryReporter`: the line after the totals (Jest's `Ran all test suites.`); `undefined` for none. */
   readonly closingLine?: (summary: RunSummary, style: TextStyle) => string | undefined
+  /** Jest's `--showSeed`: print `Seed:        <n>` before the totals. Absent: no seed line. */
+  readonly seed?: number
   /** Print `Snapshots:   0 total` when no snapshot was checked, as Jest's summary always has the line. */
   readonly snapshotsAlways?: true
   /** `summaryReporter`: the run lists every test (`--verbose`), so no blank line comes before the totals. */
@@ -266,8 +268,8 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     const label = projectLabel(result.file, displayPath(result.file.runPath ?? result.file.path))
     const header =
       result.state === 'pass'
-        ? passLine(label, result.durationMs, style)
-        : failLine(label, result.durationMs, style)
+        ? passLine(label, result.durationMs, style, result.heapUsedBytes)
+        : failLine(label, result.durationMs, style, result.heapUsedBytes)
     const entries = entry?.console ?? []
     const parts: string[] = []
     if (listing) {
@@ -443,6 +445,7 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
                 snapshotLine(summary.snapshots, style, options.snapshotsAlways === true),
                 queued,
                 style,
+                options.seed,
               ),
             ]
           : []),
@@ -488,6 +491,7 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
             snapshotLine(summary.snapshots, style, options.snapshotsAlways === true),
             queued,
             style,
+            options.seed,
           ),
           ...(closing === undefined ? [] : [closing]),
         ].join('\n'),

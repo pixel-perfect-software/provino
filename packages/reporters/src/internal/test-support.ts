@@ -126,6 +126,8 @@ export interface FileSpec {
     readonly errors: readonly SerializedError[]
   }[]
   readonly durationMs?: number
+  /** `--logHeapUsage`: the heap the file ended with. */
+  readonly heapUsedBytes?: number
   readonly workerExit?: WorkerExit
   /** Console writes outside any test (a `beforeAll`, the top level), sent before the first test. */
   readonly console?: readonly ConsoleSpec[]
@@ -247,6 +249,7 @@ export function buildFile(spec: FileSpec): BuiltFile {
       state,
       durationMs: spec.durationMs ?? 5,
       ...(spec.workerExit === undefined ? {} : { workerExit: spec.workerExit }),
+      ...(spec.heapUsedBytes === undefined ? {} : { heapUsedBytes: spec.heapUsedBytes }),
       errors: spec.errors ?? [],
     },
   }
