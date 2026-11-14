@@ -328,6 +328,9 @@ export function jestConsoleTrace(origin: string, level: string | null, config: S
 }): string;
 
 // @public
+export function jestDebugText(globalConfig: JestGlobalConfig, configs: readonly JestProjectConfig[], version: string): string;
+
+// @public
 export function jestDefaults(ci: boolean): Readonly<Options$1>;
 
 // @public (undocumented)
@@ -345,6 +348,9 @@ export interface JestFailureBlock {
     // (undocumented)
     readonly text: string;
 }
+
+// @public
+export type JestFilter = (testPaths: readonly string[]) => Promise<readonly string[]>;
 
 // @public
 export const jestFlags: readonly FlagSpec[];
@@ -861,6 +867,12 @@ export function loadJestConfig(source: ConfigSource): Promise<{
     readonly options: JestInitialOptions;
     readonly configPath: string | null;
 }>;
+
+// @public
+export function loadJestFilter(globalConfig: {
+    readonly filter: JestGlobalConfig["filter"];
+    readonly skipFilter: boolean;
+}): JestFilter | undefined;
 
 // @public
 export function loadJestReporters(plan: JestReporterPlan): Promise<JestLoadedReporter[]>;

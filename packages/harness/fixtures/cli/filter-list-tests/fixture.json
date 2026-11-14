@@ -1,8 +1,6 @@
 {
   "description": "--filter with --listTests (T9.9, B23d): the list is what the filter kept, not every test file. The filter drops `drop.test.ts`. The list is recorded sorted. A black-box run.",
-  "runners": [
-    "jest"
-  ],
+  "runners": ["jest"],
   "files": {
     "jest": {
       "filter.cjs": "module.exports = (tests) => ({ filtered: tests.filter((t) => !t.endsWith('drop.test.ts')) })\n"
@@ -16,14 +14,9 @@
   },
   "run": {
     "argv": {
-      "jest": [
-        "--listTests"
-      ]
+      "jest": ["--listTests"]
     },
-    "capture": [
-      "exitCode",
-      "file:.harness-out/jest.json"
-    ],
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
     "sortStdout": "json"
   }
 }

@@ -8,7 +8,9 @@ Provino's tests compare almost everything here with Jest 30.5, either against re
 
 **The command line and config**
 - Jest's own flags and config keys, including any config key given as a flag (`--testMatch`, `--roots`, `--testTimeout`, …), and Jest's exit codes. A flag Provino can't run yet is refused by name, never ignored without saying so.
-- A config with several `projects`, run in one pool. `--selectProjects` and `--ignoreProjects` work.
+- A config with several `projects`, run in one pool, and the `--projects` flag. `--selectProjects` and `--ignoreProjects` work.
+- `--filter` (a module that returns `{ filtered }`, with its `setup`, and `--skipFilter`) and `--debug`.
+- Running in band as Jest does: `-i`, one file, one worker, or up to 20 files that ran under a second last time (and no `workerIdleMemoryLimit`) run in Provino's own process, so a test sees a global that `globalSetup` set.
 - Test path patterns, `--runTestsByPath`, `-t`, `-u`/`--updateSnapshot`, `-w`/`-i`, `--ci`, `--passWithNoTests`, `--no-cache`, `--listTests [--json]`, `--showConfig` and `--clearCache`.
 - `--json`, `--outputFile`, `--useStderr`, `--testLocationInResults` and `testResultsProcessor`: the results file has Jest's keys and values, and the processor gets and returns Jest's object. `--collectTests` imports each file, runs no test and prints Jest's tree or JSON.
 - `--bail`, `--forceExit`, `--detectOpenHandles`, `workerIdleMemoryLimit`, and `--shard=i/n`. A shard is Jest's split, or a cut by time from a timings file, with Provino's own `--timings` and `--update-timings`.
@@ -52,12 +54,10 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | Run only what changed: `--onlyChanged`, `--changedSince`, `--lastCommit`, `--changedFilesWithAncestor`, `--findRelatedTests`, `--onlyFailures` | Refused | Not yet planned |
 | Random order: `--randomize`, `--seed`, `--showSeed` | Refused | Not yet planned |
 | `--detectLeaks` | Refused | Planned |
-| `--filter`, and the `--projects` flag | Refused (a `projects` key in the config does run) | Not yet planned |
-| `--debug`, `--logHeapUsage`, `--notify`, `--notifyMode` | Warn, and are otherwise ignored | Planned |
+| `--logHeapUsage`, `--notify`, `--notifyMode` | Warn, and are otherwise ignored | Planned |
 | `snapshotResolver` | Warns; snapshots stay beside the test file | Planned |
 | Writing inline snapshots (`toMatchInlineSnapshot`) | A match passes and a mismatch fails; one that would need writing (a new one, or `-u`) fails with a message | Planned |
 | `jest.retryTimes(n, { entireDescribe })` | Throws | Planned |
-| `-i`/`--runInBand` with `globalSetup` globals | A worker still starts, so a test doesn't see a global that `globalSetup` set, as it would in Jest | Planned |
 | A custom environment's `handleTestEvent` | Not called | Planned |
 | Legacy fake timers | `legacyFakeTimers: true` throws when a test installs the timers, with a hint to use the modern ones. `jest.runAllImmediates` throws | Not planned |
 | `provino vitest` | Refused | Next |

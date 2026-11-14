@@ -21,6 +21,7 @@ import {
   type FileDone,
   type FileRequest,
   fileIdOf,
+  type InBandInput,
   isProvinoCacheDir,
   isRunSignal,
   type OpenHandleOptions,
@@ -40,6 +41,7 @@ import {
   runProjects,
   sameWorkerKey,
   selectFiles,
+  shouldRunInBand,
   type TransportForOptions,
   testFilePredicate,
   transportFor,
@@ -202,6 +204,23 @@ void discoverByRules({
 expectTypeOf(selectFiles).returns.toEqualTypeOf<readonly DiscoveredFile[]>()
 expectTypeOf<RunProjectOptions['fileFilters']>().toEqualTypeOf<readonly FileFilter[] | undefined>()
 expectTypeOf<RunProjectOptions['cwd']>().toEqualTypeOf<string | undefined>()
+expectTypeOf<RunProjectOptions['runInBand']>().toEqualTypeOf<boolean | undefined>()
+expectTypeOf<NonNullable<RunProjectOptions['fileFilter']>>().parameters.toEqualTypeOf<
+  [ResolvedProject, readonly DiscoveredFile[]]
+>()
+expectTypeOf<NonNullable<RunProjectOptions['fileFilter']>>().returns.toEqualTypeOf<
+  Promise<readonly DiscoveredFile[]> | readonly DiscoveredFile[]
+>()
+// @ts-expect-error a filter takes the project and its files, not paths
+const badFilter: RunProjectOptions['fileFilter'] = (paths: readonly string[]) => paths
+void badFilter
+expectTypeOf(shouldRunInBand).parameters.toEqualTypeOf<[InBandInput]>()
+expectTypeOf<InBandInput['watch']>().toEqualTypeOf<boolean | undefined>()
+expectTypeOf<InBandInput['policy']>().toEqualTypeOf<{
+  readonly single: boolean
+  readonly fastFileCount: number
+  readonly slowMs: number
+}>()
 void runProject(project, { bus, fileFilters: [{ kind: 'regex', value: 'a' }], cwd: '/p' })
 // @ts-expect-error a filter has a kind
 void runProject(project, { bus, fileFilters: [{ value: 'a' }] })
