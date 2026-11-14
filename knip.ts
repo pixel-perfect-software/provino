@@ -9,6 +9,31 @@
 import type { KnipConfig } from 'knip'
 import { readManifest } from './tooling/packaging/src/package-json.ts'
 
+/**
+ * B23e, T11.11 (D124): the ecosystem packages `@provino/harness` records with and `provino` tests
+ * with. A fixture project loads each by name from its own node_modules, as Jest does, so no
+ * import of ours names it.
+ */
+const ECOSYSTEM_PACKAGES: readonly string[] = [
+  '@testing-library/dom',
+  '@testing-library/jest-dom',
+  '@testing-library/react',
+  '@testing-library/user-event',
+  'identity-obj-proxy',
+  'jest-axe',
+  'jest-canvas-mock',
+  'jest-extended',
+  'jest-fetch-mock',
+  'jest-image-snapshot',
+  'jest-mock-extended',
+  'jest-styled-components',
+  'jest-when',
+  'msw',
+  'react',
+  'react-dom',
+  'styled-components',
+]
+
 const config: KnipConfig = {
   rules: {
     exports: 'warn',
@@ -75,23 +100,7 @@ const config: KnipConfig = {
         'jest-silent-reporter',
         'jest-sonar-reporter',
         // B23e, T11.11 (D124): the ecosystem packages a fixture project loads from its own node_modules.
-        '@testing-library/dom',
-        '@testing-library/jest-dom',
-        '@testing-library/react',
-        '@testing-library/user-event',
-        'identity-obj-proxy',
-        'jest-axe',
-        'jest-canvas-mock',
-        'jest-extended',
-        'jest-fetch-mock',
-        'jest-image-snapshot',
-        'jest-mock-extended',
-        'jest-styled-components',
-        'jest-when',
-        'msw',
-        'react',
-        'react-dom',
-        'styled-components',
+        ...ECOSYSTEM_PACKAGES,
         // The Prettier 3 Jest finds from the recorder's work directory (`snapshot/inline-prettier`).
         'prettier',
       ],
@@ -158,23 +167,7 @@ const config: KnipConfig = {
         'jest-silent-reporter',
         'jest-sonar-reporter',
         // B23e, T11.11 (D124): the ecosystem packages the tests' projects load from this package's node_modules.
-        '@testing-library/dom',
-        '@testing-library/jest-dom',
-        '@testing-library/react',
-        '@testing-library/user-event',
-        'identity-obj-proxy',
-        'jest-axe',
-        'jest-canvas-mock',
-        'jest-extended',
-        'jest-fetch-mock',
-        'jest-image-snapshot',
-        'jest-mock-extended',
-        'jest-styled-components',
-        'jest-when',
-        'msw',
-        'react',
-        'react-dom',
-        'styled-components',
+        ...ECOSYSTEM_PACKAGES,
         // What the inline snapshot tests' projects resolve: Prettier 3, and babel-jest with the
         // presets the TSX fixture's Babel config names (B23d B1).
         'prettier',
