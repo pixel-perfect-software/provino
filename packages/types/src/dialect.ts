@@ -186,6 +186,18 @@ export interface NeutralProject {
   readonly transformHoistedMarkers?: readonly string[]
   /** Absolute paths. */
   readonly snapshotSerializers: readonly string[]
+  /** Watch mode's own settings (Jest's `watchPathIgnorePatterns`: regular expressions' sources). */
+  readonly watch?: { readonly ignorePatterns: readonly string[] }
+  /** Affected-test selection's own settings. */
+  readonly affected?: {
+    /**
+     * The project's own dependency extractor (Jest's `dependencyExtractor`), read before the
+     * policy's. The module exports an object (with an `extract` method), not a function, so the
+     * behaviour loader's `loadRef` (which requires a function export) cannot load it: B23c Phase 4
+     * loads it with a plain `import()`.
+     */
+    readonly extractor?: ModuleRef
+  }
   /**
    * A cache directory the config sets itself (an absolute path), as opposed to a runner's own
    * default. Provino keeps its caches under `<cacheDirectory>/provino` when it is set (D70), and

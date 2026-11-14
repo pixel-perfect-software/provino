@@ -447,6 +447,12 @@ export interface Loader extends Disposable {
   onModuleCompiled(listener: (event: CompiledModuleEvent) => void): () => void
   getSourceMap(id: ModuleId): SourceMapV3 | null
   /**
+   * Forgets the records of these modules (absolute paths), so the next load of one reads and
+   * compiles it again. Watch mode calls it with the paths that changed since the worker's last
+   * file.
+   */
+  dropRecords(paths: readonly string[]): void
+  /**
    * The compiled module V8 knows by this script URL (the module's path), or `null` for one that
    * was never compiled in this worker. Absent from a loader that does not report coverage.
    */
