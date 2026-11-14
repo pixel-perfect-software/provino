@@ -82,7 +82,7 @@ async function view(id: string): Promise<{
   return {
     code: run.code,
     stderr: run.stderr,
-    raw: run.raw[RESULTS] ?? null,
+    raw: run.rawJson(RESULTS),
     timeKeys: spec?.timeKeys ?? [],
     recorded: sorted(golden?.json?.[RESULTS] ?? null, `${id}: the golden's ${RESULTS}`),
     recordedStderr: golden?.stderr,

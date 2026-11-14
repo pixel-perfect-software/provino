@@ -2,7 +2,7 @@
 // a Jest config made of the recorder's own base and the fixture's overlay, and the real Jest's
 // golden for it. `provino` may not import `@provino/harness` (the harness depends on it), so the
 // fixtures are read as the files they are.
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -21,6 +21,10 @@ export interface RecordedManifest {
   /** Installed into `node_modules/<name>/` before the run. */
   readonly packages?: Readonly<Record<string, Readonly<Record<string, string>>>>
   /** Runs before the captured one, with these arguments added (Jest's cache and history carry over). */
+  /** Flags for `node` before the runner's bin (here: before the `provino` bin). */
+  readonly nodeFlags?: readonly string[]
+  /** A repository the recorder builds in the work directory: not supported by `provinoOn` yet. */
+  readonly scm?: unknown
   readonly before?: readonly { readonly argv: readonly string[] }[]
   readonly run?: {
     /** The runner gets exactly `argv.jest`: no `--config`, `--ci`, `--json` or `--outputFile`. */
@@ -127,6 +131,7 @@ export async function materialize(
       await writeFile(target, text)
     }
   }
+  if (fixture.manifest.run?.exact === true) await assertNoOtherJestConfig(root, fixture.id)
   const config = { rootDir: root, ...RECORDER_BASE, ...fixture.manifest.config?.jest }
   await writeFile(join(root, 'jest.config.json'), JSON.stringify(config, null, 2))
   return { root, dispose: () => rm(root, { recursive: true, force: true }) }
@@ -135,4 +140,29 @@ export async function materialize(
 /** `text` with the project's path as the recorder writes it. */
 export function underRoot(text: string, root: string): string {
   return text.replaceAll(root, '<root>')
+}
+
+/**
+ * A copy of the harness's `isJestConfigFile` and the recorder's check: under `run.exact` Jest finds
+ * the recorder's `jest.config.json` from the root, so a `jest.config.*` or a `package.json` with a
+ * `jest` key of the fixture's own would be overwritten or make Jest report several configs.
+ */
+async function assertNoOtherJestConfig(root: string, id: string): Promise<void> {
+  for (const entry of await readdir(root)) {
+    let other = /^jest\.config\.[^/]+$/.test(entry)
+    if (entry === 'package.json') {
+      try {
+        const parsed: unknown = JSON.parse(await readFile(join(root, entry), 'utf8'))
+        other = typeof parsed === 'object' && parsed !== null && 'jest' in parsed
+      } catch {
+        other = false
+      }
+    }
+    if (other) {
+      await rm(root, { recursive: true, force: true })
+      throw new Error(
+        `${id}: "run" is "exact", so the recorder's jest.config.json is the project's Jest config, but the fixture has "${entry}", another one`,
+      )
+    }
+  }
 }
