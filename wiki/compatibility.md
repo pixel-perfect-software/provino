@@ -16,7 +16,7 @@ Provino's tests compare almost everything here with Jest 30.5, either against re
 - `--bail`, `--forceExit`, `--detectOpenHandles`, `workerIdleMemoryLimit`, and `--shard=i/n`. A shard is Jest's split, or a cut by time from a timings file, with Provino's own `--timings` and `--update-timings`.
 - Ctrl+C stops the run and exits 130; a second Ctrl+C kills every worker at once. SIGTERM exits 143.
 - `globalSetup` and `globalTeardown`, run once per project and path, as Jest runs them.
-- Coverage: `--coverage` and `--collectCoverage`, and the keys `collectCoverage`, `collectCoverageFrom`, `coverageDirectory`, `coveragePathIgnorePatterns`, `coverageProvider` (`babel` and `v8`), `coverageReporters` (any Istanbul reporter), `coverageThreshold` and `forceCoverageMatch`. The per-file summary, `coverage-final.json`, lcov, clover and the text reports equal Jest's, files no test loaded count at zero, a missed threshold prints Jest's `Jest: …` lines and exits 1, workers and shards merge into one report, and `--json` carries `coverageMap`. A project that uses `babel-jest` is instrumented by its own Babel, every other project by Provino's Istanbul instrumenter.
+- Coverage: `--coverage` and `--collectCoverage`, and the keys `collectCoverage`, `collectCoverageFrom`, `coverageDirectory`, `coveragePathIgnorePatterns`, `coverageProvider` (`babel` and `v8`), `coverageReporters` (any Istanbul reporter), `coverageThreshold` and `forceCoverageMatch`. Under `babel`, the per-file summary, `coverage-final.json`, lcov, clover and the text reports are checked against Jest's; under `v8` the counts equal Jest's, with the position limits in the gap table below. The HTML report is written but not compared byte for byte. Files no test loaded count at zero, a missed threshold prints Jest's `Jest: …` lines and exits 1, workers and shards merge into one report, and `--json` carries `coverageMap`. A project that uses `babel-jest` is instrumented by its own Babel, every other project by Provino's Istanbul instrumenter.
 
 **Your code**
 - TypeScript, TSX, JSX and JavaScript, compiled with Oxc. Types are stripped, not checked.
@@ -48,7 +48,7 @@ Provino's tests compare almost everything here with Jest 30.5, either against re
 
 ## Not in place yet
 
-These are the gaps the code itself names. Any other difference from Jest is a bug worth an issue. Provino warns about a config key it reads but can't apply.
+These are the gaps the code itself names. Any other difference from Jest is a bug worth an issue. Provino warns about a flag it reads but can't apply yet (`--logHeapUsage`, `--notify`, `--notifyMode`).
 
 | Gap | What happens today | Status |
 | --- | --- | --- |

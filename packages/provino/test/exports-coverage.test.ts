@@ -1,8 +1,8 @@
 // What the built package loads for coverage (B23b, T1.10, T7.12): a run with coverage off loads no
 // file of the `coverage` chunk in a worker or in the coordinator, and a run with `--coverage` does
-// (the control). `exports.test.ts` holds the worker's file count; this holds the chunk's names.
+// (the control, which must load every one of them). `exports.test.ts` holds the worker's file count.
 import assert from 'node:assert/strict'
-import { mkdirSync, readdirSync, readFileSync, symlinkSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -13,17 +13,33 @@ import { runBuilt, trackedProjects } from './support.ts'
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const DIST = `${join(PACKAGE, 'dist')}/`
 
-/** Every file of the `coverage` chunk and the entries only coverage reaches. */
-const COVERAGE_FILES = [
-  'coverage.js',
-  'coverage2.js',
-  'coverage-store.js',
-  'coverage-reporter.js',
-  'instrument.js',
-  'initial-coverage.js',
-  'reporting.js',
-  'runtime.js',
-]
+/**
+ * The coverage files of the build, read from it so the list cannot go stale: the chunk the
+ * `coverage` group of `tooling/packaging/src/umbrella.ts` emits (rolldown names a chunk after its
+ * group), and every file of `dist/` (workers included) that imports that chunk statically, which
+ * is each entry only coverage reaches. A file that a rename or a split leaves out is not claimed.
+ */
+function coverageFiles(): readonly string[] {
+  const umbrella = readFileSync(
+    join(PACKAGE, '..', '..', 'tooling', 'packaging', 'src', 'umbrella.ts'),
+    'utf8',
+  )
+  const group = /name: '(coverage)',\s*test: COVERAGE/.exec(umbrella)?.[1]
+  assert.ok(group, "umbrella.ts has no `name: 'coverage'` group")
+  const chunk = `${group}.js`
+  const files = [chunk]
+  for (const dir of ['', 'worker/']) {
+    for (const name of readdirSync(join(DIST, dir))) {
+      if (!name.endsWith('.js') || name === chunk) continue
+      const source = readFileSync(join(DIST, dir, name), 'utf8')
+      const imports = [...source.matchAll(/^import [^\n]*? from "([^"]+)"/gm)].map((m) => m[1])
+      if (imports.includes(`${dir === '' ? './' : '../'}${chunk}`)) files.push(`${dir}${name}`)
+    }
+  }
+  return files
+}
+
+const COVERAGE_FILES = coverageFiles()
 
 const project = trackedProjects()
 
@@ -67,6 +83,11 @@ const covered = (loads: readonly Load[]): readonly Load[] =>
   loads.filter(([, file]) => COVERAGE_FILES.includes(file))
 
 describe('the built package and coverage (T1.10)', () => {
+  test('the coverage files are found in the build', () => {
+    assert.ok(COVERAGE_FILES.length > 1, COVERAGE_FILES.join(', '))
+    for (const file of COVERAGE_FILES) assert.ok(existsSync(join(DIST, file)), file)
+  })
+
   test('a run without coverage loads no file of the coverage chunk in any process', async () => {
     const loads = await distLoads([])
     assert.ok(
@@ -76,13 +97,12 @@ describe('the built package and coverage (T1.10)', () => {
     assert.deepEqual(covered(loads), [])
   })
 
-  test('a run with --coverage loads the chunk in its coordinator and its workers (the control)', async () => {
+  test('a run with --coverage loads every one of them in some process (the control)', async () => {
     const loads = await distLoads(['--coverage', '--coverageReporters=text-summary'])
-    const mains = (suffix: string) =>
-      covered(loads)
-        .filter(([main]) => main.endsWith(suffix))
-        .map(([, file]) => file)
-    assert.ok(mains('worker/bootstrap.js').includes('coverage.js'), JSON.stringify(covered(loads)))
-    assert.ok(mains('cli.js').includes('coverage.js'), JSON.stringify(covered(loads)))
+    const loaded = new Set(covered(loads).map(([, file]) => file))
+    assert.deepEqual(
+      COVERAGE_FILES.filter((file) => !loaded.has(file)),
+      [],
+    )
   })
 })
