@@ -58,9 +58,10 @@ export interface PoolDeps {
   /**
    * Receives a failure of `onIdleEvents`, or of a `FileRequest.onEvents` that fails after its file
    * is over, and a worker that ended badly while it ran no file (`kind` `'worker-lost'`, the error
-   * `ORCH_WORKER_EXITED`; anything else is `'other'`). Without it the error is thrown, uncaught.
+   * `ORCH_WORKER_EXITED`; anything else is `'other'`), with the id of the worker it came from when
+   * one did. Without it the error is thrown, uncaught.
    */
-  readonly onError?: (error: unknown, kind: PoolErrorKind) => void
+  readonly onError?: (error: unknown, kind: PoolErrorKind, workerId?: number) => void
   /** Aborting it behaves like `close`, and files that were running or waiting are `aborted`. */
   readonly signal?: AbortSignal
   /**
@@ -94,6 +95,12 @@ export interface FileRequest {
    * error goes to `PoolDeps.onError` and the file is `done` all the same.
    */
   readonly onDone?: (done: FileDone) => void
+  /**
+   * The changed paths the worker that took the file has not been told about (a watch session's
+   * stale modules), asked for just before the job is sent: they go as `FileJob.staleModules`, and
+   * the worker drops its records of them before the file starts. Omitted, or an empty list: none.
+   */
+  readonly staleModules?: (workerId: number) => readonly string[]
 }
 
 /**
@@ -147,6 +154,26 @@ export interface Pool {
    * Calling it again returns the same promise.
    */
   close(): Promise<void>
+  /**
+   * Ends what has been asked for so far and leaves the pool open (a watch session's interrupt): the
+   * files still waiting, or waiting for a worker that is starting, resolve `aborted`, and a running
+   * file's worker is killed at once (its file resolves `aborted`). Idle workers, and a worker that
+   * finishes starting, are kept for the next file. `keepRunning` leaves the running files alone
+   * (`cancelQueued` without its lasting effect: a file asked for afterwards still runs).
+   */
+  interrupt(options?: { readonly keepRunning?: boolean }): void
+  /**
+   * Replaces the workers whose key `which` picks (a watch session's added or removed file, whose
+   * resolution or shared instances a worker may hold): an idle one is stopped now, a busy one once
+   * its file ends, and one still starting after its first file.
+   */
+  retire(which: (key: WorkerKey) => boolean): void
+  /**
+   * Forgets the failed starts of every key that has no worker starting now, so a pool kept across
+   * runs (a watch session) tries a key whose three starts failed again in the next run, rather than
+   * failing its files at once until it is closed.
+   */
+  resetFailures(): void
 }
 
 type EventHandler = (events: readonly WorkerEvent[]) => void | Promise<void>
@@ -176,6 +203,8 @@ interface Slot {
   killedFor: 'abort' | 'deadline' | undefined
   /** How many files it has run, for `maxFilesPerWorker`. */
   files: number
+  /** `retire` picked it while it ran a file (or started): it is stopped once that file ends. */
+  retireAfter: boolean
 }
 
 interface Waiter {
@@ -315,6 +344,12 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   let cancelled = false
   /** Aborted with the pool: kills the workers that have not said `ready` yet. */
   const controller = new AbortController()
+  /** The files a worker is starting for, by that worker's id: `interrupt` gives them up, `retire` marks the worker. */
+  const starting = new Map<number, Waiter>()
+  /** Files given up by `interrupt` while their worker started: the worker is kept, the file not run. */
+  const givenUp = new WeakSet<Waiter>()
+  /** Workers `retire` picked while they started. */
+  const retireOnStart = new Set<number>()
   let closing: Promise<void> | undefined
 
   /**
@@ -328,8 +363,8 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   }
 
   /** Reports an error no caller waits on: to `onError`, else thrown uncaught, as `connectWorker` does. */
-  function report(error: unknown, kind: PoolErrorKind = 'other'): void {
-    if (deps.onError !== undefined) deps.onError(error, kind)
+  function report(error: unknown, kind: PoolErrorKind = 'other', workerId?: number): void {
+    if (deps.onError !== undefined) deps.onError(error, kind, workerId)
     else
       queueMicrotask(() => {
         throw error
@@ -343,8 +378,10 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         await slot.transport.terminate(false)
       } catch (error) {
         // A transport that can't stop gracefully is killed; the failure is still reported.
-        report(error)
-        await slot.transport.terminate(true).catch(report)
+        report(error, 'other', slot.id)
+        await slot.transport
+          .terminate(true)
+          .catch((killError: unknown) => report(killError, 'other', slot.id))
       }
     })()
     await slot.gone
@@ -418,6 +455,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         { cause: exit },
       ),
       'worker-lost',
+      slot.id,
     )
   }
 
@@ -482,7 +520,10 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     const state = keyStates.get(keyId) ?? { spawning: 0 }
     keyStates.set(keyId, state)
     state.spawning++
+    starting.set(workerId, waiter)
     const doneStarting = (): void => {
+      starting.delete(workerId)
+      retireOnStart.delete(workerId)
       spawning--
       state.spawning--
       if (state.spawning === 0 && state.failure === undefined) keyStates.delete(keyId)
@@ -499,7 +540,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
             : deps.onIdleEvents?.(workerId, events),
         ...(deps.onError === undefined
           ? {}
-          : { onError: (error) => deps.onError?.(error, 'other') }),
+          : { onError: (error) => deps.onError?.(error, 'other', workerId) }),
       })
       slot = {
         id: workerId,
@@ -519,6 +560,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         diedBusy: false,
         killedFor: undefined,
         files: 0,
+        retireAfter: retireOnStart.delete(workerId),
       }
       transport.onExit((exit) => {
         slot.exit = exit
@@ -551,7 +593,12 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     })
     // `close` may have come while the worker was starting: it is stopped, and the file not run.
     if (controller.signal.aborted) waiter.resolve({ type: 'aborted' })
-    else await execute(slot, waiter)
+    else if (givenUp.has(waiter)) {
+      // `interrupt` gave the file up: the worker is kept for the next one.
+      waiter.resolve({ type: 'aborted' })
+      if (slot.retireAfter) retire(slot)
+      else pump()
+    } else await execute(slot, waiter)
   }
 
   /**
@@ -579,7 +626,12 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         // From when the job is sent: `onStart` is the run's own hook and may take a while.
         deadline = setTimeout(() => kill(slot, 'deadline'), fileTimeoutMs)
       }
-      const running = slot.connection.run(request.job)
+      const stale = request.staleModules?.(slot.id)
+      const job =
+        stale === undefined || stale.length === 0
+          ? request.job
+          : { ...request.job, staleModules: stale }
+      const running = slot.connection.run(job)
       if (!sharesProcess || deps.forceSignal === undefined) return await running
       const done = await Promise.race([running, forced.promise])
       // An inline worker can't be killed from outside: the file is given up on, and its `run`,
@@ -608,15 +660,21 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       try {
         request.onDone?.(done)
       } catch (error) {
-        report(error)
+        report(error, 'other', slot.id)
       }
-      if ((done.leakedGlobals.length > 0 && recycleOnLeak) || worn(slot, done)) {
+      if (
+        (done.leakedGlobals.length > 0 && recycleOnLeak) ||
+        worn(slot, done) ||
+        slot.retireAfter
+      ) {
         retire(slot)
       } else pump()
       waiter.resolve({ type: 'done', workerId: slot.id, done })
     } catch (error) {
       const exit = workerExitOf(error)
-      if (controller.signal.aborted) waiter.resolve({ type: 'aborted' })
+      // Killed by an abort of the pool, or by `interrupt`: the file was given up, not crashed.
+      if (controller.signal.aborted || slot.killedFor === 'abort')
+        waiter.resolve({ type: 'aborted' })
       else if (exit !== undefined) {
         forget(slot)
         waiter.resolve({ type: 'crashed', workerId: slot.id, exit })
@@ -652,6 +710,33 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       // Nothing more will come, and what is left is running: idle workers have no next file.
       draining = true
       pump()
+    },
+    interrupt(options) {
+      settleWaiters({ type: 'aborted' })
+      for (const waiter of starting.values()) {
+        givenUp.add(waiter)
+        waiter.resolve({ type: 'aborted' })
+      }
+      if (options?.keepRunning === true) return
+      for (const slot of slots) if (slot.state === 'busy') kill(slot, 'abort')
+    },
+    resetFailures() {
+      for (const [keyId, state] of keyStates) {
+        if (state.failure === undefined || state.spawning > 0) continue
+        state.failure = undefined
+        failedKeys--
+        keyStates.delete(keyId)
+      }
+    },
+    retire(which) {
+      for (const slot of slots) {
+        if (!usable(slot) || !which(slot.key)) continue
+        if (slot.state === 'idle') retire(slot)
+        else slot.retireAfter = true
+      }
+      for (const [workerId, waiter] of starting) {
+        if (which(waiter.request.key)) retireOnStart.add(workerId)
+      }
     },
     close() {
       closing ??= (async () => {
