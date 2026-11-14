@@ -4,7 +4,7 @@
 // snapshot path, the layout's or a project resolver's); one whose test file isn't on disk is
 // obsolete, unless that test path is ignored, and under `all` it is deleted.
 import { type Dirent, existsSync, readdirSync, unlinkSync } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, extname, join, resolve, sep } from 'node:path'
 import type { SnapshotUpdateMode } from '@provino/snapshot'
 
 /**
@@ -31,7 +31,9 @@ export interface ObsoleteSnapshotFilesOptions {
   readonly extension: string
   /**
    * Regular-expression sources: a path any of them matches is not crawled (Jest's
-   * `modulePathIgnorePatterns`, which its haste map leaves out). `node_modules` never is.
+   * `modulePathIgnorePatterns`, which its haste map tests on directory and file paths alike).
+   * Whatever the patterns, a path with `node_modules` or a version-control directory in it is not
+   * seen either, above the roots too.
    */
   readonly crawlIgnorePatterns: readonly string[]
   /** Regular-expression sources, joined with `|`: a snapshot whose test path matches is kept. */
@@ -42,11 +44,46 @@ export interface ObsoleteSnapshotFilesOptions {
   readonly update: SnapshotUpdateMode
 }
 
-/** Directories a crawl never enters: dependencies and version control, as Jest's haste map. */
+/** A path with a `node_modules` directory in it: haste map's `retainAllFiles: false` leaves it out. */
+const NODE_MODULES = `${sep}node_modules${sep}`
+
+/** Escapes `text` for a regular expression's source. */
+const escapeForRegExp = (text: string): string => text.replaceAll(/[.*+?^${}()|[\]\\/]/g, '\\$&')
+
+/** jest-haste-map's `VCS_DIRECTORIES` (`index.ts` L107): a path with a `.git`, `.hg` or `.sl` directory in it. */
+const VCS_DIRECTORIES: string = ['.git', '.hg', '.sl']
+  .map((name) => escapeForRegExp(`${sep}${name}${sep}`))
+  .join('|')
+
+/**
+ * What jest-haste-map ignores, as it builds it (`index.ts` L248-L262 and `buildIgnoreMatcher`): a
+ * path that matches the project's ignore patterns joined with `|` and the version-control
+ * directories, or has `node_modules` in it, wherever it is: the roots' own parents count.
+ */
+function ignorePath(patterns: readonly string[]): (path: string) => boolean {
+  const ignored = new RegExp([...patterns, VCS_DIRECTORIES].join('|'))
+  return (path) => path.includes(NODE_MODULES) || ignored.test(path)
+}
+
+/**
+ * Directories a crawl skips unseen: every path below one has `/<name>/` in it, so `ignorePath`
+ * drops them all whatever the patterns say.
+ */
 const SKIPPED_DIRECTORIES: ReadonlySet<string> = new Set(['node_modules', '.git', '.hg', '.sl'])
 
-/** Every snapshot file under `root`, not following symlinks. */
-function crawl(root: string, extension: string, ignored: RegExp | null, found: Set<string>): void {
+/**
+ * The snapshot files under `root`, as jest-haste-map's crawl lists them. Jest 30's default is
+ * its `walk` (`forceNodeFilesystemAPI: true`, `lib/walk.ts`: fdir): a directory is entered unless
+ * `ignore` drops its path, with the trailing separator taken off, so `/dir$` prunes `dir`; a file
+ * is kept when its `path.extname` is the extension (a file named `.snap` has none) and `ignore`
+ * doesn't drop its path. A symlink is neither entered nor listed.
+ */
+function crawl(
+  root: string,
+  extension: string,
+  ignore: (path: string) => boolean,
+  found: Set<string>,
+): void {
   let entries: Dirent[]
   try {
     entries = readdirSync(root, { withFileTypes: true })
@@ -55,10 +92,10 @@ function crawl(root: string, extension: string, ignored: RegExp | null, found: S
   }
   for (const entry of entries) {
     const path = join(root, entry.name)
-    if (ignored?.test(path) === true) continue
     if (entry.isDirectory()) {
-      if (!SKIPPED_DIRECTORIES.has(entry.name)) crawl(path, extension, ignored, found)
-    } else if (entry.isFile() && entry.name.endsWith(extension)) {
+      if (!SKIPPED_DIRECTORIES.has(entry.name) && !ignore(path))
+        crawl(path, extension, ignore, found)
+    } else if (entry.isFile() && extname(entry.name) === extension && !ignore(path)) {
       found.add(path)
     }
   }
@@ -75,8 +112,14 @@ function joined(patterns: readonly string[]): RegExp | null {
  */
 export function cleanObsoleteSnapshotFiles(options: ObsoleteSnapshotFilesOptions): string[] {
   const found = new Set<string>()
-  const ignored = joined(options.crawlIgnorePatterns)
-  for (const root of options.roots) crawl(root, options.extension, ignored, found)
+  const ignore = ignorePath(options.crawlIgnorePatterns)
+  const versionControl = new RegExp(VCS_DIRECTORIES)
+  for (const root of options.roots) {
+    // A root inside `node_modules` or a version-control directory has every path below it dropped.
+    const top = `${root}${sep}`
+    if (top.includes(NODE_MODULES) || versionControl.test(top)) continue
+    crawl(root, options.extension, ignore, found)
+  }
   const testIgnored = joined(options.testPathIgnorePatterns)
   const obsolete: string[] = []
   for (const snapshotFile of [...found].sort()) {

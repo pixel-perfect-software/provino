@@ -6,7 +6,7 @@
 // what Jest does is read off the live run.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { after, describe, it } from 'node:test'
@@ -141,5 +141,70 @@ describe('the cleanup visits the projects that ran a test file, as Jest does', (
     const { jest: expected } = await sameAsJest(projects, [...CI_OFF, 'a/a.test'])
     assert.equal(expected.left.length, 2)
     assert.ok(snapshotLines(expected.stderr).some((line) => line.includes('a/__snapshots__')))
+  })
+})
+
+describe('the crawl sees the files Jest’s haste map sees', () => {
+  const orphan = (path: string): Files => ({ [path]: SNAP })
+  const base: Files = { ...BASE, 'a.test.js': PASS }
+
+  // Jest 30's haste map walks with fdir (`forceNodeFilesystemAPI: true`), which tests a
+  // directory's own path against the ignore pattern too, so an anchored `/dir$` hides `dir/`.
+  it('a modulePathIgnorePatterns entry hides a directory by its own path, and files by theirs', async () => {
+    const files = {
+      ...base,
+      'jest.config.json': JSON.stringify({ modulePathIgnorePatterns: ['/dir$', '/hidden/'] }),
+      ...orphan('dir/__snapshots__/x.test.js.snap'),
+      ...orphan('hidden/__snapshots__/y.test.js.snap'),
+      ...orphan('shown/__snapshots__/z.test.js.snap'),
+    }
+    const { jest: expected } = await sameAsJest(files, CI_OFF)
+    const listed = snapshotLines(expected.stderr).join('\n')
+    assert.ok(listed.includes('shown/__snapshots__'), listed)
+    assert.ok(!listed.includes('dir/') && !listed.includes('hidden/'), listed)
+  })
+
+  it('node_modules at any depth and the version-control directories are not crawled', async () => {
+    const files = {
+      ...base,
+      ...orphan('node_modules/pkg/__snapshots__/a.test.js.snap'),
+      ...orphan('src/node_modules/pkg/__snapshots__/b.test.js.snap'),
+      ...orphan('.git/__snapshots__/c.test.js.snap'),
+      ...orphan('sub/.hg/__snapshots__/d.test.js.snap'),
+      ...orphan('sub/.sl/__snapshots__/e.test.js.snap'),
+      ...orphan('sub/.github/__snapshots__/f.test.js.snap'),
+      ...orphan('sub/x.git/__snapshots__/g.test.js.snap'),
+      ...orphan('my_node_modules/__snapshots__/h.test.js.snap'),
+    }
+    const { jest: expected } = await sameAsJest(files, [...CI_OFF, '-u'])
+    assert.deepEqual(expected.left, [
+      '.git/__snapshots__/c.test.js.snap',
+      'node_modules/pkg/__snapshots__/a.test.js.snap',
+      'src/node_modules/pkg/__snapshots__/b.test.js.snap',
+      'sub/.hg/__snapshots__/d.test.js.snap',
+      'sub/.sl/__snapshots__/e.test.js.snap',
+    ])
+  })
+
+  it('only a name that ends in .snap is a snapshot file, case included', async () => {
+    const files = {
+      ...base,
+      ...orphan('__snapshots__/a.test.js.SNAP'),
+      ...orphan('__snapshots__/b.test.js.snap.bak'),
+      ...orphan('__snapshots__/c.test.js.snap'),
+    }
+    await sameAsJest(files, CI_OFF)
+  })
+
+  it('a symlinked directory is not followed', async () => {
+    const files = { ...base, ...orphan('real/__snapshots__/x.test.js.snap') }
+    const [one, two] = [await tree(files), await tree(files)]
+    await symlink(join(one, 'real'), join(one, 'link'))
+    await symlink(join(two, 'real'), join(two, 'link'))
+    const expected = await jest(one, CI_OFF)
+    assert.ok(snapshotLines(expected.stderr).some((line) => line.includes('real/')))
+    assert.ok(!snapshotLines(expected.stderr).some((line) => line.includes('link/')))
+    const got = await provino(two, CI_OFF)
+    assert.deepEqual(snapshotLines(got.stderr), snapshotLines(expected.stderr))
   })
 })
