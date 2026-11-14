@@ -8,6 +8,7 @@ import { serializeError } from '@provino/rpc'
 import { resolveUpdateMode } from '@provino/snapshot/node'
 import type {
   AffectedSelection,
+  CoverageSummary,
   FileFilter,
   FileInfo,
   FileJob,
@@ -35,7 +36,7 @@ import { affectedCachePaths } from './affected/index.ts'
 import { openRecordedGraph, type RecordedGraph } from './affected/recorded.ts'
 import { keepFailed, selectAffected } from './affected/select.ts'
 import { cacheDirectories, createResultsCache, type ResultsCache } from './cache.ts'
-import type { RawCoverageStore } from './coverage-store.ts'
+import type { RunCoverageHooks } from './coverage.ts'
 import { createDepsTable, type DepsTable } from './deps-table.ts'
 import { type DiscoveredFile, discoverFiles } from './discover.ts'
 import { discoverByRules } from './discover-rules.ts'
@@ -241,10 +242,12 @@ export interface RunProjectOptions {
    */
   readonly globalSetup?: RunGlobalHooks
   /**
-   * Where the `coverage` events of the run's workers are kept (B23b): Istanbul's per file as each
-   * ends, V8's once per worker as it stops. Without it they are dropped.
+   * What the run tells its caller about its coverage (B23b). Coverage itself is on when a project's
+   * worker config has a `coverage` block: the workers' `coverage` events are kept as they arrive
+   * (Istanbul's per file, V8's once per worker), the files no test loaded are added, and the merged
+   * map, moved back to the sources, is `RunSummary.coverage` before `run:end`.
    */
-  readonly coverageStore?: RawCoverageStore
+  readonly coverage?: RunCoverageHooks
   /**
    * Collect each file and report what its tests would do, running none (Jest's `--collectTests`):
    * no global setup or teardown runs, no hook or test body runs, no snapshot is written, and the
@@ -475,6 +478,13 @@ export async function runProjects(
     )
   }
 
+  // Coverage is the projects' own (their worker config says which files count); the run keeps
+  // what the workers send. Its modules (and `@provino/coverage/node` behind them) load only when a
+  // project collects (T1.10, T7.12): a run without coverage imports none of them.
+  const coverageStore = projects.some((project) => project.config.coverage !== undefined)
+    ? (await import('./coverage-store.ts')).createRawCoverageStore()
+    : undefined
+
   const caches = new Map<string, ResultsCache>()
   const cacheFor = (project: ResolvedProject): ResultsCache | undefined => {
     if (options.cache === false) return undefined
@@ -637,9 +647,9 @@ export async function runProjects(
       bus,
       fileOf: (workerId) => lastFile.get(workerId)?.info,
       onUnhandled: (error) => void unhandled.push(error),
-      ...(options.coverageStore === undefined
+      ...(coverageStore === undefined
         ? {}
-        : { onCoverage: (workerId, event) => options.coverageStore?.add(workerId, event) }),
+        : { onCoverage: (workerId, event) => coverageStore.add(workerId, event) }),
     })
     return async (workerId, events) => {
       // A worker is retired once its last file is done, and its stop-time events must still follow
@@ -698,6 +708,7 @@ export async function runProjects(
   const summarize = (
     reason: RunSummary['reason'],
     openHandles: readonly OpenHandle[] = [],
+    coverage?: CoverageSummary,
   ): RunSummary => {
     const run = mergedSnapshots(snapshotMembers)
     return {
@@ -709,6 +720,7 @@ export async function runProjects(
         ? {}
         : { snapshots: run, snapshotsFail: snapshotsFailRun(snapshotMembers) }),
       ...(openHandles.length === 0 ? {} : { openHandles }),
+      ...(coverage === undefined ? {} : { coverage }),
     }
   }
 
@@ -723,9 +735,9 @@ export async function runProjects(
       bus,
       file: entry.info,
       onUnhandled: (error) => void unhandled.push(error),
-      ...(options.coverageStore === undefined
+      ...(coverageStore === undefined
         ? {}
-        : { onCoverage: (event) => options.coverageStore?.add(takenBy, event) }),
+        : { onCoverage: (event) => coverageStore.add(takenBy, event) }),
       onTestFailed: () => {
         failedInFile++
         if (bailAfter === 'test') countFailed(1)
@@ -1044,7 +1056,23 @@ export async function runProjects(
     // the open handles being collected) leaves no file in the middle of anything, but it is still
     // the user's interruption: the summary says so, and the exit code is the signal's.
     const cut = interrupted || signal?.aborted === true
-    const summary = summarize(cut ? cutShort() : failed ? 'failed' : 'passed', openHandles)
+    // Jest's CoverageReporter reports at the end of a run that was not interrupted, over the
+    // projects that had a file to run (`_addUntestedFiles`' test contexts).
+    const coverage =
+      coverageStore === undefined || cut
+        ? undefined
+        : await (await import('./coverage.ts')).finishCoverage(
+            coverageStore,
+            found
+              .filter((entry) => entry.discovered.length > 0)
+              .map((entry) => entry.member.project),
+            options.coverage,
+          )
+    const summary = summarize(
+      cut ? cutShort() : failed ? 'failed' : 'passed',
+      openHandles,
+      coverage,
+    )
     await bus.emit('run:end', summary)
     pruneTransformCaches()
     return summary

@@ -1,0 +1,15 @@
+{
+  "description": "`coverageReporters: []` under Jest 30.5.2 with `--json` (T8.10, B23b): `--json` sets `useStderr`, and CoverageReporter adds its `text-summary` fallback only without it (`!useStderr && coverageReporters.length === 0`), so the run writes no report at all: stdout is empty and there is no coverage file. The recorder always passes `--json`; the fallback itself is held to a live Jest by `provino`'s `jest-coverage.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "coverageReporters": []
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": ["exitCode", "stdout", "file:coverage/coverage-final.json"]
+  }
+}

@@ -517,6 +517,66 @@ test("an explicit cacheDirectory is carried; Jest's own default is not (D70)", a
   assert.equal(Object.hasOwn(without ?? {}, 'cacheDirectory'), false)
 })
 
+test('collectCoverage: the files that count, as shouldInstrument reads the config (B23b)', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = {
+  collectCoverage: true,
+  collectCoverageFrom: ['<rootDir>/src/**/*.ts', '!**/*.d.ts'],
+  coveragePathIgnorePatterns: ['/node_modules/', '<rootDir>/gen/'],
+  forceCoverageMatch: ['**/*.fixture.ts'],
+  testMatch: ['**/*.spec.ts'],
+  setupFiles: ['<rootDir>/before.js'],
+}
+`,
+    'before.js': '',
+  })
+  const { neutral } = await readNeutral(root)
+  assert.ok(!neutral.diagnostics.some((d) => d.key === 'collectCoverage'))
+  assert.deepEqual(neutral.value[0]?.coverage, {
+    provider: 'istanbul',
+    globalRoot: root,
+    projectRoot: root,
+    // `<rootDir>/` comes off a collectCoverageFrom glob (normalize.ts).
+    include: ['src/**/*.ts', '!**/*.d.ts'],
+    includeRoot: true,
+    force: ['**/*.fixture.ts'],
+    testFiles: ['**/*.spec.ts'],
+    testRegex: [],
+    testIgnorePatterns: ['/node_modules/'],
+    excludePatterns: ['/node_modules/', `${root}/gen/`],
+    excludePaths: [join(root, 'before.js')],
+  })
+})
+
+test('no coverage without collectCoverage; v8 and thresholds are read but not applied yet', async () => {
+  const off = tree({ 'jest.config.js': 'module.exports = {}\n' })
+  const [plain] = (await readNeutral(off)).neutral.value
+  assert.equal(Object.hasOwn(plain ?? {}, 'coverage'), false)
+
+  const v8 = tree({
+    'jest.config.js': "module.exports = { collectCoverage: true, coverageProvider: 'v8' }\n",
+  })
+  const read = await readNeutral(v8)
+  assert.equal(read.neutral.value[0]?.coverage, undefined)
+  assert.ok(
+    read.neutral.diagnostics.some(
+      (d) => d.key === 'coverageProvider' && d.message.includes('T8.12'),
+    ),
+  )
+
+  const thresholds = tree({
+    'jest.config.js':
+      'module.exports = { collectCoverage: true, coverageThreshold: { global: { lines: 90 } } }\n',
+  })
+  const withThresholds = await readNeutral(thresholds)
+  assert.ok(withThresholds.neutral.value[0]?.coverage !== undefined)
+  assert.ok(
+    withThresholds.neutral.diagnostics.some(
+      (d) => d.key === 'coverageThreshold' && d.message.includes('T8.11'),
+    ),
+  )
+})
+
 test('NODE_PATH entries are module search paths ahead of modulePaths, as jest-resolve has them', async () => {
   const root = tree({ 'jest.config.js': "module.exports = { modulePaths: ['/from/config'] }\n" })
   const saved = process.env.NODE_PATH

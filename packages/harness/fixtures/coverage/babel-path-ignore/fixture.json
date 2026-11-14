@@ -1,0 +1,17 @@
+{
+  "description": "`coveragePathIgnorePatterns` and `collectCoverageFrom` under Jest 30.5.2 (T8.10, B23b): `src/generated/` is ignored although a test loads it, `src/other.ts` (no test loads it) is reported at zero, `src/kept.ts` is counted. The `json-summary` and `text` reports, as Jest wrote them. Read by `provino`'s `jest-coverage.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "collectCoverageFrom": ["src/**/*.ts"],
+      "coveragePathIgnorePatterns": ["/node_modules/", "/src/generated/"],
+      "coverageReporters": ["json-summary", "text"]
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": ["exitCode", "stdout", "json:coverage/coverage-summary.json"]
+  }
+}
