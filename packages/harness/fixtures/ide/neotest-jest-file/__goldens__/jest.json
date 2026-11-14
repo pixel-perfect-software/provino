@@ -1,0 +1,341 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ide/neotest-jest-file",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./sum.test.ts\n    ✓ adds <masked>\n    ✕ fails <masked>\n    ✓ each 1 <masked>\n    ✓ each 3 <masked>\n    ✓ matches a stored snapshot <masked>\n    ○ skipped is skipped\n    ✎ todo is todo\n      ✓ handles (parens) and a-dash <masked>\n      ✕ fails inside <masked>\n        ✓ goes deep <masked>\n      ✓ has a number <masked>\n      ✓ has a number <masked>\nForce exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?",
+    "json": {
+      ".harness-out/neotest.json": {
+        "numFailedTestSuites": 1,
+        "numFailedTests": 2,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 8,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 1,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 1,
+        "numTotalTestSuites": 1,
+        "numTotalTests": 12,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 1,
+          "total": 1,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum adds",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 4
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "adds",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "actual": 2,
+                      "expected": 3,
+                      "message": "expect(received).toBe(expected) // Object.is equality\n\nExpected: 3\nReceived: 2",
+                      "name": "toBe",
+                      "pass": false
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 3\nReceived: 2\n<frames>"
+                ],
+                "fullName": "sum fails",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 7
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum is skipped",
+                "invocations": 1,
+                "location": {
+                  "column": 6,
+                  "line": 10
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "is skipped",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum is todo",
+                "invocations": 1,
+                "location": {
+                  "column": 6,
+                  "line": 11
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "todo",
+                "title": "is todo",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum each 1",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 15
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "each 1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum each 3",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 15
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "each 3",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum matches a stored snapshot",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 18
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "matches a stored snapshot",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum",
+                  "nested"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum nested handles (parens) and a-dash",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 22
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "handles (parens) and a-dash",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum",
+                  "nested"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "actual": "a",
+                      "expected": "b",
+                      "message": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"b\"\nReceived: \"a\"",
+                      "name": "toBe",
+                      "pass": false
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: \"b\"\nReceived: \"a\"\n<frames>"
+                ],
+                "fullName": "sum nested fails inside",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 25
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails inside",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum",
+                  "nested",
+                  "deeper"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum nested deeper goes deep",
+                "invocations": 1,
+                "location": {
+                  "column": 7,
+                  "line": 29
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "goes deep",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum",
+                  "group 1"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum group 1 has a number",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 35
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "has a number",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum",
+                  "group 2"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum group 2 has a number",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 35
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "has a number",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● sum › fails\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 3\n    Received: 2\n\n       6 |   })\n       7 |   it('fails', () => {\n    >  8 |     expect(1 + 1).toBe(3)\n         |                   ^\n       9 |   })\n      10 |   it.skip('is skipped', () => {})\n      11 |   it.todo('is todo')\n\n<frames>\n\n  ● sum › nested › fails inside\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: \"b\"\n    Received: \"a\"\n\n      24 |     })\n      25 |     it('fails inside', () => {\n    > 26 |       expect('a').toBe('b')\n         |                   ^\n      27 |     })\n      28 |     describe('deeper', () => {\n      29 |       it('goes deep', () => {\n\n<frames>\n",
+            "name": "<root>/sum.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

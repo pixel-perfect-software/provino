@@ -1,0 +1,29 @@
+{
+  "description": "neotest-jest's nested describe run (neotest-jest 0e7979d, init.lua:541-546): ^sum nested with no $, so every test below the describe runs, one of them failing.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "__snapshots__/sum.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`sum matches a stored snapshot 1`] = `\"stored\"`;\n"
+    }
+  },
+  "run": {
+    "exact": true,
+    "argv": {
+      "jest": [
+        "--config=jest.config.json",
+        "--no-coverage",
+        "--verbose",
+        "--json",
+        "--outputFile=.harness-out/neotest.json",
+        "--testNamePattern=^sum nested",
+        "--forceExit",
+        "--testLocationInResults",
+        "sum.test.ts"
+      ]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/neotest.json"],
+    "keepLines": "^(PASS|FAIL) |^\\s+(✓|✕|○|✎) |^Force exiting Jest",
+    "mask": ["\\((?:<dur>|\\d+ ms)\\)"],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
