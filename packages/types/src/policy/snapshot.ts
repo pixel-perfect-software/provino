@@ -205,6 +205,13 @@ export interface SnapshotPolicy {
    * research: track-01 L220, track-07 L472
    */
   readonly obsolete: { readonly failLocal: boolean; readonly failCI: boolean }
+  /**
+   * Whether a run looks for snapshot files no test file has, after its files ran (Jest's
+   * `cleanup`): `report` counts them as removed files (and deletes them under `all`), `ignore`
+   * leaves them. Jest: `report`. Vitest: `ignore` until T11.16 records what it does. Provino's
+   * own key.
+   */
+  readonly obsoleteFiles: 'report' | 'ignore'
   /** Snapshot update mode in CI. Jest: `none`. Vitest: `none`. research: track-01 L220, track-07 L473 */
   readonly ciUpdate: 'new' | 'none'
   /** An environment variable that turns on snapshot updates, or `null`. Jest: `null`. Vitest: `'UPDATE_SNAPSHOT'`. research: track-07 L473 */

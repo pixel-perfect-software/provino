@@ -185,6 +185,7 @@ export const neutralPolicy: Policy = deepFreeze({
     format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
     serializers: [],
     obsolete: { failLocal: false, failCI: true },
+    obsoleteFiles: 'ignore',
     ciUpdate: 'none',
     updateEnvVar: null,
     throwErrorBody: 'message',

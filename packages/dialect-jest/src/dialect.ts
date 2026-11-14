@@ -270,6 +270,9 @@ export const jestPolicy: PolicyOverrides = {
     format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
     // research: track-07 L472 (track-01 L220 says `report` for both; Track 7's detail is used)
     obsolete: { failLocal: true, failCI: true },
+    // Provino's own key (B23d B1, DV96): Jest's `cleanup` after the run
+    // (`cli/report-snapshot-obsolete-file`).
+    obsoleteFiles: 'report',
     // research: track-01 L220, track-07 L473
     ciUpdate: 'none',
     // research: track-07 L473 (only Vitest has `UPDATE_SNAPSHOT`)

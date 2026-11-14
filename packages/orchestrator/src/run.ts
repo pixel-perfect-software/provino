@@ -42,6 +42,7 @@ import { fileIdOf, relativePosix } from './file-id.ts'
 import { type GlobalSetupRun, type RunGlobalHooks, runGlobalSetup } from './global-setup.ts'
 import { createInlineSnapshotWrites, withInlineSnapshots } from './inline-snapshots.ts'
 import { configHash, hashOf, type WorkerKeyInput, workerKeyOf } from './key.ts'
+import { obsoleteSnapshotFiles } from './obsolete-snapshots.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
 import { selectFiles } from './select.ts'
@@ -936,6 +937,15 @@ export async function runProjects(
     await Promise.all(running)
     // The history is complete; writing it overlaps the workers' shutdown.
     await Promise.all([pool.close(), writeCache()])
+    // Each project's snapshot files that no test file has, as Jest's scheduler finds them once
+    // every file ran (DV96); a collect-only pass or an interrupted run looks for none.
+    if (options.collectOnly !== true && !interrupted && signal?.aborted !== true) {
+      for (const member of members) {
+        member.snapshots.removed.push(
+          ...(await obsoleteSnapshotFiles(member.project, member.snapshots.update)),
+        )
+      }
+    }
     // A `-t` run executes only the matching tests of each file, so its durations are not the files'.
     const partial = options.testNamePattern !== undefined && options.testNamePattern !== ''
     if (options.timings?.update === true && options.collectOnly === true) {

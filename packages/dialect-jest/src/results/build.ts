@@ -381,6 +381,10 @@ export interface RunEnd {
 export function finishAggregated(aggregated: AggregatedResult, end: RunEnd): void {
   const updateAll = end.snapshots?.update === 'all'
   const { snapshot } = aggregated
+  // The obsolete snapshot files `cleanupSnapshots` found once every file ran (L203-L221).
+  const removed = end.snapshots?.filesRemovedList ?? []
+  snapshot.filesRemoved += removed.length
+  snapshot.filesRemovedList = [...snapshot.filesRemovedList, ...removed]
   snapshot.didUpdate = updateAll
   snapshot.failure = !!(
     !updateAll &&
