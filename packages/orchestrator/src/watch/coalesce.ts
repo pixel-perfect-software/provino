@@ -102,6 +102,10 @@ export function createCoalescer(options: CoalesceOptions): Coalescer {
       else if (event.mtimeMs !== undefined) known.set(event.path, event.mtimeMs)
       const key = `${event.kind}:${event.path}:${event.mtimeMs ?? ''}`
       if (keys.has(key)) return
+      // The file is back, so a later unlink in this window is news again. An unlink's key has no
+      // mtime, so ChangeQueue.ts (L108-113) drops the second unlink of `unlink, add, unlink` and
+      // ends the window with the file present; a D7 fix.
+      if (event.kind !== 'unlink') keys.delete(`unlink:${event.path}:`)
       keys.add(key)
       pending.push(event)
       cancel ??= clock.schedule(flush, windowMs)

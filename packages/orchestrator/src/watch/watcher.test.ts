@@ -4,8 +4,8 @@
 // `fs.watch` (macOS's denies FSEvents: the watch errors with EMFILE once it starts); the probe below
 // finds out once, the tests skip saying why, and with `CI` set they refuse to skip.
 import assert from 'node:assert/strict'
-import { watch } from 'node:fs'
-import { mkdir, mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises'
+import { statSync, watch, writeFileSync } from 'node:fs'
+import { chmod, mkdir, mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, relative, sep } from 'node:path'
 import { after, describe, test } from 'node:test'
@@ -117,7 +117,14 @@ async function watched(root: string, perDirectory: boolean) {
 for (const perDirectory of [false, true]) {
   const mode = perDirectory ? 'one watch per directory' : 'one recursive watch per root'
   describe(`the watcher, ${mode}`, async () => {
-    const skip = await skipReason(!perDirectory)
+    // Each OS holds the mode it runs in production: per directory on Linux (where Node 22's
+    // recursive `fs.watch` is a JavaScript fallback, not what the watcher uses), recursive on
+    // macOS and Windows; per directory is forced there too, as the option allows. The fake-watch
+    // tests below run both modes everywhere.
+    const skip =
+      !perDirectory && process.platform === 'linux'
+        ? 'recursive mode is not used on Linux: the watcher watches per directory there (see "the default mode")'
+        : await skipReason(!perDirectory)
     test('knows the files the walk found, and leaves out node_modules and files it does not keep', {
       skip,
     }, async () => {
@@ -168,6 +175,7 @@ for (const perDirectory of [false, true]) {
         await mkdir(join(root, 'lib', 'deep'), { recursive: true })
         await writeFile(deep, 'd')
         await next('add', deep)
+        await watcher.settled()
         if (perDirectory) assert.equal(watcher.handles(), 3, 'the root, lib and lib/deep')
 
         await writeFile(join(root, 'ignored.md'), 'x')
@@ -196,45 +204,85 @@ for (const perDirectory of [false, true]) {
 /**
  * A `WatchFunction` the test drives: `raw(path)` delivers what the operating system would after a
  * change to `path` (the name relative to the root under a recursive watch, the base name to the
- * parent's watch otherwise), so the watcher's own logic runs here even where `fs.watch` can't.
+ * parent's watch otherwise), so the watcher's own logic runs here even where `fs.watch` can't. A
+ * plain watch is of one directory, as inotify's is: once the directory is removed (another inode is
+ * at its path) the watch hears nothing more. `onOpen` runs as a watch opens.
  */
-function fakeWatch() {
+function fakeWatch(onOpen?: (path: string) => void) {
   const open = new Map<
     string,
     {
       readonly recursive: boolean
+      readonly inode: number | undefined
       readonly listener: (name: string | null) => void
       readonly onError: (error: Error) => void
     }
   >()
+  const inodeOf = (path: string): number | undefined => {
+    try {
+      return statSync(path).ino
+    } catch {
+      return undefined
+    }
+  }
   const watchFunction: WatchFunction = (path, recursive, listener, onError) => {
-    open.set(path, { recursive, listener, onError })
+    open.set(path, { recursive, inode: inodeOf(path), listener, onError })
+    onOpen?.(path)
     return { close: () => open.delete(path) }
   }
   function raw(path: string): void {
-    for (const [watched, { recursive, listener }] of open) {
+    for (const [watched, { recursive, inode, listener }] of open) {
       if (recursive && path.startsWith(watched + sep)) listener(relative(watched, path))
-      if (!recursive && dirname(path) === watched) listener(basename(path))
+      if (!recursive && dirname(path) === watched && inodeOf(watched) === inode) {
+        listener(basename(path))
+      }
     }
   }
   return { open, watchFunction, raw }
 }
 
+test('the default mode is one watch per directory on Linux, and one recursive watch elsewhere', async () => {
+  const root = await tempTree({ 'src/a.ts': 'a' })
+  const fake = fakeWatch()
+  const watcher = await createWatcher({
+    roots: [root],
+    keeps: () => true,
+    watch: fake.watchFunction,
+    onEvent: () => {},
+    onError: () => {},
+  })
+  try {
+    const recursive = [...fake.open.values()].map((handle) => handle.recursive)
+    assert.deepEqual(recursive, process.platform === 'linux' ? [false, false] : [true])
+  } finally {
+    watcher.close()
+  }
+})
+
 for (const perDirectory of [false, true]) {
   const mode = perDirectory ? 'one watch per directory' : 'one recursive watch per root'
   describe(`the watcher's events from what it is told, ${mode}`, () => {
-    async function start(files: Readonly<Record<string, string>>) {
+    async function start(
+      files: Readonly<Record<string, string>>,
+      extra: {
+        readonly roots?: (root: string) => readonly string[]
+        readonly onError?: (error: unknown) => void
+        readonly onOpen?: (path: string, root: string) => void
+      } = {},
+    ) {
       const root = await tempTree(files)
-      const fake = fakeWatch()
+      const fake = fakeWatch(
+        extra.onOpen === undefined ? undefined : (path) => extra.onOpen?.(path, root),
+      )
       const events: WatchEvent[] = []
       const errors: unknown[] = []
       const watcher = await createWatcher({
-        roots: [root],
+        roots: extra.roots?.(root) ?? [root],
         keeps: (path) => path.endsWith('.ts'),
         perDirectory,
         watch: fake.watchFunction,
         onEvent: (event) => events.push(event),
-        onError: (error) => errors.push(error),
+        onError: extra.onError ?? ((error) => errors.push(error)),
       })
       /** What the watcher reports once the operating system names these paths. */
       const told = async (...paths: string[]): Promise<string[]> => {
@@ -242,7 +290,7 @@ for (const perDirectory of [false, true]) {
         await watcher.settled()
         return events.splice(0).map((event) => `${event.kind} ${relative(root, event.path)}`)
       }
-      return { root, fake, watcher, told, errors }
+      return { root, fake, watcher, told, errors, events }
     }
 
     test('opens its watches where the mode says, never in node_modules or a VCS directory', async () => {
@@ -290,6 +338,27 @@ for (const perDirectory of [false, true]) {
       }
     })
 
+    test('a rename the platform names only by its new name still unlinks the old one', async () => {
+      const { root, watcher, told } = await start({ 'b.ts': 'b' })
+      try {
+        await rename(join(root, 'b.ts'), join(root, 'c.ts'))
+        assert.deepEqual(await told(join(root, 'c.ts')), ['unlink b.ts', 'add c.ts'])
+        assert.deepEqual([...watcher.known.keys()], [join(root, 'c.ts')])
+      } finally {
+        watcher.close()
+      }
+    })
+
+    test('an access that leaves the mtime alone is no change', async () => {
+      const { root, watcher, told } = await start({ 'a.ts': 'a' })
+      try {
+        await chmod(join(root, 'a.ts'), 0o600)
+        assert.deepEqual(await told(join(root, 'a.ts')), [])
+      } finally {
+        watcher.close()
+      }
+    })
+
     test('a new directory adds its files (and its watches), and removing it unlinks them', async () => {
       const { root, fake, watcher, told } = await start({ 'a.ts': 'a' })
       try {
@@ -327,6 +396,84 @@ for (const perDirectory of [false, true]) {
       }
     })
 
+    test('a directory removed and made again at its path: the old files go, edits in it are heard', async () => {
+      const { root, watcher, told } = await start({ 'lib/a.ts': 'a' })
+      try {
+        await rm(join(root, 'lib'), { recursive: true })
+        await mkdir(join(root, 'lib'))
+        await writeFile(join(root, 'lib', 'b.ts'), 'b')
+        assert.deepEqual(await told(join(root, 'lib')), ['unlink lib/a.ts', 'add lib/b.ts'])
+        await writeFile(join(root, 'lib', 'b.ts'), 'edited')
+        assert.deepEqual(await told(join(root, 'lib', 'b.ts')), ['change lib/b.ts'])
+      } finally {
+        watcher.close()
+      }
+    })
+
+    test('a file made while its directory is read, before its watch would have opened, is known', async () => {
+      // The file appears as the watch of its directory opens: in per-directory mode, `src`'s; in
+      // recursive mode, the root's. A watcher that read the directory first would never see it.
+      const { root, watcher } = await start(
+        { 'src/a.ts': 'a' },
+        {
+          onOpen: (path, root) => {
+            if (path === join(root, perDirectory ? 'src' : '')) {
+              writeFileSync(join(path, perDirectory ? 'late.ts' : 'src/late.ts'), 'late')
+            }
+          },
+        },
+      )
+      try {
+        assert.ok(watcher.known.has(join(root, 'src', 'late.ts')))
+      } finally {
+        watcher.close()
+      }
+    })
+
+    test('a missing root rejects; a root that goes away is reported', async () => {
+      const missing = join(await tempTree(), 'nowhere')
+      await assert.rejects(
+        createWatcher({
+          roots: [missing],
+          keeps: () => true,
+          perDirectory,
+          watch: fakeWatch().watchFunction,
+          onEvent: () => {},
+          onError: () => {},
+        }),
+        { code: 'ENOENT' },
+      )
+      const { root, fake, watcher, errors, events } = await start({ 'a.ts': 'a' })
+      try {
+        await rm(root, { recursive: true })
+        fake.open.get(root)?.onError(new Error('the watch ended'))
+        await watcher.settled()
+        assert.deepEqual(
+          errors.map((error) => (error as Error).message),
+          [`The watched directory ${root} is gone`],
+        )
+        assert.deepEqual(
+          events.map((event) => event.kind),
+          ['unlink'],
+        )
+      } finally {
+        watcher.close()
+      }
+    })
+
+    test('a root given with a trailing separator watches the same tree', async () => {
+      const { root, watcher, told } = await start(
+        { 'a.ts': 'a' },
+        { roots: (root) => [root + sep] },
+      )
+      try {
+        await writeFile(join(root, 'b.ts'), 'b')
+        assert.deepEqual(await told(join(root, 'b.ts')), ['add b.ts'])
+      } finally {
+        watcher.close()
+      }
+    })
+
     test('an error on a directory that is gone closes its watch; any other error is reported', async () => {
       const { root, fake, watcher, errors } = await start({ 'lib/a.ts': 'a' })
       try {
@@ -347,21 +494,66 @@ for (const perDirectory of [false, true]) {
       }
     })
 
-    test('an event that names no file looks at the whole directory again', {
-      skip: perDirectory ? false : 'a recursive watch that names no file has nothing to look at',
-    }, async () => {
-      const { root, fake, watcher } = await start({ 'a.ts': 'a', 'b.ts': 'b' })
+    test('an onError that throws does not stop what comes after', async () => {
+      const { root, fake, watcher, told } = await start(
+        { 'a.ts': 'a' },
+        {
+          onError: () => {
+            throw new Error('a broken handler')
+          },
+        },
+      )
+      try {
+        fake.open.get(root)?.onError(Object.assign(new Error('EMFILE'), { code: 'EMFILE' }))
+        await writeFile(join(root, 'a.ts'), 'edited')
+        assert.deepEqual(await told(join(root, 'a.ts')), ['change a.ts'])
+      } finally {
+        watcher.close()
+      }
+    })
+
+    test('an event that names no file looks at what its watch covers again', async () => {
+      const { root, fake, watcher, events } = await start({ 'a.ts': 'a', 'b.ts': 'b' })
       try {
         await rm(join(root, 'a.ts'))
         await writeFile(join(root, 'c.ts'), 'c')
         fake.open.get(root)?.listener(null)
         await watcher.settled()
-        assert.deepEqual([...watcher.known.keys()].map((path) => relative(root, path)).sort(), [
-          'b.ts',
-          'c.ts',
-        ])
+        assert.deepEqual(
+          events.map((event) => `${event.kind} ${relative(root, event.path)}`),
+          ['unlink a.ts', 'add c.ts'],
+        )
       } finally {
         watcher.close()
+      }
+    })
+
+    test('a directory it may not read is left out and reported once; the rest is watched', {
+      skip: process.getuid?.() === 0 ? 'root reads every directory, so nothing is denied' : false,
+    }, async () => {
+      const root = await tempTree({ 'a.ts': 'a', 'secret/s.ts': 's' })
+      await chmod(join(root, 'secret'), 0o000)
+      try {
+        const errors: unknown[] = []
+        const watcher = await createWatcher({
+          roots: [root],
+          keeps: (path) => path.endsWith('.ts'),
+          perDirectory,
+          watch: fakeWatch().watchFunction,
+          onEvent: () => {},
+          onError: (error) => errors.push(error),
+        })
+        try {
+          assert.deepEqual([...watcher.known.keys()], [join(root, 'a.ts')])
+          assert.deepEqual(
+            errors.map((error) => (error as { code?: unknown }).code),
+            ['EACCES'],
+          )
+        } finally {
+          watcher.close()
+        }
+      } finally {
+        await chmod(join(root, 'secret'), 0o700)
       }
     })
   })

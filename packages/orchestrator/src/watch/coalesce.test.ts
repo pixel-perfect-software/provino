@@ -70,6 +70,17 @@ test('a repeat of one kind, path and mtime is dropped within a window, and kept 
   assert.deepEqual(batches[1], [event('unlink', '/p/b.ts')])
 })
 
+test('unlink, add, unlink of one path in one window keeps the last unlink', () => {
+  const { clock, batches, coalescer } = setup()
+  coalescer.push(event('unlink', '/p/a.ts'))
+  coalescer.push(event('add', '/p/a.ts', 2))
+  coalescer.push(event('unlink', '/p/a.ts'))
+  clock.fire()
+  assert.deepEqual(batches, [
+    [event('unlink', '/p/a.ts'), event('add', '/p/a.ts', 2), event('unlink', '/p/a.ts')],
+  ])
+})
+
 test('a change whose mtime has not moved is an access, and is dropped', () => {
   const { clock, batches, coalescer } = setup(new Map([['/p/a.ts', 5]]))
   coalescer.push(event('change', '/p/a.ts', 5))
