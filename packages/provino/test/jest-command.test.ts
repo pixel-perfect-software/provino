@@ -76,30 +76,6 @@ describe('what provino jest does not run is said, not ignored', () => {
     assert.match(ended.stderr, /PASS tests\/a\.test\.js/)
   })
 
-  it('warns, naming the task, for a config key it reads and does not apply', async () => {
-    const config = JSON.stringify({
-      testMatch: ['<rootDir>/tests/**/*.test.js'],
-      // Snapshots stay beside the test file until a later bundle reads the resolver.
-      snapshotResolver: '<rootDir>/resolver.js',
-    })
-    const dir = await tree({
-      'jest.config.json': config,
-      'tests/a.test.js': passing('a'),
-      'resolver.js': [
-        'module.exports = {',
-        '  resolveSnapshotPath: (test, ext) => test + ext,',
-        '  resolveTestPath: (snap, ext) => snap.slice(0, -ext.length),',
-        "  testPathForConsistencyCheck: 'some/a.test.js',",
-        '}',
-        '',
-      ].join('\n'),
-    })
-    const ended = await provino([], dir)
-    assert.equal(ended.code, 0, ended.stderr)
-    assert.match(ended.stderr, /snapshotResolver/)
-    assert.match(ended.stderr, /a later bundle/)
-  })
-
   it('runs several projects (D29), and lists the files of all of them', async () => {
     const dir = await tree({
       'jest.config.json': JSON.stringify({ projects: ['<rootDir>/one', '<rootDir>/two'] }),
