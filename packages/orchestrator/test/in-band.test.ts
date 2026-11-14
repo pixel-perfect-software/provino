@@ -192,6 +192,70 @@ describe('console in band', () => {
     )
   })
 
+  it('a run cut short while a file runs gives the console back after the file, not before it', async () => {
+    // The file puts back the console it found when it ends, as an environment's teardown does:
+    // that is the capture's, so a restore that came first would be undone.
+    const p = await makeProject({
+      'a.test.js':
+        "const found = globalThis.console\ntest('waits', async () => {\n  await new Promise((done) => setTimeout(done, 300))\n  globalThis.console = found\n})\n",
+    })
+    const before = globalThis.console
+    const controller = new AbortController()
+    await runProjects([runtimeProject(p.dir)], {
+      bus: createReporterBus([
+        {
+          name: 'cuts',
+          'file:start': () => void setTimeout(() => controller.abort('SIGINT'), 50),
+        },
+      ]),
+      stderr: new Collect(),
+      cache: false,
+      runInBand: true,
+      signal: controller.signal,
+    })
+    assert.equal(globalThis.console, before, 'the global console is back')
+  })
+
+  it('a reporter’s own console call while a file runs in band is printed, not captured', async () => {
+    const p = await makeProject({
+      'a.test.js':
+        "test('logs', async () => {\n  console.log('from the test')\n  await new Promise((done) => setTimeout(done, 50))\n})\n",
+    })
+    const events: ConsoleEntry[] = []
+    const printed: string[] = []
+    const before = globalThis.console
+    globalThis.console = new console.Console({
+      stdout: {
+        write: (chunk: string) => {
+          printed.push(String(chunk))
+          return true
+        },
+      } as unknown as NodeJS.WritableStream,
+      ignoreErrors: false,
+    })
+    try {
+      await run(
+        runtimeProject(p.dir),
+        { runInBand: true },
+        {
+          ...consoleOf(events),
+          'task:end': () => console.log('from the reporter, during the file'),
+          'file:end': () => console.log('from the reporter, after the file'),
+        },
+      )
+    } finally {
+      globalThis.console = before
+    }
+    assert.deepEqual(
+      events.map((event) => event.text.trim()),
+      ['from the test'],
+    )
+    assert.deepEqual(
+      printed.map((text) => text.trim()),
+      ['from the reporter, during the file', 'from the reporter, after the file'],
+    )
+  })
+
   it('an inline pool asked for as such captures nothing, as before (a caller owns stdout)', async () => {
     const p = await makeProject({
       'a.test.js': "test('logs', () => { console.log('not captured') })\n",

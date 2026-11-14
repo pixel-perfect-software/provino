@@ -3,6 +3,7 @@ export {
   type ConsoleCaptureOptions,
   createConsoleCapture,
   type InstalledCapture,
+  type InstallOptions,
   type WritableLike,
 } from './console.ts'
 export { WorkerError, type WorkerErrorCode } from './errors.ts'
