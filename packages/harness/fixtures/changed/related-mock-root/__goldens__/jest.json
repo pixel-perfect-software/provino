@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "changed/related-mock-root",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      ".harness-out/jest.json": "<root>/ghost.test.ts"
+    }
+  }
+}

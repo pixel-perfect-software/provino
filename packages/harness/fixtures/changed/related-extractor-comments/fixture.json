@@ -1,0 +1,11 @@
+{
+  "description": "The dependency extractor strips comments: a commented-out require (line or block) is no edge, `jest.requireActual('x')` is one. Two tests name src/foo.ts, one in comments and one through requireActual. Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "src/foo.ts"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

@@ -1,7 +1,9 @@
 // The recorder's work directories that are on disk right now. A signal ends the CLI through
 // `process.exit` (`exitOnSignals`), which skips every `catch` and `finally`, so the cleanup that
 // follows a failed or finished run never happens. The registry removes what is left on `exit`.
-import { type RmOptions, rmSync } from 'node:fs'
+import { type RmOptions, realpathSync, rmSync } from 'node:fs'
+import path from 'node:path'
+import { HarnessError } from '../errors.ts'
 import { errorMessage } from './guards.ts'
 
 /** The part of `process` the registry uses. */
@@ -39,6 +41,29 @@ export const REMOVE_TREE_OPTIONS: Readonly<RmOptions> = {
   recursive: true,
   force: true,
   maxRetries: 3,
+}
+
+/**
+ * Where work directories go: `value` (`PROVINO_RECORD_ROOT`) when set, else `fallback`. A value
+ * must be an absolute path (`HARNESS_BAD_RECORD_ROOT` otherwise: a relative one would follow the
+ * working directory); it is resolved and, when it exists, replaced by its real path, so a symlink
+ * is never what Jest or git sees.
+ * @internal
+ */
+export function resolveRecordRoot(value: string | undefined, fallback: string): string {
+  if (value === undefined || value === '') return fallback
+  if (!path.isAbsolute(value)) {
+    throw new HarnessError(
+      'HARNESS_BAD_RECORD_ROOT',
+      `PROVINO_RECORD_ROOT must be an absolute path, not "${value}"`,
+    )
+  }
+  const resolved = path.resolve(value)
+  try {
+    return realpathSync(resolved)
+  } catch {
+    return resolved
+  }
 }
 
 function removeTree(dir: string): void {

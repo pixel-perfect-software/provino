@@ -9,6 +9,7 @@ import { serializeGolden, toGolden } from '../golden.ts'
 import { makeFile, makeRun, makeTest } from '../test-support.ts'
 import {
   assertCheckoutKeepsJestFrames,
+  assertEarlierRunComplete,
   assertNoPathLeak,
   assertRunComplete,
   commitGolden,
@@ -28,6 +29,29 @@ const complete = makeRun([
 
 test('a run with every expected file, each with tests, is complete', () => {
   assertRunComplete(complete, ['a.test.ts', 'b.test.ts'], 'area/thing (jest)')
+})
+
+test('a before run with no results, a missing file or a crash is HARNESS_RUN_INCOMPLETE', () => {
+  const label = 'changed/only-failures-none (jest, "before" run)'
+  // Failing tests are fine: they are what a failure history is made of.
+  assertEarlierRunComplete(complete, ['a.test.ts', 'b.test.ts'], label)
+  assert.throws(
+    () => assertEarlierRunComplete(null, ['a.test.ts'], label),
+    rejects('HARNESS_RUN_INCOMPLETE', '"before" run', 'wrote no results'),
+  )
+  assert.throws(
+    () => assertEarlierRunComplete(complete, ['a.test.ts', 'b.test.ts', 'c.test.ts'], label),
+    rejects('HARNESS_RUN_INCOMPLETE', 'c.test.ts', 'missing'),
+  )
+  assert.throws(
+    () =>
+      assertEarlierRunComplete(
+        makeRun([makeFile('a.test.ts', [], 'crashed')]),
+        ['a.test.ts'],
+        label,
+      ),
+    rejects('HARNESS_RUN_INCOMPLETE', 'a.test.ts'),
+  )
 })
 
 test('a missing or an unexpected result file is HARNESS_RUN_INCOMPLETE and names the file', () => {

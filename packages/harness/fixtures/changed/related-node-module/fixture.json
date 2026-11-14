@@ -1,0 +1,22 @@
+{
+  "description": "A file inside node_modules is not in the file set: --findRelatedTests on an installed package lists nothing, though a test requires the package. Jest only.",
+  "runners": ["jest"],
+  "packages": {
+    "pkg": {
+      "package.json": "{ \"name\": \"pkg\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.pkg = 1\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "node_modules/pkg/index.js"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  },
+  "files": {
+    "jest": {
+      "uses-pkg.test.ts": "test('works', () => {\n  const m = require('pkg') as Record<string, unknown>\n\n  expect(m).toBeDefined()\n})\n"
+    }
+  }
+}

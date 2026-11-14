@@ -1,0 +1,11 @@
+{
+  "description": "A manual mock beside its module (src/__mocks__/foo.ts) is related to the tests of the module. jest-resolve-dependencies looks the mock up by the specifier's basename, so the test requires `./src/foo` with no extension: with `./src/foo.ts` it asks for a mock named `foo.ts` and finds none. Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "src/__mocks__/foo.ts"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "description": "A full -o run: only the tests related to the modified source run, and stderr closes with `Ran all test suites related to changed files.` Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "src/foo.ts": "module.exports = { foo: 2 }\n"
+        }
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["-o"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^Ran all test suites"
+  }
+}

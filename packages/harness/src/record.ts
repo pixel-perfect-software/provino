@@ -30,6 +30,7 @@ import {
 import { compareStrings, isNotFound } from './internal/guards.ts'
 import {
   assertCheckoutKeepsJestFrames,
+  assertEarlierRunComplete,
   assertNoPathLeak,
   assertRunComplete,
   commitGolden,
@@ -42,11 +43,13 @@ import {
   traceSetupSource,
   vitestConfigSource,
 } from './internal/runner-config.ts'
+import { hermeticGitEnv, initRepo, runScmSteps, withoutGitVariables } from './internal/scm.ts'
 import { assertTraceFromOneFile, readTrace } from './internal/trace.ts'
 import { isNodeModules, walkFiles } from './internal/walk.ts'
 import {
   createWorkDirRegistry,
   REMOVE_TREE_OPTIONS,
+  resolveRecordRoot,
   type WorkDirRegistry,
 } from './internal/work-dirs.ts'
 import { createNormalizer } from './normalize.ts'
@@ -98,7 +101,15 @@ export const TIMEOUT_MS: number = 120_000
 
 export const PACKAGE_DIR: string = path.resolve(import.meta.dirname, '..')
 const REPO_ROOT = path.resolve(PACKAGE_DIR, '..', '..')
-export const WORK_ROOT: string = path.join(PACKAGE_DIR, '.record')
+/**
+ * Where work directories are made: `.record/` in this package, or `PROVINO_RECORD_ROOT`. A sandbox
+ * that keeps repositories out of the checkout (it refuses writes to `.git/config`) records from a
+ * directory outside it.
+ */
+export const WORK_ROOT: string = resolveRecordRoot(
+  process.env.PROVINO_RECORD_ROOT,
+  path.join(PACKAGE_DIR, '.record'),
+)
 export const TRANSFORMER_PATH: string = fileURLToPath(
   new URL('./jest-transform.ts', import.meta.url),
 )
@@ -457,50 +468,95 @@ async function runUnderRunner(
   const spec = fixture.manifest.run
   const extraArgs = spec?.argv?.[runner] ?? []
 
-  let args: string[]
+  let commandArgs: (extra: readonly string[]) => string[]
   if (runner === 'jest') {
     const configFile = path.join(outDir, 'jest.config.json')
     await writeFile(
       configFile,
       `${JSON.stringify(jestConfig(workDir, TRANSFORMER_PATH, setupFile, configOptions), null, 2)}\n`,
     )
-    args = [
+    commandArgs = (extra) => [
       install.bin,
       '--ci',
       '--json',
       `--outputFile=${outputFile}`,
       '--config',
       configFile,
-      ...extraArgs,
+      ...extra,
     ]
   } else {
     const configFile = path.join(workDir, 'vitest.config.ts')
     await writeFile(configFile, vitestConfigSource(workDir, setupFile, profile, configOptions))
-    args = [
+    commandArgs = (extra) => [
       install.bin,
       'run',
       '--config',
       configFile,
       '--reporter=json',
       `--outputFile=${outputFile}`,
-      ...extraArgs,
+      ...extra,
     ]
   }
-
-  let result: Awaited<ReturnType<typeof runProcess>>
-  try {
-    result = await runProcess(process.execPath, [...(fixture.manifest.nodeFlags ?? []), ...args], {
-      cwd: workDir,
-      env: runnerEnv(process.env, { ...fixture.manifest.env, [TRACE_ENV]: traceFile }),
-      timeoutMs: TIMEOUT_MS,
-      ...(spec === undefined ? {} : { keepStreams: true }),
-    })
-  } catch (cause) {
-    throw new HarnessError('HARNESS_RUNNER_FAILED', `could not run ${runner} for ${fixture.id}`, {
-      path: fixture.dir,
-      cause,
-    })
+  // Git reads nothing from this machine, and a work directory with no repository of its own never
+  // finds the checkout's (the ceiling is the work directory's parent).
+  const env = runnerEnv(withoutGitVariables(process.env), {
+    ...hermeticGitEnv(path.dirname(paths.realWorkDir)),
+    ...fixture.manifest.env,
+    [TRACE_ENV]: traceFile,
+  })
+  const scm = fixture.manifest.scm
+  if (scm !== undefined) {
+    const repo = { dir: workDir, ceiling: path.dirname(paths.realWorkDir) }
+    await initRepo(repo)
+    await runScmSteps(repo, scm.steps)
   }
+  const runOnce = async (extra: readonly string[], keepStreams: boolean) => {
+    try {
+      return await runProcess(
+        process.execPath,
+        [...(fixture.manifest.nodeFlags ?? []), ...commandArgs(extra)],
+        { cwd: workDir, env, timeoutMs: TIMEOUT_MS, ...(keepStreams ? { keepStreams: true } : {}) },
+      )
+    } catch (cause) {
+      throw new HarnessError('HARNESS_RUNNER_FAILED', `could not run ${runner} for ${fixture.id}`, {
+        path: fixture.dir,
+        cause,
+      })
+    }
+  }
+  // Runs before the captured one (`before`): their output is dropped, and so is what they wrote
+  // where the captured run reads (the JSON, the trace), which would otherwise pass for its own.
+  for (const entry of fixture.manifest.before ?? []) {
+    const earlier = await runOnce(entry.argv, false)
+    if (earlier.timedOut) {
+      throw new HarnessError(
+        'HARNESS_RUNNER_FAILED',
+        `${runner} timed out after ${TIMEOUT_MS} ms in a "before" run for ${fixture.id}. Output tail:\n${earlier.output}`,
+        { path: fixture.dir },
+      )
+    }
+    // The captured run reads what these runs left (Jest's failure history), so they must have
+    // run: results for every test file, no crashed file, no run error. Failing tests are fine.
+    const earlierJson = await readCaptured(outputFile)
+    assertEarlierRunComplete(
+      earlierJson === null
+        ? null
+        : convertJest(parseJestJson(earlierJson, outputFile), {
+            rootDir: paths.realWorkDir,
+            extraRoots: [paths.workDir],
+            suite: fixture.id,
+            runnerVersion: install.version,
+            env: readRunEnvironment({ [runner]: install.version }),
+            snapshotFiles: [],
+          }),
+      testFilesFor(fixture.files, profile),
+      `${fixture.id} (${profile}, "before" run)`,
+    )
+    await rm(outputFile, { force: true })
+    await rm(traceFile, { force: true })
+  }
+
+  const result = await runOnce(extraArgs, spec !== undefined)
   if (result.timedOut) {
     throw new HarnessError(
       'HARNESS_RUNNER_FAILED',

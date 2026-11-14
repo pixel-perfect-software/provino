@@ -1,0 +1,16 @@
+{
+  "description": "A root-level manual mock (__mocks__/ghost.ts) is related to the tests that require `ghost`, a name that resolves to nothing, as the root mock found by name (jest-resolve-dependencies). Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "__mocks__/ghost.ts"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  },
+  "files": {
+    "jest": {
+      "ghost.test.ts": "test('works', () => {\n  const m = require('ghost') as Record<string, unknown>\n\n  expect(m).toBeDefined()\n})\n"
+    }
+  }
+}
