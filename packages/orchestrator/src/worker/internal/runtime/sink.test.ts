@@ -65,6 +65,22 @@ function collect(source: RunStates, events: readonly RuntimeEvent[]): RuntimeEve
 }
 
 describe('assertionCountSink', () => {
+  it('fills a retried attempt’s own counts, and the test’s from the attempt that stood', () => {
+    // A dropped describe attempt that passed is reported as retried (`willRetry`), and the passing
+    // attempt after it decides the test (`cli/retry-entire-describe-reporter`).
+    const { source } = statesOf({ 't/0/0': counts(4, 3), 't/1/0': counts(1, 1) })
+    const out = collect(source, [
+      attemptEnd('t', 0, 0, { state: 'fail', willRetry: true }),
+      attemptEnd('t', 1),
+      testEnd('t', { attempts: 2 }),
+    ])
+    const [retried, last, end] = out
+    assert.equal(retried?.type === 'test-attempt-end' && retried.passingAssertions, 3)
+    assert.equal(retried?.type === 'test-attempt-end' && retried.assertions, 4)
+    assert.equal(last?.type === 'test-attempt-end' && last.passingAssertions, undefined)
+    assert.equal(end?.type === 'test-end' && end.result.passingAssertions, 1)
+  })
+
   it('fills a test’s counts from the state of its last attempt and repeat', () => {
     const { source, asked } = statesOf({
       'f_0/0/0': counts(5, 1),
@@ -185,7 +201,8 @@ describe('assertionCountSink', () => {
         attemptEnd('f_0', 1, 0),
         testEnd('f_0'),
       ])
-      assert.deepEqual(asked, ['f_0/1/0'])
+      // The retried attempt is read for its own counts; the test's come from the retry.
+      assert.deepEqual(asked, ['f_0/0/0', 'f_0/1/0'])
       assert.equal(endOf(out).assertions, 3)
     })
 
@@ -201,7 +218,7 @@ describe('assertionCountSink', () => {
         attemptEnd('f_0', 0, 1),
         testEnd('f_0', { state: 'fail' }),
       ])
-      assert.deepEqual(asked, ['f_0/1/0'])
+      assert.deepEqual(asked, ['f_0/0/0', 'f_0/1/0'])
     })
   })
 

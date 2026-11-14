@@ -1,0 +1,4 @@
+{
+  "description": "`jest.retryTimes(1, { entireDescribe: true })` called once the tests are running, from a test body and from a `beforeAll` (T5.10): jest-circus throws \"Cannot set retry options after tests have started running\", which fails that test (the `beforeAll`'s failure fails the tests below it).",
+  "runners": ["jest"]
+}

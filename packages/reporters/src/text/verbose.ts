@@ -3,7 +3,7 @@
 // a suite's own tests come first, then its inner suites; a skipped or todo test is listed after the
 // others of its suite (`skipped <title>`, `todo <title>`) unless `expand` keeps declaration order;
 // a blank line ends the list.
-import type { FileTask, SuiteTask, TaskNode, TaskResult, TestTask } from '@provino/types'
+import type { FileTask, SuiteTask, TaskId, TaskNode, TaskResult, TestTask } from '@provino/types'
 import type { Style } from '../style.ts'
 
 /** The marks Jest's `specialChars.ICONS` has. */
@@ -37,13 +37,15 @@ function icon(state: TaskResult['state'], style: Style): string {
 /**
  * The file's tests as the verbose reporter lists them, one string per line, ending with a blank
  * line; `resultOf` says how each ended (`undefined`: it never did). Only tests that ended are listed, and a suite none of whose tests did is left out. An
- * empty list (no test ended) gives no lines.
+ * empty list (no test ended) gives no lines. A suite a randomized run shuffled lists its members in
+ * the order it ran them (`orders`, by suite id), as Jest's tree of results does.
  */
 export function verboseList(
   tasks: readonly TaskNode[],
   resultOf: (test: TestTask) => TaskResult | undefined,
   style: Style,
   options: VerboseOptions,
+  orders: ReadonlyMap<TaskId, readonly TaskId[]> = new Map(),
 ): string[] {
   const byId = new Map(tasks.map((task) => [task.id, task]))
   const root = tasks.find((task): task is FileTask => task.type === 'file')
@@ -53,7 +55,7 @@ export function verboseList(
   function members(parent: FileTask | SuiteTask): { tests: Ended[]; suites: SuiteTask[] } {
     const tests: Ended[] = []
     const suites: SuiteTask[] = []
-    for (const id of parent.children) {
+    for (const id of orders.get(parent.id) ?? parent.children) {
       const child = byId.get(id)
       if (child === undefined) continue
       if (child.type === 'test') {

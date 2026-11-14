@@ -1,0 +1,13 @@
+{
+  "description": "What Jest prints for `logErrorsBeforeRetry` with a describe-level retry (T5.10): a header per test that ran again, then each dropped attempt's error as RETRY 1, RETRY 2 and so on, above the file's result; the last attempt's error is the failure, not a retry reason. The run's stderr, one worker.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "capture": ["stderr"],
+    "keepLines": "LOGGING RETRY ERRORS|^ RETRY \\d|failed #\\d|kept failing #\\d"
+  }
+}

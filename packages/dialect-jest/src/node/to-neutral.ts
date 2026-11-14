@@ -311,6 +311,7 @@ export function jestProjectToNeutral(
     ),
     seed: globalConfig.seed,
     ...(coverage === undefined ? {} : { coverage }),
+    ...(globalConfig.randomize === true ? { randomize: true as const } : {}),
     resolution: {
       moduleDirectories: [...project.moduleDirectories],
       // Jest's resolver searches `NODE_PATH` before `modulePaths` (`jest-resolve` `Resolver`).

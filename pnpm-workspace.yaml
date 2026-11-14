@@ -165,6 +165,8 @@ catalog:
   # `globsToMatcher` does (DECISIONS D26): a runtime dependency of `@provino/orchestrator`.
   picomatch: 4.0.7
   pretty-format: 30.5.1
+  # Jest's shuffle (D112): jest-circus 30.5.2's own xoroshiro128+ and uniform int distribution, so a seed gives Jest's order.
+  pure-rand: 7.0.1
   # T1.6: package.json `exports` and file-layout lint, run on every `pnpm pack`.
   publint: 0.3.25
   # File discovery in the coordinator (B11): include/exclude globs.

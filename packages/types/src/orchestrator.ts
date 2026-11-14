@@ -511,6 +511,8 @@ export interface FileResult {
    * runner kept none, the file never collected its tests, or it has no result of its own.
    */
   readonly snapshot?: SnapshotFileReport
+  /** The order the run put the file's top-level tasks in, when it shuffled them (`TaskResult.childOrder`). */
+  readonly childOrder?: readonly TaskId[]
 }
 
 /**

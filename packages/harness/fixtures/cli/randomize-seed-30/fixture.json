@@ -1,0 +1,17 @@
+{
+  "description": "`--randomize --seed=1234` under Jest 30.5.2 on a 30-test file (T5.13, B23d): top-level tests, three describes (one nested), a `test.each`, two `test.concurrent` pairs, a skipped test, a todo, a skipped describe and a describe with a `beforeAll`. Each block is shuffled the first time it runs, after its `beforeAll` and before concurrent tests are regrouped, with one generator for the file; the JSON's `assertionResults` are in run order and the verbose lines show the tree in that order. One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--randomize", "--seed=1234", "--verbose"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^ +(✓|✕|○|✎) |^ +[a-z][\\w ]*$|^(Test Suites|Tests):",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

@@ -227,6 +227,7 @@ function jestOverRuntime(runtime: Runtime): unknown {
     ...unusedJestHost(runtime.api, createMockRegistry(), neutralPolicy.mock, 'a runtime fixture'),
     setDefaultTimeout: (ms) => runtime.setDefaultTimeout(ms),
     setDefaultRetry: (retry) => runtime.setDefaultRetry(retry),
+    setDescribeRetry: (retry) => runtime.setDescribeRetry(retry),
   })
   return globals.jest
 }

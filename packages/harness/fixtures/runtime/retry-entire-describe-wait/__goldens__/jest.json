@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/retry-entire-describe-wait",
+  "files": [
+    {
+      "file": "wait.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "wait.test.ts",
+            "path": [
+              "waiting",
+              "waits before the retry"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "retries": 1,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "attempt 1: first",
+    "attempt 2: waited"
+  ]
+}
