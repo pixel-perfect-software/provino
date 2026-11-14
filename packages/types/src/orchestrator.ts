@@ -608,6 +608,8 @@ export interface RunSummary {
   readonly snapshotsFail?: boolean
   /** What `detectOpenHandles` found still open after the last file; absent when it was off or found none. */
   readonly openHandles?: readonly OpenHandle[]
+  /** The run's coverage, merged and moved back to the sources; absent when the run collected none. */
+  readonly coverage?: CoverageSummary
 }
 
 /**

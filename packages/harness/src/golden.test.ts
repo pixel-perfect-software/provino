@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import type { NormalizedRun } from '@provino/types'
 import { HarnessError } from './errors.ts'
 import { goldenPath, serializeGolden, toGolden } from './golden.ts'
-import { observedOf } from './record.ts'
+import { normalizedJson, observedOf } from './record.ts'
 import { makeFile, makeRun, makeTest } from './test-support.ts'
 
 test('observed comes last, with its keys in a fixed order whatever the caller gave', () => {
@@ -425,4 +425,42 @@ test('a json: capture lists testResults by file name, whatever order the runner 
     ]?.testResults.map((entry) => entry.name),
     ['/a', '/b'],
   )
+})
+
+test('a json capture has the root in its keys too, and an Istanbul map sorted by path', () => {
+  const value = normalizedJson(
+    {
+      '/work/src/b.ts': { path: '/work/src/b.ts', hash: 'abc' },
+      '/work/src/a.ts': { path: '/work/src/a.ts', hash: 'abc' },
+      total: { lines: 1 },
+    },
+    { roots: ['/work'], timeKeys: [], mask: (text) => text.replace(/^abc$/, '<masked>') },
+  )
+  // `total` is not a path, so this object keeps its order; each file's keys too.
+  assert.deepEqual(Object.keys(value as object), ['<root>/src/b.ts', '<root>/src/a.ts', 'total'])
+  const map = normalizedJson(
+    { '/work/src/b.ts': { s: { '0': 1 } }, '/work/src/a.ts': { s: { '0': 2 } } },
+    { roots: ['/work'], timeKeys: [], mask: (text) => text },
+  )
+  assert.deepEqual(Object.keys(map as object), ['<root>/src/a.ts', '<root>/src/b.ts'])
+  assert.deepEqual(value, {
+    '<root>/src/b.ts': { path: '<root>/src/b.ts', hash: '<masked>' },
+    '<root>/src/a.ts': { path: '<root>/src/a.ts', hash: '<masked>' },
+    total: { lines: 1 },
+  })
+})
+
+test('maskKeys masks the strings under those keys only (the hash, not _coverageSchema)', () => {
+  const sha = '1a1c01bbd47fc00a2c39e90264f33305004495a9'
+  const value = normalizedJson(
+    {
+      '/work/a.ts': { path: '/work/a.ts', hash: 'f'.repeat(40), _coverageSchema: sha },
+      note: sha,
+    },
+    { roots: ['/work'], timeKeys: [], maskKeys: ['hash'], mask: (text) => text },
+  )
+  assert.deepEqual(value, {
+    '<root>/a.ts': { path: '<root>/a.ts', hash: '<masked>', _coverageSchema: sha },
+    note: sha,
+  })
 })

@@ -1,12 +1,12 @@
 // U6 end to end (B23b): the real Istanbul instrumenter in the real pipeline, under the Jest dialect's
 // hoist policy, on a TypeScript file with a hoisted `jest.mock` factory. The counters are written
-// after TypeScript is stripped and before the hoister, so the coverage data's positions are those
-// of the stripped code and its embedded input map leads each statement, function and branch back
-// to the TypeScript line it came from; the import rewrite the hoister adds afterwards counts
-// nothing. The instrumenter's own table against `babel-plugin-istanbul` is `@provino/coverage`'s.
+// after TypeScript is stripped and before the hoister. The strip is in place (D116), so the
+// coverage data's positions are the TypeScript file's own and it embeds no input map: each
+// statement, function and branch is on the TypeScript line it came from; the import rewrite the
+// hoister adds afterwards counts nothing. The instrumenter's own table against
+// `babel-plugin-istanbul` is `@provino/coverage`'s.
 import assert from 'node:assert/strict'
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
-import { SourceMap } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
@@ -58,13 +58,9 @@ function transformed() {
   return { record, filename }
 }
 
-function linesOf(map: SourceMap, ranges: readonly IstanbulRange[]): number[] {
-  return ranges.map((range) => {
-    const entry = map.findEntry(range.start.line - 1, range.start.column ?? 0)
-    // `findEntry` returns an empty object when nothing maps there.
-    assert.ok('originalLine' in entry, `no mapping at ${JSON.stringify(range.start)}`)
-    return entry.originalLine + 1
-  })
+/** The TypeScript line of each range: its own, since the strip keeps every position. */
+function linesOf(ranges: readonly IstanbulRange[]): number[] {
+  return ranges.map((range) => range.start.line)
 }
 
 test('the file is instrumented, the mock call still hoists and the factory keeps its counter', () => {
@@ -80,7 +76,8 @@ test('the file is instrumented, the mock call still hoists and the factory keeps
     ['./helper'],
   )
   // The hoisted call is above the first counter's use and the late import comes after it.
-  const mockAt = record.code.indexOf('jest.mock("./helper"')
+  // The strip keeps the source's own text, quotes included.
+  const mockAt = record.code.indexOf("jest.mock('./helper'")
   assert.ok(mockAt >= 0)
   assert.ok(mockAt < record.code.indexOf('__provino_import_0__'))
 })
@@ -91,19 +88,15 @@ test('statements, functions and branches map back to their TypeScript lines', ()
   assert.ok(found !== null, 'the initial coverage is in the instrumented code')
   const { coverageData } = found
   assert.equal(coverageData.path, filename)
-  assert.ok(coverageData.inputSourceMap !== undefined, 'the input map is embedded')
-  const map = new SourceMap(coverageData.inputSourceMap as never)
+  assert.equal(coverageData.inputSourceMap, undefined, 'no input map: positions are the source’s')
 
-  const statementLines = linesOf(map, Object.values(coverageData.statementMap))
+  const statementLines = linesOf(Object.values(coverageData.statementMap))
   assert.deepEqual(
     [...new Set(statementLines)].sort((a, b) => a - b),
     [2, 4, 5, 7, 9],
     'the factory, the if, the two returns and the arrow body',
   )
-  const functionLines = linesOf(
-    map,
-    Object.values(coverageData.fnMap).map((fn) => fn.decl),
-  )
+  const functionLines = linesOf(Object.values(coverageData.fnMap).map((fn) => fn.decl))
   assert.deepEqual(
     functionLines.sort((a, b) => a - b),
     [2, 2, 3, 9],
@@ -111,7 +104,13 @@ test('statements, functions and branches map back to their TypeScript lines', ()
   const branches = Object.values(coverageData.branchMap)
   assert.deepEqual(branches.map((branch) => branch.type).sort(), ['cond-expr', 'if'])
   for (const branch of branches) {
-    const lines = linesOf(map, branch.locations)
+    // An `if` with no `else` has an empty second location (`{ start: {}, end: {} }`), as Jest's.
+    // (The type says `line` is a number; the data has none there.)
+    const lines = linesOf(
+      branch.locations.filter(
+        (location) => (location.start.line as number | undefined) !== undefined,
+      ),
+    )
     assert.ok(
       lines.every((line) => line === 4 || line === 9),
       `a branch maps to ${lines}`,
@@ -154,12 +153,11 @@ test('the import rewrite and the mock hoist add no statement of their own', () =
   const { record } = transformed()
   const found = readInitialCoverage(record.code)
   assert.ok(found !== null)
-  const map = new SourceMap(found.coverageData.inputSourceMap as never)
   // The statements the TypeScript has, on their own lines (the `jest.mock` call, the factory's body
   // and the inner arrow's, the `if`, the two returns, the `const` and its arrow's body); the late
   // import is written after the counters and has none.
   assert.deepEqual(
-    linesOf(map, Object.values(found.coverageData.statementMap)).sort((a, b) => a - b),
+    linesOf(Object.values(found.coverageData.statementMap)).sort((a, b) => a - b),
     [2, 2, 2, 4, 5, 7, 9, 9],
   )
   assert.match(record.code, /__provino_import_0__/)

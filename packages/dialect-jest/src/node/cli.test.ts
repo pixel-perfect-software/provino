@@ -996,7 +996,7 @@ describe('the options table', () => {
   it('classifies every option once, and counts the classes', (t) => {
     const counts = Object.fromEntries(supports)
     t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
-    assert.deepEqual(counts, { request: 16, config: 68, accepted: 6, warn: 3, refuse: 12 })
+    assert.deepEqual(counts, { request: 16, config: 70, accepted: 6, warn: 3, refuse: 10 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'
       assert.equal(option.owner !== undefined, needsOwner, name)
@@ -1079,7 +1079,7 @@ describe('diagnostics', () => {
   }
 
   it('gives an error diagnostic for each refused flag, naming the task', () => {
-    assert.equal(Object.keys(REFUSED).length, 12)
+    assert.equal(Object.keys(REFUSED).length, 10)
     for (const [name, owner] of Object.entries(REFUSED)) {
       const { diagnostics } = parseJestCli(lineFor(name))
       assert.deepEqual(
@@ -1101,8 +1101,6 @@ describe('diagnostics', () => {
     const owners: Readonly<Record<string, string>> = {
       watch: 'T9.11',
       watchAll: 'T9.11',
-      coverage: 'T8.8',
-      collectCoverage: 'T8.8',
       onlyChanged: 'Track 9, no task yet',
       changedSince: 'Track 9, no task yet',
       changedFilesWithAncestor: 'Track 9, no task yet',
@@ -1169,9 +1167,11 @@ describe('diagnostics', () => {
     ])
     assert.deepEqual(
       diagnostics.map((diagnostic) => diagnostic.key),
-      ['--coverage', '--logHeapUsage', '--onlyFailures', '--watch'],
+      ['--logHeapUsage', '--onlyFailures', '--watch'],
     )
-    // --shard (T9.6) is applied now, so it says nothing.
+    // --coverage (B23b, T8.10) and --shard (T9.6) are applied now, so they say nothing.
+    assert.deepEqual(parseJestCli(['--coverage']).diagnostics, [])
+    assert.deepEqual(parseJestCli(['--collectCoverage']).diagnostics, [])
     assert.deepEqual(parseJestCli(['--shard', '1/2']).diagnostics, [])
     // `--json`, `--outputFile`, `--useStderr` and `--testLocationInResults` are applied (T11.8).
     for (const line of [

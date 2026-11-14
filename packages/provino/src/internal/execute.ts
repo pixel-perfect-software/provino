@@ -3,6 +3,7 @@ import {
   exitCodeFor,
   hookFailureReport,
   OrchestratorError,
+  type RunCoverageHooks,
   type RunGlobalHooks,
   type RunProjectOptions,
   runProjects,
@@ -73,6 +74,8 @@ export interface ExecuteOptions {
   readonly shard?: ShardSpec
   /** The timings file `shard` cuts by, and whether the run writes it (`--update-timings`). */
   readonly timings?: NonNullable<RunProjectOptions['timings']>
+  /** What a run with coverage tells the caller (the files no test loaded). */
+  readonly coverage?: RunCoverageHooks
 }
 
 /**
@@ -195,5 +198,6 @@ function run(
     ...(options.globalSetup === undefined ? {} : { globalSetup: options.globalSetup }),
     ...(options.shard === undefined ? {} : { shard: options.shard }),
     ...(options.timings === undefined ? {} : { timings: options.timings }),
+    ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
   })
 }

@@ -195,16 +195,28 @@ async function crawlRoot(
 export async function discoverByRules(
   options: RuleDiscoverOptions,
 ): Promise<readonly DiscoveredFile[]> {
-  const { rootDir, discovery } = options
+  const { rootDir } = options
+  const isTestFile = testFilePredicate(options)
+  const matching = (await crawlFiles(options.discovery)).filter((path) => isTestFile(path))
+  return (await sized(matching, rootDir)).sort((a, b) => byText(a.relativePath, b.relativePath))
+}
+
+/**
+ * Every file the crawl of a dialect reader's rules keeps, test file or not (Jest's haste map:
+ * `roots`, `extensions`, `modulePathIgnorePatterns`, no symlink, nothing under `node_modules` or a
+ * VCS directory), in no particular order. What the coverage of untested files is chosen from.
+ * @internal
+ */
+export async function crawlFiles(
+  discovery: Pick<NeutralDiscovery, 'roots' | 'extensions' | 'crawlIgnorePatterns'>,
+): Promise<string[]> {
   const extensions = new Set(discovery.extensions.map((extension) => extension.toLowerCase()))
   const crawlIgnore = alternation(discovery.crawlIgnorePatterns, 'modulePathIgnorePatterns')
-  const isTestFile = testFilePredicate(options)
   const found = new Set<string>()
   await Promise.all(
     discovery.roots.map((root) => crawlRoot(resolve(root), extensions, crawlIgnore, found)),
   )
-  const matching = [...found].filter((path) => isTestFile(path))
-  return (await sized(matching, rootDir)).sort((a, b) => byText(a.relativePath, b.relativePath))
+  return [...found]
 }
 
 /** Each path as a `DiscoveredFile`; one that is gone, or not a file, is left out. */

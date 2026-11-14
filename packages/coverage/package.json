@@ -48,6 +48,9 @@
     "@jridgewell/trace-mapping": "catalog:",
     "@provino/types": "workspace:*",
     "istanbul-lib-coverage": "catalog:",
+    "istanbul-lib-report": "catalog:",
+    "istanbul-lib-source-maps": "catalog:",
+    "istanbul-reports": "catalog:",
     "magic-string": "catalog:",
     "oxc-parser": "catalog:",
     "picomatch": "catalog:"
@@ -56,6 +59,9 @@
     "@babel/core": "catalog:",
     "@jest/transform": "catalog:",
     "@types/istanbul-lib-coverage": "catalog:",
+    "@types/istanbul-lib-report": "catalog:",
+    "@types/istanbul-lib-source-maps": "catalog:",
+    "@types/istanbul-reports": "catalog:",
     "@types/picomatch": "catalog:",
     "babel-plugin-istanbul": "catalog:",
     "istanbul-lib-instrument": "catalog:"

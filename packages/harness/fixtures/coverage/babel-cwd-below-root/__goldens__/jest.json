@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "coverage/babel-cwd-below-root",
+  "files": [
+    {
+      "file": "tests/add.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "tests/add.test.ts",
+            "path": [
+              "adds"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 4,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "tests/add.test.ts",
+            "path": [
+              "keeps a positive value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 8,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stdout": "\n=============================== Coverage summary ===============================\nStatements   : 100% ( 1/1 )\nBranches     : 50% ( 1/2 )\nFunctions    : 100% ( 1/1 )\nLines        : 100% ( 1/1 )\n================================================================================\n",
+    "json": {
+      "coverage/coverage-final.json": {
+        "<root>/sub/inside.ts": {
+          "path": "<root>/sub/inside.ts",
+          "statementMap": {
+            "0": {
+              "start": {
+                "line": 2,
+                "column": 2
+              },
+              "end": {
+                "line": 2,
+                "column": 35
+              }
+            }
+          },
+          "fnMap": {
+            "0": {
+              "name": "inside",
+              "decl": {
+                "start": {
+                  "line": 1,
+                  "column": 16
+                },
+                "end": {
+                  "line": 1,
+                  "column": 22
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 46
+                },
+                "end": {
+                  "line": 3,
+                  "column": 1
+                }
+              },
+              "line": 1
+            }
+          },
+          "branchMap": {
+            "0": {
+              "loc": {
+                "start": {
+                  "line": 2,
+                  "column": 9
+                },
+                "end": {
+                  "line": 2,
+                  "column": 35
+                }
+              },
+              "type": "cond-expr",
+              "locations": [
+                {
+                  "start": {
+                    "line": 2,
+                    "column": 21
+                  },
+                  "end": {
+                    "line": 2,
+                    "column": 26
+                  }
+                },
+                {
+                  "start": {
+                    "line": 2,
+                    "column": 29
+                  },
+                  "end": {
+                    "line": 2,
+                    "column": 35
+                  }
+                }
+              ],
+              "line": 2
+            }
+          },
+          "s": {
+            "0": 1
+          },
+          "f": {
+            "0": 1
+          },
+          "b": {
+            "0": [
+              1,
+              0
+            ]
+          },
+          "_coverageSchema": "1a1c01bbd47fc00a2c39e90264f33305004495a9",
+          "hash": "<masked>"
+        }
+      }
+    }
+  }
+}

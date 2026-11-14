@@ -153,3 +153,24 @@ test('a relative global setup path is refused', async () => {
   )
   assert.match(relative.message, /globalSetup must hold absolute paths/)
 })
+
+test("a project's coverage config reaches the worker config as it is, and none leaves it out", async () => {
+  const options = { dialect: reader, environments: ENVIRONMENTS, ci: false }
+  const coverage = {
+    provider: 'istanbul' as const,
+    globalRoot: temp.dir,
+    projectRoot: temp.dir,
+    include: ['src/**/*.ts'],
+    includeRoot: true,
+    force: [],
+    testFiles: ['**/*.test.js'],
+    testRegex: [],
+    testIgnorePatterns: ['/node_modules/'],
+    excludePatterns: ['/node_modules/'],
+    excludePaths: [],
+  }
+  const on = await resolveNeutralProject(neutral({ coverage }), options)
+  assert.deepEqual(on.config.coverage, coverage)
+  const off = await resolveNeutralProject(neutral(), options)
+  assert.equal('coverage' in off.config, false)
+})

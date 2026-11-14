@@ -54,7 +54,7 @@ function standIn(name = 'stand-in:r1') {
 
 const SOURCE = 'export function f(x: number): number { return x + 1 }\n'
 
-test('the instrumenter gets stripped JavaScript and the map back to the TypeScript', () => {
+test('D116: the instrumenter gets the TypeScript stripped in place, with no input map', () => {
   const root = makeRoot()
   const { instrumenter, calls } = standIn()
   const file = join(root, 'a.ts')
@@ -64,11 +64,69 @@ test('the instrumenter gets stripped JavaScript and the map back to the TypeScri
   assert.equal(calls.length, 1)
   const [call] = calls
   assert.equal(call?.filename, file)
-  assert.doesNotMatch(call?.code ?? '', /: number/, 'types are stripped before instrumenting')
-  assert.ok(call?.inputMap !== null && call?.inputMap !== undefined)
-  assert.ok(call.inputMap.sources.some((source) => source?.endsWith('a.ts') === true))
+  // Every token of the JavaScript is where it is in the source: no map is needed.
+  assert.equal(call?.code, 'export function f(x        )         { return x + 1 }\n')
+  assert.equal(call?.inputMap, null)
   assert.match(record.code, /cov_1\(\)\.f\[0\]\+\+/)
   assert.equal(record.diagnostics.length, 0)
+})
+
+test('a file the strip cannot take (an enum) gets Oxc’s output and the map back to the TypeScript', () => {
+  const root = makeRoot()
+  const { instrumenter, calls } = standIn()
+  const file = join(root, 'a.ts')
+  createPipeline(options(root, { instrumenter })).transform(
+    request(file, `enum E { A }\n${SOURCE}`, true),
+  )
+  const [call] = calls
+  assert.doesNotMatch(call?.code ?? '', /: number/, 'types are stripped before instrumenting')
+  assert.match(call?.code ?? '', /E\[E\["A"\] = 0\]/, "Oxc's enum")
+  assert.ok(call?.inputMap !== null && call?.inputMap !== undefined)
+  assert.ok(call.inputMap.sources.some((source) => source?.endsWith('a.ts') === true))
+})
+
+test('a .tsx file, and every file under `define`, keep Oxc’s transform when instrumented', () => {
+  const root = makeRoot()
+  for (const [name, extra] of [
+    ['a.tsx', {}],
+    ['b.ts', { define: { 'process.env.X': '"x"' } }],
+  ] as const) {
+    const { instrumenter, calls } = standIn()
+    createPipeline(options(root, { instrumenter, ...extra })).transform(
+      request(join(root, name), SOURCE, true),
+    )
+    assert.ok(calls[0]?.inputMap !== null && calls[0]?.inputMap !== undefined, name)
+  }
+})
+
+test('without `instrument`, a TypeScript file takes Oxc’s transform under `typescript: oxc`', () => {
+  const root = makeRoot()
+  const record = createPipeline(options(root)).transform(request(join(root, 'a.ts'), SOURCE, false))
+  assert.equal(record.code, 'export function f(x) {\n\treturn x + 1;\n}\n')
+  assert.ok(record.map !== null)
+})
+
+test('the import facts read from the strip’s parse equal those of a separate parse', () => {
+  const root = makeRoot()
+  const { instrumenter } = standIn()
+  const pipeline = createPipeline(options(root, { instrumenter }))
+  const source =
+    "import type { T } from './t'\nimport { a } from './a'\nexport { b } from './b'\nexport const c: T = a\nexport const d = async () => import('./d')\nawait d()\n"
+  const blank = pipeline.transform(request(join(root, 'a.ts'), source, true))
+  const oxc = pipeline.transform(request(join(root, 'a.ts'), source, false))
+  assert.ok(blank.imports.length === 3)
+  assert.deepEqual(blank.imports, oxc.imports)
+  assert.equal(blank.format, oxc.format)
+  assert.equal(blank.hasTopLevelAwait, true)
+})
+
+test("under `typescript: 'blank'` every erasable TypeScript file is stripped in place", () => {
+  const root = makeRoot()
+  const record = createPipeline(options(root, { typescript: 'blank' })).transform(
+    request(join(root, 'a.ts'), SOURCE, false),
+  )
+  assert.equal(record.code, 'export function f(x        )         { return x + 1 }\n')
+  assert.equal(record.map, null)
 })
 
 test('a JavaScript file with no earlier step is instrumented with no input map', () => {

@@ -1,0 +1,28 @@
+{
+  "description": "Jest 30.5.2's babel coverage provider on Track 8 F9's sample, rebuilt (T8.10, B23b): five modules under src/ (edge.ts with a `return -1` after a call that always throws, default parameters and `istanbul ignore next`/`else` hints; untested.ts, which no test imports; pricing.ts, cart.ts and format.ts) and 17 tests in tests/. `collectCoverageFrom: ['src/**/*.ts']`, so the untested file is reported with every counter at zero. The reports `json`, `json-summary`, `text`, `lcov` and `clover` are recorded as Jest wrote them (the work directory as `<root>`, clover's timestamps and Istanbul's per-file `hash`, a digest that holds the work directory's path, masked; Istanbul's maps sorted by path), and so is `--json`'s `coverageMap`. Read by `provino`'s `jest-coverage.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "coverageProvider": "babel",
+      "collectCoverageFrom": ["src/**/*.ts"],
+      "coverageReporters": ["json", "json-summary", "text", "lcov", "clover"]
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": [
+      "exitCode",
+      "stdout",
+      "json:coverage/coverage-final.json",
+      "json:coverage/coverage-summary.json",
+      "file:coverage/lcov.info",
+      "file:coverage/clover.xml",
+      "json:.harness-out/jest.json"
+    ],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"],
+    "mask": ["(?<=(?:generated|timestamp)=\")\\d+"],
+    "maskKeys": ["hash"]
+  }
+}

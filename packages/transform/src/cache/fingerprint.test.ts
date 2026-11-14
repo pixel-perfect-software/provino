@@ -31,6 +31,7 @@ test('the fingerprint is stable, and each input moves it', () => {
   assert.ok(differs({ define: { 'process.env.NODE_ENV': '"test"' } }), 'define')
   assert.ok(differs({ tsconfig: false }), 'tsconfig mode')
   assert.ok(differs({ typescript: 'off' }), 'typescript mode')
+  assert.ok(differs({ typescript: 'blank' }), 'the in-place strip (D116)')
   assert.ok(differs({ transformers: 'a-host' }), 'transformer host')
   assert.ok(differs({ hoist: null }), 'no hoisting')
   assert.ok(differs({ runnerForm: true }), 'keeping the runner form')

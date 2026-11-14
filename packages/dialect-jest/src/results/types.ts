@@ -153,7 +153,8 @@ export interface SnapshotSummary {
 }
 
 /**
- * The run's results (`AggregatedResult`). `coverageMap` is left out: there is no coverage yet.
+ * The run's results (`AggregatedResult`). `coverageMap` is set only once the reports are written
+ * (Jest's CoverageReporter sets it in its `onRunComplete`), so a reporter before it never sees one.
  * @public
  */
 export interface AggregatedResult {
@@ -174,6 +175,8 @@ export interface AggregatedResult {
   testResults: TestResult[]
   wasInterrupted: boolean
   runExecError?: SerializableError
+  /** An `istanbul-lib-coverage` `CoverageMap` of the run's coverage, when it collected some. */
+  coverageMap?: unknown
 }
 
 /**

@@ -31,6 +31,11 @@ export interface ProcessJestResultsOptions {
   readonly stdout: { write(text: string): unknown }
   /** Jest's output stream: stderr under `--json` or `--useStderr`, else stdout. */
   readonly outputStream: { write(text: string): unknown }
+  /**
+   * The run's coverage as a `CoverageMap`, when its reports were written: set on the results
+   * before the processor sees them, as the CoverageReporter sets it in `onRunComplete`.
+   */
+  readonly coverageMap?: unknown
 }
 
 /**
@@ -43,6 +48,7 @@ export async function processJestResults(options: ProcessJestResultsOptions): Pr
   // A processor may return nothing at all (Jest types it as `any`): with `--json` that throws
   // in `formatTestResults`, as in Jest; without it the run is judged successful (jest-cli
   // `readResultsAndExit`: `!result || result.success`).
+  if (options.coverageMap !== undefined) options.aggregated.coverageMap = options.coverageMap
   let results: AggregatedResult | undefined = options.aggregated
   if (globalConfig.testResultsProcessor !== undefined) {
     const processor = (await loadProcessor(

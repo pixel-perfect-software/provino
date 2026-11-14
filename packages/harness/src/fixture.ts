@@ -187,12 +187,6 @@ export type FixtureConfigOverlay = Readonly<
 export interface FixtureRun {
   readonly argv?: Readonly<Partial<Record<FixtureRunner, readonly string[]>>>
   /**
-   * The directory the runner runs in, relative to the fixture's work directory (a directory its
-   * files make): a run from below the config's `rootDir`, so the working directory and the root
-   * differ. Default: the work directory.
-   */
-  readonly cwd?: string
-  /**
    * `exitCode`, `stdout`, `stderr`, `file:<path>` (the file's text) and `json:<path>` (the file
    * parsed as JSON, under `timeKeys`, the work directory's path as `<root>` and each run of stack
    * frames collapsed to `<frames>`; `null` when the run left none there).
@@ -229,6 +223,18 @@ export interface FixtureRun {
    * a run writes that differs between runs and isn't a time (a pid, a timestamp).
    */
   readonly mask?: readonly string[]
+  /**
+   * JSON keys whose string values a `json:` capture records as `"<masked>"`, wherever they are:
+   * Istanbul's per-file `hash` (a digest of the file's coverage, which holds the work directory's
+   * path). Anchored to the key, so no other string that happens to look alike is hidden.
+   */
+  readonly maskKeys?: readonly string[]
+  /**
+   * The directory, relative to the work directory, the runner is started in (default: the work
+   * directory itself, which is the config's `rootDir`). For a run whose process cwd is below the
+   * root, as `cd packages/a && jest` with `rootDir: '../..'` is.
+   */
+  readonly cwd?: string
 }
 
 /**
@@ -550,6 +556,7 @@ const RUN_KEYS: readonly string[] = [
   'emptyStreams',
   'keepLines',
   'mask',
+  'maskKeys',
   'missingJson',
   'raw',
   'sortStdout',
@@ -623,6 +630,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     emptyStreams,
     keepLines,
     mask,
+    maskKeys,
     missingJson,
     raw,
     sortStdout,
@@ -647,13 +655,14 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
   const out: {
     argv?: Partial<Record<FixtureRunner, string[]>>
     capture: string[]
-    cwd?: string
     emptyStreams?: ('stdout' | 'stderr')[]
     missingJson?: string[]
     keepLines?: string
     sortStdout?: true | 'json'
     timeKeys?: string[]
     mask?: string[]
+    maskKeys?: string[]
+    cwd?: string
     raw?: true
   } = { capture }
   if (argv !== undefined) {
@@ -727,12 +736,6 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     if (raw !== true) throw bad('"raw" must be true (leave it out for off)')
     out.raw = true
   }
-  if (cwd !== undefined) {
-    if (typeof cwd !== 'string' || cwd === '' || cwd === '.' || !staysInside(cwd)) {
-      throw bad('"cwd" must be a relative path inside the fixture (leave it out for its root)')
-    }
-    out.cwd = cwd
-  }
   if (sortStdout !== undefined) {
     if (sortStdout !== true && sortStdout !== 'json') {
       throw bad('"sortStdout" must be true or "json" (leave it out for off)')
@@ -773,6 +776,26 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       }
     }
     out.mask = mask
+  }
+  if (maskKeys !== undefined) {
+    if (
+      !capture.some((entry) => entry.startsWith('json:')) ||
+      !Array.isArray(maskKeys) ||
+      maskKeys.length === 0 ||
+      new Set(maskKeys).size !== maskKeys.length ||
+      !maskKeys.every((key): key is string => typeof key === 'string' && key !== '')
+    ) {
+      throw bad(
+        '"maskKeys" must be a non-empty list of distinct key names, beside a "json:" capture',
+      )
+    }
+    out.maskKeys = maskKeys
+  }
+  if (cwd !== undefined) {
+    if (typeof cwd !== 'string' || cwd === '' || cwd === '.' || !staysInside(cwd)) {
+      throw bad('"cwd" must be a relative directory inside the fixture (leave it out for its root)')
+    }
+    out.cwd = path.posix.normalize(cwd)
   }
   return out
 }

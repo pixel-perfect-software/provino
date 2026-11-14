@@ -33,7 +33,6 @@ describe('what provino jest does not run is said, not ignored', () => {
     const dir = await tree({ 'jest.config.json': CONFIG, 'tests/a.test.js': passing('a') })
     // A refusal names the flag by its long name, whatever alias was typed.
     for (const [flag, task, named] of [
-      ['--coverage', 'T8.8'],
       ['--detectLeaks', 'T2.7'],
       ['--watch', 'T9.11'],
       ['-o', 'Track 9', '--onlyChanged'],
@@ -80,7 +79,9 @@ describe('what provino jest does not run is said, not ignored', () => {
   it('warns, naming the task, for a config key it reads and does not apply', async () => {
     const config = JSON.stringify({
       testMatch: ['<rootDir>/tests/**/*.test.js'],
+      // Istanbul coverage is applied (B23b); Jest's v8 provider is T8.12's.
       collectCoverage: true,
+      coverageProvider: 'v8',
     })
     const dir = await tree({
       'jest.config.json': config,
@@ -89,8 +90,8 @@ describe('what provino jest does not run is said, not ignored', () => {
     })
     const ended = await provino([], dir)
     assert.equal(ended.code, 0, ended.stderr)
-    assert.match(ended.stderr, /collectCoverage/)
-    assert.match(ended.stderr, /T8\.8/)
+    assert.match(ended.stderr, /coverageProvider/)
+    assert.match(ended.stderr, /T8\.12/)
   })
 
   it('runs several projects (D29), and lists the files of all of them', async () => {
