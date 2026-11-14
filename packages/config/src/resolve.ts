@@ -11,6 +11,7 @@ import type {
   EnvironmentRef,
   IsolationTier,
   JsonValue,
+  ModuleRef,
   NeutralAlias,
   NeutralDiscovery,
   NeutralProject,
@@ -106,6 +107,15 @@ export interface ResolvedProject {
   readonly cacheDirectory?: string
   /** Global setup and teardown the coordinator runs for this project (T9.15); absent for none. */
   readonly globalSetup?: ResolvedGlobalSetup
+  /**
+   * What affected-test selection reads of the project itself (T9.12, T9.16): its own dependency
+   * extractor (Jest's `dependencyExtractor`) and the patterns a watch crawl leaves out (Jest's
+   * `watchPathIgnorePatterns`); absent when it sets neither.
+   */
+  readonly affected?: {
+    readonly extractor?: ModuleRef
+    readonly watchIgnorePatterns?: readonly string[]
+  }
 }
 
 /**
@@ -329,6 +339,7 @@ export async function resolveNeutralProject(
       transform: resolveTransforms(neutral),
       cacheDirectory: neutral.cacheDirectory,
       globalSetup: globalSetupOf(neutral),
+      affected: affectedOf(neutral),
       aliases: neutral.aliases,
       globalValues: neutral.globalValues,
       fakeTimers: neutral.fakeTimers,
@@ -347,6 +358,17 @@ export async function resolveNeutralProject(
  * no hook of its own keeps the args when the run has one (Jest's root `globalSetup`), since that
  * hook is called with the config of the first project.
  */
+/** The project's own affected-selection settings, or `undefined` when it sets none. */
+function affectedOf(neutral: NeutralProject): ResolvedProject['affected'] {
+  const extractor = neutral.affected?.extractor
+  const ignore = neutral.watch?.ignorePatterns ?? []
+  if (extractor === undefined && ignore.length === 0) return undefined
+  return {
+    ...(extractor === undefined ? {} : { extractor }),
+    ...(ignore.length === 0 ? {} : { watchIgnorePatterns: ignore }),
+  }
+}
+
 function globalSetupOf(neutral: NeutralProject): ResolvedGlobalSetup | undefined {
   if (
     neutral.globalSetup.length === 0 &&
@@ -385,6 +407,8 @@ interface ProjectInput {
   readonly cacheDirectory?: string | undefined
   /** Global setup and teardown (T9.15); a neutral project's only. */
   readonly globalSetup?: ResolvedGlobalSetup | undefined
+  /** The project's own affected-selection settings (T9.16); a neutral project's only. */
+  readonly affected?: ResolvedProject['affected'] | undefined
   /** Name-mapping rules and resolver keys (T3.3); none for a `provino.config.*` project. */
   readonly aliases?: readonly NeutralAlias[] | undefined
   readonly resolution?: NeutralResolution | undefined
@@ -535,5 +559,6 @@ async function finishProject(
     config,
     ...(input.cacheDirectory === undefined ? {} : { cacheDirectory: input.cacheDirectory }),
     ...(input.globalSetup === undefined ? {} : { globalSetup: input.globalSetup }),
+    ...(input.affected === undefined ? {} : { affected: input.affected }),
   }
 }

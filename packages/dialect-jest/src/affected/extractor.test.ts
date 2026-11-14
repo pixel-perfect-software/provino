@@ -74,7 +74,7 @@ test('the extractor reads the specifiers jest-haste-map reads, in its order', ()
   assert.ok(oracle !== undefined)
   let found = 0
   for (const source of SOURCES) {
-    const expected = [...oracle(source)]
+    const expected: string[] = [...oracle(source)]
     found += expected.length
     const got = [...ours.extract(source, '/x.ts', () => [])]
     assert.deepEqual(got, expected, source)

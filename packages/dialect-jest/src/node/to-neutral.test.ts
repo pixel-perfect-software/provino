@@ -182,6 +182,32 @@ test('prettierPath: an explicit null stays null, a path resolves, and snapshotRe
   assert.deepEqual(neutral.diagnostics, [])
 })
 
+test('dependencyExtractor and watchPathIgnorePatterns are carried, and watchman warns about nothing (B23c)', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = { dependencyExtractor: '<rootDir>/extractor.js', watchPathIgnorePatterns: ['/fixtures/'], watchman: true }\n`,
+    'extractor.js': 'module.exports = { extract: () => [] }\n',
+    'env.js': 'export const env = {}\n',
+  })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.ok(project !== undefined)
+  assert.deepEqual(project.affected, {
+    extractor: { module: join(root, 'extractor.js'), export: 'default' },
+  })
+  assert.deepEqual(project.watch, { ignorePatterns: ['/fixtures/'] })
+  assert.deepEqual(neutral.diagnostics, [])
+  // The resolved project keeps both for the coordinator's affected-test selection.
+  const resolved = await resolveNeutralProject(project, {
+    dialect: jestNodeDialect,
+    environments: { node: { module: join(root, 'env.js'), export: 'env' } },
+    ci: false,
+  })
+  assert.deepEqual(resolved.affected, {
+    extractor: { module: join(root, 'extractor.js'), export: 'default' },
+    watchIgnorePatterns: ['/fixtures/'],
+  })
+})
+
 test('no RegExp or function, and every path absolute', async () => {
   const root = tree({
     'jest.config.js': `module.exports = {
