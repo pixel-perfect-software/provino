@@ -118,7 +118,6 @@ Files: `bindings-and-cycles` (live bindings, ESM and CJS cycles, TLA in a leaf a
 |---|---|
 | Leak snapshot/restore (`dispose()` returns an empty `LeakReport`) | T2.7 |
 | The `realm` tier | T2.8 |
-| Coverage: `onModuleCompiled` reports `wrapperColumnOffset` for each script (V8's ranges are offsets in the whole script, the wrapper included) | T2.9 |
 | `engine: 'native'` and `provino-mock:` URLs | T2.10 |
 
 ## Gotchas
@@ -133,3 +132,7 @@ Files: `bindings-and-cycles` (live bindings, ESM and CJS cycles, TLA in a leaf a
   - `pnpm bench:loader e2e`: vs Jest.
   - `packages/bench/src/loader/fixture.test.ts` runs the 600/600 check in `pnpm test`.
   - Against real Jest and Vitest: `@provino/harness`'s `mod-corpus.test.ts` (in-process and end to end).
+
+## Coverage (T2.9, B23b)
+
+`createProjectLoader(..., { coverage: { instrumenter, shouldInstrument }, cacheMode })` instruments the user modules `shouldInstrument` accepts (Istanbul). For V8, `Loader.onModuleCompiled` reports each script's `CompiledModuleEvent` (`scriptUrl`, `wrapperColumnOffset`, `transformKey`) and `Loader.compiledModule(url)` answers `{ path, code, wrapperLength, map (composed to the source), transformKey }`, which the V8 collector sends and the coordinator hands to `v8-to-istanbul` as `wrapperLength`. `CoordinatorLoader.transformForCoverage(path)` transforms a file no test loaded, for its initial coverage. `src/coverage.test.ts` runs a TS fixture in a child process with an inspector session: every block range minus `wrapperLength` maps to the marked TS line, in the runner form and in CommonJS.

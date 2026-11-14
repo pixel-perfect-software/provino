@@ -73,6 +73,11 @@ export { setupPreset } from './preset.ts'
 export { type CollectedTextStyle, jestCollectedText } from './reporters/collected-text.ts'
 export { jestConsoleTrace } from './reporters/console-trace.ts'
 export {
+  createJestGitHubActionsReporter,
+  type JestGitHubActionsOptions,
+  jestResultIcons,
+} from './reporters/github-actions.ts'
+export {
   createJestReporterHost,
   type JestLoadedReporter,
   type JestReporterClass,

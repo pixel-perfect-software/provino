@@ -327,12 +327,12 @@ describe('createJestReporterHost', () => {
 })
 
 describe('loadJestReporters', () => {
-  it('refuses the github-actions option silent: false by name, and accepts silent: true', async () => {
+  it('loads the github-actions reporter with silent: false as well as silent: true', async () => {
     const plan = (silent: boolean): JestReporterPlan => ({
       steps: [{ kind: 'builtin', name: 'github-actions', options: { silent } }],
       summary: undefined,
     })
-    await assert.rejects(loadJestReporters(plan(false)), /option 'silent: false' is not supported/)
+    assert.equal((await loadJestReporters(plan(false))).length, 1)
     assert.equal((await loadJestReporters(plan(true))).length, 1)
   })
 

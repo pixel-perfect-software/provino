@@ -44,3 +44,7 @@ Loads a project's config file and resolves it into everything the coordinator an
 - `defineConfig`, validation of unknown keys, and the Oxc fallback for a `.ts` file Node can't strip (T1.4).
 - `projects`, `plugins`, `alsoServe` (T1.4). A `RunRequest` is layered over a project in `provino` (`provino jest`), not here.
 - `tsconfig` / `mappers` / `typescript` options (the loader block is the bench's defaults, with `tsconfig: 'auto'`); resolver aliases (T1.4, U9).
+
+## Coverage (B23b)
+
+`NeutralProject.coverage` (a `SerializedCoverageConfig`, set by a dialect reader when coverage is on; a `provino.config.*` project has no coverage key yet, T1.4) is carried through `resolveNeutralProject` to `SerializedProjectConfig.coverage`, which is what makes a worker load `@provino/coverage/runtime`. Nothing here imports `@provino/coverage`.

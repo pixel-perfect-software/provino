@@ -192,10 +192,14 @@ One pool, one bus, one `maxWorkers` (the cap counts every project's workers), on
 | Worker-side `inject` | T11.16 |
 | Global setup from a `provino.config.*` project (no config key yet) and Vitest's reader | T1.4, T11.16 |
 | Watch, other built-in reporters, custom reporters | T9.7, T9.8, T9.11–T9.13 |
-| `coverage` events (ignored by dispatch), what reads `FileDispatch.deps`, the `workers` count from `process.constrainedMemory()` | Track 8, T9.12, T9.5 |
+| What reads `FileDispatch.deps`, the `workers` count from `process.constrainedMemory()` | T9.12, T9.5 |
 | `cancel` reaching core (a cancelled file stops mid-run): today it only keeps a queued file from starting | T5.12 |
 | A learned tier is read but nothing writes one (T2.7's leak report will); the `realm` tier a docblock can ask for is T2.8's | T2.7, T2.8 |
 | Leak count (`FileOutcome.leakedHandles` is always 0); `--detectLeaks` itself is built (below) | T2.7 |
 | The `realm` tier (and an environment with realm `context`) | T2.8 |
-| `BulkPayload` for coverage and snapshots over 64 KiB | Track 8, T7.10 |
+| `BulkPayload` for snapshots over 64 KiB | T7.10 |
 | Jest's console `origin` (the call site) | B14 |
+
+## Coverage (B23b)
+
+Worker: `worker/runtime/runner.ts` `startCoverage` imports `@provino/coverage/runtime` only when `SerializedProjectConfig.coverage` is set (`worker/internal/runtime/config.ts` parses it, `ORCH_BAD_CONFIG` on a bad one), starts V8's profiler before the project's files load, gives the loader the instrumenter and filter, and sends `coverage` events (Istanbul: per file, before the environment's teardown; V8: one take at `stop`). Coordinator: `dispatch.ts` hands each `coverage` event to a `RawCoverageStore` (`coverage-store.ts`, loaded by `load-coverage.ts` only when a project asks); `coverage.ts` `finishCoverage` merges, adds the files no test loaded (crawled per project like Jest's `hasteFS.matchFilesWithGlob`; a failure is `untestedFailures`), converts V8 takes, remaps, and puts the result in `RunSummary.coverage` before `run:end`; `exit-code.ts` turns a missed threshold into the failure code. Tests: `test/coverage-collect.test.ts` (inline, forks, threads; warm caches equal cold), `coverage-merge.test.ts` (3 workers by 2 shards equal one run, both providers), `coverage-run.test.ts`. See `packages/coverage/CLAUDE.md`.
