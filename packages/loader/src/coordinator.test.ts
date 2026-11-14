@@ -201,3 +201,62 @@ test('invalidateResolution lets a specifier that missed resolve once its file ex
     loader[Symbol.dispose]()
   }
 })
+
+test('resolveDependency under skipNodeResolution: a bare name resolves only through a mapper, a path as before', async () => {
+  const dir = writeTree({
+    'a.ts': 'export {}\n',
+    'lib.ts': 'export {}\n',
+    'node_modules/pkg/package.json': '{ "name": "pkg", "main": "index.js" }\n',
+    'node_modules/pkg/index.js': 'module.exports = {}\n',
+  })
+  const aliases = [{ pattern: '^mapped$', targets: ['<rootDir>/lib.ts'] }]
+  const from = join(dir, 'a.ts')
+  const plain = await createCoordinatorLoader(dir, config({ aliases }), neutralPolicy.module)
+  try {
+    assert.equal(plain.resolveDependency('pkg', from), join(dir, 'node_modules/pkg/index.js'))
+  } finally {
+    plain[Symbol.dispose]()
+  }
+  const skipping = await createCoordinatorLoader(
+    dir,
+    config({ aliases, skipNodeResolution: true }),
+    neutralPolicy.module,
+  )
+  try {
+    assert.equal(skipping.resolveDependency('pkg', from), undefined)
+    assert.equal(skipping.resolveDependency('mapped', from), join(dir, 'lib.ts'))
+    assert.equal(skipping.resolveDependency('./lib', from), join(dir, 'lib.ts'))
+    assert.equal(
+      skipping.resolveDependency('pkg/index.js', from),
+      join(dir, 'node_modules/pkg/index.js'),
+    )
+  } finally {
+    skipping[Symbol.dispose]()
+  }
+})
+
+test('resolveDependency takes the conditions a caller gives in place of the project’s', async () => {
+  const dir = writeTree({
+    'package.json': JSON.stringify({
+      imports: { '#dep': { browser: './browser.ts', default: './main.ts' } },
+    }),
+    'browser.ts': 'export {}\n',
+    'main.ts': 'export {}\n',
+    'a.ts': 'export {}\n',
+  })
+  const loader = await createCoordinatorLoader(
+    dir,
+    config({ conditions: ['browser'] }),
+    neutralPolicy.module,
+  )
+  try {
+    const from = join(dir, 'a.ts')
+    assert.equal(loader.resolveDependency('#dep', from), join(dir, 'browser.ts'))
+    assert.equal(
+      loader.resolveDependency('#dep', from, { conditions: ['require', 'node', 'default'] }),
+      join(dir, 'main.ts'),
+    )
+  } finally {
+    loader[Symbol.dispose]()
+  }
+})

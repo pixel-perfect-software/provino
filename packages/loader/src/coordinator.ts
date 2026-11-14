@@ -11,6 +11,7 @@
 // doesn't apply) and no per-module bindings: a module that names `jest` sees the global of that
 // name, which a coordinator doesn't have.
 import { readFileSync } from 'node:fs'
+import { sep } from 'node:path'
 import type {
   FileRegistry,
   Loader,
@@ -41,10 +42,17 @@ export interface CoordinatorLoader extends Disposable {
   transformForCoverage(file: string): { readonly code: string; readonly map: SourceMapV3 | null }
   /**
    * What `specifier` imported from `from` (an absolute path) resolves to, as a `require` resolves
-   * it under the project's mappers, or `undefined` when it doesn't resolve. For the affected-test
-   * graph (B23c).
+   * it under the project's mappers, or `undefined` when it doesn't resolve or is a Node builtin
+   * no mapper takes. For the affected-test graph (B23c). `options.conditions` replaces the
+   * project's export conditions (the call's `require` is added either way). Under the config's
+   * `skipNodeResolution`, a specifier with no path separator resolves only through a mapper, as
+   * jest-resolve's `_prepareForResolution` skips its node lookup.
    */
-  resolveDependency(specifier: string, from: string): string | undefined
+  resolveDependency(
+    specifier: string,
+    from: string,
+    options?: { readonly conditions?: readonly string[] },
+  ): string | undefined
   /**
    * Drops the resolver's file-system caches (for the given paths, or all of them): call it when
    * files were added or removed, or a specifier that missed would keep missing.
@@ -108,13 +116,22 @@ export async function createCoordinatorLoader(
       })
       return { code: record.code, map: record.map }
     },
-    resolveDependency: (specifier, from) => {
+    resolveDependency: (specifier, from, options) => {
       const result = resolver.resolve(specifier, {
         importer: from,
         kind: 'require',
-        conditions: config.conditions,
+        conditions: options?.conditions ?? config.conditions,
       })
-      return result.type === 'file' ? result.path : undefined
+      if (result.type !== 'file') return undefined
+      // jest-resolve skips only the node lookup: a mapper still answers for the name.
+      if (
+        config.skipNodeResolution === true &&
+        !specifier.includes(sep) &&
+        result.mappedBy === null
+      ) {
+        return undefined
+      }
+      return result.path
     },
     invalidateResolution: (paths) => {
       resolver.invalidate(paths)

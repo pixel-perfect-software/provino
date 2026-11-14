@@ -304,6 +304,7 @@ export function jestProjectToNeutral(
         ...(project.modulePaths ?? []),
       ],
       ...(project.resolver === undefined ? {} : { resolver: project.resolver }),
+      ...(project.skipNodeResolution === true ? { skipNodeResolution: true } : {}),
     },
     transforms,
     transformIgnorePatterns: [...project.transformIgnorePatterns],

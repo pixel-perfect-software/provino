@@ -91,6 +91,8 @@ export interface NeutralResolution {
   readonly modulePaths?: readonly string[]
   /** An absolute path to a custom resolver module (Jest's `resolver`). */
   readonly resolver?: string
+  /** The affected-test graph skips node lookups of bare names (Jest's `skipNodeResolution`). */
+  readonly skipNodeResolution?: boolean
 }
 
 /**

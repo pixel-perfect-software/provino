@@ -2062,6 +2062,7 @@ export interface NeutralResolution {
     readonly moduleDirectories?: readonly string[];
     readonly modulePaths?: readonly string[];
     readonly resolver?: string;
+    readonly skipNodeResolution?: boolean;
 }
 
 // @public
@@ -2167,6 +2168,7 @@ export interface OrchestratorPolicy {
         } | null;
         readonly invalidateAll: "project-inputs" | "none";
         readonly graph: "static" | "recorded-then-static";
+        readonly conditions: "environment" | "none";
     };
     readonly bail: {
         readonly checkAfter: "file" | "test";
@@ -2855,6 +2857,7 @@ export interface SerializedLoaderConfig {
     readonly resolver?: ModuleRef;
     readonly scopeMappable?: readonly string[];
     readonly scopeModules?: readonly string[];
+    readonly skipNodeResolution?: boolean;
     readonly transform?: SerializedTransformConfig;
     readonly tsconfig: "auto" | false | string;
     readonly typescript: "oxc" | "node-strip" | "off";

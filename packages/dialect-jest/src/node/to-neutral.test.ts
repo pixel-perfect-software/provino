@@ -420,6 +420,22 @@ test('the neutral project resolves to a worker config through @provino/config', 
   assert.ok(resolved.config.globals !== null)
 })
 
+test('skipNodeResolution reaches the loader config the coordinator resolves edges with (B23c)', async () => {
+  const root = tree({
+    'jest.config.js': 'module.exports = { skipNodeResolution: true }\n',
+    'env.js': 'export const env = {}\n',
+  })
+  const [project] = (await readNeutral(root)).neutral.value
+  assert.ok(project !== undefined)
+  assert.equal(project.resolution?.skipNodeResolution, true)
+  const resolved = await resolveNeutralProject(project, {
+    dialect: jestNodeDialect,
+    environments: { node: { module: join(root, 'env.js'), export: 'env' } },
+    ci: false,
+  })
+  assert.equal(resolved.config.loader.skipNodeResolution, true)
+})
+
 test('neutralEnvironmentName', () => {
   assert.equal(
     neutralEnvironmentName('/x/node_modules/jest-environment-node/build/index.js'),
