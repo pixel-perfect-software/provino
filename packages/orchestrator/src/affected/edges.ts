@@ -12,13 +12,18 @@ import type {
   ModuleRef,
 } from '@provino/types'
 import { OrchestratorError } from '../errors.ts'
+import { engineIdentity, moduleIdentity } from './code-identity.ts'
 
 /**
  * Reads the specifiers of one file's code.
  * @internal
  */
 export interface EdgeExtractor {
-  /** What the extractor is, for the edge cache: another identity reads nothing the cache holds. */
+  /**
+   * What the extractor is, for the edge cache: another identity reads nothing the cache holds. It
+   * holds the hash of this engine's code, and of a module extractor's file, so an entry an older
+   * extractor wrote is never read.
+   */
   readonly identity: string
   extract(code: string, path: string): readonly string[]
 }
@@ -34,7 +39,7 @@ function lexerSpecifiers(code: string): readonly string[] {
  * @internal
  */
 export function lexerExtractor(): EdgeExtractor {
-  return { identity: 'lexer', extract: (code) => lexerSpecifiers(code) }
+  return { identity: `lexer:${engineIdentity()}`, extract: (code) => lexerSpecifiers(code) }
 }
 
 /**
@@ -42,9 +47,14 @@ export function lexerExtractor(): EdgeExtractor {
  * is given the lexer's as its fallback, and its `cacheKey` is part of its identity.
  * @internal
  */
-export function customExtractor(extractor: DependencyExtractor, source: string): EdgeExtractor {
+export function customExtractor(
+  extractor: DependencyExtractor,
+  source: string,
+  module?: string,
+): EdgeExtractor {
+  const code = module === undefined ? '' : moduleIdentity(module)
   return {
-    identity: `custom:${source}:${extractor.cacheKey ?? ''}`,
+    identity: `custom:${source}:${code}:${extractor.cacheKey ?? ''}:${engineIdentity()}`,
     extract: (code, path) => [...extractor.extract(code, path, lexerSpecifiers)],
   }
 }
@@ -94,9 +104,17 @@ export async function loadExtractor(
   projectRef?: ModuleRef,
 ): Promise<EdgeExtractor> {
   if (projectRef !== undefined) {
-    return customExtractor(await importProjectExtractor(projectRef), `${projectRef.module}`)
+    return customExtractor(
+      await importProjectExtractor(projectRef),
+      projectRef.module,
+      projectRef.module,
+    )
   }
   if (policyExtractor === null) return lexerExtractor()
   const extractor = await callBehaviour(createBehaviourLoader(), policyExtractor)
-  return customExtractor(extractor, sourceOf(policyExtractor))
+  return customExtractor(
+    extractor,
+    sourceOf(policyExtractor),
+    typeof policyExtractor === 'function' ? undefined : policyExtractor.module,
+  )
 }

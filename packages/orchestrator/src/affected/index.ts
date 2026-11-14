@@ -1,12 +1,12 @@
 // T9.12: the affected-test index of one project. One crawl of the project's roots, the specifiers of
 // every file (through the edge cache), the edges resolved by the project's own loader, and the
 // inverse: which test files a change reaches. The extractor, the mock edges, what a change to the
-// project's own inputs selects and where the graph comes from are the policy's
-// (`OrchestratorPolicy.affected`), so this code names no dialect.
+// project's own inputs selects, the export conditions of an edge and where the graph comes from are
+// the policy's (`OrchestratorPolicy.affected`), so this code names no dialect.
 
 import { statSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import type { ResolvedProject } from '@provino/config'
 import { callBehaviour, createBehaviourLoader } from '@provino/policy'
 import { testPathOfSnapshot } from '@provino/snapshot/node'
@@ -18,7 +18,13 @@ import { type EdgeExtractor, hasEdges, loadExtractor } from './edges.ts'
 import { projectInputs, touchesInputs } from './invalidate.ts'
 import { type ReverseGraph, reachBackwards, reverseOf } from './inverse.ts'
 import { freshDeps, type RecordedGraph } from './recorded.ts'
-import { type DependencyResolver, indexMocks, type MockIndex, resolveEdges } from './resolve.ts'
+import {
+  type DependencyResolver,
+  graphConditions,
+  indexMocks,
+  type MockIndex,
+  resolveEdges,
+} from './resolve.ts'
 
 /**
  * A change the watcher saw (or a caller found): what happened to which absolute path.
@@ -58,13 +64,18 @@ export interface AffectedIndex {
   /**
    * The test files that `paths` (absolute) reach: the changed test files themselves and every test
    * whose closure holds a changed file, sorted. A changed `.snap` is its test file. A path outside
-   * the project's roots reaches nothing; a change to one of the project's own inputs reaches every
-   * test when the policy's `invalidateAll` says `project-inputs`.
+   * the project's roots, or no longer in the tree, reaches nothing; a change to one of the
+   * project's own inputs reaches every test when the policy's `invalidateAll` says
+   * `project-inputs`.
    */
   related(paths: readonly string[]): readonly string[]
   /** A test file's direct dependencies, resolved (Jest's `findRelatedSourcesFromTestsInChangedFiles`). */
   sourcesOf(testPath: string): readonly string[]
-  /** Applies what the watcher saw, then `related` answers for the new tree. */
+  /**
+   * Applies what the watcher saw, then `related` answers for the new tree. An added file the crawl
+   * would leave out is not indexed; a `package.json` or tsconfig that changes re-resolves every
+   * file. Every path it names is stat'ed again by the recorded graph.
+   */
   update(events: readonly AffectedEvent[]): Promise<void>
   /** Every crawled file and the test files among them. */
   files(): { readonly all: ReadonlySet<string>; readonly tests: readonly string[] }
@@ -101,6 +112,25 @@ function mtimeOfSync(path: string): number | undefined {
   }
 }
 
+/** A file whose change can move where any specifier resolves: a `package.json` or a tsconfig. */
+function changesResolution(path: string): boolean {
+  const name = basename(path)
+  return name === 'package.json' || /^tsconfig(?:\..*)?\.json$/.test(name)
+}
+
+/** The tests whose record is fresh, and by module the tests whose record holds it. */
+interface LoadedIndex {
+  readonly tests: ReadonlySet<string>
+  readonly byModule: ReverseGraph
+}
+
+/** Which test a `.snap` belongs to, kept current as tests come and go. */
+interface SnapshotInverse {
+  ownerOf(path: string): string | undefined
+  addTest(test: string): Promise<void>
+  removeTest(test: string): void
+}
+
 /**
  * Builds the index of a project: crawls, reads and resolves every file once.
  * @beta
@@ -124,7 +154,8 @@ export async function createAffectedIndex(
     project,
     options.configFile === undefined ? [] : [options.configFile],
   )
-  const snapshotTestOf = await snapshotInverse(project, crawl)
+  const snapshots = await snapshotInverse(project, crawl)
+  const conditions = graphConditions(affected.conditions)
 
   const files = new Set<string>(crawl.files)
   const tests = new Set<string>(crawl.files.filter((file) => crawl.isTest(file)))
@@ -132,7 +163,12 @@ export async function createAffectedIndex(
   const specifiers = new Map<string, readonly string[]>()
   const edges = new Map<string, ReadonlySet<string>>()
   let mocks: MockIndex = indexMocks(files, affected.mockEdges)
+  /** Built once per tree: `update` drops it. */
   let staticReverse: ReverseGraph | undefined
+  /** The recorded modules' mtimes, kept across calls: `update` drops the paths it names. */
+  const mtimes = new Map<string, number | undefined>()
+  /** The fresh records, built once per tree: `update` drops it. */
+  let loadedIndex: LoadedIndex | undefined
 
   /** The file's specifiers: from the cache when its mtime and size are what they were, else read. */
   async function specifiersOf(file: string): Promise<readonly string[] | undefined> {
@@ -144,6 +180,8 @@ export async function createAffectedIndex(
     }
     const cached = cache.get(file, info.mtimeMs, info.size)
     if (cached !== undefined) return cached
+    // Taken before the read: an entry whose mtime is this close is not trusted later (`cache.ts`).
+    const readAt = Date.now()
     let code: string
     try {
       code = await readFile(file, 'utf8')
@@ -157,7 +195,7 @@ export async function createAffectedIndex(
       // A file the extractor can't read has no edges we can see.
       found = []
     }
-    cache.set(file, info.mtimeMs, info.size, found)
+    cache.set(file, info.mtimeMs, info.size, found, readAt)
     return found
   }
 
@@ -171,6 +209,7 @@ export async function createAffectedIndex(
           resolver: options.loader,
           mocks,
           mockEdges: affected.mockEdges,
+          conditions,
         }),
       )
     }
@@ -182,33 +221,23 @@ export async function createAffectedIndex(
   })
   for (const file of specifiers.keys()) resolveFile(file)
 
-  /**
-   * The graph a call reads: the static reverse index, and the tests whose record is fresh. A test
-   * with a fresh record is selected by what it loaded (`loaded`), not by the sources' edges, so its
-   * own edges are left out of the walk (a source it never loaded can't reach it).
-   */
-  function graph(): {
-    readonly reverse: ReverseGraph
-    readonly loaded: ReadonlyMap<string, ReadonlySet<string>>
-  } {
+  function mtimeOf(path: string): number | undefined {
+    if (!mtimes.has(path)) mtimes.set(path, mtimeOfSync(path))
+    return mtimes.get(path)
+  }
+
+  /** The tests whose record is fresh, or `undefined` when the policy reads no record. */
+  function loaded(): LoadedIndex | undefined {
     const recorded = options.recorded
-    staticReverse ??= reverseOf(edges)
-    const none = { reverse: staticReverse, loaded: new Map() }
-    if (affected.graph !== 'recorded-then-static' || recorded === undefined) return none
-    const mtimes = new Map<string, number | undefined>()
-    const mtimeOf = (path: string): number | undefined => {
-      if (!mtimes.has(path)) mtimes.set(path, mtimeOfSync(path))
-      return mtimes.get(path)
-    }
-    const loaded = new Map<string, ReadonlySet<string>>()
+    if (affected.graph !== 'recorded-then-static' || recorded === undefined) return undefined
+    if (loadedIndex !== undefined) return loadedIndex
+    const fresh = new Map<string, ReadonlySet<string>>()
     for (const test of tests) {
       const deps = freshDeps(recorded, test, mtimeOf)
-      if (deps !== undefined) loaded.set(test, new Set([test, ...deps]))
+      if (deps !== undefined) fresh.set(test, new Set([test, ...deps]))
     }
-    if (loaded.size === 0) return none
-    const effective = new Map(edges)
-    for (const test of loaded.keys()) effective.delete(test)
-    return { reverse: reverseOf(effective), loaded }
+    loadedIndex = { tests: new Set(fresh.keys()), byModule: reverseOf(fresh) }
+    return loadedIndex
   }
 
   function related(changed: readonly string[]): readonly string[] {
@@ -218,15 +247,31 @@ export async function createAffectedIndex(
     }
     const seeds: string[] = []
     for (const path of absolute) {
-      const owner = snapshotTestOf(path)
-      const seed = owner ?? path
-      if (files.has(seed)) seeds.push(seed)
+      // A path that isn't in the tree reaches nothing, a deleted `.snap` too: Jest checks
+      // `hasteFS.exists` before it maps one (jest-resolve-dependencies L148-156).
+      if (!files.has(path)) continue
+      const owner = snapshots.ownerOf(path)
+      if (owner === undefined) seeds.push(path)
+      else if (files.has(owner)) seeds.push(owner)
     }
-    const { reverse, loaded } = graph()
-    const reached = reachBackwards(seeds, reverse, (file) => tests.has(file) && !loaded.has(file))
-    for (const [test, modules] of loaded) {
-      if (seeds.some((seed) => modules.has(seed))) reached.add(test)
+    staticReverse ??= reverseOf(edges)
+    const fresh = loaded()
+    if (fresh === undefined || fresh.tests.size === 0) {
+      return [...reachBackwards(seeds, staticReverse, (file) => tests.has(file))].sort(byText)
     }
+    // A test with a fresh record is selected by what it loaded, not by its sources' edges. Every
+    // edge stays in the walk, so a test that imports a recorded test still reaches what that one
+    // imports, and the recorded tests a seed selects seed the walk too.
+    const byRecord = new Set<string>()
+    for (const seed of seeds) {
+      for (const test of fresh.byModule.get(seed) ?? []) byRecord.add(test)
+    }
+    const reached = reachBackwards(
+      [...seeds, ...byRecord],
+      staticReverse,
+      (file) => tests.has(file) && !fresh.tests.has(file),
+    )
+    for (const test of byRecord) reached.add(test)
     return [...reached].sort(byText)
   }
 
@@ -237,7 +282,9 @@ export async function createAffectedIndex(
       let shape = false
       const changed: string[] = []
       for (const { kind, path } of events) {
+        mtimes.delete(path)
         if (kind === 'change') {
+          if (changesResolution(path)) shape = true
           if (specifiers.has(path)) changed.push(path)
           continue
         }
@@ -246,12 +293,15 @@ export async function createAffectedIndex(
         shape = true
         if (kind === 'unlink') {
           files.delete(path)
-          tests.delete(path)
+          if (tests.delete(path)) snapshots.removeTest(path)
           specifiers.delete(path)
           edges.delete(path)
-        } else if (!files.has(path)) {
+        } else if (!files.has(path) && crawl.keeps(path)) {
           files.add(path)
-          if (crawl.isTest(path)) tests.add(path)
+          if (crawl.isTest(path)) {
+            tests.add(path)
+            await snapshots.addTest(path)
+          }
           changed.push(path)
         }
       }
@@ -269,6 +319,7 @@ export async function createAffectedIndex(
         for (const file of changed) resolveFile(file)
       }
       staticReverse = undefined
+      loadedIndex = undefined
     },
     files: () => ({ all: files, tests: [...tests].sort(byText) }),
     save: () => cache.save(),
@@ -277,22 +328,39 @@ export async function createAffectedIndex(
 
 /**
  * Which test file a `.snap` path belongs to: the inverse of the default layout, or, for a project
- * with a snapshot path resolver of its own, the resolver asked forwards for every test file.
+ * with a snapshot path resolver of its own, the resolver asked forwards for every test file, and
+ * for each test file added later.
  */
 async function snapshotInverse(
   project: IndexedProject,
   crawl: ProjectCrawl,
-): Promise<(path: string) => string | undefined> {
+): Promise<SnapshotInverse> {
   const { snapshot } = project.policy
   if (snapshot.resolvePath === null) {
-    return (path) => testPathOfSnapshot(path, snapshot)
+    return {
+      ownerOf: (path) => testPathOfSnapshot(path, snapshot),
+      addTest: async () => {},
+      removeTest: () => {},
+    }
   }
+  const resolvePath = snapshot.resolvePath
   const behaviours = createBehaviourLoader()
   const owners = new Map<string, string>()
-  for (const file of crawl.files) {
-    if (!crawl.isTest(file)) continue
-    const snap = await callBehaviour(behaviours, snapshot.resolvePath, file, snapshot.extension)
-    owners.set(snap, file)
+  const snapOf = new Map<string, string>()
+  async function addTest(test: string): Promise<void> {
+    const snap = await callBehaviour(behaviours, resolvePath, test, snapshot.extension)
+    owners.set(snap, test)
+    snapOf.set(test, snap)
   }
-  return (path) => owners.get(path)
+  for (const file of crawl.files) if (crawl.isTest(file)) await addTest(file)
+  return {
+    ownerOf: (path) => owners.get(path),
+    addTest,
+    removeTest(test) {
+      const snap = snapOf.get(test)
+      if (snap === undefined) return
+      snapOf.delete(test)
+      if (owners.get(snap) === test) owners.delete(snap)
+    },
+  }
 }

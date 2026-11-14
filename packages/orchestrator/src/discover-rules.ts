@@ -232,6 +232,12 @@ export interface ProjectCrawl {
   readonly files: readonly string[]
   /** Whether a crawled file is one of the project's test files. */
   readonly isTest: (absolutePath: string) => boolean
+  /**
+   * Whether the crawl would keep `absolutePath` (a file a watcher saw appear): under a root,
+   * outside `node_modules` and the VCS directories, with a listed extension, and not ignored.
+   * Symlinks are not checked: the caller saw a file.
+   */
+  readonly keeps: (absolutePath: string) => boolean
 }
 
 /** What a crawl leaves out beyond the project's own `crawlIgnorePatterns`. */
@@ -276,9 +282,19 @@ export async function crawlProject(
   const roots = discovery?.roots ?? [rootDir]
   await Promise.all(roots.map((root) => crawlRoot(resolve(root), extensions, crawlIgnore, found)))
   const files = [...found].sort(byText)
+  const resolvedRoots = roots.map((root) => resolve(root))
+  const keeps = (path: string): boolean => {
+    if (!resolvedRoots.some((root) => path.startsWith(root + sep))) return false
+    const dot = path.lastIndexOf('.')
+    if (dot < 0 || path.lastIndexOf(sep) > dot) return false
+    if (!extensions.has(path.slice(dot + 1).toLowerCase())) return false
+    if (path.includes(NODE_MODULES) || VCS_PATH.some((vcs) => path.includes(vcs))) return false
+    return crawlIgnore?.test(path) !== true
+  }
   if (discovery !== null) {
     return {
       files,
+      keeps,
       isTest: testFilePredicate({
         rootDir,
         discovery,
@@ -290,6 +306,7 @@ export async function crawlProject(
   const excluded = globsToMatcher(project.exclude)
   return {
     files,
+    keeps,
     isTest: (path) => {
       const relative = relativePosix(rootDir, path)
       return included(relative) && !excluded(relative)

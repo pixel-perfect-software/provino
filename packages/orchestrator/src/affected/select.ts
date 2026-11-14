@@ -39,24 +39,29 @@ export async function selectAffected(
   if (paths.length === 0) return []
   // The loader is the coordinator's engine for modules it imports itself; it is only loaded here.
   const { createCoordinatorLoader } = await import('@provino/loader')
-  using loader = await createCoordinatorLoader(
+  // No `using`: Node 22.15, the floor, cannot parse it.
+  const loader = await createCoordinatorLoader(
     project.rootDir,
     project.config.loader,
     project.policy.module,
   )
-  const index = await createAffectedIndex(project, {
-    cacheDir,
-    projectKey: member.cacheProject,
-    loader,
-    ...(recorded === undefined ? {} : { recorded }),
-  })
-  const related = new Set(index.related(paths))
   try {
-    await index.save()
-  } catch {
-    // The cache is a convenience: an unwritable directory costs the next run its warm start.
+    const index = await createAffectedIndex(project, {
+      cacheDir,
+      projectKey: member.cacheProject,
+      loader,
+      ...(recorded === undefined ? {} : { recorded }),
+    })
+    const related = new Set(index.related(paths))
+    try {
+      await index.save()
+    } catch {
+      // The cache is a convenience: an unwritable directory costs the next run its warm start.
+    }
+    return everything.filter((file) => related.has(join(project.rootDir, file.relativePath)))
+  } finally {
+    loader[Symbol.dispose]()
   }
-  return everything.filter((file) => related.has(join(project.rootDir, file.relativePath)))
 }
 
 /**

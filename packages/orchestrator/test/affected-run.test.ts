@@ -2,6 +2,7 @@
 // takes the place of the file filters; `onlyFailures` keeps the files whose history says they
 // failed; the history of the files left out stays, and the recorded graph is written after a run.
 import assert from 'node:assert/strict'
+import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import {
@@ -146,5 +147,65 @@ describe('the recorded graph', () => {
 
     const recorded = await runIt(p, { selection: related(p.path('src/other.js')) })
     assert.deepEqual(Object.keys(recorded), ['b.test.js'])
+  })
+
+  /** The record a run left for `test`, read back from the project's deps file. */
+  async function recordOf(p: Project, test: string) {
+    const project = runtimeProject(p.dir)
+    const graph = await openRecordedGraph(
+      affectedCachePaths(cacheDirectories(project).results, projectCacheKey(project)).deps,
+    )
+    return graph.get(p.path(test))
+  }
+
+  // One test's body loads `other`; the other test doesn't.
+  const PARTIAL: Readonly<Record<string, string>> = {
+    ...FILES,
+    'e.test.js': "test('x loads other', () => { require('./src/other') })\ntest('y', () => {})\n",
+    'f.test.js':
+      "test.skip('x loads other', () => { require('./src/other') })\ntest('y', () => {})\n",
+  }
+
+  it('a run with -t records nothing, so a test it filtered out is still selected by its sources', async () => {
+    const p = await makeProject(PARTIAL)
+    await runIt(p, { testNamePattern: '^y$' })
+    assert.equal(await recordOf(p, 'e.test.js'), undefined)
+    const ended = await runIt(p, { selection: related(p.path('src/other.js')) })
+    assert.ok('e.test.js' in ended, JSON.stringify(ended))
+  })
+
+  it('a file with a skipped test records nothing either', async () => {
+    const p = await makeProject(PARTIAL)
+    await runIt(p, {})
+    assert.equal(await recordOf(p, 'f.test.js'), undefined)
+    assert.ok((await recordOf(p, 'e.test.js')) !== undefined, 'a whole run records')
+    const ended = await runIt(p, { selection: related(p.path('src/other.js')) })
+    assert.ok('f.test.js' in ended, JSON.stringify(ended))
+  })
+
+  it('a record is stamped when the file was taken: a save while it runs leaves it stale', async () => {
+    const p = await makeProject({
+      'src/leaf.js': 'module.exports = { leaf: 1 }\n',
+      // The test saves its own file, as an editor would while it runs. The clock is read until it
+      // moves on, so the save is strictly after the file was taken and strictly before it ends.
+      'a.test.js': [
+        "const fs = require('fs')",
+        "const path = require('path')",
+        "require('./src/leaf')",
+        "test('a', () => {",
+        '  const tick = () => { const t = Date.now(); while (Date.now() <= t) {} }',
+        '  tick()',
+        "  const self = path.join(__dirname, 'a.test.js')",
+        "  fs.writeFileSync(self, fs.readFileSync(self, 'utf8'))",
+        '  tick()',
+        '})',
+        '',
+      ].join('\n'),
+    })
+    assert.deepEqual(await runIt(p, {}), { 'a.test.js': 'pass' })
+    const record = await recordOf(p, 'a.test.js')
+    assert.ok(record !== undefined)
+    const { mtimeMs } = await stat(p.path('a.test.js'))
+    assert.ok(record.at < mtimeMs, `recorded at ${record.at}, saved at ${mtimeMs}`)
   })
 })

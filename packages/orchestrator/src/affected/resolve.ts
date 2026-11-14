@@ -1,5 +1,6 @@
 // T9.12: specifiers to files. Edges resolve through the project's loader (its mappers, extensions and
-// resolver); a builtin is no edge. Mock edges follow the policy's `affected.mockEdges`: the shape of
+// resolver), with the export conditions the policy's `affected.conditions` says; a builtin no mapper
+// takes is no edge. Mock edges follow the policy's `affected.mockEdges`: the shape of
 // jest-resolve-dependencies' `resolve` (L40-99), as data.
 
 import { builtinModules } from 'node:module'
@@ -7,6 +8,19 @@ import { basename, dirname, extname, join } from 'node:path'
 import type { OrchestratorPolicy } from '@provino/types'
 
 type MockEdges = OrchestratorPolicy['affected']['mockEdges']
+
+/**
+ * The conditions of `affected.conditions: 'none'`: what a `require` lookup with no environment
+ * conditions matches (jest-resolve's `defaultResolver`, L181-187, when it is given none).
+ */
+const REQUIRE_DEFAULTS: readonly string[] = ['require', 'node', 'default']
+
+/** The conditions an edge resolves with: `undefined` keeps the loader's (the environment's). */
+export function graphConditions(
+  conditions: OrchestratorPolicy['affected']['conditions'],
+): readonly string[] | undefined {
+  return conditions === 'none' ? REQUIRE_DEFAULTS : undefined
+}
 
 const BUILTINS: ReadonlySet<string> = new Set(builtinModules)
 
@@ -18,7 +32,12 @@ export function isBuiltinSpecifier(specifier: string): boolean {
 
 /** What resolves a specifier from a file. */
 export interface DependencyResolver {
-  resolveDependency(specifier: string, from: string): string | undefined
+  /** `undefined` for a miss and for a Node builtin no mapper takes. */
+  resolveDependency(
+    specifier: string,
+    from: string,
+    options?: { readonly conditions?: readonly string[] },
+  ): string | undefined
   /** Drops what the resolver cached of the file system: files were added or removed. */
   invalidateResolution?(paths?: readonly string[]): void
 }
@@ -75,13 +94,18 @@ export function resolveEdges(
     readonly resolver: DependencyResolver
     readonly mocks: MockIndex
     readonly mockEdges: MockEdges
+    /** The export conditions in place of the project's (`graphConditions`); absent keeps them. */
+    readonly conditions?: readonly string[] | undefined
   },
 ): Set<string> {
-  const { resolver, mocks, mockEdges } = options
+  const { resolver, mocks, mockEdges, conditions } = options
+  const lookup = conditions === undefined ? undefined : { conditions }
   const found = new Set<string>()
   for (const specifier of specifiers) {
-    if (isBuiltinSpecifier(specifier)) continue
-    let resolved = resolver.resolveDependency(specifier, from)
+    // The resolver first: a mapper may take a builtin's name (jest-resolve's `isCoreModule` is a
+    // builtin that no `moduleNameMapper` rule matches).
+    let resolved = resolver.resolveDependency(specifier, from, lookup)
+    if (resolved === undefined && isBuiltinSpecifier(specifier)) continue
     if (resolved === undefined && mockEdges?.byName === true) resolved = mocks.byName(specifier)
     if (resolved === undefined) continue
     found.add(resolved)

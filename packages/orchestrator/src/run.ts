@@ -653,6 +653,10 @@ export async function runProjects(
 
   /** Per project, the modules its test files loaded (`affected.graph: 'recorded-then-static'`). */
   let recorded: ReadonlyMap<Member, RecordedGraph> = new Map()
+  /** A run whose files run only some of their tests (`-t`) or none (`--collectTests`). */
+  const partialRun =
+    options.collectOnly === true ||
+    (options.testNamePattern !== undefined && options.testNamePattern !== '')
   /** Where a project keeps its affected-test caches: none under `--no-cache`. */
   const affectedCacheDir = (member: Member): string | null =>
     options.cache === false ? null : cacheDirectories(member.project).results
@@ -745,6 +749,8 @@ export async function runProjects(
         : { testNamePattern: options.testNamePattern }),
     }
     let takenAt: number | undefined
+    /** When a worker took the file, on the wall clock: what its recorded graph is stamped with. */
+    let takenAtWall: number | undefined
     const ended = Promise.withResolvers<void>()
     try {
       const outcome = await pool.run({
@@ -753,6 +759,7 @@ export async function runProjects(
         onStart: async (workerId) => {
           takenBy = workerId
           takenAt = performance.now()
+          takenAtWall = Date.now()
           lastFile.set(workerId, { info: entry.info, ended: ended.promise })
           await bus.emit('file:start', entry.info, workerId)
         },
@@ -799,8 +806,18 @@ export async function runProjects(
           at: Date.now(),
         })
       }
-      if (outcome.type === 'done' && dispatch.deps !== undefined && result.state !== 'skip') {
-        recorded.get(member)?.record(entry.file.path, dispatch.deps, Date.now())
+      // A record is the file's whole closure only when every test ran: a test `-t`, `.only` or
+      // `.skip` left out may load what the others don't, and an older, whole record is kept. It is
+      // stamped with the time the file was taken, so a save while it ran makes it stale.
+      if (
+        outcome.type === 'done' &&
+        dispatch.deps !== undefined &&
+        result.state !== 'skip' &&
+        !partialRun &&
+        dispatch.skipped === 0 &&
+        takenAtWall !== undefined
+      ) {
+        recorded.get(member)?.record(entry.file.path, dispatch.deps, takenAtWall)
       }
       results.set(entry, result)
       // A time is a measurement only when the file ran to its end: a crash, a kill and a failed

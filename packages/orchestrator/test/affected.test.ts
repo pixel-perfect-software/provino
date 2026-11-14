@@ -4,7 +4,7 @@
 // a warm cache answers as a cold one, and a file outside the roots is ignored. No real waits:
 // mtimes are set by `utimes`.
 import assert from 'node:assert/strict'
-import { mkdir, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, stat, utimes, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
@@ -81,6 +81,30 @@ const MONOREPO: Readonly<Record<string, string>> = {
 const names = (p: Project, paths: readonly string[]): string[] =>
   paths.map((path) => path.slice(p.dir.length + 1))
 
+/** Moves every file of `p` an hour into the past, so no edge-cache entry of it is racily clean. */
+async function backdate(p: Project): Promise<void> {
+  const past = new Date(Date.now() - 3_600_000)
+  for (const entry of await readdir(p.dir, { recursive: true, withFileTypes: true })) {
+    if (entry.isFile()) await utimes(join(entry.parentPath, entry.name), past, past)
+  }
+}
+
+/** A tree whose `#dep` subpath import lands on `browser.ts` under `browser`, else `main.ts`. */
+const CONDITIONAL: Readonly<Record<string, string>> = {
+  'package.json': JSON.stringify({
+    imports: { '#dep': { browser: './browser.ts', default: './main.ts' } },
+  }),
+  'browser.ts': 'export const where = 1\n',
+  'main.ts': 'export const where = 2\n',
+  'a.test.ts': "import { where } from '#dep'\ntest('a', () => where)\n",
+}
+
+/** A project whose environment resolves with `browser` (as jsdom's does). */
+const browserEnvironment = (project: ResolvedProject): ResolvedProject => ({
+  ...project,
+  config: { ...project.config, loader: { ...project.config.loader, conditions: ['browser'] } },
+})
+
 describe('the closure of a change', () => {
   it('a change to a leaf selects exactly the tests whose static closure holds it', async () => {
     const p = await makeProject(MONOREPO)
@@ -128,6 +152,45 @@ describe('the closure of a change', () => {
     const outside = join(dirname(p.dir), 'outside.ts')
     assert.deepEqual(index.related([outside, p.path('unrelated.ts')]), [])
     assert.deepEqual(names(p, index.related([p.path('pkg/a.test.ts')])), ['pkg/a.test.ts'])
+  })
+
+  it('a builtin a mapper takes is an edge to the mapped file; one no mapper takes is none, even with a root mock of its name', async () => {
+    const p = await makeProject({
+      'fs-stub.ts': 'export {}\n',
+      '__mocks__/path.ts': 'export {}\n',
+      'a.test.ts': "import 'fs'\nimport 'path'\ntest('a', () => {})\n",
+    })
+    const mapped = (project: ResolvedProject): ResolvedProject => ({
+      ...project,
+      config: {
+        ...project.config,
+        loader: {
+          ...project.config.loader,
+          aliases: [{ pattern: '^fs$', targets: ['<rootDir>/fs-stub.ts'] }],
+        },
+      },
+    })
+    const { index } = await build(p, {
+      project: mapped,
+      affected: { mockEdges: { dir: '__mocks__', adjacent: true, byName: true } },
+    })
+    assert.deepEqual(names(p, index.related([p.path('fs-stub.ts')])), ['a.test.ts'])
+    assert.deepEqual(index.related([p.path('__mocks__/path.ts')]), [])
+  })
+
+  it('an edge resolves with the environment’s conditions under environment, and with require, node and default under none', async () => {
+    const p = await makeProject(CONDITIONAL)
+    const environment = await build(p, {
+      affected: { conditions: 'environment' },
+      project: browserEnvironment,
+    })
+    assert.deepEqual(names(p, environment.index.sourcesOf(p.path('a.test.ts'))), ['browser.ts'])
+    assert.deepEqual(names(p, environment.index.related([p.path('browser.ts')])), ['a.test.ts'])
+    assert.deepEqual(environment.index.related([p.path('main.ts')]), [])
+    const none = await build(p, { affected: { conditions: 'none' }, project: browserEnvironment })
+    assert.deepEqual(names(p, none.index.sourcesOf(p.path('a.test.ts'))), ['main.ts'])
+    assert.deepEqual(names(p, none.index.related([p.path('main.ts')])), ['a.test.ts'])
+    assert.deepEqual(none.index.related([p.path('browser.ts')]), [])
   })
 
   it('sourcesOf is a test file’s direct dependencies', async () => {
@@ -233,6 +296,52 @@ describe('the recorded graph', () => {
     assert.deepEqual(names(p, index.related([p.path('src/heavy.ts')])), ['a.test.ts', 'b.test.ts'])
   })
 
+  it('a test that imports a test with a fresh record still reaches what that one imports', async () => {
+    const p = await makeProject({
+      'src/dep.ts': 'export const d = 1\n',
+      'b.test.ts': "import { d } from './src/dep'\nexport const b = d\ntest('b', () => b)\n",
+      'a.test.ts': "import { b } from './b.test'\ntest('a', () => b)\n",
+    })
+    const cacheDir = `${p.dir}.cache`
+    const staticOnly = await build(p, { affected: { graph: 'static' }, cacheDir })
+    assert.deepEqual(names(p, staticOnly.index.related([p.path('src/dep.ts')])), [
+      'a.test.ts',
+      'b.test.ts',
+    ])
+    const recorded = await record(p, cacheDir, { 'b.test.ts': ['b.test.ts', 'src/dep.ts'] })
+    const neutral = await build(p, {
+      affected: { graph: 'recorded-then-static' },
+      cacheDir,
+      index: { recorded },
+    })
+    assert.deepEqual(names(p, neutral.index.related([p.path('src/dep.ts')])), [
+      'a.test.ts',
+      'b.test.ts',
+    ])
+  })
+
+  it('keeps the modules’ mtimes between calls, and stats again only what update names', async () => {
+    const p = await makeProject(FILES)
+    const cacheDir = `${p.dir}.cache`
+    const recorded = await record(p, cacheDir, {
+      'a.test.ts': ['a.test.ts', 'src/barrel.ts', 'src/used.ts'],
+    })
+    const { index } = await build(p, {
+      affected: { graph: 'recorded-then-static' },
+      cacheDir,
+      index: { recorded },
+    })
+    const heavy = [p.path('src/heavy.ts')]
+    assert.deepEqual(names(p, index.related(heavy)), ['b.test.ts'])
+    // A save the watcher has not reported yet changes nothing.
+    const later = new Date(Date.now() + 3_600_000)
+    await utimes(p.path('src/barrel.ts'), later, later)
+    assert.deepEqual(names(p, index.related(heavy)), ['b.test.ts'])
+    // Once it is reported, the record is older than the barrel and the sources decide.
+    await index.update([{ kind: 'change', path: p.path('src/barrel.ts') }])
+    assert.deepEqual(names(p, index.related(heavy)), ['a.test.ts', 'b.test.ts'])
+  })
+
   it('does not read the record under the static graph', async () => {
     const p = await makeProject(FILES)
     const cacheDir = `${p.dir}.cache`
@@ -287,6 +396,15 @@ describe('mocks and snapshots are edges', () => {
     ])
     assert.deepEqual(index.related([p.path('__snapshots__/orphan.test.ts.snap')]), [])
   })
+
+  it('a .snap that is not in the tree (deleted) selects nothing, though its test is there', async () => {
+    const p = await makeProject({
+      'a.test.ts': 'test("a", () => {})\n',
+      'b.test.ts': 'test("b", () => {})\n',
+    })
+    const { index } = await build(p)
+    assert.deepEqual(index.related([p.path('__snapshots__/b.test.ts.snap')]), [])
+  })
 })
 
 describe('the edge cache', () => {
@@ -306,6 +424,7 @@ describe('the edge cache', () => {
 
   it('a warm index answers as a cold one without reading a file again', async () => {
     const p = await makeProject(MONOREPO)
+    await backdate(p)
     const cacheDir = `${p.dir}.cache`
     const cold = counting('v1')
     const first = await build(p, { affected: { extractor: cold.factory }, cacheDir })
@@ -344,6 +463,51 @@ describe('the edge cache', () => {
     const three = counting('v2')
     await build(p, { affected: { extractor: three.factory }, cacheDir })
     assert.equal(three.calls.length, 7)
+  })
+
+  it('an entry an older Provino wrote under the same extractor name is not read', async () => {
+    const p = await makeProject({
+      'hidden.ts': 'export {}\n',
+      'a.test.ts': "test('a', () => {})\n",
+    })
+    await backdate(p)
+    const cacheDir = `${p.dir}.cache`
+    const info = await stat(p.path('a.test.ts'))
+    await mkdir(join(cacheDir, 'affected'), { recursive: true })
+    // What the first edge cache wrote: the lexer's name alone, and an edge the file doesn't have.
+    await writeFile(
+      join(cacheDir, 'affected', 'affected-test.json'),
+      JSON.stringify({
+        version: 1,
+        identity: 'lexer',
+        files: {
+          [p.path('a.test.ts')]: { m: info.mtimeMs, s: info.size, e: ['./hidden'], w: Date.now() },
+        },
+      }),
+    )
+    const { index } = await build(p, { cacheDir })
+    assert.deepEqual(index.related([p.path('hidden.ts')]), [])
+  })
+
+  it('a file read in the tick it was saved is read again, though a later save left its mtime and size', async () => {
+    const p = await makeProject({
+      'one.ts': 'export {}\n',
+      'two.ts': 'export {}\n',
+      'a.test.ts': "import './one'\n",
+    })
+    const cacheDir = `${p.dir}.cache`
+    // Saved just now (a whole millisecond, which `utimes` can set again exactly): the read below
+    // lands within the file system's timestamp granularity.
+    const savedAt = new Date()
+    await utimes(p.path('a.test.ts'), savedAt, savedAt)
+    const first = await build(p, { cacheDir })
+    await first.index.save()
+    // The same size, and the mtime a coarse clock gives a second save in the same tick.
+    await writeFile(p.path('a.test.ts'), "import './two'\n")
+    await utimes(p.path('a.test.ts'), savedAt, savedAt)
+    assert.equal((await stat(p.path('a.test.ts'))).mtimeMs, savedAt.getTime())
+    const second = await build(p, { cacheDir })
+    assert.deepEqual(names(p, second.index.related([p.path('two.ts')])), ['a.test.ts'])
   })
 
   it('a null cache directory keeps nothing', async () => {
@@ -432,5 +596,58 @@ describe('a tree that changes', () => {
     await index.update([{ kind: 'unlink', path: p.path('b.test.ts') }])
     assert.deepEqual(index.related([p.path('c.ts')]), [])
     assert.ok(!index.files().tests.includes(p.path('b.test.ts')))
+  })
+
+  it('update: a changed package.json re-resolves every file', async () => {
+    const p = await makeProject(CONDITIONAL)
+    const { index } = await build(p)
+    assert.deepEqual(names(p, index.related([p.path('main.ts')])), ['a.test.ts'])
+    await writeFile(p.path('package.json'), JSON.stringify({ imports: { '#dep': './browser.ts' } }))
+    await index.update([{ kind: 'change', path: p.path('package.json') }])
+    assert.deepEqual(names(p, index.related([p.path('browser.ts')])), ['a.test.ts'])
+    assert.deepEqual(index.related([p.path('main.ts')]), [])
+  })
+
+  it('update: an added file the crawl would leave out is not indexed', async () => {
+    const p = await makeProject({ 'a.test.ts': "import 'pkg'\n" })
+    const { index } = await build(p)
+    const added = ['node_modules/pkg/index.test.ts', '.git/hooks/x.test.ts', 'notes.test.md'].map(
+      (name) => p.path(name),
+    )
+    for (const path of added) {
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, 'export {}\n')
+    }
+    await index.update(added.map((path) => ({ kind: 'add' as const, path })))
+    for (const path of added) assert.ok(!index.files().all.has(path), path)
+    assert.deepEqual(names(p, index.files().tests), ['a.test.ts'])
+  })
+
+  it('update: a test added later has its snapshot found by the project’s own resolver', async () => {
+    const p = await makeProject({
+      'resolver.ts':
+        'export const resolveSnapshotPath = (test: string, extension: string): string => test + extension\n',
+      'a.test.ts': "test('a', () => {})\n",
+    })
+    const withResolver = (project: ResolvedProject): ResolvedProject => ({
+      ...project,
+      policy: {
+        ...project.policy,
+        snapshot: {
+          ...project.policy.snapshot,
+          resolvePath: { module: p.path('resolver.ts'), export: 'resolveSnapshotPath' },
+        },
+      },
+    })
+    const { index } = await build(p, { project: withResolver })
+    const later = p.path('later.test.ts')
+    const snap = `${later}.snap`
+    await writeFile(later, "test('later', () => {})\n")
+    await writeFile(snap, '// Provino Snapshot v1\n')
+    await index.update([
+      { kind: 'add', path: later },
+      { kind: 'add', path: snap },
+    ])
+    assert.deepEqual(names(p, index.related([snap])), ['later.test.ts'])
   })
 })
