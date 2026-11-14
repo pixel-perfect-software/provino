@@ -2,12 +2,18 @@
 // names (T1.7). Black-box runs show exit codes, where files run and what the default reporter
 // prints; `policy/defaults` holds the config defaults no run shows (D27).
 import { createHash } from 'node:crypto'
+import { readdirSync, readFileSync } from 'node:fs'
+import path from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
+import { jestPolicy } from '@provino/dialect-jest'
+import { jestDependencyExtractor } from '@provino/dialect-jest/affected'
 import { globalSetupFailure as jestGlobalSetupFailure } from '@provino/dialect-jest/global-setup'
 import { jestEnvironmentConditions } from '@provino/dialect-jest/runtime'
 import { vitestEnvironmentConditions } from '@provino/dialect-vitest/runtime'
+import { scanSource } from '@provino/loader/graph'
 import { globalSetupFailure as neutralGlobalSetupFailure } from '@provino/policy/behaviours'
 import type { EnvironmentRequest, GlobalSetupFailure } from '@provino/types'
+import { defaultFixturesRoot } from '../../fixture.ts'
 import type { Golden } from '../../golden.ts'
 import { type Claims, each, golden, own, pending } from '../evidence.ts'
 import { capturedFile, observation, observedOf, oneOf, statusOf } from '../observe.ts'
@@ -38,12 +44,48 @@ const processObjectOf = (g: Golden, prefix: string, isolated = '0'): string => {
   if (values.length === 0) throw new Error(`${g.suite} (${g.runner}) has no test "${prefix}..."`)
   return values.every((value) => value === isolated) ? 'per-file' : 'shared'
 }
-/** A Jest value of B23c's affected-test keys, whose golden Phases 2 and 5 record and compare. */
-const affectedPending = (reason: string) => pending('B23c-P5', reason)
 const affectedVitestPending = pending(
   'T11.16',
   "Vitest's `--changed` and its graph are not recorded; the neutral value stands until then",
 )
+
+/** The test files a `changed/*` listing golden holds (`--listTests`), root-relative. */
+const listedTests = (g: Golden): readonly string[] =>
+  capturedFile(g, '.harness-out/jest.json')
+    .split('\n')
+    .filter((line) => line !== '')
+    .map((line) => line.replace(/^<root>\//, ''))
+/** Whether the listing golden holds exactly these test files. */
+const lists = (g: Golden, files: readonly string[]): boolean =>
+  isDeepStrictEqual(listedTests(g).toSorted(), files.toSorted())
+
+/**
+ * Whether an extractor (the value: a ref to haste's, or `null` for the neutral lexer) predicts the
+ * files a `changed/related-extractor-*` golden listed for `src/foo.ts`: the fixture's test files
+ * whose read specifiers hold `./src/foo.ts`. Each fixture has one test file the two read alike and
+ * one they read apart (a commented `require` and a `jest.requireActual`; a `...require(`).
+ */
+const extractorMatches = (g: Golden, value: unknown): boolean => {
+  const ref = value as { readonly module?: unknown; readonly export?: unknown } | null
+  let extract: (code: string) => readonly string[]
+  if (value === null) extract = (code) => scanSource(code).edges.map((edge) => edge.specifier)
+  else if (
+    ref?.module === import.meta.resolve('@provino/dialect-jest/affected') &&
+    ref.export === 'jestDependencyExtractor'
+  ) {
+    const extractor = jestDependencyExtractor()
+    extract = (code) => [...extractor.extract(code, '', () => [])]
+  } else return false
+  const dir = path.join(defaultFixturesRoot(), g.suite)
+  const predicted = readdirSync(dir)
+    .filter((name) => name.endsWith('.test.ts'))
+    .filter((name) => extract(readFileSync(path.join(dir, name), 'utf8')).includes('./src/foo.ts'))
+  return lists(g, predicted)
+}
+
+/** `orchestrator.changedFiles` under the Jest dialect: the ref the bin's test holds to the goldens. */
+const JEST_CHANGED_FILES: unknown = jestPolicy.orchestrator?.changedFiles
+
 /** The default reporter's line naming the failing test. */
 const failureLine = (g: Golden): string => {
   const lines = `${observedOf(g).stdout ?? ''}\n${observedOf(g).stderr ?? ''}`.split('\n')
@@ -229,38 +271,68 @@ export const orchestratorClaims: Claims = {
   // B23c (D118): changed-file and affected-test selection. Jest's values come from the `changed/*`
   // goldens, recorded by B23c Phase 2 and compared by Phase 5; Vitest's `--changed` runs other
   // commands (T11.16). The neutral values are ours and are pinned in `@provino/policy`'s test.
+  // Jest 30.5.2's selection, held whole: `provino`'s `jest-changed.test.ts` runs every `changed/*`
+  // golden through the bin (the hermetic git steps, the listed set, the kept lines, the exit code),
+  // which only Jest's provider passes (the neutral `null` refuses `-o`).
   'orchestrator.changedFiles': each(
-    affectedPending('the `changed/*` goldens show which files `-o` and `--changedSince` select'),
+    own(
+      'packages/provino/test/jest-changed.test.ts',
+      'orchestrator.changedFiles',
+      JEST_CHANGED_FILES,
+      "jest-changed-files rebuilt: Jest's git, hg and sl commands, held to the 38 `changed/*` recordings through the bin; hg and sl to the real adapters' calls (D27)",
+    ),
     affectedVitestPending,
   ),
+  // Haste reads a `jest.requireActual` and skips a commented `require`; it skips `...require(` too.
   'orchestrator.affected.extractor': each(
-    affectedPending('`changed/related-extractor-comments` shows which edges count'),
+    [
+      golden('changed/related-extractor-comments', { matches: extractorMatches }),
+      golden('changed/related-extractor-spread', { matches: extractorMatches }),
+    ],
     affectedVitestPending,
   ),
+  // `src/__mocks__/foo.ts` reaches the test that requires `./src/foo` (the adjacent mock), and
+  // `__mocks__/ghost.ts` the test that requires the unresolvable `ghost` (the root mock by name).
   'orchestrator.affected.mockEdges.dir': each(
-    affectedPending('`changed/related-mock-adjacent` and `-mock-root`'),
+    golden('changed/related-mock-adjacent', {
+      read: (g) => (lists(g, ['foo.test.ts']) ? '__mocks__' : listedTests(g).join(', ')),
+    }),
     affectedVitestPending,
   ),
   'orchestrator.affected.mockEdges.adjacent': each(
-    affectedPending('`changed/related-mock-adjacent`'),
+    golden('changed/related-mock-adjacent', { read: (g) => lists(g, ['foo.test.ts']) }),
     affectedVitestPending,
   ),
   'orchestrator.affected.mockEdges.byName': each(
-    affectedPending('`changed/related-mock-root`'),
+    golden('changed/related-mock-root', { read: (g) => lists(g, ['ghost.test.ts']) }),
     affectedVitestPending,
   ),
+  // A config file and a setup file reach no test: Jest selects by the graph alone.
   'orchestrator.affected.invalidateAll': each(
-    affectedPending('`changed/related-config-file` and `-setup-file` select nothing'),
+    [
+      golden('changed/related-config-file', {
+        read: (g) => (lists(g, []) ? 'none' : 'project-inputs'),
+      }),
+      golden('changed/related-setup-file', {
+        read: (g) => (lists(g, []) ? 'none' : 'project-inputs'),
+      }),
+    ],
     affectedVitestPending,
   ),
   'orchestrator.affected.graph': each(
-    affectedPending('Jest selects by the static graph; `changed/related-*`'),
+    pending(
+      'T9.12',
+      'no `changed/*` recording runs `-o` after a run whose loaded modules a recorded graph would read, so static and recorded selection give the same files on every one',
+    ),
     affectedVitestPending,
   ),
+  // An edge resolves with `require`, `node` and `default`, not `import` (SearchSource passes no
+  // conditions: defaultResolver.ts L181-L187).
   'orchestrator.affected.conditions': each(
-    affectedPending(
-      '`changed/related-exports-conditions`: an edge resolves `require`, not `import`',
-    ),
+    golden('changed/related-exports-conditions', {
+      read: (g) =>
+        lists(g, ['default.test.ts', 'node.test.ts', 'require.test.ts']) ? 'none' : 'environment',
+    }),
     affectedVitestPending,
   ),
   'orchestrator.passWithNoTests': each(
