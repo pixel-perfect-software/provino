@@ -961,9 +961,13 @@ export async function runProjects(
     // The history is complete; writing it overlaps the workers' shutdown.
     await Promise.all([pool.close(), writeCache()])
     // Each project's snapshot files that no test file has, as Jest's scheduler finds them once
-    // every file ran (DV96); a collect-only pass or an interrupted run looks for none.
+    // every file ran (DV96); a collect-only pass or an interrupted run looks for none. Only a
+    // project with a selected file is cleaned: `scheduleTests` builds its contexts from the tests
+    // it is given (TestScheduler L124-L127, L204-L224), so a path filter or a shard that leaves a
+    // project no file leaves its orphan snapshot files alone, under `-u` too.
     if (options.collectOnly !== true && !interrupted && signal?.aborted !== true) {
-      for (const member of members) {
+      for (const { member, discovered } of found) {
+        if (discovered.length === 0) continue
         member.snapshots.removed.push(
           ...(await obsoleteSnapshotFiles(member.project, member.snapshots.update)),
         )
