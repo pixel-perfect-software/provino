@@ -233,6 +233,9 @@ export interface JestResultsOptions<Config extends ProjectConfigLike> {
 }
 
 // @public
+export const LEAK_MESSAGE: string;
+
+// @public
 export function makeCollectedTestResult(testResults: AssertionResult[], options: {
     displayName: TestResult["displayName"];
     testFilePath: string;

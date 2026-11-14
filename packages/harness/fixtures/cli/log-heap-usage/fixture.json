@@ -1,0 +1,18 @@
+{
+  "description": "`--logHeapUsage` under Jest 30.5.2 (B23d A4): each file's header gains ` (<n> MB heap size)`, the file's heap in whole megabytes. The number differs between runs and machines, so it is masked; the line's shape is the claim. Three files (one fails), one Jest worker. The kept lines are sorted, because the files' order follows their sizes and timings. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--logHeapUsage"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^Tests:",
+    "mask": ["\\d+(?= MB heap size)"],
+    "sortStdout": true
+  }
+}

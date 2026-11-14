@@ -182,8 +182,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       '**EXPERIMENTAL**: Detect memory leaks in tests. After executing a test, it will try to garbage collect the global object used, and fail if it was leaked',
-    support: 'refuse',
-    owner: 'T2.7',
+    support: 'config',
   },
   detectOpenHandles: {
     type: 'boolean',
@@ -281,8 +280,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Logs the heap usage after every test. Useful to debug memory leaks. Use together with `--runInBand` and `--expose-gc` in node.',
-    support: 'warn',
-    owner: 'T9.7',
+    support: 'config',
   },
   maxConcurrency: {
     type: 'number',
@@ -346,15 +344,13 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
   notify: {
     type: 'boolean',
     description: 'Activates notifications for test results.',
-    support: 'warn',
-    owner: 'T9.7',
+    support: 'config',
   },
   notifyMode: {
     requiresArg: true,
     choices: ['always', 'failure', 'success', 'change', 'success-change', 'failure-change'],
     description: 'Specifies when notifications will appear for test results.',
-    support: 'warn',
-    owner: 'T9.7',
+    support: 'config',
   },
   onlyChanged: {
     type: 'boolean',
@@ -525,8 +521,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Prints the seed value in the test report summary. See `--seed` for how to set this value',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   silent: {
     type: 'boolean',

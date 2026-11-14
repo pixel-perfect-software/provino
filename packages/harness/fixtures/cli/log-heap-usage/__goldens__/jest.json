@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/log-heap-usage",
+  "files": [
+    {
+      "file": "a.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "a.test.ts",
+            "path": [
+              "a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "a.test.ts",
+            "path": [
+              "b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "b.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "b.test.ts",
+            "path": [
+              "c"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "fail.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "fail.test.ts",
+            "path": [
+              "d"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: no",
+              "userFrame": "<root>/fail.test.ts:2:9"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./fail.test.ts (<masked> MB heap size)\nPASS ./a.test.ts (<masked> MB heap size)\nPASS ./b.test.ts (<masked> MB heap size)\nTests:       1 failed, 3 passed, 4 total"
+  }
+}

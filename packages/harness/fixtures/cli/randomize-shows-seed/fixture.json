@@ -1,0 +1,16 @@
+{
+  "description": "`--randomize --seed=7` under Jest 30.5.2 (B23d A4): `showSeed` is on whenever the order is random, so the summary carries `Seed:        7` before `Test Suites:` with no `--showSeed`. One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--randomize", "--seed=7"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Seed|Test Suites|Tests):"
+  }
+}

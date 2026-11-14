@@ -145,6 +145,14 @@ export interface FileJob {
    */
   readonly collectOnly?: true
   /**
+   * After the file's environment is torn down, check that nothing still holds it (Jest's
+   * `--detectLeaks`); the answer is `fileDone.leaks`. Refused under isolation `none`, which shares
+   * one registry across files.
+   */
+  readonly detectLeaks?: true
+  /** Measure the worker's heap after the file (Jest's `--logHeapUsage`); the answer is `fileDone.heapUsedBytes`. */
+  readonly logHeapUsage?: true
+  /**
    * Absolute paths that changed since this worker last ran a file (watch mode): the worker drops
    * the records of these modules before the file starts, so it loads their new code. Absent when
    * none did.
@@ -305,6 +313,10 @@ export type WorkerToCoordinator =
        * code.
        */
       readonly snapshot?: SnapshotFileReport
+      /** `FileJob.detectLeaks` was set and the file's environment was still reachable after teardown. */
+      readonly leaks?: true
+      /** `FileJob.logHeapUsage` was set: `process.memoryUsage().heapUsed` after the file, once collected when `gc` is exposed. */
+      readonly heapUsedBytes?: number
     }
   | { readonly t: 'stopped' }
   | RpcCall<CoordinatorMethods>
@@ -531,6 +543,13 @@ export interface FileResult {
    * `onFailure` does for an error that escapes `runTest`.
    */
   readonly resultsDiscarded?: true
+  /**
+   * The file's environment was still reachable after its teardown (`--detectLeaks`). The file
+   * has failed whole: `state` is `fail`, `resultsDiscarded` is set, and `errors` hold the dialect's text.
+   */
+  readonly leaks?: true
+  /** The heap in bytes the worker reported after the file (`--logHeapUsage`). */
+  readonly heapUsedBytes?: number
   readonly errors: readonly SerializedError[]
   /**
    * What the file's snapshot state ended with (the worker's `fileDone.snapshot`); absent when the

@@ -10,10 +10,15 @@ import { delimiter, join } from 'node:path'
 import { after, before, test } from 'node:test'
 import { jestChangedFiles } from './index.ts'
 
+// The probe in `r0` draws only once all five have logged themselves (a barrier on the log, kept in
+// the fake, so the test itself waits on nothing): every probe has started before the first
+// detection, whatever the machine's timing, and only that detection can end the other four.
 const FAKE = `#!/bin/sh
 printf '%s %s\\n' "$$" "$PWD" >> "$PROVINO_FAKE_LOG"
 case "$PWD" in
-  */r0) printf '\\033[0m choo choo' ;;
+  */r0)
+    while [ "$(wc -l < "$PROVINO_FAKE_LOG")" -lt "$PROVINO_FAKE_PROBES" ]; do sleep 0.01; done
+    printf '\\033[0m choo choo' ;;
 esac
 exec sleep 30
 `
@@ -32,6 +37,7 @@ before(async () => {
   Object.assign(process.env, {
     PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`,
     PROVINO_FAKE_LOG: log,
+    PROVINO_FAKE_PROBES: '5',
     GIT_CEILING_DIRECTORIES: base,
   })
 })
@@ -62,7 +68,9 @@ function gone(pid: number): boolean {
   }
 }
 
-test('the first locomotive stops the other probes, and none is looked for again', async () => {
+test('the first locomotive stops the other probes, and none is looked for again', {
+  timeout: 60_000,
+}, async () => {
   const roots: string[] = []
   for (let index = 0; index < 5; index++) {
     roots.push(join(base, `r${index}`))

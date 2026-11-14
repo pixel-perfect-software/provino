@@ -73,7 +73,9 @@ function optionsOf(fixture: Fixture, profile: SnapshotProfile) {
     update: argv.includes('-u'),
     pattern: pattern === -1 ? undefined : argv[pattern + 1],
     // The variables other than CI, which `run()` reads from the process.
-    env: Object.entries(env).filter(([name]) => name !== 'CI'),
+    env: Object.entries(env).filter(
+      (entry): entry is [string, string] => entry[0] !== 'CI' && entry[1] !== null,
+    ),
   }
 }
 

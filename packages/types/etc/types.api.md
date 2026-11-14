@@ -1035,10 +1035,12 @@ export interface FileInfo {
 // @public
 export interface FileJob {
     readonly collectOnly?: true;
+    readonly detectLeaks?: true;
     // (undocumented)
     readonly file: string;
     // (undocumented)
     readonly fileId: TaskId;
+    readonly logHeapUsage?: true;
     readonly staleModules?: readonly string[];
     readonly testIds?: readonly TaskId[];
     // (undocumented)
@@ -1062,6 +1064,7 @@ export interface FileRegistry extends Disposable {
     isolateModules<R>(fn: () => R): R;
     // (undocumented)
     isolateModulesAsync<R>(fn: () => Promise<R>): Promise<R>;
+    leakTargets?(): readonly object[];
     loadedModules(): readonly ModuleId[];
     registerMock<T>(specifier: string, parent: ModuleId | null, spec: MockSpec<T>, options?: RegisterMockOptions): void;
     require<T = unknown>(specifier: string, parent?: ModuleId | null): T;
@@ -1092,6 +1095,8 @@ export interface FileResult {
     readonly errors: readonly SerializedError[];
     // (undocumented)
     readonly file: FileInfo;
+    readonly heapUsedBytes?: number;
+    readonly leaks?: true;
     readonly resultsDiscarded?: true;
     readonly snapshot?: SnapshotFileReport;
     // (undocumented)
@@ -3481,6 +3486,7 @@ export interface TextStyle {
     dim(text: string): string;
     // (undocumented)
     green(text: string): string;
+    inverse(text: string): string;
     // (undocumented)
     magenta(text: string): string;
     // (undocumented)
@@ -3797,6 +3803,8 @@ export type WorkerToCoordinator = {
     readonly leakedHandles: number;
     readonly leakedGlobals: readonly string[];
     readonly snapshot?: SnapshotFileReport;
+    readonly leaks?: true;
+    readonly heapUsedBytes?: number;
 } | {
     readonly t: "stopped";
 } | RpcCall<CoordinatorMethods> | RpcReply<WorkerMethods>;
