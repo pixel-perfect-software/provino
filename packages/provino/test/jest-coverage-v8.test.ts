@@ -5,8 +5,9 @@
 // paths, `all`, counters and statement maps, its function names, and `--json`'s `coverageMap`.
 //
 // The function and branch ranges are Jest's except where Jest's come through babel's source map
-// and not V8's own offsets (`DIFFERENT_RANGES`): there each one is pinned, ours and Jest's, so the
-// list changes only on purpose.
+// and not V8's own offsets, or where babel's output has no class field (`DIFFERENT_RANGES`), and
+// the counters are Jest's except two statements for the same reason (`DIFFERENT_COUNTS`): each one
+// is pinned, ours and Jest's, so the lists change only on purpose.
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile } from 'node:fs/promises'
@@ -23,7 +24,7 @@ const RECORDER_ENV = { CI: '1', NO_COLOR: '1', COLUMNS: '', GITHUB_ACTIONS: '' }
  * The ranges of ours that are not Jest's, by fixture: `<file> <map>[<key>]` to our range and
  * Jest's, each `start-end (line N)`. Jest's v8 numbers come through babel's source map of
  * babel's own output (babel-jest with `@babel/preset-typescript` and the CommonJS plugin, D123);
- * ours through V8's offsets in the TypeScript file, stripped in place (D116). Four kinds:
+ * ours through V8's offsets in the TypeScript file, stripped in place (D116). Five kinds:
  * - a branch that starts at an operator after a space (`??`, `?`, `:`, `&&`): babel maps the
  *   space after the left operand and not the operator, so Jest's starts one column earlier;
  * - a single-parameter arrow (`(entry) =>`): babel prints it `entry =>`, so Jest's starts at the
@@ -31,11 +32,18 @@ const RECORDER_ENV = { CI: '1', NO_COLOR: '1', COLUMNS: '', GITHUB_ACTIONS: '' }
  * - a block that starts at the end of a line after a statement: babel maps the `;` it adds, so
  *   Jest's starts at that line's end, which v8-to-istanbul writes as column -1 of the next line;
  *   ours falls back to the line's last word (magic-string's `hires: 'boundary'` map);
- * - the end of a `catch` block before `finally {`: Jest's is the `{`, ours the `finally`.
- * The counters, the statements, the summary and the text report are Jest's in every case.
+ * - the end of a `catch` block before `finally {`: Jest's is the `{`, ours the `finally`;
+ * - the instance members' initializer of a class that ends in an uninitialized field
+ *   (`owner: string`, the last instance field of `Cart`): preset-typescript elides the field,
+ *   so Jest's ends at the last field it keeps (`#coupon`, 5:9) and ours, which keeps the field
+ *   as tsc does, at the elided one (7:7) (DV99). Both the function and its one branch move.
+ * The statements, the summary and the text report are Jest's in every case, and the counters but
+ * the two `DIFFERENT_COUNTS` pins.
  */
 const DIFFERENT_RANGES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'coverage/v8-providers-sample': {
+    'src/cart.ts fnMap[0]': 'ours 4:11-7:7 (line 4), jest 4:11-5:9 (line 4)',
+    'src/cart.ts branchMap[0]': 'ours 4:11-7:7 (line 4), jest 4:11-5:9 (line 4)',
     'src/cart.ts branchMap[3]': 'ours 11:23-11:33 (line 11), jest 11:22-11:33 (line 11)',
     'src/cart.ts branchMap[7]': 'ours 15:37-15:70 (line 15), jest 15:38-15:70 (line 15)',
     'src/cart.ts branchMap[12]': 'ours 41:57-41:65 (line 41), jest 41:56-41:65 (line 41)',
@@ -55,6 +63,20 @@ const DIFFERENT_RANGES: Readonly<Record<string, Readonly<Record<string, string>>
   },
   'coverage/v8-untested': {
     'src/used.ts branchMap[3]': 'ours 3:27-5:1 (line 3), jest 4:-1-5:1 (line 4)',
+  },
+}
+
+/**
+ * The counters of ours that are not Jest's, by fixture: `<file> <s|f|b>[<key>]` to ours and
+ * Jest's. The instance members' initializer of `Cart` runs once per instance (3), and ours spans
+ * lines 4 to 7 (see `DIFFERENT_RANGES`), so lines 5 and 6 (`#coupon: string | undefined` and
+ * `static created = 0`), which it covers whole, count 3; Jest's ends inside line 5, so both lines
+ * keep the enclosing count of 1 (DV99). Nothing else in a counter differs.
+ */
+const DIFFERENT_COUNTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  'coverage/v8-providers-sample': {
+    'src/cart.ts s[4]': 'ours 3, jest 1',
+    'src/cart.ts s[5]': 'ours 3, jest 1',
   },
 }
 
@@ -114,23 +136,69 @@ function filesOf(value: Json | null | undefined): Readonly<Record<string, FileDa
   return value as Readonly<Record<string, FileData>>
 }
 
-/** What equals Jest's in every file: the path, `all`, the counters and the statement map. */
-function exact(value: Json | null | undefined): Readonly<Record<string, Json>> {
+type Counters = Readonly<Record<string, Json>>
+type Pins = Readonly<Record<string, string>>
+
+function countersOf(value: Json | undefined): Counters | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
+  return value as Counters
+}
+
+/** A counter as the pins write it: `<file> <s|f|b>[<key>]`, the file without its temp root. */
+function counterName(file: string, map: string, key: string): string {
+  return `${file.replace('<root>/', '')} ${map}[${key}]`
+}
+
+/** What equals Jest's in every file: the path, `all`, the statement map and every counter not pinned. */
+function exact(value: Json | null | undefined, pinned: Pins = {}): Readonly<Record<string, Json>> {
   return Object.fromEntries(
-    Object.entries(filesOf(value)).map(([key, data]) => [
-      key,
-      {
-        path: data.path ?? null,
-        all: data.all ?? null,
-        statementMap: data.statementMap ?? null,
-        s: data.s ?? null,
-        f: data.f ?? null,
-        b: data.b ?? null,
-        names: Object.values(filesOf(data.fnMap)).map((fn) => fn.name ?? null),
-        branches: Object.keys(filesOf(data.branchMap)).length,
-      },
-    ]),
+    Object.entries(filesOf(value)).map(([file, data]) => {
+      const unpinned = (map: 's' | 'f' | 'b'): Json => {
+        const counters = countersOf(data[map])
+        if (counters === null) return data[map] ?? null
+        return Object.fromEntries(
+          Object.entries(counters).filter(([key]) => !(counterName(file, map, key) in pinned)),
+        )
+      }
+      return [
+        file,
+        {
+          path: data.path ?? null,
+          all: data.all ?? null,
+          statementMap: data.statementMap ?? null,
+          s: unpinned('s'),
+          f: unpinned('f'),
+          b: unpinned('b'),
+          names: Object.values(filesOf(data.fnMap)).map((fn) => fn.name ?? null),
+          branches: Object.keys(filesOf(data.branchMap)).length,
+        },
+      ]
+    }),
   )
+}
+
+/** Every counter of ours that is not Jest's, as `DIFFERENT_COUNTS` writes it. */
+function countDifferences(
+  ours: Json | null | undefined,
+  jest: Json | null | undefined,
+): Record<string, string> {
+  const theirs = filesOf(jest)
+  const found: Record<string, string> = {}
+  for (const [file, data] of Object.entries(filesOf(ours))) {
+    for (const map of ['s', 'f', 'b'] as const) {
+      const actual = countersOf(data[map]) ?? {}
+      const expected = countersOf(theirs[file]?.[map]) ?? {}
+      for (const key of new Set([...Object.keys(actual), ...Object.keys(expected)])) {
+        const mine = actual[key]
+        const other = expected[key]
+        if (JSON.stringify(mine) === JSON.stringify(other)) continue
+        const show = (counter: Json | undefined): string =>
+          counter === undefined ? 'none' : JSON.stringify(counter)
+        found[counterName(file, map, key)] = `ours ${show(mine)}, jest ${show(other)}`
+      }
+    }
+  }
+  return found
 }
 
 interface Loc {
@@ -192,7 +260,9 @@ describe("provino jest under coverageProvider: 'v8' writes what Jest 30.5.2's v8
       const final = await ran.json('coverage/coverage-final.json')
       const expected = golden?.json?.['coverage/coverage-final.json']
       assert.deepEqual(Object.keys(filesOf(final)).sort(), Object.keys(filesOf(expected)).sort())
-      assert.deepEqual(exact(final), exact(expected))
+      const counts = DIFFERENT_COUNTS[id] ?? {}
+      assert.deepEqual(exact(final, counts), exact(expected, counts))
+      assert.deepEqual(countDifferences(final, expected), counts)
       assert.deepEqual(rangeDifferences(final, expected), DIFFERENT_RANGES[id] ?? {})
     })
   }
@@ -201,6 +271,8 @@ describe("provino jest under coverageProvider: 'v8' writes what Jest 30.5.2's v8
     const ran = await provinoOn('coverage/v8-providers-sample')
     const results = filesOf(await ran.json('.harness-out/jest.json'))
     const recorded = filesOf(ran.fixture.golden.observed?.json?.['.harness-out/jest.json'])
-    assert.deepEqual(exact(results.coverageMap), exact(recorded.coverageMap))
+    const counts = DIFFERENT_COUNTS['coverage/v8-providers-sample'] ?? {}
+    assert.deepEqual(exact(results.coverageMap, counts), exact(recorded.coverageMap, counts))
+    assert.deepEqual(countDifferences(results.coverageMap, recorded.coverageMap), counts)
   })
 })
