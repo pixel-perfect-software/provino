@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { SnapshotError } from '@provino/snapshot'
-import { HEADER, policy, put, snapText, stateIn, tempDir } from './test-support.ts'
+import { HEADER, jsonPrinter, policy, put, snapText, stateIn, tempDir } from './test-support.ts'
 
 const snapPath = (dir: string): string => join(dir, '__snapshots__', 'a.test.ts.snap')
 
@@ -376,6 +376,92 @@ describe('inline snapshots', () => {
     const state = stateIn(dir, { update: 'none' })
     state.match({ testName: 't', received: 1, isInline: true, inlineSnapshot: '1' })
     assert.deepEqual(state.getUncheckedKeys(), ['t 1'])
+  })
+})
+
+describe('inline snapshots with a writer (B23d B1)', () => {
+  const STACK =
+    'Error\n    at Object.<anonymous> (/src/a.test.ts:3:15)\n    at run (/x/node_modules/r.js:1:1)'
+
+  test('a missing one passes, counts as added and is reported at its frame, 0-based column', () => {
+    const dir = tempDir()
+    const state = stateIn(dir, { inlineWrites: true })
+    const result = state.match({ testName: 't', received: 1, isInline: true, stack: STACK })
+    assert.equal(result.pass, true)
+    const report = state.finish()
+    assert.equal(report.added, 1)
+    assert.deepEqual(report.inline, [
+      { file: '/src/a.test.ts', line: 3, column: 14, snapshot: '1' },
+    ])
+    // No `.snap` is written for an inline snapshot.
+    assert.equal(existsSync(snapPath(dir)), false)
+  })
+
+  test('the first frame outside node_modules is the call, and a file URL becomes a path', () => {
+    const dir = tempDir()
+    const state = stateIn(dir, { inlineWrites: true })
+    const stack =
+      'Error\n    at x (/p/node_modules/lib/index.js:9:9)\n    at file:///src/b.test.ts:7:2'
+    state.match({ testName: 't', received: 1, isInline: true, stack })
+    assert.deepEqual(state.finish().inline?.[0], {
+      file: '/src/b.test.ts',
+      line: 7,
+      column: 1,
+      snapshot: '1',
+    })
+  })
+
+  test('`all` over a differing one counts as updated; over a matching one, a match with no edit', () => {
+    const dir = tempDir()
+    const state = stateIn(dir, { inlineWrites: true, update: 'all' })
+    state.match({ testName: 't', received: 2, isInline: true, inlineSnapshot: '1', stack: STACK })
+    state.match({ testName: 't', received: 1, isInline: true, inlineSnapshot: '1', stack: STACK })
+    const report = state.finish()
+    assert.equal(report.updated, 1)
+    assert.equal(report.matched, 1)
+    assert.equal(report.inline?.length, 1)
+  })
+
+  test('under `none` nothing is recorded and the missing one fails', () => {
+    const dir = tempDir()
+    const state = stateIn(dir, { inlineWrites: true, update: 'none' })
+    const result = state.match({ testName: 't', received: 1, isInline: true, stack: STACK })
+    assert.equal(result.pass, false)
+    assert.equal(state.finish().inline, undefined)
+  })
+
+  test('a retried attempt takes back the edits it recorded', () => {
+    const dir = tempDir()
+    const state = stateIn(dir, { inlineWrites: true })
+    state.match({ testName: 't', testId: 'a', received: 1, isInline: true, stack: STACK })
+    state.clearTest('a')
+    state.match({ testName: 't', testId: 'a', received: 2, isInline: true, stack: STACK })
+    assert.deepEqual(
+      state.finish().inline?.map((edit) => edit.snapshot),
+      ['2'],
+    )
+  })
+
+  test('a stack with no frame is an error with a code', () => {
+    const dir = tempDir()
+    const state = stateIn(dir, { inlineWrites: true })
+    assert.throws(
+      () => state.match({ testName: 't', received: 1, isInline: true, stack: 'Error' }),
+      (error) => error instanceof SnapshotError && error.code === 'SNAPSHOT_NO_INLINE_FRAME',
+    )
+  })
+
+  test('a dialect that words that error throws its own, as it made it', () => {
+    const dir = tempDir()
+    const own = new RangeError('the dialect`s words')
+    const state = stateIn(dir, {
+      inlineWrites: true,
+      printer: { ...jsonPrinter, messages: { ...jsonPrinter.messages, noInlineFrame: () => own } },
+    })
+    assert.throws(
+      () => state.match({ testName: 't', received: 1, isInline: true, stack: 'Error' }),
+      (error) => error === own,
+    )
   })
 })
 

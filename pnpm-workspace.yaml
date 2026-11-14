@@ -29,6 +29,12 @@ catalog:
   # The hoist corpus runs Jest's real plugin through Babel (T3.4); the recorder's `jestEsm`
   # fixtures add Babel's CJS output, which a real ESM-syntax Jest project has in some form.
   "@babel/core": 7.29.7
+  # Inline snapshots under the Jest dialect (B23d B1, D122): the writer reprints the call as
+  # jest-snapshot 30.5.2 does, with the versions `.refs/jest`'s lockfile resolves for it. Runtime
+  # dependencies of `@provino/dialect-jest` and `provino`, loaded only when a snapshot is written.
+  "@babel/generator": 7.29.8
+  "@babel/plugin-syntax-jsx": 7.29.7
+  "@babel/plugin-syntax-typescript": 7.29.7
   "@babel/plugin-transform-modules-commonjs": 7.29.7
   # The hoist corpus runs Jest's JSX case as upstream's test does.
   "@babel/preset-react": 7.29.7
@@ -93,6 +99,8 @@ catalog:
   babel-plugin-istanbul: 8.0.0
   # The hoist corpus's Jest reference: the plugin babel-jest runs (T3.4).
   babel-plugin-jest-hoist: 30.5.0
+  # The preset jest-snapshot 30.5.2 parses a test file with before writing an inline snapshot (D122).
+  babel-preset-current-node-syntax: 1.2.0
   # date-fns, lodash and zod: libraries the generated bench suites import (Track 12 R5).
   date-fns: 4.4.0
   dependency-cruiser: 18.7.2
@@ -163,6 +171,9 @@ catalog:
   # `globsToMatcher` does (DECISIONS D26): a runtime dependency of `@provino/orchestrator`.
   picomatch: 4.0.7
   pretty-format: 30.5.1
+  # Inline snapshots under the Jest dialect (B23d B1, D113): Jest formats the edit with the
+  # project's own Prettier 3 when it finds one. Recording and tests only, never a runtime dependency.
+  prettier: 3.9.8
   # Jest's shuffle (D112): jest-circus 30.5.2's own xoroshiro128+ and uniform int distribution, so a seed gives Jest's order.
   pure-rand: 7.0.1
   # T1.6: package.json `exports` and file-layout lint, run on every `pnpm pack`.

@@ -1,0 +1,25 @@
+{
+  "description": "One inline snapshot call reached twice (B23d B1, T7.11): Jest 30.5.2 throws \"Multiple inline snapshots for the same call are not supported.\" when it saves, with two values and also with the same value twice (the argument is still empty the second time, so a second snapshot is recorded), each file fails to run, its tests are not reported, and the source is left as it was. One worker. `prettierPath: null`.",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "prettierPath": null,
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": [
+      "exitCode",
+      "file:inline-same-call-twice.test.ts",
+      "file:same-value.test.ts",
+      "stderr"
+    ],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]"
+  }
+}

@@ -1,8 +1,13 @@
 {
-  "description": "An inline snapshot with nothing written in it, in a local run: both runners write it into the test file, so the source says where the snapshot goes and how it is indented. Jest formats the edit with Prettier when it can find it.",
+  "description": "An inline snapshot with nothing written in it, in a local run: both runners write it into the test file, so the source says where the snapshot goes and how it is indented. Jest formats the edit with Prettier when it can find it. Jest records it with `prettierPath: null` (B23d B1): Prettier is installed in the workspace now, and the golden is the unformatted write.",
   "runners": ["jest", "vitest"],
   "env": {
     "CI": ""
+  },
+  "config": {
+    "jest": {
+      "prettierPath": null
+    }
   },
   "run": {
     "argv": {

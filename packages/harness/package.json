@@ -44,6 +44,7 @@
     "@babel/core": "catalog:",
     "@babel/plugin-transform-modules-commonjs": "catalog:",
     "@babel/preset-react": "catalog:",
+    "@babel/preset-typescript": "catalog:",
     "@jest/globals": "catalog:",
     "@jest/test-result": "catalog:",
     "@provino/config": "workspace:*",
@@ -74,6 +75,7 @@
     "jest-config": "catalog:",
     "jest-serializer-vue": "catalog:",
     "oxc-parser": "catalog:",
+    "prettier": "catalog:",
     "provino": "workspace:*",
     "vitest": "catalog:"
   }

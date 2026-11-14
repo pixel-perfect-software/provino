@@ -1086,6 +1086,7 @@ export interface FileResult {
     readonly errors: readonly SerializedError[];
     // (undocumented)
     readonly file: FileInfo;
+    readonly resultsDiscarded?: true;
     readonly snapshot?: SnapshotFileReport;
     // (undocumented)
     readonly state: "pass" | "fail" | "skip";
@@ -1252,6 +1253,27 @@ export interface ImportRecord {
 
 // @public
 export type Inject = <K extends keyof ProvidedContext>(key: K) => ProvidedContext[K];
+
+// @public
+export interface InlineSnapshotEdit {
+    readonly column: number;
+    readonly file: string;
+    readonly line: number;
+    readonly snapshot: string;
+}
+
+// @public
+export interface InlineSnapshotWriteOptions {
+    readonly prettierPath: string | null;
+    // (undocumented)
+    readonly rootDir: string;
+}
+
+// @public
+export type InlineSnapshotWriter = (edits: readonly InlineSnapshotEdit[], options: InlineSnapshotWriteOptions) => Promise<readonly string[]>;
+
+// @public
+export type InlineSnapshotWriterFactory = () => InlineSnapshotWriter;
 
 // @public
 export interface InvertibleAsymmetric {
@@ -2183,6 +2205,7 @@ export interface NeutralProject {
     readonly seed?: number;
     readonly setupFiles: readonly string[];
     readonly setupFilesAfterEnv: readonly string[];
+    readonly snapshotResolver?: string;
     readonly snapshotSerializers: readonly string[];
     readonly transformConfig?: Readonly<Record<string, JsonValue>>;
     readonly transformHoistedMarkers?: readonly string[];
@@ -3037,6 +3060,7 @@ export interface SerializedProjectConfig {
     readonly seed: number;
     readonly setupFiles: readonly string[];
     readonly setupFilesAfterEnv: readonly string[];
+    readonly snapshotResolver?: string;
 }
 
 // @public
@@ -3096,6 +3120,7 @@ export interface SnapshotFileReport {
     readonly added: number;
     readonly file: string | null;
     readonly fileDeleted: boolean;
+    readonly inline?: readonly InlineSnapshotEdit[];
     // (undocumented)
     readonly matched: number;
     readonly unchecked: number;
@@ -3137,6 +3162,7 @@ export interface SnapshotMessageInfo {
 // @public
 export interface SnapshotMessages {
     mismatch(info: SnapshotMessageInfo): string;
+    noInlineFrame?(): Error;
     notWritten(info: SnapshotMessageInfo): string;
     propertiesMismatch(info: SnapshotMessageInfo): string;
 }
@@ -3160,6 +3186,8 @@ export interface SnapshotPolicy {
     readonly inline: {
         readonly indent: "column0" | "call";
         readonly formatter: "prettier" | "none";
+        readonly writer: Behaviour<InlineSnapshotWriterFactory> | null;
+        readonly prettierPath: string | null;
     };
     readonly key: Behaviour<SnapshotKey>;
     readonly keyJoin: string;
@@ -3167,8 +3195,10 @@ export interface SnapshotPolicy {
         readonly failLocal: boolean;
         readonly failCI: boolean;
     };
+    readonly obsoleteFiles: "report" | "ignore";
     readonly printer: Behaviour<SnapshotPrinterFactory> | null;
     readonly resolvePath: Behaviour<ResolveSnapshotPath> | null;
+    readonly resolverFactory: Behaviour<SnapshotResolverFactory> | null;
     readonly serializers: readonly string[];
     readonly throwErrorBody: "message" | "error";
     readonly updateEnvVar: string | null;
@@ -3185,10 +3215,24 @@ export interface SnapshotPrinter {
 export type SnapshotPrinterFactory = () => SnapshotPrinter;
 
 // @public
+export interface SnapshotResolver {
+    // (undocumented)
+    resolveSnapshotPath(testPath: string): string;
+    // (undocumented)
+    resolveTestPath(snapshotPath: string): string;
+    // (undocumented)
+    readonly testPathForConsistencyCheck: string;
+}
+
+// @public
+export type SnapshotResolverFactory = (exports: unknown, extension: string) => SnapshotResolver;
+
+// @public
 export interface SnapshotRunSummary {
     // (undocumented)
     readonly counters: SnapshotCounters;
     readonly files: readonly string[];
+    readonly filesRemovedList?: readonly string[];
     // (undocumented)
     readonly uncheckedKeysByFile: readonly {
         readonly file: string;

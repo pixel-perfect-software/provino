@@ -1,0 +1,19 @@
+{
+  "description": "Inline snapshots with property matchers (B23d B1, T7.11), where Babel's reprint of the call shows: the snapshot is appended after the properties object, an object spread over several lines, and a call over several lines with a comment in it. Jest 30.5.2, `prettierPath: null`.",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "prettierPath": null
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:inline-property-matchers.test.ts", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]"
+  }
+}

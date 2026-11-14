@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/inline-ci",
+  "files": [
+    {
+      "file": "inline-ci.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "inline-ci.test.ts",
+            "path": [
+              "missing"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toMatchInlineSnapshot()\n\nSnapshot name: `missing 1`\n\nNew snapshot was not written. The update flag must be explicitly passed to write a new snapshot.\n\nThis is likely because this test is run in a continuous integration (CI) environment in which snapshots are not written by default.\n\nReceived:\n{\n  \"a\": 1,\n}",
+              "matcher": "toMatchInlineSnapshot",
+              "userFrame": "<root>/inline-ci.test.ts:2:20"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "inline-ci.test.ts",
+            "path": [
+              "differs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toMatchInlineSnapshot(snapshot)\n\nSnapshot name: `differs 1`\n\nSnapshot: \"old\"\nReceived: \"new\"",
+              "matcher": "toMatchInlineSnapshot",
+              "userFrame": "<root>/inline-ci.test.ts:6:17"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "inline-ci.test.ts",
+            "path": [
+              "matches"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 9,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 1,
+      "unmatched": 2,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 3,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 1,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./inline-ci.test.ts\n  ● missing\n    Snapshot name: `missing 1`\n    New snapshot was not written. The update flag must be explicitly passed to write a new snapshot.\n    This is likely because this test is run in a continuous integration (CI) environment in which snapshots are not written by default.\n    Received:\n  ● differs\n    Snapshot name: `differs 1`\n    Snapshot: \"old\"\n    Received: \"new\"\n › 2 snapshots failed.\n › 2 snapshots failed from 1 test suite. Inspect your code changes or re-run jest with `-u` to update them.\nTest Suites: 1 failed, 1 total\nTests:       2 failed, 1 passed, 3 total\nSnapshots:   2 failed, 1 passed, 3 total",
+    "files": {
+      "inline-ci.test.ts": "test('missing', () => {\n  expect({ a: 1 }).toMatchInlineSnapshot()\n})\n\ntest('differs', () => {\n  expect('new').toMatchInlineSnapshot(`\"old\"`)\n})\n\ntest('matches', () => {\n  expect('same').toMatchInlineSnapshot(`\"same\"`)\n})\n"
+    }
+  }
+}

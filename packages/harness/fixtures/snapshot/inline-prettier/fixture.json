@@ -1,0 +1,19 @@
+{
+  "description": "Inline snapshots formatted with the project's Prettier 3 (B23d B1, T7.11): `.prettierrc` has `semi: false`, so after the write the whole file is Prettier's (double quotes, no semicolons) and each multi-line snapshot is indented to its call, an `await` parent's column for `.resolves`. Jest 30.5.2 with its default `prettierPath`, which finds the Prettier 3.9.8 the recorder's work directory can resolve.",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "files": {
+    "jest": {
+      ".prettierrc": "{\n  \"semi\": false\n}\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:inline-prettier.test.ts", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "description": "A `snapshotResolver` without `testPathForConsistencyCheck` (B23d B1): Jest 30.5.2 fails every test file with \"Custom snapshot resolver must implement a `testPathForConsistencyCheck` as a string.\"",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "snapshotResolver": "<rootDir>/resolver.ts"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^ +Custom |^ +Documentation"
+  }
+}

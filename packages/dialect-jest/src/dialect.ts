@@ -30,10 +30,12 @@ import type {
   FormatValue,
   GlobalSetupFailure,
   GlobalsFactory,
+  InlineSnapshotWriterFactory,
   ModuleScopeFactory,
   PolicyOverrides,
   ShuffleFactory,
   SnapshotPrinterFactory,
+  SnapshotResolverFactory,
 } from '@provino/types'
 import { jestExpectPolicy } from './expect-policy.ts'
 import { jestHoistPolicy } from './hoist-policy.ts'
@@ -277,14 +279,34 @@ export const jestPolicy: PolicyOverrides = {
     format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
     // research: track-07 L472 (track-01 L220 says `report` for both; Track 7's detail is used)
     obsolete: { failLocal: true, failCI: true },
+    // Provino's own key (B23d B1, DV96): Jest's `cleanup` after the run
+    // (`cli/report-snapshot-obsolete-file`).
+    obsoleteFiles: 'report',
     // research: track-01 L220, track-07 L473
     ciUpdate: 'none',
     // research: track-07 L473 (only Vitest has `UPDATE_SNAPSHOT`)
     updateEnvVar: null,
     // research: track-07 L470
     throwErrorBody: 'message',
-    // research: track-07 L471
-    inline: { indent: 'column0', formatter: 'prettier' },
+    inline: {
+      // research: track-07 L471
+      indent: 'column0',
+      // research: track-07 L471
+      formatter: 'prettier',
+      // Provino's own key (B23d B1, D113, D122): jest-snapshot 30.5.2's writer, rebuilt, loaded in
+      // the coordinator only when a run writes an inline snapshot.
+      writer: moduleRef<InlineSnapshotWriterFactory>(
+        import.meta.resolve('@provino/dialect-jest/inline-snapshots'),
+        'jestInlineSnapshotWriter',
+      ),
+      // Provino's own key: project data, filled by the config reader from `prettierPath`.
+      prettierPath: null,
+    },
+    // Provino's own key (B23d B1): jest-snapshot 30.5.2's `SnapshotResolver.ts`, rebuilt.
+    resolverFactory: moduleRef<SnapshotResolverFactory>(
+      import.meta.resolve('@provino/dialect-jest/runtime'),
+      'jestSnapshotResolver',
+    ),
     // Provino's own key (T7.10): Jest's `pretty-format` 30.5 with its plugin order, and its words.
     // Resolved here, so the worker's loader finds it from any package.
     printer: moduleRef<SnapshotPrinterFactory>(

@@ -1,0 +1,25 @@
+{
+  "description": "An obsolete snapshot file under `-u` (B23d B1, DV96): Jest 30.5.2 deletes `__snapshots__/gone.test.ts.snap`, reports it removed and the run passes. One worker.",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/kept.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`kept 1`] = `1`;\n",
+      "__snapshots__/gone.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`gone 1`] = `1`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false", "-u"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/gone.test.ts.snap", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^Snapshot Summary$"
+  }
+}

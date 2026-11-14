@@ -7,6 +7,7 @@ import type { SerializedProjectConfig } from './config.ts'
 import type { CoverageSummary } from './coverage.ts'
 import type { IsolationTier } from './isolation.ts'
 import type { PoolKind } from './policy/orchestrator.ts'
+import type { InlineSnapshotEdit } from './policy/snapshot.ts'
 import type { SnapshotCounters } from './result.ts'
 import type { RuntimeEvent, RuntimeEventOf } from './runtime/events.ts'
 import type { FileTask, SerializedError, SuiteTask, TaskId, TestTask } from './runtime/tree.ts'
@@ -505,6 +506,12 @@ export interface FileResult {
   readonly durationMs: number
   /** Set when the worker died owning this file. */
   readonly workerExit?: WorkerExit
+  /**
+   * The file's tests ran, and what came after them failed it whole (its inline snapshots could not
+   * be written): a reader that follows Jest counts none of its tests, as `TestScheduler`'s
+   * `onFailure` does for an error that escapes `runTest`.
+   */
+  readonly resultsDiscarded?: true
   readonly errors: readonly SerializedError[]
   /**
    * What the file's snapshot state ended with (the worker's `fileDone.snapshot`); absent when the
@@ -539,6 +546,11 @@ export interface SnapshotFileReport {
   readonly uncheckedKeys: readonly string[]
   /** The `.snap` file was deleted: it held no snapshot after the run. */
   readonly fileDeleted: boolean
+  /**
+   * The inline snapshots to write into the source, for the coordinator's writer (D113); absent
+   * when there are none. Each source file is written once, after the test file ends.
+   */
+  readonly inline?: readonly InlineSnapshotEdit[]
 }
 
 /**
@@ -556,6 +568,11 @@ export interface SnapshotRunSummary {
   readonly update: 'all' | 'new' | 'none'
   /** Every `.snap` file a file of the run left on disk, absolute. */
   readonly files: readonly string[]
+  /**
+   * The snapshot files no test file has (Jest's `cleanup`), absolute, sorted: counted in
+   * `counters.filesRemoved`, and deleted under `all`. Absent when there are none.
+   */
+  readonly filesRemovedList?: readonly string[]
 }
 
 /**

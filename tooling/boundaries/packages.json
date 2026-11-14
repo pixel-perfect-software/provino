@@ -380,6 +380,14 @@
       "slices": "all",
       "note": "T9.15: how a Jest global hook's failure is reported, loaded by the coordinator through a behaviour ref. A leaf of its own so the coordinator never imports ./runtime (about 57 ms before the first worker)."
     },
+    "@provino/dialect-jest/inline-snapshots": {
+      "dir": "packages/dialect-jest/src/inline-snapshots",
+      "layer": 5,
+      "runsIn": "coordinator",
+      "deps": ["@provino/types"],
+      "slices": "all",
+      "note": "B23d B1, D113, D122: Jest's inline snapshot writer, loaded by the coordinator through `snapshot.inline.writer` only when a run writes an inline snapshot. Babel (the project's, else this package's) and the project's Prettier load inside it, on that first write."
+    },
     "@provino/dialect-jest/runtime": {
       "dir": "packages/dialect-jest/src/runtime",
       "layer": 5,

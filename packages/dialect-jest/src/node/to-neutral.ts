@@ -5,7 +5,8 @@
 // apply yet warn, naming the task that builds them (gap 9 of `bundles/B14.md`: nothing is ignored
 // silently).
 
-import { delimiter, resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { delimiter, isAbsolute, join, resolve } from 'node:path'
 import type {
   Diagnostic,
   JsonValue,
@@ -19,6 +20,26 @@ import { jestCoverageFilter } from './coverage.ts'
 import { jestHookArgs, jestRunGlobalHooks, list } from './global-hooks.ts'
 import { type JestRequireResolve, projectJestRequireResolve } from './resolution.ts'
 import type { JestGlobalConfig, JestProjectConfig } from './types.ts'
+
+/**
+ * Where the project's Prettier is, for the inline snapshot writer (B23d B1): `prettierPath` as the
+ * config gave it, an absolute path when jest-config resolved it. The default (`prettier`) stays a
+ * name that jest-snapshot resolves from Jest's own install (`require.resolve` in
+ * `InlineSnapshots.ts` L56): here from the project's root first, then from Jest's install; `null`
+ * when neither has it, which Jest's `MODULE_NOT_FOUND` catch makes "no formatting" too.
+ */
+function prettierPathOf(
+  project: JestProjectConfig,
+  requireResolve: JestRequireResolve | undefined,
+): string | null {
+  const { prettierPath } = project
+  if (prettierPath === null || isAbsolute(prettierPath)) return prettierPath
+  try {
+    return createRequire(join(project.rootDir, 'package.json')).resolve(prettierPath)
+  } catch {
+    return (requireResolve ?? projectJestRequireResolve(project.rootDir))(prettierPath) ?? null
+  }
+}
 
 /** The default transform `normalize` injects: `babel-jest` for `\.[jt]sx?$`. */
 const DEFAULT_JS_PATTERN = '\\.[jt]sx?$'
@@ -148,14 +169,6 @@ export function jestProjectToNeutral(
   // adapter (`jestEnvironment`), so the DOM is the one Jest would build.
   const isNode = neutralEnvironmentName(project.testEnvironment) === 'node'
   const environment = isNode ? 'node' : project.testEnvironment
-  if (project.snapshotResolver !== undefined) {
-    notApplied(
-      diagnostics,
-      'snapshotResolver',
-      'a later bundle',
-      '; snapshots stay beside the test file',
-    )
-  }
   // `--coverage` (or the key): the files that count, as `shouldInstrument` decides (B23b). A
   // `--collectTests` run executes nothing, so it collects nothing. Jest's v8 provider is T8.12's.
   const collects = globalConfig.collectCoverage && !globalConfig.collectTests
@@ -247,6 +260,9 @@ export function jestProjectToNeutral(
     },
     snapshot: {
       serializers: [...project.snapshotSerializers],
+      // `prettierPath` as jest-config resolved it (a path, or `null`: Jest's default is optional,
+      // so a project without Prettier has none), for the inline snapshot writer (B23d B1).
+      inline: { prettierPath: prettierPathOf(project, options.requireResolve) },
       format: {
         ...(typeof escapeString === 'boolean' ? { escapeString } : {}),
         ...(typeof printBasicPrototype === 'boolean' ? { printBasicPrototype } : {}),
@@ -348,6 +364,9 @@ export function jestProjectToNeutral(
           transformHoistedMarkers: ['_getJestObj'],
         }),
     snapshotSerializers: [...project.snapshotSerializers],
+    ...(project.snapshotResolver === undefined
+      ? {}
+      : { snapshotResolver: project.snapshotResolver }),
     // Jest's `/tmp/jest_*` default is not Provino's to use (D70); a directory the config chose is.
     ...(options.cacheDirectorySet === true ? { cacheDirectory: project.cacheDirectory } : {}),
     policy,

@@ -1,0 +1,31 @@
+{
+  "description": "A custom `snapshotResolver` (B23d B1): Jest 30.5.2 loads it through the project's transform, writes the new snapshot where it says (`__snaps__/<file>.snap`), reads the stored one from there, and through its `resolveTestPath` reports `__snaps__/gone.test.ts.snap`, whose test file is not there, as an obsolete file (the run fails; without `-u` the file stays). One worker.",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "snapshotResolver": "<rootDir>/resolver.ts",
+      "maxWorkers": 1
+    }
+  },
+  "files": {
+    "jest": {
+      "__snaps__/stored.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`read from where the resolver says 1`] = `\"stored\"`;\n",
+      "__snaps__/gone.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`orphan 1`] = `1`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": [
+      "exitCode",
+      "file:__snaps__/written.test.ts.snap",
+      "file:__snaps__/gone.test.ts.snap",
+      "stderr"
+    ],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^Snapshot Summary$"
+  }
+}

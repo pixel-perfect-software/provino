@@ -137,7 +137,9 @@ export const vitestPolicy: PolicyOverrides = {
     ciUpdate: 'none',
     updateEnvVar: 'UPDATE_SNAPSHOT',
     throwErrorBody: 'error',
-    inline: { indent: 'call', formatter: 'none' },
+    inline: { indent: 'call', formatter: 'none', writer: null, prettierPath: null },
+    // Provino's own key (B23d B1): Vitest's `resolveSnapshotPath` is T11.16's.
+    resolverFactory: null,
     // Provino's own key (T7.10): `@vitest/pretty-format` 5.0, vendored, and its words.
     printer: moduleRef<SnapshotPrinterFactory>(
       import.meta.resolve('@provino/dialect-vitest/runtime'),

@@ -272,6 +272,13 @@ test('the keys the dialect leaves to the neutral policy are the ones listed in d
   )
 })
 
+test('the inline snapshot writer ref loads (B23d B1)', async () => {
+  const ref = resolvePolicy(jestPolicy).snapshot.inline.writer
+  assert.ok(ref !== null && typeof ref !== 'function')
+  const factory = await createBehaviourLoader().load(ref)
+  assert.equal(typeof factory(), 'function')
+})
+
 test('Jest’s changed-file and affected-test keys are refs into the coordinator leaf, with Jest’s selection rules (B23c)', async () => {
   const leaf = import.meta.resolve('@provino/dialect-jest/affected')
   const { orchestrator } = resolved
