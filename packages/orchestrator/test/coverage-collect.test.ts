@@ -6,7 +6,7 @@ import { mkdtempSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { describe, it } from 'node:test'
-import { createRawCoverageStore } from '@provino/orchestrator'
+import { loadCoverageStore } from '@provino/orchestrator'
 import type {
   IstanbulFileCoverageData,
   RawCoverage,
@@ -61,6 +61,8 @@ function coverageOf(
     ...extra,
   }
 }
+
+const { createRawCoverageStore } = await loadCoverageStore()
 
 /** What the coordinator's store makes of a run's `coverage` events (every event is worker 1's). */
 function collect(events: readonly WorkerEvent[]): readonly RawCoverage[] {

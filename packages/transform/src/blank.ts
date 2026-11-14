@@ -465,9 +465,10 @@ function blankProgram(source: string, program: Program, options: BlankOptions): 
       }
       case 'ObjectPattern':
       case 'ArrayPattern':
-        // `function f([a]?: T) {}`: the `?` goes with the annotation, as an identifier's does.
-        if (node.optional === true) {
-          const annotation = node.typeAnnotation
+        // `function f([a]?: T) {}`: the `?` goes with the annotation, as an identifier's does. Oxc's
+        // types say a pattern is never optional; its parser sets the flag on a parameter's.
+        if ((node as { readonly optional?: boolean }).optional === true) {
+          const annotation = (node as { readonly typeAnnotation?: Span | null }).typeAnnotation
           blankLastMarker(node.start, annotation?.start ?? node.end, '?')
         }
         visitChildren(node)
