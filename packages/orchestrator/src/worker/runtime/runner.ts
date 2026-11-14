@@ -895,10 +895,14 @@ export function createRuntimeRunner(): WorkerRunner {
         openSnapshots = snapshots
         Object.assign(worker.source.file(), { snapshotState: snapshots.state })
         // The coordinator's id for the file (D23), so every event carries the id it expects.
+        // An environment that listens (Jest's `handleTestEvent`) gets the file's lifecycle events.
+        const environment = set.instance
+        const listens = environment.onTestEvent !== undefined
         await fileScope.run(thisFile, () =>
           worker.runtime.runFile(job.file, {
             fileId: job.fileId,
             ...filtersOf(job, worker.shuffleSeed),
+            ...(listens ? { lifecycle: (event) => environment.onTestEvent?.(event) } : {}),
           }),
         )
         // A collect-only file ran no test: `finish` would save the file and report every stored

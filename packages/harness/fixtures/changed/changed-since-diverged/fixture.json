@@ -1,0 +1,43 @@
+{
+  "description": "--changedSince=main after main moved on: the diff is `main...HEAD` (from the merge base), so a change committed on main afterwards is not changed on the branch. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "branch": "feature"
+      },
+      {
+        "write": {
+          "src/foo.ts": "module.exports = { foo: 2 }\n"
+        }
+      },
+      {
+        "commit": "change foo on feature"
+      },
+      {
+        "checkout": "main"
+      },
+      {
+        "write": {
+          "src/bar.ts": "module.exports = { bar: 3 }\n"
+        }
+      },
+      {
+        "commit": "change bar on main"
+      },
+      {
+        "checkout": "feature"
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--changedSince=main"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

@@ -32,6 +32,9 @@ import type {
   WorkerExit,
   WorkerKey,
 } from '@provino/types'
+import { affectedCachePaths } from './affected/index.ts'
+import { openRecordedGraph, type RecordedGraph } from './affected/recorded.ts'
+import { keepFailed, selectAffected } from './affected/select.ts'
 import { cacheDirectories, createResultsCache, type ResultsCache } from './cache.ts'
 import type { RunCoverageHooks } from './coverage.ts'
 import { createDepsTable, type DepsTable } from './deps-table.ts'
@@ -150,14 +153,14 @@ export interface RunProjectOptions {
   /**
    * Run only the tests this selection reaches (`--findRelatedTests`, `-o`), per project after
    * discovery. When set, `fileFilters` are not applied: Jest ignores path patterns in related
-   * mode. Read from B23c Phase 4 on; until then a run that sets it rejects with
-   * `ORCH_NOT_IMPLEMENTED`.
+   * mode. A project's own affected index decides (`@provino/orchestrator`'s `createAffectedIndex`).
    */
   readonly selection?: AffectedSelection
   /**
    * Keep only the files that failed (`--onlyFailures`), after the sort: `'history'` takes them
-   * from the results cache, or a set of absolute paths names them. Read from B23c Phase 4 on; until
-   * then a run that sets it rejects with `ORCH_NOT_IMPLEMENTED`.
+   * from the results cache (`FileHistory.failed`; a run with no cache is `ORCH_BAD_OPTION`), or a set
+   * of absolute paths names them. It is applied after the shard, and the results cache is still
+   * pruned against every discovered file, so the history of the files left out stays.
    */
   readonly onlyFailures?: 'history' | ReadonlySet<string>
   /** Where an exact-path filter that is relative starts. Default: this process's directory. */
@@ -444,12 +447,6 @@ export async function runProjects(
   projects: readonly ResolvedProject[],
   options: RunProjectOptions,
 ): Promise<RunSummary> {
-  if (options.selection !== undefined || options.onlyFailures !== undefined) {
-    throw new OrchestratorError(
-      'ORCH_NOT_IMPLEMENTED',
-      'the selection and onlyFailures options are not supported yet (B23c Phase 4)',
-    )
-  }
   const { bus, signal } = options
   const [first] = projects
   if (first === undefined) {
@@ -676,6 +673,16 @@ export async function runProjects(
     }
   }
 
+  /** Per project, the modules its test files loaded (`affected.graph: 'recorded-then-static'`). */
+  let recorded: ReadonlyMap<Member, RecordedGraph> = new Map()
+  /** A run whose files run only some of their tests (`-t`) or none (`--collectTests`). */
+  const partialRun =
+    options.collectOnly === true ||
+    (options.testNamePattern !== undefined && options.testNamePattern !== '')
+  /** Where a project keeps its affected-test caches: none under `--no-cache`. */
+  const affectedCacheDir = (member: Member): string | null =>
+    options.cache === false ? null : cacheDirectories(member.project).results
+
   /** The result of each queued file that has one. */
   const results = new Map<QueuedFile, FileResult>()
   /** The time of each file that ran to its end, by the path the timings file knows it by (`--update-timings`). */
@@ -766,6 +773,8 @@ export async function runProjects(
         : { testNamePattern: options.testNamePattern }),
     }
     let takenAt: number | undefined
+    /** When a worker took the file, on the wall clock: what its recorded graph is stamped with. */
+    let takenAtWall: number | undefined
     const ended = Promise.withResolvers<void>()
     try {
       const outcome = await pool.run({
@@ -774,6 +783,7 @@ export async function runProjects(
         onStart: async (workerId) => {
           takenBy = workerId
           takenAt = performance.now()
+          takenAtWall = Date.now()
           lastFile.set(workerId, { info: entry.info, ended: ended.promise })
           await bus.emit('file:start', entry.info, workerId)
         },
@@ -820,6 +830,19 @@ export async function runProjects(
           at: Date.now(),
         })
       }
+      // A record is the file's whole closure only when every test ran: a test `-t`, `.only` or
+      // `.skip` left out may load what the others don't, and an older, whole record is kept. It is
+      // stamped with the time the file was taken, so a save while it ran makes it stale.
+      if (
+        outcome.type === 'done' &&
+        dispatch.deps !== undefined &&
+        result.state !== 'skip' &&
+        !partialRun &&
+        dispatch.skipped === 0 &&
+        takenAtWall !== undefined
+      ) {
+        recorded.get(member)?.record(entry.file.path, dispatch.deps, takenAtWall)
+      }
       results.set(entry, result)
       // A time is a measurement only when the file ran to its end: a crash, a kill and a failed
       // start say nothing about how long it takes.
@@ -835,7 +858,10 @@ export async function runProjects(
     if (options.collectOnly === true) return
     try {
       const written = new Set(members.flatMap((member) => member.cache ?? []))
-      await Promise.all([...written].map((cache) => cache.write()))
+      await Promise.all([
+        ...[...written].map((cache) => cache.write()),
+        ...[...recorded.values()].map((graph) => graph.save()),
+      ])
     } catch (error) {
       // A read-only directory must not fail a run that passed.
       stderr.write(`Provino: could not write the results cache: ${messageOf(error)}\n`)
@@ -884,13 +910,38 @@ export async function runProjects(
     // A shard cuts by the timings file, so a file that is there and wrong stops the run: shards that
     // read it differently would drop test files between them.
     const timings = shard === undefined ? undefined : await readTimings(timingsFile)
+    // What each test file loaded, for the projects whose policy selects by it (the neutral one).
+    const recordedGraphs = new Map<Member, RecordedGraph>()
+    for (const member of members) {
+      const cacheDir = affectedCacheDir(member)
+      if (
+        cacheDir !== null &&
+        member.project.policy.orchestrator.affected.graph === 'recorded-then-static'
+      ) {
+        recordedGraphs.set(
+          member,
+          await openRecordedGraph(affectedCachePaths(cacheDir, member.cacheProject).deps),
+        )
+      }
+    }
+    recorded = recordedGraphs
     const everyFile = await Promise.all(
       members.map(async (member) => {
         const everything = await discoverProject(member.project)
-        const discovered = selectFiles(everything, options.fileFilters ?? [], {
-          rootDir: member.project.rootDir,
-          cwd,
-        })
+        // A selection takes the place of the file filters (Jest ignores path patterns in related mode).
+        const discovered =
+          options.selection === undefined
+            ? selectFiles(everything, options.fileFilters ?? [], {
+                rootDir: member.project.rootDir,
+                cwd,
+              })
+            : await selectAffected(
+                member,
+                everything,
+                options.selection,
+                affectedCacheDir(member),
+                recordedGraphs.get(member),
+              )
         return { member, everything, discovered }
       }),
     )
@@ -905,10 +956,23 @@ export async function runProjects(
             })),
             { shard, fallback: orchestrator.shard.fallback, runRoot, timings },
           )
-    const found = everyFile.map((entry, index) => ({
-      ...entry,
-      discovered: shards?.[index] ?? entry.discovered,
-    }))
+    // `onlyFailures` comes after the shard and the sort in Jest; as a filter it commutes with the sort.
+    const found = everyFile.map((entry, index) => {
+      const sharded = shards?.[index] ?? entry.discovered
+      return {
+        ...entry,
+        discovered:
+          options.onlyFailures === undefined
+            ? sharded
+            : keepFailed(entry.member, sharded, options.onlyFailures),
+      }
+    })
+    for (const [member, graph] of recordedGraphs) {
+      const everything = everyFile.find((entry) => entry.member === member)?.everything ?? []
+      graph.prune(
+        new Set(everything.map((file) => join(member.project.rootDir, file.relativePath))),
+      )
+    }
     // Each file's worker key: its project's at the tier its docblock or history asks for (T2.11).
     const keys = await Promise.all(
       found.map(({ member, discovered }) =>

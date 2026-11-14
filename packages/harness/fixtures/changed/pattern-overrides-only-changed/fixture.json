@@ -1,0 +1,23 @@
+{
+  "description": "-o with a test path pattern runs what the pattern matches and ignores the changes (normalize.ts: onlyChanged follows `watch` when a pattern is set). Only bar.ts changed, and the pattern `foo` lists foo.test.ts. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "src/bar.ts": "module.exports = { bar: 3 }\n"
+        }
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "-o", "foo"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

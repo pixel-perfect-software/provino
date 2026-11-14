@@ -1,0 +1,39 @@
+{
+  "description": "--changedFilesWithAncestor is the working-tree changes plus the last commit (`HEAD^` as the base): a committed change to one source and an uncommitted change to another both select their tests, and a change from two commits back does not. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "other.test.ts": "test('other', () => {\n  expect(2).toBe(2)\n})\n"
+        }
+      },
+      {
+        "commit": "change other"
+      },
+      {
+        "write": {
+          "src/foo.ts": "module.exports = { foo: 2 }\n"
+        }
+      },
+      {
+        "commit": "change foo"
+      },
+      {
+        "write": {
+          "src/bar.ts": "module.exports = { bar: 3 }\n"
+        }
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--changedFilesWithAncestor"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

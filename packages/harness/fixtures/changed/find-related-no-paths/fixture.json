@@ -1,0 +1,11 @@
+{
+  "description": "--findRelatedTests with no file paths is refused by the command line check (jest-cli args.ts) and exits 1. Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--findRelatedTests"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(The --findRelatedTests|Example usage)"
+  }
+}

@@ -1,4 +1,12 @@
 export {
+  type AffectedEvent,
+  type AffectedIndex,
+  type AffectedIndexOptions,
+  affectedCachePaths,
+  createAffectedIndex,
+} from './affected/index.ts'
+export { openRecordedGraph, type RecordedGraph } from './affected/recorded.ts'
+export {
   cacheDirectories,
   createResultsCache,
   defaultCacheDir,

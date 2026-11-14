@@ -223,6 +223,9 @@ export const neutralPolicy: Policy = deepFreeze({
       invalidateAll: 'project-inputs',
       // Ours: a fresh record of a file's loaded modules beats a rescan (speed: fewer files run).
       graph: 'recorded-then-static',
+      // Ours: an edge resolves as the project's workers load the file, with its environment's
+      // export conditions (correctness: the selection follows what runs).
+      conditions: 'environment',
     },
     globMatchesOn: 'root-relative-path',
     // Ours: a file where nothing ran is skipped.

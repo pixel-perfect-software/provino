@@ -21,6 +21,7 @@ import type {
   Pragmas,
 } from '@provino/types'
 import { projectJestRequireResolve } from '../jest-require.ts'
+import { type CircusConfig, createCircusMirror, type HandleTestEvent } from './circus-mirror.ts'
 
 /**
  * What the adapter is given (JSON, so it crosses to a worker): where the class is and the parts of
@@ -33,6 +34,8 @@ export interface JestEnvironmentOptions {
   readonly module: string
   /** What Jest's `projectConfig` holds that an environment reads. */
   readonly projectConfig: { readonly [key: string]: JsonValue }
+  /** What Jest's `globalConfig` holds that an environment or its `handleTestEvent` state reads. */
+  readonly globalConfig?: { readonly [key: string]: JsonValue }
 }
 
 /** The surface of a Jest environment class instance the adapter uses. */
@@ -41,6 +44,8 @@ interface JestEnvironmentLike {
   setup(): Promise<void>
   teardown(): Promise<void>
   exportConditions?(): readonly string[]
+  /** Jest's per-event hook: called with circus's event and state (T8.5). */
+  handleTestEvent?: HandleTestEvent
 }
 
 /** A Jest environment class, as jest-runtime constructs it. @public */
@@ -77,24 +82,44 @@ function optionsOf(value: unknown): JestEnvironmentOptions {
     !isRecord(value) ||
     typeof value.module !== 'string' ||
     !isRecord(value.projectConfig) ||
-    Array.isArray(value.projectConfig)
+    Array.isArray(value.projectConfig) ||
+    (value.globalConfig !== undefined &&
+      (!isRecord(value.globalConfig) || Array.isArray(value.globalConfig)))
   ) {
     throw new TypeError('The Jest environment adapter needs { module, projectConfig } as options.')
   }
   return value as JestEnvironmentOptions
 }
 
+/** The parts of Jest's `globalConfig` the circus state mirrors, read as they are given (JSON). */
+function circusConfigOf(globalConfig: object): CircusConfig {
+  const read = globalConfig as Record<string, unknown>
+  const number = (key: string): { [k: string]: number } =>
+    typeof read[key] === 'number' ? { [key]: read[key] as number } : {}
+  const flag = (key: string): { [k: string]: boolean } =>
+    typeof read[key] === 'boolean' ? { [key]: read[key] as boolean } : {}
+  return {
+    ...flag('testLocationInResults'),
+    ...flag('expand'),
+    ...flag('randomize'),
+    ...number('maxConcurrency'),
+    ...number('seed'),
+    ...number('testTimeout'),
+  }
+}
+
 async function setUpJest(
   context: EnvironmentSetupContext<{ readonly [key: string]: JsonValue }>,
   EnvironmentClass: JestEnvironmentClass,
   projectConfig: object,
+  globalConfig: object = {},
 ): Promise<EnvironmentInstance> {
   // Jest's fresh vm context per file makes a restore unnecessary there; the worker's own global is
   // shared by every file, so it is put back as `nodeEnvironment` does (D71): descriptor-exact, with
   // the closure-backed accessors (`process`, `performance`) wrapped so an assignment is undone too.
   const snapshot = snapshotProperties(globalThis)
   const environment = new EnvironmentClass(
-    { globalConfig: {}, projectConfig },
+    { globalConfig, projectConfig },
     { console: context.console, docblockPragmas: context.pragmas, testPath: context.testPath },
   )
   try {
@@ -124,8 +149,17 @@ async function setUpJest(
     snapshot.restore()
     throw error
   }
+  // jest-circus adds the handler once the environment is set up, if the class has one.
+  const listener =
+    typeof environment.handleTestEvent === 'function'
+      ? createCircusMirror(
+          (event, state) => environment.handleTestEvent?.(event, state),
+          circusConfigOf(globalConfig),
+        )
+      : undefined
   return {
     global: globalThis,
+    ...(listener === undefined ? {} : { onTestEvent: listener }),
     async teardown(): Promise<EnvironmentTeardownReport | undefined> {
       let failure: { readonly error: unknown } | undefined
       try {
@@ -159,7 +193,12 @@ export const jestEnvironment: Environment<'jest-environment', JestEnvironmentOpt
   },
   setup(context, prepared) {
     const options = optionsOf(context.options)
-    return setUpJest(context, prepared as JestEnvironmentClass, options.projectConfig)
+    return setUpJest(
+      context,
+      prepared as JestEnvironmentClass,
+      options.projectConfig,
+      options.globalConfig,
+    )
   },
 }
 
@@ -171,11 +210,12 @@ export const jestEnvironment: Environment<'jest-environment', JestEnvironmentOpt
 export function fromJestEnvironment(
   EnvironmentClass: JestEnvironmentClass,
   projectConfig: object = {},
+  globalConfig: object = {},
 ): Environment<'jest-environment', { readonly [key: string]: JsonValue }> {
   return {
     name: 'jest-environment',
     realms: ['worker'],
-    setup: (context) => setUpJest(context, EnvironmentClass, projectConfig),
+    setup: (context) => setUpJest(context, EnvironmentClass, projectConfig, globalConfig),
   }
 }
 
@@ -271,6 +311,7 @@ export const jestEnvironmentFor: EnvironmentResolver = (request) => {
     export: 'jestEnvironment',
     options: {
       module: found,
+      ...(isRecord(base.globalConfig) ? { globalConfig: base.globalConfig as JsonValue } : {}),
       projectConfig: {
         rootDir: request.rootDir,
         cwd: request.rootDir,

@@ -1,10 +1,10 @@
 // Track 8 §Types → Environment contract. The Jest and Vitest adapters live in the dialects
 // (Track 11); `defineEnvironment` and `environment` are implemented where environments are
-// (B10), typed by the signatures here. Track 8's `TestEventLike` placeholder is `RuntimeEvent`:
+// (B10), typed by the signatures here. Track 8's `TestEventLike` placeholder is `LifecycleEvent`:
 // Track 5 owns the real type.
 import type { Context } from 'node:vm'
 import type { JsonValue } from './clone-safe.ts'
-import type { RuntimeEvent } from './runtime/events.ts'
+import type { LifecycleEvent } from './runtime/lifecycle.ts'
 
 /**
  * Which realm an environment's globals live in: the worker's own (`registry` and `none` tiers)
@@ -75,8 +75,8 @@ export interface EnvironmentInstance<G extends object = typeof globalThis> {
   readonly global: G
   /** Present exactly when the realm is `context`. */
   readonly context?: Context
-  /** Jest's `handleTestEvent`: sees every runtime event of the file. */
-  onTestEvent?(event: RuntimeEvent): void | Promise<void>
+  /** Jest's `handleTestEvent`: sees every lifecycle event of the file (worker-local; see `LifecycleEvent`). */
+  onTestEvent?(event: LifecycleEvent): void | Promise<void>
   /**
    * Puts the global back. Returning nothing means a clean teardown; returning a report means it
    * restored everything it could and names the keys it could not. Throw only for an unexpected

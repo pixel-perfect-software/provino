@@ -53,6 +53,7 @@ const pinned: Readonly<Record<string, unknown>> = {
     mockEdges: { dir: '__mocks__', adjacent: true, byName: false },
     invalidateAll: 'project-inputs',
     graph: 'recorded-then-static',
+    conditions: 'environment',
   },
   // B23b: V8 coverage goes through the AST converter (built in B25) and counts no calls.
   'coverage.v8Conversion': 'ast',

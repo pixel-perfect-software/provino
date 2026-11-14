@@ -1,0 +1,42 @@
+{
+  "description": "--changedSince=main on a branch: the committed change (`main...HEAD`), a staged one and an untracked test are all changed (git.ts: committed, staged and unstaged together). The test of an untouched source is not listed. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "branch": "feature"
+      },
+      {
+        "write": {
+          "src/foo.ts": "module.exports = { foo: 2 }\n"
+        }
+      },
+      {
+        "commit": "change foo"
+      },
+      {
+        "write": {
+          "src/bar.ts": "module.exports = { bar: 3 }\n"
+        }
+      },
+      {
+        "git": ["add", "src/bar.ts"]
+      },
+      {
+        "write": {
+          "untracked.test.ts": "const m = require('./src/foo.ts') as Record<string, unknown>\n\ntest('untracked', () => {\n  expect(m).toBeDefined()\n})\n"
+        }
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--changedSince=main"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}
