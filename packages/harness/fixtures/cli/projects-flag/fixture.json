@@ -1,0 +1,10 @@
+{
+  "description": "The --projects flag (T9.9, B23d): a directory and a config file given on the command line are the run's two projects, each with its display name before its files, and the working directory's own config is not read (the recorder's root config only holds the placeholder). `Ran all test suites in 2 projects.`. A black-box run.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--projects", "p1", "p2/jest.config.json"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^Ran all test suites"
+  }
+}

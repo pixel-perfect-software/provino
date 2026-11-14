@@ -54,6 +54,15 @@ function expectedOf(id: string, recorded: ReadonlyMap<string, string>): Statuses
   return expected
 }
 
+/**
+ * The fixtures whose one file Jest ran in band and Provino runs in band in a child bin, not in this
+ * process: `env/process-uncaught-listener` throws from a timer, and an uncaught exception in this
+ * process also reaches `node:test`'s own listener, which fails the test running the suite (and
+ * leaves the next in-process run broken). In the bin the runner's listener is the only one, as in
+ * Jest's process.
+ */
+const IN_CHILD: ReadonlySet<string> = new Set(['env/process-uncaught-listener'])
+
 async function runRecorded(id: string): Promise<{
   readonly golden: RecordedGolden
   readonly root: string
@@ -65,7 +74,7 @@ async function runRecorded(id: string): Promise<{
   const fixture = await loadFixture(id)
   const project = await materialize(fixture)
   try {
-    const ended = await provinoRun(project.root)
+    const ended = await provinoRun(project.root, { inChild: IN_CHILD.has(id) })
     return { golden: fixture.golden, root: project.root, ...ended, dispose: project.dispose }
   } catch (error) {
     await project.dispose()

@@ -117,7 +117,7 @@ test('the divergences from the neutral policy are Jest`s', () => {
   assert.deepEqual(row('coverage.thresholdGrouping'), {
     path: 'coverage.thresholdGrouping',
     a: 'all-files',
-    b: 'first-match',
+    b: 'every-match',
   })
 })
 

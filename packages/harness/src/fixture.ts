@@ -792,8 +792,8 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     out.maskKeys = maskKeys
   }
   if (cwd !== undefined) {
-    if (typeof cwd !== 'string' || cwd === '' || !staysInside(cwd)) {
-      throw bad('"cwd" must be a relative directory inside the fixture')
+    if (typeof cwd !== 'string' || cwd === '' || cwd === '.' || !staysInside(cwd)) {
+      throw bad('"cwd" must be a relative directory inside the fixture (leave it out for its root)')
     }
     out.cwd = path.posix.normalize(cwd)
   }

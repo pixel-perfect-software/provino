@@ -370,9 +370,20 @@ export const orchestratorClaims: Claims = {
     ],
     golden('orchestrator-pool', { read: (g) => titleAfter(g, 'file a runs in: ') }),
   ),
-  'orchestrator.runInBand.auto': golden('orchestrator-run-in-band', {
+  // Jest 30.5.2, given two workers, ran a single file inline (`policy/orchestrator-run-in-band`):
+  // `single`. Vitest forked it. The 20-files and 1000 ms numbers are read from
+  // `testSchedulerHelper.ts` (L10, L76); showing them needs a warm timings cache.
+  'orchestrator.inBand.single': golden('orchestrator-run-in-band', {
     read: (g) => titleAfter(g, 'the only file runs in: ') === 'inline',
   }),
+  'orchestrator.inBand.fastFileCount': pending(
+    'B14',
+    'jest-core testSchedulerHelper.ts L76 (`tests.length <= 20`): no fixture warms the timings cache',
+  ),
+  'orchestrator.inBand.slowMs': pending(
+    'B14',
+    'jest-core testSchedulerHelper.ts L10 (`SLOW_TEST_TIME`): no fixture warms the timings cache',
+  ),
   // Jest 30.5.2's `--shard=i/3` over 8 files (`cli/shard-1-of-3` to `-3-of-3`): each shard ran the
   // slice of the sha1 order of the paths (3, 3, 2 files), which a path-sorted slice would not give.
   // Vitest 5.0.5's `BaseSequencer.shard` sorts by sha1 too (read from its source, not recorded).
@@ -472,14 +483,47 @@ export const reportClaims: Claims = {
   ),
 }
 
-const coverageIsPhase2 = pending(
-  'T8.9',
-  'coverage is Phase 2 (T8.8-T8.10); its fixtures record the threshold rules',
-)
+/**
+ * Whether a line of the golden's stderr is the template filled in: `{metric}` a metric's name,
+ * `{actual}` and `{threshold}` numbers, `{name}` and `{path}` the group (or the file) as written.
+ */
+const thresholdLineMatches = (g: Golden, template: unknown): boolean => {
+  if (typeof template !== 'string') return false
+  const pattern = template
+    .split(/(\{\w+\})/)
+    .map((part) => {
+      switch (part) {
+        case '{metric}':
+          return '(?:statements|branches|lines|functions)'
+        case '{actual}':
+        case '{threshold}':
+          return '-?\\d+(?:\\.\\d+)?'
+        case '{name}':
+        case '{path}':
+          return '.+?'
+        default:
+          return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      }
+    })
+    .join('')
+  const line = new RegExp(`^${pattern}$`)
+  return stderrOf(g)
+    .split('\n')
+    .some((text) => line.test(text))
+}
 
 export const coverageClaims: Claims = {
-  'coverage.thresholdGrouping': coverageIsPhase2,
-  'coverage.globThresholdScope': coverageIsPhase2,
+  // `src/deep/partial.ts` is under a path group it meets and a glob group it misses; Jest reports
+  // the glob group's miss, so a file counts for every group that names it.
+  'coverage.thresholdGrouping': each(
+    golden('coverage/threshold-overlap', {
+      read: (g) =>
+        stderrOf(g).includes('"<root>/src/deep/partial.ts" threshold')
+          ? 'every-match'
+          : 'first-match',
+    }),
+    pending('B25', "Vitest's grouping is B25's"),
+  ),
   // `collectCoverageFrom` names `src/**/*.ts`, and the file no test imports is in the report.
   'coverage.includeUntestedByDefault': each(
     golden('coverage/babel-providers-sample', {
@@ -513,8 +557,25 @@ export const coverageClaims: Claims = {
     }),
     pending('B25', "Vitest's Istanbul provider is B25's"),
   ),
-  'coverage.thresholdMessages': each(
-    pending('B23b', "the threshold goldens record Jest's lines (T8.11)"),
+  // The glob group's lines name each file (`"<root>/src/grade.ts" threshold`), not the glob: Jest
+  // checks a glob group file by file.
+  'coverage.globThresholdScope': each(
+    golden('coverage/threshold-path-glob', {
+      read: (g) =>
+        stderrOf(g).includes('"<root>/src/grade.ts" threshold') ? 'per-file' : 'aggregate',
+    }),
+    pending('B25', "Vitest's glob thresholds are B25's"),
+  ),
+  'coverage.thresholdMessages.belowMinimum': each(
+    golden('coverage/threshold-global', { matches: thresholdLineMatches }),
+    pending('B25', "Vitest's threshold texts are B25's"),
+  ),
+  'coverage.thresholdMessages.aboveMaximumUncovered': each(
+    golden('coverage/threshold-negative', { matches: thresholdLineMatches }),
+    pending('B25', "Vitest's threshold texts are B25's"),
+  ),
+  'coverage.thresholdMessages.notFound': each(
+    golden('coverage/threshold-not-found', { matches: thresholdLineMatches }),
     pending('B25', "Vitest's threshold texts are B25's"),
   ),
 }

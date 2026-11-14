@@ -41,13 +41,20 @@ describe('provino jest against the recorded Jest 30.5.2 runs', () => {
   for (const [id, file] of [
     ['cli/global-setup-order', 'order.txt'],
     ['cli/global-setup-globals', 'seen.txt'],
+    // In band the test runs in the bin's own process and sees what the setup set (T9.9).
+    ['cli/global-setup-globals-in-band', 'seen.txt'],
+    ['cli/global-setup-globals-single-file', 'seen.txt'],
   ] as const) {
     it(`${id}: ${file} and the exit code are Jest's`, async () => {
       const fixture = await loadFixture(id)
       const project = await materialize(fixture)
       try {
         const ended = await spawnCli(
-          ['jest', `--config=${join(project.root, 'jest.config.json')}`],
+          [
+            'jest',
+            `--config=${join(project.root, 'jest.config.json')}`,
+            ...(fixture.manifest.run?.argv?.jest ?? []),
+          ],
           {
             cwd: project.root,
           },

@@ -1,0 +1,29 @@
+{
+  "description": "No test file to run and no `--passWithNoTests`, under Jest 30.5.2 (B23b review): Jest prints its `No tests found` message and exits 1 before it schedules anything, so no coverage report is written, no threshold is checked and no `Jest: ` line is printed. The pair of `coverage/threshold-no-tests`. Read by `provino`'s `jest-coverage-thresholds.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "collectCoverageFrom": ["src/**/*.ts"],
+      "coverageReporters": ["text-summary", "json-summary"],
+      "coverageThreshold": {
+        "global": {
+          "statements": 100
+        },
+        "./src/": {
+          "lines": 10
+        }
+      }
+    }
+  },
+  "run": {
+    "raw": true,
+    "argv": {
+      "jest": ["matches-no-file"]
+    },
+    "capture": ["exitCode", "stdout", "stderr", "file:coverage/coverage-summary.json"],
+    "keepLines": "^(Jest: |=+ Coverage summary|Statements|Branches|Functions|Lines)",
+    "emptyStreams": ["stdout", "stderr"]
+  }
+}

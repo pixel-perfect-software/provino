@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/report-from-subdir",
+  "files": [
+    {
+      "file": "pkg/a.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "pkg/a.test.ts",
+            "path": [
+              "a passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "pkg/b.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "pkg/b.test.ts",
+            "path": [
+              "b fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 2\nReceived: 1",
+              "matcher": "toBe",
+              "userFrame": "<root>/pkg/b.test.ts:3:13"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "root.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "root.test.ts",
+            "path": [
+              "root passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 3,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "PASS ../root.test.ts\nFAIL ./b.test.ts\nPASS ./a.test.ts\nTests:       1 failed, 2 passed, 3 total"
+  }
+}

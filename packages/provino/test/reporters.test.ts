@@ -45,9 +45,10 @@ async function provinoOn(id: string): Promise<{
     const keepLines = fixture.manifest.run?.keepLines
     assert.ok(keepLines !== undefined, `${id} keeps lines`)
     const argv = fixture.manifest.run?.argv?.jest ?? []
+    const cwd = fixture.manifest.run?.cwd
     const ended = await spawnCli(
       ['jest', `--config=${join(project.root, 'jest.config.json')}`, '--ci', ...argv],
-      { cwd: project.root },
+      { cwd: cwd === undefined ? project.root : join(project.root, cwd) },
     )
     const golden = fixture.golden.observed
     return {
@@ -95,6 +96,10 @@ describe('provino jest prints what Jest 30.5.2 printed (the lines each recording
       'a single test file under verbose: false is not verbose: the console block under the header',
     ],
     ['cli/report-ran-pattern', 'a file pattern: `Ran all test suites matching snap.`'],
+    [
+      'cli/report-from-subdir',
+      'run from below rootDir: each header is relative to the working directory, not the root',
+    ],
     ['cli/report-ran-name', '-t: `Ran all test suites with tests matching "inner".`'],
     ['cli/report-ran-by-path', '--runTestsByPath: `within paths "a.test.ts"`'],
     [

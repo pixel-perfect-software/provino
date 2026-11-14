@@ -13,10 +13,22 @@ export type Style = TextStyle
 /** The escape character that starts every SGR sequence and the cursor moves of the live block. */
 export const ESC: string = String.fromCharCode(27)
 
+/**
+ * One SGR style as chalk 4 applies it (`applyStyle`): a close code inside the text is followed by a
+ * reopen, and the style is closed before each line break and reopened after it (`\n` and `\r\n`),
+ * which keeps a background or a bold run from bleeding across lines on some terminals
+ * (chalk#92). Jest's text is chalk's, so a multi-line message is coloured line by line.
+ */
 function wrap(open: number, close: number): (text: string) => string {
   const start = `${ESC}[${open}m`
   const end = `${ESC}[${close}m`
-  return (text) => (text === '' ? text : `${start}${text.replaceAll(end, `${end}${start}`)}${end}`)
+  const encaseLines = (text: string): string =>
+    text.replace(/\r?\n/g, (lineBreak) => `${end}${lineBreak}${start}`)
+  return (text) => {
+    if (text === '') return text
+    const reopened = text.replaceAll(end, `${end}${start}`)
+    return `${start}${reopened.includes('\n') ? encaseLines(reopened) : reopened}${end}`
+  }
 }
 
 const COLOURS = { green: 32, red: 31, yellow: 33 } as const

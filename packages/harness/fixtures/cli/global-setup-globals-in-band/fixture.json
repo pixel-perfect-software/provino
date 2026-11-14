@@ -1,0 +1,11 @@
+{
+  "description": "What a global setup's globalThis is in band (T9.9): with -i the test files run in Jest's own process, so the environment copies the setup's global into each test's context and the test sees it, as does the teardown. Each writes a line to seen.txt. The worker form, where a test does not see it, is cli/global-setup-globals. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "globalSetup": "<rootDir>/setup.ts",
+      "globalTeardown": "<rootDir>/teardown.ts"
+    }
+  },
+  "run": { "argv": { "jest": ["-i"] }, "capture": ["exitCode", "file:seen.txt"] }
+}

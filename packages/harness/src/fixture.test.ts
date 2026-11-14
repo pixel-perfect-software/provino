@@ -680,6 +680,18 @@ test('a black-box run may set the options that decide which files it finds; othe
   )
 })
 
+test('run.cwd is a relative directory inside the fixture', () => {
+  const run = { capture: ['stderr'], cwd: 'pkg/sub' }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, run })).run, run)
+  for (const cwd of ['', '.', '/abs', '../out', 'pkg/../..', 'pkg/', 3]) {
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, run: { ...run, cwd } })),
+      rejects('HARNESS_FIXTURE_BAD_RUN'),
+      JSON.stringify(cwd),
+    )
+  }
+})
+
 test('run.sortStdout is true or "json"', () => {
   const run = { capture: ['stdout'], sortStdout: 'json' }
   assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, run })).run, run)

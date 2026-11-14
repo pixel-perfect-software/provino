@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
 import type { SerializedCoverageConfig } from '@provino/types'
-import { run, runtimeProject, trackedProjects } from './support.ts'
+import { type RuntimeProjectOptions, run, runtimeProject, trackedProjects } from './support.ts'
 
 const project = trackedProjects()
 
@@ -36,8 +36,12 @@ const FILES = {
   ].join('\n'),
 }
 
-function withCoverage(dir: string, include: readonly string[]): ResolvedProject {
-  const base = runtimeProject(dir, { include: ['**/*.test.ts'] })
+function withCoverage(
+  dir: string,
+  include: readonly string[],
+  policy?: RuntimeProjectOptions['policy'],
+): ResolvedProject {
+  const base = runtimeProject(dir, { include: ['**/*.test.ts'], ...(policy ? { policy } : {}) })
   const coverage: SerializedCoverageConfig = {
     provider: 'istanbul',
     globalRoot: dir,
@@ -53,6 +57,21 @@ function withCoverage(dir: string, include: readonly string[]): ResolvedProject 
   }
   return { ...base, config: { ...base.config, coverage } }
 }
+
+/** Jest's grouping and words, as a dialect supplies them; the neutral policy refuses them (B25). */
+const jestWords = {
+  coverage: {
+    thresholdGrouping: 'every-match',
+    globThresholdScope: 'per-file',
+    thresholdMessages: {
+      belowMinimum:
+        'Jest: Coverage for {metric} ({actual}%) does not meet "{name}" threshold ({threshold}%)',
+      aboveMaximumUncovered:
+        'Jest: Uncovered count for {metric} ({actual}) exceeds {name} threshold ({threshold})',
+      notFound: 'Jest: Coverage data for {path} was not found.',
+    },
+  },
+} as const
 
 describe('a run with Istanbul coverage', () => {
   it('sums every file, adds the untested ones at zero, and reports the sources', async () => {
@@ -111,6 +130,57 @@ describe('a run with Istanbul coverage', () => {
     )
     assert.equal(failures[0]?.error.code, 'LOADER_TRANSFORM_FAILED')
     assert.ok(summary.coverage?.map[p.path('src/untested.ts')] !== undefined)
+  })
+
+  it('checks the thresholds it is given by the project policy’s words: failures fail the run', async () => {
+    const p = await project(FILES)
+    const { summary } = await run(withCoverage(p.dir, ['src/**/*.ts'], jestWords), {
+      pool: { kind: 'inline' },
+      coverage: {
+        thresholds: [
+          { name: 'global', functions: 100, statements: -1 },
+          { name: './missing', lines: 10 },
+        ],
+        thresholdsCwd: p.dir,
+      },
+    })
+    const failures = summary.coverage?.thresholdFailures ?? []
+    assert.equal(failures.length, 3, failures.join('\n'))
+    assert.match(failures[0] ?? '', /^Jest: Uncovered count for statements \(\d+\) exceeds global/)
+    assert.match(failures[2] ?? '', /not found/)
+    // The tests passed; the missed threshold is what fails the run.
+    assert.equal(summary.reason, 'failed')
+  })
+
+  it('a run with no file to run still checks its thresholds: a group that names a path finds no data', async () => {
+    // Jest's scheduler runs on an empty list under `--passWithNoTests`, so its CoverageReporter
+    // reports the empty map and the thresholds are checked over it (`coverage/threshold-no-tests`).
+    const p = await project({ 'src/pricing.ts': FILES['src/pricing.ts'] })
+    const { summary } = await run(withCoverage(p.dir, ['src/**/*.ts'], jestWords), {
+      pool: { kind: 'inline' },
+      coverage: {
+        thresholds: [
+          { name: 'global', statements: 100 },
+          { name: './src/', lines: 10 },
+        ],
+        thresholdsCwd: p.dir,
+        reportEmptyRun: true,
+      },
+    })
+    assert.equal(summary.files.length, 0)
+    assert.deepEqual(summary.coverage?.map, {})
+    // `global` reads `Unknown` over an empty map and fails nothing; the path group has no data.
+    assert.deepEqual(summary.coverage?.thresholdFailures, [
+      'Jest: Coverage data for ./src/ was not found.',
+    ])
+    assert.equal(summary.reason, 'failed')
+    // Without `reportEmptyRun` (Jest without `--passWithNoTests`) nothing is reported or checked.
+    const without = await run(withCoverage(p.dir, ['src/**/*.ts'], jestWords), {
+      pool: { kind: 'inline' },
+      coverage: { thresholds: [{ name: './src/', lines: 10 }], thresholdsCwd: p.dir },
+    })
+    assert.equal(without.summary.coverage, undefined)
+    assert.equal(without.summary.reason, 'passed')
   })
 
   it('a project without coverage has none in its summary', async () => {
