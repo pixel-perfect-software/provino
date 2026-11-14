@@ -474,6 +474,10 @@ export interface CoverageSummary {
     readonly thresholdFailures: readonly string[];
     // (undocumented)
     readonly totals: { readonly [M in CoverageMetric]: CoverageTotals; };
+    readonly untestedFailures?: readonly {
+        readonly path: string;
+        readonly error: SerializedError;
+    }[];
 }
 
 // @public
@@ -2591,6 +2595,7 @@ export type RunsIn = "worker" | "coordinator" | "both";
 
 // @public
 export interface RunSummary {
+    readonly coverage?: CoverageSummary;
     // (undocumented)
     readonly durationMs: number;
     // (undocumented)

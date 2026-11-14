@@ -14,7 +14,9 @@ import { FileResult } from '@provino/types';
 import { FlagSpec } from '@provino/types';
 import { NeutralProject } from '@provino/types';
 import { Reporter } from '@provino/types';
+import { RunCoverageOptions } from '@provino/types';
 import { RunRequest } from '@provino/types';
+import { SerializedCoverageConfig } from '@provino/types';
 import { SerializedError } from '@provino/types';
 import { SnapshotRunSummary } from '@provino/types';
 import { TaskId } from '@provino/types';
@@ -28,6 +30,7 @@ export function addResult(aggregated: AggregatedResult, testResult: TestResult):
 
 // @public
 export interface AggregatedResult {
+    coverageMap?: unknown;
     // (undocumented)
     numFailedTests: number;
     // (undocumented)
@@ -326,6 +329,25 @@ export const jestConfigReader: ConfigReader<JestLoadedConfig, JestResolvedConfig
 export function jestConsoleTrace(origin: string, level: string | null, config: StackTraceConfig, globalConfig: {
     readonly noStackTrace?: boolean;
 }): string;
+
+// @public
+export interface JestCoverageEnvironment {
+    readonly env: Readonly<Record<string, string | undefined>>;
+    readonly stdoutColumns: number | undefined;
+}
+
+// @public
+export function jestCoverageFilter(project: JestProjectConfig, globalConfig: JestGlobalConfig): SerializedCoverageConfig;
+
+// @public
+export function jestCoverageOptions(globalConfig: JestGlobalConfig, environment: JestCoverageEnvironment): RunCoverageOptions;
+
+// @public
+export const jestCoverageTexts: {
+    readonly untestedNotice: string;
+    untestedFailure(path: string, message: string, stack: string | undefined): string;
+    reportFailure(text: string, stack: string | undefined): string;
+};
 
 // @public
 export function jestDefaults(ci: boolean): Readonly<Options$1>;
@@ -930,6 +952,7 @@ export function processJestResults(options: ProcessJestResultsOptions): Promise<
 export interface ProcessJestResultsOptions {
     // (undocumented)
     readonly aggregated: AggregatedResult;
+    readonly coverageMap?: unknown;
     readonly cwd: string;
     // (undocumented)
     readonly globalConfig: {

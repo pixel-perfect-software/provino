@@ -104,8 +104,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
   collectCoverage: {
     type: 'boolean',
     description: 'Alias for --coverage.',
-    support: 'refuse',
-    owner: 'T8.8',
+    support: 'config',
   },
   collectCoverageFrom: {
     type: 'string',
@@ -139,8 +138,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Indicates that test coverage information should be collected and reported in the output.',
-    support: 'refuse',
-    owner: 'T8.8',
+    support: 'config',
   },
   coverageDirectory: {
     type: 'string',
