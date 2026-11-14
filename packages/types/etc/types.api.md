@@ -2799,7 +2799,7 @@ export interface SerializedLoaderConfig {
     readonly scopeModules?: readonly string[];
     readonly transform?: SerializedTransformConfig;
     readonly tsconfig: "auto" | false | string;
-    readonly typescript: "oxc" | "node-strip" | "off";
+    readonly typescript: "oxc" | "blank" | "node-strip" | "off";
 }
 
 // @public
