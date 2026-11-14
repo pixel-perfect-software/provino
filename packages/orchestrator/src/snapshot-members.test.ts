@@ -37,6 +37,19 @@ describe('snapshot members', () => {
     assert.equal(snapshotsFailRun([first, second]), false)
   })
 
+  it('counts a project’s obsolete snapshot files as removed, lists them, and fails the run (DV96)', () => {
+    const member = snapshotMember('new', strict)
+    member.removed.push('/p/__snapshots__/gone.test.ts.snap')
+    const merged = mergedSnapshots([member])
+    assert.equal(merged?.counters.filesRemoved, 1)
+    assert.deepEqual(merged?.filesRemovedList, ['/p/__snapshots__/gone.test.ts.snap'])
+    assert.equal(snapshotsFailRun([member]), true)
+    // `-u` removes them and never fails on them.
+    const updating = snapshotMember('all', strict)
+    updating.removed.push('/p/__snapshots__/gone.test.ts.snap')
+    assert.equal(snapshotsFailRun([updating]), false)
+  })
+
   it('merges every project’s counters and unchecked keys for display', () => {
     const first = snapshotMember('none', strict)
     const second = snapshotMember('none', lenient)
