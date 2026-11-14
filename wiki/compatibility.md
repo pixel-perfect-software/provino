@@ -37,12 +37,15 @@ Provino's tests compare almost everything here with Jest 30.5, either against re
 - `snapshotResolver`: snapshots are written and read where the project's resolver says, and a resolver that lacks a member or doesn't invert itself fails each file with Jest's text.
 - Snapshot files with no test file are reported as obsolete in the Snapshot Summary and removed under `-u`, through a custom resolver too.
 - Retries with `jest.retryTimes(n, options)`, and of a whole describe block with `entireDescribe`.
-- Random order with `--randomize` and `--seed`: a seed gives the order Jest gives.
+- Random order with `--randomize` and `--seed`: a seed gives the order Jest gives, and `--showSeed` (or `--randomize`) prints it as the `Seed:` line before the totals.
 
 **Output**
 - The `default`, `verbose` and `summary` reporters print Jest's text (the failure text through `jest-message-util`, with a code frame, a console entry's call site, the per-file snapshot lines, the Snapshot Summary and `Ran all test suites.`), checked against recordings of Jest apart from the gaps below. `--verbose`, `--silent`, `--expand`, `--noStackTrace` and `--colors`/`--no-color` apply.
 - Under an AI agent (`CLAUDECODE`, `AI_AGENT`, …) the `agent` reporter is chosen (failures and totals), and on GitHub Actions `github-actions` is added.
 - `--reporters` and the `reporters` config key take Jest's built-ins (`default`, `verbose`, `summary` with `summaryThreshold`, `agent`, `github-actions`) and any reporter module, by Jest's hooks (`onRunStart`, `onTestFileStart`, `onTestCaseResult`, `onTestFileResult`, `onRunComplete`, `getLastError`). jest-junit, jest-silent-reporter, jest-html-reporters, vscode-jest's reporter and a jest-sonar-reporter processor run on 20 files with Jest's text byte for byte, apart from the gaps below.
+- `--logHeapUsage` ends each file's header with ` (<n> MB heap size)`, the heap in whole megabytes after the file ran (after a collection when `node --expose-gc` is on, as in Jest).
+- `--notify` and `--notifyMode` (and the config keys) call `node-notifier` as Jest does, with Jest's titles and messages. Provino does not install it: it must be in the project, or in the install of `@jest/reporters`; without it the run ends before any file runs, with Jest's message and exit 1. Watch mode's "Run again" buttons are not built with it.
+- `--detectLeaks` checks after each file that nothing still reaches its module registry or environment, and fails a file that does with Jest's `EXPERIMENTAL FEATURE!` text (a file-level failure that counts no test). It is checked with `WeakRef`s and a forced garbage collection, so a callback the leaking file leaves behind meets an error for "the test file that was running has ended" where Jest has it do nothing; it is refused under isolation `none`.
 - The `dot`, `json` and `junit` reporters are Provino's own; choose them with `provino run --config <file> --reporter <name>`, Provino's config form.
 
 ## Not in place yet
@@ -56,9 +59,6 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | A Jest reporter's own copy of Jest's frames | A report that embeds each failure's raw stack (jest-html-reporters, jest-sonar-reporter, jest-junit without `noStackTrace`) holds Provino's frames in place of `jest-circus`'s, with the project's frames in Jest's layout | Not planned |
 | `github-actions` with `silent: false` | Refused by name (the result tree it adds is not printed) | Planned |
 | Run only what changed: `--onlyChanged`, `--changedSince`, `--lastCommit`, `--changedFilesWithAncestor`, `--findRelatedTests`, `--onlyFailures` | Refused | Not yet planned |
-| `--showSeed` | Refused (`--randomize` still runs, but the `Seed:` line is not printed) | Planned |
-| `--detectLeaks` | Refused | Planned |
-| `--logHeapUsage`, `--notify`, `--notifyMode` | Warn, and are otherwise ignored | Planned |
 | A `snapshotResolver` that is broken | Each file fails with Jest's text and the run ends with no totals, exit 1, as in Jest; the error prints as `Provino: unexpected error:` with its stack, where Jest prints it red | Not planned |
 | Inline snapshots with Prettier 2 | Written unformatted, with a warning (Prettier 3 formats as Jest does) | Not planned |
 | Legacy fake timers | `legacyFakeTimers: true` throws when a test installs the timers, with a hint to use the modern ones. `jest.runAllImmediates` throws | Not planned |

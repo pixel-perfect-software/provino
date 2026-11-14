@@ -123,6 +123,7 @@ export interface TextReporterOptions {
     readonly live?: boolean;
     readonly noStackTrace?: boolean;
     readonly report: ReportPolicy;
+    readonly seed?: number;
     readonly silent?: boolean;
     readonly snapshotsAlways?: true;
     readonly snapshotSummary?: (summary: RunSummary, style: TextStyle) => readonly string[] | undefined;
