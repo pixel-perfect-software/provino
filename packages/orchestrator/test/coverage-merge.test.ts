@@ -5,6 +5,7 @@
 // `v8HitCounts: true`: with hits only, a statement two workers ran would count 2 against 1.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { pathToFileURL } from 'node:url'
 import type { ResolvedProject } from '@provino/config'
 import { loadFinishCoverage } from '@provino/orchestrator'
 import type { RawCoverage, SerializedCoverageConfig } from '@provino/types'
@@ -144,3 +145,33 @@ for (const provider of ['istanbul', 'v8'] as const) {
     })
   })
 }
+
+describe("v8: a module's code and map cross once per run", () => {
+  it('a worker started after another sent them names the module only, and the map is the same', async () => {
+    const p = await project(FILES)
+    const covered = withCoverage(p.dir, 'v8')
+    const pricing = pathToFileURL(p.path('src/pricing.ts')).href
+
+    const once = await run(covered, { pool: { kind: 'forks', maxWorkers: 1 } })
+    assert.equal(once.summary.reason, 'passed', once.stderr.text)
+
+    // One file per worker: each later worker starts after the ones before it sent their take.
+    const takes: RawCoverage[] = []
+    const recycled = await run(covered, {
+      pool: { kind: 'forks', maxWorkers: 1, recycle: { maxFilesPerWorker: 1 } },
+      coverage: { onTake: (take) => void takes.push(take) },
+    })
+    assert.equal(recycled.summary.reason, 'passed', recycled.stderr.text)
+    assert.equal(new Set(takes.map((take) => take.workerId)).size, takes.length)
+    assert.ok(takes.length > 2, `${takes.length} takes`)
+    /** Whether each take, as its worker sent it, carried `pricing.ts`'s code. */
+    const carried = takes.map((take) => {
+      const info = take.kind === 'v8' ? take.modules?.find((m) => m.url === pricing) : undefined
+      assert.ok(info !== undefined, `worker ${take.workerId} names pricing.ts`)
+      return 'code' in info
+    })
+    assert.deepEqual(carried, [true, ...takes.slice(1).map(() => false)])
+    assert.deepEqual(recycled.summary.coverage?.map, once.summary.coverage?.map)
+    assert.deepEqual(recycled.summary.coverage?.totals, once.summary.coverage?.totals)
+  })
+})

@@ -1,8 +1,8 @@
 // The coordinator's merge of V8 coverage (T8.12, T8.9): the takes of several workers add up as
 // `mergeProcessCovs` adds Jest's per-file results, the wrapper a worker put before the code is
-// taken back out of V8's offsets, a file no test loaded is Jest's `(empty-report)` over its size in
-// bytes, a file whose code ends before its trailing types has no statements there, and any
-// conversion but `v8-to-istanbul` is refused. Parity with Jest's numbers is `provino`'s
+// taken back out of V8's offsets and counts nowhere but as the module's function, a file no test
+// loaded is Jest's `(empty-report)` over its size in bytes, a file that ends in types has a
+// statement on each of their lines (D123), and any conversion but `v8-to-istanbul` is refused. Parity with Jest's numbers is `provino`'s
 // `jest-coverage-v8.test.ts`; the merge across shards and workers is the orchestrator's
 // `coverage-merge.test.ts`.
 import assert from 'node:assert/strict'
@@ -104,6 +104,7 @@ test('two workers’ takes add up, and the wrapper is taken out of the offsets',
   assert.equal(aggregate.has(path), true)
   const { map } = await reporting.convertV8Coverage(aggregate.v8, [], {
     conversion: 'v8-to-istanbul',
+    hashbang: 'kept',
   })
   const data = only(map, path)
   const byName = Object.fromEntries(
@@ -123,6 +124,101 @@ test('two workers’ takes add up, and the wrapper is taken out of the offsets',
   assert.equal(data.all, false)
 })
 
+/** A CommonJS wrapper with the module's scope bindings, as the loader writes one (T2.9). */
+const SCOPED = '(function (jest) { return function (exports, require, module) {'
+
+/**
+ * `code` compiled once under `path` behind `SCOPED`, as a worker compiles a module, and loaded
+ * `loads` times (a fresh registry per test file): the take of one worker.
+ */
+async function loaded(path: string, code: string, loads: number, workerId: number) {
+  const session = new Session()
+  session.connect()
+  try {
+    await session.post('Profiler.enable')
+    await session.post('Profiler.startPreciseCoverage', { callCount: true, detailed: true })
+    const outer = runInThisContext(`${SCOPED}${code}\n}})`, {
+      filename: path,
+      columnOffset: -SCOPED.length - workerId,
+    }) as (jest: unknown) => (exports: object, require: unknown, module: object) => void
+    for (let load = 0; load < loads; load++) {
+      const exports: Record<string, (name: string) => string> = {}
+      outer(null)(exports, null, { exports })
+      exports.greet?.('ada')
+    }
+    const { result } = await session.post('Profiler.takePreciseCoverage')
+    await session.post('Profiler.stopPreciseCoverage')
+    const url = pathToFileURL(path).href
+    const take: V8Coverage = {
+      kind: 'v8',
+      workerId,
+      scripts: result.filter((script) => script.url === url),
+      modules: [{ url, wrapperLength: SCOPED.length, transformKey: 'k', code, map: null }],
+    }
+    return take
+  } finally {
+    session.disconnect()
+  }
+}
+
+test('the vm script and the scope function around a module count nowhere, at any worker count', async () => {
+  const code = [
+    'function greet(name) {',
+    "  if (name === '') {",
+    "    return 'nobody'",
+    '  }',
+    "  return 'hello ' + name",
+    '}',
+    'exports.greet = greet',
+    '',
+  ].join('\n')
+  const path = await fileIn('greet.js', code)
+  // Three loads either way: one worker, or two.
+  for (const takes of [
+    [await loaded(path, code, 3, 1)],
+    [await loaded(path, code, 1, 2), await loaded(path, code, 2, 3)],
+  ]) {
+    const aggregate = reporting.createCoverageAggregate()
+    for (const one of takes) aggregate.add(one)
+    const { map } = await reporting.convertV8Coverage(aggregate.v8, [], {
+      conversion: 'v8-to-istanbul',
+      hashbang: 'kept',
+    })
+    const data = only(map, path)
+    // The module's function (its loads, over the whole code, as jest-runtime's `compileFunction`
+    // counts it), `greet` and its `if` block: nothing per worker, nothing for the scope function.
+    assert.deepEqual(data.b, { '0': [3], '1': [3], '2': [0] })
+    assert.deepEqual(data.branchMap['0']?.loc, {
+      start: { line: 1, column: 0 },
+      end: { line: 7, column: 21 },
+    })
+    assert.deepEqual(Object.values(data.s), [3, 3, 0, 0, 3, 3, 3])
+  }
+})
+
+test("under v8Hashbang 'removed', a module with no map is counted one hashbang early, as Jest's", async () => {
+  const text = '#!/usr/bin/env node\nfunction f() {\n  return 1\n}\nexports.f = f\n'
+  const path = await fileIn('bin.js', text)
+  // The loader runs the hashbang as a comment of the same length.
+  const code = `//${text.slice(2)}`
+  const one = await loaded(path, code, 1, 1)
+  for (const [hashbang, start] of [
+    ['kept', { line: 2, column: 0 }],
+    // Jest ran the text without `#!/usr/bin/env node` (19 characters) and reads the offsets
+    // against the file as it is: `function` at offset 1 of its code is line 1, column 1.
+    ['removed', { line: 1, column: 1 }],
+  ] as const) {
+    const aggregate = reporting.createCoverageAggregate()
+    aggregate.add(one)
+    const { map } = await reporting.convertV8Coverage(aggregate.v8, [], {
+      conversion: 'v8-to-istanbul',
+      hashbang,
+    })
+    const data = only(map, path)
+    assert.deepEqual(data.fnMap['0']?.loc.start, start, hashbang)
+  }
+})
+
 test('a file no test loaded is one (empty-report) range over its size in bytes', async () => {
   const text = "// « € » takes three bytes\nexport const euro = (n: number): string => n + ' €'\n"
   const path = await fileIn('never.ts', text)
@@ -138,6 +234,7 @@ test('a file no test loaded is one (empty-report) range over its size in bytes',
   const aggregate = reporting.createCoverageAggregate()
   const { map } = await reporting.convertV8Coverage(aggregate.v8, [empty], {
     conversion: 'v8-to-istanbul',
+    hashbang: 'kept',
   })
   const data = only(map, path)
   assert.deepEqual(Object.values(data.s), [0, 0])
@@ -146,7 +243,7 @@ test('a file no test loaded is one (empty-report) range over its size in bytes',
   assert.equal(data.all, true)
 })
 
-test('code that ends before the file’s trailing types makes no statements of them', async () => {
+test('a file that ends in types has a statement on every line, as Jest’s babel original has (D123)', async () => {
   const source = [
     'export function f() {',
     '  return 1',
@@ -169,6 +266,7 @@ test('code that ends before the file’s trailing types makes no statements of t
   const map: SourceMapV3 = {
     version: 3,
     sources: generated.sources,
+    sourcesContent: [code],
     names: generated.names,
     mappings: generated.mappings,
   }
@@ -177,14 +275,17 @@ test('code that ends before the file’s trailing types makes no statements of t
   aggregate.add(ran)
   const { map: coverage } = await reporting.convertV8Coverage(aggregate.v8, [], {
     conversion: 'v8-to-istanbul',
+    hashbang: 'kept',
   })
-  // Three lines of code, as Jest's babel-made original (types stripped) has; the file has seven.
-  assert.equal(Object.keys(only(coverage, path).statementMap).length, 3)
+  // Seven lines, the types' included: Jest's babel-jest with `@babel/preset-typescript` hands
+  // v8-to-istanbul the TypeScript text, whose lines are all statements. Not the map's
+  // `sourcesContent`, which would win over it: here it is the types-blanked code.
+  assert.equal(Object.keys(only(coverage, path).statementMap).length, 7)
 })
 
 test('the AST conversion is B25’s', async () => {
   await assert.rejects(
-    reporting.convertV8Coverage([], [], { conversion: 'ast' }),
+    reporting.convertV8Coverage([], [], { conversion: 'ast', hashbang: 'kept' }),
     (error: unknown) =>
       (error as { code?: unknown }).code === 'COVERAGE_NOT_IMPLEMENTED' &&
       String((error as Error).message).includes('B25'),

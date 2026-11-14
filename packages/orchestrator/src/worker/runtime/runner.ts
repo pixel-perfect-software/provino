@@ -196,6 +196,7 @@ async function startCoverage(
   policy: Policy,
   workerId: number,
   loader: () => Loader | undefined,
+  known: readonly string[],
 ): Promise<WorkerCoverage | undefined> {
   if (config === undefined) return undefined
   const runtime = await import('@provino/coverage/runtime')
@@ -208,6 +209,7 @@ async function startCoverage(
       },
       include,
       callCount: policy.coverage.v8HitCounts,
+      known: new Set(known),
     })
     await collector.start()
     return { provider: 'v8', collector, project: undefined }
@@ -455,6 +457,7 @@ export function createRuntimeRunner(): WorkerRunner {
       policy,
       context.init.workerId,
       () => coverageLoader,
+      context.init.coverageModules ?? [],
     )
     parts.loader = await createProjectLoader(
       config.rootDir,

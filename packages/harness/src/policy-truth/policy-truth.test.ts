@@ -79,6 +79,7 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest lazy.readInBeforeAll': 'T6.5',
   'vitest coverage.v8Conversion': 'B25',
   'vitest coverage.v8HitCounts': 'B25',
+  'vitest coverage.v8Hashbang': 'B25',
   'vitest coverage.istanbulVariable': 'B25',
   'vitest coverage.thresholdMessages.aboveMaximumUncovered': 'B25',
   'vitest coverage.thresholdMessages.belowMinimum': 'B25',

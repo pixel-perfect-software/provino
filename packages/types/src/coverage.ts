@@ -132,7 +132,7 @@ export type RawCoverage =
        * The compiled modules the scripts are of, one per script URL a worker evaluated: what maps
        * V8's offsets back to a source. Absent from a blob that has none.
        */
-      readonly modules?: readonly ExecutedModuleInfo[]
+      readonly modules?: readonly (ExecutedModuleInfo | ExecutedModuleRef)[]
     }
   | {
       readonly kind: 'istanbul'
@@ -157,6 +157,13 @@ export interface ExecutedModuleInfo {
   /** The map from `code` back to the source file; `null` when `code` keeps the source's positions. */
   readonly map: SourceMapV3 | null
 }
+
+/**
+ * An evaluated user module whose code and map the coordinator already holds under its
+ * `transformKey` (`WorkerInit.coverageModules`), so a take names it without them.
+ * @public
+ */
+export type ExecutedModuleRef = Omit<ExecutedModuleInfo, 'code' | 'map'>
 
 /**
  * Looks up transformed code by cache key in the coordinator (Track 3 provides it).

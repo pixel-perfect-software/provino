@@ -122,6 +122,7 @@ export async function finishCoverage(
     v8 && first !== undefined
       ? await reporting.convertV8Coverage(aggregate.v8, emptyV8, {
           conversion: first.policy.coverage.v8Conversion,
+          hashbang: first.policy.coverage.v8Hashbang,
         })
       : await reporting.remapCoverage(aggregate.map)
   // Each file's plain data (a `CoverageMap`'s own `toJSON` keeps its `FileCoverage` objects).

@@ -488,6 +488,22 @@ export const coverageClaims: Claims = {
     }),
     pending('B25', "Vitest's V8 collection is B25's"),
   ),
+  // `greet.js` starts with a hashbang and has no map: Jest's module function, which covers the
+  // code V8 ran, ends that many characters before the file does (on line 15 of 16).
+  'coverage.v8Hashbang': each(
+    golden('coverage/v8-commonjs', {
+      read: (g) => {
+        const greet = Object.entries(v8FinalOf(g)).find(([path]) => path.endsWith('/greet.js'))?.[1]
+        const branch =
+          typeof greet === 'object' && greet !== null && 'branchMap' in greet
+            ? (greet.branchMap as Record<string, { loc?: { end?: { line?: number } } }>)['0']
+            : undefined
+        const end = branch?.loc?.end?.line
+        return end === undefined ? undefined : end < 16 ? 'removed' : 'kept'
+      },
+    }),
+    pending('B25', "Vitest's V8 collection is B25's"),
+  ),
   // Both tests read `globalThis.__coverage__`; they pass only when the counters live there.
   'coverage.istanbulVariable': each(
     golden('coverage/istanbul-variable', {

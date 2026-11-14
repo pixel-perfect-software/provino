@@ -22,7 +22,7 @@ const RECORDER_ENV = { CI: '1', NO_COLOR: '1', COLUMNS: '', GITHUB_ACTIONS: '' }
 /**
  * The ranges of ours that are not Jest's, by fixture: `<file> <map>[<key>]` to our range and
  * Jest's, each `start-end (line N)`. Jest's v8 numbers come through babel's source map of
- * babel's own output (the recorder strips the types, then babel-jest with the CommonJS plugin);
+ * babel's own output (babel-jest with `@babel/preset-typescript` and the CommonJS plugin, D123);
  * ours through V8's offsets in the TypeScript file, stripped in place (D116). Four kinds:
  * - a branch that starts at an operator after a space (`??`, `?`, `:`, `&&`): babel maps the
  *   space after the left operand and not the operator, so Jest's starts one column earlier;
@@ -72,7 +72,7 @@ after(async () => {
   await Promise.all(disposers.map((dispose) => dispose()))
 })
 
-async function provinoOn(id: string): Promise<Ran> {
+async function provinoOn(id: string, args: readonly string[] = []): Promise<Ran> {
   const fixture = await loadFixture(id)
   const project = await materialize(fixture)
   disposers.push(project.dispose)
@@ -85,6 +85,7 @@ async function provinoOn(id: string): Promise<Ran> {
       '--ci',
       '--json',
       `--outputFile=${join(root, '.harness-out', 'jest.json')}`,
+      ...args,
     ],
     { cwd: root, env: RECORDER_ENV },
   )
@@ -169,9 +170,17 @@ function asRecorded(ran: Ran, text: string): string {
 }
 
 describe("provino jest under coverageProvider: 'v8' writes what Jest 30.5.2's v8 provider wrote", () => {
-  for (const id of ['coverage/v8-providers-sample', 'coverage/v8-untested']) {
-    it(`${id}: the text report and json-summary, every file's counters and statements, its ranges but the pinned ones`, async () => {
-      const ran = await provinoOn(id)
+  // A CommonJS module is run in a wrapper inside a vm script: neither may count, at any worker
+  // count (each worker's script runs once, the module once per load).
+  const cases: readonly (readonly [string, readonly string[]])[] = [
+    ['coverage/v8-providers-sample', []],
+    ['coverage/v8-untested', []],
+    ['coverage/v8-commonjs', ['-w', '1']],
+    ['coverage/v8-commonjs', ['-w', '2']],
+  ]
+  for (const [id, args] of cases) {
+    it(`${id}${args.length === 0 ? '' : ` (${args.join(' ')})`}: the text report and json-summary, every file's counters and statements, its ranges but the pinned ones`, async () => {
+      const ran = await provinoOn(id, args)
       const golden = ran.fixture.golden.observed
       assert.equal(ran.code, golden?.exitCode, ran.stderr)
       assert.equal(asRecorded(ran, ran.stdout), golden?.stdout)
@@ -184,7 +193,7 @@ describe("provino jest under coverageProvider: 'v8' writes what Jest 30.5.2's v8
       const expected = golden?.json?.['coverage/coverage-final.json']
       assert.deepEqual(Object.keys(filesOf(final)).sort(), Object.keys(filesOf(expected)).sort())
       assert.deepEqual(exact(final), exact(expected))
-      assert.deepEqual(rangeDifferences(final, expected), DIFFERENT_RANGES[id])
+      assert.deepEqual(rangeDifferences(final, expected), DIFFERENT_RANGES[id] ?? {})
     })
   }
 

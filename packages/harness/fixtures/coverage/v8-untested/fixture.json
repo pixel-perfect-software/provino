@@ -1,7 +1,8 @@
 {
-  "description": "Jest 30.5.2's v8 provider on the files no test loads (T8.12, B23b): `collectCoverageFrom: ['src/**/*.ts']` names three files and the one test file imports only `src/used.ts`, which ends in an interface and has a function no test calls. `src/never.ts` holds characters of two and three bytes, so `generateEmptyCoverage`'s `(empty-report)` range, which ends at the file's size in bytes, runs past its last character; `src/types-only.ts` has nothing but types. The `json`, `json-summary` and `text` reports are recorded as Jest wrote them (the work directory as `<root>`). Read by `provino`'s `jest-coverage-v8.test.ts`.",
+  "description": "Jest 30.5.2's v8 provider on the files no test loads (T8.12, B23b): `collectCoverageFrom: ['src/**/*.ts']` names three files and the one test file imports only `src/used.ts`, which ends in an interface and has a function no test calls. `src/never.ts` holds characters of two and three bytes, so `generateEmptyCoverage`'s `(empty-report)` range, which ends at the file's size in bytes, runs past its last character; `src/types-only.ts` has nothing but types. Jest runs the TypeScript as its documentation sets it up, babel-jest with `@babel/preset-typescript` (`jestTypeScript`, D123). The `json`, `json-summary` and `text` reports are recorded as Jest wrote them (the work directory as `<root>`). Read by `provino`'s `jest-coverage-v8.test.ts`.",
   "runners": ["jest"],
   "jestEsm": true,
+  "jestTypeScript": "babel",
   "config": {
     "jest": {
       "collectCoverage": true,

@@ -48,6 +48,7 @@ const pinned: Readonly<Record<string, unknown>> = {
   // B23b: V8 coverage goes through the AST converter (built in B25) and counts no calls.
   'coverage.v8Conversion': 'ast',
   'coverage.v8HitCounts': false,
+  'coverage.v8Hashbang': 'kept',
   'coverage.istanbulVariable': '__coverage__',
   'coverage.thresholdMessages': {
     belowMinimum:

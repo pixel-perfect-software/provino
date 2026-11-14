@@ -217,6 +217,7 @@ export const vitestPolicy: PolicyOverrides = {
     // Not recorded for Vitest yet (B25); the neutral values stand.
     v8Conversion: 'ast',
     v8HitCounts: false,
+    v8Hashbang: 'kept',
     istanbulVariable: '__coverage__',
     thresholdMessages: {
       belowMinimum:

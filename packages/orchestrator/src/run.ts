@@ -473,9 +473,9 @@ export async function runProjects(
     event: Extract<WorkerEvent, { readonly type: 'coverage' }>,
   ): void => {
     if (coverageStore === undefined) return
-    coverageStore.add(workerId, event)
-    const take = coverageStore.entries.at(-1)
-    if (take !== undefined) options.coverage?.onTake?.(take)
+    // Kept first: with no `onTake` the optional call would skip its argument.
+    const take = coverageStore.add(workerId, event)
+    options.coverage?.onTake?.(take)
   }
 
   const caches = new Map<string, ResultsCache>()
@@ -609,6 +609,10 @@ export async function runProjects(
         // What global setup's `provide` collected; a worker starts only once setup has run.
         provided: globalSetup?.provided ?? {},
         config: member.project.config,
+        // A worker started after others sent their V8 modules sends none of those again.
+        ...(coverageStore === undefined || coverageStore.v8Modules.size === 0
+          ? {}
+          : { coverageModules: [...coverageStore.v8Modules] }),
       }
     },
     methods: {
