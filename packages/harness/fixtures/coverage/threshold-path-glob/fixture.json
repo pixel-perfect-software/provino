@@ -1,0 +1,30 @@
+{
+  "description": "A path group (`./src/deep/`, on its files' total), a glob group (`./src/**/*.ts`, checked file by file, one line per file) and `global` (which takes the files no other group named, so every file here) under Jest 30.5.2 (T8.11): `src/deep/total.ts` is in the path group and the glob group both. Read by `provino`'s `jest-coverage-thresholds.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "collectCoverageFrom": ["src/**/*.ts"],
+      "coverageReporters": ["json-summary"],
+      "coverageThreshold": {
+        "global": {
+          "statements": 100
+        },
+        "./src/deep/": {
+          "statements": 100,
+          "functions": 100
+        },
+        "./src/**/*.ts": {
+          "branches": 100,
+          "functions": 100
+        }
+      }
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^Jest: "
+  }
+}

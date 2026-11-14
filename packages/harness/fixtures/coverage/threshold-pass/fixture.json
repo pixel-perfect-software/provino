@@ -1,0 +1,32 @@
+{
+  "description": "Thresholds met under Jest 30.5.2 (T8.11): a global, a path group and a glob group that all hold, a negative cap that holds: exit code 0 and nothing on stderr. Read by `provino`'s `jest-coverage-thresholds.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "collectCoverageFrom": ["src/**/*.ts"],
+      "coverageReporters": ["json-summary"],
+      "coverageThreshold": {
+        "global": {
+          "statements": 50,
+          "branches": 20,
+          "lines": 50,
+          "functions": 50
+        },
+        "./src/deep/": {
+          "statements": 100
+        },
+        "./src/**/*.ts": {
+          "statements": -5
+        }
+      }
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^Jest: ",
+    "emptyStreams": ["stderr"]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "description": "`coverageThreshold.global` under Jest 30.5.2 (T8.11, B23b): every metric asked for 100 while `src/grade.ts` leaves two branches, two statements, a function and their lines uncovered. Jest's `Jest: Coverage for <metric> (<n>%) does not meet \"global\" threshold (100%)` lines in its metric order (statements, branches, lines, functions), and exit code 1. Read by `provino`'s `jest-coverage-thresholds.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "collectCoverageFrom": ["src/**/*.ts"],
+      "coverageReporters": ["json-summary"],
+      "coverageThreshold": {
+        "global": {
+          "functions": 100,
+          "lines": 100,
+          "branches": 100,
+          "statements": 100
+        }
+      }
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^Jest: "
+  }
+}
