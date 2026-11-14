@@ -14,6 +14,8 @@ export const FIXTURES: string = fileURLToPath(new URL('../../harness/fixtures/',
 /** What a fixture's `fixture.json` says that a run needs. */
 export interface RecordedManifest {
   readonly description: string
+  /** Set in the runner's environment. */
+  readonly env?: Readonly<Record<string, string>>
   readonly config?: { readonly jest?: Readonly<Record<string, unknown>> }
   readonly files?: { readonly jest?: Readonly<Record<string, string>> }
   /** Installed into `node_modules/<name>/` before the run. */
@@ -42,6 +44,7 @@ export interface RecordedGolden {
   }[]
   readonly observed?: {
     readonly exitCode?: number | null
+    readonly stdout?: string
     readonly stderr?: string
     readonly files?: Readonly<Record<string, string | null>>
     /** The parsed `json:` captures, as the recorder's `normalizedJson` leaves them. */
@@ -84,10 +87,17 @@ export interface Materialized {
  * Writes the fixture as the recorder does: its directory (without the manifest and the goldens),
  * then the `files` tree, and a `jest.config.json` with the recorder's base and the overlay. A key
  * in the overlay replaces the base's, which is what the recorder's overlay does for these
- * fixtures (arrays replace; none has a nested object).
+ * fixtures (arrays replace; none has a nested object). `parent` is where the project goes (default
+ * the temp directory); a fixture that names packages in its config needs one under a package
+ * that installs them.
  */
-export async function materialize(fixture: RecordedFixture): Promise<Materialized> {
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'provino-recorded-')))
+export async function materialize(
+  fixture: RecordedFixture,
+  options: { readonly parent?: string } = {},
+): Promise<Materialized> {
+  const parent = options.parent ?? tmpdir()
+  await mkdir(parent, { recursive: true })
+  const root = await realpath(await mkdtemp(join(parent, 'provino-recorded-')))
   await cp(fixture.dir, root, {
     recursive: true,
     filter: (source) => !/(^|\/)(fixture\.json|__goldens__)$/.test(source),

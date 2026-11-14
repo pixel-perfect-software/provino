@@ -79,6 +79,8 @@ export const vitestModulePolicy: ModulePolicy = {
   mockResolveKind: 'import',
   // Recorded, Vitest 5.0.5: `mod-shared-dep` and `mod-shared-dep-root` (a mock reaches only a direct import).
   mocksReachShared: false,
+  // Not recorded yet (T11.16): a frame keeps the name V8 gave it.
+  stackFrameNames: 'engine',
   automockShape: 'deep',
   unmockedPathPatterns: [],
   messages: {

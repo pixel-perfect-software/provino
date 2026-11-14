@@ -57,6 +57,18 @@ export interface ConsoleEntry {
 }
 
 /**
+ * What `onTestCaseStart` gets (`Circus.TestCaseStartInfo`, `@jest/types`).
+ * @public
+ */
+export interface TestCaseStartInfo {
+  ancestorTitles: string[]
+  fullName: string
+  mode: 'skip' | 'only' | 'todo' | undefined
+  title: string
+  startedAt?: number | null
+}
+
+/**
  * The shape of Jest's `displayName` project option.
  * @public
  */

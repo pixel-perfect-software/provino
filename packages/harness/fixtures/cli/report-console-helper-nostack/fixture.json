@@ -1,0 +1,22 @@
+{
+  "description": "The same project as report-console-helper under `--noStackTrace`: Jest keeps the first frame of a `warn` or `error` entry (`removeInternalStackEntries` always keeps the first path line) and prints no code frame. A black-box run.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "helper.cjs": "exports.complain = (message) => {\n  console.error(message)\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^  ● Console$|^ {4,}\\S",
+    "argv": {
+      "jest": ["--noStackTrace"]
+    },
+    "raw": true
+  }
+}

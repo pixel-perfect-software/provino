@@ -107,7 +107,7 @@ pnpm exec provino jest                    # the whole suite
 
 ## 🚧 Not in place yet
 
-Coverage, watch mode, `--json` output and custom reporters are planned, and are refused by name until then. `provino vitest` comes next. [Jest compatibility](wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, that's a bug: please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
+Coverage and watch mode are planned, and are refused by name until then. `provino vitest` comes next. [Jest compatibility](wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, that's a bug: please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
 
 ## 📚 Learn more
 

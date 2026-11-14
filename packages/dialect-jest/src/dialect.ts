@@ -214,6 +214,8 @@ export const jestPolicy: PolicyOverrides = {
     mockResolveKind: 'require',
     // Recorded, Jest 30.5.2: `mod-shared-dep` and `mod-shared-dep-root` (a mock reaches the packages that require it).
     mocksReachShared: true,
+    // jest-source-map names a frame after the map's name at its own position (`cli/failure-frames`).
+    stackFrameNames: 'mapped-name',
     // research: track-04 L314
     automockShape: 'metadata',
     // research: track-04 L316
@@ -303,6 +305,8 @@ export const jestPolicy: PolicyOverrides = {
     globMatchesOn: 'absolute-path',
     // Jest marks a suite skipped only when every test is pending (`cli/report-todo-only`, DV50).
     todoOnlyFile: 'pass',
+    // Jest's BufferedConsole keeps the call site of every entry (`cli/report-default`).
+    consoleOrigin: 'stack',
     // jest-util's `installCommonGlobals` gives every file its own copy of `process`: a later file
     // in the worker sees none of an earlier one's listeners or `env` changes
     // (`env/process-per-file-listeners`, `env/process-per-file-env`).

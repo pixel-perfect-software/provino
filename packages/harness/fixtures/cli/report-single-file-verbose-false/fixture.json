@@ -4,6 +4,6 @@
   "config": { "jest": { "maxWorkers": 1, "verbose": false } },
   "run": {
     "capture": ["exitCode", "stderr"],
-    "keepLines": "^(PASS|FAIL) |^ +(✓|✕|○|✎) |^ +math$|^ +console\\.|^ {4}from the test$|^  ● Console$|^(Test Suites|Tests):"
+    "keepLines": "^(PASS|FAIL) |^ +(✓|✕|○|✎) |^ +math$|^ +console\\.|^ {4}from the test$|^  ● Console$|^(Test Suites|Tests):|^Ran all test suites|^Snapshot Summary$|^ › |^ +[↳•] "
   }
 }

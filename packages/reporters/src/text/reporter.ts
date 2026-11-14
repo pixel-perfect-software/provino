@@ -6,14 +6,16 @@ import type {
   ReportPolicy,
   RunSummary,
   SerializedError,
+  TaskId,
   TaskNode,
   TaskState,
+  TextStyle,
 } from '@provino/types'
 import { DEFAULT_COLUMNS } from '../environment.ts'
 import { createCollector, type FileRecord, outcomeOf } from '../internal/collect.ts'
 import type { TextSink } from '../sink.ts'
 import { createStyle } from '../style.ts'
-import { consoleBlock, consoleEntries } from './console.ts'
+import { type ConsoleEntry, consoleBlock, consoleEntries } from './console.ts'
 import { createDots } from './dots.ts'
 import {
   displayPath,
@@ -57,6 +59,11 @@ export interface TextReporterOptions {
   readonly silent?: boolean
   /** Leave the stack frames out of the failure messages (Jest's `--noStackTrace`). */
   readonly noStackTrace?: boolean
+  /**
+   * A dialect's rendering of a console call's site, printed under the entry in place of the `at`
+   * line (Jest's `formatStackTrace`, with the code frame of a `warn` or `error`).
+   */
+  readonly consoleTrace?: (file: FileInfo, entry: ConsoleEntry) => string
   /** `verbose`: list skipped and todo tests in declaration order, not after the others (Jest's `--expand`). */
   readonly expand?: boolean
   /**
@@ -64,6 +71,37 @@ export interface TextReporterOptions {
    * off the policy's `listTestsForSingleFile`. `verbose` itself is the `verbose` reporter's.
    */
   readonly verbose?: false
+  /**
+   * `false`: no run-end summary (the totals, the obsolete snapshots). The unhandled errors still
+   * print. `summaryReporter` prints the summary alone, so a run can have both, as Jest has.
+   */
+  readonly summary?: false
+  /**
+   * Text printed in place of Provino's own failure blocks for a file that failed (`undefined`:
+   * the blocks). A dialect that has its own failure text for a file passes it here, one block per
+   * failed test so each test's lazy values (T6.10) can follow its own block.
+   */
+  readonly failureText?: (file: FileResult) => readonly FailureTextBlock[] | undefined
+  /**
+   * Lines printed under a file's header and failures (Jest's per-file snapshot lines); not part of
+   * the failures the summary reprints.
+   */
+  readonly fileNotes?: (file: FileResult, style: TextStyle) => readonly string[] | undefined
+  /** `summaryReporter`: reprint the failures at the end when more suites than this ran. Default 20. */
+  readonly failureSummaryThreshold?: number
+  /**
+   * `summaryReporter`: the snapshot summary lines (`undefined`: the obsolete-snapshots block).
+   */
+  readonly snapshotSummary?: (
+    summary: RunSummary,
+    style: TextStyle,
+  ) => readonly string[] | undefined
+  /** `summaryReporter`: the line after the totals (Jest's `Ran all test suites.`); `undefined` for none. */
+  readonly closingLine?: (summary: RunSummary, style: TextStyle) => string | undefined
+  /** Print `Snapshots:   0 total` when no snapshot was checked, as Jest's summary always has the line. */
+  readonly snapshotsAlways?: true
+  /** `summaryReporter`: the run lists every test (`--verbose`), so no blank line comes before the totals. */
+  readonly verboseRun?: true
 }
 
 /**
@@ -73,7 +111,7 @@ export interface TextReporterOptions {
 export type DefaultReporterOptions = TextReporterOptions
 
 /** What a text reporter prints about each file. */
-export type TextMode = 'default' | 'verbose' | 'agent' | 'dot'
+export type TextMode = 'default' | 'verbose' | 'agent' | 'dot' | 'summary'
 
 /** What a mode does, so the engine asks a trait and never the mode's name. */
 interface Traits {
@@ -87,13 +125,23 @@ interface Traits {
   readonly list: 'always' | 'single-file' | 'never'
   /** One character per test as it ends, and the failed files after them. */
   readonly dots: boolean
+  /** Whether a file is printed as it ends. `false`: only the run's end (the summary reporter). */
+  readonly files: boolean
 }
 
 const TRAITS: Readonly<Record<TextMode, Traits>> = {
-  default: { quiet: false, live: true, console: true, list: 'single-file', dots: false },
-  verbose: { quiet: false, live: true, console: true, list: 'always', dots: false },
-  agent: { quiet: true, live: false, console: false, list: 'never', dots: false },
-  dot: { quiet: true, live: false, console: false, list: 'never', dots: true },
+  default: {
+    quiet: false,
+    live: true,
+    console: true,
+    list: 'single-file',
+    dots: false,
+    files: true,
+  },
+  verbose: { quiet: false, live: true, console: true, list: 'always', dots: false, files: true },
+  agent: { quiet: true, live: false, console: false, list: 'never', dots: false, files: true },
+  dot: { quiet: true, live: false, console: false, list: 'never', dots: true, files: true },
+  summary: { quiet: true, live: false, console: false, list: 'never', dots: false, files: false },
 }
 
 /** How an `error` event is labelled, by where it came from. */
@@ -103,8 +151,20 @@ const ERROR_LABELS = {
   globalSetup: 'Global setup error',
 } as const
 
+/**
+ * One block of a dialect's failure text for a file: a failed test's (`taskId`), or the file's own
+ * errors. The blocks print joined by `\n`, so a dialect splits its text where it joined it.
+ * @public
+ */
+export interface FailureTextBlock {
+  readonly taskId?: TaskId
+  readonly text: string
+}
+
 /** A test, or a suite with errors of its own, that failed. */
 interface Failure {
+  /** The test's id; a suite's failure has none. */
+  readonly id?: TaskId
   readonly title: string
   readonly errors: readonly SerializedError[]
   /** The lazy values the test evaluated (a failed test with any). */
@@ -153,6 +213,10 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
   let queued = 0
   // Whether the last thing printed ended in a blank line, so the totals don't add a second.
   let atBlank = true
+  /** The summary reporter's: each failed file's text, whether the last file failed, how many ended with errors of their own. */
+  const failedTexts: string[] = []
+  let lastFailed = false
+  let runtimeErrors = 0
 
   async function print(text: string): Promise<void> {
     atBlank = text.endsWith('\n')
@@ -171,6 +235,7 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       const outcome = outcomeOf(entry, test)
       if (outcome.failed) {
         failed.push({
+          id,
           title: testTitle(report, test.fullName),
           errors: outcome.errors,
           ...(result.lazies === undefined ? {} : { lazies: result.lazies }),
@@ -185,10 +250,15 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
   }
 
   /** What a file prints, or `undefined` for none (a skipped file; a passing one under `agent`). */
+  function traceOf(file: FileInfo): { trace?: (entry: ConsoleEntry) => string } {
+    const hook = options.consoleTrace
+    return hook === undefined ? {} : { trace: (entry) => hook(file, entry) }
+  }
+
   function fileText(result: FileResult, entry: FileRecord | undefined): string | undefined {
     if (result.state === 'skip') return undefined
     if (traits.quiet && result.state === 'pass') return undefined
-    const label = projectLabel(result.file, displayPath(result.file.path))
+    const label = projectLabel(result.file, displayPath(result.file.runPath ?? result.file.path))
     const header =
       result.state === 'pass'
         ? passLine(label, result.durationMs, style)
@@ -197,7 +267,13 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     const parts: string[] = []
     if (listing) {
       if (entries.length > 0) {
-        parts.push(consoleEntries(entries, { titleIndent: 2, stackTrace }, style))
+        parts.push(
+          consoleEntries(
+            entries,
+            { titleIndent: 2, stackTrace, root: record.root, ...traceOf(result.file) },
+            style,
+          ),
+        )
       }
       parts.push(header)
       if (entry !== undefined) {
@@ -209,9 +285,25 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       }
     } else {
       parts.push(header)
-      if (entries.length > 0) parts.push(consoleBlock(entries, style, stackTrace))
+      if (entries.length > 0) {
+        parts.push(
+          consoleBlock(entries, style, stackTrace, record.root, traceOf(result.file).trace),
+        )
+      }
     }
-    if (result.state === 'fail') {
+    const given = result.state === 'fail' ? options.failureText?.(result) : undefined
+    if (given !== undefined) {
+      const lazies = new Map(failuresOf(entry).map((test) => [test.id, test.lazies]))
+      parts.push(
+        ...given.map(
+          (block) =>
+            block.text +
+            (block.taskId === undefined
+              ? ''
+              : lazyBlock(lazies.get(block.taskId), record.root, style)),
+        ),
+      )
+    } else if (result.state === 'fail') {
       const failed = failuresOf(entry)
       parts.push(
         ...failed.map(
@@ -225,7 +317,9 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
         parts.push(failureBlock(report, title, result.errors, style, stackTrace))
       }
     }
-    return parts.join('\n')
+    const text = parts.join('\n')
+    const notes = options.fileNotes?.(result, style) ?? []
+    return notes.length === 0 || !traits.files ? text : `${text}\n${notes.join('\n')}`
   }
 
   return {
@@ -237,6 +331,9 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       collect['run:start'](info, announced)
       Object.assign(files, zeroCounts())
       Object.assign(tests, zeroCounts())
+      failedTexts.length = 0
+      lastFailed = false
+      runtimeErrors = 0
       queued = announced.length
       listing = lists(announced.length)
       dots?.reset()
@@ -246,7 +343,7 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     ...(live
       ? {
           async 'file:start'(file: FileInfo) {
-            await out.start(file.fileId, projectLabel(file, displayPath(file.path)))
+            await out.start(file.fileId, projectLabel(file, displayPath(file.runPath ?? file.path)))
           },
         }
       : {}),
@@ -276,6 +373,12 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       tally(files, result.state)
       const text = fileText(result, record.files.get(fileId))
       release(fileId)
+      lastFailed = result.state === 'fail'
+      if (result.state === 'fail' && result.errors.length > 0) runtimeErrors++
+      if (!traits.files) {
+        if (text !== undefined) failedTexts.push(text)
+        return
+      }
       if (dots !== undefined) {
         await dots.flush()
         if (text !== undefined) dots.defer(text)
@@ -287,12 +390,17 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     },
 
     async error(error, origin) {
+      if (!traits.files) return
       const lead = (await dots?.leave()) ?? ''
       await print(lead + failureBlock(report, ERROR_LABELS[origin], [error], style, stackTrace))
     },
 
     async 'run:end'(summary: RunSummary) {
       await out.close()
+      if (!traits.files) {
+        await printSummary(summary)
+        return
+      }
       // `dot`: the dots end the row they are on; the failed files follow, a blank line apart.
       let lead = (await dots?.leave()) ?? ''
       const deferred = dots?.deferred() ?? ''
@@ -303,23 +411,72 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       const unhandled = summary.unhandled.map((error) =>
         failureBlock(report, 'Unhandled error', [error], style, stackTrace),
       )
+      const totals = options.summary !== false
       const obsolete = obsoleteBlock(summary.snapshots)
       const parts = [
         ...unhandled,
-        ...(obsolete === '' ? [] : [obsolete]),
-        summaryLines(
-          files,
-          tests,
-          summary.durationMs,
-          snapshotLine(summary.snapshots, style),
-          queued,
-          style,
-        ),
+        ...(totals && obsolete !== '' ? [obsolete] : []),
+        ...(totals
+          ? [
+              summaryLines(
+                files,
+                tests,
+                summary.durationMs,
+                snapshotLine(summary.snapshots, style, options.snapshotsAlways === true),
+                queued,
+                style,
+              ),
+            ]
+          : []),
       ]
       // A blank line apart from whatever came before, unless that already ended in one.
-      await print(`${lead === '' && atBlank ? '' : '\n'}${parts.join('\n')}`)
-      if (summary.openHandles !== undefined) await print(openHandlesText(summary.openHandles))
+      if (parts.length > 0) {
+        await print(`${lead === '' && atBlank ? '' : '\n'}${parts.join('\n')}`)
+      }
+      if (totals && summary.openHandles !== undefined) {
+        await print(openHandlesText(summary.openHandles))
+      }
     },
+  }
+
+  /**
+   * The summary reporter's whole output, in the order of Jest's `SummaryReporter`: a blank line when
+   * the last file did not fail, the failures again for a big run, the snapshot summary, the totals,
+   * the closing line; nothing for a run with no files (Jest's `numTotalTestSuites` is 0).
+   */
+  async function printSummary(summary: RunSummary): Promise<void> {
+    const suites = Math.max(queued, files.total)
+    const lines: string[] = []
+    if (suites > 0) {
+      if (options.verboseRun !== true && !lastFailed) lines.push('')
+      const threshold = options.failureSummaryThreshold ?? 20
+      if (tests.failed + runtimeErrors > 0 && suites > threshold) {
+        lines.push(style.bold('Summary of all failing tests'), ...failedTexts, '')
+      }
+      const snapshotLines = options.snapshotSummary?.(summary, style)
+      if (snapshotLines !== undefined) {
+        if (snapshotLines.length > 0) lines.push(...snapshotLines, '')
+      } else {
+        const obsolete = obsoleteBlock(summary.snapshots)
+        if (obsolete !== '') lines.push(obsolete)
+      }
+      const closing = options.silent === true ? undefined : options.closingLine?.(summary, style)
+      lines.push(
+        [
+          summaryLines(
+            files,
+            tests,
+            summary.durationMs,
+            snapshotLine(summary.snapshots, style, options.snapshotsAlways === true),
+            queued,
+            style,
+          ),
+          ...(closing === undefined ? [] : [closing]),
+        ].join('\n'),
+      )
+      await print(lines.join('\n'))
+    }
+    if (summary.openHandles !== undefined) await print(openHandlesText(summary.openHandles))
   }
 }
 

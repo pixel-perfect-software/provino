@@ -157,6 +157,13 @@ export interface FixtureRun {
   readonly missingJson?: readonly string[]
   readonly keepLines?: string
   /**
+   * `true` records each captured stream and file as the runner wrote it: the work directory's path
+   * as `<root>` and `mask` applied, nothing else. Without it the text goes through the recorder's
+   * normalization (durations, code frames and stacks reduced), which a comparison of a reporter's
+   * whole output cannot allow.
+   */
+  readonly raw?: true
+  /**
    * `true` sorts the kept lines. `'json'` reads the kept lines as one JSON array of strings (Jest's
    * `--listTests --json`) and records its elements sorted, one to a line: a list whose order
    * depends on file sizes and timings is recorded as the set it is.
@@ -488,6 +495,7 @@ const RUN_KEYS: readonly string[] = [
   'keepLines',
   'mask',
   'missingJson',
+  'raw',
   'sortStdout',
   'timeKeys',
 ]
@@ -544,7 +552,8 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       throw bad(`has the unknown key "${key}" (expected ${RUN_KEYS.join(', ')})`)
     }
   }
-  const { argv, capture, emptyStreams, keepLines, mask, missingJson, sortStdout, timeKeys } = run
+  const { argv, capture, emptyStreams, keepLines, mask, missingJson, raw, sortStdout, timeKeys } =
+    run
   if (
     !Array.isArray(capture) ||
     capture.length === 0 ||
@@ -570,6 +579,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     sortStdout?: true | 'json'
     timeKeys?: string[]
     mask?: string[]
+    raw?: true
   } = { capture }
   if (argv !== undefined) {
     if (!isRecord(argv) || Object.keys(argv).length === 0) {
@@ -640,6 +650,10 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       throw bad('"missingJson" must list, once each, "json:" entries that "capture" lists')
     }
     out.missingJson = missingJson
+  }
+  if (raw !== undefined) {
+    if (raw !== true) throw bad('"raw" must be true (leave it out for off)')
+    out.raw = true
   }
   if (sortStdout !== undefined) {
     if (sortStdout !== true && sortStdout !== 'json') {

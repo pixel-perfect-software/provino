@@ -1,0 +1,22 @@
+{
+  "description": "The Snapshot Summary and the per-file snapshot lines (B23a), under Jest 30.5.2 with `--ci=false` so snapshots are written: `written.test.ts` writes one, `failed.test.ts` fails a stored one, `obsolete.test.ts` has an unused stored key. Jest prints ` › N snapshot ...` under each file and the summary block before the totals. The recorder runs outside npm, so the update command reads ``re-run jest with `-u` ``. One worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/failed.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`fails a stored snapshot 1`] = `\n{\n  \"value\": \"old\",\n}\n`;\n",
+      "__snapshots__/obsolete.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`matches 1`] = `1`;\n\nexports[`unused 1`] = `2`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Snapshot Summary$|^ › |^ +[↳•] "
+  }
+}

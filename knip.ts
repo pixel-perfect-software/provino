@@ -66,7 +66,11 @@ const config: KnipConfig = {
         'babel-plugin-jest-hoist',
         'jest',
         'jest-environment-node',
+        'jest-html-reporters',
+        'jest-junit',
         'jest-serializer-vue',
+        'jest-silent-reporter',
+        'jest-sonar-reporter',
       ],
     },
     'packages/transform': {
@@ -116,6 +120,11 @@ const config: KnipConfig = {
         ),
         // A test symlinks a real jest-environment-jsdom into a project.
         'jest-environment-jsdom',
+        // The third-party reporters `reporters-third-party.test.ts` names in a Jest config.
+        'jest-html-reporters',
+        'jest-junit',
+        'jest-silent-reporter',
+        'jest-sonar-reporter',
       ],
     },
   },

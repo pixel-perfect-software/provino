@@ -14,6 +14,7 @@ export {
 export {
   createJestResults,
   type GlobalConfigLike,
+  type JestFailureBlock,
   type JestResults,
   type JestResultsOptions,
   type ProjectConfigLike,
@@ -44,6 +45,7 @@ export type {
   SnapshotSummary,
   Status,
   Test,
+  TestCaseStartInfo,
   TestContext,
   TestResult,
   TestResultsProcessor,

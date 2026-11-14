@@ -21,6 +21,7 @@ import { TaskId } from '@provino/types';
 import { TaskNode } from '@provino/types';
 import { TaskResult } from '@provino/types';
 import { TestTask } from '@provino/types';
+import { TextStyle } from '@provino/types';
 
 // @public
 export function addResult(aggregated: AggregatedResult, testResult: TestResult): void;
@@ -144,6 +145,9 @@ export function createEmptyTestResult(): TestResult;
 export function createJestConfigReader(options?: NormalizeOptions): ConfigReader<JestLoadedConfig, JestResolvedConfig>;
 
 // @public
+export function createJestReporterHost<Config extends ProjectConfigLike>(options: JestReporterHostOptions<Config>): Reporter[];
+
+// @public
 export function createJestResolution(requireResolve: JestRequireResolve): JestResolution;
 
 // @public
@@ -233,6 +237,8 @@ export function formatTestFailures(assertionResults: readonly AssertionResult[],
 export interface GlobalConfigLike {
     // (undocumented)
     readonly noStackTrace: boolean;
+    readonly silent?: boolean | undefined;
+    readonly verbose?: boolean | undefined;
 }
 
 // @public
@@ -317,6 +323,11 @@ export type JestConfigErrorCode = "JEST_CONFIG_NOT_FOUND" | "JEST_CONFIG_NO_ROOT
 export const jestConfigReader: ConfigReader<JestLoadedConfig, JestResolvedConfig>;
 
 // @public
+export function jestConsoleTrace(origin: string, level: string | null, config: StackTraceConfig, globalConfig: {
+    readonly noStackTrace?: boolean;
+}): string;
+
+// @public
 export function jestDefaults(ci: boolean): Readonly<Options$1>;
 
 // @public (undocumented)
@@ -325,6 +336,14 @@ export interface JestDisplayName {
     readonly color: string;
     // (undocumented)
     readonly name: string;
+}
+
+// @public
+export interface JestFailureBlock {
+    // (undocumented)
+    readonly taskId?: TaskId;
+    // (undocumented)
+    readonly text: string;
 }
 
 // @public
@@ -481,6 +500,16 @@ export interface JestLoadedConfig {
     readonly configPath: string | null;
     // (undocumented)
     readonly options: JestInitialOptions;
+}
+
+// @public
+export interface JestLoadedReporter {
+    // (undocumented)
+    readonly Class: JestReporterClass;
+    // (undocumented)
+    readonly options: Readonly<Record<string, unknown>>;
+    // (undocumented)
+    readonly path: string;
 }
 
 // @public
@@ -662,7 +691,101 @@ export interface JestReadOutcome extends JestReadConfig {
 }
 
 // @public
+export type JestReporterClass = new (globalConfig: never, options: Readonly<Record<string, unknown>>, context: JestReporterContext) => JestReporterInstance;
+
+// @public
+export interface JestReporterContext {
+    // (undocumented)
+    changedFiles?: Set<string>;
+    // (undocumented)
+    firstRun: boolean;
+    // (undocumented)
+    previousSuccess: boolean;
+    // (undocumented)
+    sourcesRelatedToTestsInChangedFiles?: Set<string>;
+}
+
+// @public
 export type JestReporterEntry = readonly [name: string, options: Readonly<Record<string, unknown>>];
+
+// @public
+export interface JestReporterEnvironment {
+    // (undocumented)
+    readonly agent: boolean;
+    // (undocumented)
+    readonly githubActions: boolean;
+}
+
+// @public
+export interface JestReporterHostOptions<Config extends ProjectConfigLike> {
+    // (undocumented)
+    readonly context?: JestReporterContext;
+    // (undocumented)
+    readonly entries: readonly JestLoadedReporter[];
+    readonly globalConfig: unknown;
+    readonly results: JestResults<Config>;
+    readonly serial?: boolean;
+    readonly showStatus: boolean;
+}
+
+// @public
+export interface JestReporterInstance {
+    // (undocumented)
+    readonly getLastError?: () => unknown;
+    // (undocumented)
+    readonly onRunComplete?: (contexts: Set<TestContext>, aggregated: AggregatedResult) => Promise<void> | void;
+    // (undocumented)
+    readonly onRunStart?: (aggregated: AggregatedResult, options: JestReporterOnStartOptions) => Promise<void> | void;
+    // (undocumented)
+    readonly onTestCaseResult?: (test: Test, result: AssertionResult) => Promise<void> | void;
+    // (undocumented)
+    readonly onTestCaseStart?: (test: Test, info: TestCaseStartInfo) => Promise<void> | void;
+    // (undocumented)
+    readonly onTestFileResult?: (test: Test, testResult: TestResult, aggregated: AggregatedResult) => Promise<void> | void;
+    // (undocumented)
+    readonly onTestFileStart?: (test: Test) => Promise<void> | void;
+    // (undocumented)
+    readonly onTestResult?: (test: Test, testResult: TestResult, aggregated: AggregatedResult) => Promise<void> | void;
+    // (undocumented)
+    readonly onTestStart?: (test: Test) => Promise<void> | void;
+}
+
+// @public
+export interface JestReporterOnStartOptions {
+    // (undocumented)
+    estimatedTime: number;
+    // (undocumented)
+    showStatus: boolean;
+}
+
+// @public
+export interface JestReporterPlan {
+    // (undocumented)
+    readonly steps: readonly JestReporterStep[];
+    // (undocumented)
+    readonly summary: {
+        readonly options: Readonly<Record<string, unknown>>;
+    } | undefined;
+}
+
+// @public
+export function jestReporterPlan(globalConfig: {
+    readonly reporters: readonly (readonly [string, Readonly<Record<string, unknown>>])[] | undefined;
+    readonly verbose?: boolean | undefined;
+}, projectConfigs: readonly {
+    readonly verbose?: boolean | undefined;
+}[], environment: JestReporterEnvironment): JestReporterPlan;
+
+// @public
+export type JestReporterStep = {
+    readonly kind: "builtin";
+    readonly name: "default" | "verbose" | "agent" | "github-actions";
+    readonly options: Readonly<Record<string, unknown>>;
+} | {
+    readonly kind: "custom";
+    readonly path: string;
+    readonly options: Readonly<Record<string, unknown>>;
+};
 
 // @public
 export type JestRequireResolve = (specifier: string) => string | undefined;
@@ -686,9 +809,15 @@ export interface JestResolvedConfig {
 // @public
 export interface JestResults<Config extends ProjectConfigLike> {
     aggregated(): AggregatedResult;
+    assertionOf(test: TestTask, retried?: {
+        readonly attempt: number;
+        readonly errors: readonly SerializedError[];
+    }): AssertionResult | undefined;
     contexts(): Set<TestContext<Config>>;
+    failureTextOf(fileId: TaskId): readonly JestFailureBlock[] | undefined;
     readonly reporter: Reporter;
     reportersFailed(failed: boolean): void;
+    startInfoOf(test: TestTask): TestCaseStartInfo;
     testOf(file: FileInfo): Test<Config>;
     testResultOf(fileId: TaskId): TestResult | undefined;
 }
@@ -709,13 +838,32 @@ export function jestRunGlobalHooks(globalConfig: JestGlobalConfig): {
 } | undefined;
 
 // @public
+export function jestRunSummaryLine(globalConfig: Pick<JestGlobalConfig, "findRelatedTests" | "nonFlagArgs" | "onlyChanged" | "runTestsByPath" | "silent" | "testNamePattern" | "testPathPatterns">, run: {
+    readonly interrupted: boolean;
+    readonly contextCount: number;
+    readonly watch?: boolean;
+}, style: TextStyle): string | undefined;
+
+// @public
+export function jestSnapshotStatus(snapshot: TestResult["snapshot"], afterUpdate: boolean, style: TextStyle): readonly string[];
+
+// @public
+export function jestSnapshotSummary(snapshots: SnapshotSummary, globalConfig: Pick<JestGlobalConfig, "rootDir">, updateCommand: string, style: TextStyle): readonly string[];
+
+// @public
 export type JestTransformEntry = readonly [pattern: string, path: string, options: Readonly<Record<string, unknown>>];
+
+// @public
+export function jestUpdateCommand(env: Readonly<Record<string, string | undefined>>, watch: boolean): string;
 
 // @public
 export function loadJestConfig(source: ConfigSource): Promise<{
     readonly options: JestInitialOptions;
     readonly configPath: string | null;
 }>;
+
+// @public
+export function loadJestReporters(plan: JestReporterPlan): Promise<JestLoadedReporter[]>;
 
 // @public
 export function makeCollectedTestResult(testResults: AssertionResult[], options: {
@@ -926,6 +1074,20 @@ export interface Test<Config = unknown> {
     duration?: number;
     // (undocumented)
     path: string;
+}
+
+// @public
+export interface TestCaseStartInfo {
+    // (undocumented)
+    ancestorTitles: string[];
+    // (undocumented)
+    fullName: string;
+    // (undocumented)
+    mode: "skip" | "only" | "todo" | undefined;
+    // (undocumented)
+    startedAt?: number | null;
+    // (undocumented)
+    title: string;
 }
 
 // @public

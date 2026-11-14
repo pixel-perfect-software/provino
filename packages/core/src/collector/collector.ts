@@ -167,7 +167,8 @@ export class Collector {
       type: 'test',
       name: spec.name,
       parent,
-      site: this.#site(spec.entry),
+      // A `.failing` test reports its definition's frames if it passes (jest-circus's `asyncError`).
+      site: this.#site(spec.entry, spec.flags.fails === true || spec.options.fails === true),
       declared,
       mode: declared ?? 'run',
       skipReason:
@@ -376,9 +377,9 @@ export class Collector {
   }
 
   /** A registration's callsite, with the frames `locationFrame` needs. */
-  #site(entry: StackMarker): Site | null {
+  #site(entry: StackMarker, deep = false): Site | null {
     const frames =
-      this.#config.policy.locationFrame === 'test-file' ? TEST_FILE_FRAMES : CALLER_FRAMES
+      deep || this.#config.policy.locationFrame === 'test-file' ? TEST_FILE_FRAMES : CALLER_FRAMES
     return captureSite(entry, this.#config.locations, frames)
   }
 

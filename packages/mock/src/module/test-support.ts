@@ -23,6 +23,7 @@ export const jestLike: ModulePolicy = {
   mockValueOwner: 'module-registry',
   mockResolveKind: 'require',
   mocksReachShared: true,
+  stackFrameNames: 'engine',
   automockShape: 'metadata',
   messages: {
     'module-missing': "Cannot find module '{specifier}' from '{from}' (hint)",

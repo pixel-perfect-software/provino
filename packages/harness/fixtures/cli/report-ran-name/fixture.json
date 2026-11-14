@@ -1,0 +1,16 @@
+{
+  "description": "The closing line with a test name pattern (`-t inner`), under Jest 30.5.2 (B23a): `Ran all test suites with tests matching \"inner\".`. One worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-t", "inner"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Snapshot Summary$|^ › |^ +[↳•] "
+  }
+}

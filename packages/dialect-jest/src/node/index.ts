@@ -63,10 +63,33 @@ export {
 export { replaceRootDirInPath } from './paths.ts'
 export { setupPreset } from './preset.ts'
 export { type CollectedTextStyle, jestCollectedText } from './reporters/collected-text.ts'
+export { jestConsoleTrace } from './reporters/console-trace.ts'
+export {
+  createJestReporterHost,
+  type JestLoadedReporter,
+  type JestReporterClass,
+  type JestReporterContext,
+  type JestReporterHostOptions,
+  type JestReporterInstance,
+  type JestReporterOnStartOptions,
+} from './reporters/host.ts'
+export { loadJestReporters } from './reporters/load.ts'
+export {
+  type JestReporterEnvironment,
+  type JestReporterPlan,
+  type JestReporterStep,
+  jestReporterPlan,
+} from './reporters/plan.ts'
 export {
   type ProcessJestResultsOptions,
   processJestResults,
 } from './reporters/process-results.ts'
+export {
+  jestRunSummaryLine,
+  jestSnapshotStatus,
+  jestSnapshotSummary,
+  jestUpdateCommand,
+} from './reporters/summary-text.ts'
 export {
   createJestResolution,
   type FindNodeModuleOptions,

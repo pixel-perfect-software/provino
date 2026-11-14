@@ -1,0 +1,16 @@
+{
+  "description": "The closing line under `--runTestsByPath` (B23a): `Ran all test suites within paths \"a.test.ts\".`. Two files, one named. One worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--runTestsByPath", "a.test.ts"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Snapshot Summary$|^ › |^ +[↳•] "
+  }
+}

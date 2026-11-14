@@ -142,6 +142,8 @@ export function startWorker(
   const capture = createConsoleCapture({
     emit: (event) => packer.emit(event),
     currentTaskId: options.console?.currentTaskId ?? (() => null),
+    // The policy arrives with `init`, after the capture is made.
+    origin: () => init?.config.policy.orchestrator.consoleOrigin === 'stack',
   })
   let init: WorkerInit | undefined
   let installed: InstalledCapture | undefined

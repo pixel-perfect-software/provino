@@ -7,7 +7,12 @@ import type { NormalizedFile, NormalizedRun } from '@provino/types'
 import { HarnessError, type HarnessErrorCode } from '../errors.ts'
 import { serializeGolden, toGolden } from '../golden.ts'
 import { makeFile, makeRun, makeTest } from '../test-support.ts'
-import { assertNoPathLeak, assertRunComplete, commitGolden } from './recording.ts'
+import {
+  assertCheckoutKeepsJestFrames,
+  assertNoPathLeak,
+  assertRunComplete,
+  commitGolden,
+} from './recording.ts'
 
 function rejects(code: HarnessErrorCode, ...mentions: string[]): (error: unknown) => boolean {
   return (error) =>
@@ -287,4 +292,34 @@ test('check mode sees a change in the trace alone as drift', async () => {
     assert.equal((await commitGolden(target, text(['beforeEach L1 #1']), true)).outcome, 'drift')
     assert.equal((await commitGolden(target, text(), true)).outcome, 'drift')
   })
+})
+
+// jest-message-util 30.5 leaves out of every failure it prints a frame whose path has a directory
+// named like a Jest package followed by `node_modules/` or `build/`. A checkout at
+// `…/b23a-jest-results/` therefore hid the `expect` package's frames that CI's checkout prints, and
+// `cli/reporters-twenty` was recorded without them.
+test('a checkout whose path makes Jest hide its node_modules frames is refused for Jest', () => {
+  for (const root of [
+    '/work/b23a-jest-results',
+    '/work/jest',
+    '/home/me/jest-work',
+    '/home/me/jest/build/provino',
+    '/home/me/@jest/core',
+    '/home/me/jester',
+  ]) {
+    assert.throws(
+      () => assertCheckoutKeepsJestFrames(root, 'cli/x (jest)'),
+      rejects('HARNESS_CHECKOUT_HIDES_JEST_FRAMES', 'cli/x (jest)', root),
+      root,
+    )
+  }
+  for (const root of [
+    '/home/runner/work/provino/provino',
+    '/work/provino/.claude/worktrees/agent-a1b2',
+    '/home/me/jest-work/../provino',
+    '/home/me/jest/provino',
+    '/home/me/jest-work/provino',
+  ]) {
+    assertCheckoutKeepsJestFrames(root, 'cli/x (jest)')
+  }
 })

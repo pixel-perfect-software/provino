@@ -10,6 +10,6 @@
   "run": {
     "argv": { "jest": ["--silent"] },
     "capture": ["exitCode", "stderr"],
-    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^  ● Console$|^ {4}console\\.|^ {6}(from the test|a warning)$"
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^  ● Console$|^ {4}console\\.|^ {6}(from the test|a warning)$|^Ran all test suites|^Snapshot Summary$|^ › |^ +[↳•] "
   }
 }

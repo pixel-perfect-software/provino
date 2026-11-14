@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/failure-frames",
+  "files": [
+    {
+      "file": "frames.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "frames.test.ts",
+            "path": [
+              "frames",
+              "fails toBe"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 2\nReceived: 1",
+              "matcher": "toBe",
+              "userFrame": "<root>/frames.test.ts:10:22"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "frames.test.ts",
+            "path": [
+              "frames",
+              "fails toBe after an await"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 2\nReceived: 1",
+              "matcher": "toBe",
+              "userFrame": "<root>/frames.test.ts:15:15"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 13,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "frames.test.ts",
+            "path": [
+              "frames",
+              "fails toEqual"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 1\n\n  Object {\n-   \"a\": 2,\n+   \"a\": 1,\n  }",
+              "matcher": "toEqual",
+              "userFrame": "<root>/frames.test.ts:19:22"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 18,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "frames.test.ts",
+            "path": [
+              "frames",
+              "fails toThrow"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toThrow()\n\nReceived function did not throw",
+              "userFrame": "<root>/frames.test.ts:23:21"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "frames.test.ts",
+            "path": [
+              "frames",
+              "throws in a helper"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: from a helper",
+              "userFrame": "<root>/frames.test.ts:4:9"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 26,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "frames.test.ts",
+            "path": [
+              "frames",
+              "rejects"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).rejects.toThrow()\n\nReceived promise resolved instead of rejected\nResolved to value: 1",
+              "userFrame": "<root>/frames.test.ts:31:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "frames.test.ts",
+            "path": [
+              "frames",
+              "fails each 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 0\nReceived: 1",
+              "matcher": "toBe",
+              "userFrame": "<root>/frames.test.ts:35:15"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 22
+          }
+        },
+        {
+          "id": {
+            "file": "frames.test.ts",
+            "path": [
+              "frames",
+              "fails each 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 0\nReceived: 2",
+              "matcher": "toBe",
+              "userFrame": "<root>/frames.test.ts:35:15"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 22
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "  ● frames › fails toBe\n      at Object.toBe (frames.test.ts:10:22)\n  ● frames › fails toBe after an await\n      at Object.toBe (frames.test.ts:15:15)\n  ● frames › fails toEqual\n      at Object.toEqual (frames.test.ts:19:22)\n  ● frames › fails toThrow\n      at Object.toThrow (frames.test.ts:23:21)\n  ● frames › throws in a helper\n      at explode (frames.test.ts:4:9)\n      at Object.explode (frames.test.ts:27:5)\n  ● frames › rejects\n      at Object.expect (frames.test.ts:31:11)\n  ● frames › fails each 1\n      at toBe (frames.test.ts:35:15)\n  ● frames › fails each 2\n      at toBe (frames.test.ts:35:15)"
+  }
+}

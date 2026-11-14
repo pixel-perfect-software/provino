@@ -1,0 +1,22 @@
+{
+  "description": "reporters: ['default', ['summary', { summaryThreshold: 1 }]] under Jest 30.5.2 (T11.9, B23a): two suites are more than the threshold, so after the files the summary says `Summary of all failing tests` and prints the failed file's header and failure again, then the totals. One worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "reporters": [
+        "default",
+        [
+          "summary",
+          {
+            "summaryThreshold": 1
+          }
+        ]
+      ]
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Summary of all failing tests|^  ● "
+  }
+}

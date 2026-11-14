@@ -3,13 +3,22 @@
 // 30.5.2 L100-L215). Register it before every other reporter, so that by the time one hears
 // `file:end` the file is already in the aggregate.
 import { join } from 'node:path'
-import type { FileInfo, Reporter, SerializedError, TaskId, TaskNode } from '@provino/types'
+import type {
+  FileInfo,
+  Reporter,
+  SerializedError,
+  TaskId,
+  TaskNode,
+  TestTask,
+} from '@provino/types'
 import {
   type BuildOptions,
   type FileEvents,
   finishAggregated,
+  type RunEnd,
   type TestRecord,
   testsInOrder,
+  toAssertionResult,
   toTestResult,
 } from './build.ts'
 import {
@@ -19,7 +28,16 @@ import {
   type StackTraceConfig,
 } from './failure-message.ts'
 import { addResult, makeEmptyAggregatedTestResult } from './helpers.ts'
-import type { AggregatedResult, DisplayName, Test, TestContext, TestResult } from './types.ts'
+import type {
+  AggregatedResult,
+  AssertionResult,
+  ConsoleEntry,
+  DisplayName,
+  Test,
+  TestCaseStartInfo,
+  TestContext,
+  TestResult,
+} from './types.ts'
 
 /**
  * What the collector reads of a project's config.
@@ -38,6 +56,10 @@ export interface ProjectConfigLike extends StackTraceConfig {
  */
 export interface GlobalConfigLike {
   readonly noStackTrace: boolean
+  /** `--silent`: no console buffer (`runTest.ts` uses a `NullConsole`). */
+  readonly silent?: boolean | undefined
+  /** `--verbose`: the console prints as it is written, so no buffer is kept. */
+  readonly verbose?: boolean | undefined
 }
 
 /**
@@ -65,15 +87,37 @@ export interface JestResults<Config extends ProjectConfigLike> {
   aggregated(): AggregatedResult
   /** A finished file's result. */
   testResultOf(fileId: TaskId): TestResult | undefined
+  /**
+   * A failed file's `failureMessage` in blocks, as the text reporters print it: each failed test's
+   * (`formatResultsErrors` of its assertion, with its id), then the file's own errors. Joined by
+   * `\n`, the blocks are `failureMessage`. `undefined` for a file with no failure text.
+   */
+  failureTextOf(fileId: TaskId): readonly JestFailureBlock[] | undefined
   /** The `Test` Jest's reporters get for a file. */
   testOf(file: FileInfo): Test<Config>
   /** The projects that have a file in the run. */
   contexts(): Set<TestContext<Config>>
+  /** A test's result as `onTestCaseResult` gets it (`parseSingleTestResult`), once the test has ended. */
+  assertionOf(
+    test: TestTask,
+    retried?: { readonly attempt: number; readonly errors: readonly SerializedError[] },
+  ): AssertionResult | undefined
+  /** What `onTestCaseStart` gets for a test that has started (`createTestCaseStartInfo`). */
+  startInfoOf(test: TestTask): TestCaseStartInfo
   /**
    * Tells the aggregate that a reporter failed, which the bus only knows once every reporter has
    * heard the end of the run (Jest's `anyReporterErrors`): `success` goes false.
    */
   reportersFailed(failed: boolean): void
+}
+
+/**
+ * One block of a failed file's text: a failed test's (`taskId`), or the file's own errors.
+ * @public
+ */
+export interface JestFailureBlock {
+  readonly taskId?: TaskId
+  readonly text: string
 }
 
 interface MutableFile {
@@ -82,6 +126,8 @@ interface MutableFile {
   tree: readonly TaskNode[] | undefined
   records: Map<TaskId, TestRecord>
   unhandled: SerializedError[]
+  /** The file's `console` calls, as `BufferedConsole` keeps them. */
+  console: ConsoleEntry[]
 }
 
 /**
@@ -95,9 +141,12 @@ export function createJestResults<Config extends ProjectConfigLike>(
   const now = options.now ?? Date.now
   const { globalConfig, projectConfigs } = options
   let aggregated = makeEmptyAggregatedTestResult()
+  /** How the run ended, kept for `reportersFailed`. */
+  let ended: Pick<RunEnd, 'reason' | 'snapshots'> | undefined
   aggregated.success = false
   const files = new Map<TaskId, MutableFile>()
   const results = new Map<TaskId, TestResult>()
+  const failureBlocks = new Map<TaskId, readonly JestFailureBlock[]>()
   const contexts = new Map<Config, TestContext<Config>>()
 
   const configOf = (info: FileInfo): Config => {
@@ -117,7 +166,14 @@ export function createJestResults<Config extends ProjectConfigLike>(
   const stateOf = (info: FileInfo): MutableFile => {
     let file = files.get(info.fileId)
     if (file === undefined) {
-      file = { info, startedAt: now(), tree: undefined, records: new Map(), unhandled: [] }
+      file = {
+        info,
+        startedAt: now(),
+        tree: undefined,
+        records: new Map(),
+        unhandled: [],
+        console: [],
+      }
       files.set(info.fileId, file)
     }
     return file
@@ -137,10 +193,12 @@ export function createJestResults<Config extends ProjectConfigLike>(
     'run:start': (_info, all) => {
       aggregated = makeEmptyAggregatedTestResult()
       aggregated.success = false
+      ended = undefined
       aggregated.numTotalTestSuites = all.length
       aggregated.startTime = now()
       files.clear()
       results.clear()
+      failureBlocks.clear()
       contexts.clear()
     },
     'file:start': (info) => {
@@ -150,6 +208,19 @@ export function createJestResults<Config extends ProjectConfigLike>(
         tree: undefined,
         records: new Map(),
         unhandled: [],
+        console: [],
+      })
+    },
+    // `BufferedConsole`'s buffer: a call is kept with its call site, under `--silent` or
+    // `--verbose` none is (runTest.ts: a `NullConsole`, a `CustomConsole`). A direct write to a
+    // stream isn't a console call.
+    console: (info, event) => {
+      if (globalConfig.silent === true || globalConfig.verbose === true) return
+      if (event.level === null) return
+      stateOf(info).console.push({
+        message: event.text.replace(/\n$/, ''),
+        origin: event.origin ?? '',
+        type: event.level,
       })
     },
     'file:collected': (info, event) => {
@@ -204,6 +275,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         endedAt: now(),
       }
       const testResult = toTestResult(events, build)
+      testResult.console = file.console.length > 0 ? file.console : undefined
       const stack = { noStackTrace: globalConfig.noStackTrace }
       // The messages go with the assertions by position: two tests can share a full name.
       const ordered = file.tree === undefined ? [] : testsInOrder(file.tree, file.records)
@@ -220,19 +292,19 @@ export function createJestResults<Config extends ProjectConfigLike>(
       if (options.collectOnly === true && testExecError === undefined) {
         // Nothing ran, so there is nothing to format.
       } else if (testExecError !== undefined && testResult.testResults.length === 0) {
-        testResult.failureMessage = await formatFileError(
-          testExecError,
-          config,
-          stack,
-          events.testFilePath,
-        )
+        const text = await formatFileError(testExecError, config, stack, events.testFilePath)
+        testResult.failureMessage = text
+        failureBlocks.set(info.fileId, [{ text }])
       } else {
-        let message = await formatTestFailures(
-          testResult.testResults,
-          config,
-          stack,
-          events.testFilePath,
-        )
+        // `formatResultsErrors` joins one block per failure with `\n`, so formatting each test's
+        // assertion alone and joining the texts is Jest's text, with the test each block is for.
+        const blocks: JestFailureBlock[] = []
+        for (const [index, assertion] of testResult.testResults.entries()) {
+          const text = await formatTestFailures([assertion], config, stack, events.testFilePath)
+          if (text === null) continue
+          const taskId = ordered[index]?.task.id
+          blocks.push(taskId === undefined ? { text } : { taskId, text })
+        }
         if (testExecError !== undefined) {
           const errors = [...fileResult.errors, ...file.unhandled]
           const text = await Promise.all(
@@ -245,20 +317,23 @@ export function createJestResults<Config extends ProjectConfigLike>(
               ),
             ),
           )
-          message = `${message ?? ''}\n\n${text.join('\n')}`
+          // Jest's `${message ?? ''}\n\n${errors}`: the join adds one of the two newlines.
+          blocks.push({ text: `${blocks.length === 0 ? '\n\n' : '\n'}${text.join('\n')}` })
         }
-        testResult.failureMessage = message
+        testResult.failureMessage =
+          blocks.length === 0 ? null : blocks.map((block) => block.text).join('\n')
+        if (blocks.length > 0) failureBlocks.set(info.fileId, blocks)
       }
       results.set(info.fileId, testResult)
       addResult(aggregated, testResult)
       contextOf(config)
     },
     'run:end': (summary) => {
-      finishAggregated(aggregated, {
-        reason: summary.reason,
-        snapshots: summary.snapshots,
-        reporterFailed: false,
-      })
+      ended = { reason: summary.reason, snapshots: summary.snapshots }
+      finishAggregated(aggregated, { ...ended, reporterFailed: false })
+      // Jest computes `success` only after the dispatcher has run `onRunComplete` (TestScheduler.ts
+      // L338-L352, L486-L491): a reporter hears `false`. `reportersFailed` settles it.
+      aggregated.success = false
       aggregated.openHandles = (summary.openHandles ?? []).map((handle) =>
         Object.assign(new Error(handle.type), {
           stack: [`Error: ${handle.type}`, ...handle.frames].join('\n'),
@@ -271,10 +346,50 @@ export function createJestResults<Config extends ProjectConfigLike>(
     reporter,
     aggregated: () => aggregated,
     testResultOf: (fileId) => results.get(fileId),
+    failureTextOf: (fileId) => failureBlocks.get(fileId),
     testOf: (info) => ({ context: contextOf(configOf(info)), path: pathOf(info) }),
     contexts: () => new Set(contexts.values()),
+    assertionOf: (test, retried) => {
+      const file = files.get(test.fileId)
+      const known = file === undefined ? undefined : record(file, test.id)
+      if (file === undefined || known === undefined) return undefined
+      const config = configOf(file.info)
+      // An attempt that will be retried: jest-circus reports its `test_done` as a failed test whose
+      // `invocations` is the attempts so far (the hook-order recording).
+      const shown: TestRecord =
+        retried === undefined
+          ? known
+          : {
+              ...known,
+              result: {
+                state: 'fail',
+                durationMs: 0,
+                startTime: 0,
+                errors: retried.errors,
+                retryErrors: [],
+                attempts: retried.attempt + 1,
+                repeatIndex: 0,
+                assertions: 0,
+                passingAssertions: 0,
+              },
+            }
+      return toAssertionResult(shown, {
+        locations: config.testLocationInResults,
+        displayName: config.displayName,
+      })
+    },
+    startInfoOf: (test) => {
+      const file = files.get(test.fileId)
+      return {
+        ancestorTitles: test.fullName.slice(0, -1),
+        fullName: test.fullName.join(' '),
+        mode: test.mode === 'run' ? undefined : test.mode,
+        startedAt: file?.records.get(test.id)?.startedAt ?? null,
+        title: test.fullName.at(-1) ?? test.name,
+      }
+    },
     reportersFailed: (failed) => {
-      if (failed) aggregated.success = false
+      if (ended !== undefined) finishAggregated(aggregated, { ...ended, reporterFailed: failed })
     },
   }
 }

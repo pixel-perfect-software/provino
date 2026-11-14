@@ -376,7 +376,9 @@ export function createRuntimeRunner(): WorkerRunner {
     const behaviours = createBehaviourLoader()
     parts.loader = await createProjectLoader(config.rootDir, config.loader, policy.module)
     // A frame in a module the loader ran is reported where it is in the file as written.
-    parts.unmapStacks = installSourceMappedStacks(parts.loader)
+    parts.unmapStacks = installSourceMappedStacks(parts.loader, {
+      frameNames: policy.module.stackFrameNames,
+    })
 
     // `process` is the pool's business (a new process per file) and runs as `registry`.
     const tier = context.init.isolation === 'process' ? 'registry' : context.init.isolation

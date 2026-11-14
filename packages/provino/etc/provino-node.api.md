@@ -17,7 +17,7 @@ export interface NormalizedJsonChoiceOptions {
 }
 
 // @public
-export type ReporterChoice = "default" | "verbose" | "dot" | "agent" | "github-actions" | "json" | "normalized-json" | "junit" | readonly ["json" | "normalized-json", NormalizedJsonChoiceOptions] | readonly ["junit", JUnitChoiceOptions] | Reporter;
+export type ReporterChoice = "default" | "verbose" | "dot" | "agent" | "github-actions" | "summary" | "json" | "normalized-json" | "junit" | readonly ["json" | "normalized-json", NormalizedJsonChoiceOptions] | readonly ["junit", JUnitChoiceOptions] | Reporter;
 
 // @public
 export function run(options: RunOptions): Promise<RunResult>;

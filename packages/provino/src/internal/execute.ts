@@ -12,7 +12,7 @@ import { createReporterBus, type Environment } from '@provino/reporters'
 import type { FileFilter, Reporter, ReporterBus, RunSummary, SerializedError } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
 import { workerStartupEnv } from './compile-cache.ts'
-import { type DisplayOptions, reportersFor } from './reporters.ts'
+import { type DisplayOptions, reportersFor, type TextExtras } from './reporters.ts'
 
 /**
  * What a run of an already-resolved project needs: the part of a run that `run()` (a
@@ -38,6 +38,14 @@ export interface ExecuteOptions {
   readonly env: Environment
   /** How text looks (Jest's `--verbose`, `--silent`, `--expand`, `--noStackTrace`, `--colors`). */
   readonly display?: DisplayOptions
+  /** What a dialect adds to the text reporters (its failure text, a summary of its own). */
+  readonly text?: TextExtras
+  /**
+   * `false`: a reporter that failed is not announced on stderr (Jest prints nothing for
+   * `getLastError`); the run still fails. `'thrown'`: only an error a reporter threw or rejected
+   * with is (Jest's CLI prints it), as nothing else would when no text reporter is registered.
+   */
+  readonly announceReporterFailures?: false | 'thrown'
   readonly pool: NonNullable<RunProjectOptions['pool']>
   /** `false`: neither read nor write the results cache. */
   readonly cache?: false
@@ -87,7 +95,19 @@ export function timingsOf(options: {
  */
 export async function executeProject(options: ExecuteOptions): Promise<RunResult> {
   const { project, cwd, stdout, stderr } = options
+  // What reporters threw (the bus tells every other reporter as an `error` of source `reporter`).
+  const thrown: SerializedError[] = []
   const bus = createReporterBus([
+    ...(options.announceReporterFailures === 'thrown'
+      ? [
+          {
+            name: 'thrown-reporter-errors',
+            error(error: SerializedError, source: string) {
+              if (source === 'reporter') thrown.push(error)
+            },
+          } satisfies Reporter,
+        ]
+      : []),
     ...(options.leadingReporters ?? []),
     ...reportersFor(options.reporters, {
       project,
@@ -96,6 +116,7 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
       stderr,
       env: options.env,
       ...(options.display === undefined ? {} : { display: options.display }),
+      ...(options.text === undefined ? {} : { text: options.text }),
     }),
   ])
 
@@ -117,8 +138,13 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
   // reporter shows such an error itself; the others may not, so it is said here as well.
   const reporterFailures = bus.failures()
   options.onReporterFailures?.(reporterFailures)
-  for (const failure of reporterFailures) {
-    stderr.write(`Provino: a reporter failed: ${failure.message}\n`)
+  if (options.announceReporterFailures === 'thrown') {
+    // jest-cli prints the stack of the error that ended the run.
+    for (const failure of thrown) stderr.write(`${failure.stack ?? failure.message}\n`)
+  } else if (options.announceReporterFailures !== false) {
+    for (const failure of reporterFailures) {
+      stderr.write(`Provino: a reporter failed: ${failure.message}\n`)
+    }
   }
   return {
     exitCode: exitCodeFor(summary, {

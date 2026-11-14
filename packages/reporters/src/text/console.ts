@@ -1,9 +1,9 @@
 // A file's console output as text: Jest's `getConsoleOutput` (`@jest/console`), as far as the
 // worker gives Provino what Jest has. Recorded from Jest 30.5.2 (`cli/report-default`): under the
 // file's header, `  ● Console`, then for each call `    console.log`, its message indented two
-// more, a blank line. Jest adds the call's `at` line, after a blank one, when it has the origin; the
-// worker doesn't capture an origin yet (the events carry `origin: null`), so a block has none
-// unless one is given.
+// more, a blank line. Jest adds the call's `at` line, after a blank one, when it has the origin;
+// the worker captures one when the policy's `orchestrator.consoleOrigin` is `stack` (Jest), else
+// the events carry `origin: null` and a block has none.
 import type { Style } from '../style.ts'
 import { indent } from './format.ts'
 
@@ -25,6 +25,20 @@ function originFrame(origin: string | null): string | undefined {
     .find((line) => line.startsWith('at '))
 }
 
+/** `formatStackTrace`'s `STACK_INDENT`: the frames sit at 6 spaces whatever the title's indent. */
+const STACK_INDENT = 6
+
+/**
+ * A frame with the path of a file under `root` made relative to it, as Jest's `formatPath` does
+ * (`at f (/root/a.ts:1:1)` and `at /root/a.ts:1:1`). The root is matched where the path starts,
+ * never inside another path (`/app` in `/home/u/app/x.ts`, or in `file:///work/app/x.ts`).
+ */
+function relativeFrame(frame: string | undefined, root: string | undefined): string | undefined {
+  if (frame === undefined || root === undefined || root === '') return frame
+  const prefix = root.replace(/\/$/, '').replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
+  return frame.replace(new RegExp(`^(at |at [^(]*\\()${prefix}/`), '$1')
+}
+
 /** `console.log`, or `process.stdout` for a write that did not go through `console`. */
 function entryTitle(entry: ConsoleEntry): string {
   return entry.level === null ? `process.${entry.stream}` : `console.${entry.level}`
@@ -34,8 +48,18 @@ function entryTitle(entry: ConsoleEntry): string {
 export interface ConsoleFormat {
   /** Spaces before each title: 4 under the default reporter, 2 under `--verbose`. */
   readonly titleIndent: number
-  /** Keep the `at` line of a `warn` or `error` entry; Jest's `--noStackTrace` leaves it out. */
+  /**
+   * Jest's `--noStackTrace`. It does not hide the `at` line: `removeInternalStackEntries` keeps the
+   * first path line of every entry (recorded: `cli/report-console-helper-nostack`).
+   */
   readonly stackTrace: boolean
+  /** Paths under this directory are shown relative to it, as Jest's `formatPath` does. */
+  readonly root?: string
+  /**
+   * What goes under an entry in place of its `at` line: the dialect's own rendering of the call
+   * site (Jest's `formatStackTrace`: a code frame for a `warn` or `error`, then the frame).
+   */
+  readonly trace?: (entry: ConsoleEntry) => string
 }
 
 /**
@@ -53,12 +77,19 @@ export function consoleEntries(
     const colour =
       entry.level === 'warn' ? style.yellow : entry.level === 'error' ? style.red : undefined
     const message = indent(entry.text.trimEnd(), format.titleIndent + 2)
-    const frame = originFrame(entry.origin)
-    const showFrame = frame !== undefined && (colour === undefined || format.stackTrace)
+    if (format.trace !== undefined) {
+      return [
+        `${pad}${(colour ?? style.dim)(entryTitle(entry))}`,
+        colour === undefined ? message : colour(message),
+        style.dim(format.trace(entry).trimEnd()),
+      ].join('\n')
+    }
+    const frame = relativeFrame(originFrame(entry.origin), format.root)
+    const showFrame = frame !== undefined
     return [
       `${pad}${(colour ?? style.dim)(entryTitle(entry))}`,
       colour === undefined ? message : colour(message),
-      ...(showFrame ? ['', style.dim(`${pad}  ${frame}`)] : []),
+      ...(showFrame ? ['', style.dim(`${' '.repeat(STACK_INDENT)}${frame}`)] : []),
     ].join('\n')
   })
   return `${blocks.join('\n\n')}\n`
@@ -69,6 +100,8 @@ export function consoleBlock(
   entries: readonly ConsoleEntry[],
   style: Style,
   stackTrace: boolean,
+  root?: string,
+  trace?: (entry: ConsoleEntry) => string,
 ): string {
-  return `  ${style.bold('● ')}Console\n\n${consoleEntries(entries, { titleIndent: 4, stackTrace }, style)}`
+  return `  ${style.bold('● ')}Console\n\n${consoleEntries(entries, { titleIndent: 4, stackTrace, ...(root === undefined ? {} : { root }), ...(trace === undefined ? {} : { trace }) }, style)}`
 }

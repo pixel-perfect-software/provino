@@ -1,0 +1,19 @@
+{
+  "description": "What Jest 30.5.2 prints under a console entry (B23a): a `console.error` made in a helper function, a direct `console.warn` and a `console.log`. `warn` and `error` get a code frame and every frame outside Jest, the helper's and the test's; `log` gets its first frame alone. Under the default reporter (the title at 4 spaces, the frames at 6). One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "helper.cjs": "exports.complain = (message) => {\n  console.error(message)\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^  ● Console$|^ {4,}\\S",
+    "raw": true
+  }
+}
