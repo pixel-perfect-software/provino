@@ -290,7 +290,7 @@ void wrongDone
 // The pool's error callback is told whether a worker was lost.
 expectTypeOf<PoolErrorKind>().toEqualTypeOf<'worker-lost' | 'other'>()
 expectTypeOf<NonNullable<PoolDeps['onError']>>().toEqualTypeOf<
-  (error: unknown, kind: PoolErrorKind) => void
+  (error: unknown, kind: PoolErrorKind, workerId?: number) => void
 >()
 // @ts-expect-error the kind is a closed set
 const lost: PoolErrorKind = 'crashed'

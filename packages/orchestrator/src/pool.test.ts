@@ -1143,6 +1143,25 @@ describe('a pool kept across runs (B23c, watch)', () => {
     await pool.close()
   })
 
+  it('resetFailures lets a key whose three starts failed try again in the next run', async () => {
+    // The first three starts fail; every one after works.
+    const f = fake(
+      () => 'ok',
+      (attempt) => attempt <= 3,
+    )
+    const pool = createPool(options(1), deps(f))
+    const first = await Promise.all(['a', 'b', 'c', 'd'].map((file) => pool.run(request(file))))
+    assert.deepEqual(
+      first.map((outcome) => outcome.type),
+      ['start-failed', 'start-failed', 'start-failed', 'start-failed'],
+      'the fourth file is failed with the third start: nothing is alive to run it',
+    )
+    pool.resetFailures()
+    assert.equal((await pool.run(request('e'))).type, 'done', 'the next run starts a worker')
+    await pool.close()
+    assert.deepEqual(f.started, [4])
+  })
+
   it('sends the stale modules asked for when a worker takes a file, and none when the list is empty', async () => {
     const f = fake(() => 'ok')
     const pool = createPool(options(1), deps(f))

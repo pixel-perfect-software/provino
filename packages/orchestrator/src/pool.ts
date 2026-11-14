@@ -58,9 +58,10 @@ export interface PoolDeps {
   /**
    * Receives a failure of `onIdleEvents`, or of a `FileRequest.onEvents` that fails after its file
    * is over, and a worker that ended badly while it ran no file (`kind` `'worker-lost'`, the error
-   * `ORCH_WORKER_EXITED`; anything else is `'other'`). Without it the error is thrown, uncaught.
+   * `ORCH_WORKER_EXITED`; anything else is `'other'`), with the id of the worker it came from when
+   * one did. Without it the error is thrown, uncaught.
    */
-  readonly onError?: (error: unknown, kind: PoolErrorKind) => void
+  readonly onError?: (error: unknown, kind: PoolErrorKind, workerId?: number) => void
   /** Aborting it behaves like `close`, and files that were running or waiting are `aborted`. */
   readonly signal?: AbortSignal
   /**
@@ -167,6 +168,12 @@ export interface Pool {
    * its file ends, and one still starting after its first file.
    */
   retire(which: (key: WorkerKey) => boolean): void
+  /**
+   * Forgets the failed starts of every key that has no worker starting now, so a pool kept across
+   * runs (a watch session) tries a key whose three starts failed again in the next run, rather than
+   * failing its files at once until it is closed.
+   */
+  resetFailures(): void
 }
 
 type EventHandler = (events: readonly WorkerEvent[]) => void | Promise<void>
@@ -356,8 +363,8 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   }
 
   /** Reports an error no caller waits on: to `onError`, else thrown uncaught, as `connectWorker` does. */
-  function report(error: unknown, kind: PoolErrorKind = 'other'): void {
-    if (deps.onError !== undefined) deps.onError(error, kind)
+  function report(error: unknown, kind: PoolErrorKind = 'other', workerId?: number): void {
+    if (deps.onError !== undefined) deps.onError(error, kind, workerId)
     else
       queueMicrotask(() => {
         throw error
@@ -371,8 +378,10 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         await slot.transport.terminate(false)
       } catch (error) {
         // A transport that can't stop gracefully is killed; the failure is still reported.
-        report(error)
-        await slot.transport.terminate(true).catch(report)
+        report(error, 'other', slot.id)
+        await slot.transport
+          .terminate(true)
+          .catch((killError: unknown) => report(killError, 'other', slot.id))
       }
     })()
     await slot.gone
@@ -446,6 +455,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         { cause: exit },
       ),
       'worker-lost',
+      slot.id,
     )
   }
 
@@ -530,7 +540,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
             : deps.onIdleEvents?.(workerId, events),
         ...(deps.onError === undefined
           ? {}
-          : { onError: (error) => deps.onError?.(error, 'other') }),
+          : { onError: (error) => deps.onError?.(error, 'other', workerId) }),
       })
       slot = {
         id: workerId,
@@ -650,7 +660,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       try {
         request.onDone?.(done)
       } catch (error) {
-        report(error)
+        report(error, 'other', slot.id)
       }
       if (
         (done.leakedGlobals.length > 0 && recycleOnLeak) ||
@@ -709,6 +719,14 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       }
       if (options?.keepRunning === true) return
       for (const slot of slots) if (slot.state === 'busy') kill(slot, 'abort')
+    },
+    resetFailures() {
+      for (const [keyId, state] of keyStates) {
+        if (state.failure === undefined || state.spawning > 0) continue
+        state.failure = undefined
+        failedKeys--
+        keyStates.delete(keyId)
+      }
     },
     retire(which) {
       for (const slot of slots) {
