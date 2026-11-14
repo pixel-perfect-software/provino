@@ -599,6 +599,8 @@ export class SnapshotState {
     this.noteWrite(testId)
     const frame = stack === undefined ? undefined : topFrame(stack)
     if (frame === undefined) {
+      const own = this.messages.noInlineFrame?.()
+      if (own !== undefined) throw own
       throw new SnapshotError(
         'SNAPSHOT_NO_INLINE_FRAME',
         "Couldn't infer the stack frame of an inline snapshot, so it can't be written",

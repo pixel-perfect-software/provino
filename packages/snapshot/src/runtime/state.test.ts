@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { SnapshotError } from '@provino/snapshot'
-import { HEADER, policy, put, snapText, stateIn, tempDir } from './test-support.ts'
+import { HEADER, jsonPrinter, policy, put, snapText, stateIn, tempDir } from './test-support.ts'
 
 const snapPath = (dir: string): string => join(dir, '__snapshots__', 'a.test.ts.snap')
 
@@ -448,6 +448,19 @@ describe('inline snapshots with a writer (B23d B1)', () => {
     assert.throws(
       () => state.match({ testName: 't', received: 1, isInline: true, stack: 'Error' }),
       (error) => error instanceof SnapshotError && error.code === 'SNAPSHOT_NO_INLINE_FRAME',
+    )
+  })
+
+  test('a dialect that words that error throws its own, as it made it', () => {
+    const dir = tempDir()
+    const own = new RangeError('the dialect`s words')
+    const state = stateIn(dir, {
+      inlineWrites: true,
+      printer: { ...jsonPrinter, messages: { ...jsonPrinter.messages, noInlineFrame: () => own } },
+    })
+    assert.throws(
+      () => state.match({ testName: 't', received: 1, isInline: true, stack: 'Error' }),
+      (error) => error === own,
     )
   })
 })

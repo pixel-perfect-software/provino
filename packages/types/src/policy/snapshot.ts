@@ -81,6 +81,13 @@ export interface SnapshotMessages {
   notWritten(info: SnapshotMessageInfo): string
   /** The received object doesn't match the property matchers. */
   propertiesMismatch(info: SnapshotMessageInfo): string
+  /**
+   * The error of an inline snapshot that must be written when its call's stack has no frame to put
+   * it at: the dialect's own, as its runner throws it (Jest: a plain `Error`, `Jest: Couldn't
+   * infer stack frame for inline snapshot.`). Left out, the engine throws its own
+   * `SNAPSHOT_NO_INLINE_FRAME`.
+   */
+  noInlineFrame?(): Error
 }
 
 /**

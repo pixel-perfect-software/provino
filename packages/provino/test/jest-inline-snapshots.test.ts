@@ -28,6 +28,7 @@ const FIXTURES: readonly string[] = [
   'snapshot/inline-same-call-twice',
   'snapshot/inline-ci',
   'snapshot/inline-prettier',
+  'snapshot/inline-no-frame',
   'snapshot/inline-written',
 ]
 

@@ -123,6 +123,8 @@ const messages: SnapshotMessages = {
     )
     return `${hintOf(info, false)}\n\n${snapshotName(info)}\n\n${difference}`
   },
+  // jest-snapshot 30.5.2 `State.ts` L174-L176: a plain `Error`, so it prints without a class name.
+  noInlineFrame: (): Error => new Error("Jest: Couldn't infer stack frame for inline snapshot."),
 }
 
 const printer: SnapshotPrinter = {
