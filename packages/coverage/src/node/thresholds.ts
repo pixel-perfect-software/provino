@@ -1,11 +1,12 @@
 // The coverage thresholds of a run (T8.11), as Jest's `CoverageReporter._checkThreshold` applies
 // them (jest-reporters CoverageReporter.ts L242-L444). The words come from the policy
 // (`coverage.thresholdMessages`); the dialect that supplies them is not named here.
-import { isAbsolute, resolve, sep } from 'node:path'
+import { isAbsolute, resolve } from 'node:path'
 import type { CoverageMetric, CoveragePolicy, CoverageThresholdGroup } from '@provino/types'
 import type libCoverage from 'istanbul-lib-coverage'
 import { globSync } from 'tinyglobby'
 import { CoverageError } from '../errors.ts'
+import { absoluteGroup, globPatternOf } from './threshold-paths.ts'
 
 /** The order Jest checks a group's metrics in (not the order the config lists them). */
 const METRICS: readonly CoverageMetric[] = ['statements', 'branches', 'lines', 'functions']
@@ -116,10 +117,7 @@ export function checkThresholds(
     const matches: [string, string][] = []
     for (const name of names) {
       if (name === 'global') continue
-      // Jest keeps a trailing separator the user wrote, which `path.resolve` drops.
-      const resolved = resolve(options.cwd, name)
-      const suffix = name.endsWith(sep) && !resolved.endsWith(sep) ? sep : ''
-      const absolute = `${resolved}${suffix}`
+      const absolute = absoluteGroup(name, options.cwd)
       if (file.startsWith(absolute)) {
         typeOf.set(name, 'path')
         matches.push([file, name])
@@ -127,7 +125,7 @@ export function checkThresholds(
       }
       let expanded = filesByGlob.get(absolute)
       if (expanded === undefined) {
-        expanded = globFiles(absolute, options.cwd).map((path) =>
+        expanded = globFiles(globPatternOf(absolute), options.cwd).map((path) =>
           isAbsolute(path) ? resolve(path) : resolve(options.cwd, path),
         )
         filesByGlob.set(absolute, expanded)

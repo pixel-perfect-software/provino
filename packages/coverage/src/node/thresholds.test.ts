@@ -166,6 +166,39 @@ const cases: readonly {
     ],
   },
   { name: 'metrics the group leaves out are not checked', groups: [{ name: './lib' }], lines: 0 },
+  {
+    name: 'a threshold of 0 is checked and never missed, also where a file has no coverage',
+    groups: [
+      { name: 'global', statements: 0, branches: 0, lines: 0, functions: 0 },
+      { name: './src/.hidden', statements: 0 },
+    ],
+    lines: 0,
+  },
+  {
+    name: 'a key with no trailing slash is a prefix of the path, not a directory',
+    groups: [
+      { name: './src', statements: 100 },
+      { name: './s', statements: 100 },
+    ],
+  },
+  {
+    name: 'a key that names one file covers that file alone',
+    groups: [
+      { name: './src/a.ts', statements: 95 },
+      { name: 'global', statements: 100 },
+    ],
+  },
+  {
+    name: 'an absolute path key and an absolute glob key',
+    groups: [
+      { name: join(root, 'src', 'deep'), statements: 100 },
+      { name: join(root, 'src', '**', '*.ts'), statements: 85 },
+    ],
+  },
+  {
+    name: 'a glob written with a backslash reads it as a separator (windowsPathsNoEscape)',
+    groups: [{ name: './src/\\*.ts', statements: 95 }],
+  },
 ]
 
 for (const { name, files = data, groups, lines } of cases) {
