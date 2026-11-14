@@ -15,7 +15,8 @@ import type { SnapshotResolver, SnapshotResolverFactory } from '@provino/types'
  * its own `default`.
  */
 function defaultOf(exports: unknown): unknown {
-  const inner: unknown = typeof exports === 'object' && exports !== null ? Reflect.get(exports, 'default') : undefined
+  const inner: unknown =
+    typeof exports === 'object' && exports !== null ? Reflect.get(exports, 'default') : undefined
   if (typeof inner === 'object' && inner !== null && Reflect.get(inner, '__esModule') === true) {
     return Reflect.get(inner, 'default')
   }
@@ -27,7 +28,14 @@ function mustImplement(propName: string, requiredType: string): string {
   return `Custom snapshot resolver must implement a \`${propName}\` as a ${requiredType}.\nDocumentation: https://jestjs.io/docs/configuration#snapshotresolver-string`
 }
 
-const MEMBERS: readonly (readonly [keyof SnapshotResolver, string])[] = [
+/** What the project's module has: Jest calls its two functions with the snapshot extension. */
+interface CustomResolver {
+  resolveSnapshotPath(testPath: string, extension: string): string
+  resolveTestPath(snapshotPath: string, extension: string): string
+  readonly testPathForConsistencyCheck: string
+}
+
+const MEMBERS: readonly (readonly [keyof CustomResolver, string])[] = [
   ['resolveSnapshotPath', 'function'],
   ['resolveTestPath', 'function'],
   ['testPathForConsistencyCheck', 'string'],
@@ -42,7 +50,7 @@ export const jestSnapshotResolver: SnapshotResolverFactory = (
   exports: unknown,
   extension: string,
 ): SnapshotResolver => {
-  const custom = defaultOf(exports) as SnapshotResolver
+  const custom = defaultOf(exports) as CustomResolver
   for (const [propName, requiredType] of MEMBERS) {
     if (typeof custom[propName] !== requiredType) {
       throw new TypeError(mustImplement(propName, requiredType))
