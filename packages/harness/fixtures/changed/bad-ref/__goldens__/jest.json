@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "changed/bad-ref",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "  ● Test suite failed to run\n    Command failed with exit code 128: git diff --name-only nope...HEAD -- .\n    fatal: bad revision 'nope...HEAD'"
+  }
+}

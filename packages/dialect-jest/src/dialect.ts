@@ -321,6 +321,9 @@ export const jestPolicy: PolicyOverrides = {
       invalidateAll: 'none',
       // research: track-09 (pending B23c Phase 5). Jest's selection is static (compat).
       graph: 'static',
+      // research: track-09 (pending B23c Phase 5: `changed/related-exports-conditions`). SearchSource
+      // passes no `conditions`, so defaultResolver.ts L181-187 falls back to require, node, default.
+      conditions: 'none',
     },
     // jest-runtime reads the environment's `exportConditions()`; the coordinator can't build the
     // class, so the behaviour answers for the packages Jest ships and `customExportConditions`.

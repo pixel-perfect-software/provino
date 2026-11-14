@@ -115,6 +115,13 @@ export interface OrchestratorPolicy {
      * sources. Jest: `static`. Neutral: `recorded-then-static`.
      */
     readonly graph: 'static' | 'recorded-then-static'
+    /**
+     * Which export conditions an edge resolves with. `environment`: the project's own (what its
+     * workers load the file with). `none`: no environment's; a `require` lookup's defaults
+     * (`require`, `node`, `default`), as jest-resolve-dependencies resolves with no `conditions`.
+     * Jest: `none`. Neutral: `environment`.
+     */
+    readonly conditions: 'environment' | 'none'
   }
   /**
    * What an `include` glob (Jest's `testMatch`) is matched against. Jest: `absolute-path`, so a

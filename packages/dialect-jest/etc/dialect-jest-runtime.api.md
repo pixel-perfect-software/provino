@@ -44,7 +44,7 @@ export const formatMapperMiss: FormatMapperMiss;
 export const formatValue: FormatValue;
 
 // @public
-export function fromJestEnvironment(EnvironmentClass: JestEnvironmentClass, projectConfig?: object): Environment<"jest-environment", {
+export function fromJestEnvironment(EnvironmentClass: JestEnvironmentClass, projectConfig?: object, globalConfig?: object): Environment<"jest-environment", {
     readonly [key: string]: JsonValue;
 }>;
 
@@ -71,6 +71,9 @@ export const jestEnvironmentFor: EnvironmentResolver;
 export interface JestEnvironmentOptions {
     // (undocumented)
     readonly [key: string]: JsonValue;
+    readonly globalConfig?: {
+        readonly [key: string]: JsonValue;
+    };
     readonly module: string;
     readonly projectConfig: {
         readonly [key: string]: JsonValue;

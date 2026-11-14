@@ -1,0 +1,11 @@
+{
+  "description": "-o in a directory that is no git or hg repository prints the \"Jest can only find uncommitted changed files\" line and finds no tests (runJest.ts, noSCM). No `scm` field, so the recorder gives the work directory no repository. Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["-o"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Jest can only find|No tests found)"
+  }
+}

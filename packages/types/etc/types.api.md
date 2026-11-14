@@ -770,7 +770,7 @@ export type EnvironmentHelper = <const N extends string>(config: N extends Built
 export interface EnvironmentInstance<G extends object = typeof globalThis> {
     readonly context?: Context;
     readonly global: G;
-    onTestEvent?(event: RuntimeEvent): void | Promise<void>;
+    onTestEvent?(event: LifecycleEvent): void | Promise<void>;
     teardown(): void | EnvironmentTeardownReport | Promise<void | EnvironmentTeardownReport>;
 }
 
@@ -1513,6 +1513,125 @@ export interface LegacySnapshotSerializer {
 }
 
 // @public
+export type LifecycleEvent = {
+    readonly type: "file-setup";
+    readonly root: LifecycleRef;
+    readonly testNamePattern?: string;
+} | {
+    readonly type: "file-teardown";
+} | {
+    readonly type: "define-suite-start";
+    readonly ref: LifecycleRef;
+    readonly parent: LifecycleRef;
+    readonly mode: LifecycleMode;
+} | {
+    readonly type: "define-suite-end";
+    readonly ref: LifecycleRef;
+    readonly mode: LifecycleMode;
+} | {
+    readonly type: "define-hook";
+    readonly hook: LifecycleHookRef;
+    readonly owner: LifecycleRef;
+    readonly kind: LifecycleHookKind;
+    readonly fn: AnyFunction;
+    readonly timeoutMs: number | undefined;
+} | {
+    readonly type: "define-test";
+    readonly ref: LifecycleRef;
+    readonly parent: LifecycleRef;
+    readonly fn: AnyFunction | undefined;
+    readonly mode: LifecycleMode;
+    readonly concurrent: boolean;
+    readonly failing: boolean;
+    readonly timeoutMs: number | undefined;
+} | {
+    readonly type: "run-start";
+    readonly timeoutMs: number;
+} | {
+    readonly type: "run-end";
+} | {
+    readonly type: "suite-start";
+    readonly ref: LifecycleRef;
+} | {
+    readonly type: "suite-end";
+    readonly ref: LifecycleRef;
+} | {
+    readonly type: "suite-retry";
+    readonly ref: LifecycleRef;
+    readonly keepEarlierErrors: boolean;
+} | {
+    readonly type: "concurrent-start" | "concurrent-end";
+    readonly ref: LifecycleRef;
+    readonly tests: readonly LifecycleRef[];
+} | {
+    readonly type: "test-start";
+    readonly ref: LifecycleRef;
+    readonly id: TaskId;
+} | {
+    readonly type: "test-started";
+    readonly ref: LifecycleRef;
+} | {
+    readonly type: "test-skip";
+    readonly ref: LifecycleRef;
+} | {
+    readonly type: "test-todo";
+    readonly ref: LifecycleRef;
+} | {
+    readonly type: "test-done";
+    readonly ref: LifecycleRef;
+    readonly errors: readonly unknown[];
+} | {
+    readonly type: "test-retry";
+    readonly ref: LifecycleRef;
+    readonly keepEarlierErrors: boolean;
+} | {
+    readonly type: "hook-start";
+    readonly hook: LifecycleHookRef;
+    readonly owner: LifecycleRef;
+    readonly kind: LifecycleHookKind;
+    readonly test: LifecycleRef | undefined;
+} | {
+    readonly type: "hook-end";
+    readonly hook: LifecycleHookRef;
+    readonly owner: LifecycleRef;
+    readonly kind: LifecycleHookKind;
+    readonly test: LifecycleRef | undefined;
+    readonly failed: boolean;
+    readonly error: unknown;
+} | {
+    readonly type: "fn-start";
+    readonly ref: LifecycleRef;
+} | {
+    readonly type: "fn-end";
+    readonly ref: LifecycleRef;
+    readonly failed: boolean;
+    readonly error: unknown;
+};
+
+// @public
+export type LifecycleHookKind = "beforeAll" | "beforeEach" | "afterEach" | "afterAll" | "aroundAll" | "aroundEach";
+
+// @public
+export interface LifecycleHookRef {
+    // (undocumented)
+    readonly kind: LifecycleHookKind;
+}
+
+// @public
+export type LifecycleListener = (event: LifecycleEvent) => void | Promise<void>;
+
+// @public
+export type LifecycleMode = "only" | "skip" | "todo" | undefined;
+
+// @public
+export interface LifecycleRef {
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly type: "file" | "suite" | "test";
+}
+
+// @public
 export interface LinkClosed {
     // (undocumented)
     readonly type: "closed";
@@ -2076,6 +2195,7 @@ export interface NeutralResolution {
     readonly moduleDirectories?: readonly string[];
     readonly modulePaths?: readonly string[];
     readonly resolver?: string;
+    readonly skipNodeResolution?: boolean;
 }
 
 // @public
@@ -2181,6 +2301,7 @@ export interface OrchestratorPolicy {
         } | null;
         readonly invalidateAll: "project-inputs" | "none";
         readonly graph: "static" | "recorded-then-static";
+        readonly conditions: "environment" | "none";
     };
     readonly bail: {
         readonly checkAfter: "file" | "test";
@@ -2874,6 +2995,7 @@ export interface SerializedLoaderConfig {
     readonly resolver?: ModuleRef;
     readonly scopeMappable?: readonly string[];
     readonly scopeModules?: readonly string[];
+    readonly skipNodeResolution?: boolean;
     readonly transform?: SerializedTransformConfig;
     readonly tsconfig: "auto" | false | string;
     readonly typescript: "oxc" | "node-strip" | "off";

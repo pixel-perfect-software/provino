@@ -91,6 +91,8 @@ export interface NeutralResolution {
   readonly modulePaths?: readonly string[]
   /** An absolute path to a custom resolver module (Jest's `resolver`). */
   readonly resolver?: string
+  /** The affected-test graph skips node lookups of bare names (Jest's `skipNodeResolution`). */
+  readonly skipNodeResolution?: boolean
 }
 
 /**
@@ -192,9 +194,9 @@ export interface NeutralProject {
   readonly affected?: {
     /**
      * The project's own dependency extractor (Jest's `dependencyExtractor`), read before the
-     * policy's. The module exports an object (with an `extract` method), not a function, so the
-     * behaviour loader's `loadRef` (which requires a function export) cannot load it: B23c Phase 4
-     * loads it with a plain `import()`.
+     * policy's. The module exports an object (`{ extract, cacheKey }`), not a function, so the
+     * coordinator imports it plainly (the ref's export, else `default`) and the behaviour loader,
+     * which loads functions, never sees it.
      */
     readonly extractor?: ModuleRef
   }

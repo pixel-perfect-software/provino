@@ -17,7 +17,7 @@ import { LoaderError } from './errors.ts'
 import { conditionsOf } from './graph/conditions.ts'
 import { saveGraph } from './internal/inline.ts'
 import { loaderMessage } from './internal/messages.ts'
-import { createRecords, resolveOrMissing, toModuleId } from './internal/records.ts'
+import { createRecords, dropRecords, resolveOrMissing, toModuleId } from './internal/records.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
 import { tierFor } from './tier.ts'
 
@@ -180,8 +180,8 @@ export const createLoader: CreateLoader = (options) => {
       }
     },
     getSourceMap: (id) => state.records.get(id)?.map ?? null,
-    dropRecords: () => {
-      throw notYet('Loader.dropRecords', 'B23c Phase 4')
+    dropRecords: (paths) => {
+      dropRecords(state, paths)
     },
     compiledModule: (url) => {
       // V8 reports a vm script by the `file:` URL of its filename; a path is accepted too.

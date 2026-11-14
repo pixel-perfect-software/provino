@@ -1,0 +1,26 @@
+{
+  "description": "-o counts a staged change (`diff --cached --name-only`): a modified source that is added to the index selects its test. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "src/bar.ts": "module.exports = { bar: 3 }\n"
+        }
+      },
+      {
+        "git": ["add", "src/bar.ts"]
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "-o"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "description": "A full run of -o on a clean tree finds no changed file: `No tests found related to files changed since last commit.` and exit 0 (getNoTestsFoundMessage.ts: onlyChanged exits 0). Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["-o"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^No tests found"
+  }
+}

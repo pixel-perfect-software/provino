@@ -1,7 +1,14 @@
 // The collector (T5.3): `describe`/`test`/hook registration into a mutable tree, describe bodies
 // run immediately or deferred, async bodies thrown or awaited, and late or nested registration.
 // `finalize.ts` turns the tree into clone-safe `TaskNode`s after focus and filters.
-import type { CorePolicy, FormatEachTitle, JsonValue, RunMode } from '@provino/types'
+import type {
+  CorePolicy,
+  FormatEachTitle,
+  JsonValue,
+  LifecycleEvent,
+  LifecycleMode,
+  RunMode,
+} from '@provino/types'
 import { currentStore, newStore, runInStore } from '../current/current-test.ts'
 import { CoreError } from '../errors.ts'
 import { resolveTimeout } from '../executor/deadline.ts'
@@ -195,6 +202,19 @@ export class Collector {
       task: undefined,
     }
     parent.children.push(test)
+    const life = parent.file.lifecycle
+    if (life !== undefined) {
+      notify(life, {
+        type: 'define-test',
+        ref: test,
+        parent,
+        fn: test.fn,
+        mode: lifecycleMode(declared),
+        concurrent: test.concurrent,
+        failing: test.expectFail,
+        timeoutMs: test.timeoutMs,
+      })
+    }
   }
 
   /** Registers one test per row of a `.each`/`.for` table, or the test an invalid table fails. */
@@ -283,10 +303,22 @@ export class Collector {
         this.#config.policy.timeouts,
         typeof timeout === 'number' ? timeout : undefined,
       ),
+      synthetic: false,
       site: this.#site(entry),
       location: null,
     }
     hooks.push(hook)
+    const life = owner.file.lifecycle
+    if (life !== undefined) {
+      notify(life, {
+        type: 'define-hook',
+        hook,
+        owner,
+        kind,
+        fn: hook.fn,
+        timeoutMs: hook.timeoutMs,
+      })
+    }
   }
 
   /** Adds a hook at the end of a suite's list, for `LazyHost.addHook` (eager lazy values). */
@@ -299,6 +331,7 @@ export class Collector {
       ordinal: hooks.length,
       owner,
       timeoutMs: undefined,
+      synthetic: true,
       site: null,
       location: null,
     })
@@ -419,6 +452,29 @@ export class Collector {
 
   /** Runs a body; returns its promise when the policy awaits async bodies. */
   #runBody(suite: SuiteNode): Promise<unknown> | undefined {
+    const life = suite.file.lifecycle
+    if (life === undefined) return this.#runBodyOnly(suite)
+    const { parent } = suite
+    if (parent !== null) {
+      notify(life, {
+        type: 'define-suite-start',
+        ref: suite,
+        parent,
+        mode: lifecycleMode(suite.declared),
+      })
+    }
+    const settled = this.#runBodyOnly(suite)
+    const end = (): void => {
+      if (parent !== null) {
+        notify(life, { type: 'define-suite-end', ref: suite, mode: lifecycleMode(suite.declared) })
+      }
+    }
+    if (settled === undefined) end()
+    else void settled.then(end, () => undefined)
+    return settled
+  }
+
+  #runBodyOnly(suite: SuiteNode): Promise<unknown> | undefined {
     const body = suite.body
     suite.body = undefined
     if (body === undefined) return undefined
@@ -496,6 +552,16 @@ interface ModeOptions {
   readonly only?: boolean | undefined
   readonly skip?: boolean | undefined
   readonly todo?: boolean | undefined
+}
+
+/** A declared mode as the lifecycle events carry it: `run` is no declaration. */
+function lifecycleMode(declared: RunMode | undefined): LifecycleMode {
+  return declared === 'run' ? undefined : declared
+}
+
+/** Calls the file's listener from synchronous code: what it returns is not awaited, as circus's `dispatchSync`. */
+function notify(listener: (event: LifecycleEvent) => unknown, event: LifecycleEvent): void {
+  void listener(event)
 }
 
 function collectStore(suite: SuiteNode): Store {

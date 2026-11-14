@@ -1,0 +1,11 @@
+{
+  "description": "--findRelatedTests follows requires through other modules: c is required by b, b by the test. Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "src/c.ts"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

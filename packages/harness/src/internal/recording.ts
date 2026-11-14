@@ -141,6 +141,27 @@ export function assertRunComplete(
 }
 
 /**
+ * A `before` run only sets up state for the captured run (Jest's failure history, say), so it must
+ * have run: its results exist, name every test file, and show no crashed file and no run error.
+ * Failing tests are fine. Otherwise `HARNESS_RUN_INCOMPLETE`, because the captured run would
+ * record the same golden whether or not the earlier one worked.
+ * @internal
+ */
+export function assertEarlierRunComplete(
+  run: NormalizedRun | null,
+  expectedFiles: readonly string[],
+  label: string,
+): void {
+  if (run === null) {
+    throw new HarnessError(
+      'HARNESS_RUN_INCOMPLETE',
+      `${label} did not run to completion, so it is not recorded:\n  - the earlier run wrote no results`,
+    )
+  }
+  assertEveryFileRan(run, expectedFiles, label)
+}
+
+/**
  * A golden is committed and read on other machines, so it must not hold a path from this one.
  * Throws `HARNESS_GOLDEN_LEAKS_PATH` if the serialized golden contains any of `forbidden` (the work
  * directory and its realpath, the repository, the package, the home directory), as written or

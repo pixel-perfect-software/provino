@@ -1,0 +1,35 @@
+{
+  "description": "Which `exports` conditions a workspace package is resolved with when selecting: four packages under packages/ (found through moduleDirectories), each exporting one condition (`import`, `require`, `node`, `default`), each required by its own test. --findRelatedTests on all four files lists the tests whose condition Jest resolved. Jest only.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "moduleDirectories": ["node_modules", "<rootDir>/packages"]
+    }
+  },
+  "files": {
+    "jest": {
+      "packages/lib-import/package.json": "{\n  \"name\": \"lib-import\",\n  \"exports\": {\n    \"import\": \"./main.ts\"\n  }\n}\n",
+      "packages/lib-require/package.json": "{\n  \"name\": \"lib-require\",\n  \"exports\": {\n    \"require\": \"./main.ts\"\n  }\n}\n",
+      "packages/lib-node/package.json": "{\n  \"name\": \"lib-node\",\n  \"exports\": {\n    \"node\": \"./main.ts\"\n  }\n}\n",
+      "packages/lib-default/package.json": "{\n  \"name\": \"lib-default\",\n  \"exports\": {\n    \"default\": \"./main.ts\"\n  }\n}\n",
+      "require.test.ts": "test('works', () => {\n  const m = require('lib-require') as Record<string, unknown>\n\n  expect(m).toBeDefined()\n})\n",
+      "node.test.ts": "test('works', () => {\n  const m = require('lib-node') as Record<string, unknown>\n\n  expect(m).toBeDefined()\n})\n",
+      "import.test.ts": "test('works', () => {\n  const m = require('lib-import') as Record<string, unknown>\n\n  expect(m).toBeDefined()\n})\n",
+      "default.test.ts": "test('works', () => {\n  const m = require('lib-default') as Record<string, unknown>\n\n  expect(m).toBeDefined()\n})\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": [
+        "--listTests",
+        "--findRelatedTests",
+        "packages/lib-import/main.ts",
+        "packages/lib-require/main.ts",
+        "packages/lib-node/main.ts",
+        "packages/lib-default/main.ts"
+      ]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

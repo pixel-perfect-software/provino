@@ -283,6 +283,14 @@ export type {
   TestRunHandle,
 } from './runtime/lazy-host.ts'
 export type {
+  LifecycleEvent,
+  LifecycleHookKind,
+  LifecycleHookRef,
+  LifecycleListener,
+  LifecycleMode,
+  LifecycleRef,
+} from './runtime/lifecycle.ts'
+export type {
   FileTask,
   LazyEvaluation,
   RunMode,

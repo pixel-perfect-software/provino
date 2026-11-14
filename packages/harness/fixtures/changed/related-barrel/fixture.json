@@ -1,0 +1,11 @@
+{
+  "description": "A barrel that re-exports two modules makes a test that requires the barrel related to both, and a test that requires one of them directly related to that one only. Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "src/x.ts"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}
