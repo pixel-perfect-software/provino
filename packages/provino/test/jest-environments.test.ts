@@ -94,13 +94,22 @@ describe('T8.5: a Jest environment package runs a smoke file through the worker,
 })
 
 // A custom environment's `handleTestEvent` (T8.5's rest, B23d): the environment in
-// `env/handle-test-event*` appends one JSON line per circus event; the lines Provino's mirror of
-// circus produces equal the ones Jest 30.5.2 wrote.
+// `env/handle-test-event*` appends one JSON line per circus event to `<test file>.events.jsonl`;
+// every such file Provino's mirror of circus produces equals the one Jest 30.5.2 wrote.
 describe('handleTestEvent sees the events Jest 30.5.2 gave it', () => {
   for (const id of [
     'env/handle-test-event',
     'env/handle-test-event-only',
     'env/handle-test-event-async',
+    'env/handle-test-event-concurrent',
+    'env/handle-test-event-describe-skip',
+    'env/handle-test-event-name-pattern',
+    'env/handle-test-event-after-all',
+    'env/handle-test-event-empty-describe',
+    'env/handle-test-event-failing',
+    'env/handle-test-event-timeout',
+    'env/handle-test-event-retry-reasons',
+    'env/handle-test-event-throws',
   ]) {
     it(id, async () => {
       const fixture = await loadFixture(id)
@@ -116,21 +125,29 @@ describe('handleTestEvent sees the events Jest 30.5.2 gave it', () => {
             `--config=${join(project.root, 'jest.config.json')}`,
             '--ci',
             '--testLocationInResults',
+            ...(fixture.manifest.run?.argv?.jest ?? []),
           ],
           { cwd: project.root },
         )
-        const recorded = fixture.golden.observed?.files?.['events.jsonl']
-        assert.equal(typeof recorded, 'string', 'the recording has the events')
-        const ours = await readFile(join(project.root, 'events.jsonl'), 'utf8')
-        const got = ours.trim().split('\n')
-        const want = (recorded as string).trim().split('\n')
-        const at = got.findIndex((line, index) => line !== want[index])
-        assert.equal(
-          at,
-          -1,
-          `line ${at}:\n provino ${got[at]}\n jest    ${want[at]}\n${ended.stderr.slice(-1500)}`,
+        const captured = (fixture.manifest.run?.capture ?? []).filter((entry) =>
+          entry.startsWith('file:'),
         )
-        assert.equal(got.length, want.length)
+        assert.ok(captured.length > 0, 'the fixture captures the events')
+        for (const capture of captured) {
+          const file = capture.slice('file:'.length)
+          const recorded = fixture.golden.observed?.files?.[file]
+          assert.equal(typeof recorded, 'string', `the recording has ${file}`)
+          const ours = await readFile(join(project.root, file), 'utf8')
+          const got = ours.trim().split('\n')
+          const want = (recorded as string).trim().split('\n')
+          const at = got.findIndex((line, index) => line !== want[index])
+          assert.equal(
+            at,
+            -1,
+            `${file} line ${at}:\n provino ${got[at]}\n jest    ${want[at]}\n${ended.stderr.slice(-1500)}`,
+          )
+          assert.equal(got.length, want.length, `${file} has as many lines`)
+        }
         assert.equal(ended.code, fixture.golden.observed?.exitCode, ended.stderr)
       } finally {
         await project.dispose()
