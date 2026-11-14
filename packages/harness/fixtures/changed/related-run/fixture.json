@@ -1,5 +1,5 @@
 {
-  "description": "A full --findRelatedTests run: only the related test runs, and stderr closes with `Ran all test suites related to files matching /src\\/foo.ts/i.` Jest only.",
+  "description": "A full --findRelatedTests run: only the related test runs, and stderr closes with `Ran all test suites related to files matching src/foo.ts.` Jest only.",
   "runners": ["jest"],
   "run": {
     "argv": {

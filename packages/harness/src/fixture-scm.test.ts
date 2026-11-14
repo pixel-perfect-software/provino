@@ -109,6 +109,21 @@ test('before arguments go through the same reserved-flag check as run.argv', () 
   }
 })
 
+test('a .git path is refused whatever its case', () => {
+  for (const file of ['.GIT/config', '.Git/hooks/x', 'a/../.gIt/HEAD']) {
+    assert.throws(
+      () => parseScmSteps([{ write: { [file]: 'x' } }], 'f.json', 'scm.steps'),
+      rejects('HARNESS_FIXTURE_BAD_SCM'),
+      file,
+    )
+    assert.throws(
+      () => parseScmSteps([{ remove: [file] }], 'f.json', 'scm.steps'),
+      rejects('HARNESS_FIXTURE_BAD_SCM'),
+      file,
+    )
+  }
+})
+
 test('an unknown manifest key still names scm and before among the known ones', () => {
   assert.throws(
     () => parseFixtureManifest(JSON.stringify({ ...VALID, nope: 1 })),

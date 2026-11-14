@@ -2,7 +2,7 @@
 // under an environment that reads nothing from the machine it runs on. No user config, no signing
 // (so no 1Password prompt), fixed dates and authors, no hooks, no ignore file but the repository's
 // own. The runner gets the same environment, so Jest's own git commands see what ours made.
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, realpath, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { HarnessError } from '../errors.ts'
 import type { ScmStep } from '../fixture.ts'
@@ -101,6 +101,55 @@ export async function initRepo(repo: ScmRepo): Promise<void> {
   )
 }
 
+/** Whether `child` is `parent` or inside it. */
+function within(parent: string, child: string): boolean {
+  const relative = path.relative(parent, child)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+/** The real path of `target`'s nearest ancestor (or itself) that exists. */
+async function realNearest(target: string): Promise<string> {
+  let current = target
+  for (;;) {
+    try {
+      return await realpath(current)
+    } catch (cause) {
+      const parent = path.dirname(current)
+      if (parent === current) throw cause
+      current = parent
+    }
+  }
+}
+
+/**
+ * Throws `HARNESS_SCM_FAILED` unless `target`'s parent, with every symlink resolved, is inside the
+ * work directory. With `followTarget`, an existing `target` that is itself a link must also land
+ * inside (a write follows it; a removal only drops the link).
+ */
+async function assertInsideWorkDir(
+  repo: ScmRepo,
+  target: string,
+  file: string,
+  followTarget: boolean,
+): Promise<void> {
+  const root = await realpath(repo.dir)
+  const escapes = (): never => {
+    throw new HarnessError(
+      'HARNESS_SCM_FAILED',
+      `"${file}" resolves outside the work directory through a symbolic link`,
+      { path: repo.dir },
+    )
+  }
+  if (!within(root, await realNearest(path.dirname(target)))) escapes()
+  if (followTarget) {
+    const exists = await lstat(target).then(
+      () => true,
+      () => false,
+    )
+    if (exists && !within(root, await realpath(target))) escapes()
+  }
+}
+
 /** Runs one step in the repository. `write` and `remove` need no git. */
 export async function runScmStep(repo: ScmRepo, step: ScmStep): Promise<void> {
   if ('git' in step) {
@@ -123,12 +172,15 @@ export async function runScmStep(repo: ScmRepo, step: ScmStep): Promise<void> {
   } else if ('write' in step) {
     for (const [file, text] of Object.entries(step.write)) {
       const target = path.join(repo.dir, file)
+      await assertInsideWorkDir(repo, target, file, true)
       await mkdir(path.dirname(target), { recursive: true })
       await writeFile(target, text)
     }
   } else {
     for (const file of step.remove) {
-      await rm(path.join(repo.dir, file), { recursive: true, force: true })
+      const target = path.join(repo.dir, file)
+      await assertInsideWorkDir(repo, target, file, false)
+      await rm(target, { recursive: true, force: true })
     }
   }
 }

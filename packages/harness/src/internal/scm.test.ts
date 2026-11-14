@@ -1,5 +1,14 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
@@ -98,6 +107,29 @@ test('the steps build a repository whose commits do not depend on the machine', 
   }
   assert.equal(heads[0], heads[1])
   assert.match(heads[0] ?? '', /^[0-9a-f]{40}$/)
+})
+
+test('write and remove refuse a path that leaves the work directory through a symlink', async () => {
+  await withRepo(async (repo, root) => {
+    const outside = path.join(root, 'outside')
+    await mkdir(outside)
+    await writeFile(path.join(outside, 'keep.txt'), 'keep\n')
+    await writeFile(path.join(outside, 'target.txt'), 'old\n')
+    await symlink(outside, path.join(repo.dir, 'dirlink'))
+    await symlink(path.join(outside, 'target.txt'), path.join(repo.dir, 'filelink'))
+    const refused = (error: unknown): boolean =>
+      error instanceof HarnessError && error.code === 'HARNESS_SCM_FAILED'
+    await assert.rejects(runScmSteps(repo, [{ write: { 'dirlink/new.txt': 'x' } }]), refused)
+    await assert.rejects(runScmSteps(repo, [{ write: { 'dirlink/deeper/new.txt': 'x' } }]), refused)
+    await assert.rejects(runScmSteps(repo, [{ write: { filelink: 'x' } }]), refused)
+    await assert.rejects(runScmSteps(repo, [{ remove: ['dirlink/keep.txt'] }]), refused)
+    assert.equal(await readFile(path.join(outside, 'keep.txt'), 'utf8'), 'keep\n')
+    assert.equal(await readFile(path.join(outside, 'target.txt'), 'utf8'), 'old\n')
+    assert.deepEqual((await readdir(outside)).sort(), ['keep.txt', 'target.txt'])
+    // Removing the link itself is inside the work directory and leaves its target alone.
+    await runScmSteps(repo, [{ remove: ['dirlink'] }])
+    assert.equal(await readFile(path.join(outside, 'keep.txt'), 'utf8'), 'keep\n')
+  })
 })
 
 test('two recordings of the same steps give the same commit hash', async () => {

@@ -30,6 +30,7 @@ import {
 import { compareStrings, isNotFound } from './internal/guards.ts'
 import {
   assertCheckoutKeepsJestFrames,
+  assertEarlierRunComplete,
   assertNoPathLeak,
   assertRunComplete,
   commitGolden,
@@ -48,6 +49,7 @@ import { isNodeModules, walkFiles } from './internal/walk.ts'
 import {
   createWorkDirRegistry,
   REMOVE_TREE_OPTIONS,
+  resolveRecordRoot,
   type WorkDirRegistry,
 } from './internal/work-dirs.ts'
 import { createNormalizer } from './normalize.ts'
@@ -104,8 +106,10 @@ const REPO_ROOT = path.resolve(PACKAGE_DIR, '..', '..')
  * that keeps repositories out of the checkout (it refuses writes to `.git/config`) records from a
  * directory outside it.
  */
-export const WORK_ROOT: string =
-  process.env.PROVINO_RECORD_ROOT ?? path.join(PACKAGE_DIR, '.record')
+export const WORK_ROOT: string = resolveRecordRoot(
+  process.env.PROVINO_RECORD_ROOT,
+  path.join(PACKAGE_DIR, '.record'),
+)
 export const TRANSFORMER_PATH: string = fileURLToPath(
   new URL('./jest-transform.ts', import.meta.url),
 )
@@ -531,6 +535,23 @@ async function runUnderRunner(
         { path: fixture.dir },
       )
     }
+    // The captured run reads what these runs left (Jest's failure history), so they must have
+    // run: results for every test file, no crashed file, no run error. Failing tests are fine.
+    const earlierJson = await readCaptured(outputFile)
+    assertEarlierRunComplete(
+      earlierJson === null
+        ? null
+        : convertJest(parseJestJson(earlierJson, outputFile), {
+            rootDir: paths.realWorkDir,
+            extraRoots: [paths.workDir],
+            suite: fixture.id,
+            runnerVersion: install.version,
+            env: readRunEnvironment({ [runner]: install.version }),
+            snapshotFiles: [],
+          }),
+      testFilesFor(fixture.files, profile),
+      `${fixture.id} (${profile}, "before" run)`,
+    )
     await rm(outputFile, { force: true })
     await rm(traceFile, { force: true })
   }

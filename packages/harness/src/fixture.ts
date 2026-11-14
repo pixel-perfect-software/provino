@@ -767,7 +767,7 @@ const GIT_GLOBAL_OPTIONS: ReadonlySet<string> = new Set([
 
 /** Whether a relative path is inside the work directory and outside its `.git`. */
 function isWorkPath(file: string): boolean {
-  return staysInside(file) && path.posix.normalize(file).split('/')[0] !== '.git'
+  return staysInside(file) && path.posix.normalize(file).split('/')[0]?.toLowerCase() !== '.git'
 }
 
 /**
