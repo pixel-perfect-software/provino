@@ -114,6 +114,7 @@ export interface b extends InvertibleAsymmetric {
 
 // @public
 export interface C {
+    readonly childOrder?: readonly et[];
     // (undocumented)
     readonly durationMs: number;
     // (undocumented)
@@ -295,6 +296,7 @@ export interface k {
     readonly seed: number;
     setDefaultRetry(retry: DefaultRetry | undefined): void;
     setDefaultTimeout(ms: number | undefined): void;
+    setDescribeRetry(retry: DescribeRetry): DescribeRetryResult;
     timers(): object;
     readonly timersPolicy: at;
 }

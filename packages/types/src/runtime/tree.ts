@@ -202,4 +202,10 @@ export interface TaskResult {
    * `test-end` carries it, and only when the test evaluated any: a passing test pays nothing.
    */
   readonly lazies?: readonly LazyEvaluation[]
+  /**
+   * The ids of a suite's (or file's) children in the order the run put them in, when it reordered
+   * them (a randomized run, `CorePolicy.shuffle`). A consumer that lists results as the runner's own
+   * tree does reads this instead of the declared order; absent means the declared order.
+   */
+  readonly childOrder?: readonly TaskId[]
 }

@@ -98,6 +98,7 @@
     "oxc-walker": "catalog:",
     "picomatch": "catalog:",
     "pretty-format": "catalog:",
+    "pure-rand": "catalog:",
     "tinyglobby": "catalog:"
   },
   "publishConfig": {

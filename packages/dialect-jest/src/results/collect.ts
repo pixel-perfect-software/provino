@@ -15,6 +15,7 @@ import {
   type BuildOptions,
   type FileEvents,
   finishAggregated,
+  ordersOf,
   type RunEnd,
   type TestRecord,
   testsInOrder,
@@ -125,6 +126,8 @@ interface MutableFile {
   startedAt: number
   tree: readonly TaskNode[] | undefined
   records: Map<TaskId, TestRecord>
+  /** The child order of each suite a randomized run shuffled. */
+  orders: Map<TaskId, readonly TaskId[]>
   unhandled: SerializedError[]
   /** The file's `console` calls, as `BufferedConsole` keeps them. */
   console: ConsoleEntry[]
@@ -171,6 +174,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         startedAt: now(),
         tree: undefined,
         records: new Map(),
+        orders: new Map(),
         unhandled: [],
         console: [],
       }
@@ -207,6 +211,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         startedAt: now(),
         tree: undefined,
         records: new Map(),
+        orders: new Map(),
         unhandled: [],
         console: [],
       })
@@ -234,6 +239,11 @@ export function createJestResults<Config extends ProjectConfigLike>(
       if (known !== undefined) file.records.set(task.id, { ...known, startedAt: now() })
     },
     'task:end': (task, event) => {
+      if (event.type === 'suite-end') {
+        const order = event.result.childOrder
+        if (order !== undefined) files.get(task.fileId)?.orders.set(task.id, order)
+        return
+      }
       if (task.type !== 'test' || event.type !== 'test-end') return
       const file = files.get(task.fileId)
       const known = file === undefined ? undefined : record(file, task.id)
@@ -269,6 +279,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         testFilePath: pathOf(info),
         tree: file.tree,
         records: file.records,
+        orders: file.orders,
         result: fileResult,
         unhandled: file.unhandled,
         startedAt: file.startedAt,
@@ -278,7 +289,8 @@ export function createJestResults<Config extends ProjectConfigLike>(
       testResult.console = file.console.length > 0 ? file.console : undefined
       const stack = { noStackTrace: globalConfig.noStackTrace }
       // The messages go with the assertions by position: two tests can share a full name.
-      const ordered = file.tree === undefined ? [] : testsInOrder(file.tree, file.records)
+      const ordered =
+        file.tree === undefined ? [] : testsInOrder(file.tree, file.records, ordersOf(events))
       for (const [index, assertion] of testResult.testResults.entries()) {
         const errors = ordered[index]?.result?.retryErrors ?? []
         if (errors.length === 0) continue

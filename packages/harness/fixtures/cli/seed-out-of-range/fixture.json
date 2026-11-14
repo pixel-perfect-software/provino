@@ -1,0 +1,16 @@
+{
+  "description": "`--seed=4294967296` under Jest 30.5.2 (T5.13, B23d): outside `-0x80000000..0x7fffffff`, so Jest ends with a validation error naming the value, before it runs anything. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--seed=4294967296"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "Validation Error|seed value must be"
+  }
+}

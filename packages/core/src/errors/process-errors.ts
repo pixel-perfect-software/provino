@@ -48,6 +48,8 @@ export class ProcessErrors {
   /** Tests of the current file that an event charged an error to after they ended. */
   readonly #chargedTests = new Set<TaskId>()
   #chargedFiles = 0
+  /** Errors that no running attempt owned, over the runtime's life (a describe retry compares). */
+  #unowned = 0
   /** Whether a file is running: a rejection reported outside one is charged at once. */
   #active = false
   /** The file that is running, or ran last. */
@@ -60,6 +62,11 @@ export class ProcessErrors {
   /** Whether an error was charged to the current file's tests or to the file itself. */
   get failsFile(): boolean {
     return this.#chargedTests.size > 0 || this.#chargedFiles > 0
+  }
+
+  /** How many errors, so far, went to the run, a file or an ended test instead of a running attempt. */
+  get unowned(): number {
+    return this.#unowned
   }
 
   /** Starts a file: nothing is charged yet. */
@@ -150,6 +157,7 @@ export class ProcessErrors {
     origin: UnhandledErrorOrigin,
     error: unknown,
   ): void {
+    this.#unowned++
     this.#config.emit({
       type: 'unhandled-error',
       ownerId,

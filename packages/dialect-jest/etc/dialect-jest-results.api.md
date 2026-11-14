@@ -133,6 +133,7 @@ export interface FileEvents {
     readonly endedAt: number;
     // (undocumented)
     readonly info: FileInfo;
+    readonly orders?: ReadonlyMap<TaskId, readonly TaskId[]>;
     // (undocumented)
     readonly records: ReadonlyMap<TaskId, TestRecord>;
     // (undocumented)

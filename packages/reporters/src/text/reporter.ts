@@ -278,9 +278,13 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       parts.push(header)
       if (entry !== undefined) {
         parts.push(
-          ...verboseList(entry.tasks, (test) => outcomeOf(entry, test).result, style, {
-            expand: options.expand === true,
-          }),
+          ...verboseList(
+            entry.tasks,
+            (test) => outcomeOf(entry, test).result,
+            style,
+            { expand: options.expand === true },
+            entry.orders,
+          ),
         )
       }
     } else {
@@ -371,7 +375,12 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     async 'file:end'(result) {
       const { fileId } = result.file
       tally(files, result.state)
-      const text = fileText(result, record.files.get(fileId))
+      const entry = record.files.get(fileId)
+      const top = entry?.tasks.find((task) => task.type === 'file')
+      if (entry !== undefined && top !== undefined && result.childOrder !== undefined) {
+        entry.orders.set(top.id, result.childOrder)
+      }
+      const text = fileText(result, entry)
       release(fileId)
       lastFailed = result.state === 'fail'
       if (result.state === 'fail' && result.errors.length > 0) runtimeErrors++

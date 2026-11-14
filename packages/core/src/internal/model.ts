@@ -2,6 +2,7 @@
 // never crosses threads; the clone-safe `TaskNode`s are built from it once collection ends.
 import type {
   AnyFunction,
+  DescribeRetry,
   FileHandle,
   FileTask,
   Frame,
@@ -101,6 +102,8 @@ export interface SuiteNode extends NodeBase {
   /** `true`, `false`, or `undefined` when the code didn't say. */
   readonly concurrent: boolean | undefined
   readonly shuffle: boolean
+  /** The retry of the whole block (`Runtime.setDescribeRetry`), set while it is collected. */
+  describeRetry: DescribeRetry | undefined
   /** The body, kept until it runs (deferred bodies run after the file has loaded). */
   body: UserFn | undefined
   readonly bodyArgs: readonly unknown[]

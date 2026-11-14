@@ -11,6 +11,7 @@
 import type {
   CorePolicy,
   DefaultRetry,
+  DescribeRetry,
   EventSink,
   FileTask,
   FormatValue,
@@ -134,6 +135,10 @@ interface FileRun {
   readonly fileId: TaskId
   /** Whether the file has had the warning for an ignored function `retry.condition` (once a file). */
   warnedIgnoredCondition: boolean
+  /** The file's shuffle (a randomized run), one generator for all its suites; `undefined` for the declared order. */
+  readonly shuffle: (<T>(items: T[]) => T[]) | undefined
+  /** The suites already shuffled, with the order of their children: each is shuffled once. */
+  readonly shuffled: Map<SuiteNode, readonly TaskId[]>
 }
 
 /**
@@ -172,6 +177,8 @@ interface Progress {
   /** The errors of the attempt that ended the test. */
   readonly failures: unknown[]
   attempts: number
+  /** Attempts the test had already run in discarded describe attempts (`setDescribeRetry`). */
+  readonly attemptBase: number
   repeatIndex: number
   skipped: AttemptState['skipped']
   /** Milliseconds between the test's start and end that were not its own: its retries waited for the suite's other tests. */
@@ -253,6 +260,17 @@ export class Executor {
   readonly #lateDone: (error: Error) => void
   /** The `InvokeEnv` of a call outside any test (a suite hook), which is never over. */
   readonly #outsideTestEnv: InvokeEnv
+  /**
+   * The end events of the describe attempts that are still open (`setDescribeRetry`), innermost
+   * last: an attempt's results stand only if it is the last, so they wait here until it is known.
+   */
+  readonly #holds: RuntimeEvent[][] = []
+  /** Tasks whose start was emitted while a describe attempt was open and whose end has not been. */
+  readonly #started = new Set<TaskId>()
+  /** How many attempts each test has run in describe attempts so far. */
+  readonly #describeAttempts = new Map<TaskId, number>()
+  /** What `rootOrder` reports. */
+  #rootOrder: readonly TaskId[] | undefined
   /** The test that started last. */
   #lastTestId: TaskId | null = null
   /** The path of the file running now, for the location of a `ctx.annotate` call. */
@@ -284,15 +302,32 @@ export class Executor {
    * Runs a collected (finalized) file. File-level errors land in `file.errors`; the root's outcome
    * is returned. The file's own teardowns (`FileHandle.teardowns`) are the caller's to run.
    */
-  async runFile(file: FileState): Promise<Outcome> {
-    const run: FileRun = { file, fileId: file.root.id, warnedIgnoredCondition: false }
+  async runFile(file: FileState, shuffle?: <T>(items: T[]) => T[]): Promise<Outcome> {
+    const run: FileRun = {
+      file,
+      fileId: file.root.id,
+      warnedIgnoredCondition: false,
+      shuffle,
+      shuffled: new Map(),
+    }
+    this.#rootOrder = undefined
     this.#filePath = file.path
-    return this.#runSuite(run, file.root, {
+    this.#holds.length = 0
+    this.#started.clear()
+    this.#describeAttempts.clear()
+    const outcome = await this.#runSuite(run, file.root, {
       attached: [],
       skipHooks: false,
       concurrent: false,
       fileRetry: undefined,
     })
+    this.#rootOrder = run.shuffled.get(file.root)
+    return outcome
+  }
+
+  /** The order a randomized run put the last file's top-level tasks in; `undefined` when it kept the declared one. */
+  get rootOrder(): readonly TaskId[] | undefined {
+    return this.#rootOrder
   }
 
   /**
@@ -356,20 +391,80 @@ export class Executor {
   async #runSuite(run: FileRun, suite: SuiteNode, scope: Scope): Promise<Outcome> {
     const isRoot = suite.parent === null
     const start = this.#now()
-    if (!isRoot) this.#emit({ type: 'suite-start', id: suite.id, t: start })
-    const errors: unknown[] = []
+    if (!isRoot) this.#start('suite-start', suite.id, start)
+    let errors: unknown[] = []
     let children: Outcome[] = []
     if (suite.blocked !== undefined) {
       errors.push(suite.blocked)
       this.#skipBelow(suite)
+    } else if (suite.describeRetry !== undefined) {
+      const retried = await this.#runRetried(run, suite, scope, suite.describeRetry)
+      children = retried.children
+      errors = retried.errors
     } else {
       children = await this.#runSuiteBody(run, suite, scope, errors)
     }
     if (suite.emptyError !== undefined && suite.mode === 'run') errors.push(suite.emptyError)
     const outcome = suiteOutcome(suite, errors, children)
     if (isRoot) run.file.errors.push(...errors)
-    else this.#endTask('suite-end', suite.id, outcome, start, errors)
+    else {
+      const childOrder = run.shuffled.get(suite)
+      this.#endTask('suite-end', suite.id, outcome, start, errors, {
+        ...(childOrder === undefined ? {} : { childOrder }),
+      })
+    }
     return outcome
+  }
+
+  /**
+   * A describe block with a retry of its own (jest-circus's `_runTestsForDescribeBlock`): the block
+   * runs, hooks and all; if a test below failed and retries are left, what the attempt reported is
+   * dropped and the block runs again. The last attempt's results stand, with the errors of the
+   * dropped ones when `logErrorsBeforeRetry` says so. An error nobody owns (a failed `afterAll`, an
+   * uncaught exception outside a test) ends the retries, as jest-circus's `unhandledErrors` do.
+   */
+  async #runRetried(
+    run: FileRun,
+    suite: SuiteNode,
+    scope: Scope,
+    retry: DescribeRetry,
+  ): Promise<{ readonly children: Outcome[]; readonly errors: unknown[] }> {
+    let left = Number.isFinite(retry.numRetries) ? Math.max(0, Math.trunc(retry.numRetries)) : 0
+    const wait = retry.waitBeforeRetry ?? 0
+    /** The errors of dropped attempts, by test. */
+    const dropped = new Map<TaskId, SerializedError[]>()
+    for (;;) {
+      const hold: RuntimeEvent[] = []
+      const fileErrors = run.file.errors.length
+      const unowned = this.#config.processErrors.unowned
+      const errors: unknown[] = []
+      let children: Outcome[]
+      this.#holds.push(hold)
+      try {
+        children = await this.#runSuiteBody(run, suite, scope, errors)
+      } finally {
+        this.#holds.pop()
+      }
+      const failed = hold.some(
+        (event) => event.type === 'test-end' && event.result.state === 'fail',
+      )
+      const unhandled =
+        run.file.errors.length > fileErrors || this.#config.processErrors.unowned > unowned
+      if (!failed || unhandled || left <= 0) {
+        for (const event of hold) this.#emit(withDropped(event, dropped))
+        return { children, errors }
+      }
+      if (retry.logErrorsBeforeRetry === true) {
+        for (const event of hold) {
+          if (event.type !== 'test-end') continue
+          const kept = dropped.get(event.id) ?? []
+          kept.push(...event.result.errors, ...event.result.retryErrors)
+          dropped.set(event.id, kept)
+        }
+      }
+      if (wait > 0) await sleep(this.#config.timers, wait)
+      left--
+    }
   }
 
   async #runSuiteBody(
@@ -466,6 +561,15 @@ export class Executor {
     // jest-circus reads `jest.retryTimes` here, once the suite's `beforeAll` hooks are done.
     const fileRetry = this.#config.retryDefaults.value
     const scope: Scope = fileRetry === outer.fileRetry ? outer : { ...outer, fileRetry }
+    // circus shuffles a block the first time it runs, after its `beforeAll` hooks and before the
+    // concurrent tests are regrouped; a retried block keeps the order it was given.
+    if (run.shuffle !== undefined && !run.shuffled.has(suite)) {
+      if (suite.children.length > 0) run.shuffle(suite.children)
+      run.shuffled.set(
+        suite,
+        suite.children.map((child) => child.id),
+      )
+    }
     const results: Array<Outcome | Resume> = []
     for (const group of this.#groups(suite.children)) {
       if (!group.concurrent) {
@@ -553,7 +657,7 @@ export class Executor {
   async #runTest(run: FileRun, test: TestNode, scope: Scope): Promise<Outcome | Resume> {
     const start = this.#now()
     this.#lastTestId = test.id
-    this.#emit({ type: 'test-start', id: test.id, t: start })
+    this.#start('test-start', test.id, start)
     if (test.mode === 'skip' || test.mode === 'todo') {
       const extra: ResultExtra | undefined =
         test.mode === 'skip' ? { skipReason: test.skipReason ?? 'unknown' } : undefined
@@ -570,6 +674,7 @@ export class Executor {
       retryErrors: [],
       failures: [],
       attempts: 0,
+      attemptBase: this.#holds.length > 0 ? (this.#describeAttempts.get(test.id) ?? 0) : 0,
       repeatIndex: 0,
       skipped: undefined,
       parkedMs: 0,
@@ -586,6 +691,9 @@ export class Executor {
           )
       }
     }
+    if (this.#holds.length > 0) {
+      this.#describeAttempts.set(test.id, progress.attemptBase + progress.attempts)
+    }
     return this.#finishTest(test, progress)
   }
 
@@ -597,7 +705,8 @@ export class Executor {
    */
   #retryPlan(test: TestNode, scope: Scope): RetryPlan {
     const own = test.retry
-    const file = scope.fileRetry
+    // jest-circus gives no test its own retries inside a describe retry (`insideDescribeRetry`).
+    const file = this.#holds.length > 0 ? undefined : scope.fileRetry
     if (scope.attached.length > 0 || (own === undefined && file === undefined)) return NO_RETRY
     const spec: RetrySpec = own ?? {
       count: retryCount(file?.count),
@@ -632,7 +741,8 @@ export class Executor {
       // `test-start` and here), so it carries the test's start time rather than reading the clock.
       const startedAt =
         attempt === 0 && repeat === 0 && progress.attempts === 1 ? progress.start : undefined
-      const result = await this.#runAttempt(run, test, attempt, repeat, scope, startedAt)
+      const number = progress.attemptBase + attempt
+      const result = await this.#runAttempt(run, test, number, repeat, scope, startedAt)
       const errors = result.errors
       // A skip that nothing failed after ends the test; a failure outranks it.
       progress.skipped = errors.length === 0 ? result.skipped : undefined
@@ -643,7 +753,7 @@ export class Executor {
       this.#emit({
         type: 'test-attempt-end',
         id: test.id,
-        attempt,
+        attempt: number,
         repeat,
         state: errors.length > 0 ? 'fail' : progress.skipped === undefined ? 'pass' : 'skip',
         errors: errors.map(serializeError),
@@ -723,7 +833,8 @@ export class Executor {
 
   /** Ends a test with what its attempts left, and returns its outcome. */
   #finishTest(test: TestNode, progress: Progress): Outcome {
-    const { start, failures, retryErrors, attempts, repeatIndex, skipped, parkedMs } = progress
+    const { start, failures, retryErrors, repeatIndex, skipped, parkedMs } = progress
+    const attempts = progress.attemptBase + progress.attempts
     if (skipped !== undefined && failures.length === 0) {
       this.#endTask('test-end', test.id, 'skip', start, [], {
         skipReason: 'dynamic',
@@ -1379,7 +1490,27 @@ export class Executor {
   }
 
   #emit(event: RuntimeEvent): void {
+    if (event.type === 'test-end' || event.type === 'suite-end') {
+      const hold = this.#holds.at(-1)
+      if (hold !== undefined) {
+        hold.push(event)
+        return
+      }
+      this.#started.delete(event.id)
+    }
     this.#config.sink.emit(event)
+  }
+
+  /**
+   * Emits a task's start. A describe attempt after the first runs tasks that have started already:
+   * their start is not reported again.
+   */
+  #start(type: 'test-start' | 'suite-start', id: TaskId, t: number): void {
+    if (this.#holds.length > 0) {
+      if (this.#started.has(id)) return
+      this.#started.add(id)
+    }
+    this.#emit({ type, id, t })
   }
 
   /** Emits a task's end event, its result and the event timed now. */
@@ -1396,6 +1527,26 @@ export class Executor {
   }
 }
 
+/** An error as a result carries it. */
+type SerializedError = TaskResult['errors'][number]
+
+/**
+ * An end event with the errors of the describe attempts dropped before it added to its test's
+ * `retryErrors`, in order.
+ */
+function withDropped(
+  event: RuntimeEvent,
+  dropped: ReadonlyMap<TaskId, SerializedError[]>,
+): RuntimeEvent {
+  if (event.type !== 'test-end') return event
+  const earlier = dropped.get(event.id)
+  if (earlier === undefined) return event
+  return {
+    ...event,
+    result: { ...event.result, retryErrors: [...earlier, ...event.result.retryErrors] },
+  }
+}
+
 /** A result's optional parts; each defaults to none. */
 export interface ResultExtra {
   readonly skipReason?: SkipReason
@@ -1408,6 +1559,8 @@ export interface ResultExtra {
    * the end of its suite (`retry.timing: 'deferred'`) was parked while the suite's other tests ran.
    */
   readonly parkedMs?: number
+  /** The order a suite's children ran in, when the run shuffled them. */
+  readonly childOrder?: readonly TaskId[]
 }
 
 /** A task's (or a file's) result, its errors serialized. */
@@ -1430,6 +1583,7 @@ export function taskResult(
     passingAssertions: 0,
     ...(extra.skipReason === undefined ? {} : { skipReason: extra.skipReason }),
     ...(extra.note === undefined ? {} : { note: extra.note }),
+    ...(extra.childOrder === undefined ? {} : { childOrder: extra.childOrder }),
   }
 }
 

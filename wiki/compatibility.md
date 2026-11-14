@@ -30,7 +30,8 @@ Provino's tests compare almost everything here with Jest 30.5, either against re
 - Mock functions, spies, and `jest.mock` (hoisted, with a factory, automock or a `__mocks__` file), plus `clearMocks`, `resetMocks` and `restoreMocks`.
 - Modern fake timers: `jest.useFakeTimers()` and the `fakeTimers` config key.
 - `toMatchSnapshot`. Its `.snap` files are checked byte for byte against recordings of Jest 30.5.2, including the `-u` and `--ci` cases and obsolete snapshots.
-- Retries with `jest.retryTimes(n, options)`.
+- Retries with `jest.retryTimes(n, options)`, and of a whole describe block with `entireDescribe`.
+- Random order with `--randomize` and `--seed`: a seed gives the order Jest gives.
 
 **Output**
 - The `default`, `verbose` and `summary` reporters print Jest's text (the failure text through `jest-message-util`, with a code frame, a console entry's call site, the per-file snapshot lines, the Snapshot Summary and `Ran all test suites.`), checked against recordings of Jest apart from the gaps below. `--verbose`, `--silent`, `--expand`, `--noStackTrace` and `--colors`/`--no-color` apply.
@@ -50,13 +51,12 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | `github-actions` with `silent: false` | Refused by name (the result tree it adds is not printed) | Planned |
 | Orphan `.snap` files | Not removed, and `snapshot.filesRemovedList` stays empty | Planned |
 | Run only what changed: `--onlyChanged`, `--changedSince`, `--lastCommit`, `--changedFilesWithAncestor`, `--findRelatedTests`, `--onlyFailures` | Refused | Not yet planned |
-| Random order: `--randomize`, `--seed`, `--showSeed` | Refused | Not yet planned |
+| `--showSeed` | Refused (`--randomize` still runs, but the `Seed:` line is not printed) | Planned |
 | `--detectLeaks` | Refused | Planned |
 | `--filter`, and the `--projects` flag | Refused (a `projects` key in the config does run) | Not yet planned |
 | `--debug`, `--logHeapUsage`, `--notify`, `--notifyMode` | Warn, and are otherwise ignored | Planned |
 | `snapshotResolver` | Warns; snapshots stay beside the test file | Planned |
 | Writing inline snapshots (`toMatchInlineSnapshot`) | A match passes and a mismatch fails; one that would need writing (a new one, or `-u`) fails with a message | Planned |
-| `jest.retryTimes(n, { entireDescribe })` | Throws | Planned |
 | `-i`/`--runInBand` with `globalSetup` globals | A worker still starts, so a test doesn't see a global that `globalSetup` set, as it would in Jest | Planned |
 | A custom environment's `handleTestEvent` | Not called | Planned |
 | Legacy fake timers | `legacyFakeTimers: true` throws when a test installs the timers, with a hint to use the modern ones. `jest.runAllImmediates` throws | Not planned |

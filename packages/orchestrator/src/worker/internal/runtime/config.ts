@@ -308,6 +308,9 @@ export function parseProjectConfig(value: unknown): SerializedProjectConfig {
       ? {}
       : { fakeTimers: record(config.fakeTimers, 'fakeTimers') as Record<string, JsonValue> }),
     seed: seedOf(config.seed),
+    ...(config.randomize === undefined
+      ? {}
+      : { randomize: config.randomize === true ? (true as const) : invalid('randomize', 'true') }),
     setupFiles: absolutePaths(config.setupFiles, 'setupFiles'),
     setupFilesAfterEnv: absolutePaths(config.setupFilesAfterEnv, 'setupFilesAfterEnv'),
     loader: loaderConfig(config.loader),

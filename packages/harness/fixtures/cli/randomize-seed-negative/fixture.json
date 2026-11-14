@@ -1,0 +1,16 @@
+{
+  "description": "`--randomize --seed=-7` under Jest 30.5.2 (T5.13, B23d): a negative seed within `-0x80000000..0x7fffffff` is taken as it is and gives a fixed order. One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--randomize", "--seed=-7"]
+    },
+    "capture": ["exitCode", "json:.harness-out/jest.json"],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

@@ -67,7 +67,8 @@
     "jest-matcher-utils": "catalog:",
     "jest-message-util": "catalog:",
     "jest-util": "catalog:",
-    "pretty-format": "catalog:"
+    "pretty-format": "catalog:",
+    "pure-rand": "catalog:"
   },
   "devDependencies": {
     "@edge-runtime/jest-environment": "catalog:",
