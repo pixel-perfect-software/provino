@@ -505,7 +505,8 @@ describe('the edge cache', () => {
     // The same size, and the mtime a coarse clock gives a second save in the same tick.
     await writeFile(p.path('a.test.ts'), "import './two'\n")
     await utimes(p.path('a.test.ts'), savedAt, savedAt)
-    assert.equal((await stat(p.path('a.test.ts'))).mtimeMs, savedAt.getTime())
+    // Rounded: ext4 on Node 22 reports a whole-millisecond mtime as 1794633568134.999.
+    assert.equal(Math.round((await stat(p.path('a.test.ts'))).mtimeMs), savedAt.getTime())
     const second = await build(p, { cacheDir })
     assert.deepEqual(names(p, second.index.related([p.path('two.ts')])), ['a.test.ts'])
   })
