@@ -453,6 +453,29 @@ describe('runProject over inline workers', () => {
     assert.deepEqual(await takeWorkerPids(), [], 'no worker was spawned')
   })
 
+  it('rejects the selection and onlyFailures options until B23c Phase 4 reads them', async () => {
+    const p = await makeProject({ 'a.test.js': passing() })
+    for (const extra of [
+      { selection: { kind: 'related', paths: [join(p.dir, 'a.js')] } } as const,
+      { onlyFailures: 'history' } as const,
+    ]) {
+      const { reporter, seen } = recorder()
+      await assert.rejects(
+        runProject(runtimeProject(p.dir), {
+          bus: createReporterBus([reporter]),
+          cache: false,
+          entry: PID_RECORDING_ENTRY,
+          stderr: new Collect(),
+          pool: { kind: 'forks', maxWorkers: 2 },
+          ...extra,
+        }),
+        { code: 'ORCH_NOT_IMPLEMENTED', message: /B23c Phase 4/ },
+      )
+      assert.deepEqual(seen, [], 'not even run:start')
+    }
+    assert.deepEqual(await takeWorkerPids(), [], 'no worker was spawned')
+  })
+
   it('reports nothing for any file when the signal is already aborted: no file:start, no file:end, an interrupted run', async () => {
     const p = await makeProject({ 'a.test.js': passing('a'), 'b.test.js': passing('b') })
     const { summary, seen } = await run(runtimeProject(p.dir), {
