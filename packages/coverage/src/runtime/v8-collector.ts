@@ -59,6 +59,8 @@ export function createV8Collector(options: V8CollectorOptions): CoverageCollecto
           url,
           wrapperLength: compiled.wrapperLength,
           transformKey: compiled.transformKey,
+          code: compiled.code,
+          map: compiled.map,
         })
       }
       const raw: RawCoverage = {

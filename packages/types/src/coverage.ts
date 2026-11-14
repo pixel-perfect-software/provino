@@ -152,6 +152,10 @@ export interface ExecutedModuleInfo {
   readonly wrapperLength: number
   /** The transform cache key of this exact variant (Track 3). */
   readonly transformKey: string
+  /** The transformed code V8 counted, without the wrapper (`CompiledModuleInfo.code`). */
+  readonly code: string
+  /** The map from `code` back to the source file; `null` when `code` keeps the source's positions. */
+  readonly map: SourceMapV3 | null
 }
 
 /**

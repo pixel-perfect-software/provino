@@ -5,3 +5,9 @@ export { type CoverageAggregate, createCoverageAggregate, createCoverageMap } fr
 export { type RemappedCoverage, remapCoverage } from './remap.ts'
 export { type ReportStream, type WriteReportsOptions, writeCoverageReports } from './reports.ts'
 export { coverageTotals } from './totals.ts'
+export {
+  convertV8Coverage,
+  emptyV8Coverage,
+  type V8ConversionOptions,
+  type V8Coverage,
+} from './v8.ts'
