@@ -84,6 +84,36 @@ describe('jestInlineSnapshotWriter', () => {
     assert.equal(readFileSync(file, 'utf8'), text)
   })
 
+  test('edits recorded out of source order (a helper defined above its callers) all land', async () => {
+    // The helper's call is above `second`'s, but a run records it last: Jest substitutes in the
+    // order it was handed the edits, so the earlier one shifts the later one's offsets and the
+    // slices corrupt the file. The edits are applied from the end of the source instead.
+    const text = [
+      'const check = (value) => expect(value).toMatchInlineSnapshot()',
+      "test('second', () => { expect(2).toMatchInlineSnapshot() })",
+      "test('first', () => { check(1) })",
+      '',
+    ].join('\n')
+    const root = project({ 'a.test.js': text })
+    const file = join(root, 'a.test.js')
+    await write(
+      [
+        at(file, text, 'toMatchInlineSnapshot', '2', 1),
+        at(file, text, 'toMatchInlineSnapshot', '1', 0),
+      ],
+      { rootDir: root, prettierPath: null },
+    )
+    assert.equal(
+      readFileSync(file, 'utf8'),
+      [
+        'const check = (value) => expect(value).toMatchInlineSnapshot(`1`)',
+        "test('second', () => { expect(2).toMatchInlineSnapshot(`2`) })",
+        "test('first', () => { check(1) })",
+        '',
+      ].join('\n'),
+    )
+  })
+
   test('an edit no call is at is Jest`s error', async () => {
     const text = 'expect(1).toMatchInlineSnapshot()\n'
     const root = project({ 'a.test.js': text })

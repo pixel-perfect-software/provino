@@ -149,8 +149,11 @@ function placeEdits(
 }
 
 /**
- * `processInlineSnapshotsWithBabel`: the source with every edit's call reprinted, substituted in
- * reverse order so the offsets stay true.
+ * `processInlineSnapshotsWithBabel`: the source with every edit's call reprinted, substituted from
+ * the end of the source backwards so the offsets stay true. Jest substitutes in the order its
+ * edits were recorded (`reduceRight` over them): the same when they were recorded top to bottom,
+ * and a corrupted file when they weren't (a helper defined above its callers records its call
+ * after theirs). Here the position decides, never the recording order.
  */
 function withSnapshots(
   babel: Babel,
@@ -161,7 +164,9 @@ function withSnapshots(
 ): { readonly text: string; readonly names: readonly string[] } {
   const ast = parse(babel, source, file, rootDir)
   const { nodes, names } = placeEdits(babel, edits, ast)
-  const text = edits.reduceRight((sofar, edit) => {
+  const startOf = (edit: InlineSnapshotEdit): number => nodes.get(edit)?.start ?? -1
+  const fromTheEnd = [...edits].sort((a, b) => startOf(b) - startOf(a))
+  const text = fromTheEnd.reduce((sofar, edit) => {
     const node = nodes.get(edit)
     if (node === undefined || typeof node.start !== 'number' || typeof node.end !== 'number') {
       throw new Error('Jest: no snapshot insert location found')
