@@ -1,27 +1,20 @@
 // @provino/dialect-jest/affected: Jest's changed-files provider and haste's dependency extractor
 // (B23c, T9.16, T9.12). A coordinator leaf, loaded by ref like `/global-setup`, with `@provino/types`
-// as its only import. Phase 1 holds the exports the policy names; they throw until Phase 5 builds them.
+// and Node's built-ins as its only imports.
 import type { ChangedFilesProvider, DependencyExtractorFactory } from '@provino/types'
-
-/** The error a stub throws: the orchestrator's `ORCH_NOT_IMPLEMENTED`, which this leaf can't import. */
-function notImplemented(what: string): Error & { readonly code: 'ORCH_NOT_IMPLEMENTED' } {
-  return Object.assign(new Error(`${what} is not implemented yet (B23c Phase 5)`), {
-    code: 'ORCH_NOT_IMPLEMENTED' as const,
-  })
-}
+import { changedFilesForRoots } from './changed-files.ts'
+import { hasteExtractor } from './extractor.ts'
 
 /**
- * Jest's changed files (`orchestrator.changedFiles`): jest-changed-files rebuilt over git, hg and sl.
+ * Jest's changed files (`orchestrator.changedFiles`): jest-changed-files 30.5.1's
+ * `getChangedFilesForRoots` rebuilt over git, hg and sl. A command that fails rejects with execa's
+ * message, which Jest prints.
  * @public
  */
-export const jestChangedFiles: ChangedFilesProvider = () => {
-  return Promise.reject(notImplemented('jestChangedFiles'))
-}
+export const jestChangedFiles: ChangedFilesProvider = (options) => changedFilesForRoots(options)
 
 /**
- * Haste's dependency extractor (`orchestrator.affected.extractor`).
+ * Haste's dependency extractor (`orchestrator.affected.extractor`): jest-haste-map 30.5.2's regexes.
  * @public
  */
-export const jestDependencyExtractor: DependencyExtractorFactory = () => {
-  throw notImplemented('jestDependencyExtractor')
-}
+export const jestDependencyExtractor: DependencyExtractorFactory = () => hasteExtractor
