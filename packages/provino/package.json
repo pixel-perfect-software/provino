@@ -79,6 +79,10 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },
   "dependencies": {
+    "@babel/core": "catalog:",
+    "@babel/generator": "catalog:",
+    "@babel/plugin-syntax-jsx": "catalog:",
+    "@babel/plugin-syntax-typescript": "catalog:",
     "@istanbuljs/schema": "catalog:",
     "@jest/expect-utils": "catalog:",
     "@jest/get-type": "catalog:",
@@ -86,6 +90,7 @@
     "@jridgewell/trace-mapping": "catalog:",
     "@sinonjs/fake-timers": "catalog:",
     "@standard-schema/spec": "catalog:",
+    "babel-preset-current-node-syntax": "catalog:",
     "es-module-lexer": "catalog:",
     "istanbul-lib-coverage": "catalog:",
     "jest-matcher-utils": "catalog:",
@@ -106,6 +111,8 @@
     }
   },
   "devDependencies": {
+    "@babel/preset-react": "catalog:",
+    "@babel/preset-typescript": "catalog:",
     "@provino/config": "workspace:*",
     "@provino/coverage": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
@@ -116,6 +123,7 @@
     "@provino/reporters": "workspace:*",
     "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*",
+    "babel-jest": "catalog:",
     "jest-html-reporters": "catalog:",
     "jest-junit": "catalog:",
     "jest-silent-reporter": "catalog:",

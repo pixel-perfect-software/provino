@@ -331,6 +331,7 @@ export async function resolveNeutralProject(
       aliases: neutral.aliases,
       globalValues: neutral.globalValues,
       fakeTimers: neutral.fakeTimers,
+      snapshotResolver: neutral.snapshotResolver,
       seed: neutral.seed,
       resolution: neutral.resolution,
     },
@@ -387,6 +388,8 @@ interface ProjectInput {
   readonly globalValues?: Readonly<Record<string, JsonValue>> | undefined
   readonly fakeTimers?: Readonly<Record<string, JsonValue>> | undefined
   readonly seed?: number | undefined
+  /** The project's own snapshot resolver module, absolute (Jest's `snapshotResolver`). */
+  readonly snapshotResolver?: string | undefined
 }
 
 /** `record`, or `undefined` when it has no keys: an empty one is no setting. */
@@ -483,6 +486,7 @@ async function finishProject(
     ...(globalValues === undefined ? {} : { globalValues }),
     ...(fakeTimers === undefined ? {} : { fakeTimers }),
     ...(input.seed === undefined ? {} : { seed: input.seed }),
+    ...(input.snapshotResolver === undefined ? {} : { snapshotResolver: input.snapshotResolver }),
     setupFiles,
     setupFilesAfterEnv,
     loader: {

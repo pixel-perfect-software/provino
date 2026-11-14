@@ -40,6 +40,7 @@ import { OrchestratorError } from './errors.ts'
 import { isRunSignal, RUN_SIGNALS } from './exit-code.ts'
 import { fileIdOf, relativePosix } from './file-id.ts'
 import { type GlobalSetupRun, type RunGlobalHooks, runGlobalSetup } from './global-setup.ts'
+import { createInlineSnapshotWrites, withInlineSnapshots } from './inline-snapshots.ts'
 import { configHash, hashOf, type WorkerKeyInput, workerKeyOf } from './key.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
@@ -528,6 +529,7 @@ export async function runProjects(
   })
   const byIdentity = new Map(members.map((member) => [member.identity, member]))
   const snapshotMembers = members.map((member) => member.snapshots)
+  const inlineWrites = createInlineSnapshotWrites()
 
   const startedAt = performance.now()
   const stderr = options.stderr ?? process.stderr
@@ -724,7 +726,7 @@ export async function runProjects(
     let takenAt: number | undefined
     const ended = Promise.withResolvers<void>()
     try {
-      const outcome = await pool.run({
+      const polled = await pool.run({
         key: entry.key,
         job,
         onStart: async (workerId) => {
@@ -740,6 +742,17 @@ export async function runProjects(
           if (bailAfter === 'file') countFailed(failedInFile)
         },
       })
+      // The file's inline snapshots go into the source before it is reported (D113).
+      const outcome = await withInlineSnapshots(
+        polled,
+        inlineWrites,
+        {
+          rootDir: member.project.rootDir,
+          policy: member.project.policy.snapshot,
+          update: member.snapshots.update,
+        },
+        (text) => void stderr.write(`${text}\n`),
+      )
       if (outcome.type === 'aborted') {
         // The run's own bail cut this file short: Jest reports no result for a file it kills, so
         // neither do we (the one exception to `file:start` having a `file:end`). A signal that
