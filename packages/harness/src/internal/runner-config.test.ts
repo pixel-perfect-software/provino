@@ -218,6 +218,26 @@ test('jestEsm gives the transformer its config; without it the transform is the 
   })
 })
 
+test("jestTypeScript 'babel' is babel-jest with preset-typescript, no stripping first (D123)", () => {
+  const plain = jestConfig('/work/x', '/t.ts', '/s.ts', { jestTypeScript: 'babel' })
+  const esm = jestConfig('/work/x', '/t.ts', '/s.ts', { jestTypeScript: 'babel', jestEsm: true })
+  for (const [config, plugins] of [
+    [plain, []],
+    [esm, ['@babel/plugin-transform-modules-commonjs']],
+  ] as const) {
+    const entry = config.transform['\\.[cm]?ts$']
+    assert.ok(Array.isArray(entry), 'a [path, options] entry')
+    const [transformer, options] = entry as readonly [string, Readonly<Record<string, unknown>>]
+    assert.match(transformer, /[/\\]babel-jest[/\\]/)
+    const names = (list: unknown): string[] =>
+      (list as string[]).map((file) =>
+        (/(@babel[/\\][^/\\]+)/.exec(file)?.[1] ?? file).replace('\\', '/'),
+      )
+    assert.deepEqual(names(options.presets), ['@babel/preset-typescript'])
+    assert.deepEqual(names(options.plugins), plugins)
+  }
+})
+
 test('a fixture jestConfig reaches Jest as roots under <rootDir> and the patterns as given', () => {
   const config = jestConfig('/work/x', '/t.ts', '/s.ts', {
     jestConfig: { roots: ['one', 'a/two'], unmockedModulePathPatterns: ['keep'] },

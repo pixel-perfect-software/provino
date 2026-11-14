@@ -10,6 +10,8 @@ export type {
   CoverageAggregate,
   RemappedCoverage,
   ReportStream,
+  V8ConversionOptions,
+  V8Coverage,
   WriteReportsOptions,
 } from './reporting.ts'
 

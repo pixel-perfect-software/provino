@@ -113,6 +113,12 @@ export interface WorkerInit {
   /** The worker's one project. */
   readonly config: SerializedProjectConfig
   /**
+   * V8 coverage: the `transformKey`s whose code and map the coordinator already holds, from the
+   * workers before this one. The worker sends those modules as an `ExecutedModuleRef`, without
+   * them. Absent: none.
+   */
+  readonly coverageModules?: readonly string[]
+  /**
    * An inline worker (a run in band) installs the console capture on `globalThis.console`, so a
    * test's `console` calls reach the reporters as events, as a fork's do. It leaves the process's
    * own stdout and stderr alone: they are the coordinator's, the reporters' included. Forks and

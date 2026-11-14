@@ -63,6 +63,7 @@ const config: KnipConfig = {
       ignoreDependencies: [
         '@babel/plugin-transform-modules-commonjs',
         '@babel/preset-react',
+        '@babel/preset-typescript',
         'babel-plugin-jest-hoist',
         // The TSX inline snapshot fixture's Babel config names it (B23d B1).
         '@babel/preset-typescript',
