@@ -2,11 +2,12 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { EventEmitter, once } from 'node:events'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
-import { createWorkDirRegistry } from './work-dirs.ts'
+import { HarnessError } from '../errors.ts'
+import { createWorkDirRegistry, resolveRecordRoot } from './work-dirs.ts'
 
 async function withTempDir(use: (dir: string) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'harness-work-dirs-'))
@@ -134,5 +135,24 @@ test('a process ended by SIGTERM through exitOnSignals leaves no tracked directo
     } finally {
       child.kill('SIGKILL')
     }
+  })
+})
+
+test('resolveRecordRoot refuses a relative root and resolves a symlinked one to its real path', async () => {
+  assert.equal(resolveRecordRoot(undefined, '/fallback'), '/fallback')
+  assert.throws(
+    () => resolveRecordRoot('relative/root', '/fallback'),
+    (error: unknown) => error instanceof HarnessError && error.code === 'HARNESS_BAD_RECORD_ROOT',
+  )
+  await withTempDir(async (tmp) => {
+    const real = await realpath(await workDir(tmp, 'real'))
+    const link = path.join(tmp, 'link')
+    await symlink(real, link)
+    assert.equal(resolveRecordRoot(link, '/fallback'), real)
+    assert.equal(resolveRecordRoot(path.join(link, '..', 'real', 'x', '..'), '/fallback'), real)
+    assert.equal(
+      resolveRecordRoot(path.join(real, 'missing'), '/fallback'),
+      path.join(real, 'missing'),
+    )
   })
 })

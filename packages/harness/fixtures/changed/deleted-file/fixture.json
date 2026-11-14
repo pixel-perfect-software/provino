@@ -1,0 +1,21 @@
+{
+  "description": "A source that was deleted (removed from the working tree, still tracked) in the change set: -o lists nothing, because the deleted file is not in hasteFS, so resolveInverseModuleMap's hasteFS.exists check drops it and the test that required it is not found. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "remove": ["src/bar.ts"]
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "-o"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

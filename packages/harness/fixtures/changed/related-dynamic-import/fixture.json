@@ -1,0 +1,11 @@
+{
+  "description": "A dynamic `import('./src/foo.ts')` with a literal specifier is an edge of the dependency extractor. Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "src/foo.ts"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

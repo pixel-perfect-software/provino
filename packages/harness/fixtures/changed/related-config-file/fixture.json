@@ -1,0 +1,16 @@
+{
+  "description": "A change to the Jest config file selects no test: --findRelatedTests jest.config.js lists nothing, though every test runs under that config. Jest only.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "jest.config.js": "module.exports = {}\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "jest.config.js"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

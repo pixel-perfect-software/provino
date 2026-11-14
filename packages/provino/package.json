@@ -120,6 +120,7 @@
     "@provino/reporters": "workspace:*",
     "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*",
+    "jest-environment-node": "catalog:",
     "jest-html-reporters": "catalog:",
     "jest-junit": "catalog:",
     "jest-silent-reporter": "catalog:",

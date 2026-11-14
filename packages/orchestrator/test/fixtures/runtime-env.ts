@@ -10,7 +10,7 @@ import { stat } from 'node:fs/promises'
 import { setImmediate as macrotask } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { MATCHERS_SLOT } from '@provino/expect'
-import type { Environment } from '@provino/types'
+import type { Environment, LifecycleEvent } from '@provino/types'
 
 type Traced = typeof globalThis & { __trace?: string[]; __signals?: AbortSignal[] }
 
@@ -44,6 +44,17 @@ export const recordingEnvironment: Environment<
     const before = new Set(Reflect.ownKeys(globalThis))
     return {
       global: globalThis,
+      // With `listen: true` the instance traces the lifecycle events it gets (`event:<type>`, and
+      // the test's name for a test's own).
+      ...(context.options.listen === true
+        ? {
+            onTestEvent(event: LifecycleEvent) {
+              const ref =
+                'ref' in event && event.type.startsWith('test-') ? ` ${event.ref.name}` : ''
+              trace(`event:${event.type}${ref}`)
+            },
+          }
+        : {}),
       teardown() {
         trace(`env:teardown matchers=${slotMatchers()}`)
         const finish = () => {

@@ -4,13 +4,15 @@
 // the ones `@provino/dialect-jest` installs for its adapter smoke, linked into the project's
 // `node_modules` as pnpm would have put them.
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { liveJest, provinoRun, sorted } from './live-jest.ts'
+import { loadFixture, materialize } from './recorded.ts'
+import { spawnCli } from './support.ts'
 
 const require = createRequire(
   fileURLToPath(new URL('../../dialect-jest/package.json', import.meta.url)),
@@ -87,6 +89,69 @@ describe('T8.5: a Jest environment package runs a smoke file through the worker,
       const got = await provinoRun(root)
       assert.deepEqual(sorted(got.statuses), sorted(expected), got.stderr)
       assert.deepEqual([...got.statuses.values()], ['passed', 'passed', 'passed'], got.stderr)
+    })
+  }
+})
+
+// A custom environment's `handleTestEvent` (T8.5's rest, B23d): the environment in
+// `env/handle-test-event*` appends one JSON line per circus event to `<test file>.events.jsonl`;
+// every such file Provino's mirror of circus produces equals the one Jest 30.5.2 wrote.
+describe('handleTestEvent sees the events Jest 30.5.2 gave it', () => {
+  for (const id of [
+    'env/handle-test-event',
+    'env/handle-test-event-only',
+    'env/handle-test-event-async',
+    'env/handle-test-event-concurrent',
+    'env/handle-test-event-describe-skip',
+    'env/handle-test-event-name-pattern',
+    'env/handle-test-event-after-all',
+    'env/handle-test-event-empty-describe',
+    'env/handle-test-event-failing',
+    'env/handle-test-event-timeout',
+    'env/handle-test-event-retry-reasons',
+    'env/handle-test-event-throws',
+  ]) {
+    it(id, async () => {
+      const fixture = await loadFixture(id)
+      const project = await materialize(fixture)
+      try {
+        // The environment extends `jest-environment-node`, as it resolves from the project.
+        const target = dirname(require.resolve('jest-environment-node/package.json'))
+        await mkdir(join(project.root, 'node_modules'), { recursive: true })
+        await symlink(target, join(project.root, 'node_modules', 'jest-environment-node'))
+        const ended = await spawnCli(
+          [
+            'jest',
+            `--config=${join(project.root, 'jest.config.json')}`,
+            '--ci',
+            '--testLocationInResults',
+            ...(fixture.manifest.run?.argv?.jest ?? []),
+          ],
+          { cwd: project.root },
+        )
+        const captured = (fixture.manifest.run?.capture ?? []).filter((entry) =>
+          entry.startsWith('file:'),
+        )
+        assert.ok(captured.length > 0, 'the fixture captures the events')
+        for (const capture of captured) {
+          const file = capture.slice('file:'.length)
+          const recorded = fixture.golden.observed?.files?.[file]
+          assert.equal(typeof recorded, 'string', `the recording has ${file}`)
+          const ours = await readFile(join(project.root, file), 'utf8')
+          const got = ours.trim().split('\n')
+          const want = (recorded as string).trim().split('\n')
+          const at = got.findIndex((line, index) => line !== want[index])
+          assert.equal(
+            at,
+            -1,
+            `${file} line ${at}:\n provino ${got[at]}\n jest    ${want[at]}\n${ended.stderr.slice(-1500)}`,
+          )
+          assert.equal(got.length, want.length, `${file} has as many lines`)
+        }
+        assert.equal(ended.code, fixture.golden.observed?.exitCode, ended.stderr)
+      } finally {
+        await project.dispose()
+      }
     })
   }
 })

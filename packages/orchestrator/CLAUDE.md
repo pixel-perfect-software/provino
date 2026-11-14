@@ -190,7 +190,6 @@ One pool, one bus, one `maxWorkers` (the cap counts every project's workers), on
 | `coverage` events (ignored by dispatch), what reads `FileDispatch.deps`, the `workers` count from `process.constrainedMemory()` | Track 8, T9.12, T9.5 |
 | The inline-snapshot writer and its RPC | T7.11 |
 | `cancel` reaching core (a cancelled file stops mid-run): today it only keeps a queued file from starting | T5.12 |
-| The environment's `onTestEvent` (Jest `handleTestEvent`) | T11/T8 |
 | A learned tier is read but nothing writes one (T2.7's leak report will); the `realm` tier a docblock can ask for is T2.8's | T2.7, T2.8 |
 | Leak count (`FileOutcome.leakedHandles` is always 0) | T2.7 |
 | The `realm` tier (and an environment with realm `context`) | T2.8 |

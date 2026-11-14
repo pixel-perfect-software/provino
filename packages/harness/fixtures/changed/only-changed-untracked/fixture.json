@@ -1,0 +1,28 @@
+{
+  "description": "-o selects the tests related to an untracked new test and a modified source (jest-changed-files: `ls-files --other --modified --exclude-standard`), not the unrelated one. Jest only, in a hermetic git repository.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "new.test.ts": "const m = require('./src/foo.ts') as Record<string, unknown>\n\ntest('new', () => {\n  expect(m).toBeDefined()\n})\n"
+        }
+      },
+      {
+        "write": {
+          "src/foo.ts": "module.exports = { foo: 2 }\n"
+        }
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "-o"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

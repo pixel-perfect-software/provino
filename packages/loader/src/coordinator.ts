@@ -11,11 +11,13 @@
 // doesn't apply) and no per-module bindings: a module that names `jest` sees the global of that
 // name, which a coordinator doesn't have.
 import { readFileSync } from 'node:fs'
+import { sep } from 'node:path'
 import type {
   FileRegistry,
   Loader,
   ModulePolicy,
   Pipeline,
+  Resolver,
   SerializedLoaderConfig,
   SourceMapV3,
 } from '@provino/types'
@@ -42,10 +44,22 @@ export interface CoordinatorLoader extends Disposable {
   transformForCoverage(file: string): { readonly code: string; readonly map: SourceMapV3 | null }
   /**
    * What `specifier` imported from `from` (an absolute path) resolves to, as a `require` resolves
-   * it under the project's mappers, or `undefined` when it doesn't resolve. For the affected-test
-   * graph (B23c).
+   * it under the project's mappers, or `undefined` when it doesn't resolve or is a Node builtin
+   * no mapper takes. For the affected-test graph (B23c). `options.conditions` replaces the
+   * project's export conditions (the call's `require` is added either way). Under the config's
+   * `skipNodeResolution`, a specifier with no path separator resolves only through a mapper, as
+   * jest-resolve's `_prepareForResolution` skips its node lookup.
    */
-  resolveDependency(specifier: string, from: string): string | undefined
+  resolveDependency(
+    specifier: string,
+    from: string,
+    options?: { readonly conditions?: readonly string[] },
+  ): string | undefined
+  /**
+   * Drops the resolver's file-system caches (for the given paths, or all of them): call it when
+   * files were added or removed, or a specifier that missed would keep missing.
+   */
+  invalidateResolution(paths?: readonly string[]): void
   /** Forgets every module; further imports start over. */
   dispose(): void
 }
@@ -73,13 +87,17 @@ export async function createCoordinatorLoader(
   options: { readonly coverage?: ProjectCoverage } = {},
 ): Promise<CoordinatorLoader> {
   // With no mocks there is nothing for the inlining walk to find, so the lexer and the graph stay off.
-  const built: { readonly loader: Loader; readonly pipeline: Pipeline } = await buildProjectLoader(
+  const built: {
+    readonly loader: Loader
+    readonly pipeline: Pipeline
+    readonly resolver: Resolver
+  } = await buildProjectLoader(
     root,
     withoutMocks(config),
     { ...policy, mocksReachShared: false },
     options,
   )
-  const { loader, pipeline } = built
+  const { loader, pipeline, resolver } = built
   const registries: FileRegistry[] = []
   const coordinator: CoordinatorLoader = {
     import: <T>(file: string) => {
@@ -106,11 +124,25 @@ export async function createCoordinatorLoader(
       }
       return { code: record.code, map: record.map }
     },
-    resolveDependency: () => {
-      throw new LoaderError(
-        'LOADER_NOT_IMPLEMENTED',
-        'CoordinatorLoader.resolveDependency is not implemented yet (B23c Phase 4).',
-      )
+    resolveDependency: (specifier, from, options) => {
+      const result = resolver.resolve(specifier, {
+        importer: from,
+        kind: 'require',
+        conditions: options?.conditions ?? config.conditions,
+      })
+      if (result.type !== 'file') return undefined
+      // jest-resolve skips only the node lookup: a mapper still answers for the name.
+      if (
+        config.skipNodeResolution === true &&
+        !specifier.includes(sep) &&
+        result.mappedBy === null
+      ) {
+        return undefined
+      }
+      return result.path
+    },
+    invalidateResolution: (paths) => {
+      resolver.invalidate(paths)
     },
     dispose: () => {
       for (const registry of registries.splice(0)) registry.dispose()
