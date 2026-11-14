@@ -85,6 +85,7 @@ export { loadJestReporters } from './reporters/load.ts'
 export {
   createNotifyReporter,
   type JestNotifier,
+  type JestNotifierLoad,
   JestNotifierMissingError,
   type JestNotifyConfig,
   loadJestNotifier,

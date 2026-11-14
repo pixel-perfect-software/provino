@@ -159,7 +159,7 @@ export function createJestResults<Config extends ProjectConfigLike>(options: Jes
 // @public
 export function createNotifyReporter(options: {
     readonly globalConfig: JestNotifyConfig;
-    readonly notifier: JestNotifier;
+    readonly loaded: JestNotifierLoad;
     readonly aggregated: () => AggregatedResult;
 }): Reporter;
 
@@ -563,6 +563,13 @@ export interface JestNotifier {
 }
 
 // @public
+export interface JestNotifierLoad {
+    readonly icon?: string;
+    // (undocumented)
+    readonly notifier: JestNotifier;
+}
+
+// @public
 export class JestNotifierMissingError extends Error {
     constructor(options?: ErrorOptions);
 }
@@ -931,7 +938,7 @@ export function loadJestFilter(globalConfig: {
 }): JestFilter | undefined;
 
 // @public
-export function loadJestNotifier(rootDir: string): JestNotifier;
+export function loadJestNotifier(rootDir: string): JestNotifierLoad;
 
 // @public
 export function loadJestReporters(plan: JestReporterPlan): Promise<JestLoadedReporter[]>;

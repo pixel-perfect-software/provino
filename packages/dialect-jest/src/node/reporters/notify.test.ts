@@ -47,12 +47,13 @@ async function calls(
   notifyMode: string,
   result: AggregatedResult,
   rootDir = '/nowhere-at-all',
+  icon?: string,
 ): Promise<Record<string, unknown>[]> {
   const sent: Record<string, unknown>[] = []
   const notifier: JestNotifier = { notify: (options) => void sent.push({ ...options }) }
   const reporter = createNotifyReporter({
     globalConfig: { rootDir, notifyMode },
-    notifier,
+    loaded: { notifier, ...(icon === undefined ? {} : { icon }) },
     aggregated: () => result,
   })
   await reporter['run:end']?.({} as never)
@@ -114,13 +115,9 @@ describe('the notification', () => {
     assert.equal((await calls('always', PASSING, nameless))[0]?.title, '100% Passed')
   })
 
-  it('names the logo of the project’s @jest/reporters as the icon, and none when it has no Jest', async () => {
-    const withJest = await tmp({
-      'node_modules/@jest/reporters/package.json': '{"name":"@jest/reporters"}',
-      'node_modules/@jest/reporters/assets/jest_logo.png': 'x',
-    })
-    const [sent] = await calls('always', PASSING, withJest)
-    assert.equal(sent?.icon, join(withJest, 'node_modules/@jest/reporters/assets/jest_logo.png'))
+  it('names the icon the loader found, and none when it found none', async () => {
+    const [sent] = await calls('always', PASSING, '/nowhere-at-all', '/somewhere/jest_logo.png')
+    assert.equal(sent?.icon, '/somewhere/jest_logo.png')
     assert.equal('icon' in ((await calls('always', PASSING))[0] ?? {}), false)
   })
 })
@@ -130,15 +127,21 @@ describe('where node-notifier comes from', () => {
 
   it('is the project, found from its root', async () => {
     const root = await tmp({ 'node_modules/node-notifier/index.js': FAKE })
-    assert.equal(typeof loadJestNotifier(root).notify, 'function')
+    const loaded = loadJestNotifier(root)
+    assert.equal(typeof loaded.notifier.notify, 'function')
+    assert.equal(loaded.icon, undefined, 'no @jest/reporters, no icon')
   })
 
   it('is the install of @jest/reporters when the project has none of its own', async () => {
     const root = await tmp({
       'node_modules/@jest/reporters/package.json': '{"name":"@jest/reporters"}',
       'node_modules/@jest/reporters/node_modules/node-notifier/index.js': FAKE,
+      'node_modules/@jest/reporters/assets/jest_logo.png': 'x',
     })
-    assert.equal(typeof loadJestNotifier(root).notify, 'function')
+    const loaded = loadJestNotifier(root)
+    assert.equal(typeof loaded.notifier.notify, 'function')
+    // The icon is the logo of that same install, found by the one search.
+    assert.equal(loaded.icon, join(root, 'node_modules/@jest/reporters/assets/jest_logo.png'))
   })
 
   it('is Jest’s message, from where Jest builds the reporter, when it is nowhere', async () => {

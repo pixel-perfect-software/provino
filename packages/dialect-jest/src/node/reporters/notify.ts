@@ -65,17 +65,26 @@ function jestReportersDir(rootDir: string): string | undefined {
 }
 
 /**
- * Loads `node-notifier` from the project, then from where Jest's `@jest/reporters` is installed
- * (Jest's `require` runs from there). `JestNotifierMissingError` when neither has it; any other
- * error the module throws on load is the caller's.
+ * `node-notifier` and what the notification names beside it.
  * @public
  */
-export function loadJestNotifier(rootDir: string): JestNotifier {
+export interface JestNotifierLoad {
+  readonly notifier: JestNotifier
+  /** The `jest_logo.png` of the `@jest/reporters` install, Jest's icon; absent when none is found. */
+  readonly icon?: string
+}
+
+/**
+ * Loads `node-notifier` from the project, then from where Jest's `@jest/reporters` is installed
+ * (Jest's `require` runs from there), and finds the icon in that install: one search for both.
+ * `JestNotifierMissingError` when neither has the module; any other error it throws on load is the
+ * caller's.
+ * @public
+ */
+export function loadJestNotifier(rootDir: string): JestNotifierLoad {
+  const reporters = jestReportersDir(rootDir)
   let path = resolveFrom(rootDir, 'node-notifier')
-  if (path === undefined) {
-    const reporters = jestReportersDir(rootDir)
-    if (reporters !== undefined) path = resolveFrom(reporters, 'node-notifier')
-  }
+  if (path === undefined && reporters !== undefined) path = resolveFrom(reporters, 'node-notifier')
   if (path === undefined) throw new JestNotifierMissingError()
   const loaded: unknown = createRequire(path)(path)
   const notifier =
@@ -88,18 +97,11 @@ export function loadJestNotifier(rootDir: string): JestNotifier {
   ) {
     throw new JestNotifierMissingError()
   }
-  return notifier as JestNotifier
-}
-
-/**
- * The `jest_logo.png` of the project's `@jest/reporters`, which Jest names as the notification's
- * icon; `undefined` when that package can't be found.
- */
-function jestLogo(rootDir: string): string | undefined {
-  const dir = jestReportersDir(rootDir)
-  if (dir === undefined) return undefined
-  const logo = join(dir, 'assets', 'jest_logo.png')
-  return existsSync(logo) ? logo : undefined
+  const logo = reporters === undefined ? undefined : join(reporters, 'assets', 'jest_logo.png')
+  return {
+    notifier: notifier as JestNotifier,
+    ...(logo !== undefined && existsSync(logo) ? { icon: logo } : {}),
+  }
 }
 
 /**
@@ -139,12 +141,13 @@ export interface JestNotifyConfig {
  */
 export function createNotifyReporter(options: {
   readonly globalConfig: JestNotifyConfig
-  readonly notifier: JestNotifier
+  /** What `loadJestNotifier` found. */
+  readonly loaded: JestNotifierLoad
   /** The run's aggregate, complete once `run:end` has been heard. */
   readonly aggregated: () => AggregatedResult
 }): Reporter {
-  const { globalConfig, notifier } = options
-  const icon = jestLogo(globalConfig.rootDir)
+  const { globalConfig } = options
+  const { notifier, icon } = options.loaded
   const context = { previousSuccess: true, firstRun: true }
   return {
     name: 'jest-notify',
