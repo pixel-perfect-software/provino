@@ -399,7 +399,7 @@ export const jestPolicy: PolicyOverrides = {
   },
   coverage: {
     // research: track-08 L517
-    thresholdGrouping: 'first-match',
+    thresholdGrouping: 'every-match',
     // research: track-08 L518
     globThresholdScope: 'per-file',
     // Recorded from Jest 30.5.2: `coverage/babel-providers-sample` (with `collectCoverageFrom`,

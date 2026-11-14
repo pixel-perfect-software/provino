@@ -977,7 +977,26 @@ export async function runProjects(
       announced = true
       await bus.emit('run:start', info, [])
       await pool.close()
-      const summary = summarize(signal?.aborted === true ? cutShort() : 'passed')
+      const cut = signal?.aborted === true
+      // Jest still schedules an empty run when `--passWithNoTests` lets it go on, so its
+      // CoverageReporter writes the reports of an empty map and checks the thresholds over it
+      // (runJest.ts L338-L352, `coverage/threshold-no-tests`): a group that names a path or a glob
+      // finds no data, and the run fails. Without the flag Jest ends before it schedules anything
+      // (`threshold-no-tests-no-flag`). No project had a file, so none is added as untested.
+      const coverage =
+        coverageStore === undefined || cut || options.coverage?.reportEmptyRun !== true
+          ? undefined
+          : await (await import('./coverage.ts')).finishCoverage(
+              coverageStore,
+              [],
+              options.coverage,
+              members[0]?.project,
+            )
+      const summary = summarize(
+        cut ? cutShort() : (coverage?.thresholdFailures.length ?? 0) > 0 ? 'failed' : 'passed',
+        [],
+        coverage,
+      )
       await bus.emit('run:end', summary)
       return summary
     }
@@ -1069,7 +1088,11 @@ export async function runProjects(
             options.coverage,
           )
     const summary = summarize(
-      cut ? cutShort() : failed ? 'failed' : 'passed',
+      cut
+        ? cutShort()
+        : failed || (coverage?.thresholdFailures.length ?? 0) > 0
+          ? 'failed'
+          : 'passed',
       openHandles,
       coverage,
     )

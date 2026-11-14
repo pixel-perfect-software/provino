@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "coverage/threshold-no-tests-no-flag",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": "",
+    "files": {
+      "coverage/coverage-summary.json": null
+    }
+  }
+}

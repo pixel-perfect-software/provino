@@ -1,0 +1,25 @@
+{
+  "description": "A file two groups name, under Jest 30.5.2 (T8.11, `coverage.thresholdGrouping`): `src/deep/partial.ts` is under the path group `./src/deep/` (which it meets) and under the glob group `./src/**/*.ts` (which it misses on functions), and Jest reports the glob group's miss: a file counts for every group that names it, and only the files no group named go to `global`. Read by `provino`'s `jest-coverage-thresholds.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "collectCoverageFrom": ["src/**/*.ts"],
+      "coverageReporters": ["json-summary"],
+      "coverageThreshold": {
+        "./src/deep/": {
+          "statements": 50
+        },
+        "./src/**/*.ts": {
+          "functions": 100
+        }
+      }
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^Jest: "
+  }
+}

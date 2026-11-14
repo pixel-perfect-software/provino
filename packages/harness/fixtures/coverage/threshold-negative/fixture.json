@@ -1,0 +1,25 @@
+{
+  "description": "Negative thresholds under Jest 30.5.2 (T8.11): a maximum count of uncovered items. `statements: -1` fails (`Jest: Uncovered count for statements (n) exceeds global threshold (1)`), `lines: -50` passes, a positive and a negative in one group report in Jest's metric order. Read by `provino`'s `jest-coverage-thresholds.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "collectCoverageFrom": ["src/**/*.ts"],
+      "coverageReporters": ["json-summary"],
+      "coverageThreshold": {
+        "global": {
+          "statements": -1,
+          "branches": -1,
+          "lines": -50,
+          "functions": 100
+        }
+      }
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^Jest: "
+  }
+}
