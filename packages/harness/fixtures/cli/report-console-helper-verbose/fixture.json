@@ -1,0 +1,22 @@
+{
+  "description": "The same project as report-console-helper under `--verbose`: the console block comes before the header and its title is at 2 spaces, but the frames stay at 6 (`formatStackTrace`'s `STACK_INDENT`), and the code frame at 8. A black-box run.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "helper.cjs": "exports.complain = (message) => {\n  console.error(message)\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^ {2}console\\.|^ {4,}\\S",
+    "argv": {
+      "jest": ["--verbose"]
+    },
+    "raw": true
+  }
+}

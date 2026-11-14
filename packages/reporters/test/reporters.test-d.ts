@@ -21,6 +21,8 @@ import {
   type OutputStream,
   type ReporterBusHandle,
   type Style,
+  type SummaryReporterOptions,
+  summaryReporter,
   type TextReporterOptions,
   type TextSink,
   verboseReporter,
@@ -32,6 +34,7 @@ import type {
   ReportPolicy,
   RunEnvironment,
   SerializedError,
+  TextStyle,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -200,3 +203,19 @@ expectTypeOf(createStyle(false).red('x')).toEqualTypeOf<string>()
 expectTypeOf<Style['badge']>().parameter(1).toEqualTypeOf<'green' | 'red' | 'yellow'>()
 // @ts-expect-error a badge has one of three colours
 createStyle(true).badge('PASS', 'blue')
+
+// The summary reporter takes the text reporters' options, and the dialect's text builders get the
+// contract's style.
+expectTypeOf(summaryReporter).parameter(0).toEqualTypeOf<SummaryReporterOptions>()
+expectTypeOf<SummaryReporterOptions>().toEqualTypeOf<TextReporterOptions>()
+expectTypeOf(summaryReporter).returns.toEqualTypeOf<Reporter>()
+expectTypeOf<Style>().toEqualTypeOf<TextStyle>()
+expectTypeOf<NonNullable<TextReporterOptions['closingLine']>>()
+  .parameter(1)
+  .toEqualTypeOf<TextStyle>()
+// @ts-expect-error `summary` only turns the summary off
+const summaryOn: TextReporterOptions['summary'] = true
+// @ts-expect-error a failure text is built from the failed file, not a string
+const wrongFailureText: TextReporterOptions['failureText'] = 'text'
+void summaryOn
+void wrongFailureText

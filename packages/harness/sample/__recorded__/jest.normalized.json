@@ -284,7 +284,7 @@
       "fileError": {
         "message": "● Test suite failed to run\n\n    Cannot find module './does-not-exist.ts' from 'crash.test.ts'",
         "userFrame": "<root>/crash.test.ts:2:1",
-        "raw": "  ● Test suite failed to run\n\n    Cannot find module './does-not-exist.ts' from 'crash.test.ts'\n\n      1 | // The import fails, so the file crashes before any test is collected, under both runners.\n    > 2 | import { missing } from './does-not-exist.ts'\n        | ^\n      3 |\n      4 | it('is never collected', () => {\n      5 |   expect(missing).toBeDefined()\n\n      at Resolver._throwModNotFoundError (../../../../node_modules/.pnpm/jest-resolve@30.5.1/node_modules/jest-resolve/build/index.js:1031:11)\n      at Object.require (crash.test.ts:2:1)\n"
+        "raw": "  ● Test suite failed to run\n\n    Cannot find module './does-not-exist.ts' from 'crash.test.ts'\n\n      1 | // The import fails, so the file crashes before any test is collected, under both runners.\n    > 2 | import { missing } from './does-not-exist.ts'\n        | ^\n      3 |\n      4 | it('is never collected', () => {\n      5 |   expect(missing).toBeDefined()\n\n      at Object.require (crash.test.ts:2:1)\n"
       },
       "tests": [],
       "durationMs": 0

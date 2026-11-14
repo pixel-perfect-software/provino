@@ -784,7 +784,12 @@ export class Executor {
     const state: AttemptState = {
       test,
       ctx: undefined,
-      thisArg: this.#policy.firstArg === 'context' ? undefined : Object.create(null),
+      // A row of a table is called plain, as jest-each's `() => test(...params)` does (its frame
+      // has no type name: `at toBe (x.test.ts:3:5)`, `cli/failure-frames`).
+      thisArg:
+        this.#policy.firstArg === 'context' || test.rowArgs !== undefined
+          ? undefined
+          : Object.create(null),
       run: handle,
       lazy: { kind: 'test', run: handle, suite: test.parent.handle, file: run.file.handle },
       frame,
@@ -849,7 +854,7 @@ export class Executor {
     // What the around hooks added, and whatever the steps never reached (a hook that threw first).
     attempt.state = 'cleanup'
     if (attempt.teardowns.length > 0) errors.push(...(await this.#runLazyTeardowns(attempt, 0)))
-    if (test.expectFail && policy.status.expectFail === 'attempt') reverseExpectFail(errors)
+    if (test.expectFail && policy.status.expectFail === 'attempt') reverseExpectFail(errors, test)
   }
 
   /** The attempt inside its around hooks: each-hooks and body, teardowns, then the callbacks. */
@@ -1016,7 +1021,7 @@ export class Executor {
       if (error instanceof SkipSignal) attempt.skipped = { note: error.note }
       else failures.push(error)
     }
-    if (test.expectFail && policy.status.expectFail === 'body') reverseExpectFail(failures)
+    if (test.expectFail && policy.status.expectFail === 'body') reverseExpectFail(failures, test)
     attempt.errors.push(...failures)
     // A rejection nobody handled by now is the test's own (jest-circus `test_fn_success`).
     attempt.errors.push(...this.#config.processErrors.take(attempt.frame))
@@ -1513,11 +1518,15 @@ function taskOf(suite: SuiteNode): SuiteTask | FileTask {
   return suite.task as SuiteTask | FileTask
 }
 
-function expectedFailure(): CoreError {
-  return new CoreError(
-    'CORE_EXPECTED_FAILURE',
-    'Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.',
-  )
+function expectedFailure(test: TestNode): CoreError {
+  const message =
+    'Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.'
+  const error = new CoreError('CORE_EXPECTED_FAILURE', message)
+  // jest-circus reports it at the test's definition (`test.asyncError`, whose message it sets): the
+  // text is the message, then the frames of the call that registered the test, never ours.
+  const frames = test.site?.stack?.split('\n').slice(1).join('\n')
+  if (frames !== undefined && frames !== '') error.stack = `${message}\n${frames}`
+  return error
 }
 
 /**
@@ -1525,9 +1534,9 @@ function expectedFailure(): CoreError {
  * none becomes `CORE_EXPECTED_FAILURE`. `status.expectFail` picks whether it applies to the body
  * (jest-circus) or the whole attempt (Vitest's `fails`).
  */
-function reverseExpectFail(errors: unknown[]): void {
+function reverseExpectFail(errors: unknown[], test: TestNode): void {
   if (errors.length > 0) errors.length = 0
-  else errors.push(expectedFailure())
+  else errors.push(expectedFailure(test))
 }
 
 /** The suites from the file root down to `suite`. */

@@ -80,6 +80,6 @@
   "success": true,
   "observed": {
     "exitCode": 0,
-    "stderr": "PASS ./single.test.ts\n  ● Console\n    console.log\nTest Suites: 1 passed, 1 total\nTests:       1 skipped, 1 todo, 1 passed, 3 total"
+    "stderr": "PASS ./single.test.ts\n  ● Console\n    console.log\nTest Suites: 1 passed, 1 total\nTests:       1 skipped, 1 todo, 1 passed, 3 total\nRan all test suites."
   }
 }

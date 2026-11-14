@@ -1,0 +1,19 @@
+{
+  "description": "`showStatus` that `onRunStart` is given under Jest 30.5.2 (B23a): one file and two workers, which Jest runs in band (`shouldRunInBand`: `tests.length <= 1`), so it is false. A black-box run.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "hook-reporter.cjs": "const path = require('node:path')\n\n// One stderr line per hook, so the order and the arguments are the recording.\nconst relative = (test) => path.relative(test.context.config.rootDir, test.path)\nconst say = (...parts) => process.stderr.write('HOOK ' + parts.join(' ') + '\\n')\n\nmodule.exports = class HookReporter {\n  constructor(globalConfig, options, context) {\n    this.rootDir = globalConfig.rootDir\n    say('constructor', 'options=' + JSON.stringify(options), 'firstRun=' + context.firstRun)\n  }\n  onRunStart(results, options) {\n    say('onRunStart', 'suites=' + results.numTotalTestSuites, 'estimatedTime=' + options.estimatedTime, 'showStatus=' + options.showStatus)\n  }\n  onTestFileStart(test) {\n    say('onTestFileStart', relative(test))\n  }\n  onTestCaseStart(test, info) {\n    say('onTestCaseStart', relative(test), info.fullName, 'mode=' + info.mode, 'ancestors=' + info.ancestorTitles.length)\n  }\n  onTestCaseResult(test, result) {\n    say('onTestCaseResult', relative(test), result.fullName, result.status, 'invocations=' + result.invocations, 'retryReasons=' + (result.retryReasons || []).length)\n  }\n  onTestFileResult(test, result, results) {\n    say('onTestFileResult', relative(test), 'failing=' + result.numFailingTests, 'skipped=' + result.skipped, 'console=' + (result.console === undefined ? 'none' : result.console.length), 'aggregateFailed=' + results.numFailedTests)\n  }\n  onRunComplete(contexts, results) {\n    say('onRunComplete', 'contexts=' + contexts.size, 'failed=' + results.numFailedTests, 'passed=' + results.numPassedTests, 'success=' + results.success)\n  }\n  getLastError() {\n    return undefined\n  }\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 2,
+      "reporters": ["<rootDir>/hook-reporter.cjs"]
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^HOOK (constructor|onRunStart)"
+  }
+}

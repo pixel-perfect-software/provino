@@ -26,6 +26,11 @@ export interface ConsoleCaptureOptions {
   readonly currentTaskId: () => TaskId | null
   /** The event clock. Default `performance.now`, core's clock. */
   readonly now?: () => number
+  /**
+   * Whether a console call keeps its call site as the event's `origin` (`orchestrator.consoleOrigin`
+   * is `stack`). Read at each call, since the policy arrives with the worker's init. Default: no.
+   */
+  readonly origin?: () => boolean
 }
 
 /**
@@ -69,6 +74,9 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
   /** The console method being called through the capture's console, innermost call first. */
   let level: string | null = null
 
+  /** The call site of the console method being called, kept until its text is recorded. */
+  let site: string | null = null
+
   const record = (stream: 'stdout' | 'stderr', text: string, from: string | null): void => {
     if (text === '') return
     options.emit({
@@ -77,7 +85,7 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
       stream,
       level: from,
       text,
-      origin: null,
+      origin: from === null ? null : site,
       t: now(),
     })
   }
@@ -110,16 +118,23 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
   const methods = front as unknown as Methods
   for (const [name, method] of Object.entries(inner)) {
     if (typeof method !== 'function') continue
-    methods[name] = (...args: unknown[]): unknown => {
+    const call = (...args: unknown[]): unknown => {
       const outer = level
+      const outerSite = site
       level = name
       used = true
+      // Only the outermost call (the user's) gives the site: a method that prints through
+      // others keeps it.
+      if (outer === null && options.origin?.() === true)
+        site = callSite(call, name === 'warn' || name === 'error')
       try {
         return Reflect.apply(inner[name] as Methods[string], inner, args)
       } finally {
         level = outer
+        site = outerSite
       }
     }
+    methods[name] = call
   }
 
   return {
@@ -182,4 +197,41 @@ function patch(
       else delete (stream as Partial<WritableLike>).write
     },
   }
+}
+
+/**
+ * The call site of a console method as Jest's `BufferedConsole` keeps it: for `log` and the other
+ * quiet kinds the one `at …` line of the call (Jest prints only the first frame of those); for
+ * `warn` and `error` (`all`), whose text Jest prints with a code frame and every frame outside
+ * Jest, the whole stack (V8's default depth of 10, as Jest's `ErrorWithStack` captures). Frames
+ * are named as the worker's stack formatter names them (`at Object.log (file:4:11)` under the Jest
+ * dialect: DV88).
+ * `below` is the method's own front function, whose frame and those above it are left out. `null`
+ * when the frame can't be read: reading `.stack` runs the user's `Error.prepareStackTrace`, which
+ * may throw or return something that is no string (`callsites` and `depd` do).
+ */
+function callSite(below: (...args: never[]) => unknown, all: boolean): string | null {
+  const holder: { stack?: unknown } = {}
+  const limit = Error.stackTraceLimit
+  let stack: unknown
+  try {
+    Error.stackTraceLimit = all ? Math.max(10, limit) : 1
+    Error.captureStackTrace(holder, below)
+    stack = holder.stack
+  } catch {
+    return null
+  } finally {
+    Error.stackTraceLimit = limit
+  }
+  if (typeof stack !== 'string') return null
+  const lines = stack.split('\n').filter((line) => line.trimStart().startsWith('at '))
+  const frame = lines[0]
+  if (frame === undefined) return null
+  // The frame as V8 (and the worker's source-mapped formatter, DV88) names it, as Jest keeps it.
+  const first = frame.trim()
+  const place = first
+    .slice(first.indexOf(' (') === -1 ? 3 : first.indexOf(' (') + 2)
+    .replace(/\)$/, '')
+  if (!/:\d+:\d+$/.test(place)) return null
+  return all ? [first, ...lines.slice(1)].join('\n') : first
 }

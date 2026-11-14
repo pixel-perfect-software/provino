@@ -2,24 +2,13 @@
 // reporter builds its `Style` once from the run's `colour` and calls it for every piece it wants
 // styled; with colour off every function returns its text as it was given.
 
+import type { TextStyle } from '@provino/types'
+
 /**
- * The styles the reporters use. Each function wraps its text in an SGR sequence and its reset,
- * and puts the sequence back after any reset inside the text, so styles nest.
+ * The styles the reporters use (`TextStyle` in `@provino/types`, which a dialect's text builders take).
  * @public
  */
-export interface Style {
-  bold(text: string): string
-  dim(text: string): string
-  red(text: string): string
-  green(text: string): string
-  yellow(text: string): string
-  magenta(text: string): string
-  /**
-   * A status word on a coloured block (inverse, bold): Jest's ` PASS ` and ` FAIL ` badges. With
-   * colour off it is the bare word, as Jest prints it, so `PASS path` stays a line anyone can match.
-   */
-  badge(word: string, colour: 'green' | 'red' | 'yellow'): string
-}
+export type Style = TextStyle
 
 /** The escape character that starts every SGR sequence and the cursor moves of the live block. */
 export const ESC: string = String.fromCharCode(27)

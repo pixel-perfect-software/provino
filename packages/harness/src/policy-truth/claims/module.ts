@@ -4,7 +4,7 @@
 // `babel-plugin-jest-hoist` and `@vitest/mocker` and flips each `HoistPolicy` key itself.
 import type { Golden } from '../../golden.ts'
 import { type Claims, corpus, each, golden, inert, own, pending } from '../evidence.ts'
-import { fileErrorOf, ObservationError, observation, templateIn } from '../observe.ts'
+import { fileErrorOf, ObservationError, observation, observedOf, templateIn } from '../observe.ts'
 
 const mod = (...fixtures: readonly string[]) =>
   corpus('mod', ...fixtures.map((name) => `mocking/${name}`))
@@ -59,6 +59,16 @@ export const moduleClaims: Claims = {
   'module.mockResolveKind': mod('mod-conditions'),
   'module.mocksReachShared': mod('mod-shared-dep', 'mod-shared-dep-root'),
   'module.automockShape': mod('mod-automock-shape', 'mod-automock-inherited'),
+  // Jest's source-map support names a failing frame after the map's name at its own position.
+  'module.stackFrameNames': each(
+    golden('cli/failure-frames', {
+      read: (g) =>
+        /\n {6}at Object\.toBe \(frames\.test\.ts:10:22\)/.test(observedOf(g).stderr ?? '')
+          ? 'mapped-name'
+          : 'engine',
+    }),
+    pending('T11.16', 'no Vitest fixture records a failing frame'),
+  ),
   'module.unmockedPathPatterns': each(
     mod('mod-automock-all', 'mod-unmocked-patterns'),
     inert(

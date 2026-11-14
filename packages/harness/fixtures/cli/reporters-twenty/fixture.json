@@ -1,0 +1,57 @@
+{
+  "description": "Third-party reporters beside Jest 30.5.2 on 20 small files (T11.9, B23a): the default reporter, a `summary` with `summaryThreshold: 5`, `github-actions`, jest-junit 17, jest-silent-reporter, jest-html-reporters, vscode-jest 6.4.4's own reporter and jest-sonar-reporter as `testResultsProcessor`, with `maxWorkers: 1`. The files cover a pass, nested describes, failing toBe, toEqual, toThrow and mock counts, skip and todo, each, test.failing, a stored snapshot, console output, a retry, an import failure, an all-skipped file and a failing beforeAll and afterAll. Every stream and report is recorded as the runner wrote it: the work directory as `<root>` and times masked, nothing else. Read by `provino`'s `reporters-third-party.test.ts`. The vscode-jest reporter is UPSTREAM.md's.",
+  "runners": ["jest"],
+  "env": {
+    "GITHUB_ACTIONS": "true"
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/snapshot-match.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`snapshots matches a stored snapshot 1`] = `\n{\n  \"list\": [\n    1,\n    2,\n  ],\n  \"value\": \"stored\",\n}\n`;\n",
+      "vscode-jest-reporter.js": "(()=>{\"use strict\";var e={8472:(e,r)=>{Object.defineProperty(r,\"__esModule\",{value:!0}),e.exports=class{onRunStart(e){process.stderr.write(`onRunStart: numTotalTestSuites: ${e.numTotalTestSuites}\\r\\n`)}onRunComplete(e,r){r.runExecError?process.stderr.write(`onRunComplete: execError: ${r.runExecError.message}\\r\\n`):process.stderr.write(\"onRunComplete\\r\\n\")}onTestFileResult(e,r,t){if(r.numFailingTests>0||r.testExecError){const e=\"onTestFileResult: encountered errors\";process.stderr.write(`${e}\\r\\n`)}}getLastError(){}}}},r={},t=function t(s){var o=r[s];if(void 0!==o)return o.exports;var n=r[s]={exports:{}};return e[s](n,n.exports,t),n.exports}(8472);module.exports=t})();\n//# sourceMappingURL=reporter.js.map",
+      "package.json": "{\n  \"type\": \"commonjs\"\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "reporters": [
+        "default",
+        [
+          "summary",
+          {
+            "summaryThreshold": 5
+          }
+        ],
+        "github-actions",
+        [
+          "jest-junit",
+          {
+            "outputDirectory": "reports",
+            "noStackTrace": "true"
+          }
+        ],
+        "jest-silent-reporter",
+        [
+          "jest-html-reporters",
+          {
+            "publicPath": "reports/html",
+            "filename": "report.html"
+          }
+        ],
+        "<rootDir>/vscode-jest-reporter.js"
+      ],
+      "testResultsProcessor": "jest-sonar-reporter"
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": ["exitCode", "stderr", "stdout", "file:reports/junit.xml"],
+    "emptyStreams": ["stdout"],
+    "keepLines": "^(?!ERROR: failed to copy trust settings|\\(node:\\d+\\) |\\(Use `node --trace)",
+    "mask": [
+      "^Time:.*$",
+      "(?<= )(?:timestamp|time)=\"[^\"]*\"",
+      "\"(?:startTime|endTime|start|end|runtime|duration|loadTestEnvironmentStart|loadTestEnvironmentEnd|setupFilesStart|setupFilesEnd|setupAfterEnvStart|setupAfterEnvEnd)\":\\d+"
+    ]
+  }
+}

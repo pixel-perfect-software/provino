@@ -2,6 +2,7 @@
 // The semantics are `jest-circus` 30.5.2's: `parseSingleTestResult` (utils.ts L507-L539),
 // `makeSingleTestResult` (L342-L390) and `runAndTransformResultsToJestFormat`
 // (jestAdapterInit.ts L286-L340), plus `jest-runner`'s `skipped` flag (runTest.ts).
+
 import type {
   FileInfo,
   FileResult,
@@ -12,6 +13,7 @@ import type {
   TaskResult,
   TestTask,
 } from '@provino/types'
+import { hideProvinoFrames } from './failure-message.ts'
 import {
   buildFailureTestResult,
   createEmptyTestResult,
@@ -152,7 +154,7 @@ export function toAssertionResult(record: TestRecord, options: BuildOptions): As
     ancestorTitles: task.fullName.slice(0, -1),
     duration: ran && result !== undefined ? Math.round(result.durationMs) : null,
     failing: task.expectFail,
-    failureDetails: errors.map((error) => error.details ?? {}),
+    failureDetails: errors.map(failureDetailOf),
     failureMessages: errors.map(flattenSerializedError),
     fullName: task.fullName.join(' '),
     invocations: Math.max(1, result?.attempts ?? 0),
@@ -390,4 +392,24 @@ export function finishAggregated(aggregated: AggregatedResult, end: RunEnd): voi
     aggregated.numFailedTests === 0 && aggregated.numRuntimeErrorTestSuites === 0
   )
   aggregated.success = !(anyTestFailures || snapshot.failure || end.reporterFailed)
+}
+
+/**
+ * What a reporter finds in `failureDetails[i]`: Jest hands it the error itself, so a hook reads
+ * `detail.message` (jest-junit's `noStackTrace` does). `--json` writes only the own enumerable keys
+ * (`details`, the JSON of the thrown value: only an assertion error keeps `matcherResult`), since
+ * an `Error`'s `message`, `stack` and `name` don't enumerate; here they are set the same way, on a
+ * plain object.
+ */
+function failureDetailOf(error: SerializedError): unknown {
+  const details = error.details ?? {}
+  if (typeof details !== 'object' || details === null || Array.isArray(details)) return details
+  const detail: Record<string, unknown> = { ...details }
+  const hidden = { writable: true, configurable: true, enumerable: false }
+  Object.defineProperty(detail, 'name', { ...hidden, value: error.name })
+  // A message can carry a stack of its own (`toThrow` prints the thrown error's); ours stay out (D104).
+  Object.defineProperty(detail, 'message', { ...hidden, value: hideProvinoFrames(error.message) })
+  if (error.stack !== undefined)
+    Object.defineProperty(detail, 'stack', { ...hidden, value: error.stack })
+  return detail
 }

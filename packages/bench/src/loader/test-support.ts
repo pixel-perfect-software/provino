@@ -80,6 +80,7 @@ export const JESTISH: ModulePolicy = {
   mockValueOwner: 'module-registry',
   mockResolveKind: 'require',
   mocksReachShared: true,
+  stackFrameNames: 'engine',
 }
 
 /** Vitest's: a factory is a namespace and awaited, the actual module comes through `import`. */
@@ -94,6 +95,7 @@ export const VITESTISH: ModulePolicy = {
   mockValueOwner: 'registration',
   mockResolveKind: 'import',
   mocksReachShared: false,
+  stackFrameNames: 'engine',
   automockShape: 'deep',
 }
 

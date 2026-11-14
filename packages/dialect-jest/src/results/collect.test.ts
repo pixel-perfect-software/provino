@@ -178,6 +178,81 @@ describe('createJestResults', () => {
     assert.equal(results.contexts().size, 1)
   })
 
+  // The text reporters print a failed file's text block by block, so each test's lazy values
+  // (T6.10) can follow its own block; joined, the blocks are Jest's `failureMessage`.
+  it("keeps a failed file's text as one block per failed test, then the file's own errors", async () => {
+    const results = createJestResults({
+      globalConfig: { noStackTrace: false },
+      projectConfigs: [config],
+    })
+    const { reporter } = results
+    const file = infoOf('a.test.ts')
+    const names = ['breaks', 'works', 'snaps']
+    const children = names.map((name) => testOf(file.path, name))
+    const root = {
+      type: 'file',
+      id: file.fileId,
+      parentId: null,
+      fileId: file.fileId,
+      name: file.path,
+      mode: 'run',
+      location: null,
+      tags: [],
+      meta: {},
+      path: file.path,
+      projectName: 'p',
+      children: children.map((child) => child.id),
+    }
+    const tree = [root, ...children] as unknown as FileTask[]
+    await reporter['run:start']?.({ root: '/proj', projects: ['p'], startTime: 0, watch: false }, [
+      file,
+    ])
+    await reporter['file:start']?.(file, 1)
+    await reporter['file:collected']?.(file, {
+      type: 'file-collect-end',
+      fileId: file.fileId,
+      tasks: tree,
+      errors: [],
+      t: 0,
+    })
+    const failure = (message: string): SerializedError => ({
+      name: 'Error',
+      message,
+      stack: `Error: ${message}\n    at t (/proj/a.test.ts:2:3)`,
+    })
+    for (const task of children) {
+      await reporter['task:start']?.(task, { type: 'test-start', id: task.id, t: 0 })
+      const failed = task.name !== 'works'
+      await reporter['task:end']?.(task, {
+        type: 'test-end',
+        id: task.id,
+        result: resultOf(failed ? 'fail' : 'pass', failed ? [failure(`${task.name} failed`)] : []),
+        t: 0,
+      })
+    }
+    await reporter['file:end']?.({
+      file,
+      state: 'fail',
+      durationMs: 9,
+      errors: [failure('afterAll broke')],
+    })
+
+    const blocks = results.failureTextOf(file.fileId) ?? []
+    assert.deepEqual(
+      blocks.map((block) => block.taskId),
+      [id('a.test.ts:breaks'), id('a.test.ts:snaps'), undefined],
+    )
+    assert.match(blocks[0]?.text ?? '', /● suite › breaks[\s\S]*breaks failed/)
+    assert.doesNotMatch(blocks[0]?.text ?? '', /snaps failed/)
+    assert.match(blocks[1]?.text ?? '', /● suite › snaps[\s\S]*snaps failed/)
+    assert.match(blocks[2]?.text ?? '', /afterAll broke/)
+    assert.equal(
+      blocks.map((block) => block.text).join('\n'),
+      results.testResultOf(file.fileId)?.failureMessage,
+    )
+    assert.equal(results.failureTextOf(id('nothing.test.ts')), undefined)
+  })
+
   it('runs again from run:start with nothing left over', async () => {
     const results = createJestResults({
       globalConfig: { noStackTrace: true },
@@ -188,7 +263,12 @@ describe('createJestResults', () => {
       [],
     )
     await results.reporter['run:end']?.({ ...SUMMARY, reason: 'passed', files: [] })
+    // A reporter's `onRunComplete` hears `success: false` (Jest computes it afterwards); settled here.
+    assert.equal(results.aggregated().success, false)
+    results.reportersFailed(false)
     assert.equal(results.aggregated().success, true)
+    results.reportersFailed(true)
+    assert.equal(results.aggregated().success, false)
     assert.equal(results.aggregated().numTotalTestSuites, 0)
     assert.deepEqual(results.aggregated().testResults, [])
   })

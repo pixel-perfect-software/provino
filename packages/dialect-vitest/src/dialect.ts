@@ -172,6 +172,8 @@ export const vitestPolicy: PolicyOverrides = {
     globMatchesOn: 'root-relative-path',
     // Vitest's rule is not recorded yet (T11.16): a file where nothing ran is skipped.
     todoOnlyFile: 'skip',
+    // Not recorded yet (T11.16): no call site is kept.
+    consoleOrigin: 'none',
     // Vitest 5.0.5's node environment (`integrations/env/node.ts`) builds no global, so a test sees
     // its worker's own `process`; not recorded yet (T11.16).
     processObject: 'shared',

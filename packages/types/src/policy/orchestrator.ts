@@ -88,6 +88,13 @@ export interface OrchestratorPolicy {
    * (B21c, DV50).
    */
   readonly todoOnlyFile: 'pass' | 'skip'
+  /**
+   * Whether the worker records where each `console` call was made (`ConsoleEvent.origin`: the
+   * call site as one `at …` line, the way Jest's `BufferedConsole` keeps one). Jest: `stack`.
+   * Neutral and Vitest: `none` (their text has no such line). Evidence:
+   * `cli/report-default` (the `at Object.log (console.test.ts:4:11)` lines).
+   */
+  readonly consoleOrigin: 'stack' | 'none'
   /** Whether a run that finds no tests passes. Jest: `false`. Vitest: `false`. research: track-01 L227 */
   readonly passWithNoTests: boolean
   /**

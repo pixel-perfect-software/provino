@@ -1,6 +1,7 @@
 // Jest's failure text for a file, through `jest-message-util` 30.5.2: `formatResultsErrors` for the
 // tests' failures and `formatExecError` for an error that kept the file from running. The package
 // loads on first use (its imports cost about 21 ms), so a run that fails nothing never loads it.
+import { fileURLToPath } from 'node:url'
 import type { AssertionResult, SerializableError } from './types.ts'
 
 /**
@@ -23,6 +24,60 @@ export interface StackTraceOptions {
 
 type MessageUtil = typeof import('jest-message-util')
 
+/**
+ * The directory of Provino's own packages when this code runs from a workspace checkout
+ * (`<repo>/packages/`, from the built umbrella's `packages/provino/dist` as well as a package's
+ * `src`); `undefined` from an install. Decoded, as stack frames are: `import.meta.url` is
+ * percent-encoded.
+ */
+const PROVINO_PACKAGES: string | undefined = (() => {
+  try {
+    const path = fileURLToPath(import.meta.url).replaceAll('\\', '/')
+    return /^(.*\/packages\/)[^/]+\/(?:src|dist)\//.exec(path)?.[1]
+  } catch {
+    return undefined
+  }
+})()
+
+/**
+ * Whether a frame is in one of Provino's own packages: an installed `node_modules/provino` or
+ * `node_modules/@provino/<name>` (`jest-message-util` drops only `jest*` frames, so an install's
+ * would stay), or `<packages>/<name>/src|dist/` of this checkout (a test, a fixture or a project
+ * that sits under `packages/` is the user's). `file://` frames keep their percent-encoding, so both
+ * the line and its decoded form are looked at.
+ * @internal
+ */
+export function isProvinoFrame(frame: string, packages: string | undefined): boolean {
+  let decoded = frame
+  try {
+    decoded = decodeURI(frame)
+  } catch {
+    // A literal `%` that is no escape: the line as it is.
+  }
+  for (const text of new Set([frame, decoded].map((line) => line.replaceAll('\\', '/')))) {
+    if (/\/node_modules\/(?:provino|@provino\/[^/]+)\//.test(text)) return true
+    if (packages === undefined) continue
+    const at = text.indexOf(packages)
+    if (at !== -1 && /^[^/]+\/(?:src|dist)\//.test(text.slice(at + packages.length))) return true
+  }
+  return false
+}
+
+/**
+ * `stack` without the frames of Provino's own packages (D104: Jest hides its own internals the
+ * same way, in `removeInternalStackEntries`), so the text under a failure is the user's code.
+ * @internal
+ */
+export function hideProvinoFrames(
+  stack: string,
+  packages: string | undefined = PROVINO_PACKAGES,
+): string {
+  return stack
+    .split('\n')
+    .filter((line) => !/^\s+at /.test(line) || !isProvinoFrame(line, packages))
+    .join('\n')
+}
+
 let loaded: Promise<MessageUtil> | undefined
 
 function messageUtil(): Promise<MessageUtil> {
@@ -44,8 +99,12 @@ export async function formatTestFailures(
   if (assertionResults.every((result) => result.failureMessages.length === 0)) return null
   const util = await messageUtil()
   // The package types `AssertionResult` from `@jest/types`, a structural twin of ours.
+  const shown = assertionResults.map((result) => ({
+    ...result,
+    failureMessages: result.failureMessages.map((message) => hideProvinoFrames(message)),
+  }))
   return util.formatResultsErrors(
-    assertionResults as unknown as Parameters<MessageUtil['formatResultsErrors']>[0],
+    shown as unknown as Parameters<MessageUtil['formatResultsErrors']>[0],
     { rootDir: config.rootDir, testMatch: [...config.testMatch] } as Parameters<
       MessageUtil['formatResultsErrors']
     >[1],
@@ -66,7 +125,7 @@ export async function formatFileError(
 ): Promise<string> {
   const util = await messageUtil()
   return util.formatExecError(
-    error,
+    typeof error.stack === 'string' ? { ...error, stack: hideProvinoFrames(error.stack) } : error,
     { rootDir: config.rootDir, testMatch: [...config.testMatch] } as Parameters<
       MessageUtil['formatExecError']
     >[1],
@@ -87,7 +146,7 @@ export async function formatRetryError(
 ): Promise<string> {
   const util = await messageUtil()
   return util.formatErrorStack(
-    stack,
+    hideProvinoFrames(stack),
     { rootDir: config.rootDir, testMatch: [...config.testMatch] } as Parameters<
       MessageUtil['formatErrorStack']
     >[1],

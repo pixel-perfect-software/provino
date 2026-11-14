@@ -134,6 +134,14 @@ export interface ModulePolicy {
   /** Paths `automock` leaves real (Jest `unmockedModulePathPatterns`). Jest: `[]`. Vitest: `[]`. research: track-04 L316 */
   readonly unmockedPathPatterns: readonly RegExp[]
   /**
+   * What a failing frame in a transformed file is called. `mapped-name`: the name the file's source
+   * map holds at the frame's own position (the identifier called there), so a failed matcher's
+   * frame reads `at Object.toBe (x.test.ts:6:15)`, as Jest's source-map support does. `engine`: the
+   * name V8 gave the frame (`at Object.<anonymous>`). Jest: `mapped-name`, recorded by
+   * `cli/failure-frames` (DV88). Vitest: `engine`, not recorded yet (T11.16). Neutral: `engine`.
+   */
+  readonly stackFrameNames: 'mapped-name' | 'engine'
+  /**
    * The registry's error texts, by code. Empty means the neutral text. Jest's come from
    * jest-runtime's `MockState.ts` and jest-resolve; Vitest's from `@vitest/mocker`.
    */

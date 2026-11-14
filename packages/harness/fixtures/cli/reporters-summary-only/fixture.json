@@ -1,0 +1,14 @@
+{
+  "description": "reporters: ['summary'] under Jest 30.5.2 (T11.9, B23a): the summary reporter alone, so no `PASS` or `FAIL` header and no failure text: the totals. One worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "reporters": ["summary"]
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Summary of all failing tests"
+  }
+}

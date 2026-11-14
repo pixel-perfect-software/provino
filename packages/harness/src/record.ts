@@ -28,7 +28,12 @@ import {
   toGolden,
 } from './golden.ts'
 import { compareStrings, isNotFound } from './internal/guards.ts'
-import { assertNoPathLeak, assertRunComplete, commitGolden } from './internal/recording.ts'
+import {
+  assertCheckoutKeepsJestFrames,
+  assertNoPathLeak,
+  assertRunComplete,
+  commitGolden,
+} from './internal/recording.ts'
 import {
   jestConfig,
   OBSERVE_SETUP_PATH,
@@ -542,7 +547,13 @@ async function runUnderRunner(
                 }),
             ),
           ),
-          (text) => normalizer.text(text),
+          spec.raw === true
+            ? (text) =>
+                [paths.realWorkDir, paths.workDir].reduce(
+                  (out, root) => out.replaceAll(root, '<root>'),
+                  text,
+                )
+            : (text) => normalizer.text(text),
           path.join(fixture.dir, 'fixture.json'),
           [paths.realWorkDir, paths.workDir],
         )
@@ -616,6 +627,10 @@ export async function recordRead(
       `${fixture.id} does not list "${profile}" in its fixture.json`,
       { path: fixture.dir },
     )
+  }
+
+  if (runnerOfProfile(profile) === 'jest') {
+    assertCheckoutKeepsJestFrames(await realpath(REPO_ROOT), `${fixture.id} (${profile})`)
   }
 
   await mkdir(WORK_ROOT, { recursive: true })

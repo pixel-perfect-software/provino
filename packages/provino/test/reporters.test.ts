@@ -3,7 +3,7 @@
 // its `keepLines`), then what the environment and the flags change: an agent, GitHub Actions,
 // colour, and the reporters `provino run` names.
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { run } from 'provino/node'
@@ -69,6 +69,18 @@ describe('provino jest prints what Jest 30.5.2 printed (the lines each recording
       'cli/report-verbose',
       '--verbose: each test under its describe titles, console before the header',
     ],
+    [
+      'cli/report-console-helper',
+      'a console.error from a helper: code frame and every frame outside Jest; warn likewise, log its first frame',
+    ],
+    [
+      'cli/report-console-helper-nostack',
+      '--noStackTrace keeps the first frame of a warn or error entry and prints no code frame',
+    ],
+    [
+      'cli/report-console-helper-verbose',
+      '--verbose: the title at 2 spaces, the frames still at 6',
+    ],
     ['cli/report-silent', '--silent: the same headers and totals, and no console output'],
     [
       'cli/report-single-file',
@@ -82,6 +94,13 @@ describe('provino jest prints what Jest 30.5.2 printed (the lines each recording
       'cli/report-single-file-verbose-false',
       'a single test file under verbose: false is not verbose: the console block under the header',
     ],
+    ['cli/report-ran-pattern', 'a file pattern: `Ran all test suites matching snap.`'],
+    ['cli/report-ran-name', '-t: `Ran all test suites with tests matching "inner".`'],
+    ['cli/report-ran-by-path', '--runTestsByPath: `within paths "a.test.ts"`'],
+    [
+      'cli/report-snapshot-summary',
+      'the per-file snapshot lines and the Snapshot Summary (written, failed, obsolete)',
+    ],
   ] as const) {
     it(`${what} (${id})`, async () => {
       const run = await provinoOn(id)
@@ -90,6 +109,34 @@ describe('provino jest prints what Jest 30.5.2 printed (the lines each recording
       assert.deepEqual(run.lines, run.expected, run.stderr)
     })
   }
+
+  it('two projects: the display name before each file, `Ran all test suites in 2 projects.` (cli/report-ran-projects)', async () => {
+    const fixture = await loadFixture('cli/report-ran-projects')
+    const project = await materialize(fixture)
+    try {
+      // The recorder reserves `projects`, so the recording named them on the command line; here
+      // they are a config key (`provino jest` refuses the flag).
+      const config = join(project.root, 'jest.config.json')
+      await writeFile(
+        config,
+        JSON.stringify({
+          rootDir: project.root,
+          maxWorkers: 1,
+          projects: ['<rootDir>/p1', '<rootDir>/p2'],
+        }),
+      )
+      const ended = await spawnCli(['jest', `--config=${config}`, '--ci'], { cwd: project.root })
+      const keepLines = fixture.manifest.run?.keepLines ?? ''
+      assert.equal(ended.code, fixture.golden.observed?.exitCode, ended.stderr)
+      assert.deepEqual(
+        kept(ended.stderr, keepLines),
+        kept(fixture.golden.observed?.stderr ?? '', keepLines),
+        ended.stderr,
+      )
+    } finally {
+      await project.dispose()
+    }
+  })
 
   it('a file of only todo tests, or skipped and todo, is a PASS line and a passed suite; one whose every test is skipped has no line (cli/report-todo-only, DV50)', async () => {
     const run = await provinoOn('cli/report-todo-only')

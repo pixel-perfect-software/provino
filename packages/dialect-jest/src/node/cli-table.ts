@@ -431,8 +431,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     requiresArg: true,
     string: true,
     description: 'A list of custom reporters for the test suite.',
-    support: 'refuse',
-    owner: 'T11.9',
+    support: 'config',
   },
   resetMocks: {
     type: 'boolean',

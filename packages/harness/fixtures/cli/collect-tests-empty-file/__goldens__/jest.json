@@ -8,7 +8,7 @@
       "file": "empty.test.ts",
       "status": "crashed",
       "fileError": {
-        "message": "● Test suite failed to run\n\n    Your test suite must contain at least one test.\n\n      at onResult (../../../../node_modules/.pnpm/@jest+core@30.5.2_supports-color@8.1.1/node_modules/@jest/core/build/index.js:1054:18)\n      at ../../../../node_modules/.pnpm/emittery@0.13.1/node_modules/emittery/index.js:363:13\n          at Array.map (<anonymous>)"
+        "message": "● Test suite failed to run\n\n    Your test suite must contain at least one test."
       },
       "tests": []
     },
