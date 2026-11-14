@@ -819,6 +819,8 @@ export interface EventSink {
 
 // @public
 export interface ExecutedModuleInfo {
+    readonly code: string;
+    readonly map: SourceMapV3 | null;
     readonly transformKey: string;
     readonly url: string;
     readonly wrapperLength: number;
