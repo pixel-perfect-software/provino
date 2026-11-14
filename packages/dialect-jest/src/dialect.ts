@@ -326,24 +326,24 @@ export const jestPolicy: PolicyOverrides = {
     watchDefault: 'never',
     // research: track-09 L560 (`all` with `--watchAll`)
     watch: { initialRun: 'changed' },
-    // research: track-09 (pending B23c Phase 5 records it: `changed/*` goldens). jest-changed-files rebuilt.
+    // jest-changed-files rebuilt; `provino`'s jest-changed.test.ts holds it to every `changed/*` golden.
     changedFiles: moduleRef<ChangedFilesProvider>(
       import.meta.resolve('@provino/dialect-jest/affected'),
       'jestChangedFiles',
     ),
     affected: {
-      // research: track-09 (pending B23c Phase 5: `changed/related-extractor-comments`). Haste's regex extractor.
+      // Haste's regex extractor (`changed/related-extractor-comments`, `-spread`).
       extractor: moduleRef<DependencyExtractorFactory>(
         import.meta.resolve('@provino/dialect-jest/affected'),
         'jestDependencyExtractor',
       ),
-      // research: track-09 (pending B23c Phase 5: `changed/related-mock-adjacent`, `-mock-root`). jest-resolve-dependencies L57-99.
+      // jest-resolve-dependencies L57-99 (`changed/related-mock-adjacent`, `-mock-root`).
       mockEdges: { dir: '__mocks__', adjacent: true, byName: true },
-      // research: track-09 (pending B23c Phase 5: `changed/related-config-file`, `-setup-file`). Jest selects by the graph alone.
+      // Jest selects by the graph alone (`changed/related-config-file`, `-setup-file`).
       invalidateAll: 'none',
-      // research: track-09 (pending B23c Phase 5). Jest's selection is static (compat).
+      // research: track-09 (pending T9.12: no recording tells it apart). Jest's selection is static (compat).
       graph: 'static',
-      // research: track-09 (pending B23c Phase 5: `changed/related-exports-conditions`). SearchSource
+      // `changed/related-exports-conditions`. SearchSource
       // passes no `conditions`, so defaultResolver.ts L181-187 falls back to require, node, default.
       conditions: 'none',
     },

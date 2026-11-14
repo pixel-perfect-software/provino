@@ -352,6 +352,15 @@ export function jestProjectToNeutral(
     ...(project.snapshotResolver === undefined
       ? {}
       : { snapshotResolver: project.snapshotResolver }),
+    // B23c, T9.16: the project's own extractor (an absolute path, as `normalize` resolved it; the
+    // module exports an object, read as its `default`) and the watch crawl's ignore patterns.
+    // `watchman` only picks Jest's crawl and watch backend, which no result shows (Gaps 5).
+    ...(project.dependencyExtractor === undefined
+      ? {}
+      : { affected: { extractor: { module: project.dependencyExtractor, export: 'default' } } }),
+    ...(project.watchPathIgnorePatterns.length === 0
+      ? {}
+      : { watch: { ignorePatterns: [...project.watchPathIgnorePatterns] } }),
     // Jest's `/tmp/jest_*` default is not Provino's to use (D70); a directory the config chose is.
     ...(options.cacheDirectorySet === true ? { cacheDirectory: project.cacheDirectory } : {}),
     policy,

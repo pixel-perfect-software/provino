@@ -7,6 +7,13 @@ export {
 } from './affected/index.ts'
 export { openRecordedGraph, type RecordedGraph } from './affected/recorded.ts'
 export {
+  type AffectedMember,
+  findChangedFiles,
+  hasScm,
+  keepFailed,
+  selectAffected,
+} from './affected/select.ts'
+export {
   cacheDirectories,
   createResultsCache,
   defaultCacheDir,

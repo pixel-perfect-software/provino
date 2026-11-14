@@ -72,16 +72,14 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Runs tests related to the current changes and the changes made in the last commit. Behaves similarly to `--onlyChanged`.',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   changedSince: {
     type: 'string',
     requiresArg: true,
     description:
       'Runs tests related to the changes since the provided branch. If the current branch has diverged from the given branch, then only changes made locally will be tested. Behaves similarly to `--onlyChanged`.',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   ci: {
     type: 'boolean',
@@ -214,8 +212,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Find related tests for a list of source files that were passed in as arguments. Useful for pre-commit hook integration to run the minimal amount of tests necessary.',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   forceExit: {
     type: 'boolean',
@@ -271,8 +268,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Run all tests affected by file changes in the last commit made. Behaves similarly to `--onlyChanged`.',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   listTests: {
     type: 'boolean',
@@ -361,15 +357,13 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     alias: 'o',
     description:
       "Attempts to identify which tests to run based on which files have changed in the current repository. Only works if you're running tests in a git or hg repository at the moment.",
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   onlyFailures: {
     type: 'boolean',
     alias: 'f',
     description: 'Run tests that failed in the previous execution.',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   openHandlesTimeout: {
     type: 'number',

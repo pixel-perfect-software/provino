@@ -16,6 +16,7 @@ Provino's tests compare almost everything here with Jest 30.5, either against re
 - `--bail`, `--forceExit`, `--detectOpenHandles`, `workerIdleMemoryLimit`, and `--shard=i/n`. A shard is Jest's split, or a cut by time from a timings file, with Provino's own `--timings` and `--update-timings`.
 - Ctrl+C stops the run and exits 130; a second Ctrl+C kills every worker at once. SIGTERM exits 143.
 - `globalSetup` and `globalTeardown`, run once per project and path, as Jest runs them.
+- Running only what changed: `-o`/`--onlyChanged`, `--changedSince`, `--lastCommit`, `--changedFilesWithAncestor` (git, hg and Sapling, with Jest's own commands), `--findRelatedTests` (the tests whose imports reach the given files, read with Jest's own rules: mocks, `moduleNameMapper`, a project's `dependencyExtractor`), and `--onlyFailures`/`-f` (the files that failed last time), for a run and for `--listTests`, with Jest's no-tests texts and exit codes.
 - Coverage: `--coverage` and `--collectCoverage`, and the keys `collectCoverage`, `collectCoverageFrom`, `coverageDirectory`, `coveragePathIgnorePatterns`, `coverageProvider` (`babel` and `v8`), `coverageReporters` (any Istanbul reporter), `coverageThreshold` and `forceCoverageMatch`. Under `babel`, the per-file summary, `coverage-final.json`, lcov, clover and the text reports are checked against Jest's; under `v8` the counts equal Jest's, with the position limits in the gap table below. The HTML report is written but not compared byte for byte. Files no test loaded count at zero, a missed threshold prints Jest's `Jest: …` lines and exits 1, workers and shards merge into one report, and `--json` carries `coverageMap`. A project that uses `babel-jest` is instrumented by its own Babel, every other project by Provino's Istanbul instrumenter.
 
 **Your code**
@@ -64,7 +65,7 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | `_coverageSchema` in `coverage-final.json` and `--json`'s `coverageMap` | Jest's value, whatever the dialect | Not planned |
 | Watch mode: `--watch`, `--watchAll` | Refused | Planned |
 | A Jest reporter's own copy of Jest's frames | A report that embeds each failure's raw stack (jest-html-reporters, jest-sonar-reporter, jest-junit without `noStackTrace`) holds Provino's frames in place of `jest-circus`'s, with the project's frames in Jest's layout | Not planned |
-| Run only what changed: `--onlyChanged`, `--changedSince`, `--lastCommit`, `--changedFilesWithAncestor`, `--findRelatedTests`, `--onlyFailures` | Refused | Not yet planned |
+| Coverage of only what changed: `--coverage` with `-o` or `--findRelatedTests` | The selected tests run, and coverage is collected as for a full run, not only of the changed files and the sources their tests import | Planned |
 | A `snapshotResolver` that is broken | Each file fails with Jest's text and the run ends with no totals, exit 1, as in Jest; the error prints as `Provino: unexpected error:` with its stack, where Jest prints it red | Not planned |
 | Inline snapshots with Prettier 2 | Written unformatted, with a warning (Prettier 3 formats as Jest does) | Not planned |
 | Legacy fake timers | `legacyFakeTimers: true` throws when a test installs the timers, with a hint to use the modern ones. `jest.runAllImmediates` throws | Not planned |

@@ -642,7 +642,7 @@ export interface DependencyExtractor {
     // (undocumented)
     readonly cacheKey?: string;
     // (undocumented)
-    extract(code: string, path: string, fallback: (code: string) => Iterable<string>): Iterable<string>;
+    extract(code: string, path: string, fallback: (code: string) => Set<string>): Iterable<string>;
 }
 
 // @public

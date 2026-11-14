@@ -277,12 +277,30 @@ export const JEST_CONFIG_CANDIDATES: readonly string[];
 export const JEST_CONFIG_EXT_ORDER: readonly string[];
 
 // @public
+export const JEST_NO_SCM_TEXT: string;
+
+// @public
 export type JestArgv = Readonly<Record<string, unknown>> & {
     readonly _?: readonly (string | number)[];
 };
 
 // @public
 export function jestArgvToRunRequest(argv: JestArgv): RunRequest;
+
+// @public
+export function jestChangedFilesErrorText(error: unknown, projectConfig: {
+    readonly rootDir: string;
+    readonly testMatch: readonly string[];
+}, style: Pick<TextStyle, "red">): string;
+
+// @public
+export function jestChangedNoTestsMessage(globalConfig: Pick<JestGlobalConfig, "passWithNoTests" | "lastCommit" | "onlyChanged" | "onlyFailures" | "changedSince" | "watch">, options: {
+    readonly interactive: boolean;
+    readonly style: TextStyle;
+}): {
+    readonly exitWith0: boolean;
+    readonly message: string;
+} | undefined;
 
 // @public
 export const jestCli: CliDialect<JestArgv>;
