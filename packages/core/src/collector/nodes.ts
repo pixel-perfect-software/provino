@@ -54,6 +54,7 @@ export function newSuiteNode(init: SuiteInit): SuiteNode {
     options: init.options,
     concurrent: init.concurrent,
     shuffle: false,
+    describeRetry: undefined,
     body: init.body,
     bodyArgs: init.bodyArgs,
     handle,

@@ -420,8 +420,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Shuffle the order of the tests within a file. In order to choose the seed refer to the `--seed` CLI option.',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   reporters: {
     type: 'array',
@@ -491,8 +490,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     requiresArg: true,
     description:
       'Sets a seed value that can be retrieved in a tests file via `jest.getSeed()`. If this option is not specified Jest will randomly generate the value. The seed value must be between `-0x80000000` and `0x7fffffff` inclusive.',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   selectProjects: {
     type: 'array',

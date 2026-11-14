@@ -53,6 +53,28 @@ export interface DefaultRetry {
 }
 
 /**
+ * The retry of a whole describe block (Jest's `jest.retryTimes(n, { entireDescribe: true })`): when a
+ * test below fails, the block's `beforeAll` hooks, every test below and its `afterAll` hooks run
+ * again, up to `numRetries` times, and the last attempt's results stand.
+ * @public
+ */
+export interface DescribeRetry {
+  /** Retries after the first attempt. */
+  readonly numRetries: number
+  /** Whether the errors of the attempts that were discarded stay on each test's result. */
+  readonly logErrorsBeforeRetry?: boolean | undefined
+  /** Milliseconds to wait before each retry. */
+  readonly waitBeforeRetry?: number | undefined
+}
+
+/**
+ * What `Runtime.setDescribeRetry` answers: `set` when the block being collected took the retry,
+ * `started` when the file's run had begun (a retry can only be set while collecting).
+ * @public
+ */
+export type DescribeRetryResult = 'set' | 'started'
+
+/**
  * The current-test lookup, backed by AsyncLocalStorage. Mocks and timers (attribution), lazy
  * values and expect state read it.
  * @public

@@ -125,6 +125,8 @@ interface Booted {
   globalValues: Readonly<Record<string, JsonValue>> | undefined
   /** The project's fake-timer defaults (Jest's `fakeTimers`), what every clock install is layered over. */
   fakeTimers: Readonly<Record<string, JsonValue>> | undefined
+  /** The run's seed when the run is randomized (Jest's `--randomize`): every file shuffles with it. */
+  shuffleSeed: number | undefined
   /**
    * The dialect's resolver for a file's environment pragma, with the project's own environment
    * ref it builds on, its root and the environments prepared so far: one per kind per worker,
@@ -476,6 +478,7 @@ export function createRuntimeRunner(): WorkerRunner {
     parts.scope = scope
     parts.globalValues = config.globalValues
     parts.fakeTimers = config.fakeTimers
+    parts.shuffleSeed = config.randomize === true ? config.seed : undefined
 
     // Expect, in the order its docs give: the slot exists before any matcher module loads, and
     // `createExpect` registers the table's matchers. The registry snapshot comes last (below).
@@ -645,6 +648,7 @@ export function createRuntimeRunner(): WorkerRunner {
       environmentTornDown: () => (fileScope.getStore() ?? fallback)?.tornDown ?? true,
       setDefaultTimeout: (ms) => coreRuntime.setDefaultTimeout(ms),
       setDefaultRetry: (retry) => coreRuntime.setDefaultRetry(retry),
+      setDescribeRetry: (retry) => coreRuntime.setDescribeRetry(retry),
     }
     // The scope also serves the imports (`@jest/globals`); the bindings a module's wrapper declares
     // are `config.loader.moduleScope`, which is empty when `injectGlobals` is off.
@@ -775,12 +779,14 @@ export function createRuntimeRunner(): WorkerRunner {
   }
 
   /** The filters this file's job carries; `exactOptionalPropertyTypes` forbids passing `undefined`. */
-  function filtersOf(job: FileJob) {
+  function filtersOf(job: FileJob, shuffleSeed: number | undefined) {
     return {
       ...(job.testNamePattern === undefined ? {} : { testNamePattern: job.testNamePattern }),
       ...(job.testIds === undefined ? {} : { testIds: job.testIds }),
       // Whatever the job carries is forwarded: core fails the file for a value that is not `true`.
       ...(job.collectOnly === undefined ? {} : { collectOnly: job.collectOnly }),
+      // A randomized run shuffles every file with the run's seed.
+      ...(shuffleSeed === undefined ? {} : { shuffleSeed }),
     }
   }
 
@@ -883,7 +889,10 @@ export function createRuntimeRunner(): WorkerRunner {
         Object.assign(worker.source.file(), { snapshotState: snapshots.state })
         // The coordinator's id for the file (D23), so every event carries the id it expects.
         await fileScope.run(thisFile, () =>
-          worker.runtime.runFile(job.file, { fileId: job.fileId, ...filtersOf(job) }),
+          worker.runtime.runFile(job.file, {
+            fileId: job.fileId,
+            ...filtersOf(job, worker.shuffleSeed),
+          }),
         )
         // A collect-only file ran no test: `finish` would save the file and report every stored
         // snapshot as unchecked.

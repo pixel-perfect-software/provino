@@ -296,6 +296,7 @@ export function jestProjectToNeutral(
       Object.entries(fakeTimers).filter(([key]) => key !== 'enableGlobally'),
     ),
     seed: globalConfig.seed,
+    ...(globalConfig.randomize === true ? { randomize: true as const } : {}),
     resolution: {
       moduleDirectories: [...project.moduleDirectories],
       // Jest's resolver searches `NODE_PATH` before `modulePaths` (`jest-resolve` `Resolver`).

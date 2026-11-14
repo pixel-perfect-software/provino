@@ -99,6 +99,7 @@ export const neutralPolicy: Policy = deepFreeze({
     // A test a helper registers points at the line in the test file.
     locationFrame: 'test-file',
     orderHooks: null,
+    shuffle: null,
   },
   lazy: { readInBeforeAll: 'error' },
   mock: {

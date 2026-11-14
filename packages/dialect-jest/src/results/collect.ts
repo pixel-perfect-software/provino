@@ -15,6 +15,7 @@ import {
   type BuildOptions,
   type FileEvents,
   finishAggregated,
+  ordersOf,
   type RunEnd,
   type TestRecord,
   testsInOrder,
@@ -100,7 +101,12 @@ export interface JestResults<Config extends ProjectConfigLike> {
   /** A test's result as `onTestCaseResult` gets it (`parseSingleTestResult`), once the test has ended. */
   assertionOf(
     test: TestTask,
-    retried?: { readonly attempt: number; readonly errors: readonly SerializedError[] },
+    retried?: {
+      readonly attempt: number
+      readonly state: 'pass' | 'fail' | 'skip'
+      readonly errors: readonly SerializedError[]
+      readonly passingAssertions?: number
+    },
   ): AssertionResult | undefined
   /** What `onTestCaseStart` gets for a test that has started (`createTestCaseStartInfo`). */
   startInfoOf(test: TestTask): TestCaseStartInfo
@@ -125,6 +131,8 @@ interface MutableFile {
   startedAt: number
   tree: readonly TaskNode[] | undefined
   records: Map<TaskId, TestRecord>
+  /** The child order of each suite a randomized run shuffled. */
+  orders: Map<TaskId, readonly TaskId[]>
   unhandled: SerializedError[]
   /** The file's `console` calls, as `BufferedConsole` keeps them. */
   console: ConsoleEntry[]
@@ -171,6 +179,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         startedAt: now(),
         tree: undefined,
         records: new Map(),
+        orders: new Map(),
         unhandled: [],
         console: [],
       }
@@ -207,6 +216,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         startedAt: now(),
         tree: undefined,
         records: new Map(),
+        orders: new Map(),
         unhandled: [],
         console: [],
       })
@@ -234,6 +244,11 @@ export function createJestResults<Config extends ProjectConfigLike>(
       if (known !== undefined) file.records.set(task.id, { ...known, startedAt: now() })
     },
     'task:end': (task, event) => {
+      if (event.type === 'suite-end') {
+        const order = event.result.childOrder
+        if (order !== undefined) files.get(task.fileId)?.orders.set(task.id, order)
+        return
+      }
       if (task.type !== 'test' || event.type !== 'test-end') return
       const file = files.get(task.fileId)
       const known = file === undefined ? undefined : record(file, task.id)
@@ -269,6 +284,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         testFilePath: pathOf(info),
         tree: file.tree,
         records: file.records,
+        orders: file.orders,
         result: fileResult,
         unhandled: file.unhandled,
         startedAt: file.startedAt,
@@ -278,7 +294,8 @@ export function createJestResults<Config extends ProjectConfigLike>(
       testResult.console = file.console.length > 0 ? file.console : undefined
       const stack = { noStackTrace: globalConfig.noStackTrace }
       // The messages go with the assertions by position: two tests can share a full name.
-      const ordered = file.tree === undefined ? [] : testsInOrder(file.tree, file.records)
+      const ordered =
+        file.tree === undefined ? [] : testsInOrder(file.tree, file.records, ordersOf(events))
       for (const [index, assertion] of testResult.testResults.entries()) {
         const errors = ordered[index]?.result?.retryErrors ?? []
         if (errors.length === 0) continue
@@ -354,15 +371,17 @@ export function createJestResults<Config extends ProjectConfigLike>(
       const known = file === undefined ? undefined : record(file, test.id)
       if (file === undefined || known === undefined) return undefined
       const config = configOf(file.info)
-      // An attempt that will be retried: jest-circus reports its `test_done` as a failed test whose
-      // `invocations` is the attempts so far (the hook-order recording).
+      // An attempt that is retried: jest-circus reports its `test_done` with what the attempt left,
+      // `invocations` the attempts so far (the hook-order recording). A test's own retry follows a
+      // failure; a dropped describe attempt (`entireDescribe`) is reported for every test in it,
+      // passed or failed, with its passing assertions (`cli/retry-entire-describe-reporter`).
       const shown: TestRecord =
         retried === undefined
           ? known
           : {
               ...known,
               result: {
-                state: 'fail',
+                state: retried.state,
                 durationMs: 0,
                 startTime: 0,
                 errors: retried.errors,
@@ -370,7 +389,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
                 attempts: retried.attempt + 1,
                 repeatIndex: 0,
                 assertions: 0,
-                passingAssertions: 0,
+                passingAssertions: retried.passingAssertions ?? 0,
               },
             }
       return toAssertionResult(shown, {

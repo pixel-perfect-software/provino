@@ -1,0 +1,19 @@
+{
+  "description": "What a reporter hears of a describe-level retry under Jest 30.5.2 (T5.10, B23d): a custom reporter appends one line per `onTestCaseStart` and `onTestCaseResult` call to `calls.txt`, over a block (`jest.retryTimes(1, { entireDescribe: true })`) whose first attempt fails and whose second passes, each attempt making a different number of passing assertions. The results file holds the final attempt's `numPassingAsserts`. One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "calls-reporter.cjs": "const fs = require('node:fs')\nconst path = require('node:path')\n\n// One line per test-case hook, appended as it is called.\nmodule.exports = class CallsReporter {\n  constructor(globalConfig) {\n    this.file = path.join(globalConfig.rootDir, 'calls.txt')\n    fs.writeFileSync(this.file, '')\n  }\n  onTestCaseStart(test, info) {\n    fs.appendFileSync(this.file, `start ${info.fullName}\\n`)\n  }\n  onTestCaseResult(test, result) {\n    fs.appendFileSync(this.file, `result ${result.fullName} ${result.status} invocations=${result.invocations} numPassingAsserts=${result.numPassingAsserts} failures=${result.failureMessages.length}\\n`)\n  }\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "reporters": ["<rootDir>/calls-reporter.cjs"]
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "file:calls.txt", "json:.harness-out/jest.json"],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

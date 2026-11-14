@@ -49,6 +49,14 @@ export const MESSAGE_FIXTURES: ReadonlySet<string> = new Set([
   'runtime/retry-before-all-error',
   'runtime/retry-condition',
   'runtime/retry-condition-function',
+  // A describe-level retry (T5.10, `entireDescribe`): the errors each test ends with, the ones a
+  // retried test keeps with `logErrorsBeforeRetry`, and Jest's error for a call made too late.
+  'runtime/retry-entire-describe',
+  'runtime/retry-entire-describe-after-start',
+  'runtime/retry-entire-describe-log-errors',
+  'runtime/retry-entire-describe-nested',
+  'runtime/retry-entire-describe-top-level',
+  'runtime/retry-entire-describe-wait',
   'runtime/retry-hooks',
   'runtime/retry-immediately',
   'runtime/retry-log-errors',
@@ -62,7 +70,10 @@ export const MESSAGE_FIXTURES: ReadonlySet<string> = new Set([
  * The fixtures whose stderr is Jest's `logErrorsBeforeRetry` output: the errors core keeps for the
  * reporter (`retryErrors`) must be the ones Jest printed.
  */
-export const RETRY_LOG_FIXTURES: ReadonlySet<string> = new Set(['runtime/retry-log-errors'])
+export const RETRY_LOG_FIXTURES: ReadonlySet<string> = new Set([
+  'runtime/retry-entire-describe-log-errors',
+  'runtime/retry-log-errors',
+])
 
 /**
  * The trace core gives where the real runner has a bug that core does not copy (D7), by

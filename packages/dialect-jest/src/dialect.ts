@@ -32,6 +32,7 @@ import type {
   GlobalsFactory,
   ModuleScopeFactory,
   PolicyOverrides,
+  ShuffleFactory,
   SnapshotPrinterFactory,
 } from '@provino/types'
 import { jestExpectPolicy } from './expect-policy.ts'
@@ -82,6 +83,12 @@ export const jestPolicy: PolicyOverrides = {
     formatValue: moduleRef<FormatValue>(
       import.meta.resolve('@provino/dialect-jest/runtime'),
       'formatValue',
+    ),
+    // jest-circus 30.5.2's `shuffleArray` over pure-rand's xoroshiro128+ (`src/runtime/shuffle.ts`):
+    // `--randomize --seed=N` gives Jest's order (`cli/randomize-seed-flat` and `-30` agree).
+    shuffle: moduleRef<ShuffleFactory>(
+      import.meta.resolve('@provino/dialect-jest/runtime'),
+      'jestShuffle',
     ),
     // Jest passes `done`, not a context: nothing to call (runtime corpus `done-callback` agrees).
     doneDeprecatedMessage: null,

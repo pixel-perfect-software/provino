@@ -61,6 +61,23 @@ runtime.setDefaultRetry({ count: '2', delay: 0 })
 runtime.setDefaultRetry({ count: 2, delay: 0, timing: 'later' })
 // @ts-expect-error `immediate` and `logErrors` are gone: they are `timing` and `keepEarlierErrors`
 runtime.setDefaultRetry({ count: 2, delay: 0, immediate: true, logErrors: false })
+// A describe block's own retry (Jest's `retryTimes(n, { entireDescribe: true })`): a count, and
+// optionally whether to keep the dropped attempts' errors and how long to wait. The answer says
+// whether the block could take it.
+runtime.setDescribeRetry({ numRetries: 2 })
+runtime.setDescribeRetry({ numRetries: 2, logErrorsBeforeRetry: true, waitBeforeRetry: 50 })
+expectTypeOf(runtime.setDescribeRetry({ numRetries: 1 })).toEqualTypeOf<'set' | 'started'>()
+// @ts-expect-error the count is required
+runtime.setDescribeRetry({ waitBeforeRetry: 50 })
+// @ts-expect-error the count is a number
+runtime.setDescribeRetry({ numRetries: '2' })
+// A randomized file is shuffled from a seed: an option of that file, a number.
+expectTypeOf<RunFileOptions['shuffleSeed']>().toEqualTypeOf<number | undefined>()
+void runtime.runFile('/a.test.ts', { shuffleSeed: 1234 })
+// @ts-expect-error the seed is a number
+void runtime.runFile('/a.test.ts', { shuffleSeed: '1234' })
+// @ts-expect-error the seed belongs to one file's run, not to the runtime
+createRuntime({ ...options, shuffleSeed: 1 })
 expectTypeOf<Parameters<Runtime['runFile']>[1]>().toEqualTypeOf<RunFileOptions | undefined>()
 expectTypeOf<RunFileOptions['lines']>().toEqualTypeOf<readonly number[] | undefined>()
 void runtime.runFile('/a.test.ts', { lines: [3, 7] })
