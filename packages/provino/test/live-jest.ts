@@ -112,12 +112,17 @@ export async function provinoRun(
 ): Promise<{ code: number; statuses: Statuses; stderr: string }> {
   const out = join(cwd, '.out-provino.json')
   const stderr = new Sink()
-  const code = await runJestCommand(['--no-cache', '--ci', '-c', 'jest.config.json'], {
-    stdout: new Sink(),
-    stderr,
-    cwd,
-    reporters: [['normalized-json', { outputFile: out }]],
-  })
+  // A memory limit asks for workers, as the recorded runs of the fixtures that need one had it:
+  // a single file would otherwise run in band, in this test process (Jest's `shouldRunInBand`).
+  const code = await runJestCommand(
+    ['--no-cache', '--ci', '-c', 'jest.config.json', '--workerIdleMemoryLimit=8000000000'],
+    {
+      stdout: new Sink(),
+      stderr,
+      cwd,
+      reporters: [['normalized-json', { outputFile: out }]],
+    },
+  )
   const word: Readonly<Record<string, string>> = { skipped: 'pending' }
   const map = new Map<string, string>()
   for (const [file, entry] of viewOfNormalized(await readFile(out, 'utf8')).files) {

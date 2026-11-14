@@ -58,6 +58,9 @@ import { transportFor } from './transport/for-kind.ts'
 import { describeExit } from './transport/shared.ts'
 import { BATCH, mapInBatches, messageOf } from './util.ts'
 
+/** `orchestrator.inBand` that never puts a run in band by itself. */
+const NO_AUTOMATIC_IN_BAND = { single: false, fastFileCount: 0, slowMs: 0 } as const
+
 /** Track 9: how long a worker may take to say `ready`, and to stop before it is killed. */
 const START_TIMEOUT_MS = 30_000
 const TEARDOWN_TIMEOUT_MS = 10_000
@@ -67,7 +70,11 @@ const TEARDOWN_TIMEOUT_MS = 10_000
  * @public
  */
 export interface RunPoolOptions {
-  /** Default `policy.orchestrator.pool.default`. */
+  /**
+   * Default `policy.orchestrator.pool.default`. Naming a kind also turns off the policy's automatic
+   * choice to run in band (`orchestrator.inBand`): the caller has chosen. `runInBand` and
+   * `detectOpenHandles` still run in band.
+   */
   readonly kind?: PoolKind
   /**
    * Default `defaultMaxWorkers()`. The transport can cap it: an `inline` pool ignores it and runs
@@ -898,7 +905,9 @@ export async function runProjects(
     // Whether the files run in this process, now that the run's files are known (Jest's
     // `shouldRunInBand`, from the policy's numbers): the pool is made again as an inline one.
     const inBand = shouldRunInBand({
-      policy: orchestrator.inBand,
+      // A caller that names `forks` or `threads` has chosen: only `runInBand` and
+      // `detectOpenHandles` move the run into this process then.
+      policy: options.pool?.kind === undefined ? orchestrator.inBand : NO_AUTOMATIC_IN_BAND,
       ...(options.runInBand === true ? { runInBand: true } : {}),
       ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
       workerMemoryLimit: options.pool?.recycle?.memoryLimitBytes !== undefined,

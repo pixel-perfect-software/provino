@@ -457,7 +457,11 @@ describe('run()', () => {
   describe('the pool', () => {
     it('forks by default, and an inline pool runs in this process', async () => {
       const pidFile = (dir: string) => join(dir, 'worker.pid')
-      const forked = await makeProject((dir) => ({ 'tests/a.test.js': noting('a', pidFile(dir)) }))
+      // Two files: under the Jest dialect a single file runs in band, in this process.
+      const forked = await makeProject((dir) => ({
+        'tests/a.test.js': noting('a', pidFile(dir)),
+        'tests/b.test.js': noting('b', pidFile(dir)),
+      }))
       const inline = await makeProject((dir) => ({ 'tests/a.test.js': noting('a', pidFile(dir)) }))
 
       assert.equal((await runProject(forked)).exitCode, 0)

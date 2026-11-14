@@ -59,7 +59,7 @@ describe('which runs go in band', () => {
   it('the neutral policy keeps a single file in a worker', async () => {
     const p = await makeProject({ 'a.test.js': '' })
     await writeFile(p.path('a.test.js'), noting(p.dir))
-    await run(runtimeProject(p.dir), { pool: { kind: 'forks', maxWorkers: 2 } })
+    await run(runtimeProject(p.dir), { pool: { maxWorkers: 2 } })
     const pids = await pidsOf(p.dir)
     assert.equal(pids.length, 1)
     assert.ok(!inBand(pids), pids.join(' '))
@@ -69,9 +69,9 @@ describe('which runs go in band', () => {
     const p = await makeProject({ 'a.test.js': '', 'b.test.js': '' })
     for (const name of ['a.test.js', 'b.test.js']) await writeFile(p.path(name), noting(p.dir))
     const project = runtimeProject(p.dir, { policy: { orchestrator: JEST_NUMBERS } })
-    await run(project, { pool: { kind: 'forks', maxWorkers: 2 } })
+    await run(project, { pool: { maxWorkers: 2 } })
     assert.ok(!inBand(await pidsOf(p.dir)), 'two files, two workers')
-    await run(project, { pool: { kind: 'forks', maxWorkers: 1 } })
+    await run(project, { pool: { maxWorkers: 1 } })
     assert.ok(inBand(await pidsOf(p.dir)), 'one worker')
   })
 
@@ -81,7 +81,7 @@ describe('which runs go in band', () => {
     const project = runtimeProject(p.dir, { policy: { orchestrator: JEST_NUMBERS } })
     const seen: string[][] = []
     await run(project, {
-      pool: { kind: 'forks', maxWorkers: 2 },
+      pool: { maxWorkers: 2 },
       fileFilter: (_project, files) => {
         seen.push(files.map((file) => file.relativePath).sort())
         return files.filter((file) => file.relativePath === 'b.test.js')
@@ -115,12 +115,12 @@ describe('which runs go in band', () => {
     for (const name of ['a.test.js', 'b.test.js']) await writeFile(p.path(name), noting(p.dir))
     const project = runtimeProject(p.dir, { policy: { orchestrator: JEST_NUMBERS } })
     const cache = createResultsCache(`${p.dir}/.cache`)
-    await run(project, { cache, pool: { kind: 'forks', maxWorkers: 2 } })
+    await run(project, { cache, pool: { maxWorkers: 2 } })
     assert.ok(!inBand(await pidsOf(p.dir)), 'no time is known on the first run')
     await cache.write()
     await run(project, {
       cache: createResultsCache(`${p.dir}/.cache`),
-      pool: { kind: 'forks', maxWorkers: 2 },
+      pool: { maxWorkers: 2 },
     })
     assert.ok(inBand(await pidsOf(p.dir)), 'every known time is under a second')
     // A numbers policy whose slow limit is 0 ms finds every time slow.
@@ -129,9 +129,19 @@ describe('which runs go in band', () => {
     })
     await run(slow, {
       cache: createResultsCache(`${p.dir}/.cache`),
-      pool: { kind: 'forks', maxWorkers: 2 },
+      pool: { maxWorkers: 2 },
     })
     assert.ok(!inBand(await pidsOf(p.dir)), 'a slow file keeps it out')
+  })
+
+  it('a caller that names a pool kind turns off the policy’s own choice, not runInBand', async () => {
+    const p = await makeProject({ 'a.test.js': '' })
+    await writeFile(p.path('a.test.js'), noting(p.dir))
+    const project = runtimeProject(p.dir, { policy: { orchestrator: JEST_NUMBERS } })
+    await run(project, { pool: { kind: 'forks', maxWorkers: 2 } })
+    assert.ok(!inBand(await pidsOf(p.dir)), 'forks was asked for')
+    await run(project, { runInBand: true, pool: { kind: 'forks', maxWorkers: 2 } })
+    assert.ok(inBand(await pidsOf(p.dir)), 'runInBand was asked for')
   })
 
   it('a memory limit for the workers keeps even a single file in one', async () => {
@@ -139,7 +149,7 @@ describe('which runs go in band', () => {
     await writeFile(p.path('a.test.js'), noting(p.dir))
     const project = runtimeProject(p.dir, { policy: { orchestrator: JEST_NUMBERS } })
     await run(project, {
-      pool: { kind: 'forks', maxWorkers: 2, recycle: { memoryLimitBytes: 4_000_000_000 } },
+      pool: { maxWorkers: 2, recycle: { memoryLimitBytes: 4_000_000_000 } },
     })
     assert.ok(!inBand(await pidsOf(p.dir)))
   })

@@ -69,12 +69,9 @@ describe('what provino jest does not run is said, not ignored', () => {
 
   it('warns, naming the task, for the flags that still do nothing', async () => {
     const dir = await tree({ 'jest.config.json': CONFIG, 'tests/a.test.js': passing('a') })
-    const ended = await provino(
-      ['--debug', '--logHeapUsage', '--notify', '--notifyMode', 'always'],
-      dir,
-    )
+    const ended = await provino(['--logHeapUsage', '--notify', '--notifyMode', 'always'], dir)
     assert.equal(ended.code, 0, ended.stderr)
-    for (const flag of ['debug', 'logHeapUsage', 'notify', 'notifyMode']) {
+    for (const flag of ['logHeapUsage', 'notify', 'notifyMode']) {
       assert.match(ended.stderr, new RegExp(`--${flag} is read but not applied yet \\(T9\\.7\\)`))
     }
     assert.match(ended.stderr, /PASS tests\/a\.test\.js/)

@@ -123,12 +123,16 @@ async function provinoStatuses(
   const here = process.cwd()
   process.chdir(dir)
   try {
-    const code = await runJestCommand(['--ci', ...(cache ? [] : ['--no-cache'])], {
-      stdout: new Sink(),
-      stderr,
-      cwd: dir,
-      reporters: [['normalized-json', { outputFile: out }]],
-    })
+    // A memory limit asks for workers: run in this process, Babel would keep the config it read.
+    const code = await runJestCommand(
+      ['--ci', '--workerIdleMemoryLimit=8000000000', ...(cache ? [] : ['--no-cache'])],
+      {
+        stdout: new Sink(),
+        stderr,
+        cwd: dir,
+        reporters: [['normalized-json', { outputFile: out }]],
+      },
+    )
     const view = viewOfNormalized(await readFile(out, 'utf8'))
     const statuses = new Map<string, string>()
     const jestWord: Readonly<Record<string, string>> = { skipped: 'pending' }
