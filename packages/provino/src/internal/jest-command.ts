@@ -694,10 +694,9 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       // (and `--bail=2` is false, as in Jest 30.5.2, so a count is always the config's).
       ...(read.globalConfig.bail > 0 ? { bail: { count: read.globalConfig.bail } } : {}),
       ...(read.globalConfig.detectOpenHandles ? { detectOpenHandles: true } : {}),
-      // `--detectLeaks` is a project key too (the flag sets every project's); `--logHeapUsage` is global.
-      ...(read.globalConfig.detectLeaks || selectedConfigs.some((config) => config.detectLeaks)
-        ? { detectLeaks: true }
-        : {}),
+      // `detectLeaks` is a project key (`--detectLeaks` sets every project's): each project is checked
+      // or not by its own, as `runTest` reads `config.detectLeaks`. `--logHeapUsage` is global.
+      detectLeaks: (resolved) => selectedConfigs[projects.indexOf(resolved)]?.detectLeaks === true,
       ...(read.globalConfig.logHeapUsage ? { logHeapUsage: true } : {}),
       // Jest's `--shard=i/n` (validated by the config reader, as Jest's `normalize` does).
       ...(shard === undefined ? {} : { shard }),

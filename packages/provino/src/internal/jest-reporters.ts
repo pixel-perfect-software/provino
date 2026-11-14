@@ -130,7 +130,7 @@ export async function setUpJestReporters(options: {
     reporters.push(
       createNotifyReporter({
         globalConfig,
-        notifier: loadJestNotifier(globalConfig.rootDir),
+        loaded: loadJestNotifier(globalConfig.rootDir),
         aggregated: () => results.aggregated(),
       }),
     )

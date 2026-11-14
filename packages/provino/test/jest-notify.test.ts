@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
-import { loadFixture, materialize } from './recorded.ts'
+import { loadFixture, materialize, underRoot } from './recorded.ts'
 import { spawnCli } from './support.ts'
 
 /** The calls a fake `node-notifier` wrote, with the icon taken out (a path of the machine). */
@@ -25,6 +25,11 @@ describe('provino jest --notify sends what Jest 30.5.2 sent', () => {
   for (const [id, what] of [
     ['cli/notify-pass', 'a passing run: `<name> - 100% Passed`, `<n> tests passed`'],
     ['cli/notify-fail', 'a failing run: `<name> - 34% Failed`, `1 of 3 tests failed`'],
+    [
+      'cli/notify-no-manifest',
+      'no package.json: the title starts with the root directory (Jest’s haste map finds no module name)',
+    ],
+    ['cli/notify-nameless-package', 'a package.json with no name: no prefix at all'],
     ['cli/notify-mode-success', '--notifyMode=success on a failing run: nothing is sent'],
   ] as const) {
     it(`${what} (${id})`, async () => {
@@ -44,7 +49,9 @@ describe('provino jest --notify sends what Jest 30.5.2 sent', () => {
         let sent: unknown = null
         try {
           sent = withoutIcon(
-            JSON.parse(await readFile(join(project.root, 'notify.json'), 'utf8')),
+            JSON.parse(
+              underRoot(await readFile(join(project.root, 'notify.json'), 'utf8'), project.root),
+            ),
             true,
           )
         } catch (error) {
