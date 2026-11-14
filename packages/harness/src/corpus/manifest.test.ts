@@ -155,12 +155,13 @@ test('provinoRefuses is what provino jest itself refuses on the subject, by the 
     }),
     /must list --watchAll: provino jest refuses it/,
   )
-  // A flag is named as the parser names it, with its value split off.
+  // A flag is named as the parser names it, with its value split off (`--changedSince=main` was
+  // the case until B23c built it; `--watch` is a refused flag given a value).
   rejects(
     await edited((draft) => {
-      subjectOf(draft, 'mobx').argv.push('--changedSince=main')
+      subjectOf(draft, 'mobx').argv.push('--watch=true')
     }),
-    /must list --changedSince:/,
+    /must list --watch:/,
   )
   rejects(
     await edited((draft) => {
