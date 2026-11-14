@@ -16,6 +16,7 @@ Provino's tests compare almost everything here with Jest 30.5, either against re
 - `--bail`, `--forceExit`, `--detectOpenHandles`, `workerIdleMemoryLimit`, and `--shard=i/n`. A shard is Jest's split, or a cut by time from a timings file, with Provino's own `--timings` and `--update-timings`.
 - Ctrl+C stops the run and exits 130; a second Ctrl+C kills every worker at once. SIGTERM exits 143.
 - `globalSetup` and `globalTeardown`, run once per project and path, as Jest runs them.
+- Running only what changed: `-o`/`--onlyChanged`, `--changedSince`, `--lastCommit`, `--changedFilesWithAncestor` (git, hg and Sapling, with Jest's own commands), `--findRelatedTests` (the tests whose imports reach the given files, read with Jest's own rules: mocks, `moduleNameMapper`, a project's `dependencyExtractor`), and `--onlyFailures`/`-f` (the files that failed last time), for a run and for `--listTests`, with Jest's no-tests texts and exit codes.
 
 **Your code**
 - TypeScript, TSX, JSX and JavaScript, compiled with Oxc. Types are stripped, not checked.
@@ -55,7 +56,7 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | Watch mode: `--watch`, `--watchAll` | Refused | Planned |
 | A Jest reporter's own copy of Jest's frames | A report that embeds each failure's raw stack (jest-html-reporters, jest-sonar-reporter, jest-junit without `noStackTrace`) holds Provino's frames in place of `jest-circus`'s, with the project's frames in Jest's layout | Not planned |
 | `github-actions` with `silent: false` | Refused by name (the result tree it adds is not printed) | Planned |
-| Run only what changed: `--onlyChanged`, `--changedSince`, `--lastCommit`, `--changedFilesWithAncestor`, `--findRelatedTests`, `--onlyFailures` | Refused | Not yet planned |
+| Coverage of only what changed: `--coverage` with `-o` or `--findRelatedTests` | The selected tests run, and coverage is collected as for a full run, not only of the changed files and the sources their tests import | Planned |
 | `--showSeed` | Refused (`--randomize` still runs, but the `Seed:` line is not printed) | Planned |
 | `--detectLeaks` | Refused | Planned |
 | `--logHeapUsage`, `--notify`, `--notifyMode` | Warn, and are otherwise ignored | Planned |
