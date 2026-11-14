@@ -169,26 +169,35 @@ test('resolveDependency resolves as a require does: files, extensions, mappers, 
     'lib/index.ts': 'export {}\n',
     'data.json': '{}\n',
   })
-  using loader = await createCoordinatorLoader(
+  // No `using`: Node 22.15, the floor, cannot parse it.
+  const loader = await createCoordinatorLoader(
     dir,
     config({ aliases: [{ pattern: '^@lib$', targets: ['<rootDir>/lib/index.ts'] }] }),
     neutralPolicy.module,
   )
-  const from = join(dir, 'a.ts')
-  assert.equal(loader.resolveDependency('./a', join(dir, 'b.ts')), from)
-  assert.equal(loader.resolveDependency('./lib', from), join(dir, 'lib/index.ts'))
-  assert.equal(loader.resolveDependency('./data.json', from), join(dir, 'data.json'))
-  assert.equal(loader.resolveDependency('@lib', from), join(dir, 'lib/index.ts'))
-  assert.equal(loader.resolveDependency('node:fs', from), undefined)
-  assert.equal(loader.resolveDependency('./missing', from), undefined)
+  try {
+    const from = join(dir, 'a.ts')
+    assert.equal(loader.resolveDependency('./a', join(dir, 'b.ts')), from)
+    assert.equal(loader.resolveDependency('./lib', from), join(dir, 'lib/index.ts'))
+    assert.equal(loader.resolveDependency('./data.json', from), join(dir, 'data.json'))
+    assert.equal(loader.resolveDependency('@lib', from), join(dir, 'lib/index.ts'))
+    assert.equal(loader.resolveDependency('node:fs', from), undefined)
+    assert.equal(loader.resolveDependency('./missing', from), undefined)
+  } finally {
+    loader[Symbol.dispose]()
+  }
 })
 
 test('invalidateResolution lets a specifier that missed resolve once its file exists', async () => {
   const dir = writeTree({ 'a.ts': 'export {}\n' })
-  using loader = await createCoordinatorLoader(dir, config(), neutralPolicy.module)
-  const from = join(dir, 'a.ts')
-  assert.equal(loader.resolveDependency('./later', from), undefined)
-  writeFileSync(join(dir, 'later.ts'), 'export {}\n')
-  loader.invalidateResolution([join(dir, 'later.ts')])
-  assert.equal(loader.resolveDependency('./later', from), join(dir, 'later.ts'))
+  const loader = await createCoordinatorLoader(dir, config(), neutralPolicy.module)
+  try {
+    const from = join(dir, 'a.ts')
+    assert.equal(loader.resolveDependency('./later', from), undefined)
+    writeFileSync(join(dir, 'later.ts'), 'export {}\n')
+    loader.invalidateResolution([join(dir, 'later.ts')])
+    assert.equal(loader.resolveDependency('./later', from), join(dir, 'later.ts'))
+  } finally {
+    loader[Symbol.dispose]()
+  }
 })
