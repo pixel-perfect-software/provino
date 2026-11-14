@@ -23,6 +23,7 @@ Provino's tests compare almost everything here with Jest 30.5, either against re
   - the `node` test environment;
   - `jsdom` or a custom environment, through the project's own environment class. For `jsdom` that's the project's `jest-environment-jsdom`, which must be installed, as with Jest.
   - The `@jest-environment` docblock works.
+  - A custom environment's `handleTestEvent` is called with jest-circus's events, in its order (the objects are copies with circus's fields, not circus's own).
 
 **Your tests**
 - Jest's globals: `describe`, `test`/`it`, the four hooks, `.only`/`.skip`, `.each` (with Jest's titles), `done` callbacks, and `import … from '@jest/globals'`.
@@ -58,7 +59,6 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | `snapshotResolver` | Warns; snapshots stay beside the test file | Planned |
 | Writing inline snapshots (`toMatchInlineSnapshot`) | A match passes and a mismatch fails; one that would need writing (a new one, or `-u`) fails with a message | Planned |
 | `-i`/`--runInBand` with `globalSetup` globals | A worker still starts, so a test doesn't see a global that `globalSetup` set, as it would in Jest | Planned |
-| A custom environment's `handleTestEvent` | Not called | Planned |
 | Legacy fake timers | `legacyFakeTimers: true` throws when a test installs the timers, with a hint to use the modern ones. `jest.runAllImmediates` throws | Not planned |
 | `provino vitest` | Refused | Next |
 | RSpec-style lazy variables | A Provino extra, not a Jest feature: `import { lazy } from 'provino'` in a test file. It is never a global, and works with `injectGlobals: false` ([lazy variables](lazy-variables.md)) | Built |

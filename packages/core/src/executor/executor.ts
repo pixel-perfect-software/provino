@@ -629,7 +629,8 @@ export class Executor {
       const inner: Scope = { ...scope, concurrent: true }
       setRunningFrame(undefined)
       const life = this.#life
-      const tests = life === undefined ? NO_TESTS : group.nodes.filter((node) => node.type === 'test')
+      const tests =
+        life === undefined ? NO_TESTS : group.nodes.filter((node) => node.type === 'test')
       if (life !== undefined) await life({ type: 'concurrent-start', ref: suite, tests })
       results.push(
         ...(await Promise.all(

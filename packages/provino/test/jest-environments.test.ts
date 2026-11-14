@@ -4,13 +4,15 @@
 // the ones `@provino/dialect-jest` installs for its adapter smoke, linked into the project's
 // `node_modules` as pnpm would have put them.
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { liveJest, provinoRun, sorted } from './live-jest.ts'
+import { loadFixture, materialize } from './recorded.ts'
+import { spawnCli } from './support.ts'
 
 const require = createRequire(
   fileURLToPath(new URL('../../dialect-jest/package.json', import.meta.url)),
@@ -87,6 +89,52 @@ describe('T8.5: a Jest environment package runs a smoke file through the worker,
       const got = await provinoRun(root)
       assert.deepEqual(sorted(got.statuses), sorted(expected), got.stderr)
       assert.deepEqual([...got.statuses.values()], ['passed', 'passed', 'passed'], got.stderr)
+    })
+  }
+})
+
+// A custom environment's `handleTestEvent` (T8.5's rest, B23d): the environment in
+// `env/handle-test-event*` appends one JSON line per circus event; the lines Provino's mirror of
+// circus produces equal the ones Jest 30.5.2 wrote.
+describe('handleTestEvent sees the events Jest 30.5.2 gave it', () => {
+  for (const id of [
+    'env/handle-test-event',
+    'env/handle-test-event-only',
+    'env/handle-test-event-async',
+  ]) {
+    it(id, async () => {
+      const fixture = await loadFixture(id)
+      const project = await materialize(fixture)
+      try {
+        // The environment extends `jest-environment-node`, as it resolves from the project.
+        const target = dirname(require.resolve('jest-environment-node/package.json'))
+        await mkdir(join(project.root, 'node_modules'), { recursive: true })
+        await symlink(target, join(project.root, 'node_modules', 'jest-environment-node'))
+        const ended = await spawnCli(
+          [
+            'jest',
+            `--config=${join(project.root, 'jest.config.json')}`,
+            '--ci',
+            '--testLocationInResults',
+          ],
+          { cwd: project.root },
+        )
+        const recorded = fixture.golden.observed?.files?.['events.jsonl']
+        assert.equal(typeof recorded, 'string', 'the recording has the events')
+        const ours = await readFile(join(project.root, 'events.jsonl'), 'utf8')
+        const got = ours.trim().split('\n')
+        const want = (recorded as string).trim().split('\n')
+        const at = got.findIndex((line, index) => line !== want[index])
+        assert.equal(
+          at,
+          -1,
+          `line ${at}:\n provino ${got[at]}\n jest    ${want[at]}\n${ended.stderr.slice(-1500)}`,
+        )
+        assert.equal(got.length, want.length)
+        assert.equal(ended.code, fixture.golden.observed?.exitCode, ended.stderr)
+      } finally {
+        await project.dispose()
+      }
     })
   }
 })

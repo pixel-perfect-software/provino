@@ -137,7 +137,7 @@ export type D = (value: unknown) => string;
 export interface d<G extends object = typeof globalThis> {
     readonly context?: Context;
     readonly global: G;
-    onTestEvent?(event: RuntimeEvent): void | Promise<void>;
+    onTestEvent?(event: LifecycleEvent): void | Promise<void>;
     teardown(): void | _ | Promise<void | _>;
 }
 

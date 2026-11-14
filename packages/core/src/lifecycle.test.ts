@@ -140,7 +140,7 @@ describe('lifecycle events', () => {
     const seen: string[] = []
     await runScript(
       ({ test }, _step, runtime) => {
-        runtime.setDefaultRetry({ count: 1 })
+        runtime.setDefaultRetry({ count: 1, delay: 0 })
         let calls = 0
         test('flaky', () => {
           if (++calls === 1) throw new Error('first')

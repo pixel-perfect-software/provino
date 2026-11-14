@@ -197,6 +197,44 @@ describe('setup order', () => {
   })
 })
 
+describe("an environment that listens (Jest's handleTestEvent)", () => {
+  const files = {
+    'a.test.js': "test('one', () => { __trace.push('test one') })",
+  }
+
+  it("gets the file's lifecycle events between its set-up and its teardown, in the file's order", async () => {
+    const p = await project(files)
+    const config = runtimeConfig(p.dir, { environmentOptions: { listen: true } })
+    const trace: string[] = []
+    const run = await runJobs({ config, trace, jobs: [runtimeJob(config, p.path('a.test.js'))] })
+    assert.deepEqual(run.exit, { type: 'exit', code: 0 })
+    const steps = trace.filter((step) => /^(event:|test one|env:)/.test(step))
+    const events = steps.filter((step) => step.startsWith('event:'))
+    assert.deepEqual(events.slice(0, 3), [
+      'event:file-setup',
+      'event:define-test',
+      'event:run-start',
+    ])
+    assert.ok(events.includes('event:test-start one'))
+    assert.equal(events.at(-1), 'event:file-teardown')
+    // The body runs between the listener's fn-start and test-done; the teardown comes last.
+    assert.ok(steps.indexOf('test one') > steps.indexOf('event:fn-start'))
+    assert.ok(steps.indexOf('test one') < steps.indexOf('event:test-done one'))
+    assert.ok(steps.indexOf('event:file-teardown') < steps.indexOf('env:teardown matchers=toBe'))
+  })
+
+  it('has none of it when the environment has no onTestEvent', async () => {
+    const p = await project(files)
+    const config = runtimeConfig(p.dir)
+    const trace: string[] = []
+    await runJobs({ config, trace, jobs: [runtimeJob(config, p.path('a.test.js'))] })
+    assert.deepEqual(
+      trace.filter((step) => step.startsWith('event:')),
+      [],
+    )
+  })
+})
+
 describe('the file id (D23)', () => {
   it('is the job’s: every event of the file, and every task in it, carries the id the coordinator gave', async () => {
     const p = await project({

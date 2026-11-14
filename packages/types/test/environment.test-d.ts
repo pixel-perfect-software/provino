@@ -6,8 +6,11 @@ import type {
   EnvironmentHelper,
   EnvironmentInstance,
   EnvironmentTeardownReport,
-  RawCoverage,
   LifecycleEvent,
+  LifecycleListener,
+  LifecycleMode,
+  LifecycleRef,
+  RawCoverage,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -118,3 +121,25 @@ export {
   wrongShape,
   wrongShapeLater,
 }
+
+// The lifecycle events are a closed union over `type`, with nodes by identity (`LifecycleRef`).
+declare const ref: LifecycleRef
+const listener: LifecycleListener = (event) => {
+  if (event.type === 'fn-end') {
+    expectTypeOf(event.failed).toEqualTypeOf<boolean>()
+    expectTypeOf(event.error).toEqualTypeOf<unknown>()
+  }
+  if (event.type === 'define-test') {
+    expectTypeOf(event.mode).toEqualTypeOf<LifecycleMode>()
+    expectTypeOf(event.concurrent).toEqualTypeOf<boolean>()
+  }
+  if (event.type === 'test-done') expectTypeOf(event.errors).toEqualTypeOf<readonly unknown[]>()
+  // @ts-expect-error no such event
+  if (event.type === 'test-exploded') return
+}
+const retryEvent: LifecycleEvent = { type: 'test-retry', ref, keepEarlierErrors: true }
+// @ts-expect-error a retry says whether it keeps the errors
+const badRetry: LifecycleEvent = { type: 'test-retry', ref }
+// @ts-expect-error a node is `file`, `suite` or `test`
+const badRef: LifecycleRef = { type: 'hook', name: 'x' }
+void [listener, retryEvent, badRetry, badRef]

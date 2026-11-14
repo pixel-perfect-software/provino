@@ -267,12 +267,6 @@ export type {
   UnhandledErrorOrigin,
 } from './runtime/events.ts'
 export type {
-  LifecycleEvent,
-  LifecycleListener,
-  LifecycleMode,
-  LifecycleRef,
-} from './runtime/lifecycle.ts'
-export type {
   FileHandle,
   LazyFrame,
   LazyHost,
@@ -280,6 +274,12 @@ export type {
   TaskInfo,
   TestRunHandle,
 } from './runtime/lazy-host.ts'
+export type {
+  LifecycleEvent,
+  LifecycleListener,
+  LifecycleMode,
+  LifecycleRef,
+} from './runtime/lifecycle.ts'
 export type {
   FileTask,
   LazyEvaluation,
