@@ -104,6 +104,7 @@ export async function finishCoverage(
     totals: reporting.coverageTotals(remapped.map),
     thresholdFailures: [],
     map,
+    ...(Object.keys(remapped.sources).length === 0 ? {} : { sources: remapped.sources }),
     ...(untestedFailures.length === 0 ? {} : { untestedFailures }),
   }
 }

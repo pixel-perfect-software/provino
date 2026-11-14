@@ -287,6 +287,12 @@ export interface CoverageSummary {
    * `coverageMap` is made of).
    */
   readonly map: Readonly<Record<string, IstanbulFileCoverageData>>
+  /**
+   * The original text of each source in `map` that is not on disk at its path (a generated or
+   * virtual file whose map carried `sourcesContent`), by absolute path: the reports read it before
+   * the disk. Absent when every source is on disk.
+   */
+  readonly sources?: Readonly<Record<string, string>>
   /** The files no test loaded whose coverage could not be made, each with why. Absent when none. */
   readonly untestedFailures?: readonly {
     readonly path: string
