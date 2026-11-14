@@ -1,0 +1,10 @@
+{
+  "description": "Paths printed from a working directory below the config's rootDir (B23d A3 review): Jest prints a file's header relative to the working directory (`config.cwd`, the real path of `process.cwd()`), not to `rootDir`. The runner runs in `pkg/`, with the config's rootDir the fixture's root: `pkg/a.test.ts` is `a.test.ts` and `root.test.ts` is `../root.test.ts`. The files differ in size, so Jest's first-run order (largest first) is fixed. One worker. A black-box run.",
+  "runners": ["jest"],
+  "run": {
+    "cwd": "pkg",
+    "argv": { "jest": ["-w", "1"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^Tests:"
+  }
+}

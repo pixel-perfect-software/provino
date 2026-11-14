@@ -1,7 +1,7 @@
 // `provino jest <jest arguments>` (T11.13, U3): the Jest command line, parsed by the Jest dialect's
 // own parser, layered over the project Jest's config reader finds, run by the same coordinator
 // as `provino run`, and ended with Jest's exit codes.
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { type ResolvedProject, resolveNeutralProject } from '@provino/config'
@@ -286,6 +286,15 @@ function takeTimingsFlags(args: readonly string[]): {
   return { rest, timingsFile, updateTimings }
 }
 
+/** The real path of the working directory, as jest-config's `normalize` keeps it (`tryRealpath`). */
+function realCwd(cwd: string): string {
+  try {
+    return realpathSync(cwd)
+  } catch {
+    return cwd
+  }
+}
+
 /**
  * A project's files that `--filter` keeps: the filter is called with their absolute paths once per
  * project, as Jest's `runJest` calls it, however often the run asks (the reporters' file count and
@@ -557,13 +566,9 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
         reporterFailed = failures.length > 0
       },
       others,
-      // Jest prints a file's path from the working directory (`config.cwd`). The global config's
-      // `rootDir` is that directory unless the projects came from `--projects`, when it is the
-      // first project's.
-      root:
-        Array.isArray(parsed.argv.projects) && parsed.argv.projects.length > 0
-          ? cwd
-          : read.globalConfig.rootDir,
+      // Jest prints a file's path from the working directory (`config.cwd`, the real path of
+      // `process.cwd()`, jest-reporters `relativePath`), whatever the config's `rootDir` is.
+      root: realCwd(cwd),
       cwd,
       stdout,
       stderr,

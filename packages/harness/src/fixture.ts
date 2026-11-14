@@ -144,6 +144,12 @@ export type FixtureConfigOverlay = Readonly<
 export interface FixtureRun {
   readonly argv?: Readonly<Partial<Record<FixtureRunner, readonly string[]>>>
   /**
+   * The directory the runner runs in, relative to the fixture's work directory (a directory its
+   * files make): a run from below the config's `rootDir`, so the working directory and the root
+   * differ. Default: the work directory.
+   */
+  readonly cwd?: string
+  /**
    * `exitCode`, `stdout`, `stderr`, `file:<path>` (the file's text) and `json:<path>` (the file
    * parsed as JSON, under `timeKeys`, the work directory's path as `<root>` and each run of stack
    * frames collapsed to `<frames>`; `null` when the run left none there).
@@ -491,6 +497,7 @@ const RUN_STREAMS: readonly string[] = ['exitCode', 'stdout', 'stderr']
 const RUN_KEYS: readonly string[] = [
   'argv',
   'capture',
+  'cwd',
   'emptyStreams',
   'keepLines',
   'mask',
@@ -552,8 +559,18 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       throw bad(`has the unknown key "${key}" (expected ${RUN_KEYS.join(', ')})`)
     }
   }
-  const { argv, capture, emptyStreams, keepLines, mask, missingJson, raw, sortStdout, timeKeys } =
-    run
+  const {
+    argv,
+    capture,
+    cwd,
+    emptyStreams,
+    keepLines,
+    mask,
+    missingJson,
+    raw,
+    sortStdout,
+    timeKeys,
+  } = run
   if (
     !Array.isArray(capture) ||
     capture.length === 0 ||
@@ -573,6 +590,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
   const out: {
     argv?: Partial<Record<FixtureRunner, string[]>>
     capture: string[]
+    cwd?: string
     emptyStreams?: ('stdout' | 'stderr')[]
     missingJson?: string[]
     keepLines?: string
@@ -654,6 +672,12 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
   if (raw !== undefined) {
     if (raw !== true) throw bad('"raw" must be true (leave it out for off)')
     out.raw = true
+  }
+  if (cwd !== undefined) {
+    if (typeof cwd !== 'string' || cwd === '' || cwd === '.' || !staysInside(cwd)) {
+      throw bad('"cwd" must be a relative path inside the fixture (leave it out for its root)')
+    }
+    out.cwd = cwd
   }
   if (sortStdout !== undefined) {
     if (sortStdout !== true && sortStdout !== 'json') {
