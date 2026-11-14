@@ -43,7 +43,7 @@ import { fileIdOf, relativePosix } from './file-id.ts'
 import { type GlobalSetupRun, type RunGlobalHooks, runGlobalSetup } from './global-setup.ts'
 import { createInlineSnapshotWrites, withInlineSnapshots } from './inline-snapshots.ts'
 import { configHash, hashOf, type WorkerKeyInput, workerKeyOf } from './key.ts'
-import { obsoleteSnapshotFiles } from './obsolete-snapshots.ts'
+import { prepareObsoleteSnapshotCleanup } from './obsolete-snapshots.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
 import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
 import { selectFiles } from './select.ts'
@@ -664,6 +664,8 @@ export async function runProjects(
   let queue: readonly QueuedFile[] = []
   let interrupted = false
   let announced = false
+  /** The run ends by throwing before its reporters are told it ended (Jest dispatches no `onRunComplete`). */
+  let endUnreported = false
   /** `--bail`: the failed tests counted so far, and whether the count has ended the run. */
   let failedTests = 0
   let bailed = false
@@ -966,12 +968,26 @@ export async function runProjects(
     // it is given (TestScheduler L124-L127, L204-L224), so a path filter or a shard that leaves a
     // project no file leaves its orphan snapshot files alone, under `-u` too.
     if (options.collectOnly !== true && !interrupted && signal?.aborted !== true) {
-      for (const { member, discovered } of found) {
-        if (discovered.length === 0) continue
-        member.snapshots.removed.push(
-          ...(await obsoleteSnapshotFiles(member.project, member.snapshots.update)),
-        )
-      }
+      // Every resolver is built before any project is cleaned, and one that fails ends the run
+      // with its error, as `updateSnapshotState` does.
+      const cleanups = await Promise.all(
+        found.flatMap(({ member, discovered }) =>
+          discovered.length === 0
+            ? []
+            : [
+                prepareObsoleteSnapshotCleanup(member.project, member.snapshots.update).then(
+                  (clean) => ({ member, clean }),
+                  (error: unknown) => {
+                    // `scheduleTests` throws here, before it dispatches `onRunComplete`: the files'
+                    // results are out, the reporters hear no totals, and the error is the run's.
+                    endUnreported = true
+                    throw error
+                  },
+                ),
+              ],
+        ),
+      )
+      for (const { member, clean } of cleanups) member.snapshots.removed.push(...clean())
     }
     // A `-t` run executes only the matching tests of each file, so its durations are not the files'.
     const partial = options.testNamePattern !== undefined && options.testNamePattern !== ''
@@ -1020,7 +1036,7 @@ export async function runProjects(
     // The hook that tracks resources is process-wide: it must not outlive the run.
     handles?.dispose()
     // Reporters that heard `run:start` hear how it ended, whatever threw.
-    if (announced) {
+    if (announced && !endUnreported) {
       try {
         await bus.emit('error', serializeError(error), 'coordinator')
         await bus.emit('run:end', summarize('failed'))

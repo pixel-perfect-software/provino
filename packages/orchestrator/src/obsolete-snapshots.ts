@@ -38,29 +38,30 @@ async function testPathOf(project: ObsoleteSnapshotProject): Promise<(path: stri
 }
 
 /**
- * The project's snapshot files with no test file, sorted (deleted under `all`), or `[]` when its
- * policy doesn't report them. A resolver that can't be built has already failed every file of the
- * project; its files are not crawled.
+ * The project's cleanup of snapshot files with no test file: the project's resolver is built here
+ * (a project that names one has it loaded), and the function it returns crawls, sorts and, under
+ * `all`, deletes them. A policy that doesn't report them gets a cleanup that finds none.
+ *
+ * **A resolver that can't be built rejects**, with its own error, as Jest's does: `TestScheduler`'s
+ * `updateSnapshotState` builds every project's resolver before it cleans any (`Promise.all`,
+ * L205-L211, the throw escaping `scheduleTests`: the run prints the error and ends, with no totals
+ * and no file cleaned). The caller builds all of them first for the same reason.
  */
-export async function obsoleteSnapshotFiles(
+export async function prepareObsoleteSnapshotCleanup(
   project: ObsoleteSnapshotProject,
   update: 'all' | 'new' | 'none',
-): Promise<string[]> {
+): Promise<() => string[]> {
   const { snapshot } = project.policy
-  if (snapshot.obsoleteFiles !== 'report') return []
-  let resolveTestPath: (path: string) => string
-  try {
-    resolveTestPath = await testPathOf(project)
-  } catch {
-    return []
-  }
+  if (snapshot.obsoleteFiles !== 'report') return () => []
+  const resolveTestPath = await testPathOf(project)
   const { discovery } = project
-  return cleanObsoleteSnapshotFiles({
-    roots: discovery?.roots ?? [project.rootDir],
-    extension: snapshot.extension,
-    crawlIgnorePatterns: discovery?.crawlIgnorePatterns ?? [],
-    testPathIgnorePatterns: discovery?.excludePatterns ?? [],
-    testPathOf: resolveTestPath,
-    update,
-  })
+  return () =>
+    cleanObsoleteSnapshotFiles({
+      roots: discovery?.roots ?? [project.rootDir],
+      extension: snapshot.extension,
+      crawlIgnorePatterns: discovery?.crawlIgnorePatterns ?? [],
+      testPathIgnorePatterns: discovery?.excludePatterns ?? [],
+      testPathOf: resolveTestPath,
+      update,
+    })
 }

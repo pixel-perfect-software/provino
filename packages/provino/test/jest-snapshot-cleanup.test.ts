@@ -92,7 +92,7 @@ function snapshotLines(stderr: string): string[] {
   return [...lines.filter((line) => !line.includes('•')), ...listed.sort()]
 }
 
-/** Jest and Provino on two copies of one tree: the same exit code, files left and summary. */
+/** Jest and Provino on two copies of one tree: the same exit code, files left and summary lines. */
 async function sameAsJest(
   files: Files,
   args: readonly string[],
@@ -141,6 +141,56 @@ describe('the cleanup visits the projects that ran a test file, as Jest does', (
     const { jest: expected } = await sameAsJest(projects, [...CI_OFF, 'a/a.test'])
     assert.equal(expected.left.length, 2)
     assert.ok(snapshotLines(expected.stderr).some((line) => line.includes('a/__snapshots__')))
+  })
+})
+
+// A resolver that builds in a worker and not in the scheduler's own process: a forked worker has
+// `process.send`, the process that schedules the run has none. Jest builds every project's
+// resolver again after the run (`updateSnapshotState`), so the failure ends the run there.
+const COORDINATOR_ONLY_FAILURE = "resolver can't be built outside a worker"
+const RESOLVER = `const path = require('node:path')
+if (process.send === undefined) throw new Error(${JSON.stringify(COORDINATOR_ONLY_FAILURE)})
+module.exports = {
+  resolveSnapshotPath: (testPath, ext) =>
+    path.join(path.dirname(testPath), '__snaps__', path.basename(testPath) + ext),
+  resolveTestPath: (snapPath, ext) =>
+    path.join(path.dirname(snapPath), '..', path.basename(snapPath, ext)),
+  testPathForConsistencyCheck: path.join('some', 'dir', 'foo.test.js'),
+}
+`
+
+describe('a snapshotResolver that cannot be built after the run ends the run, as in Jest', () => {
+  const WORKERS = [...CI_OFF, '-w', '2']
+
+  it('the tests pass, the error is printed, and the exit code is 1', async () => {
+    const files = {
+      ...BASE,
+      'jest.config.json': JSON.stringify({ snapshotResolver: '<rootDir>/resolver.js' }),
+      'resolver.js': RESOLVER,
+      'a.test.js': PASS,
+      'b.test.js': PASS,
+    }
+    const { jest: expected, provino: got } = await sameAsJest(files, WORKERS)
+    assert.equal(expected.code, 1)
+    for (const ended of [expected, got]) {
+      assert.match(ended.stderr, /PASS \.?\/?a\.test\.js/)
+      assert.ok(ended.stderr.includes(COORDINATOR_ONLY_FAILURE), ended.stderr)
+      // The scheduler threw before `onRunComplete`: the files' results, the error, no totals.
+      assert.ok(!ended.stderr.includes('Test Suites:'), ended.stderr)
+    }
+  })
+
+  it('no project is cleaned: every resolver is built before the first cleanup', async () => {
+    const files = {
+      ...BASE,
+      'jest.config.json': JSON.stringify({ projects: ['<rootDir>/a', '<rootDir>/b'] }),
+      ...project('a', { snapshotResolver: '<rootDir>/resolver.js' }),
+      'a/resolver.js': RESOLVER,
+      ...project('b'),
+    }
+    const { jest: expected } = await sameAsJest(files, [...WORKERS, '-u'])
+    assert.equal(expected.code, 1)
+    assert.ok(expected.left.includes('b/__snapshots__/gone.test.js.snap'), 'Jest cleaned nothing')
   })
 })
 
