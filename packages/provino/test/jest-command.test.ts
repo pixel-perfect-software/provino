@@ -31,11 +31,11 @@ const provino = (args: readonly string[], cwd: string) => spawnCli(['jest', ...a
 describe('what provino jest does not run is said, not ignored', () => {
   it('refuses a flag with no backend by name, with the task that builds it', async () => {
     const dir = await tree({ 'jest.config.json': CONFIG, 'tests/a.test.js': passing('a') })
-    // A refusal names the flag by its long name, whatever alias was typed.
+    // A refusal names the flag by its long name, whatever alias was typed (`-o` was the aliased
+    // case until B23c built it; no refused flag left has an alias).
     for (const [flag, task, named] of [
       ['--detectLeaks', 'T2.7'],
       ['--watch', 'T9.11'],
-      ['-o', 'Track 9', '--onlyChanged'],
     ] as readonly (readonly [string, string, string?])[]) {
       const ended = await provino([flag], dir)
       assert.equal(ended.code, 1, `${flag}: ${ended.stderr}`)
