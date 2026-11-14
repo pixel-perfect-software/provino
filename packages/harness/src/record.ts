@@ -254,7 +254,10 @@ function byName(a: JsonValue, b: JsonValue): number {
 /**
  * A `json:` capture's value as it is recorded: every string has each of `roots` as `<root>`, each
  * run of stack frames as `\n<frames>` and each `mask` match as `<masked>`; every number under one
- * of `timeKeys` is `"<time>"`. Keys are kept as they are. The Provino side of a comparison does the
+ * of `timeKeys` is `"<time>"`. A key has each of `roots` as `<root>` (Istanbul's reports are keyed
+ * by absolute path) and is otherwise kept as it is; an object whose every key is a path under a
+ * root (an Istanbul map, in the order its files finished) has its keys sorted. The Provino side of
+ * a comparison does the
  * same walk (`packages/provino/test/mask.ts` is a copy).
  */
 export function normalizedJson(
@@ -265,11 +268,12 @@ export function normalizedJson(
     readonly mask: (text: string) => string
   },
 ): JsonValue {
-  const text = (raw: string): string => {
+  const rooted = (raw: string): string => {
     let out = raw
     for (const root of options.roots) out = out.replaceAll(root, '<root>')
-    return options.mask(out.replace(FRAME_RUN, '\n<frames>'))
+    return out
   }
+  const text = (raw: string): string => options.mask(rooted(raw).replace(FRAME_RUN, '\n<frames>'))
   const walk = (node: JsonValue, key: string | undefined): JsonValue => {
     if (typeof node === 'string') return text(node)
     if (typeof node === 'number') {
@@ -281,13 +285,25 @@ export function normalizedJson(
       return key === 'testResults' ? items.toSorted(byName) : items
     }
     if (typeof node === 'object' && node !== null) {
-      return Object.fromEntries(
-        Object.entries(node).map(([name, inner]) => [name, walk(inner, name)]),
-      )
+      const entries = Object.entries(node).map(([name, inner]): [string, JsonValue] => [
+        rooted(name),
+        walk(inner, name),
+      ])
+      // Istanbul's maps are keyed by path in the order the files finished: a canonical order.
+      return Object.fromEntries(byPathKeys(entries) ? entries.toSorted(byKey) : entries)
     }
     return node
   }
   return walk(value, undefined)
+}
+
+/** Whether every key of an object is a path under the work directory (an Istanbul map). */
+function byPathKeys(entries: readonly (readonly [string, JsonValue])[]): boolean {
+  return entries.length > 0 && entries.every(([key]) => key.startsWith('<root>/'))
+}
+
+function byKey(a: readonly [string, JsonValue], b: readonly [string, JsonValue]): number {
+  return compareStrings(a[0], b[0])
 }
 
 /** `mask`'s regular expressions (flags `gm`) as one function over a text. */

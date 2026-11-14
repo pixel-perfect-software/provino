@@ -1,7 +1,8 @@
 // How a `json:` capture is recorded (`@provino/harness` `record.ts` `normalizedJson`), for the
 // Provino side of a comparison. A copy, like `sweep.ts`: `provino` may not import the harness.
 // Every string has each root as `<root>`, each run of stack frames as `\n<frames>` and each mask
-// match as `<masked>`; every number under a time key is `"<time>"`.
+// match as `<masked>`; every number under a time key is `"<time>"`. A key has each root as `<root>` too, and an object keyed by paths
+// under a root (an Istanbul map) has its keys sorted.
 export type Json =
   | string
   | number
@@ -66,10 +67,13 @@ export function normalizedJson(
   },
 ): Json {
   const expressions = (options.mask ?? []).map((source) => new RegExp(source, 'gm'))
-  const text = (raw: string): string => {
+  const rooted = (raw: string): string => {
     let out = raw
     for (const root of options.roots) out = out.replaceAll(root, '<root>')
-    out = out.replace(FRAME_RUN, '\n<frames>')
+    return out
+  }
+  const text = (raw: string): string => {
+    const out = rooted(raw).replace(FRAME_RUN, '\n<frames>')
     return expressions.reduce((masked, expression) => masked.replace(expression, '<masked>'), out)
   }
   const walk = (node: Json, key: string | undefined): Json => {
@@ -83,8 +87,14 @@ export function normalizedJson(
       return key === 'testResults' ? items.toSorted(byName) : items
     }
     if (typeof node === 'object' && node !== null) {
+      const entries = Object.entries(node).map(([name, inner]): [string, Json] => [
+        rooted(name),
+        walk(inner, name),
+      ])
+      // Istanbul's maps are keyed by path in the order the files finished: a canonical order.
+      const paths = entries.length > 0 && entries.every(([name]) => name.startsWith('<root>/'))
       return Object.fromEntries(
-        Object.entries(node).map(([name, inner]) => [name, walk(inner, name)]),
+        paths ? entries.toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)) : entries,
       )
     }
     return node
