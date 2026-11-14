@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { JEST, noColorEnv } from './live-jest.ts'
 import { FIXTURES, loadFixture, materialize } from './recorded.ts'
-import { outputFree, spawnCli } from './support.ts'
+import { outputFree, spawnCli, withoutNodeNoise } from './support.ts'
 
 /** Under the harness package, where Jest is installed, so the project's own Jest is found as in a real project. */
 const PARENT = join(FIXTURES, '..', '.record')
@@ -88,7 +88,7 @@ describe('provino jest --debug against Jest 30.5.2', () => {
       const provino = await spawnCli(['jest', ...args], { cwd: root })
       assert.equal(provino.code, jest.code, provino.stderr)
       const debug = (text: string): string => withoutSeed(text.slice(0, text.indexOf('\n}\n') + 3))
-      assert.equal(debug(provino.stderr), debug(jest.stderr), flag)
+      assert.equal(debug(withoutNodeNoise(provino.stderr)), debug(jest.stderr), flag)
       assert.equal(provino.stdout, jest.stdout, flag)
     }
   })
