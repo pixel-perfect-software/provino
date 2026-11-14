@@ -7,7 +7,7 @@ import { createRequire } from 'node:module'
 import { join, relative } from 'node:path'
 import { Writable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
-import { viewOfNormalized } from './support.ts'
+import { spawnCli, viewOfNormalized } from './support.ts'
 
 /** Real Jest 30.5.2's bin, from the Jest the harness installs: the oracle. */
 export const JEST: string = createRequire(
@@ -94,6 +94,11 @@ export async function liveJest(cwd: string): Promise<Statuses> {
     '--json',
     `--outputFile=${out}`,
   ])
+  return statusesOfJestJson(cwd, out)
+}
+
+/** The statuses in a Jest results file (`--json --outputFile`), by `<file>::<full name>`. */
+async function statusesOfJestJson(cwd: string, out: string): Promise<Statuses> {
   const report = JSON.parse(await readFile(out, 'utf8')) as {
     testResults: { name: string; assertionResults: { fullName: string; status: string }[] }[]
   }
@@ -106,23 +111,37 @@ export async function liveJest(cwd: string): Promise<Statuses> {
   return map
 }
 
-/** Provino's statuses, read from its normalized-json, in Jest's words. */
+/**
+ * Provino's statuses, read from its normalized-json, in Jest's words. The run is `runJestCommand`
+ * in this process, so a project Jest runs in band (`shouldRunInBand`: one file, say) runs its
+ * files in this process too, as Jest would in its own. `inChild` runs the bin in a child process
+ * instead (in band there, the same way), for a project whose files can't share this process with
+ * `node:test`; the caller says why.
+ */
 export async function provinoRun(
   cwd: string,
+  options: { readonly inChild?: boolean } = {},
 ): Promise<{ code: number; statuses: Statuses; stderr: string }> {
+  if (options.inChild === true) {
+    const out = join(cwd, '.out-provino-jest.json')
+    const ended = await spawnCli(
+      ['jest', '--no-cache', '--ci', '-c', 'jest.config.json', '--json', `--outputFile=${out}`],
+      { cwd },
+    )
+    return {
+      code: ended.code ?? 1,
+      statuses: await statusesOfJestJson(cwd, out),
+      stderr: ended.stderr,
+    }
+  }
   const out = join(cwd, '.out-provino.json')
   const stderr = new Sink()
-  // A memory limit asks for workers, as the recorded runs of the fixtures that need one had it:
-  // a single file would otherwise run in band, in this test process (Jest's `shouldRunInBand`).
-  const code = await runJestCommand(
-    ['--no-cache', '--ci', '-c', 'jest.config.json', '--workerIdleMemoryLimit=8000000000'],
-    {
-      stdout: new Sink(),
-      stderr,
-      cwd,
-      reporters: [['normalized-json', { outputFile: out }]],
-    },
-  )
+  const code = await runJestCommand(['--no-cache', '--ci', '-c', 'jest.config.json'], {
+    stdout: new Sink(),
+    stderr,
+    cwd,
+    reporters: [['normalized-json', { outputFile: out }]],
+  })
   const word: Readonly<Record<string, string>> = { skipped: 'pending' }
   const map = new Map<string, string>()
   for (const [file, entry] of viewOfNormalized(await readFile(out, 'utf8')).files) {

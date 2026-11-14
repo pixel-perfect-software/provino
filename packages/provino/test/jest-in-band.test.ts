@@ -4,10 +4,13 @@
 // printed under the file's header, and sees a global the global setup set (`cli/global-setup-globals-*`,
 // in `global-setup.test.ts`). The text is held to the lines Jest 30.5.2 kept for the same projects.
 import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
+import { JEST, noColorEnv, provinoRun } from './live-jest.ts'
 import { loadFixture, materialize, underRoot } from './recorded.ts'
 import { startCli } from './support.ts'
 
@@ -64,6 +67,8 @@ describe('-i prints what Jest 30.5.2 printed for the same project', () => {
 async function noting(
   files: number,
   config: Readonly<Record<string, unknown>> = {},
+  /** What each file notes: its process id, or (`thread`) also whether it runs on the main thread. */
+  what: 'pid' | 'thread' = 'pid',
 ): Promise<string> {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'provino-in-band-')))
   made.push(root)
@@ -76,7 +81,7 @@ async function noting(
   for (let index = 0; index < files; index++) {
     await writeFile(
       join(root, 'tests', `f${index}.test.js`),
-      `test('notes its process', () => {\n  require('node:fs').appendFileSync(${JSON.stringify(join(root, 'pids.txt'))}, process.pid + '\\n')\n})\n`,
+      `test('notes its process', () => {\n  require('node:fs').appendFileSync(${JSON.stringify(join(root, 'pids.txt'))}, process.pid + ${what === 'thread' ? "(require('node:worker_threads').isMainThread ? '' : ':thread') + " : ''}'\\n')\n})\n`,
     )
   }
   return root
@@ -98,7 +103,29 @@ async function ranInBand(root: string, flags: readonly string[]): Promise<boolea
   return pids.every((pid) => pid === own)
 }
 
+/** Runs real Jest 30.5.2 on `root`; whether every file ran in Jest's own process. */
+async function jestRanInBand(root: string, flags: readonly string[]): Promise<boolean> {
+  const child = spawn(
+    process.execPath,
+    [JEST, `--config=${join(root, 'jest.config.json')}`, ...flags],
+    { cwd: root, env: noColorEnv(), stdio: 'ignore' },
+  )
+  const [code] = await once(child, 'close')
+  assert.equal(code, 0)
+  const pids = (await readFile(join(root, 'pids.txt'), 'utf8')).trim().split('\n')
+  await rm(join(root, 'pids.txt'))
+  return pids.every((pid) => pid === String(child.pid))
+}
+
 describe('which runs go in band (Jest `shouldRunInBand`, the policy `orchestrator.inBand`)', () => {
+  it('--workerThreads leaves a single file in band, as live Jest does (shouldRunInBand never reads it)', async () => {
+    // A worker thread has the bin's pid: the file also notes whether it is on the main thread.
+    const root = await noting(1, {}, 'thread')
+    const flags = ['--workerThreads', '-w', '2']
+    assert.equal(await jestRanInBand(root, flags), true, 'Jest runs it in band')
+    assert.equal(await ranInBand(root, flags), true)
+  })
+
   it('-i runs every file in the bin', async () => {
     assert.equal(await ranInBand(await noting(3), ['-i']), true)
   })
@@ -132,5 +159,15 @@ describe('which runs go in band (Jest `shouldRunInBand`, the policy `orchestrato
   it('a workerIdleMemoryLimit keeps even a single file in a worker', async () => {
     const root = await noting(1, { workerIdleMemoryLimit: 1_000_000_000 })
     assert.equal(await ranInBand(root, ['-w', '2']), false)
+  })
+})
+
+describe('the live parity suites run in the mode Jest runs them in', () => {
+  it('provinoRun runs a single-file project in band, in this process, as Jest runs it in its own', async () => {
+    const root = await noting(1)
+    const ended = await provinoRun(root)
+    assert.equal(ended.code, 0, ended.stderr)
+    const pids = (await readFile(join(root, 'pids.txt'), 'utf8')).trim().split('\n')
+    assert.deepEqual(pids, [String(process.pid)])
   })
 })

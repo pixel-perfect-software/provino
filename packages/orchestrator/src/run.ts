@@ -72,10 +72,17 @@ const TEARDOWN_TIMEOUT_MS = 10_000
 export interface RunPoolOptions {
   /**
    * Default `policy.orchestrator.pool.default`. Naming a kind also turns off the policy's automatic
-   * choice to run in band (`orchestrator.inBand`): the caller has chosen. `runInBand` and
-   * `detectOpenHandles` still run in band.
+   * choice to run in band (`orchestrator.inBand`): the caller has chosen, unless
+   * `automaticInBand` says otherwise. `runInBand` and `detectOpenHandles` still run in band.
    */
   readonly kind?: PoolKind
+  /**
+   * Whether the policy's `orchestrator.inBand` may still put the run in band. Default: only when
+   * no `kind` is named. `true` makes `kind` the pool to use when the run is not in band (Jest's
+   * `--workerThreads`, which `shouldRunInBand` never reads); `false` turns the choice off even
+   * without a `kind`.
+   */
+  readonly automaticInBand?: boolean
   /**
    * Default `defaultMaxWorkers()`. The transport can cap it: an `inline` pool ignores it and runs
    * exactly one worker (`--runInBand`; see `TransportFactory.maxWorkers`).
@@ -905,9 +912,12 @@ export async function runProjects(
     // Whether the files run in this process, now that the run's files are known (Jest's
     // `shouldRunInBand`, from the policy's numbers): the pool is made again as an inline one.
     const inBand = shouldRunInBand({
-      // A caller that names `forks` or `threads` has chosen: only `runInBand` and
-      // `detectOpenHandles` move the run into this process then.
-      policy: options.pool?.kind === undefined ? orchestrator.inBand : NO_AUTOMATIC_IN_BAND,
+      // A caller that names `forks` or `threads` has chosen, unless it says the kind is only for a
+      // run that is not in band: only `runInBand` and `detectOpenHandles` move it into this process.
+      policy:
+        (options.pool?.automaticInBand ?? options.pool?.kind === undefined)
+          ? orchestrator.inBand
+          : NO_AUTOMATIC_IN_BAND,
       ...(options.runInBand === true ? { runInBand: true } : {}),
       ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
       workerMemoryLimit: options.pool?.recycle?.memoryLimitBytes !== undefined,

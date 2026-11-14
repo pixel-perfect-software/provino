@@ -570,7 +570,11 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
         request,
       ),
       pool: {
-        ...(request.workerThreads === true ? { kind: 'threads' as const } : {}),
+        // `--workerThreads` is the pool for a run that is not in band: Jest's `shouldRunInBand`
+        // never reads it, so a single file still runs in this process.
+        ...(request.workerThreads === true
+          ? { kind: 'threads' as const, automaticInBand: true }
+          : {}),
         maxWorkers: read.globalConfig.maxWorkers,
         ...workerRecycle(read.globalConfig.workerIdleMemoryLimit),
       },

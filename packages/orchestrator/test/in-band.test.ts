@@ -144,6 +144,23 @@ describe('which runs go in band', () => {
     assert.ok(inBand(await pidsOf(p.dir)), 'runInBand was asked for')
   })
 
+  it('automaticInBand keeps the policy’s choice on beside a named kind, the pool for a run not in band', async () => {
+    const p = await makeProject({ 'a.test.js': '', 'b.test.js': '' })
+    await writeFile(p.path('a.test.js'), noting(p.dir))
+    const project = runtimeProject(p.dir, {
+      policy: { orchestrator: JEST_NUMBERS },
+      include: ['a.test.js'],
+    })
+    await run(project, { pool: { kind: 'forks', automaticInBand: true, maxWorkers: 2 } })
+    assert.ok(inBand(await pidsOf(p.dir)), 'one file: in band')
+    await writeFile(p.path('b.test.js'), noting(p.dir))
+    const two = runtimeProject(p.dir, { policy: { orchestrator: JEST_NUMBERS } })
+    await run(two, { pool: { kind: 'forks', automaticInBand: true, maxWorkers: 2 } })
+    assert.ok(!inBand(await pidsOf(p.dir)), 'two files, two workers: the named kind')
+    await run(project, { pool: { automaticInBand: false, maxWorkers: 2 } })
+    assert.ok(!inBand(await pidsOf(p.dir)), 'false turns the choice off with no kind')
+  })
+
   it('a memory limit for the workers keeps even a single file in one', async () => {
     const p = await makeProject({ 'a.test.js': '' })
     await writeFile(p.path('a.test.js'), noting(p.dir))
