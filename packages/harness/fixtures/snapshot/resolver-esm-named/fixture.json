@@ -1,0 +1,20 @@
+{
+  "description": "A `snapshotResolver` written as an ES module with named exports and no default (B23d B1 review): Jest 30.5.2 reads `interopRequireDefault(require(path)).default`, which is undefined for it, so every test file fails with the engine's own TypeError, not with the `must implement` text.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "snapshotResolver": "<rootDir>/resolver.ts"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^ +Custom |^ +Documentation"
+  }
+}

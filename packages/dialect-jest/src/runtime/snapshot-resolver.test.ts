@@ -47,10 +47,13 @@ async function jest(module: unknown): Promise<unknown> {
   }
 }
 
-/** What we make of it: the worker hands over what `import()` of a CommonJS module gives. */
-function ours(module: unknown): unknown {
+/**
+ * What we make of it: the worker hands over what `import()` of the module gave, a namespace; for a
+ * CommonJS module `{ default: module.exports }`.
+ */
+function ours(namespace: unknown): unknown {
   try {
-    const resolver = jestSnapshotResolver({ default: module }, '.snap')
+    const resolver = jestSnapshotResolver(namespace, '.snap')
     return {
       path: resolver.resolveSnapshotPath('t.test.js'),
       test: resolver.testPathForConsistencyCheck,
@@ -73,9 +76,38 @@ describe('jestSnapshotResolver against jest-snapshot 30.5.2', () => {
   }
   for (const [name, module] of Object.entries(cases)) {
     test(name, async () => {
-      assert.deepEqual(ours(module), await jest(module))
+      assert.deepEqual(ours({ default: module }), await jest(module))
     })
   }
+
+  // An ES module reaches Jest as its Babel-compiled CommonJS (`__esModule`, the exports as own
+  // properties) and us as its namespace. Jest reads `.default` of it, whatever the named exports.
+  const esModules: Record<string, readonly [jestRequires: unknown, namespace: unknown]> = {
+    'an ES module with a default export': [
+      { __esModule: true, default: inverse },
+      { default: inverse },
+    ],
+    'an ES module with named exports only': [{ __esModule: true, ...inverse }, { ...inverse }],
+    'an ES module with named exports and a default that is not a resolver': [
+      { __esModule: true, ...inverse, default: 1 },
+      { ...inverse, default: 1 },
+    ],
+    'an ES module whose default is null': [{ __esModule: true, default: null }, { default: null }],
+    'an ES module with no exports': [{ __esModule: true }, {}],
+  }
+  for (const [name, [jestRequires, namespace]] of Object.entries(esModules)) {
+    test(name, async () => {
+      assert.deepEqual(ours(namespace), await jest(jestRequires))
+    })
+  }
+
+  test('named exports only is the engine`s own TypeError, as in Jest', async () => {
+    const [jestRequires, namespace] = esModules['an ES module with named exports only'] ?? []
+    assert.deepEqual(await jest(jestRequires), {
+      error: "TypeError: Cannot read properties of undefined (reading 'resolveSnapshotPath')",
+    })
+    assert.deepEqual(ours(namespace), await jest(jestRequires))
+  })
 
   test('the policy`s ref loads it', async () => {
     const ref = resolvePolicy(jestPolicy).snapshot.resolverFactory

@@ -76,6 +76,8 @@ describe('provino jest -u and --ci against Jest 30.5.2', () => {
 // does `provino jest` (the kept lines are the file failures alone).
 const RESOLVER_AND_OBSOLETE: readonly string[] = [
   'snapshot/resolver-custom',
+  'snapshot/resolver-esm-default',
+  'snapshot/resolver-esm-named',
   'snapshot/resolver-inconsistent',
   'snapshot/resolver-missing-member',
   'cli/report-snapshot-obsolete-file',

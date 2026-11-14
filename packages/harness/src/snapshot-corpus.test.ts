@@ -56,12 +56,14 @@ const HELD_BY_PROVINO_JEST: Readonly<Record<string, string>> = {
   'snapshot/inline-prettier': 'the default `prettierPath`, the workspace`s Prettier 3',
   'snapshot/inline-tsx': 'a `preset` transform and a `.tsx` `testMatch`',
   'snapshot/resolver-custom': '`snapshotResolver`',
+  'snapshot/resolver-esm-default': '`snapshotResolver`',
+  'snapshot/resolver-esm-named': '`snapshotResolver`',
   'snapshot/resolver-inconsistent': '`snapshotResolver`',
   'snapshot/resolver-missing-member': '`snapshotResolver`',
 }
 
 /** The pairs the check ran and the snapshot tests in them, pinned so it cannot pass by running nothing. */
-const EXPECTED = { pairs: 50, evidenceOnly: 8, tests: 128 } as const
+const EXPECTED = { pairs: 50, evidenceOnly: 10, tests: 128 } as const
 
 const fixtures: Fixture[] = await Promise.all(
   (await findFixtures(path.join(defaultFixturesRoot(), 'snapshot'))).map((dir) => readFixture(dir)),

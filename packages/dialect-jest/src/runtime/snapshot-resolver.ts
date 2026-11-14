@@ -5,17 +5,21 @@
 // texts. Jest prints both in bold (chalk); here they are plain.
 import type { SnapshotResolver, SnapshotResolverFactory } from '@provino/types'
 
-/** jest-util's `interopRequireDefault(x).default`, over what an `import()` of the module gave. */
+/**
+ * jest-util's `interopRequireDefault(require(path)).default` (`createCustomSnapshotResolver`
+ * L86-L88), over what an `import()` of the module gave: a namespace, whose `default` is what
+ * Jest's `.default` is. A module with no `default` has none for Jest either (an ES module with
+ * named exports only), and `undefined` comes out, as it does there; the checks below then read a
+ * property of it and throw the engine's own `TypeError`, as Jest's do. Under the `node`
+ * interop a CommonJS module's `default` is its `exports`, and one that set `__esModule` keeps
+ * its own `default`.
+ */
 function defaultOf(exports: unknown): unknown {
-  if (typeof exports === 'object' && exports !== null && 'default' in exports) {
-    const inner: unknown = exports.default
-    // A CommonJS module that set `__esModule` keeps its own `default` (Babel's interop).
-    if (typeof inner === 'object' && inner !== null && Reflect.get(inner, '__esModule') === true) {
-      return Reflect.get(inner, 'default')
-    }
-    return inner
+  const inner: unknown = typeof exports === 'object' && exports !== null ? Reflect.get(exports, 'default') : undefined
+  if (typeof inner === 'object' && inner !== null && Reflect.get(inner, '__esModule') === true) {
+    return Reflect.get(inner, 'default')
   }
-  return exports
+  return inner
 }
 
 /** `mustImplement` (L111-L115). */
@@ -38,20 +42,16 @@ export const jestSnapshotResolver: SnapshotResolverFactory = (
   exports: unknown,
   extension: string,
 ): SnapshotResolver => {
-  const custom = defaultOf(exports)
-  const member = (name: string): unknown =>
-    typeof custom === 'object' && custom !== null ? Reflect.get(custom, name) : undefined
+  const custom = defaultOf(exports) as SnapshotResolver
   for (const [propName, requiredType] of MEMBERS) {
-    if (typeof member(propName) !== requiredType) {
+    if (typeof custom[propName] !== requiredType) {
       throw new TypeError(mustImplement(propName, requiredType))
     }
   }
-  const resolveSnapshot = member('resolveSnapshotPath') as (path: string, ext: string) => string
-  const resolveTest = member('resolveTestPath') as (path: string, ext: string) => string
   const resolver: SnapshotResolver = {
-    resolveSnapshotPath: (testPath) => resolveSnapshot.call(custom, testPath, extension),
-    resolveTestPath: (snapshotPath) => resolveTest.call(custom, snapshotPath, extension),
-    testPathForConsistencyCheck: member('testPathForConsistencyCheck') as string,
+    resolveSnapshotPath: (testPath) => custom.resolveSnapshotPath(testPath, extension),
+    resolveTestPath: (snapshotPath) => custom.resolveTestPath(snapshotPath, extension),
+    testPathForConsistencyCheck: custom.testPathForConsistencyCheck,
   }
   // `verifyConsistentTransformations` (L117-L131).
   const { testPathForConsistencyCheck } = resolver
