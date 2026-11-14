@@ -287,6 +287,7 @@ test('Jest’s changed-file and affected-test keys are refs into the coordinator
   })
   assert.equal(orchestrator.affected.invalidateAll, 'none')
   assert.equal(orchestrator.affected.graph, 'static')
+  assert.equal(orchestrator.affected.conditions, 'none')
   // Until Phase 5 builds them, the leaf's exports refuse with the orchestrator's code.
   const provider = await createBehaviourLoader().load(orchestrator.changedFiles as never)
   await assert.rejects(

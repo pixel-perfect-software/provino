@@ -410,6 +410,7 @@ function resolverKeys(input: ProjectInput): Partial<SerializedLoaderConfig> {
     ...(resolution?.resolver === undefined
       ? {}
       : { resolver: { module: resolution.resolver, export: 'default' } }),
+    ...(resolution?.skipNodeResolution === true ? { skipNodeResolution: true } : {}),
   }
 }
 

@@ -11,6 +11,7 @@ import type {
   ModuleRef,
   NeutralProject,
   OrchestratorPolicy,
+  SerializedLoaderConfig,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -41,6 +42,10 @@ expectTypeOf(orchestrator.affected.graph).toEqualTypeOf<'static' | 'recorded-the
 expectTypeOf(orchestrator.affected.invalidateAll).toEqualTypeOf<'project-inputs' | 'none'>()
 // @ts-expect-error the graph is `static` or `recorded-then-static`
 const badGraph: OrchestratorPolicy['affected']['graph'] = 'recorded'
+expectTypeOf(orchestrator.affected.conditions).toEqualTypeOf<'environment' | 'none'>()
+// @ts-expect-error the conditions are named by where they come from, not listed
+const badConditions: OrchestratorPolicy['affected']['conditions'] = ['require']
+expectTypeOf<NonNullable<SerializedLoaderConfig['skipNodeResolution']>>().toEqualTypeOf<boolean>()
 
 // What crosses to a worker stays clone-safe
 expectTypeOf<NonNullable<FileJob['staleModules']>>().toEqualTypeOf<readonly string[]>()
@@ -61,4 +66,4 @@ expectTypeOf<NonNullable<NeutralProject['affected']>['extractor']>().toEqualType
   ModuleRef | undefined
 >()
 
-void [noPaths, badGraph, fnStale, undefStale]
+void [noPaths, badGraph, badConditions, fnStale, undefStale]

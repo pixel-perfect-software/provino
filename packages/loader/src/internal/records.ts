@@ -641,3 +641,13 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
   }
   return fn
 }
+
+/**
+ * Forgets the records of these modules (absolute paths), so the next load reads and compiles them
+ * again. Watch mode's stale modules (B23c). A path with no record is skipped; the module graphs are
+ * marked stale because a record they pointed at is gone.
+ */
+export function dropRecords(state: Records, paths: readonly string[]): void {
+  for (const path of paths) state.records.delete(toModuleId(path))
+  state.asyncGraphsStale = true
+}

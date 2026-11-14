@@ -35,6 +35,8 @@ export interface FileDispatch {
   readonly deps: readonly string[] | undefined
   /** How many tests ended `todo`. */
   readonly todo: number
+  /** How many tests ended `skip` (`-t`, `.only` or `.skip` left them out): their bodies never ran. */
+  readonly skipped: number
 }
 
 /**
@@ -82,6 +84,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
   const ownTable = createDepsTable()
   const tableOf = depsTable ?? ((): DepsTable => ownTable)
   let todo = 0
+  let skipped = 0
 
   function node(event: WorkerEvent, id: TaskId): TaskNode {
     const found = nodes.get(id)
@@ -137,6 +140,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
         await bus.emit('task:end', suiteOrTest(event, event.id), event)
         if (event.result.state === 'fail') onTestFailed?.()
         else if (event.result.state === 'todo') todo++
+        else if (event.result.state === 'skip') skipped++
         return
       }
       case 'hook-start':
@@ -174,6 +178,9 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
     },
     get todo() {
       return todo
+    },
+    get skipped() {
+      return skipped
     },
   }
 }
