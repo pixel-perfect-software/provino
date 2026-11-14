@@ -158,6 +158,8 @@ One pool, one bus, one `maxWorkers` (the cap counts every project's workers), on
 - **No coalescing.** Every `RuntimeEvent` is a transition reporters see (§6's one event model). The brief's "coalesce per task" came from Track 9's retired `task:update` shape (DECISIONS P4).
 - **`WorkerMethods.memoryUsage` replaces `Transport.memoryUsage`.** A parent can't read a forked child's RSS, so the worker measures itself: RSS in a fork, `v8.getHeapStatistics().used_heap_size` (the isolate's own heap, as jest-worker's `process.memoryUsage().heapUsed`) in a thread or inline. RSS is the whole process's in a thread, and `external` counts reserved `ArrayBuffer`s, not memory held. `test/coordinator.test.ts` runs real threads under the default limit and checks one worker serves every file.
 
+- **`--detectLeaks` and `--logHeapUsage` (B23d A4).** `RunProjectOptions.detectLeaks`/`logHeapUsage` become `FileJob.detectLeaks`/`logHeapUsage`; `detectLeaks` under a project of isolation `none` is `ORCH_BAD_OPTION`, naming `none`, before `run:start`. The worker measures `heapUsed` (after `gc()` when exposed) after the file ran and before its teardown (`fileDone.heapUsedBytes` → `FileResult.heapUsedBytes`). After teardown `runFile` returns `FileOutcome.isLeaking`, a check made by `createLeakCheck` (`internal/runtime/leaks.ts`) over `WeakRef`s to the file registry, its `leakTargets()` (the loader's `Registry`, which a leaked `require` reaches) and the environment instance; `startWorker` calls it **after the runner has returned**, so no frame of the file holds them: 100 ms, `gc` through `v8.setFlagsFromString('--expose-gc')` and `vm.runInNewContext('gc')`, ten ticks, a heap snapshot if still held, ten ticks (jest-leak-detector's `isLeaking`). Under the flag the runner also **releases the file scope** (`releaseScope`): the `fileScope` store is held by every async frame made while the file ran (Node's own 10 s `clearBuffersCache` timer, first created inside a cold file, kept the whole scope alive), so after the teardown its registries are `undefined` and a callback the file left behind that asks for them gets `ORCH_NO_ACTIVE_FILE` (without the flag it finds the disposed ones, which do nothing). `fileDone.leaks` makes `runFile` fail the file whole (`state` `fail`, `resultsDiscarded`, `FileResult.leaks`, one neutral error that the Jest dialect replaces with Jest's text), as `TestScheduler's` `onFailure` does.
+
 ## Tests
 
 - `src/**/*.test.ts`: unit tests per node: the packer, console capture, `startWorker` over a raw `MessageChannel` (the test plays the coordinator), `connect()`'s handshake races over a fake spawned worker, and `connectWorker` over a fake transport.
@@ -185,7 +187,7 @@ One pool, one bus, one `maxWorkers` (the cap counts every project's workers), on
 | Discovery by rules for a Vitest project (`include` relative to the root is built, `globMatchesOn: 'root-relative-path'`, but no Vitest reader produces rules yet), and a `.snap` extension in the crawl (Jest crawls `snap` too; no `testMatch` in use matches one) | T11.15 |
 | Following symlinks for a `provino.config.*` project (discovery by `include`/`exclude` still follows them; the Jest rules never do) | T1.4 |
 | Jest's `roots` reaching the module-mock registry (`roots` is `[rootDir]` in the worker; `mod-roots-multiple` and `mod-unmocked-patterns` stay in-process) | B17c |
-| The `workers` count from `process.constrainedMemory()` (only the default memory limit reads it), Jest's `--openHandlesTimeout`, `--detectLeaks` | T9.5 (not in B21a's scope), T2.7 |
+| The `workers` count from `process.constrainedMemory()` (only the default memory limit reads it), Jest's `--openHandlesTimeout` | T9.5 (not in B21a's scope) |
 | Cancelling a running file instead of killing its worker (`bail`, SIGINT: a killed file is lost), and a test-level bail that stops the failing file | T5.12 |
 | Worker-side `inject` | T11.16 |
 | Global setup from a `provino.config.*` project (no config key yet) and Vitest's reader | T1.4, T11.16 |
@@ -193,7 +195,7 @@ One pool, one bus, one `maxWorkers` (the cap counts every project's workers), on
 | `coverage` events (ignored by dispatch), what reads `FileDispatch.deps`, the `workers` count from `process.constrainedMemory()` | Track 8, T9.12, T9.5 |
 | `cancel` reaching core (a cancelled file stops mid-run): today it only keeps a queued file from starting | T5.12 |
 | A learned tier is read but nothing writes one (T2.7's leak report will); the `realm` tier a docblock can ask for is T2.8's | T2.7, T2.8 |
-| Leak count (`FileOutcome.leakedHandles` is always 0) | T2.7 |
+| Leak count (`FileOutcome.leakedHandles` is always 0); `--detectLeaks` itself is built (below) | T2.7 |
 | The `realm` tier (and an environment with realm `context`) | T2.8 |
 | `BulkPayload` for coverage and snapshots over 64 KiB | Track 8, T7.10 |
 | Jest's console `origin` (the call site) | B14 |

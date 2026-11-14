@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { WorkerError } from '../../errors.ts'
-import { fileLeakEvent, leakedGlobalsOf, workerLeakEvent } from './leaks.ts'
+import { createLeakCheck, fileLeakEvent, leakedGlobalsOf, workerLeakEvent } from './leaks.ts'
 
 describe('leakedGlobalsOf', () => {
   it('reads the keys of a report, and nothing from a clean teardown', () => {
@@ -73,5 +73,35 @@ describe('the leak warnings', () => {
         },
       )
     }
+  })
+})
+
+describe('createLeakCheck (--detectLeaks)', () => {
+  /** Makes an object only the returned check can see, so a collection can free it. */
+  function checkOf(keep: unknown[]): () => Promise<boolean> {
+    const target = { big: new Array(1000).fill(0) }
+    keep.push(target)
+    return createLeakCheck([target])
+  }
+
+  it('says a target something still holds is leaking', async () => {
+    const holder: unknown[] = []
+    const check = checkOf(holder)
+    assert.equal(await check(), true)
+    assert.equal(holder.length, 1)
+  })
+
+  it('says a target nothing holds any more is not', async () => {
+    const holder: unknown[] = []
+    const check = checkOf(holder)
+    holder.length = 0
+    assert.equal(await check(), false)
+  })
+
+  it('reports one target of several that is still held', async () => {
+    const held = { held: true }
+    const check = ((): (() => Promise<boolean>) => createLeakCheck([{}, held]))()
+    assert.equal(await check(), true)
+    assert.ok(held.held)
   })
 })

@@ -94,7 +94,13 @@ import {
 } from '../internal/runtime/environment.ts'
 import { installGlobals, splitGlobals } from '../internal/runtime/globals.ts'
 import { lazyReportSink } from '../internal/runtime/lazy-sink.ts'
-import { fileLeakEvent, leakedGlobalsOf, workerLeakEvent } from '../internal/runtime/leaks.ts'
+import {
+  createLeakCheck,
+  fileLeakEvent,
+  heapUsedBytes,
+  leakedGlobalsOf,
+  workerLeakEvent,
+} from '../internal/runtime/leaks.ts'
 import { pragmaValue, readPragmas } from '../internal/runtime/pragmas.ts'
 import { assertionCountSink } from '../internal/runtime/sink.ts'
 import type { FileContext, FileOutcome, WorkerContext, WorkerRunner } from '../start.ts'
@@ -332,12 +338,18 @@ export interface RuntimeGlobalsHost extends GlobalsHost {
 
 /** What a file's code finds through the host: its own registries, whoever runs when it asks. */
 interface FileScope {
-  readonly registry: FileRegistry
-  readonly mocks: MockRegistry
+  /**
+   * The file's registries. They are `undefined` only after `releaseScope`, which `--detectLeaks`
+   * runs once the file is over: this object is the value of an `AsyncLocalStorage`, and any timer
+   * or promise made while the file ran (Node's own `clearBuffersCache` timer, say) keeps the async
+   * frame, and so this object, alive for as long as it lives.
+   */
+  registry: FileRegistry | undefined
+  mocks: MockRegistry | undefined
   /** The file's module-mock registry: one per file in every tier (B13c Gap 9). */
-  readonly moduleMocks: ModuleMockRegistry
+  moduleMocks: ModuleMockRegistry | undefined
   /** Installs the globals that wait for `setupFiles` (`core.globalsBeforeSetupFiles`). */
-  readonly installLateGlobals: () => void
+  installLateGlobals: (() => void) | undefined
   /** The file's fake clock, made once its environment exists. */
   clock: FakeClock | undefined
   /** True once the file's teardown has run: its environment is gone. */
@@ -358,6 +370,15 @@ interface FileScope {
  * sites for a rare edge.
  */
 const fileScope = new AsyncLocalStorage<FileScope>()
+
+/** Lets go of everything a file scope holds (`FileScope`'s note). */
+function releaseScope(scope: FileScope): void {
+  scope.registry = undefined
+  scope.mocks = undefined
+  scope.moduleMocks = undefined
+  scope.installLateGlobals = undefined
+  scope.clock = undefined
+}
 
 /** The snapshot state and lifecycle of the file running now: what the event stream is told. */
 interface OpenSnapshots {
@@ -474,9 +495,12 @@ export function createRuntimeRunner(): WorkerRunner {
     }
     return found
   }
-  const activeMocks = (): MockRegistry => activeScope().mocks
-  const activeRegistry = (): FileRegistry => activeScope().registry
-  const activeModuleMocks = (): ModuleMockRegistry => activeScope().moduleMocks
+  const ended = (): never => {
+    throw new WorkerError('ORCH_NO_ACTIVE_FILE', 'The test file that was running has ended')
+  }
+  const activeMocks = (): MockRegistry => activeScope().mocks ?? ended()
+  const activeRegistry = (): FileRegistry => activeScope().registry ?? ended()
+  const activeModuleMocks = (): ModuleMockRegistry => activeScope().moduleMocks ?? ended()
   const activeClock = (): FakeClock => {
     const { clock } = activeScope()
     if (clock === undefined) {
@@ -573,7 +597,7 @@ export function createRuntimeRunner(): WorkerRunner {
         await files.import(setup)
       }
       // The globals a dialect installs only after `setupFiles` (Jest's `describe`, `expect`, ...).
-      activeScope().installLateGlobals()
+      activeScope().installLateGlobals?.()
       // `fakeTimers.enableGlobally` installs the clock here, as jestAdapter does after
       // `runTest` ran `setupFiles`: a setup file sees real timers, `setupFilesAfterEnv` fake ones.
       if (policy.timers.enableGlobally) activeScope().clock?.install()
@@ -978,6 +1002,8 @@ export function createRuntimeRunner(): WorkerRunner {
         openSnapshotsLater = undefined
       }
 
+      // `--logHeapUsage` measures after the file ran and before its environment goes (`runTest.ts`).
+      const heap = job.logHeapUsage === true ? heapUsedBytes() : undefined
       // Teardown, always, in this order. A step that throws doesn't stop the next ones. The mock
       // registry goes first, while the environment is alive: a spy on a global (`Math.random`) is
       // put back before the environment's own check of the global, and before the next file. With
@@ -1006,7 +1032,7 @@ export function createRuntimeRunner(): WorkerRunner {
       const disposeMocks = () => mocks.dispose()
       // The module-mock registry before the mock registry: its mocks are in `mocks`. One per file
       // in every tier, so it goes under `none` too (B13c Gap 9).
-      const disposeModuleMocks = () => thisFile.moduleMocks.dispose()
+      const disposeModuleMocks = () => thisFile.moduleMocks?.dispose()
       // The real timers go back first: a callback the mock teardown or the environment fires must
       // not meet a fake clock of a file that is over.
       const disposeClock = () => thisFile.clock?.dispose()
@@ -1026,12 +1052,28 @@ export function createRuntimeRunner(): WorkerRunner {
       )
       thisFile.tornDown = true
       fallback = undefined
+      // `--detectLeaks`: nothing the file's async frames hold may reach what is checked below. A
+      // callback the file left behind that asks for its registries now meets `ORCH_NO_ACTIVE_FILE`
+      // (without the flag it finds the disposed ones and does nothing).
+      if (job.detectLeaks === true) releaseScope(thisFile)
       // A warning, before the file finishes: through the same sink as the file's own events, so it
       // arrives after them and before `fileDone`. It has no task: the file's tasks have ended.
       if (leaked.length > 0) context.sink.emit(fileLeakEvent(job.file, leaked))
       rethrow(errors, `Tearing down ${job.file} failed`)
+      // `--detectLeaks`: the file's registry and environment, held weakly. The check runs after this
+      // function has returned (`startWorker`), when nothing here still names them.
+      const isLeaking =
+        job.detectLeaks === true
+          ? createLeakCheck([
+              registry,
+              ...(registry.leakTargets?.() ?? []),
+              ...(instance === undefined ? [] : [instance]),
+            ])
+          : undefined
       return {
         deps,
+        ...(heap === undefined ? {} : { heapUsedBytes: heap }),
+        ...(isLeaking === undefined ? {} : { isLeaking }),
         ...(leaked.length > 0 ? { leakedGlobals: leaked } : {}),
         ...(snapshotReport === null || isEmptyReport(snapshotReport)
           ? {}

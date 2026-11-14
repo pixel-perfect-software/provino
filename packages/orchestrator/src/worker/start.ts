@@ -73,6 +73,17 @@ export interface FileOutcome {
    */
   readonly snapshot?: SnapshotFileReport
   /**
+   * `FileJob.logHeapUsage`: the heap in bytes after the file ran and before its teardown
+   * (`fileDone.heapUsedBytes`).
+   */
+  readonly heapUsedBytes?: number
+  /**
+   * `FileJob.detectLeaks`: asked once the runner has returned and the file's own frames are gone,
+   * so it can tell whether anything still holds what the file used. The answer is
+   * `fileDone.leaks`. It must hold the file's objects only weakly.
+   */
+  readonly isLeaking?: () => Promise<boolean>
+  /**
    * The modules the file loaded (absolute paths: its setup files, the test file and what they
    * import), as the loader reports them. They go out as one `deps` event before `fileDone`, for
    * affected-test selection (T9.12). Absent for a runner with no loader.
@@ -261,6 +272,8 @@ export function startWorker(
     let leakedHandles = 0
     let leakedGlobals: readonly string[] = []
     let snapshot: SnapshotFileReport | null = null
+    let heapUsedBytes: number | undefined
+    let isLeaking: (() => Promise<boolean>) | undefined
     try {
       if (startFailure !== undefined) throw startFailure.error
       const file = { ...context(), job, signal: controller.signal }
@@ -270,6 +283,8 @@ export function startWorker(
       leakedHandles = outcome?.leakedHandles ?? 0
       leakedGlobals = outcome?.leakedGlobals ?? []
       snapshot = outcome?.snapshot ?? null
+      heapUsedBytes = outcome?.heapUsedBytes
+      isLeaking = outcome?.isLeaking
       if (outcome?.deps !== undefined) {
         // Each path crosses the link once per worker; after that it is its id.
         const added: string[] = []
@@ -291,6 +306,16 @@ export function startWorker(
     } finally {
       controllers.delete(seq)
     }
+    // The leak check runs outside the file's frames, the runner's included (Jest's `runTest` asks
+    // after `runTestInternal` returned, and after a short wait for last-minute cleanup).
+    let leaks = false
+    if (isLeaking !== undefined) {
+      try {
+        leaks = await isLeaking()
+      } catch (error) {
+        charge(error, job.fileId)
+      }
+    }
     await settle()
     const memoryBytes = measureMemory(init)
     packer.afterSent(() =>
@@ -301,6 +326,8 @@ export function startWorker(
         leakedHandles,
         leakedGlobals,
         ...(snapshot === null ? {} : { snapshot }),
+        ...(leaks ? { leaks: true as const } : {}),
+        ...(heapUsedBytes === undefined ? {} : { heapUsedBytes }),
       }),
     )
   }

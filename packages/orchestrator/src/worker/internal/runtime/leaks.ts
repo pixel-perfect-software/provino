@@ -1,6 +1,8 @@
 // Decision D22: a global a file leaves behind that the environment can't remove is a warning, not
 // a failure. The environment's `teardown` returns an `EnvironmentTeardownReport` naming the keys;
 // this reads it and builds the `console` event the worker sends for it.
+import { getHeapSnapshot, setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
 import type { RuntimeEventOf } from '@provino/types'
 import { WorkerError } from '../../errors.ts'
 import { isRecord, isStringArray } from './guards.ts'
@@ -64,4 +66,55 @@ export function workerLeakEvent(keys: readonly string[]): RuntimeEventOf<'consol
   return leakWarningEvent(
     `Provino: the environment could not remove ${globals(keys)} when the worker stopped: ${keys.join(', ')}.\n`,
   )
+}
+
+const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
+
+/**
+ * `--detectLeaks` (jest-leak-detector 30.5.2's `isLeaking`, with `LeakDetector`'s finalization
+ * registry replaced by `WeakRef`s): a check that holds `targets` only weakly and, when asked,
+ * collects garbage and says whether any of them is still reachable. A caller makes it where the
+ * targets are in scope and calls it after every frame that held them has returned. It is a
+ * function here, not a closure at the call site, so the weak references are the only thing it
+ * keeps alive: a closure made inline would share a context with the file's own locals.
+ * `collect` is the garbage collector call, a parameter for the tests.
+ */
+export function createLeakCheck(
+  targets: readonly object[],
+  collect: () => void = runGarbageCollector,
+): () => Promise<boolean> {
+  const refs = targets.map((target) => new WeakRef(target))
+  return async () => {
+    // A little time for last-minute cleanup (Jest waits 100 ms), then ten ticks for the collector.
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    collect()
+    for (let i = 0; i < 10; i++) await tick()
+    let held = refs.some((ref) => ref.deref() !== undefined)
+    if (held) {
+      // As Jest does: a heap snapshot is a harder collection than `gc()`, slow, so only when the
+      // first one leaves something.
+      getHeapSnapshot()
+      for (let i = 0; i < 10; i++) await tick()
+      held = refs.some((ref) => ref.deref() !== undefined)
+    }
+    return held
+  }
+}
+
+/** The garbage collector, exposed for the call and hidden again if it was hidden before. */
+function runGarbageCollector(): void {
+  const hidden = globalThis.gc === undefined
+  setFlagsFromString('--expose-gc')
+  const gc: unknown = runInNewContext('gc')
+  if (typeof gc === 'function') gc()
+  if (hidden) setFlagsFromString('--no-expose-gc')
+}
+
+/**
+ * `--logHeapUsage` (`runTest.ts` L354-L357): the heap in use, after a collection when `gc` is
+ * exposed.
+ */
+export function heapUsedBytes(): number {
+  globalThis.gc?.()
+  return process.memoryUsage().heapUsed
 }

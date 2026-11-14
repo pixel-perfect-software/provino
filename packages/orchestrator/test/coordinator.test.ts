@@ -13,6 +13,7 @@ import {
   ExitCode,
   exitCodeFor,
   fileIdOf,
+  OrchestratorError,
   projectCacheKey,
   runProject,
 } from '@provino/orchestrator'
@@ -490,6 +491,28 @@ describe('runProject over inline workers', () => {
       )
       assert.deepEqual(seen, [], 'not even run:start')
     }
+  })
+
+  it('refuses detectLeaks under isolation none, naming it, before run:start (B23d A4, D114)', async () => {
+    const p = await makeProject({ 'a.test.js': passing() })
+    const { reporter, seen } = recorder()
+    await assert.rejects(
+      runProject(
+        { ...runtimeProject(p.dir), isolation: 'none' },
+        {
+          bus: createReporterBus([reporter]),
+          cache: false,
+          stderr: new Collect(),
+          pool: { kind: 'inline' },
+          detectLeaks: true,
+        },
+      ),
+      (error: unknown) =>
+        error instanceof OrchestratorError &&
+        error.code === 'ORCH_BAD_OPTION' &&
+        error.message.includes('`none`'),
+    )
+    assert.deepEqual(seen, [], 'not even run:start')
   })
 
   it('closes the pool, tells the bus and ends the run with run:end when something throws after run:start', async () => {
