@@ -17,6 +17,7 @@ import {
   serializeSnapFile,
 } from '@provino/snapshot'
 import type {
+  InlineSnapshotEdit,
   SnapshotFileReport,
   SnapshotKey,
   SnapshotPlugin,
@@ -24,6 +25,7 @@ import type {
   SnapshotPrinter,
 } from '@provino/types'
 import { readSnapFile, writeFileAtomically } from './files.ts'
+import { topFrame } from './frame.ts'
 
 /**
  * What a state is made from.
@@ -47,6 +49,12 @@ export interface SnapshotStateOptions {
   readonly printer: SnapshotPrinter
   /** The project's serializers, the first one tried first. */
   readonly serializers?: readonly SnapshotPlugin[]
+  /**
+   * An inline snapshot that must be written is recorded for the coordinator's writer
+   * (`SnapshotFileReport.inline`), as Jest's `_addSnapshot` does; without it (the policy has no
+   * writer) such a snapshot fails instead.
+   */
+  readonly inlineWrites?: boolean
 }
 
 /**
@@ -63,6 +71,11 @@ export interface MatchOptions {
   readonly isInline: boolean
   /** The test is `test.failing`: a mismatch is the expected outcome and keeps what is stored. */
   readonly testFailing?: boolean
+  /**
+   * The stack of the inline matcher's call, its first frame the call (the worker's stacks are
+   * source-mapped): where an inline snapshot that must be written goes.
+   */
+  readonly stack?: string
 }
 
 /**
@@ -117,6 +130,8 @@ interface AttemptRecord {
   readonly fileSnapshots: Map<string, string | undefined>
   /** The files (`matchRaw`) it queued to write. */
   readonly rawSnapshots: RawSnapshot[]
+  /** The inline snapshots it queued to write. */
+  readonly inlineEdits: InlineSnapshotEdit[]
   writes: AttemptWrites | undefined
 }
 
@@ -140,6 +155,7 @@ export class SnapshotState {
   private readonly data: SnapshotData
   private readonly uncheckedKeys: Set<string>
   private readonly rawSnapshots: RawSnapshot[] = []
+  private readonly inlineEdits: InlineSnapshotEdit[] = []
   private readonly attempts = new Map<string, AttemptRecord>()
   private writeCount = 0
   private plugins: SnapshotPlugin[]
@@ -240,6 +256,8 @@ export class SnapshotState {
     }
     for (const raw of record.rawSnapshots)
       this.rawSnapshots.splice(this.rawSnapshots.indexOf(raw), 1)
+    for (const edit of record.inlineEdits)
+      this.inlineEdits.splice(this.inlineEdits.indexOf(edit), 1)
     for (const key of record.checkedKeys) this.uncheckedKeys.add(key)
     for (const [testName, previous] of record.counters) {
       if (previous === undefined) this.counters.delete(testName)
@@ -273,7 +291,15 @@ export class SnapshotState {
 
   /** Compares one value with its stored snapshot, and writes it when the mode says to. */
   match(options: MatchOptions): MatchResult {
-    const { testName, testId, received, inlineSnapshot, isInline, testFailing = false } = options
+    const {
+      testName,
+      testId,
+      received,
+      inlineSnapshot,
+      isInline,
+      testFailing = false,
+      stack,
+    } = options
     const count = this.bumpCounter(testName, testId)
     const key = this.options.key(testName, count)
 
@@ -305,20 +331,24 @@ export class SnapshotState {
       (hasSnapshot && this.update === 'all') ||
       ((!hasSnapshot || !snapshotIsPersisted) && (this.update === 'new' || this.update === 'all'))
     ) {
-      if (isInline && !(pass && this.update === 'all')) {
-        // The text would go into the test's source, which nothing writes yet (T7.11).
+      if (isInline && this.options.inlineWrites !== true && !(pass && this.update === 'all')) {
+        // The text would go into the test's source, and this policy has no writer.
         this.incrementCount('unmatched', testId)
         return this.result(false, count, key, receivedSerialized, expected, true)
       }
+      const write = (): void =>
+        isInline
+          ? this.addInline(receivedSerialized, stack, testId)
+          : this.addSnapshot(key, receivedSerialized, testId)
       if (this.update === 'all') {
         if (pass) {
           this.incrementCount('matched', testId)
         } else {
           this.incrementCount(hasSnapshot ? 'updated' : 'added', testId)
-          this.addSnapshot(key, receivedSerialized, testId)
+          write()
         }
       } else {
-        this.addSnapshot(key, receivedSerialized, testId)
+        write()
         this.incrementCount('added', testId)
       }
       return { pass: true, count, key, actual: '', expected: '', inlineNotWritten: false }
@@ -410,7 +440,7 @@ export class SnapshotState {
   save(): { readonly saved: boolean; readonly deleted: boolean } {
     const hasSnapshots = Object.keys(this.data).length > 0
     const hasRaw = this.rawSnapshots.length > 0
-    const isEmpty = !hasSnapshots && !hasRaw
+    const isEmpty = !hasSnapshots && !hasRaw && this.inlineEdits.length === 0
     let saved = false
     let deleted = false
 
@@ -449,6 +479,7 @@ export class SnapshotState {
       unchecked: status.deleted ? 0 : uncheckedCount,
       uncheckedKeys,
       fileDeleted: status.deleted,
+      ...(status.saved && this.inlineEdits.length > 0 ? { inline: [...this.inlineEdits] } : {}),
     }
   }
 
@@ -501,6 +532,7 @@ export class SnapshotState {
         counts: { added: 0, matched: 0, unmatched: 0, updated: 0 },
         fileSnapshots: new Map(),
         rawSnapshots: [],
+        inlineEdits: [],
         writes: undefined,
       }
       this.attempts.set(testId, record)
@@ -557,6 +589,24 @@ export class SnapshotState {
       record.fileSnapshots.set(key, this.data[key])
     }
     this.data[key] = receivedSerialized
+  }
+
+  /**
+   * An inline snapshot to write (State.ts L167-L184): where the call is comes from the top frame
+   * of its stack, so the coordinator's writer can find it in the source.
+   */
+  private addInline(snapshot: string, stack: string | undefined, testId: string | undefined): void {
+    this.noteWrite(testId)
+    const frame = stack === undefined ? undefined : topFrame(stack)
+    if (frame === undefined) {
+      throw new SnapshotError(
+        'SNAPSHOT_NO_INLINE_FRAME',
+        "Couldn't infer the stack frame of an inline snapshot, so it can't be written",
+      )
+    }
+    const edit = { file: frame.file, line: frame.line, column: frame.column - 1, snapshot }
+    this.inlineEdits.push(edit)
+    this.recordFor(testId)?.inlineEdits.push(edit)
   }
 
   private addRaw(file: string, snapshot: string, testId: string | undefined): void {

@@ -184,6 +184,8 @@ export interface NeutralProject {
   readonly transformHoistedMarkers?: readonly string[]
   /** Absolute paths. */
   readonly snapshotSerializers: readonly string[]
+  /** The project's own snapshot resolver module, an absolute path (Jest's `snapshotResolver`); absent for none. */
+  readonly snapshotResolver?: string
   /**
    * A cache directory the config sets itself (an absolute path), as opposed to a runner's own
    * default. Provino keeps its caches under `<cacheDirectory>/provino` when it is set (D70), and

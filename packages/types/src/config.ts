@@ -238,4 +238,10 @@ export interface SerializedProjectConfig {
   readonly loader: SerializedLoaderConfig
   /** Present when the run collects coverage; absent means off. */
   readonly coverage?: SerializedCoverageConfig
+  /**
+   * The project's own snapshot resolver module, an absolute path (Jest's `snapshotResolver`),
+   * loaded through each file's registry and handed to `SnapshotPolicy.resolverFactory`. Absent
+   * means the policy's own layout.
+   */
+  readonly snapshotResolver?: string
 }

@@ -188,9 +188,10 @@ export const neutralPolicy: Policy = deepFreeze({
     ciUpdate: 'none',
     updateEnvVar: null,
     throwErrorBody: 'message',
-    inline: { indent: 'call', formatter: 'none' },
+    inline: { indent: 'call', formatter: 'none', writer: null, prettierPath: null },
     printer: null,
     resolvePath: null,
+    resolverFactory: null,
   },
   expect: {
     matcherNamespace: 'provino',

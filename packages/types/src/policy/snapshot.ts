@@ -100,6 +100,67 @@ export interface SnapshotPrinter {
 export type SnapshotPrinterFactory = () => SnapshotPrinter
 
 /**
+ * An inline snapshot to write into a source file: the call's place (the matcher's name, where a
+ * stack frame puts it) and the serialized text. It rides on `SnapshotFileReport.inline` from the
+ * worker to the coordinator, which writes each source file once (D113).
+ * @public
+ */
+export interface InlineSnapshotEdit {
+  /** The source file, an absolute path. */
+  readonly file: string
+  /** 1-based. */
+  readonly line: number
+  /** 0-based: the column of the matcher's name (`toMatchInlineSnapshot`). */
+  readonly column: number
+  /** The serialized value, with the extra line breaks. */
+  readonly snapshot: string
+}
+
+/**
+ * What a writer is told about the project.
+ * @public
+ */
+export interface InlineSnapshotWriteOptions {
+  readonly rootDir: string
+  /** The formatter's module, an absolute path, or `null` for none (`SnapshotPolicy.inline.prettierPath`). */
+  readonly prettierPath: string | null
+}
+
+/**
+ * Writes a run's inline snapshots into one source file's text, every edit of that file at once.
+ * It throws the dialect's own error when the edits can't be placed; the test file that asked for
+ * them then fails. It returns the warnings to print (an unsupported formatter).
+ * @public
+ */
+export type InlineSnapshotWriter = (
+  edits: readonly InlineSnapshotEdit[],
+  options: InlineSnapshotWriteOptions,
+) => Promise<readonly string[]>
+
+/**
+ * Returns a dialect's inline snapshot writer (the coordinator loads it once per run).
+ * @public
+ */
+export type InlineSnapshotWriterFactory = () => InlineSnapshotWriter
+
+/**
+ * A project's snapshot paths both ways, checked for consistency (Jest's `SnapshotResolver`).
+ * @public
+ */
+export interface SnapshotResolver {
+  resolveSnapshotPath(testPath: string): string
+  resolveTestPath(snapshotPath: string): string
+  readonly testPathForConsistencyCheck: string
+}
+
+/**
+ * Builds a resolver from a project's own resolver module (its exports, as loaded) and the snapshot
+ * extension. Throws the dialect's error for a module that lacks a member or doesn't invert itself.
+ * @public
+ */
+export type SnapshotResolverFactory = (exports: unknown, extension: string) => SnapshotResolver
+
+/**
  * The `snapshot` slice, read by `@provino/snapshot` (Track 7).
  * @public
  */
@@ -154,7 +215,22 @@ export interface SnapshotPolicy {
    * Inline snapshot layout: indentation, and whether Prettier formats the edit.
    * Jest: `column0`, Prettier from `prettierPath`. Vitest: `call`, none. research: track-07 L471
    */
-  readonly inline: { readonly indent: 'column0' | 'call'; readonly formatter: 'prettier' | 'none' }
+  readonly inline: {
+    readonly indent: 'column0' | 'call'
+    readonly formatter: 'prettier' | 'none'
+    /**
+     * Writes inline snapshots into the source, in the coordinator, or `null`: an inline snapshot
+     * that would be written fails instead. Jest: `@provino/dialect-jest/inline-snapshots`
+     * `jestInlineSnapshotWriter`. Vitest: `null` until T7.11's Vitest half. Provino's own key.
+     */
+    readonly writer: Behaviour<InlineSnapshotWriterFactory> | null
+    /**
+     * The project's formatter, an absolute path, or `null` for none. Jest: the config's
+     * `prettierPath`, resolved by the reader (`null` when Prettier is not installed). Vitest:
+     * `null`. Provino's own key, filled from project data.
+     */
+    readonly prettierPath: string | null
+  }
   /**
    * The dialect's snapshot printer (its pretty-format and its messages), or `null` for none: a
    * snapshot matcher then fails with `SNAPSHOT_NO_PRINTER`. Jest: `pretty-format` 30.5. Vitest:
@@ -163,4 +239,11 @@ export interface SnapshotPolicy {
   readonly printer: Behaviour<SnapshotPrinterFactory> | null
   /** Custom snapshot path resolver, or `null` for `<dir>/<dirName>/<file><extension>`. Jest: `snapshotResolver`. Vitest: `resolveSnapshotPath`. research: track-07 L475 */
   readonly resolvePath: Behaviour<ResolveSnapshotPath> | null
+  /**
+   * Builds the resolver of a project that names its own resolver module
+   * (`SerializedProjectConfig.snapshotResolver`), or `null`: such a project is refused. Jest:
+   * `@provino/dialect-jest/runtime` `jestSnapshotResolver` (`SnapshotResolver.ts`). Vitest: `null`
+   * (its `resolveSnapshotPath` is T11.16's). Provino's own key.
+   */
+  readonly resolverFactory: Behaviour<SnapshotResolverFactory> | null
 }
