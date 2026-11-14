@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "env/handle-test-event-only",
+  "files": [
+    {
+      "file": "focus.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "focus.test.ts",
+            "path": [
+              "top level, not focused"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "focus.test.ts",
+            "path": [
+              "focused block",
+              "not focused"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "focus.test.ts",
+            "path": [
+              "focused block",
+              "focused"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 8
+          }
+        },
+        {
+          "id": {
+            "file": "focus.test.ts",
+            "path": [
+              "focused block",
+              "skipped"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 9,
+            "column": 8
+          }
+        },
+        {
+          "id": {
+            "file": "focus.test.ts",
+            "path": [
+              "focused block",
+              "todo item"
+            ],
+            "dupIndex": 0
+          },
+          "status": "todo",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 8
+          }
+        },
+        {
+          "id": {
+            "file": "focus.test.ts",
+            "path": [
+              "unfocused block",
+              "never runs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 15,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      "events.jsonl": "{\"name\":\"setup\",\"parentProcessIsProcess\":true,\"runtimeGlobals\":\"object\",\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":false,\"hasStarted\":false,\"includeTestLocationInResult\":false,\"unhandledErrors\":0,\"rootChildren\":0,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"include_test_location_in_result\",\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":false,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":0,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"add_hook\",\"hookType\":\"beforeEach\",\"hasFn\":true,\"hasAsyncError\":true,\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":false,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":0,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"add_test\",\"testName\":\"top level, not focused\",\"concurrent\":false,\"failing\":false,\"hasFn\":true,\"hasAsyncError\":true,\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":false,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":1,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"start_describe_definition\",\"blockName\":\"focused block\",\"hasAsyncError\":true,\"state\":{\"currentDescribeBlock\":\"focused block\",\"currentlyRunningTest\":null,\"hasFocusedTests\":false,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":2,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"add_hook\",\"hookType\":\"beforeAll\",\"hasFn\":true,\"hasAsyncError\":true,\"state\":{\"currentDescribeBlock\":\"focused block\",\"currentlyRunningTest\":null,\"hasFocusedTests\":false,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":2,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"add_test\",\"testName\":\"not focused\",\"concurrent\":false,\"failing\":false,\"hasFn\":true,\"hasAsyncError\":true,\"state\":{\"currentDescribeBlock\":\"focused block\",\"currentlyRunningTest\":null,\"hasFocusedTests\":false,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":2,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"add_test\",\"testName\":\"focused\",\"mode\":\"only\",\"concurrent\":false,\"failing\":false,\"hasFn\":true,\"hasAsyncError\":true,\"state\":{\"currentDescribeBlock\":\"focused block\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":2,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"add_test\",\"testName\":\"skipped\",\"mode\":\"skip\",\"concurrent\":false,\"failing\":false,\"hasFn\":true,\"hasAsyncError\":true,\"state\":{\"currentDescribeBlock\":\"focused block\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":2,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"add_test\",\"testName\":\"todo item\",\"mode\":\"todo\",\"concurrent\":false,\"failing\":false,\"hasFn\":true,\"hasAsyncError\":true,\"state\":{\"currentDescribeBlock\":\"focused block\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":2,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"finish_describe_definition\",\"blockName\":\"focused block\",\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":2,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"start_describe_definition\",\"blockName\":\"unfocused block\",\"hasAsyncError\":true,\"state\":{\"currentDescribeBlock\":\"unfocused block\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"add_hook\",\"hookType\":\"beforeAll\",\"hasFn\":true,\"hasAsyncError\":true,\"state\":{\"currentDescribeBlock\":\"unfocused block\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"add_test\",\"testName\":\"never runs\",\"concurrent\":false,\"failing\":false,\"hasFn\":true,\"hasAsyncError\":true,\"state\":{\"currentDescribeBlock\":\"unfocused block\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"finish_describe_definition\",\"blockName\":\"unfocused block\",\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":false,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"run_start\",\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"run_describe_start\",\"describeBlock\":{\"name\":\"ROOT_DESCRIBE_BLOCK\",\"parent\":null,\"children\":3,\"hooks\":1},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_start\",\"test\":{\"name\":\"top level, not focused\",\"parent\":\"ROOT_DESCRIBE_BLOCK\",\"status\":null,\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":\"top level, not focused\",\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_skip\",\"test\":{\"name\":\"top level, not focused\",\"parent\":\"ROOT_DESCRIBE_BLOCK\",\"status\":\"skip\",\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"run_describe_start\",\"describeBlock\":{\"name\":\"focused block\",\"parent\":\"ROOT_DESCRIBE_BLOCK\",\"children\":4,\"hooks\":1},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"hook_start\",\"hook\":{\"type\":\"beforeAll\",\"parent\":\"focused block\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"marker\":\"beforeAll focused block\"}\n{\"name\":\"hook_success\",\"describeBlock\":{\"name\":\"focused block\",\"parent\":\"ROOT_DESCRIBE_BLOCK\",\"children\":4,\"hooks\":1},\"hook\":{\"type\":\"beforeAll\",\"parent\":\"focused block\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_start\",\"test\":{\"name\":\"not focused\",\"parent\":\"focused block\",\"status\":null,\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":\"not focused\",\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_skip\",\"test\":{\"name\":\"not focused\",\"parent\":\"focused block\",\"status\":\"skip\",\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_start\",\"test\":{\"name\":\"focused\",\"parent\":\"focused block\",\"mode\":\"only\",\"status\":null,\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":\"focused\",\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_started\",\"test\":{\"name\":\"focused\",\"parent\":\"focused block\",\"mode\":\"only\",\"status\":null,\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":\"focused\",\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"hook_start\",\"hook\":{\"type\":\"beforeEach\",\"parent\":\"ROOT_DESCRIBE_BLOCK\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":\"focused\",\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"hook_success\",\"test\":{\"name\":\"focused\",\"parent\":\"focused block\",\"mode\":\"only\",\"status\":null,\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"hook\":{\"type\":\"beforeEach\",\"parent\":\"ROOT_DESCRIBE_BLOCK\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":\"focused\",\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_fn_start\",\"test\":{\"name\":\"focused\",\"parent\":\"focused block\",\"mode\":\"only\",\"status\":null,\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":\"focused\",\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"marker\":\"body focused\"}\n{\"name\":\"test_fn_success\",\"test\":{\"name\":\"focused\",\"parent\":\"focused block\",\"mode\":\"only\",\"status\":null,\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":\"focused\",\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_done\",\"test\":{\"name\":\"focused\",\"parent\":\"focused block\",\"mode\":\"only\",\"status\":\"done\",\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"number\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_start\",\"test\":{\"name\":\"skipped\",\"parent\":\"focused block\",\"mode\":\"skip\",\"status\":null,\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":\"skipped\",\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_skip\",\"test\":{\"name\":\"skipped\",\"parent\":\"focused block\",\"mode\":\"skip\",\"status\":\"skip\",\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_start\",\"test\":{\"name\":\"todo item\",\"parent\":\"focused block\",\"mode\":\"todo\",\"status\":null,\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":\"todo item\",\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_todo\",\"test\":{\"name\":\"todo item\",\"parent\":\"focused block\",\"mode\":\"todo\",\"status\":\"todo\",\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"run_describe_finish\",\"describeBlock\":{\"name\":\"focused block\",\"parent\":\"ROOT_DESCRIBE_BLOCK\",\"children\":4,\"hooks\":1},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"run_describe_start\",\"describeBlock\":{\"name\":\"unfocused block\",\"parent\":\"ROOT_DESCRIBE_BLOCK\",\"children\":1,\"hooks\":1},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_start\",\"test\":{\"name\":\"never runs\",\"parent\":\"unfocused block\",\"status\":null,\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":\"never runs\",\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"test_skip\",\"test\":{\"name\":\"never runs\",\"parent\":\"unfocused block\",\"status\":\"skip\",\"invocations\":1,\"errors\":0,\"retryReasons\":0,\"concurrent\":false,\"failing\":false,\"startedAt\":\"number\",\"duration\":\"object\"},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"run_describe_finish\",\"describeBlock\":{\"name\":\"unfocused block\",\"parent\":\"ROOT_DESCRIBE_BLOCK\",\"children\":1,\"hooks\":1},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"run_describe_finish\",\"describeBlock\":{\"name\":\"ROOT_DESCRIBE_BLOCK\",\"parent\":null,\"children\":3,\"hooks\":1},\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"run_finish\",\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n{\"name\":\"teardown\",\"state\":{\"currentDescribeBlock\":\"ROOT_DESCRIBE_BLOCK\",\"currentlyRunningTest\":null,\"hasFocusedTests\":true,\"hasStarted\":true,\"includeTestLocationInResult\":true,\"unhandledErrors\":0,\"rootChildren\":3,\"testNamePattern\":null,\"testTimeout\":5000,\"maxConcurrency\":5,\"randomize\":false,\"expand\":false}}\n"
+    }
+  }
+}
