@@ -189,6 +189,12 @@ export interface SerializedLoaderConfig {
   readonly modulePaths?: readonly string[]
   /** A custom resolver module (Jest `resolver`), its `module` absolute; the export is `default`. */
   readonly resolver?: ModuleRef
+  /**
+   * The affected-test graph resolves a specifier with no path separator only through a mapper
+   * (Jest `skipNodeResolution`). Only the coordinator's dependency resolution reads it. Absent
+   * means `false`.
+   */
+  readonly skipNodeResolution?: boolean
 }
 
 /**

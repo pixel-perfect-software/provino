@@ -125,6 +125,7 @@
     "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*",
     "babel-jest": "catalog:",
+    "jest-environment-node": "catalog:",
     "jest-html-reporters": "catalog:",
     "jest-junit": "catalog:",
     "jest-silent-reporter": "catalog:",

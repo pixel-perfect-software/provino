@@ -1,0 +1,23 @@
+{
+  "description": "-o --all lists every test: `--all` turns onlyChanged off (normalize.ts). Only bar.ts changed. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "src/bar.ts": "module.exports = { bar: 3 }\n"
+        }
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "-o", "--all"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

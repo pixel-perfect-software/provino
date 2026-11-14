@@ -1,0 +1,11 @@
+{
+  "description": "The dependency extractor refuses a `require` directly after a dot: `...require('./src/foo.ts')` is no edge, a plain `require` is. Two tests name src/foo.ts, one through a spread and one plainly. Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "src/foo.ts"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

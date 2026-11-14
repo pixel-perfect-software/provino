@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "changed/only-failures-none",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": "No failed test found."
+  }
+}

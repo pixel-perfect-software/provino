@@ -6,6 +6,7 @@
 // Jest's `--listTests` on `fixtures/discovery/*`.
 import { readdir, stat } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
+import type { ResolvedProject } from '@provino/config'
 import type { NeutralDiscovery, OrchestratorPolicy } from '@provino/types'
 import picomatch from 'picomatch'
 import type { DiscoveredFile } from './discover.ts'
@@ -220,4 +221,95 @@ async function sized(paths: readonly string[], rootDir: string): Promise<Discove
       ? []
       : [{ path, relativePath: relativePosix(rootDir, path), sizeBytes }]
   })
+}
+
+/**
+ * What `crawlProject` finds: every file the haste crawl keeps, and which of them are test files.
+ * @public
+ */
+export interface ProjectCrawl {
+  /** Absolute paths, sorted: every file under the roots with a listed extension, or `snap`. */
+  readonly files: readonly string[]
+  /** Whether a crawled file is one of the project's test files. */
+  readonly isTest: (absolutePath: string) => boolean
+  /**
+   * Whether the crawl would keep `absolutePath` (a file a watcher saw appear): under a root,
+   * outside `node_modules` and the VCS directories, with a listed extension, and not ignored.
+   * Symlinks are not checked: the caller saw a file.
+   */
+  readonly keeps: (absolutePath: string) => boolean
+}
+
+/** What a crawl leaves out beyond the project's own `crawlIgnorePatterns`. */
+export interface CrawlOptions {
+  /** Regular expression sources: the project's `watchPathIgnorePatterns` (watch mode). */
+  readonly ignorePatterns?: readonly string[]
+}
+
+function escapeRegExp(text: string): string {
+  return text.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * One walk of a project's roots for the affected-test graph (B23c, T9.12): every file whose
+ * extension is one of the project's module file extensions, or `snap`, with jest-haste-map's rules
+ * (no symlinks, nothing under `node_modules` or a VCS directory), leaving out what
+ * `crawlIgnorePatterns` (`modulePathIgnorePatterns`) and `options.ignorePatterns` match and a
+ * cache directory under the root (`createHasteMap` L333-342). The test files are the crawl
+ * filtered by the project's rules, or by its `include` and `exclude` globs when it has none.
+ * @public
+ */
+export async function crawlProject(
+  project: Pick<ResolvedProject, 'rootDir' | 'discovery' | 'include' | 'exclude' | 'policy'> & {
+    readonly cacheDirectory?: string | undefined
+    readonly config: { readonly loader: { readonly extensions: readonly string[] } }
+  },
+  options: CrawlOptions = {},
+): Promise<ProjectCrawl> {
+  const { rootDir, discovery } = project
+  const extensions = new Set(
+    (discovery?.extensions ?? project.config.loader.extensions.map((e) => e.replace(/^\./, '')))
+      .map((extension) => extension.toLowerCase())
+      .concat('snap'),
+  )
+  const sources = [...(discovery?.crawlIgnorePatterns ?? []), ...(options.ignorePatterns ?? [])]
+  const cache = project.cacheDirectory
+  if (cache !== undefined && resolve(cache).startsWith(resolve(rootDir) + sep)) {
+    sources.push(escapeRegExp(resolve(cache)))
+  }
+  const crawlIgnore = alternation(sources, 'modulePathIgnorePatterns')
+  const found = new Set<string>()
+  const roots = discovery?.roots ?? [rootDir]
+  await Promise.all(roots.map((root) => crawlRoot(resolve(root), extensions, crawlIgnore, found)))
+  const files = [...found].sort(byText)
+  const resolvedRoots = roots.map((root) => resolve(root))
+  const keeps = (path: string): boolean => {
+    if (!resolvedRoots.some((root) => path.startsWith(root + sep))) return false
+    const dot = path.lastIndexOf('.')
+    if (dot < 0 || path.lastIndexOf(sep) > dot) return false
+    if (!extensions.has(path.slice(dot + 1).toLowerCase())) return false
+    if (path.includes(NODE_MODULES) || VCS_PATH.some((vcs) => path.includes(vcs))) return false
+    return crawlIgnore?.test(path) !== true
+  }
+  if (discovery !== null) {
+    return {
+      files,
+      keeps,
+      isTest: testFilePredicate({
+        rootDir,
+        discovery,
+        globMatchesOn: project.policy.orchestrator.globMatchesOn,
+      }),
+    }
+  }
+  const included = globsToMatcher(project.include)
+  const excluded = globsToMatcher(project.exclude)
+  return {
+    files,
+    keeps,
+    isTest: (path) => {
+      const relative = relativePosix(rootDir, path)
+      return included(relative) && !excluded(relative)
+    },
+  }
 }

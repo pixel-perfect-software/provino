@@ -1,0 +1,16 @@
+{
+  "description": "A full --onlyFailures run reruns only the file that failed before; stderr closes with the `Ran all test suites` line. Jest only.",
+  "runners": ["jest"],
+  "before": [
+    {
+      "argv": []
+    }
+  ],
+  "run": {
+    "argv": {
+      "jest": ["--onlyFailures"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^Ran all test suites"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "description": "A setupFilesAfterEnv file is no dependency of the tests for selection: --findRelatedTests setup.ts lists nothing. Jest only.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "setup.ts"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

@@ -15,6 +15,7 @@ import type {
   ModulePolicy,
   ModuleRef,
   Pipeline,
+  Resolver,
   SerializedLoaderConfig,
 } from '@provino/types'
 import { LoaderError } from './errors.ts'
@@ -143,7 +144,11 @@ export async function buildProjectLoader(
   config: SerializedLoaderConfig,
   policy: ModulePolicy,
   options: ProjectLoaderOptions,
-): Promise<{ readonly loader: Loader; readonly pipeline: Pipeline }> {
+): Promise<{
+  readonly loader: Loader
+  readonly pipeline: Pipeline
+  readonly resolver: Resolver
+}> {
   const tsconfig = tsconfigFor(root, config.tsconfig)
   const behaviours = createBehaviourLoader()
   // In config order: the first mapper to hit wins.
@@ -183,23 +188,24 @@ export async function buildProjectLoader(
     ...(transformers === undefined ? {} : { transformers }),
     ...(options.coverage === undefined ? {} : { instrumenter: options.coverage.instrumenter }),
   })
+  const resolver = createResolver({
+    root,
+    mappers,
+    extensions: config.extensions,
+    tsconfig: tsconfig === 'auto' || tsconfig === false ? tsconfig : { configFile: tsconfig },
+    ...(config.moduleDirectories === undefined
+      ? {}
+      : { moduleDirectories: config.moduleDirectories }),
+    ...(config.modulePaths === undefined ? {} : { modulePaths: config.modulePaths }),
+    ...(custom === undefined ? {} : { custom }),
+  })
   const loader = createLoader({
     root,
     engine: 'runner',
     graphCache: config.cacheDir ?? null,
     lockfileHash:
       policy.mocksReachShared && config.cacheDir !== undefined ? lockfileHash(root) : null,
-    resolver: createResolver({
-      root,
-      mappers,
-      extensions: config.extensions,
-      tsconfig: tsconfig === 'auto' || tsconfig === false ? tsconfig : { configFile: tsconfig },
-      ...(config.moduleDirectories === undefined
-        ? {}
-        : { moduleDirectories: config.moduleDirectories }),
-      ...(config.modulePaths === undefined ? {} : { modulePaths: config.modulePaths }),
-      ...(custom === undefined ? {} : { custom }),
-    }),
+    resolver,
     transformer: pipeline,
     policy,
     ...(options.coverage === undefined
@@ -220,5 +226,5 @@ export async function buildProjectLoader(
           },
         }),
   })
-  return { loader, pipeline }
+  return { loader, pipeline, resolver }
 }

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "changed/find-related-no-paths",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "The --findRelatedTests option requires file paths to be specified.\nExample usage: jest --findRelatedTests ./src/source.js ./src/index.js."
+  }
+}

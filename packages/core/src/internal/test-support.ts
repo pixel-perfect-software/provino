@@ -78,7 +78,7 @@ export async function runScript(
   overrides: CoreOverrides = {},
   options: Partial<RuntimeOptions> & RunFileOptions = {},
 ): Promise<ScriptRun> {
-  const { lines, fileId, collectOnly, shuffleSeed, ...runtimeOptions } = options
+  const { lines, fileId, collectOnly, shuffleSeed, lifecycle, ...runtimeOptions } = options
   const events: RuntimeEvent[] = []
   const trace: string[] = []
   const step = (name: string): void => {
@@ -109,6 +109,7 @@ export async function runScript(
       ...(fileId === undefined ? {} : { fileId }),
       ...(collectOnly === undefined ? {} : { collectOnly }),
       ...(shuffleSeed === undefined ? {} : { shuffleSeed }),
+      ...(lifecycle === undefined ? {} : { lifecycle }),
     })
   } finally {
     clearInterval(keepAlive)

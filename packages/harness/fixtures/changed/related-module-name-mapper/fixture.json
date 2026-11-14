@@ -1,0 +1,23 @@
+{
+  "description": "A module reached through moduleNameMapper (`@app/foo` to src/foo.ts) is related to the test that requires it. Jest only.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "moduleNameMapper": {
+        "^@app/(.*)$": "<rootDir>/src/$1.ts"
+      }
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "src/foo.ts"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  },
+  "files": {
+    "jest": {
+      "mapped.test.ts": "test('mapped', () => {\n  const m = require('@app/foo') as Record<string, unknown>\n\n  expect(m).toBeDefined()\n})\n"
+    }
+  }
+}

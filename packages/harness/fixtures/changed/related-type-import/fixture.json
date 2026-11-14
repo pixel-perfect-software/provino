@@ -1,0 +1,11 @@
+{
+  "description": "`import type` is no edge (the extractor skips it): a test that only imports a type from src/types.ts is not related to it, a test that requires it is. Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "src/types.ts"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}
