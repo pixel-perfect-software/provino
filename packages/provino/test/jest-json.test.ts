@@ -4,22 +4,21 @@
 // exit code, and what a `testResultsProcessor` receives and returns.
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
 import { after, describe, it } from 'node:test'
 import type { Reporter } from '@provino/types'
-import { type Json, normalizedJson, observedText } from './mask.ts'
+import type { Json } from './mask.ts'
 import { loadFixture, materialize } from './recorded.ts'
+import { assertMatchesGolden, provinoOn, RESULTS } from './recorded-run.ts'
 import { jestConfigJson, passing, spawnCli } from './support.ts'
 
 const made: string[] = []
 after(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
-
-const RESULTS = '.harness-out/jest.json'
 
 interface JsonResults {
   testResults: {
@@ -64,7 +63,8 @@ function assertTimes(value: Json, keys: readonly string[], where: string): void 
   }
 }
 
-async function provinoOn(id: string): Promise<{
+/** What the assertions below read of one run: `provinoOn`'s, with the golden beside it. */
+async function view(id: string): Promise<{
   readonly code: number | null
   readonly stderr: string
   readonly raw: Json
@@ -75,49 +75,23 @@ async function provinoOn(id: string): Promise<{
   readonly keys: string | null | undefined
   readonly processorKeys: string | null | undefined
 }> {
-  const fixture = await loadFixture(id)
-  const project = await materialize(fixture)
-  try {
-    await mkdir(join(project.root, '.harness-out'), { recursive: true })
-    const argv = fixture.manifest.run?.argv?.jest ?? []
-    const ended = await spawnCli(
-      [
-        'jest',
-        `--config=${join(project.root, 'jest.config.json')}`,
-        '--ci',
-        ...argv,
-        '--json',
-        `--outputFile=${RESULTS}`,
-      ],
-      { cwd: project.root },
-    )
-    const raw = JSON.parse(await readFile(join(project.root, RESULTS), 'utf8')) as Json
-    const run = fixture.manifest.run
-    const normalized = normalizedJson(raw, {
-      roots: [project.root],
-      timeKeys: run?.timeKeys ?? [],
-      mask: run?.mask,
-    })
-    const golden = fixture.golden.observed
-    const processorKeys = golden?.files?.['processor-keys.txt']
-    const steps = { roots: [project.root], mask: run?.mask }
-    return {
-      code: ended.code,
-      // The recorder's steps on the same text: roots, the kept lines, the mask.
-      stderr: observedText(ended.stderr, { ...steps, keepLines: run?.keepLines ?? '.' }),
-      raw,
-      timeKeys: run?.timeKeys ?? [],
-      recorded: sorted(golden?.json?.[RESULTS] ?? null, `${id}: the golden's ${RESULTS}`),
-      recordedStderr: golden?.stderr,
-      recordedCode: golden?.exitCode,
-      keys: JSON.stringify(sorted(normalized, `${id}: Provino's ${RESULTS}`)),
-      processorKeys:
-        processorKeys === undefined
-          ? undefined
-          : observedText(await readFile(join(project.root, 'processor-keys.txt'), 'utf8'), steps),
-    }
-  } finally {
-    await project.dispose()
+  const run = await provinoOn(id)
+  const spec = run.fixture.manifest.run
+  const golden = run.fixture.golden.observed
+  const normalized = run.json[RESULTS] ?? null
+  return {
+    code: run.code,
+    stderr: run.stderr,
+    raw: run.raw[RESULTS] ?? null,
+    timeKeys: spec?.timeKeys ?? [],
+    recorded: sorted(golden?.json?.[RESULTS] ?? null, `${id}: the golden's ${RESULTS}`),
+    recordedStderr: golden?.stderr,
+    recordedCode: golden?.exitCode,
+    keys: JSON.stringify(sorted(normalized, `${id}: Provino's ${RESULTS}`)),
+    processorKeys:
+      golden?.files?.['processor-keys.txt'] === undefined
+        ? undefined
+        : run.files['processor-keys.txt'],
   }
 }
 
@@ -129,7 +103,7 @@ describe('provino jest --json writes what Jest 30.5.2 wrote', () => {
     ['cli/json-results-processor', 'a testResultsProcessor: its keys in, its return out'],
   ] as const) {
     it(`${what} (${id})`, async () => {
-      const run = await provinoOn(id)
+      const run = await view(id)
       assert.equal(run.code, run.recordedCode, run.stderr)
       assert.equal(run.stderr, run.recordedStderr)
       const files = (run.recorded as unknown as JsonResults).testResults
@@ -161,6 +135,20 @@ describe('provino jest --json writes what Jest 30.5.2 wrote', () => {
       }
     })
   }
+})
+
+describe('assertMatchesGolden (the shared comparison)', () => {
+  it('holds a run to every capture, and pins a declared difference', async () => {
+    const run = await provinoOn('cli/json-no-location')
+    assertMatchesGolden('cli/json-no-location', run)
+    // A declared difference needs both sides to be what it says, and to differ.
+    assert.throws(() =>
+      assertMatchesGolden('cli/json-no-location', run, {
+        declared: { exitCode: { golden: run.code, provino: run.code, reason: 'not different' } },
+      }),
+    )
+    assert.throws(() => assertMatchesGolden('cli/json-no-location', { ...run, code: 7 }))
+  })
 })
 
 describe('provino jest --json with no output file', () => {

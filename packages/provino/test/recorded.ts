@@ -14,13 +14,23 @@ export const FIXTURES: string = fileURLToPath(new URL('../../harness/fixtures/',
 /** What a fixture's `fixture.json` says that a run needs. */
 export interface RecordedManifest {
   readonly description: string
-  /** Set in the runner's environment. */
-  readonly env?: Readonly<Record<string, string>>
+  /** Set in the runner's environment; `null` removes a variable the recorder sets. */
+  readonly env?: Readonly<Record<string, string | null>>
   readonly config?: { readonly jest?: Readonly<Record<string, unknown>> }
   readonly files?: { readonly jest?: Readonly<Record<string, string>> }
   /** Installed into `node_modules/<name>/` before the run. */
   readonly packages?: Readonly<Record<string, Readonly<Record<string, string>>>>
+  /** Runs before the captured one, with these arguments added (Jest's cache and history carry over). */
+  readonly before?: readonly { readonly argv: readonly string[] }[]
   readonly run?: {
+    /** The runner gets exactly `argv.jest`: no `--config`, `--ci`, `--json` or `--outputFile`. */
+    readonly exact?: true
+    /** The streams and files were recorded as the runner wrote them (roots, `keepLines`, `mask`). */
+    readonly raw?: true
+    /** `true` sorts the kept lines; `'json'` sorts the elements of the one JSON array they make. */
+    readonly sortStdout?: true | 'json'
+    /** `json:` captures the run may leave unwritten: they record as `null`. */
+    readonly missingJson?: readonly string[]
     readonly argv?: { readonly jest?: readonly string[] }
     readonly capture: readonly string[]
     /** The lines of a stream the recording kept: a regular expression's source. */
