@@ -3,6 +3,7 @@
 // order and words (a glob group names each file, `<root>` the work directory), and the exit code.
 // `--json`'s `success` is false for a missed threshold, as Jest's reporter error makes it.
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
@@ -32,6 +33,7 @@ async function provinoOn(id: string, extra: readonly string[] = []) {
       '--ci',
       '--json',
       `--outputFile=${outputFile}`,
+      ...(fixture.manifest.run?.argv?.jest ?? []),
       ...extra,
     ],
     { cwd: root, env: RECORDER_ENV },
@@ -40,8 +42,19 @@ async function provinoOn(id: string, extra: readonly string[] = []) {
     .split('\n')
     .filter((line) => line.startsWith('Jest: '))
     .join('\n')
-  const json = JSON.parse(await readFile(outputFile, 'utf8')) as Record<string, Json>
-  return { fixture, code: ended.code, lines, success: json.success, stderr: ended.stderr }
+  // Jest writes no results file when it found no test file; `success` is then unread.
+  const json = existsSync(outputFile)
+    ? (JSON.parse(await readFile(outputFile, 'utf8')) as Record<string, Json>)
+    : undefined
+  return {
+    fixture,
+    root,
+    code: ended.code,
+    lines,
+    success: json?.success,
+    stdout: ended.stdout,
+    stderr: ended.stderr,
+  }
 }
 
 describe('provino jest --coverage checks coverageThreshold as Jest 30.5.2 does (coverage/threshold-*)', () => {
@@ -64,6 +77,34 @@ describe('provino jest --coverage checks coverageThreshold as Jest 30.5.2 does (
       assert.equal(ran.success, golden?.exitCode === 0, '--json success')
     })
   }
+
+  it('--passWithNoTests with no test file still writes the reports and checks the thresholds (threshold-no-tests)', async () => {
+    // runJest.ts L338-L352: the scheduler runs on an empty list, so CoverageReporter's
+    // `onRunComplete` writes the reports of an empty map and checks `coverageThreshold` over it.
+    // Only a group that names a path or a glob misses (`global` reads `Unknown`, which meets
+    // nothing and fails nothing), and the run exits 1 though the flag says no tests is a pass.
+    const ran = await provinoOn('coverage/threshold-no-tests')
+    const { observed } = ran.fixture.golden
+    const keep = ran.fixture.manifest.run?.keepLines
+    assert.equal(ran.code, observed?.exitCode, ran.stderr)
+    assert.equal(observedText(ran.stdout, { roots: [ran.root], keepLines: keep }), observed?.stdout)
+    assert.equal(observedText(ran.stderr, { roots: [ran.root], keepLines: keep }), observed?.stderr)
+    assert.equal(
+      await readFile(join(ran.root, 'coverage', 'coverage-summary.json'), 'utf8'),
+      observed?.files?.['coverage/coverage-summary.json'],
+    )
+    assert.equal(ran.success, false, '--json success')
+  })
+
+  it('without --passWithNoTests a run with no test file ends first: no report, no threshold check (threshold-no-tests-no-flag)', async () => {
+    const ran = await provinoOn('coverage/threshold-no-tests-no-flag')
+    const { observed } = ran.fixture.golden
+    const keep = ran.fixture.manifest.run?.keepLines
+    assert.equal(ran.code, observed?.exitCode, ran.stderr)
+    assert.equal(observedText(ran.stdout, { roots: [ran.root], keepLines: keep }), observed?.stdout)
+    assert.equal(observedText(ran.stderr, { roots: [ran.root], keepLines: keep }), observed?.stderr)
+    assert.equal(existsSync(join(ran.root, 'coverage', 'coverage-summary.json')), false)
+  })
 
   it('a missed threshold fails the run that passed every test, and its lines are on stderr, not stdout', async () => {
     const ran = await provinoOn('coverage/threshold-global')

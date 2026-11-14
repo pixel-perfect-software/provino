@@ -37,6 +37,12 @@ export interface RunCoverageHooks {
   readonly thresholds?: readonly CoverageThresholdGroup[]
   /** What a relative threshold group is resolved against. Defaults to the process's directory. */
   readonly thresholdsCwd?: string
+  /**
+   * Whether a run that found no test file still reports its coverage, over an empty map, and
+   * checks the thresholds (Jest's `--passWithNoTests`: its scheduler runs on an empty list, where
+   * without the flag it prints `No tests found` and exits first). Defaults to no.
+   */
+  readonly reportEmptyRun?: boolean
 }
 
 /** A project of the run, with its worker config (which holds its coverage config). */
@@ -66,13 +72,16 @@ async function untestedCandidates(project: CoveredProject): Promise<readonly str
 /**
  * Merges what the workers sent, adds the files no test loaded, remaps, and sums the run's coverage.
  * `projects` are the projects that ran a file, in the run's order: a file two of them name is
- * covered for the first.
+ * covered for the first. `first` is the run's first project, whose policy words the threshold
+ * failures: it is `projects[0]` unless no project had a file (an empty run still checks its
+ * thresholds, as Jest's CoverageReporter does over an empty map).
  * @public
  */
 export async function finishCoverage(
   store: RawCoverageStore,
   projects: readonly CoveredProject[],
   options: RunCoverageHooks = {},
+  first: CoveredProject | undefined = projects[0],
 ): Promise<CoverageSummary> {
   const reporting = await loadCoverageReporting()
   const aggregate = reporting.createCoverageAggregate()
@@ -109,7 +118,7 @@ export async function finishCoverage(
         remapped.map.fileCoverageFor(path).toJSON() as unknown as IstanbulFileCoverageData,
       ]),
   )
-  const policy = projects[0]?.policy.coverage
+  const policy = first?.policy.coverage
   const thresholdFailures =
     policy === undefined || options.thresholds === undefined
       ? []

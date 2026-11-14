@@ -357,6 +357,9 @@ async function coverageFor(
   const hooks: RunCoverageHooks = {
     thresholds: options.thresholds,
     thresholdsCwd: io.cwd,
+    // runJest.ts: with no test file Jest ends with its message, unless `--passWithNoTests` lets the
+    // scheduler run on an empty list, which the CoverageReporter then reports.
+    reportEmptyRun: globalConfig.passWithNoTests,
     ...(interactive
       ? {
           onUntested: {
