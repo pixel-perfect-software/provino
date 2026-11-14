@@ -324,6 +324,7 @@ async function listFiles(
 function coverageFor(
   globalConfig: JestGlobalConfig,
   io: {
+    readonly cwd: string
     readonly env: Readonly<Record<string, string | undefined>>
     readonly stdout: TextSink
     readonly stderr: NodeJS.WritableStream
@@ -335,11 +336,12 @@ function coverageFor(
   // Jest's chalk and `istanbul-lib-report`'s console writer follow stdout's colour support.
   const style = styleFor({ env, stream: stdout, ci: globalConfig.ci })
   const consoleColour = outputFor({ env, stderr: stdout, ci: globalConfig.ci }).colour
+  const options = jestCoverageOptions(globalConfig, {
+    env,
+    stdoutColumns: typeof columns === 'number' && columns > 0 ? columns : undefined,
+  })
   const reporter = createCoverageReporter({
-    options: jestCoverageOptions(globalConfig, {
-      env,
-      stdoutColumns: typeof columns === 'number' && columns > 0 ? columns : undefined,
-    }),
+    options,
     stdout,
     stderr,
     consoleColour,
@@ -348,17 +350,24 @@ function coverageFor(
   })
   // jest-util's `isInteractive`: stdout a terminal, not dumb, not CI.
   const interactive = outputFor({ env, stderr: stdout, ci: globalConfig.ci }).live
-  const hooks: RunCoverageHooks = interactive
-    ? {
-        onUntested: {
-          start: () => stderr.write(style.bold(style.dim(jestCoverageTexts.untestedNotice))),
-          // `clearLine(process.stderr)`: only on a terminal.
-          end: () => {
-            if ((stderr as { isTTY?: unknown }).isTTY === true) stderr.write('\u001b[999D\u001b[K')
+  // The thresholds are checked in the coordinator (`CoverageSummary.thresholdFailures`); Jest
+  // resolves a relative group against the process's directory.
+  const hooks: RunCoverageHooks = {
+    thresholds: options.thresholds,
+    thresholdsCwd: io.cwd,
+    ...(interactive
+      ? {
+          onUntested: {
+            start: () => stderr.write(style.bold(style.dim(jestCoverageTexts.untestedNotice))),
+            // `clearLine(process.stderr)`: only on a terminal.
+            end: () => {
+              if ((stderr as { isTTY?: unknown }).isTTY === true)
+                stderr.write('\u001b[999D\u001b[K')
+            },
           },
-        },
-      }
-    : {}
+        }
+      : {}),
+  }
   return { reporter, hooks }
 }
 
@@ -500,7 +509,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     // test loaded are covered. A `--collectTests` run collects nothing; v8 is T8.12's (warned).
     const coverage = collecting
       ? undefined
-      : coverageFor(read.globalConfig, { env, stdout, stderr })
+      : coverageFor(read.globalConfig, { cwd, env, stdout, stderr })
     const setup =
       collecting || io.reporters !== undefined || reporterResults === undefined
         ? undefined
@@ -599,7 +608,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       !(result.summary.files.length === 0 && !read.globalConfig.passWithNoTests) &&
       !results.aggregated().wasInterrupted
     if (results !== undefined && result.summary !== null && processing) {
-      results.reportersFailed(reporterFailed)
+      results.reportersFailed(reporterFailed || coverage?.reporter.thresholdsFailed() === true)
       if (collecting && !read.globalConfig.json) {
         const style = styleFor({
           env: io.env ?? process.env,

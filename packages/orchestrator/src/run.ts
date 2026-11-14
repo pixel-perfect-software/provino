@@ -985,7 +985,11 @@ export async function runProjects(
             options.coverage,
           )
     const summary = summarize(
-      cut ? cutShort() : failed ? 'failed' : 'passed',
+      cut
+        ? cutShort()
+        : failed || (coverage?.thresholdFailures.length ?? 0) > 0
+          ? 'failed'
+          : 'passed',
       openHandles,
       coverage,
     )

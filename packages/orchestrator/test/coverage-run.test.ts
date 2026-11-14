@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
 import type { SerializedCoverageConfig } from '@provino/types'
-import { run, runtimeProject, trackedProjects } from './support.ts'
+import { type RuntimeProjectOptions, run, runtimeProject, trackedProjects } from './support.ts'
 
 const project = trackedProjects()
 
@@ -36,8 +36,12 @@ const FILES = {
   ].join('\n'),
 }
 
-function withCoverage(dir: string, include: readonly string[]): ResolvedProject {
-  const base = runtimeProject(dir, { include: ['**/*.test.ts'] })
+function withCoverage(
+  dir: string,
+  include: readonly string[],
+  policy?: RuntimeProjectOptions['policy'],
+): ResolvedProject {
+  const base = runtimeProject(dir, { include: ['**/*.test.ts'], ...(policy ? { policy } : {}) })
   const coverage: SerializedCoverageConfig = {
     provider: 'istanbul',
     globalRoot: dir,
@@ -111,6 +115,40 @@ describe('a run with Istanbul coverage', () => {
     )
     assert.equal(failures[0]?.error.code, 'LOADER_TRANSFORM_FAILED')
     assert.ok(summary.coverage?.map[p.path('src/untested.ts')] !== undefined)
+  })
+
+  it('checks the thresholds it is given by the project policy’s words: failures fail the run', async () => {
+    const p = await project(FILES)
+    // Jest's grouping and words, as a dialect supplies them; the neutral policy refuses them (B25).
+    const jestWords = {
+      coverage: {
+        thresholdGrouping: 'first-match',
+        globThresholdScope: 'per-file',
+        thresholdMessages: {
+          belowMinimum:
+            'Jest: Coverage for {metric} ({actual}%) does not meet "{name}" threshold ({threshold}%)',
+          aboveMaximumUncovered:
+            'Jest: Uncovered count for {metric} ({actual}) exceeds {name} threshold ({threshold})',
+          notFound: 'Jest: Coverage data for {path} was not found.',
+        },
+      },
+    } as const
+    const { summary } = await run(withCoverage(p.dir, ['src/**/*.ts'], jestWords), {
+      pool: { kind: 'inline' },
+      coverage: {
+        thresholds: [
+          { name: 'global', functions: 100, statements: -1 },
+          { name: './missing', lines: 10 },
+        ],
+        thresholdsCwd: p.dir,
+      },
+    })
+    const failures = summary.coverage?.thresholdFailures ?? []
+    assert.equal(failures.length, 3, failures.join('\n'))
+    assert.match(failures[0] ?? '', /^Jest: Uncovered count for statements \(\d+\) exceeds global/)
+    assert.match(failures[2] ?? '', /not found/)
+    // The tests passed; the missed threshold is what fails the run.
+    assert.equal(summary.reason, 'failed')
   })
 
   it('a project without coverage has none in its summary', async () => {

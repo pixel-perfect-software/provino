@@ -11,6 +11,7 @@ import {
 import { serializeError } from '@provino/rpc'
 import type {
   CoverageSummary,
+  CoverageThresholdGroup,
   IstanbulFileCoverageData,
   SerializedProjectConfig,
 } from '@provino/types'
@@ -28,6 +29,14 @@ export interface RunCoverageHooks {
    * matches the include globs.
    */
   readonly onUntested?: { readonly start: () => void; readonly end: () => void }
+  /**
+   * The thresholds to check the run's coverage against (T8.11), in config order. The failures,
+   * worded by the first project's policy (`coverage.thresholdMessages`), are
+   * `CoverageSummary.thresholdFailures`, and any of them fails the run.
+   */
+  readonly thresholds?: readonly CoverageThresholdGroup[]
+  /** What a relative threshold group is resolved against. Defaults to the process's directory. */
+  readonly thresholdsCwd?: string
 }
 
 /** A project of the run, with its worker config (which holds its coverage config). */
@@ -100,9 +109,16 @@ export async function finishCoverage(
         remapped.map.fileCoverageFor(path).toJSON() as unknown as IstanbulFileCoverageData,
       ]),
   )
+  const policy = projects[0]?.policy.coverage
+  const thresholdFailures =
+    policy === undefined || options.thresholds === undefined
+      ? []
+      : reporting.checkThresholds(remapped.map, options.thresholds, policy, {
+          cwd: options.thresholdsCwd ?? process.cwd(),
+        })
   return {
     totals: reporting.coverageTotals(remapped.map),
-    thresholdFailures: [],
+    thresholdFailures,
     map,
     ...(untestedFailures.length === 0 ? {} : { untestedFailures }),
   }

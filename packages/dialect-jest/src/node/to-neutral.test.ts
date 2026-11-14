@@ -519,7 +519,7 @@ test('collectCoverage: the files that count, as shouldInstrument reads the confi
   })
 })
 
-test('no coverage without collectCoverage; v8 and thresholds are read but not applied yet', async () => {
+test('no coverage without collectCoverage; v8 is read but not applied yet, thresholds are applied', async () => {
   const off = tree({ 'jest.config.js': 'module.exports = {}\n' })
   const [plain] = (await readNeutral(off)).neutral.value
   assert.equal(Object.hasOwn(plain ?? {}, 'coverage'), false)
@@ -541,10 +541,10 @@ test('no coverage without collectCoverage; v8 and thresholds are read but not ap
   })
   const withThresholds = await readNeutral(thresholds)
   assert.ok(withThresholds.neutral.value[0]?.coverage !== undefined)
-  assert.ok(
-    withThresholds.neutral.diagnostics.some(
-      (d) => d.key === 'coverageThreshold' && d.message.includes('T8.11'),
-    ),
+  // `coverageThreshold` is applied (T8.11): no "not applied" warning.
+  assert.equal(
+    withThresholds.neutral.diagnostics.some((d) => d.key === 'coverageThreshold'),
+    false,
   )
 })
 

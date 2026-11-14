@@ -1,7 +1,9 @@
 // The coverage reporter of a run that collects coverage (B23b, T8.10): at `run:end` it writes the
 // reports from `RunSummary.coverage`, as Jest's CoverageReporter does in `onRunComplete`. It sits
 // where Jest's sits: after the reporters the config names and before the summary. The threshold
-// check (T8.11, B23b Phase 5) goes at the end of `run:end`, after the reports.
+// failures (`CoverageSummary.thresholdFailures`, T8.11) are printed last, after the reports, and
+// make the run fail (the orchestrator's exit code reads them; Jest's reporter keeps them as its
+// error).
 import { loadCoverageReporting } from '@provino/coverage/node'
 import type { TextSink } from '@provino/reporters'
 import type { Reporter, RunCoverageOptions, RunSummary, TextStyle } from '@provino/types'
@@ -39,6 +41,8 @@ export interface CoverageReporterOptions {
  */
 export interface CoverageReporter extends Reporter {
   coverageMap(): unknown
+  /** Whether the run's coverage missed a threshold (Jest: the reporter's `getLastError()` is set). */
+  thresholdsFailed(): boolean
 }
 
 /**
@@ -47,10 +51,12 @@ export interface CoverageReporter extends Reporter {
  */
 export function createCoverageReporter(options: CoverageReporterOptions): CoverageReporter {
   let written: unknown
+  let thresholdsMissed = false
   const fail = (text: string): unknown => options.stderr.write(`${options.style.red(text)}\n`)
   return {
     name: 'coverage',
     coverageMap: () => written,
+    thresholdsFailed: () => thresholdsMissed,
     async 'run:end'(summary: RunSummary) {
       const coverage = summary.coverage
       if (coverage === undefined) return
@@ -74,6 +80,13 @@ export function createCoverageReporter(options: CoverageReporterOptions): Covera
         const text = cause instanceof Error ? cause.toString() : String(cause)
         await fail(
           options.texts.reportFailure(text, cause instanceof Error ? cause.stack : undefined),
+        )
+      }
+      // `_checkThreshold`: `FAIL_COLOR` (bold red) over the joined lines, to stderr.
+      if (coverage.thresholdFailures.length > 0) {
+        thresholdsMissed = true
+        await options.stderr.write(
+          `${options.style.bold(options.style.red(coverage.thresholdFailures.join('\n')))}\n`,
         )
       }
     },
