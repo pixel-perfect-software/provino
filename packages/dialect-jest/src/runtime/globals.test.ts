@@ -216,10 +216,10 @@ test("jest.retryTimes hands core Jest's reading of the file's retry, and replace
   assert.equal(typeof returned[0], 'object', 'retryTimes returns the jest object')
 })
 
-test('jest.retryTimes refuses entireDescribe by name, and sets nothing', async (t) => {
+test('jest.retryTimes with entireDescribe sets the describe retry, as jest-runtime reads its options, and no file retry', async (t) => {
   const { expect } = setUpJestExpect(t)
   const seen: unknown[] = []
-  let message = ''
+  const fileRetries: unknown[] = []
   await runRegistered((api) => {
     const g = jestGlobals({
       api,
@@ -227,8 +227,39 @@ test('jest.retryTimes refuses entireDescribe by name, and sets nothing', async (
       registry: unusedRegistry,
       ...mockHost(),
       setDefaultRetry: (retry) => {
-        seen.push(retry)
+        fileRetries.push(retry)
       },
+      setDescribeRetry: (retry) => {
+        seen.push(retry)
+        return 'set'
+      },
+    })
+    g.jest.retryTimes(2, { entireDescribe: true })
+    g.jest.retryTimes('3' as unknown as number, {
+      entireDescribe: true,
+      logErrorsBeforeRetry: true,
+      waitBeforeRetry: 40,
+    })
+    g.jest.retryTimes(Number.NaN, { entireDescribe: true })
+  }, jestCore)
+  assert.deepEqual(seen, [
+    { numRetries: 2, logErrorsBeforeRetry: undefined, waitBeforeRetry: 0 },
+    { numRetries: 3, logErrorsBeforeRetry: true, waitBeforeRetry: 40 },
+    { numRetries: 0, logErrorsBeforeRetry: undefined, waitBeforeRetry: 0 },
+  ])
+  assert.deepEqual(fileRetries, [])
+})
+
+test("jest.retryTimes with entireDescribe after the run started throws jest-circus's error", async (t) => {
+  const { expect } = setUpJestExpect(t)
+  let message = ''
+  await runRegistered((api) => {
+    const g = jestGlobals({
+      api,
+      expect,
+      registry: unusedRegistry,
+      ...mockHost(),
+      setDescribeRetry: () => 'started',
     })
     try {
       g.jest.retryTimes(2, { entireDescribe: true })
@@ -236,8 +267,10 @@ test('jest.retryTimes refuses entireDescribe by name, and sets nothing', async (
       message = String(error)
     }
   }, jestCore)
-  assert.match(message, /entireDescribe.*T5\.10/)
-  assert.deepEqual(seen, [])
+  assert.equal(
+    message,
+    'Error: Cannot set retry options after tests have started running. Retry options must be set synchronously.',
+  )
 })
 
 test('fit registers a focused test; xit and xtest skipped ones', async (t) => {

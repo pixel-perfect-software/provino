@@ -5,6 +5,8 @@ import type {
   CloneSafe,
   CorePolicy,
   DefaultRetry,
+  DescribeRetry,
+  DescribeRetryResult,
   Dialect,
   Environment,
   EnvironmentRef,
@@ -179,6 +181,12 @@ expectTypeOf<DefaultRetry>().toEqualTypeOf<{
 }>()
 expectTypeOf<DefaultRetry['timing']>().toEqualTypeOf<CorePolicy['retry']['timing'] | undefined>()
 host.setDefaultRetry({ count: 1, delay: 0, timing: 'immediate', keepEarlierErrors: true })
+// A describe block's own retry: the host says whether the block took it.
+expectTypeOf(host.setDescribeRetry).toEqualTypeOf<(retry: DescribeRetry) => DescribeRetryResult>()
+expectTypeOf<DescribeRetryResult>().toEqualTypeOf<'set' | 'started'>()
+host.setDescribeRetry({ numRetries: 2, logErrorsBeforeRetry: true, waitBeforeRetry: 10 })
+// @ts-expect-error a describe retry needs its count
+host.setDescribeRetry({ waitBeforeRetry: 10 })
 // @ts-expect-error a retry with no `delay` is incomplete
 host.setDefaultRetry({ count: 1 })
 // @ts-expect-error `timing` is one of the policy's two

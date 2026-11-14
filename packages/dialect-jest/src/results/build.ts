@@ -44,6 +44,11 @@ export interface FileEvents {
   /** The file's tree (`file:collected`), or `undefined` when it never got that far. */
   readonly tree: readonly TaskNode[] | undefined
   readonly records: ReadonlyMap<TaskId, TestRecord>
+  /**
+   * The order each suite's children ran in, for the suites a randomized run shuffled
+   * (`TaskResult.childOrder` of their end events); the file's own is `result.childOrder`.
+   */
+  readonly orders?: ReadonlyMap<TaskId, readonly TaskId[]>
   readonly result: FileResult
   /** Errors a worker reported for the file outside any test. */
   readonly unhandled: readonly SerializedError[]
@@ -176,12 +181,15 @@ export function toAssertionResult(record: TestRecord, options: BuildOptions): As
 
 /**
  * The tests of a tree in declaration order (depth first), each with what the events said of it.
- * The assertions of `toTestResult` are in this order.
+ * The assertions of `toTestResult` are in this order. A suite a randomized run shuffled lists its
+ * children as it ran them (`orders`, by suite id; the file's under its own id), as jest-circus's
+ * results walk the block's shuffled `children`.
  * @public
  */
 export function testsInOrder(
   tree: readonly TaskNode[],
   records: ReadonlyMap<TaskId, TestRecord>,
+  orders: ReadonlyMap<TaskId, readonly TaskId[]> = new Map(),
 ): TestRecord[] {
   const byId = new Map(tree.map((node) => [node.id, node]))
   const out: TestRecord[] = []
@@ -192,10 +200,17 @@ export function testsInOrder(
       out.push(record ?? { task: node, result: undefined, startedAt: null })
       return
     }
-    for (const child of node.children) visit(byId.get(child))
+    for (const child of orders.get(node.id) ?? node.children) visit(byId.get(child))
   }
   for (const node of tree) if (node.type === 'file') visit(node)
   return out
+}
+
+/** The shuffled child orders of a file: its suites' and its own. */
+export function ordersOf(file: FileEvents): ReadonlyMap<TaskId, readonly TaskId[]> {
+  const root = file.tree?.find((node) => node.type === 'file')
+  if (root === undefined || file.result.childOrder === undefined) return file.orders ?? new Map()
+  return new Map([...(file.orders ?? []), [root.id, file.result.childOrder]])
 }
 
 /** The file's own errors as Jest's `SerializableError`. */
@@ -275,7 +290,7 @@ export function toTestResult(file: FileEvents, options: BuildOptions): TestResul
     }
     return buildFailureTestResult(file.testFilePath, error)
   }
-  const tests = file.tree === undefined ? [] : testsInOrder(file.tree, file.records)
+  const tests = file.tree === undefined ? [] : testsInOrder(file.tree, file.records, ordersOf(file))
   const assertionResults = tests.map((record) => toAssertionResult(record, options))
   const count = (status: Status): number =>
     assertionResults.filter((result) => result.status === status).length

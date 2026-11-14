@@ -25,5 +25,6 @@ export {
   jestEnvironmentConditions,
   jestEnvironmentFor,
 } from './jest-environment.ts'
+export { jestShuffle } from './shuffle.ts'
 export { jestSnapshotPrinter } from './snapshot-printer.ts'
 export { jestSnapshotResolver } from './snapshot-resolver.ts'

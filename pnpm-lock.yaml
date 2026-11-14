@@ -395,6 +395,9 @@ catalogs:
     publint:
       specifier: 0.3.25
       version: 0.3.25
+    pure-rand:
+      specifier: 7.0.1
+      version: 7.0.1
     tinyglobby:
       specifier: 0.2.17
       version: 0.2.17
@@ -723,6 +726,9 @@ importers:
       pretty-format:
         specifier: 'catalog:'
         version: 30.5.1
+      pure-rand:
+        specifier: 'catalog:'
+        version: 7.0.1
     devDependencies:
       '@edge-runtime/jest-environment':
         specifier: 'catalog:'
@@ -1135,6 +1141,9 @@ importers:
       pretty-format:
         specifier: 'catalog:'
         version: 30.5.1
+      pure-rand:
+        specifier: 'catalog:'
+        version: 7.0.1
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.17

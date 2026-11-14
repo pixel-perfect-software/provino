@@ -407,6 +407,7 @@ export interface CorePolicy {
         readonly functionCondition: "call" | "ignore-warn";
         readonly functionConditionWarning: string;
     };
+    readonly shuffle: Behaviour<ShuffleFactory> | null;
     readonly status: {
         readonly todoUnderSkip: "skipped" | "todo";
         readonly expectFail: "body" | "attempt";
@@ -640,6 +641,16 @@ export interface DependencyExtractor {
 
 // @public
 export type DependencyExtractorFactory = () => DependencyExtractor;
+
+// @public
+export interface DescribeRetry {
+    readonly logErrorsBeforeRetry?: boolean | undefined;
+    readonly numRetries: number;
+    readonly waitBeforeRetry?: number | undefined;
+}
+
+// @public
+export type DescribeRetryResult = "set" | "started";
 
 // @public
 export interface DetectContext {
@@ -1063,6 +1074,7 @@ export interface FileRegistryOptions {
 
 // @public
 export interface FileResult {
+    readonly childOrder?: readonly TaskId[];
     // (undocumented)
     readonly durationMs: number;
     // (undocumented)
@@ -1173,6 +1185,7 @@ export interface GlobalsHost {
     readonly seed: number;
     setDefaultRetry(retry: DefaultRetry | undefined): void;
     setDefaultTimeout(ms: number | undefined): void;
+    setDescribeRetry(retry: DescribeRetry): DescribeRetryResult;
     timers(): object;
     readonly timersPolicy: TimersPolicy;
 }
@@ -2061,6 +2074,7 @@ export interface NeutralProject {
     readonly globalValues?: Readonly<Record<string, JsonValue>>;
     readonly name: string;
     readonly policy: PolicyOverrides;
+    readonly randomize?: true;
     readonly resolution?: NeutralResolution;
     // (undocumented)
     readonly rootDir: string;
@@ -2729,6 +2743,8 @@ export type RuntimeEvent = {
     readonly state: "pass" | "fail" | "skip";
     readonly errors: readonly SerializedError[];
     readonly willRetry: boolean;
+    readonly assertions?: number;
+    readonly passingAssertions?: number;
     readonly t: number;
 } | {
     readonly type: "test-end";
@@ -2910,6 +2926,7 @@ export interface SerializedProjectConfig {
     readonly name: string;
     // (undocumented)
     readonly policy: SerializedPolicy;
+    readonly randomize?: true;
     readonly rootDir: string;
     readonly seed: number;
     readonly setupFiles: readonly string[];
@@ -2935,6 +2952,9 @@ export interface SerializedTransformConfig {
     // (undocumented)
     readonly rules: readonly SerializedTransform[];
 }
+
+// @public
+export type ShuffleFactory = (seed: number) => <T>(items: T[]) => T[];
 
 // @public
 export type SkipReason = "modifier" | "only-filter" | "name-filter" | "condition" | "dynamic" | "unknown";
@@ -3225,6 +3245,7 @@ export interface TaskResult {
     readonly assertions: number;
     // (undocumented)
     readonly attempts: number;
+    readonly childOrder?: readonly TaskId[];
     // (undocumented)
     readonly durationMs: number;
     // (undocumented)

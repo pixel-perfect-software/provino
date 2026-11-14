@@ -12,7 +12,7 @@ import type {
   TimersPolicy,
 } from './policy/index.ts'
 import type { CliDialect } from './run-request.ts'
-import type { DefaultRetry } from './runtime/context.ts'
+import type { DefaultRetry, DescribeRetry, DescribeRetryResult } from './runtime/context.ts'
 
 /**
  * Dialect option types by dialect name. Each dialect package augments it:
@@ -172,6 +172,8 @@ export interface NeutralProject {
   readonly fakeTimers?: Readonly<Record<string, JsonValue>>
   /** The run's random seed (Jest's `seed`, `jest.getSeed()`); one for every worker of a run. */
   readonly seed?: number
+  /** Shuffle each file's suites with the seed (Jest's `randomize`). Absent means the declared order. */
+  readonly randomize?: true
   readonly transforms: readonly NeutralTransform[]
   /** Regular expressions' sources: files they match are not transformed. */
   readonly transformIgnorePatterns: readonly string[]
@@ -338,6 +340,11 @@ export interface GlobalsHost {
    * (`Runtime.setDefaultRetry`). `undefined` clears it.
    */
   setDefaultRetry(retry: DefaultRetry | undefined): void
+  /**
+   * Sets the retry of the describe block being collected (the file's root at its top level;
+   * `Runtime.setDescribeRetry`). `started` once the file's run has begun.
+   */
+  setDescribeRetry(retry: DescribeRetry): DescribeRetryResult
 }
 
 /**

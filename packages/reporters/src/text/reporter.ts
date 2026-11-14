@@ -12,7 +12,12 @@ import type {
   TextStyle,
 } from '@provino/types'
 import { DEFAULT_COLUMNS } from '../environment.ts'
-import { createCollector, type FileRecord, outcomeOf } from '../internal/collect.ts'
+import {
+  createCollector,
+  type FileRecord,
+  outcomeOf,
+  recordRootOrder,
+} from '../internal/collect.ts'
 import type { TextSink } from '../sink.ts'
 import { createStyle } from '../style.ts'
 import { type ConsoleEntry, consoleBlock, consoleEntries } from './console.ts'
@@ -278,9 +283,13 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       parts.push(header)
       if (entry !== undefined) {
         parts.push(
-          ...verboseList(entry.tasks, (test) => outcomeOf(entry, test).result, style, {
-            expand: options.expand === true,
-          }),
+          ...verboseList(
+            entry.tasks,
+            (test) => outcomeOf(entry, test).result,
+            style,
+            { expand: options.expand === true },
+            entry.orders,
+          ),
         )
       }
     } else {
@@ -371,14 +380,16 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     async 'file:end'(result) {
       const { fileId } = result.file
       tally(files, result.state)
+      const entry = record.files.get(fileId)
       // A file failed whole after its tests ended (its inline snapshots could not be written):
       // none of its tests count, as Jest's summary has it.
       if (result.resultsDiscarded === true) {
-        for (const ended of record.files.get(fileId)?.results.values() ?? []) {
+        for (const ended of entry?.results.values() ?? []) {
           untally(tests, ended.state)
         }
       }
-      const text = fileText(result, record.files.get(fileId))
+      if (entry !== undefined) recordRootOrder(entry, result)
+      const text = fileText(result, entry)
       release(fileId)
       lastFailed = result.state === 'fail'
       if (result.state === 'fail' && result.errors.length > 0) runtimeErrors++

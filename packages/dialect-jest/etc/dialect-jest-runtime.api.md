@@ -191,6 +191,9 @@ export interface JestObject extends JestTimerMembers<JestObject> {
 }
 
 // @public
+export function jestShuffle(seed: number): <T>(items: T[]) => T[];
+
+// @public
 export function jestSnapshotPrinter(): SnapshotPrinter;
 
 // @public

@@ -33,7 +33,8 @@ Provino's tests compare almost everything here with Jest 30.5, either against re
 - Inline snapshots (`toMatchInlineSnapshot`, `toThrowErrorMatchingInlineSnapshot`): a new one, or one that differs under `-u`, is written into the test file as Jest writes it, byte for byte against recordings of Jest 30.5.2. That covers JavaScript and TSX files, two calls on one line, `.resolves`/`.rejects`, property matchers and calls over several lines. The call is reprinted with Babel's generator, as Jest does; Babel loads only when a snapshot is written. The file is formatted with the project's Prettier 3. With Prettier 2, Provino writes the snapshot unformatted and warns.
 - `snapshotResolver`: snapshots are written and read where the project's resolver says, and a resolver that lacks a member or doesn't invert itself fails each file with Jest's text.
 - Snapshot files with no test file are reported as obsolete in the Snapshot Summary and removed under `-u`, through a custom resolver too.
-- Retries with `jest.retryTimes(n, options)`.
+- Retries with `jest.retryTimes(n, options)`, and of a whole describe block with `entireDescribe`.
+- Random order with `--randomize` and `--seed`: a seed gives the order Jest gives.
 
 **Output**
 - The `default`, `verbose` and `summary` reporters print Jest's text (the failure text through `jest-message-util`, with a code frame, a console entry's call site, the per-file snapshot lines, the Snapshot Summary and `Ran all test suites.`), checked against recordings of Jest apart from the gaps below. `--verbose`, `--silent`, `--expand`, `--noStackTrace` and `--colors`/`--no-color` apply.
@@ -52,13 +53,12 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | A Jest reporter's own copy of Jest's frames | A report that embeds each failure's raw stack (jest-html-reporters, jest-sonar-reporter, jest-junit without `noStackTrace`) holds Provino's frames in place of `jest-circus`'s, with the project's frames in Jest's layout | Not planned |
 | `github-actions` with `silent: false` | Refused by name (the result tree it adds is not printed) | Planned |
 | Run only what changed: `--onlyChanged`, `--changedSince`, `--lastCommit`, `--changedFilesWithAncestor`, `--findRelatedTests`, `--onlyFailures` | Refused | Not yet planned |
-| Random order: `--randomize`, `--seed`, `--showSeed` | Refused | Not yet planned |
+| `--showSeed` | Refused (`--randomize` still runs, but the `Seed:` line is not printed) | Planned |
 | `--detectLeaks` | Refused | Planned |
 | `--filter`, and the `--projects` flag | Refused (a `projects` key in the config does run) | Not yet planned |
 | `--debug`, `--logHeapUsage`, `--notify`, `--notifyMode` | Warn, and are otherwise ignored | Planned |
-| A `snapshotResolver` that is broken | Each file fails with Jest's text, as in Jest; Provino then prints the totals, where Jest stops without them | Not planned |
+| A `snapshotResolver` that is broken | Each file fails with Jest's text and the run ends with no totals, exit 1, as in Jest; the error prints as `Provino: unexpected error:` with its stack, where Jest prints it red | Not planned |
 | Inline snapshots with Prettier 2 | Written unformatted, with a warning (Prettier 3 formats as Jest does) | Not planned |
-| `jest.retryTimes(n, { entireDescribe })` | Throws | Planned |
 | `-i`/`--runInBand` with `globalSetup` globals | A worker still starts, so a test doesn't see a global that `globalSetup` set, as it would in Jest | Planned |
 | A custom environment's `handleTestEvent` | Not called | Planned |
 | Legacy fake timers | `legacyFakeTimers: true` throws when a test installs the timers, with a hint to use the modern ones. `jest.runAllImmediates` throws | Not planned |

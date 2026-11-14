@@ -1,0 +1,4 @@
+{
+  "description": "A describe-level retry called at the top of the file (T5.10) retries the whole file: the root block runs again, with the `beforeAll` of the file and every describe below it.",
+  "runners": ["jest"]
+}

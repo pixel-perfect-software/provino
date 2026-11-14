@@ -333,6 +333,7 @@ export async function resolveNeutralProject(
       fakeTimers: neutral.fakeTimers,
       snapshotResolver: neutral.snapshotResolver,
       seed: neutral.seed,
+      randomize: neutral.randomize,
       resolution: neutral.resolution,
     },
     { environments: options.environments, ci: options.ci },
@@ -390,6 +391,7 @@ interface ProjectInput {
   readonly seed?: number | undefined
   /** The project's own snapshot resolver module, absolute (Jest's `snapshotResolver`). */
   readonly snapshotResolver?: string | undefined
+  readonly randomize?: true | undefined
 }
 
 /** `record`, or `undefined` when it has no keys: an empty one is no setting. */
@@ -487,6 +489,7 @@ async function finishProject(
     ...(fakeTimers === undefined ? {} : { fakeTimers }),
     ...(input.seed === undefined ? {} : { seed: input.seed }),
     ...(input.snapshotResolver === undefined ? {} : { snapshotResolver: input.snapshotResolver }),
+    ...(input.randomize === true ? { randomize: true as const } : {}),
     setupFiles,
     setupFilesAfterEnv,
     loader: {
