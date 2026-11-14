@@ -430,9 +430,15 @@ export class Executor {
     if (isRoot) run.file.errors.push(...errors)
     else {
       const childOrder = run.shuffled.get(suite)
-      this.#endTask(scope.hold, 'suite-end', suite.id, outcome, start, errors, {
-        ...(childOrder === undefined ? {} : { childOrder }),
-      })
+      this.#endTask(
+        scope.hold,
+        'suite-end',
+        suite.id,
+        outcome,
+        start,
+        errors,
+        childOrder === undefined ? undefined : { childOrder },
+      )
     }
     return outcome
   }
