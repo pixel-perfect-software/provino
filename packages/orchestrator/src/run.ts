@@ -289,6 +289,15 @@ export interface RunProjectOptions {
    * results cache and the timings file are left as they were.
    */
   readonly collectOnly?: boolean
+  /**
+   * Which projects check, after each of their files, that its environment can be collected (Jest's
+   * `detectLeaks`, a project key): a file that holds it fails whole (`FileResult.leaks`, its
+   * tests discarded). A project it names with isolation `none`, whose files share one registry
+   * for the worker's life, is refused (`ORCH_BAD_OPTION`); the others are not asked.
+   */
+  readonly detectLeaks?: (project: ResolvedProject) => boolean
+  /** Report each file's heap after it ran (Jest's `--logHeapUsage`): `FileResult.heapUsedBytes`. */
+  readonly logHeapUsage?: boolean
 }
 
 /**
@@ -429,6 +438,8 @@ interface Member {
   readonly identity: string
   /** The project's place in the run's `projects` (0-based): what a reporter keys its config by. */
   readonly projectIndex: number
+  /** The project asks for the leak check after each of its files (`RunProjectOptions.detectLeaks`). */
+  readonly detectLeaks: boolean
   /** What the project's files reported, its update mode and its policy. */
   readonly snapshots: SnapshotMember
   readonly cache: ResultsCache | undefined
@@ -514,6 +525,14 @@ export async function runProjects(
     )
   }
 
+  const { detectLeaks } = options
+  if (detectLeaks !== undefined && projects.some((p) => p.isolation === 'none' && detectLeaks(p))) {
+    throw new OrchestratorError(
+      'ORCH_BAD_OPTION',
+      'detectLeaks can’t be used with isolation `none`: its files share one module registry and one environment for the worker’s life, so nothing is released after a file to check. Use isolation `registry` or `process`',
+    )
+  }
+
   // Coverage is the projects' own (their worker config says which files count); the run keeps
   // what the workers send. Its modules (and `@provino/coverage/node` behind them) load only when a
   // project collects (T1.10, T7.12): a run without coverage imports none of them.
@@ -578,6 +597,8 @@ export async function runProjects(
       cacheProject: cacheKeyCounts.get(cacheKey)?.length === 1 ? cacheKey : identity,
       identity,
       projectIndex: index,
+      // Asked of the project the caller gave: `project` above is a copy of it.
+      detectLeaks: options.detectLeaks?.(resolved) === true,
       // What every file does with its snapshots (build-plan §6: the worker writes the `.snap` files).
       snapshots: snapshotMember(
         resolveUpdateMode({
@@ -814,6 +835,8 @@ export async function runProjects(
       fileId: entry.info.fileId,
       updateSnapshots: member.snapshots.update,
       ...(options.collectOnly === true ? { collectOnly: true as const } : {}),
+      ...(member.detectLeaks ? { detectLeaks: true as const } : {}),
+      ...(options.logHeapUsage === true ? { logHeapUsage: true as const } : {}),
       ...(options.testNamePattern === undefined
         ? {}
         : { testNamePattern: options.testNamePattern }),
@@ -836,8 +859,10 @@ export async function runProjects(
         onEvents: dispatch.handle,
         // Jest's rule counts a file's failed tests when the file ends: before its worker takes
         // another file, or `--bail` would start one it is about to give up.
-        onDone: () => {
-          if (bailAfter === 'file') countFailed(failedInFile)
+        // A file the worker found leaking is failed whole and its tests are discarded (Jest's
+        // `onFailure`, which adds no failed test and never checks `bail`), so they count for none.
+        onDone: (done) => {
+          if (bailAfter === 'file') countFailed(done.leaks === true ? 0 : failedInFile)
         },
       })
       // The file's inline snapshots go into the source before it is reported (D113).
@@ -875,7 +900,11 @@ export async function runProjects(
       })
       // The worker finished the file and the inline snapshot write failed it.
       const result: FileResult =
-        outcome !== polled ? { ...reported, resultsDiscarded: true } : reported
+        outcome.type === 'done' && outcome.done.leaks === true
+          ? leakedResult(reported)
+          : outcome !== polled
+            ? { ...reported, resultsDiscarded: true }
+            : reported
       // A start failure or an interruption says nothing about the file; a skipped file isn't
       // remembered (as Jest's).
       if (
@@ -1404,6 +1433,27 @@ function planQueue(
   return ordered.flatMap((input) => entries.get(input.path) ?? [])
 }
 
+/**
+ * A file the worker found leaking, failed whole: its tests are discarded (`resultsDiscarded`) and
+ * its one error is Provino's own text, which a dialect with a wording of its own replaces where it
+ * reads `FileResult.leaks` (the Jest dialect's result builder does).
+ */
+function leakedResult(reported: FileResult): FileResult {
+  return {
+    ...reported,
+    state: 'fail',
+    resultsDiscarded: true,
+    leaks: true,
+    errors: [
+      {
+        name: 'Error',
+        message:
+          'The file leaks memory: its environment was still reachable after its teardown (detectLeaks)',
+      },
+    ],
+  }
+}
+
 /** How a file's pool outcome becomes its result; `end` is the `file-end` result its events carried, if any. */
 function resultOf(
   file: FileInfo,
@@ -1453,6 +1503,9 @@ function resultOf(
             errors: end.errors,
             ...(outcome.done.snapshot === undefined ? {} : { snapshot: outcome.done.snapshot }),
             ...(end.childOrder === undefined ? {} : { childOrder: end.childOrder }),
+            ...(outcome.done.heapUsedBytes === undefined
+              ? {}
+              : { heapUsedBytes: outcome.done.heapUsedBytes }),
           }
     default:
       return outcome satisfies never

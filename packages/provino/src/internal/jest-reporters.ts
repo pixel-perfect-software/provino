@@ -4,6 +4,7 @@
 // summary last, as its own reporter.
 import {
   createJestReporterHost,
+  createNotifyReporter,
   type JestGlobalConfig,
   type JestProjectConfig,
   type JestResults,
@@ -13,6 +14,7 @@ import {
   jestSnapshotStatus,
   jestSnapshotSummary,
   jestUpdateCommand,
+  loadJestNotifier,
   loadJestReporters,
 } from '@provino/dialect-jest/node'
 import {
@@ -99,7 +101,10 @@ export async function setUpJestReporters(options: {
     entries,
   })
   const afterUpdate = globalConfig.updateSnapshot === 'all'
+  // `getSummary`: the seed line when `showSeed` is on (`randomize` turns it on in the config reader).
+  const seed = globalConfig.showSeed === true ? globalConfig.seed : undefined
   const noteHooks = {
+    ...(seed === undefined ? {} : { seed }),
     // Jest renders a console entry's site with `formatStackTrace`, a code frame for `warn` and `error`.
     consoleTrace: (file: FileInfo, entry: ConsoleEntry) => {
       const config = options.configs[file.projectIndex ?? 0] ?? options.configs[0]
@@ -125,6 +130,17 @@ export async function setUpJestReporters(options: {
   }
   // After every hosted class has seen a file, its console buffer is freed.
   if (release !== undefined) reporters.push(release)
+  // `_setupReporters`: the NotifyReporter, then the CoverageReporter. A run with `node-notifier` missing
+  // ends before any file runs, with the error's stack (Jest throws it where it builds the reporter).
+  if (globalConfig.notify) {
+    reporters.push(
+      createNotifyReporter({
+        globalConfig,
+        loaded: loadJestNotifier(globalConfig.rootDir),
+        aggregated: () => results.aggregated(),
+      }),
+    )
+  }
   // `_setupReporters`: the CoverageReporter after the config's reporters, before the summary.
   if (options.coverage !== undefined) reporters.push(options.coverage)
   const announceThrown = !reporters.some(

@@ -13,6 +13,7 @@ import {
   JestConfigError,
   type JestFilter,
   type JestGlobalConfig,
+  JestNotifierMissingError,
   type JestProjectConfig,
   jestCli,
   jestCollectedText,
@@ -693,6 +694,10 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       // (and `--bail=2` is false, as in Jest 30.5.2, so a count is always the config's).
       ...(read.globalConfig.bail > 0 ? { bail: { count: read.globalConfig.bail } } : {}),
       ...(read.globalConfig.detectOpenHandles ? { detectOpenHandles: true } : {}),
+      // `detectLeaks` is a project key (`--detectLeaks` sets every project's): each project is checked
+      // or not by its own, as `runTest` reads `config.detectLeaks`. `--logHeapUsage` is global.
+      detectLeaks: (resolved) => selectedConfigs[projects.indexOf(resolved)]?.detectLeaks === true,
+      ...(read.globalConfig.logHeapUsage ? { logHeapUsage: true } : {}),
       // Jest's `--shard=i/n` (validated by the config reader, as Jest's `normalize` does).
       ...(shard === undefined ? {} : { shard }),
       ...timingsOf({ timingsFile, updateTimings }),
@@ -763,6 +768,12 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     if (filterError !== undefined && error === filterError) {
       // jest-cli prints the stack of the error that ended `runCLI`, and exits 1.
       stderr.write(`${error instanceof Error ? (error.stack ?? String(error)) : String(error)}\n`)
+      return ExitCode.TestFailure
+    }
+    if (error instanceof JestNotifierMissingError) {
+      // Thrown where Jest builds the NotifyReporter, before a file runs: jest-cli prints the stack
+      // of the error that ended `runCLI`, and exits 1.
+      stderr.write(`${error.stack ?? error.message}\n`)
       return ExitCode.TestFailure
     }
     if (error instanceof JestCliError || error instanceof JestConfigError) {

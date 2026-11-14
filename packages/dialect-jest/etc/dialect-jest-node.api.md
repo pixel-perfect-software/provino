@@ -160,6 +160,13 @@ export function createJestResolution(requireResolve: JestRequireResolve): JestRe
 export function createJestResults<Config extends ProjectConfigLike>(options: JestResultsOptions<Config>): JestResults<Config>;
 
 // @public
+export function createNotifyReporter(options: {
+    readonly globalConfig: JestNotifyConfig;
+    readonly loaded: JestNotifierLoad;
+    readonly aggregated: () => AggregatedResult;
+}): Reporter;
+
+// @public
 export interface DisplayName {
     // (undocumented)
     color: string;
@@ -559,6 +566,32 @@ export type JestMapperEntry = readonly [pattern: string, target: string | readon
 export const jestNodeDialect: Dialect<"jest">;
 
 // @public
+export interface JestNotifier {
+    // (undocumented)
+    notify(options: Readonly<Record<string, unknown>>): void;
+}
+
+// @public
+export interface JestNotifierLoad {
+    readonly icon?: string;
+    // (undocumented)
+    readonly notifier: JestNotifier;
+}
+
+// @public
+export class JestNotifierMissingError extends Error {
+    constructor(options?: ErrorOptions);
+}
+
+// @public
+export interface JestNotifyConfig {
+    // (undocumented)
+    readonly notifyMode: string;
+    // (undocumented)
+    readonly rootDir: string;
+}
+
+// @public
 export interface JestProjectConfig {
     // (undocumented)
     readonly automock: boolean;
@@ -907,6 +940,9 @@ export type JestTransformEntry = readonly [pattern: string, path: string, option
 export function jestUpdateCommand(env: Readonly<Record<string, string | undefined>>, watch: boolean): string;
 
 // @public
+export const LEAK_MESSAGE: string;
+
+// @public
 export function loadJestConfig(source: ConfigSource): Promise<{
     readonly options: JestInitialOptions;
     readonly configPath: string | null;
@@ -917,6 +953,9 @@ export function loadJestFilter(globalConfig: {
     readonly filter: JestGlobalConfig["filter"];
     readonly skipFilter: boolean;
 }): JestFilter | undefined;
+
+// @public
+export function loadJestNotifier(rootDir: string): JestNotifierLoad;
 
 // @public
 export function loadJestReporters(plan: JestReporterPlan, options?: {

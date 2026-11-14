@@ -60,6 +60,10 @@ export interface ExecuteOptions {
   readonly fileFilter?: RunProjectOptions['fileFilter']
   /** Run in band: in this process, one file at a time, `console` still captured (`-i`). */
   readonly runInBand?: boolean
+  /** Jest's `detectLeaks`, per project. */
+  readonly detectLeaks?: (project: ResolvedProject) => boolean
+  /** Jest's `--logHeapUsage`. */
+  readonly logHeapUsage?: boolean
   readonly passWithNoTests?: boolean | undefined
   readonly signal?: AbortSignal | undefined
   /** The second Ctrl+C: kills the workers at once. */
@@ -191,6 +195,8 @@ function run(
     ...(options.fileFilters === undefined ? {} : { fileFilters: options.fileFilters }),
     ...(options.fileFilter === undefined ? {} : { fileFilter: options.fileFilter }),
     ...(options.runInBand === true ? { runInBand: true } : {}),
+    ...(options.detectLeaks === undefined ? {} : { detectLeaks: options.detectLeaks }),
+    ...(options.logHeapUsage === true ? { logHeapUsage: true } : {}),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
     ...(options.bail === undefined ? {} : { bail: options.bail }),

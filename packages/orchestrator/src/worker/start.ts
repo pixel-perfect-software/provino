@@ -73,6 +73,17 @@ export interface FileOutcome {
    */
   readonly snapshot?: SnapshotFileReport
   /**
+   * `FileJob.logHeapUsage`: the heap in bytes after the file ran and before its teardown
+   * (`fileDone.heapUsedBytes`).
+   */
+  readonly heapUsedBytes?: number
+  /**
+   * `FileJob.detectLeaks`: asked once the runner has returned and the file's own frames are gone,
+   * so it can tell whether anything still holds what the file used. The answer is
+   * `fileDone.leaks`. It must hold the file's objects only weakly.
+   */
+  readonly isLeaking?: (signal: AbortSignal) => Promise<boolean>
+  /**
    * The modules the file loaded (absolute paths: its setup files, the test file and what they
    * import), as the loader reports them. They go out as one `deps` event before `fileDone`, for
    * affected-test selection (T9.12). Absent for a runner with no loader.
@@ -261,6 +272,8 @@ export function startWorker(
     let leakedHandles = 0
     let leakedGlobals: readonly string[] = []
     let snapshot: SnapshotFileReport | null = null
+    let heapUsedBytes: number | undefined
+    let isLeaking: ((signal: AbortSignal) => Promise<boolean>) | undefined
     try {
       if (startFailure !== undefined) throw startFailure.error
       const file = { ...context(), job, signal: controller.signal }
@@ -270,6 +283,8 @@ export function startWorker(
       leakedHandles = outcome?.leakedHandles ?? 0
       leakedGlobals = outcome?.leakedGlobals ?? []
       snapshot = outcome?.snapshot ?? null
+      heapUsedBytes = outcome?.heapUsedBytes
+      isLeaking = outcome?.isLeaking
       if (outcome?.deps !== undefined) {
         // Each path crosses the link once per worker; after that it is its id.
         const added: string[] = []
@@ -288,6 +303,16 @@ export function startWorker(
     } catch (error) {
       // The runtime reports test failures as events; a runner that throws is a bug, charged to the file.
       charge(error, job.fileId)
+    }
+    // The leak check runs outside the file's frames, the runner's included (Jest's `runTest` asks
+    // after `runTestInternal` returned). The file's controller is still live, so `cancel` ends the wait.
+    // It is part of the file's time (the coordinator's `fileTimeoutMs` runs until `fileDone`): the
+    // check is ten ticks and a collection, and a hung one is what that deadline is for.
+    let leaks = false
+    try {
+      if (isLeaking !== undefined) leaks = await isLeaking(controller.signal)
+    } catch (error) {
+      charge(error, job.fileId)
     } finally {
       controllers.delete(seq)
     }
@@ -301,6 +326,8 @@ export function startWorker(
         leakedHandles,
         leakedGlobals,
         ...(snapshot === null ? {} : { snapshot }),
+        ...(leaks ? { leaks: true as const } : {}),
+        ...(heapUsedBytes === undefined ? {} : { heapUsedBytes }),
       }),
     )
   }

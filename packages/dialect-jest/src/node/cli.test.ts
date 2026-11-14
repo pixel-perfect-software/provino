@@ -996,7 +996,7 @@ describe('the options table', () => {
   it('classifies every option once, and counts the classes', (t) => {
     const counts = Object.fromEntries(supports)
     t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
-    assert.deepEqual(counts, { request: 16, config: 70, accepted: 6, warn: 3, refuse: 10 })
+    assert.deepEqual(counts, { request: 16, config: 75, accepted: 6, refuse: 8 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'
       assert.equal(option.owner !== undefined, needsOwner, name)
@@ -1038,7 +1038,8 @@ describe('the options table', () => {
       'skipFilter',
       'watchman',
     ])
-    assert.deepEqual(named('warn'), ['logHeapUsage', 'notify', 'notifyMode'].sort())
+    // B23d A4 applied the last three, so no flag is read and not applied.
+    assert.deepEqual(named('warn'), [])
   })
 
   it('makes one FlagSpec per option', () => {
@@ -1079,7 +1080,7 @@ describe('diagnostics', () => {
   }
 
   it('gives an error diagnostic for each refused flag, naming the task', () => {
-    assert.equal(Object.keys(REFUSED).length, 10)
+    assert.equal(Object.keys(REFUSED).length, 8)
     for (const [name, owner] of Object.entries(REFUSED)) {
       const { diagnostics } = parseJestCli(lineFor(name))
       assert.deepEqual(
@@ -1107,25 +1108,20 @@ describe('diagnostics', () => {
       lastCommit: 'Track 9, no task yet',
       findRelatedTests: 'Track 9, no task yet',
       onlyFailures: 'Track 9, no task yet',
-      detectLeaks: 'T2.7',
-      showSeed: 'Track 9, no task yet',
     }
     assert.deepEqual(REFUSED, owners)
   })
 
-  it('gives a warning for each flag it reads but does not apply', () => {
-    for (const name of ['logHeapUsage', 'notify']) {
-      const { diagnostics } = parseJestCli([`--${name}`])
-      assert.deepEqual(diagnostics, [
-        {
-          level: 'warning',
-          code: 'JEST_CLI_NOT_APPLIED',
-          key: `--${name}`,
-          message: `--${name} is read but not applied yet (T9.7)`,
-        },
-      ])
+  it('says nothing for the flags B23d A4 applies: --showSeed, --logHeapUsage, --notify, --notifyMode, --detectLeaks', () => {
+    for (const line of [
+      ['--showSeed'],
+      ['--logHeapUsage'],
+      ['--notify'],
+      ['--notifyMode', 'always'],
+      ['--detectLeaks'],
+    ]) {
+      assert.deepEqual(parseJestCli(line).diagnostics, [], line.join(' '))
     }
-    assert.equal(parseJestCli(['--notifyMode', 'always']).diagnostics[0]?.key, '--notifyMode')
   })
 
   it('says nothing for the presentation flags the reporters apply (D54, T9.7)', () => {
@@ -1161,13 +1157,12 @@ describe('diagnostics', () => {
       '--watch',
       '--shard',
       '1/2',
-      '--logHeapUsage',
       '--coverage',
       '--onlyFailures',
     ])
     assert.deepEqual(
       diagnostics.map((diagnostic) => diagnostic.key),
-      ['--logHeapUsage', '--onlyFailures', '--watch'],
+      ['--onlyFailures', '--watch'],
     )
     // --coverage (B23b, T8.10) and --shard (T9.6) are applied now, so they say nothing.
     assert.deepEqual(parseJestCli(['--coverage']).diagnostics, [])

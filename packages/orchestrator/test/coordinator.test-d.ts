@@ -93,6 +93,14 @@ expectTypeOf(runProject).returns.toEqualTypeOf<Promise<RunSummary>>()
 expectTypeOf<RunProjectOptions['bus']>().toEqualTypeOf<ReporterBus>()
 expectTypeOf<RunProjectOptions['cache']>().toEqualTypeOf<ResultsCache | false | undefined>()
 expectTypeOf<RunProjectOptions['signal']>().toEqualTypeOf<AbortSignal | undefined>()
+// `detectLeaks` is a project's key: which projects check, not a run-wide switch (B23d A4).
+expectTypeOf<RunProjectOptions['detectLeaks']>().toEqualTypeOf<
+  ((project: ResolvedProject) => boolean) | undefined
+>()
+expectTypeOf<RunProjectOptions['logHeapUsage']>().toEqualTypeOf<boolean | undefined>()
+// @ts-expect-error a run-wide flag is not a per-project question
+const runWide: RunProjectOptions['detectLeaks'] = true
+void runWide
 void runProject(project, { bus })
 void runProject(project, { bus, cache: false, testNamePattern: 'works', pool: { maxWorkers: 2 } })
 // @ts-expect-error the bus is required: every event goes through it

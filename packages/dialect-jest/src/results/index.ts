@@ -5,6 +5,7 @@ export {
   type FileEvents,
   finishAggregated,
   flattenSerializedError,
+  LEAK_MESSAGE,
   NO_TESTS_MESSAGE,
   type RunEnd,
   type TestRecord,

@@ -239,6 +239,22 @@ function noTestsStack(): string {
   return `Error: ${NO_TESTS_MESSAGE}\n    at TestScheduler.onResult (node_modules/@jest/core/build/index.js:1:1)`
 }
 
+/**
+ * What a file that leaks is failed with under `--detectLeaks` (TestScheduler.ts L153-L169): the
+ * message `onResult` builds, plain (Jest paints `EXPERIMENTAL FEATURE!` bold red, which a
+ * reporter's style can't reach from here), with one frame in Jest's own package, as for
+ * `NO_TESTS_MESSAGE`.
+ * @public
+ */
+export const LEAK_MESSAGE: string =
+  'EXPERIMENTAL FEATURE!\n' +
+  'Your test suite is leaking memory. Please ensure all references are cleaned.\n' +
+  '\n' +
+  'There is a number of things that can leak memory:\n' +
+  '  - Async operations that have not finished (e.g. fs.readFile).\n' +
+  '  - Timers not properly mocked (e.g. setInterval, setTimeout).\n' +
+  '  - Keeping references to the global scope.'
+
 function noTestsResult(testFilePath: string): TestResult {
   return buildFailureTestResult(testFilePath, {
     message: NO_TESTS_MESSAGE,
@@ -280,6 +296,12 @@ function withPerfStats(result: TestResult, file: FileEvents, options: BuildOptio
  * @public
  */
 export function toTestResult(file: FileEvents, options: BuildOptions): TestResult {
+  if (file.result.leaks === true) {
+    return buildFailureTestResult(file.testFilePath, {
+      message: LEAK_MESSAGE,
+      stack: `Error: ${LEAK_MESSAGE}\n    at TestScheduler.onResult (node_modules/@jest/core/build/index.js:1:1)`,
+    })
+  }
   if (file.result.workerExit !== undefined || file.result.resultsDiscarded === true) {
     // A worker that died takes the file's results with it: Jest's runner fails the whole file
     // (`TestScheduler.ts` `onFailure`, L185-L200), so even tests that ended before the crash
@@ -359,6 +381,8 @@ export function toTestResult(file: FileEvents, options: BuildOptions): TestResul
     },
     // jest-runner's runTest.ts: `skipped = testCount === numPendingTests`.
     skipped: !failed && testCount === numPendingTests,
+    // `--logHeapUsage`: the heap after the file (runTest.ts L354-L357).
+    ...(file.result.heapUsedBytes === undefined ? {} : { memoryUsage: file.result.heapUsedBytes }),
     snapshot:
       snapshot === undefined
         ? createEmptyTestResult().snapshot

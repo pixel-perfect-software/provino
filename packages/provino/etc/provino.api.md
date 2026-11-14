@@ -479,6 +479,8 @@ export interface T {
     readonly errors: readonly Q[];
     // (undocumented)
     readonly file: w;
+    readonly heapUsedBytes?: number;
+    readonly leaks?: true;
     readonly resultsDiscarded?: true;
     readonly snapshot?: SnapshotFileReport;
     // (undocumented)
