@@ -63,6 +63,9 @@ catalog:
   # @provino/coverage's instrumenter reads input maps with it.
   "@jridgewell/trace-mapping": 0.3.31
   # autd: dependency updates (DECISIONS D14); config in .always-up-to-date.json.
+  # Jest's v8 coverage provider (B23b, T8.12, D109): the merge of V8's ranges across processes, at
+  # the version Jest 30.5.2's reporters install.
+  "@bcoe/v8-coverage": 0.2.3
   "@pixel-perfect-software/always-up-to-date": 4.1.1
   # The current-test propagation test (Track 5 Spikes B): fake-timer callbacks, as Jest 30.5 installs.
   "@sinonjs/fake-timers": 15.4.0
@@ -178,6 +181,9 @@ catalog:
   typescript: 7.0.2
   # The type-test job also runs on TypeScript 5.9.
   typescript-5.9: npm:typescript@5.9.3
+  # Jest's v8 coverage provider (B23b, T8.12, D109): a worker's V8 ranges to Istanbul data, at the
+  # version Jest 30.5.2's reporters install.
+  v8-to-istanbul: 9.3.0
   # Jest 30.5 and Vitest 5.0 are the ground truth every golden records (CLAUDE.md NN2, DECISIONS
   # S3), so `.always-up-to-date.json` holds both families: moving one is a re-record, not an update.
   vitest: 5.0.5

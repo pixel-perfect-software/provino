@@ -156,13 +156,9 @@ export function jestProjectToNeutral(
       '; snapshots stay beside the test file',
     )
   }
-  // `--coverage` (or the key): the files that count, as `shouldInstrument` decides (B23b). A
-  // `--collectTests` run executes nothing, so it collects nothing. Jest's v8 provider is T8.12's.
+  // `--coverage` (or the key): the files that count, as `shouldInstrument` decides (B23b), under
+  // either provider (T8.12). A `--collectTests` run executes nothing, so it collects nothing.
   const collects = globalConfig.collectCoverage && !globalConfig.collectTests
-  const v8 = globalConfig.coverageProvider === 'v8'
-  if (collects && v8) {
-    notApplied(diagnostics, 'coverageProvider', 'T8.12', '; no coverage is collected')
-  }
 
   const aliases: NeutralAlias[] = project.moduleNameMapper.map(([pattern, target]) => ({
     pattern,
@@ -192,10 +188,11 @@ export function jestProjectToNeutral(
   // Jest's default babel-jest instruments what it transforms, with the process's cwd as Babel's
   // (the files outside it are not instrumented): the Oxc path stands in for it, so it keeps that
   // root too. A transform the config names goes through Jest's ScriptTransformer, under `rootDir`.
-  const coverage =
-    collects && !v8
-      ? jestCoverageFilter(project, globalConfig, { babelInstruments: implicit })
-      : undefined
+  // Under the v8 provider nothing is instrumented, so only `shouldInstrument` decides.
+  const babelInstruments = implicit && globalConfig.coverageProvider !== 'v8'
+  const coverage = collects
+    ? jestCoverageFilter(project, globalConfig, { babelInstruments })
+    : undefined
   const transforms: NeutralTransform[] = skipImplicit
     ? []
     : project.transform.map(([pattern, module, options]) => ({

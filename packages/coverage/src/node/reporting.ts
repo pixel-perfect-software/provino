@@ -10,3 +10,9 @@ export {
   type ThresholdPolicy,
 } from './thresholds.ts'
 export { coverageTotals } from './totals.ts'
+export {
+  convertV8Coverage,
+  emptyV8Coverage,
+  type V8ConversionOptions,
+  type V8Coverage,
+} from './v8.ts'

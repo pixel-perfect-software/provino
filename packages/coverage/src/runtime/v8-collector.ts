@@ -2,10 +2,13 @@
 // before anything of the project loads, so every script a test file evaluates is counted, and the
 // take at `stop` keeps the scripts that are user modules the loader compiled and the filter counts.
 // Offsets are the script's own; `Loader.compiledModule` gives the wrapper that precedes the code.
+// A module's code and map go once per run: a module whose `transformKey` the coordinator already
+// holds (a worker before this one sent it) is named without them.
 import { Session } from 'node:inspector/promises'
 import type {
   CoverageCollector,
   ExecutedModuleInfo,
+  ExecutedModuleRef,
   Loader,
   RawCoverage,
   V8ScriptCoverage,
@@ -23,6 +26,8 @@ export interface V8CollectorOptions {
   readonly include: (path: string) => boolean
   /** Count calls, not only hits (`v8HitCounts`): V8's `callCount`. */
   readonly callCount: boolean
+  /** The `transformKey`s whose code and map the coordinator holds (`WorkerInit.coverageModules`). */
+  readonly known?: ReadonlySet<string>
 }
 
 /**
@@ -47,7 +52,7 @@ export function createV8Collector(options: V8CollectorOptions): CoverageCollecto
     async take(testFile) {
       const { result } = await session.post('Profiler.takePreciseCoverage')
       const scripts: V8ScriptCoverage[] = []
-      const modules = new Map<string, ExecutedModuleInfo>()
+      const modules = new Map<string, ExecutedModuleInfo | ExecutedModuleRef>()
       for (const script of result) {
         const { url } = script
         // V8 names a user module's script by the `file:` URL of its path.
@@ -55,11 +60,17 @@ export function createV8Collector(options: V8CollectorOptions): CoverageCollecto
         const compiled = options.loader.compiledModule?.(url)
         if (compiled === null || compiled === undefined || !options.include(compiled.path)) continue
         scripts.push(script)
-        modules.set(url, {
+        const ref: ExecutedModuleRef = {
           url,
           wrapperLength: compiled.wrapperLength,
           transformKey: compiled.transformKey,
-        })
+        }
+        modules.set(
+          url,
+          options.known?.has(compiled.transformKey) === true
+            ? ref
+            : { ...ref, code: compiled.code, map: compiled.map },
+        )
       }
       const raw: RawCoverage = {
         kind: 'v8',

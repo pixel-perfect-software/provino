@@ -71,6 +71,40 @@ function collect(events: readonly WorkerEvent[]): readonly RawCoverage[] {
   return store.entries
 }
 
+describe("the store keeps a V8 module's code and map once", () => {
+  it('a second take of the same path keeps its name only, and add returns what was sent', () => {
+    const store = createRawCoverageStore()
+    const module = {
+      url: 'file:///p/a.ts',
+      wrapperLength: 3,
+      transformKey: 'k1',
+      code: 'x',
+      map: null,
+    }
+    const event = (workerId: number): Extract<WorkerEvent, { readonly type: 'coverage' }> => ({
+      type: 'coverage',
+      fileId: null,
+      payload: {
+        type: 'json',
+        json: JSON.stringify({ kind: 'v8', workerId, scripts: [], modules: [module] }),
+      },
+      t: 0,
+    })
+    const first = store.add(1, event(1))
+    const second = store.add(2, event(2))
+    // As each worker sent it: both carried the code.
+    for (const take of [first, second]) {
+      assert.deepEqual(take.kind === 'v8' ? take.modules : undefined, [module])
+    }
+    const kept = store.entries.map((take) => (take.kind === 'v8' ? take.modules : undefined))
+    assert.deepEqual(kept, [
+      [module],
+      [{ url: 'file:///p/a.ts', wrapperLength: 3, transformKey: 'k1' }],
+    ])
+    assert.deepEqual([...store.v8Modules], ['k1'])
+  })
+})
+
 /** The statement hit counts of `pricing.ts` in a take, by statement id; `undefined` when it has none. */
 function pricingHits(raw: RawCoverage | undefined): Record<string, number> | undefined {
   if (raw?.kind !== 'istanbul') return undefined

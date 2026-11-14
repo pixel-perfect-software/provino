@@ -1,23 +1,28 @@
 // T8.10, the coordinator's merge: every file's Istanbul counters from every worker, added up into one
 // coverage map, as Jest's CoverageReporter merges each test file's `testResult.coverage`
 // (`CoverageReporter.ts` `onTestResult`). A file no test loaded joins it with its initial coverage.
+// V8 takes are kept as they came: `convertV8Coverage` merges and converts them once the run is over.
+import { fileURLToPath } from 'node:url'
 import type { IstanbulFileCoverageData, RawCoverage } from '@provino/types'
 import libCoverage from 'istanbul-lib-coverage'
 import { CoverageError } from '../errors.ts'
+import type { V8Coverage } from './v8.ts'
 
 /**
  * The run's coverage as it is collected.
  * @public
  */
 export interface CoverageAggregate {
-  /** Adds one take of a worker (its maps already expanded). V8 takes are T8.12's (`COVERAGE_NOT_IMPLEMENTED`). */
+  /** Adds one take of a worker (an Istanbul take's maps already expanded). */
   add(raw: RawCoverage): void
   /** Adds a file's initial coverage (a file no test loaded), unless the map already has the file. */
   addUntested(data: IstanbulFileCoverageData): void
-  /** Whether a file at this absolute path has data. */
+  /** Whether a file at this absolute path has data (Istanbul's, or a V8 script of that path). */
   has(path: string): boolean
-  /** The merged map, as `istanbul-lib-coverage` holds it. */
+  /** The merged Istanbul map, as `istanbul-lib-coverage` holds it. */
   readonly map: libCoverage.CoverageMap
+  /** The V8 takes, in the order they came. */
+  readonly v8: readonly V8Coverage[]
 }
 
 /**
@@ -26,14 +31,19 @@ export interface CoverageAggregate {
  */
 export function createCoverageAggregate(): CoverageAggregate {
   const map = libCoverage.createCoverageMap({})
+  const v8: V8Coverage[] = []
+  /** The paths the V8 takes have a script of. */
+  const v8Paths = new Set<string>()
   return {
     map,
+    v8,
     add(raw) {
-      if (raw.kind !== 'istanbul') {
-        throw new CoverageError(
-          'COVERAGE_NOT_IMPLEMENTED',
-          "V8 coverage isn't merged into reports yet (T8.12)",
-        )
+      if (raw.kind === 'v8') {
+        v8.push(raw)
+        for (const script of raw.scripts) {
+          v8Paths.add(script.url.startsWith('file:') ? fileURLToPath(script.url) : script.url)
+        }
+        return
       }
       for (const [path, entry] of Object.entries(raw.data)) {
         if (typeof entry !== 'object' || entry === null || !('statementMap' in entry)) {
@@ -47,7 +57,7 @@ export function createCoverageAggregate(): CoverageAggregate {
       if (map.data[data.path] !== undefined) return
       map.addFileCoverage(structuredClone(data) as libCoverage.FileCoverageData)
     },
-    has: (path) => map.data[path] !== undefined,
+    has: (path) => map.data[path] !== undefined || v8Paths.has(path),
   }
 }
 

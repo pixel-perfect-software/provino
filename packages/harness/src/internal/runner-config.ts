@@ -1,5 +1,6 @@
 // The config the recorder writes for each runner. Fixtures carry none, so this is the one place
 // that decides how Jest and Vitest are run for a golden.
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import {
   type FixtureProfile,
@@ -76,6 +77,8 @@ export interface RunnerConfigOptions {
   readonly mockCleanup?: MockCleanup
   /** The fixture's `jestEsm`: Jest's transformer also turns `import` into `require`. */
   readonly jestEsm?: true
+  /** The fixture's `jestTypeScript`: Jest's documented TypeScript setup in place of the recorder's. */
+  readonly jestTypeScript?: 'babel'
   /** The fixture's `jestConfig`: Jest's `roots` and `unmockedModulePathPatterns`. */
   readonly jestConfig?: JestFixtureConfig
   /** The fixture's `config` overlay for this runner, applied last (`applyOverlay`). */
@@ -177,7 +180,10 @@ export function vitestMockCleanupOptions(cleanup: MockCleanup | undefined): {
 export interface JestConfigFile {
   readonly rootDir: string
   readonly transform: Readonly<
-    Record<string, string | readonly [string, { readonly jestEsm: true }]>
+    Record<
+      string,
+      string | readonly [string, { readonly jestEsm: true }] | readonly [string, BabelJestOptions]
+    >
   >
   readonly setupFiles: readonly string[]
   readonly testMatch: readonly string[]
@@ -194,9 +200,39 @@ export interface JestConfigFile {
   readonly [option: string]: unknown
 }
 
+/** The options a fixture's `jestTypeScript: "babel"` gives `babel-jest`: Babel's own. */
+export interface BabelJestOptions {
+  readonly presets: readonly string[]
+  readonly plugins: readonly string[]
+}
+
+// Resolved from this file, so they are found from a work directory under `.record/` too.
+const BABEL_JEST = createRequire(import.meta.url).resolve('babel-jest')
+const PRESET_TYPESCRIPT = createRequire(import.meta.url).resolve('@babel/preset-typescript')
+const MODULES_COMMONJS = createRequire(import.meta.url).resolve(
+  '@babel/plugin-transform-modules-commonjs',
+)
+
+/**
+ * Jest's documented TypeScript setup (D123): `babel-jest` with `@babel/preset-typescript`, as a
+ * project's `babel.config.js` gives it. The documentation's `@babel/preset-env` with `targets: {
+ * node: 'current' }` is, on the Node versions recorded, the CommonJS transform of `import` and
+ * `export` only, so `jestEsm` adds that plugin and nothing else.
+ */
+function babelTypeScript(options: RunnerConfigOptions): readonly [string, BabelJestOptions] {
+  return [
+    BABEL_JEST,
+    {
+      presets: [PRESET_TYPESCRIPT],
+      plugins: options.jestEsm === true ? [MODULES_COMMONJS] : [],
+    },
+  ]
+}
+
 /**
  * Jest runs `*.test.ts` except `*.vitest.test.ts`. Types are stripped by the harness transformer,
- * which hands the result to `babel-jest`. `setupFile` is the trace setup (`traceSetupSource`).
+ * which hands the result to `babel-jest`, unless the fixture asks for Jest's documented setup
+ * (`jestTypeScript`). `setupFile` is the trace setup (`traceSetupSource`).
  */
 export function jestConfig(
   workDir: string,
@@ -208,7 +244,11 @@ export function jestConfig(
     rootDir: workDir,
     transform: {
       '\\.[cm]?ts$':
-        options.jestEsm === true ? [transformerPath, { jestEsm: true }] : transformerPath,
+        options.jestTypeScript === 'babel'
+          ? babelTypeScript(options)
+          : options.jestEsm === true
+            ? [transformerPath, { jestEsm: true }]
+            : transformerPath,
     },
     setupFiles: setupFilesOf(setupFile, options),
     testMatch: ['<rootDir>/**/*.test.ts'],

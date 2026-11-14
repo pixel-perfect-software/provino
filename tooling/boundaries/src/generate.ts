@@ -200,10 +200,11 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
       {
         name: 'not-to-unresolvable',
         comment:
-          "Every import resolves. A deep import past a package's exports fails here. The harness's mod-* fixtures are exempt: they import packages the recorder installs at run time (`packages`), and modules that are meant to be missing. So is the self-test sample's crash.test.ts, whose missing import is the crash it records.",
+          "Every import resolves. A deep import past a package's exports fails here. The harness's mod-* fixtures are exempt: they import packages the recorder installs at run time (`packages`), and modules that are meant to be missing. So are coverage/v8-commonjs's tests, which import the JavaScript module the recorder writes from `files` (no `.js` is committed, D13), and the self-test sample's crash.test.ts, whose missing import is the crash it records.",
         severity: 'error',
         from: {
-          pathNot: '^packages/harness/(?:fixtures/mocking/mod-[^/]+/|sample/crash\\.test\\.ts$)',
+          pathNot:
+            '^packages/harness/(?:fixtures/mocking/mod-[^/]+/|fixtures/coverage/v8-commonjs/tests/|sample/crash\\.test\\.ts$)',
         },
         to: { couldNotResolve: true },
       },
