@@ -165,8 +165,14 @@ test('code that ends before the file’s trailing types makes no statements of t
   magic.overwrite(tail, source.length - 1, source.slice(tail, -1).replace(/\S/g, ' '))
   magic.prepend('exports.f = f;\n')
   const code = magic.toString()
-  const map = magic.generateMap({ source: path, hires: 'boundary' })
-  const ran = await take(path, code, { ...map, version: 3 }, 1, 1)
+  const generated = magic.generateMap({ source: path, hires: 'boundary' })
+  const map: SourceMapV3 = {
+    version: 3,
+    sources: generated.sources,
+    names: generated.names,
+    mappings: generated.mappings,
+  }
+  const ran = await take(path, code, map, 1, 1)
   const aggregate = reporting.createCoverageAggregate()
   aggregate.add(ran)
   const { map: coverage } = await reporting.convertV8Coverage(aggregate.v8, [], {
