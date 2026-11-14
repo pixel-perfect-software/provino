@@ -1,15 +1,13 @@
 // The Jest inline snapshot writer on its own (B23d B1): edits handed to it as the coordinator hands
 // them, the source it leaves. The recorded goldens hold it to Jest 30.5.2 end to end
 // (`packages/provino/test/jest-inline-snapshots.test.ts`); here, what a golden can't isolate: the
-// errors, the escaping, the policy ref, no write when nothing changed, and Prettier 2's warning.
+// errors, the escaping, no write when nothing changed, and Prettier 2's warning.
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
-import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
 import type { InlineSnapshotEdit } from '@provino/types'
-import { jestPolicy } from '../dialect.ts'
 import { jestInlineSnapshotWriter } from './index.ts'
 
 function project(files: Readonly<Record<string, string>>): string {
@@ -47,23 +45,18 @@ function at(
 const write = jestInlineSnapshotWriter()
 
 describe('jestInlineSnapshotWriter', () => {
-  test('the policy`s ref loads the writer', async () => {
-    const ref = resolvePolicy(jestPolicy).snapshot.inline.writer
-    assert.ok(ref !== null && typeof ref !== 'function')
-    const factory = await createBehaviourLoader().load(ref)
-    assert.equal(typeof factory(), 'function')
-  })
-
   test('a new snapshot goes in as a template literal, escaped as Jest escapes it', async () => {
     const text = "test('t', () => {\n  expect(x).toMatchInlineSnapshot()\n})\n"
     const root = project({ 'a.test.ts': text })
     const file = join(root, 'a.test.ts')
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the snapshot holds a `${` to escape
     await write([at(file, text, 'toMatchInlineSnapshot', '"a `b` ${c} \\\\"')], {
       rootDir: root,
       prettierPath: null,
     })
     assert.equal(
       readFileSync(file, 'utf8'),
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: the escaped `${` Jest writes
       'test(\'t\', () => {\n  expect(x).toMatchInlineSnapshot(`"a \\`b\\` \\${c} \\\\\\\\"`)\n})\n',
     )
   })

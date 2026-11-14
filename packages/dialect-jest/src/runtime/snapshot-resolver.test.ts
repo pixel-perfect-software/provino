@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
+import { stripVTControlCharacters } from 'node:util'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
 import { jestPolicy } from '../dialect.ts'
 import { jestSnapshotResolver } from './snapshot-resolver.ts'
@@ -41,7 +42,7 @@ async function jest(module: unknown): Promise<unknown> {
     }
   } catch (error) {
     return {
-      error: `${(error as Error).name}: ${(error as Error).message.replaceAll(/\u001b\[\d+m/g, '')}`,
+      error: `${(error as Error).name}: ${stripVTControlCharacters((error as Error).message)}`,
     }
   }
 }

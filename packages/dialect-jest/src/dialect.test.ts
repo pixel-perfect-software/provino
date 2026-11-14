@@ -271,3 +271,10 @@ test('the keys the dialect leaves to the neutral policy are the ones listed in d
     'the dialect sets no key the policy does not have',
   )
 })
+
+test('the inline snapshot writer ref loads (B23d B1)', async () => {
+  const ref = resolvePolicy(jestPolicy).snapshot.inline.writer
+  assert.ok(ref !== null && typeof ref !== 'function')
+  const factory = await createBehaviourLoader().load(ref)
+  assert.equal(typeof factory(), 'function')
+})

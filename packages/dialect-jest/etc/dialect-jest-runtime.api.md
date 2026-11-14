@@ -23,6 +23,7 @@ import { Pragmas } from '@provino/types';
 import { Replaced } from '@provino/mock';
 import { RuntimeApi } from '@provino/core';
 import { SnapshotPrinter } from '@provino/types';
+import { SnapshotResolverFactory } from '@provino/types';
 import { SpiedGetter } from '@provino/mock';
 import { SpiedMethod } from '@provino/mock';
 import { SpiedSetter } from '@provino/mock';
@@ -191,6 +192,9 @@ export interface JestObject extends JestTimerMembers<JestObject> {
 
 // @public
 export function jestSnapshotPrinter(): SnapshotPrinter;
+
+// @public
+export const jestSnapshotResolver: SnapshotResolverFactory;
 
 // @public
 export interface JestTimerMembers<J> {

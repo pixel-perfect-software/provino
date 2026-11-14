@@ -10,7 +10,7 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
 /** A position in a Babel AST: 1-based line, 0-based column. */
-export interface BabelPosition {
+interface BabelPosition {
   line: number
   readonly column: number
 }
@@ -40,7 +40,7 @@ interface Ancestor {
 }
 
 /** The parse options jest-snapshot gives `parseSync` (`utils.ts` L231-L262). */
-export interface BabelParseOptions {
+interface BabelParseOptions {
   readonly filename: string
   readonly plugins: readonly unknown[]
   readonly presets: readonly string[]
