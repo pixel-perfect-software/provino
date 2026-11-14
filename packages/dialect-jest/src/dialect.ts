@@ -20,6 +20,8 @@
 //   orchestrator.isolationDefault.byEnvironment (see there).
 import { defineDialect, moduleRef } from '@provino/policy'
 import type {
+  ChangedFilesProvider,
+  DependencyExtractorFactory,
   Dialect,
   EnvironmentConditions,
   EnvironmentResolver,
@@ -317,6 +319,24 @@ export const jestPolicy: PolicyOverrides = {
     watchDefault: 'never',
     // research: track-09 L560 (`all` with `--watchAll`)
     watch: { initialRun: 'changed' },
+    // research: track-09 (pending B23c Phase 5 records it: `changed/*` goldens). jest-changed-files rebuilt.
+    changedFiles: moduleRef<ChangedFilesProvider>(
+      import.meta.resolve('@provino/dialect-jest/affected'),
+      'jestChangedFiles',
+    ),
+    affected: {
+      // research: track-09 (pending B23c Phase 5: `changed/related-extractor-comments`). Haste's regex extractor.
+      extractor: moduleRef<DependencyExtractorFactory>(
+        import.meta.resolve('@provino/dialect-jest/affected'),
+        'jestDependencyExtractor',
+      ),
+      // research: track-09 (pending B23c Phase 5: `changed/related-mock-adjacent`, `-mock-root`). jest-resolve-dependencies L57-99.
+      mockEdges: { dir: '__mocks__', adjacent: true, byName: true },
+      // research: track-09 (pending B23c Phase 5: `changed/related-config-file`, `-setup-file`). Jest selects by the graph alone.
+      invalidateAll: 'none',
+      // research: track-09 (pending B23c Phase 5). Jest's selection is static (compat).
+      graph: 'static',
+    },
     // jest-runtime reads the environment's `exportConditions()`; the coordinator can't build the
     // class, so the behaviour answers for the packages Jest ships and `customExportConditions`.
     environmentConditions: moduleRef<EnvironmentConditions>(

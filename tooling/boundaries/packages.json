@@ -307,7 +307,8 @@
         "@provino/resolver",
         "@provino/snapshot/node",
         "@provino/coverage/node",
-        "@provino/loader"
+        "@provino/loader",
+        "@provino/loader/graph"
       ],
       "slices": "all",
       "neutral": true
@@ -362,6 +363,14 @@
       "deps": ["@provino/types"],
       "slices": "all",
       "note": "D103: Jest's result shapes and the collector that builds them from the run's events. Loaded by `/node`'s result processing and by `provino jest`; never by a worker."
+    },
+    "@provino/dialect-jest/affected": {
+      "dir": "packages/dialect-jest/src/affected",
+      "layer": 5,
+      "runsIn": "coordinator",
+      "deps": ["@provino/types"],
+      "slices": "all",
+      "note": "T9.16, T9.12 (B23c, D118): Jest's changed-files provider (jest-changed-files rebuilt over git, hg and sl) and haste's dependency extractor, loaded by the coordinator through behaviour refs. A leaf of its own so the coordinator never imports ./node or ./runtime."
     },
     "@provino/dialect-jest/global-setup": {
       "dir": "packages/dialect-jest/src/global-setup",

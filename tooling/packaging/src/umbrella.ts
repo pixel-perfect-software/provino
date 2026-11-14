@@ -22,6 +22,9 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   // Loaded by the coordinator when a run writes an inline snapshot (B23d B1): Babel and the
   // project's Prettier load inside it then, never in a run that writes none.
   '@provino/dialect-jest/inline-snapshots': 'worker/jest-inline-snapshots',
+  // Loaded by the coordinator (changed files, the dependency extractor) through behaviour refs
+  // (B23c, D118): a leaf of its own, so it never pulls the runtime in.
+  '@provino/dialect-jest/affected': 'worker/jest-affected',
   '@provino/policy/behaviours': 'worker/policy-behaviours',
   '@provino/env-node': 'worker/env-node',
   '@provino/env-jsdom': 'worker/env-jsdom',

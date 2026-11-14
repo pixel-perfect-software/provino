@@ -278,3 +278,28 @@ test('the inline snapshot writer ref loads (B23d B1)', async () => {
   const factory = await createBehaviourLoader().load(ref)
   assert.equal(typeof factory(), 'function')
 })
+
+test('Jest’s changed-file and affected-test keys are refs into the coordinator leaf, with Jest’s selection rules (B23c)', async () => {
+  const leaf = import.meta.resolve('@provino/dialect-jest/affected')
+  const { orchestrator } = resolved
+  assert.deepEqual(orchestrator.changedFiles, { module: leaf, export: 'jestChangedFiles' })
+  assert.deepEqual(orchestrator.affected.extractor, {
+    module: leaf,
+    export: 'jestDependencyExtractor',
+  })
+  assert.deepEqual(orchestrator.affected.mockEdges, {
+    dir: '__mocks__',
+    adjacent: true,
+    byName: true,
+  })
+  assert.equal(orchestrator.affected.invalidateAll, 'none')
+  assert.equal(orchestrator.affected.graph, 'static')
+  // Until Phase 5 builds them, the leaf's exports refuse with the orchestrator's code.
+  const provider = await createBehaviourLoader().load(orchestrator.changedFiles as never)
+  await assert.rejects(
+    (provider as (options: { roots: string[] }) => Promise<unknown>)({ roots: [] }),
+    { code: 'ORCH_NOT_IMPLEMENTED' },
+  )
+  const extractor = await createBehaviourLoader().load(orchestrator.affected.extractor as never)
+  assert.throws(() => (extractor as () => unknown)(), { code: 'ORCH_NOT_IMPLEMENTED' })
+})
