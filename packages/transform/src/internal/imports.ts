@@ -2,7 +2,7 @@
 // oxc-parser's module record, plus `require('x')` calls and top-level await, which need the AST.
 // The AST is only walked when a cheap substring check says it can matter.
 import type { ImportRecord } from '@provino/types'
-import { type ParserOptions, parseSync, rawTransferSupported } from 'oxc-parser'
+import { type ParseResult, type ParserOptions, parseSync, rawTransferSupported } from 'oxc-parser'
 
 export interface ModuleFacts {
   readonly imports: readonly ImportRecord[]
@@ -133,18 +133,24 @@ export function formatOf(facts: ModuleFacts, esmByName: boolean): 'esm' | 'cjs' 
   return facts.hasModuleSyntax || esmByName ? 'esm' : facts.hasCommonJsSyntax ? 'cjs' : 'unknown'
 }
 
-/** Parses `source` once and reads its imports, module syntax and top-level await. */
+/**
+ * Parses `source` once and reads its imports, module syntax and top-level await. `parsed` is a
+ * parse of `source` with these options the caller already has (the in-place strip's, D116).
+ */
 export function moduleFacts(
   filename: string,
   source: string,
   lang: NonNullable<ParserOptions['lang']>,
   sourceType: NonNullable<ParserOptions['sourceType']>,
+  parsed?: ParseResult,
 ): ModuleFacts {
-  const result = parseSync(filename, source, {
-    lang,
-    sourceType,
-    ...(RAW_TRANSFER ? { experimentalRawTransfer: true } : {}),
-  })
+  const result =
+    parsed ??
+    parseSync(filename, source, {
+      lang,
+      sourceType,
+      ...(RAW_TRANSFER ? { experimentalRawTransfer: true } : {}),
+    })
   const module = result.module
   const imports: ImportRecord[] = []
 
