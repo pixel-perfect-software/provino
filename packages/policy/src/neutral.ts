@@ -212,6 +212,18 @@ export const neutralPolicy: Policy = deepFreeze({
     bail: { checkAfter: 'test' },
     watchDefault: 'never',
     watch: { initialRun: 'all' },
+    // Ours: no neutral provider yet; a selection by changed files is refused (T11.16).
+    changedFiles: null,
+    affected: {
+      // Ours: the lexer of `@provino/loader/graph` (speed).
+      extractor: null,
+      // Ours: a mock beside the file it mocks is an edge; a root mock found by name is not.
+      mockEdges: { dir: '__mocks__', adjacent: true, byName: false },
+      // Ours: a change to a project's own inputs reruns every file of it.
+      invalidateAll: 'project-inputs',
+      // Ours: a fresh record of a file's loaded modules beats a rescan (speed: fewer files run).
+      graph: 'recorded-then-static',
+    },
     globMatchesOn: 'root-relative-path',
     // Ours: a file where nothing ran is skipped.
     todoOnlyFile: 'skip',

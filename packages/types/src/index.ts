@@ -1,5 +1,13 @@
 // @provino/types: the shared contracts. Types only, so this module has no runtime exports.
 export type {
+  AffectedSelection,
+  ChangedFiles,
+  ChangedFilesOptions,
+  ChangedFilesProvider,
+  DependencyExtractor,
+  DependencyExtractorFactory,
+} from './affected.ts'
+export type {
   BenchLabel,
   BenchRecord,
   BenchResult,
