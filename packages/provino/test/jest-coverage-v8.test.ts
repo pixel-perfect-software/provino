@@ -21,6 +21,26 @@ import { spawnCli } from './support.ts'
 const RECORDER_ENV = { CI: '1', NO_COLOR: '1', COLUMNS: '', GITHUB_ACTIONS: '' }
 
 /**
+ * Node 22's V8 (12.4) gives `Cart`'s instance and static field initializers the whole class's range
+ * (3:18-48:1), so both functions and their branches span the class, and the field statements keep
+ * the class's count of 1, which is Jest's. V8 13 (Node 24 and 26) gives each initializer its own
+ * range, and the instance one covers the field Babel elides (DV99). The pins differ by V8, each exact.
+ */
+const V8_12 = Number(process.versions.node.split('.')[0]) < 24
+
+const CART_INITIALIZERS: Readonly<Record<string, string>> = V8_12
+  ? {
+      'src/cart.ts fnMap[0]': 'ours 3:18-48:1 (line 3), jest 4:11-5:9 (line 4)',
+      'src/cart.ts fnMap[1]': 'ours 3:18-48:1 (line 3), jest 6:2-6:20 (line 6)',
+      'src/cart.ts branchMap[0]': 'ours 3:18-48:1 (line 3), jest 4:11-5:9 (line 4)',
+      'src/cart.ts branchMap[1]': 'ours 3:18-48:1 (line 3), jest 6:2-6:20 (line 6)',
+    }
+  : {
+      'src/cart.ts fnMap[0]': 'ours 4:11-7:7 (line 4), jest 4:11-5:9 (line 4)',
+      'src/cart.ts branchMap[0]': 'ours 4:11-7:7 (line 4), jest 4:11-5:9 (line 4)',
+    }
+
+/**
  * The ranges of ours that are not Jest's, by fixture: `<file> <map>[<key>]` to our range and
  * Jest's, each `start-end (line N)`. Jest's v8 numbers come through babel's source map of
  * babel's own output (babel-jest with `@babel/preset-typescript` and the CommonJS plugin, D123);
@@ -42,8 +62,7 @@ const RECORDER_ENV = { CI: '1', NO_COLOR: '1', COLUMNS: '', GITHUB_ACTIONS: '' }
  */
 const DIFFERENT_RANGES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'coverage/v8-providers-sample': {
-    'src/cart.ts fnMap[0]': 'ours 4:11-7:7 (line 4), jest 4:11-5:9 (line 4)',
-    'src/cart.ts branchMap[0]': 'ours 4:11-7:7 (line 4), jest 4:11-5:9 (line 4)',
+    ...CART_INITIALIZERS,
     'src/cart.ts branchMap[3]': 'ours 11:23-11:33 (line 11), jest 11:22-11:33 (line 11)',
     'src/cart.ts branchMap[7]': 'ours 15:37-15:70 (line 15), jest 15:38-15:70 (line 15)',
     'src/cart.ts branchMap[12]': 'ours 41:57-41:65 (line 41), jest 41:56-41:65 (line 41)',
@@ -71,14 +90,17 @@ const DIFFERENT_RANGES: Readonly<Record<string, Readonly<Record<string, string>>
  * Jest's. The instance members' initializer of `Cart` runs once per instance (3), and ours spans
  * lines 4 to 7 (see `DIFFERENT_RANGES`), so lines 5 and 6 (`#coupon: string | undefined` and
  * `static created = 0`), which it covers whole, count 3; Jest's ends inside line 5, so both lines
- * keep the enclosing count of 1 (DV99). Nothing else in a counter differs.
+ * keep the enclosing count of 1 (DV99). Nothing else in a counter differs. Under Node 22's V8 the
+ * counters are all Jest's (see `V8_12`).
  */
-const DIFFERENT_COUNTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  'coverage/v8-providers-sample': {
-    'src/cart.ts s[4]': 'ours 3, jest 1',
-    'src/cart.ts s[5]': 'ours 3, jest 1',
-  },
-}
+const DIFFERENT_COUNTS: Readonly<Record<string, Readonly<Record<string, string>>>> = V8_12
+  ? {}
+  : {
+      'coverage/v8-providers-sample': {
+        'src/cart.ts s[4]': 'ours 3, jest 1',
+        'src/cart.ts s[5]': 'ours 3, jest 1',
+      },
+    }
 
 interface Ran {
   readonly fixture: RecordedFixture
