@@ -1,0 +1,31 @@
+{
+  "description": "vscode-jest 6.4.4 (T11.12, D125): the list-test-files request (process-session.ts:167): --listTests --json --watchAll=false, no --outputFile, --reporters or --colors. stdout's one array line is what the extension reads (process-listeners.ts:118,149-159), sorted as a set. The editor's spawner sets no CI and no NO_COLOR and the recorder sets both, so `env` has \"CI\": \"false\" (ci-info reads that as not CI) and removes NO_COLOR; both are test choices, not the editor's. The output file is a relative path inside the project (vscode-jest uses a name under os.tmpdir()), the reporter is the project's ./vscode-jest-reporter.js (the editor passes <ext>/out/reporter.js) and a file argument is relative (the editor passes an absolute path).",
+  "runners": [
+    "jest"
+  ],
+  "env": {
+    "CI": "false",
+    "NO_COLOR": null
+  },
+  "files": {
+    "jest": {
+      "package.json": "{\n  \"type\": \"commonjs\"\n}\n"
+    }
+  },
+  "run": {
+    "exact": true,
+    "argv": {
+      "jest": [
+        "--listTests",
+        "--json",
+        "--watchAll=false"
+      ]
+    },
+    "capture": [
+      "exitCode",
+      "stdout"
+    ],
+    "keepLines": "^\\[.*\\]$",
+    "sortStdout": "json"
+  }
+}
