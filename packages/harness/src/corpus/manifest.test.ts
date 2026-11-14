@@ -150,9 +150,10 @@ test('every package manager is pinned to an exact version, so no install falls b
 test('provinoRefuses is what provino jest itself refuses on the subject, by the parser', async () => {
   rejects(
     await edited((draft) => {
-      subjectOf(draft, 'mobx').argv.push('--coverage')
+      // Any flag provino jest still refuses (--coverage was, until B23b).
+      subjectOf(draft, 'mobx').argv.push('--watchAll')
     }),
-    /must list --coverage: provino jest refuses it/,
+    /must list --watchAll: provino jest refuses it/,
   )
   // A flag is named as the parser names it, with its value split off.
   rejects(
@@ -170,8 +171,8 @@ test('provinoRefuses is what provino jest itself refuses on the subject, by the 
   )
   const accepted = await edited((draft) => {
     const subject = subjectOf(draft, 'mobx')
-    subject.argv.push('--coverage')
-    subject.provinoRefuses = [{ flag: '--coverage', reason: 'no coverage backend yet' }]
+    subject.argv.push('--watchAll')
+    subject.provinoRefuses = [{ flag: '--watchAll', reason: 'no watch mode yet' }]
   })
   assert.doesNotThrow(() => parseCorpusManifest(accepted, 'manifest.json'))
 })

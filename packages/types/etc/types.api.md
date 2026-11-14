@@ -8,6 +8,15 @@ import { Context } from 'node:vm';
 import { StandardSchemaV1 } from '@standard-schema/spec';
 
 // @public
+export type AffectedSelection = {
+    readonly kind: "related";
+    readonly paths: readonly string[];
+} | {
+    readonly kind: "changed";
+    readonly changed: ChangedFiles;
+};
+
+// @public
 export type AnyFunction = (...args: never[]) => unknown;
 
 // @public
@@ -138,6 +147,30 @@ export type BulkPayload = {
     readonly type: "bytes";
     readonly buffer: ArrayBuffer;
 };
+
+// @public
+export interface ChangedFiles {
+    // (undocumented)
+    readonly changedFiles: readonly string[];
+    // (undocumented)
+    readonly repos: {
+        readonly git: readonly string[];
+        readonly hg: readonly string[];
+        readonly sl: readonly string[];
+    };
+}
+
+// @public
+export interface ChangedFilesOptions {
+    readonly changedSince?: string;
+    readonly lastCommit?: boolean;
+    // (undocumented)
+    readonly roots: readonly string[];
+    readonly withAncestor?: boolean;
+}
+
+// @public
+export type ChangedFilesProvider = (options: ChangedFilesOptions) => Promise<ChangedFiles>;
 
 // @public
 export interface CleanupRegistrar {
@@ -603,6 +636,17 @@ export interface Defs {
 }
 
 // @public
+export interface DependencyExtractor {
+    // (undocumented)
+    readonly cacheKey?: string;
+    // (undocumented)
+    extract(code: string, path: string, fallback: (code: string) => Iterable<string>): Iterable<string>;
+}
+
+// @public
+export type DependencyExtractorFactory = () => DependencyExtractor;
+
+// @public
 export interface DetectContext {
     // (undocumented)
     readonly configFiles: readonly string[];
@@ -978,6 +1022,7 @@ export interface FileJob {
     readonly file: string;
     // (undocumented)
     readonly fileId: TaskId;
+    readonly staleModules?: readonly string[];
     readonly testIds?: readonly TaskId[];
     // (undocumented)
     readonly testNamePattern?: string;
@@ -1478,6 +1523,7 @@ export interface Loader extends Disposable {
     compiledModule?(url: string): CompiledModuleInfo | null;
     // (undocumented)
     createFileRegistry(testFile: string, options: FileRegistryOptions): FileRegistry;
+    dropRecords(paths: readonly string[]): void;
     // (undocumented)
     readonly engine: EngineKind;
     // (undocumented)
@@ -1977,6 +2023,9 @@ export interface NeutralDiscovery {
 
 // @public
 export interface NeutralProject {
+    readonly affected?: {
+        readonly extractor?: ModuleRef;
+    };
     // (undocumented)
     readonly aliases: readonly NeutralAlias[];
     readonly cacheDirectory?: string;
@@ -2007,6 +2056,9 @@ export interface NeutralProject {
     readonly transformIgnorePatterns: readonly string[];
     // (undocumented)
     readonly transforms: readonly NeutralTransform[];
+    readonly watch?: {
+        readonly ignorePatterns: readonly string[];
+    };
 }
 
 // @public
@@ -2111,9 +2163,20 @@ export interface OpenHandle {
 
 // @public
 export interface OrchestratorPolicy {
+    readonly affected: {
+        readonly extractor: Behaviour<DependencyExtractorFactory> | null;
+        readonly mockEdges: {
+            readonly dir: string;
+            readonly adjacent: boolean;
+            readonly byName: boolean;
+        } | null;
+        readonly invalidateAll: "project-inputs" | "none";
+        readonly graph: "static" | "recorded-then-static";
+    };
     readonly bail: {
         readonly checkAfter: "file" | "test";
     };
+    readonly changedFiles: Behaviour<ChangedFilesProvider> | null;
     readonly consoleOrigin: "stack" | "none";
     readonly coverageProvider: "v8" | "istanbul";
     readonly coverageReporters: readonly string[];

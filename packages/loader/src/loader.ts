@@ -180,6 +180,9 @@ export const createLoader: CreateLoader = (options) => {
       }
     },
     getSourceMap: (id) => state.records.get(id)?.map ?? null,
+    dropRecords: () => {
+      throw notYet('Loader.dropRecords', 'B23c Phase 4')
+    },
     compiledModule: (url) => {
       // V8 reports a vm script by the `file:` URL of its filename; a path is accepted too.
       const path = url.startsWith('file:') ? fileURLToPath(url) : url
