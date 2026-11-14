@@ -303,13 +303,21 @@ export class Collector {
         this.#config.policy.timeouts,
         typeof timeout === 'number' ? timeout : undefined,
       ),
+      synthetic: false,
       site: this.#site(entry),
       location: null,
     }
     hooks.push(hook)
     const life = owner.file.lifecycle
     if (life !== undefined) {
-      notify(life, { type: 'define-hook', owner, kind, fn: hook.fn, timeoutMs: hook.timeoutMs })
+      notify(life, {
+        type: 'define-hook',
+        hook,
+        owner,
+        kind,
+        fn: hook.fn,
+        timeoutMs: hook.timeoutMs,
+      })
     }
   }
 
@@ -323,6 +331,7 @@ export class Collector {
       ordinal: hooks.length,
       owner,
       timeoutMs: undefined,
+      synthetic: true,
       site: null,
       location: null,
     })

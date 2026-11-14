@@ -51,6 +51,11 @@ export interface HookNode {
   readonly ordinal: number
   readonly owner: SuiteNode
   readonly timeoutMs: number | undefined
+  /**
+   * `true` for a hook the runtime added for itself (`LazyHost.addHook`, an eager lazy value's): no
+   * test file declared it, so the lifecycle events never name it.
+   */
+  readonly synthetic: boolean
   /** The captured callsite, until the tree is built and it is parsed into `location`. */
   site: Site | null
   /** Where the hook was registered (the first frame in the test file), filled when the tree is built. */

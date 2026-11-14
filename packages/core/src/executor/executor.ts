@@ -17,6 +17,7 @@ import type {
   FormatValue,
   Frame,
   HookKind,
+  LifecycleEvent,
   LifecycleListener,
   OrderHooks,
   RuntimeEvent,
@@ -251,6 +252,8 @@ interface HookCall {
   readonly kind: RuntimeHookKind
   readonly owner: SuiteNode
   readonly ordinal: number
+  /** The declared hook it calls; `undefined` for a teardown or a test callback. */
+  readonly hook: HookNode | undefined
   readonly location: SourceLocation | null
   /** The test attempt it belongs to; `undefined` for a suite hook. */
   readonly attempt: AttemptState | undefined
@@ -302,6 +305,11 @@ export class Executor {
   #filePath: string | undefined
   /** The file's lifecycle listener (an environment's `onTestEvent`); `undefined` costs nothing. */
   #life: LifecycleListener | undefined
+  /**
+   * What the listener threw at a run event that ends the file (`#tell`): from then on no listener
+   * call is made and no suite's `afterAll` runs, as circus's `dispatch` throws out of the run.
+   */
+  #aborted: { readonly error: unknown } | undefined
 
   constructor(config: ExecutorConfig) {
     this.#config = config
@@ -343,23 +351,65 @@ export class Executor {
     this.#describeAttempts.clear()
     const life = file.lifecycle
     this.#life = life
-    if (life !== undefined) {
-      await life({
-        type: 'run-start',
-        timeoutMs: this.#config.defaults.ms ?? this.#policy.timeouts.test,
+    this.#aborted = undefined
+    try {
+      if (life !== undefined) {
+        await this.#tell(life, {
+          type: 'run-start',
+          timeoutMs: this.#config.defaults.ms ?? this.#policy.timeouts.test,
+        })
+      }
+      const outcome = await this.#runSuite(run, file.root, {
+        attached: [],
+        skipHooks: false,
+        concurrent: false,
+        fileRetry: undefined,
+        hold: undefined,
       })
+      this.#rootOrder = run.shuffled.get(file.root)
+      if (life !== undefined) await this.#tell(life, { type: 'run-end' })
+      return outcome
+    } finally {
+      this.#life = undefined
     }
-    const outcome = await this.#runSuite(run, file.root, {
-      attached: [],
-      skipHooks: false,
-      concurrent: false,
-      fileRetry: undefined,
-      hold: undefined,
-    })
-    this.#rootOrder = run.shuffled.get(file.root)
-    if (life !== undefined) await life({ type: 'run-end' })
-    this.#life = undefined
-    return outcome
+  }
+
+  /**
+   * Calls the listener at a run event. A throw ends the file's run (circus's `dispatch` throws out
+   * of `run`, `run.ts`): it is kept, so no later call is made and no `afterAll` runs, and rethrown
+   * for the runtime to fail the file with.
+   */
+  async #tell(life: LifecycleListener, event: LifecycleEvent): Promise<void> {
+    if (this.#aborted !== undefined) return
+    try {
+      await life(event)
+    } catch (error) {
+      this.#aborted = { error }
+      throw error
+    }
+  }
+
+  /**
+   * Calls the listener where circus dispatches inside the call's own `try` (`hook_success`,
+   * `test_fn_success`, `run.ts` L467-L481, L497-L519): what it throws is returned, for the caller to
+   * make the hook's or the body's failure, and does not end the run.
+   */
+  async #tellInside(
+    life: LifecycleListener,
+    event: LifecycleEvent,
+  ): Promise<{ readonly error: unknown } | undefined> {
+    if (this.#aborted !== undefined) return undefined
+    try {
+      await life(event)
+      return undefined
+    } catch (error) {
+      return { error }
+    }
+  }
+
+  /** Rethrows what ended the run, after a user `try` (an around hook's) may have caught it. */
+  #rethrowAborted(): void {
+    if (this.#aborted !== undefined) throw this.#aborted.error
   }
 
   /** The order a randomized run put the last file's top-level tasks in; `undefined` when it kept the declared one. */
@@ -511,7 +561,7 @@ export class Executor {
       // and hears `describe_retry` after the errors are cleared, before the wait (`run.ts` L159-L171).
       const life = this.#life
       if (life !== undefined) {
-        await life({
+        await this.#tell(life, {
           type: 'suite-retry',
           ref: suite,
           keepEarlierErrors: retry.logErrorsBeforeRetry === true,
@@ -575,9 +625,9 @@ export class Executor {
     scope: Scope,
     errors: unknown[],
   ): Promise<Outcome[]> {
-    await life({ type: 'suite-start', ref: suite })
+    await this.#tell(life, { type: 'suite-start', ref: suite })
     const outcomes = await this.#runSuiteSteps(run, suite, scope, errors)
-    await life({ type: 'suite-end', ref: suite })
+    await this.#tell(life, { type: 'suite-end', ref: suite })
     return outcomes
   }
 
@@ -600,7 +650,10 @@ export class Executor {
             ? this.#skipBelow(suite, scope.hold)
             : await this.#runChildren(run, suite, below)
       } finally {
-        if (hooks) await this.#runAfterAll(run, suite, teardowns, errors)
+        // A listener that ended the run ends it here too: circus has no `finally` (`run.ts` L243-L391).
+        if (hooks && this.#aborted === undefined) {
+          await this.#runAfterAll(run, suite, teardowns, errors)
+        }
       }
     }
     const around = hooks ? suite.hooks.aroundAll : []
@@ -613,6 +666,7 @@ export class Executor {
       inner,
       { kind: 'aroundAll', timers: this.#config.timers },
     )
+    this.#rethrowAborted()
     if (failures.length > 0) {
       errors.push(...failures)
       if (!ranInner) outcomes = this.#skipBelow(suite, scope.hold)
@@ -698,13 +752,13 @@ export class Executor {
       const life = this.#life
       const tests =
         life === undefined ? NO_TESTS : group.nodes.filter((node) => node.type === 'test')
-      if (life !== undefined) await life({ type: 'concurrent-start', ref: suite, tests })
-      results.push(
-        ...(await Promise.all(
-          group.nodes.map((node) => limiter.run(() => this.#runChild(run, node, inner))),
-        )),
-      )
-      if (life !== undefined) await life({ type: 'concurrent-end', ref: suite, tests })
+      if (life !== undefined)
+        await this.#tell(life, { type: 'concurrent-start', ref: suite, tests })
+      const runs = group.nodes.map((node) => limiter.run(() => this.#runChild(run, node, inner)))
+      // With a listener, one test's throw ends the run only once the group's others have ended,
+      // so none of them reports after the file's end.
+      results.push(...(await (life === undefined ? Promise.all(runs) : settleAll(runs))))
+      if (life !== undefined) await this.#tell(life, { type: 'concurrent-end', ref: suite, tests })
     }
     // The retries that waited for the end of the suite (`retry.timing: 'deferred'`), in the order
     // the tests failed, one at a time, before the suite's `afterAll` hooks.
@@ -783,8 +837,11 @@ export class Executor {
     if (test.mode === 'skip' || test.mode === 'todo') {
       const life = this.#life
       if (life !== undefined) {
-        await life({ type: 'test-start', ref: test, id: test.id })
-        await life({ type: test.mode === 'skip' ? 'test-skip' : 'test-todo', ref: test })
+        await this.#tell(life, { type: 'test-start', ref: test, id: test.id })
+        await this.#tell(life, {
+          type: test.mode === 'skip' ? 'test-skip' : 'test-todo',
+          ref: test,
+        })
       }
       const extra: ResultExtra | undefined =
         test.mode === 'skip' ? { skipReason: test.skipReason ?? 'unknown' } : undefined
@@ -969,7 +1026,11 @@ export class Executor {
   async #announceRetry(test: TestNode): Promise<void> {
     const life = this.#life
     if (life === undefined) return
-    await life({ type: 'test-retry', ref: test, keepEarlierErrors: this.#keepsEarlierErrors() })
+    await this.#tell(life, {
+      type: 'test-retry',
+      ref: test,
+      keepEarlierErrors: this.#keepsEarlierErrors(),
+    })
   }
 
   /** Ends a test with what its attempts left, and returns its outcome. */
@@ -1085,8 +1146,8 @@ export class Executor {
     const errors = attempt.errors
     const life = this.#life
     if (life !== undefined) {
-      await life({ type: 'test-start', ref: test, id: test.id })
-      await life({ type: 'test-started', ref: test })
+      await this.#tell(life, { type: 'test-start', ref: test, id: test.id })
+      await this.#tell(life, { type: 'test-started', ref: test })
     }
     const eachHooks =
       !scope.skipHooks && (policy.eachHooksForConcurrent || !test.concurrent)
@@ -1108,6 +1169,7 @@ export class Executor {
           },
         )),
       )
+      this.#rethrowAborted()
     }
     // What the around hooks added, and whatever the steps never reached (a hook that threw first).
     attempt.state = 'cleanup'
@@ -1134,18 +1196,8 @@ export class Executor {
       await this.#runBeforeEach(run, eachHooks.beforeEach, attempt, teardowns)
     }
     const life = this.#life
-    if (life !== undefined) await life({ type: 'fn-start', ref: test })
-    if (errors.length === 0 && attempt.skipped === undefined) {
-      const failures = await this.#runBody(test, attempt)
-      if (life !== undefined) {
-        await life({
-          type: 'fn-end',
-          ref: test,
-          failed: failures.length > 0,
-          error: failures[0],
-        })
-      }
-    }
+    if (life !== undefined) await this.#tell(life, { type: 'fn-start', ref: test })
+    if (errors.length === 0 && attempt.skipped === undefined) await this.#runBody(test, attempt)
     if (eachHooks.afterEach.length > 0 || teardowns.length > 0) {
       // Each level's `afterEach` hooks, innermost first, then the teardowns `beforeEach` returned.
       errors.push(
@@ -1166,7 +1218,7 @@ export class Executor {
       const failed = this.#order(attempt.onFailed, 'afterEach')
       if (failed.length > 0) await this.#runCallbacks(run, attempt, failed, 'onTestFailed')
     }
-    if (life !== undefined) await life({ type: 'test-done', ref: test, errors })
+    if (life !== undefined) await this.#tell(life, { type: 'test-done', ref: test, errors })
   }
 
   /**
@@ -1257,11 +1309,13 @@ export class Executor {
    * The body. A test that runs with no function fails. Under `status.expectFail: 'body'` a
    * `.failing` test's result is reversed here (jest-circus), so a hook error still fails it.
    */
-  async #runBody(test: TestNode, attempt: AttemptState): Promise<readonly unknown[]> {
+  async #runBody(test: TestNode, attempt: AttemptState): Promise<void> {
+    const life = this.#life
     if (test.fn === undefined) {
       const missing = new CoreError('CORE_MISSING_TEST_FN', 'Test function is not found')
       attempt.errors.push(missing)
-      return [missing]
+      if (life !== undefined) await this.#bodyEnd(life, test, attempt, [missing], true)
+      return
     }
     const { fn } = test
     const policy = this.#policy
@@ -1273,6 +1327,7 @@ export class Executor {
     const ownMs = this.#testTimeout(test)
     const timeoutMs = this.#timeoutFor(attempt, ownMs)
     const failures: unknown[] = []
+    let threw = false
     try {
       await this.#calls.run(() =>
         this.#deadlines.call(
@@ -1291,13 +1346,44 @@ export class Executor {
     } catch (error) {
       // `ctx.skip()` ends the test as skipped, not failed.
       if (error instanceof SkipSignal) attempt.skipped = { note: error.note }
-      else failures.push(error)
+      else {
+        threw = true
+        failures.push(error)
+      }
     }
     if (test.expectFail && policy.status.expectFail === 'body') reverseExpectFail(failures, test)
     attempt.errors.push(...failures)
     // A rejection nobody handled by now is the test's own (jest-circus `test_fn_success`).
     attempt.errors.push(...this.#config.processErrors.take(attempt.frame))
-    return failures
+    if (life !== undefined) await this.#bodyEnd(life, test, attempt, failures, threw)
+  }
+
+  /**
+   * `fn-end`. For a body that returned, the listener's throw is taken as the body's own (circus
+   * dispatches inside the `try`, `run.ts` L497-L519): the reversal of an expected failure applies to
+   * it, what it leaves is the attempt's failure, and the listener hears `fn-end` again. For a body
+   * that threw, the dispatch sits in the `catch`, so a throw ends the run.
+   */
+  async #bodyEnd(
+    life: LifecycleListener,
+    test: TestNode,
+    attempt: AttemptState,
+    failures: readonly unknown[],
+    threw: boolean,
+  ): Promise<void> {
+    const event: LifecycleEvent = {
+      type: 'fn-end',
+      ref: test,
+      failed: failures.length > 0,
+      error: failures[0],
+    }
+    if (threw) return this.#tell(life, event)
+    const thrown = await this.#tellInside(life, event)
+    if (thrown === undefined) return
+    const again: unknown[] = [thrown.error]
+    if (test.expectFail && this.#policy.status.expectFail === 'body') reverseExpectFail(again, test)
+    attempt.errors.push(...again)
+    await this.#tell(life, { type: 'fn-end', ref: test, failed: again.length > 0, error: again[0] })
   }
 
   /**
@@ -1451,6 +1537,7 @@ export class Executor {
         kind: hook.kind,
         owner: hook.owner,
         ordinal: hook.ordinal,
+        hook,
         location: hook.location,
         attempt,
       },
@@ -1476,13 +1563,15 @@ export class Executor {
   ): Promise<CallResult> {
     const { attempt } = spec
     const store = this.#hookScope(run, spec.kind, spec.owner, attempt)
-    const life = this.#life
-    if (life !== undefined) {
-      await life({
+    // Only a hook the file declared is a lifecycle hook: not a teardown, a callback or a lazy value's.
+    const hook = spec.hook
+    const life = hook === undefined || hook.synthetic ? undefined : this.#life
+    if (life !== undefined && hook !== undefined) {
+      await this.#tell(life, {
         type: 'hook-start',
+        hook,
         owner: spec.owner,
-        kind: spec.kind,
-        ordinal: spec.ordinal,
+        kind: hook.kind,
         test: attempt?.test,
       })
     }
@@ -1512,19 +1601,38 @@ export class Executor {
         result = { ok: false, error }
       }
     }
+    if (life !== undefined && hook !== undefined)
+      result = await this.#hookEnd(life, hook, spec, result)
     this.#emitHookEnd(spec, result)
-    if (life !== undefined) {
-      await life({
-        type: 'hook-end',
-        owner: spec.owner,
-        kind: spec.kind,
-        ordinal: spec.ordinal,
-        test: attempt?.test,
-        failed: !result.ok,
-        error: result.ok ? undefined : result.error,
-      })
-    }
     return result
+  }
+
+  /**
+   * `hook-end`. For a hook that passed, the listener's throw is the hook's failure (circus
+   * dispatches `hook_success` inside the `try` and re-dispatches `hook_failure`, `run.ts`
+   * L467-L481); for one that failed it ends the run.
+   */
+  async #hookEnd(
+    life: LifecycleListener,
+    hook: HookNode,
+    spec: HookCall,
+    result: CallResult,
+  ): Promise<CallResult> {
+    const ended = {
+      type: 'hook-end',
+      hook,
+      owner: spec.owner,
+      kind: hook.kind,
+      test: spec.attempt?.test,
+    } as const
+    if (!result.ok) {
+      await this.#tell(life, { ...ended, failed: true, error: result.error })
+      return result
+    }
+    const thrown = await this.#tellInside(life, { ...ended, failed: false, error: undefined })
+    if (thrown === undefined) return result
+    await this.#tell(life, { ...ended, failed: true, error: thrown.error })
+    return { ok: false, error: thrown.error }
   }
 
   /**
@@ -1596,6 +1704,7 @@ export class Executor {
           kind: 'teardown',
           owner: teardown.owner,
           ordinal: teardown.ordinal,
+          hook: undefined,
           location: null,
           attempt,
         },
@@ -1620,7 +1729,7 @@ export class Executor {
     for (const [ordinal, callback] of callbacks.entries()) {
       const result = await this.#callUser(
         run,
-        { kind, owner: attempt.test.parent, ordinal, location: null, attempt },
+        { kind, owner: attempt.test.parent, ordinal, hook: undefined, location: null, attempt },
         resolveTimeout(timeouts, callback.timeoutMs) ?? this.#hookTimeout(),
         () => Reflect.apply(callback.fn, undefined, [this.#contextOf(attempt)]),
       )
@@ -1633,6 +1742,7 @@ export class Executor {
       kind: hook.kind,
       owner: hook.owner,
       ordinal: hook.ordinal,
+      hook,
       location: hook.location,
       attempt,
     }
@@ -1885,6 +1995,20 @@ function expectedFailure(test: TestNode): CoreError {
  * none becomes `CORE_EXPECTED_FAILURE`. `status.expectFail` picks whether it applies to the body
  * (jest-circus) or the whole attempt (Vitest's `fails`).
  */
+/**
+ * Every task's result once all have settled; the first rejection, if any, is then thrown. Used for
+ * a concurrent group under a listener, whose throw at one test ends the run (`#tell`).
+ */
+async function settleAll<T>(tasks: readonly Promise<T>[]): Promise<T[]> {
+  const settled = await Promise.allSettled(tasks)
+  const values: T[] = []
+  for (const entry of settled) {
+    if (entry.status === 'rejected') throw entry.reason
+    values.push(entry.value)
+  }
+  return values
+}
+
 function reverseExpectFail(errors: unknown[], test: TestNode): void {
   if (errors.length > 0) errors.length = 0
   else errors.push(expectedFailure(test))

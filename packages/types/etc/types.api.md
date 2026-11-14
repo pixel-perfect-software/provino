@@ -1485,8 +1485,9 @@ export type LifecycleEvent = {
     readonly mode: LifecycleMode;
 } | {
     readonly type: "define-hook";
+    readonly hook: LifecycleHookRef;
     readonly owner: LifecycleRef;
-    readonly kind: "beforeAll" | "beforeEach" | "afterEach" | "afterAll" | "aroundAll" | "aroundEach";
+    readonly kind: LifecycleHookKind;
     readonly fn: AnyFunction;
     readonly timeoutMs: number | undefined;
 } | {
@@ -1540,15 +1541,15 @@ export type LifecycleEvent = {
     readonly keepEarlierErrors: boolean;
 } | {
     readonly type: "hook-start";
+    readonly hook: LifecycleHookRef;
     readonly owner: LifecycleRef;
-    readonly kind: RuntimeHookKind;
-    readonly ordinal: number;
+    readonly kind: LifecycleHookKind;
     readonly test: LifecycleRef | undefined;
 } | {
     readonly type: "hook-end";
+    readonly hook: LifecycleHookRef;
     readonly owner: LifecycleRef;
-    readonly kind: RuntimeHookKind;
-    readonly ordinal: number;
+    readonly kind: LifecycleHookKind;
     readonly test: LifecycleRef | undefined;
     readonly failed: boolean;
     readonly error: unknown;
@@ -1561,6 +1562,15 @@ export type LifecycleEvent = {
     readonly failed: boolean;
     readonly error: unknown;
 };
+
+// @public
+export type LifecycleHookKind = "beforeAll" | "beforeEach" | "afterEach" | "afterAll" | "aroundAll" | "aroundEach";
+
+// @public
+export interface LifecycleHookRef {
+    // (undocumented)
+    readonly kind: LifecycleHookKind;
+}
 
 // @public
 export type LifecycleListener = (event: LifecycleEvent) => void | Promise<void>;

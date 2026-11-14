@@ -7,6 +7,8 @@ import type {
   EnvironmentInstance,
   EnvironmentTeardownReport,
   LifecycleEvent,
+  LifecycleHookKind,
+  LifecycleHookRef,
   LifecycleListener,
   LifecycleMode,
   LifecycleRef,
@@ -134,6 +136,13 @@ const listener: LifecycleListener = (event) => {
     expectTypeOf(event.concurrent).toEqualTypeOf<boolean>()
   }
   if (event.type === 'test-done') expectTypeOf(event.errors).toEqualTypeOf<readonly unknown[]>()
+  // A hook's events name it by identity, the same object `define-hook` carried; no ordinal.
+  if (event.type === 'define-hook' || event.type === 'hook-start' || event.type === 'hook-end') {
+    expectTypeOf(event.hook).toEqualTypeOf<LifecycleHookRef>()
+    expectTypeOf(event.kind).toEqualTypeOf<LifecycleHookKind>()
+  }
+  // @ts-expect-error the hook events carry the hook, not an ordinal
+  if (event.type === 'hook-start') void event.ordinal
   // @ts-expect-error no such event
   if (event.type === 'test-exploded') return
 }
@@ -142,4 +151,21 @@ const retryEvent: LifecycleEvent = { type: 'test-retry', ref, keepEarlierErrors:
 const badRetry: LifecycleEvent = { type: 'test-retry', ref }
 // @ts-expect-error a node is `file`, `suite` or `test`
 const badRef: LifecycleRef = { type: 'hook', name: 'x' }
-void [listener, retryEvent, badRetry, badRef]
+declare const hook: LifecycleHookRef
+// @ts-expect-error a teardown or a callback is not a lifecycle hook
+const badHook: LifecycleHookRef = { kind: 'teardown' }
+// @ts-expect-error `hook-start` names its hook
+const unnamedHook: LifecycleEvent = {
+  type: 'hook-start',
+  owner: ref,
+  kind: 'beforeEach',
+  test: undefined,
+}
+const namedHook: LifecycleEvent = {
+  type: 'hook-start',
+  hook,
+  owner: ref,
+  kind: 'beforeEach',
+  test: undefined,
+}
+void [listener, retryEvent, badRetry, badRef, badHook, unnamedHook, namedHook]

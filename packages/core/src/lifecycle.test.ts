@@ -240,6 +240,213 @@ describe('lifecycle events', () => {
     assert.ok(run.file.errors.some((error) => error.message === 'handler boom'))
   })
 
+  // jest-circus dispatches `hook_success` and `test_fn_success` inside the `try` of
+  // `_callCircusHook`/`_callCircusTest` (`run.ts` L467-L481, L497-L519): a throw there is that hook's
+  // or body's failure, re-dispatched as `hook_failure`/`test_fn_failure`, and the file goes on.
+  test("a listener that throws at a passing hook's hook-end fails that hook; the file goes on", async () => {
+    const seen: string[] = []
+    const run = await runScript(
+      ({ test, beforeEach }) => {
+        beforeEach(() => {})
+        test('a', () => {})
+        test('b', () => {})
+      },
+      {},
+      {
+        lifecycle: (event) => {
+          seen.push(describeEvent(event))
+          if (event.type === 'hook-end' && event.test?.name === 'a' && !event.failed) {
+            throw new Error('handler boom')
+          }
+        },
+      },
+    )
+    assert.deepEqual(run.errors.a, ['handler boom'])
+    assert.equal(run.states.b, 'pass')
+    assert.equal(run.file.errors.length, 0)
+    const a = seen.slice(seen.indexOf('test-start a'), seen.indexOf('test-done a') + 1)
+    assert.deepEqual(a, [
+      'test-start a',
+      'test-started a',
+      'hook-start beforeEach of a',
+      'hook-end beforeEach of a',
+      'hook-end beforeEach of a failed',
+      'fn-start a',
+      'test-done a',
+    ])
+  })
+
+  test("a listener that throws at a passing body's fn-end fails that body; the file goes on", async () => {
+    const seen: LifecycleEvent[] = []
+    const run = await runScript(
+      ({ test }) => {
+        test('a', () => {})
+        test('b', () => {})
+      },
+      {},
+      {
+        lifecycle: (event) => {
+          seen.push(event)
+          if (event.type === 'fn-end' && event.ref.name === 'a' && !event.failed) {
+            throw new Error('handler boom')
+          }
+        },
+      },
+    )
+    assert.deepEqual(run.errors.a, ['handler boom'])
+    assert.equal(run.states.b, 'pass')
+    const ends = seen.filter((event) => event.type === 'fn-end' && event.ref.name === 'a')
+    assert.deepEqual(
+      ends.map(
+        (event) => event.type === 'fn-end' && [event.failed, (event.error as Error)?.message],
+      ),
+      [
+        [false, undefined],
+        [true, 'handler boom'],
+      ],
+    )
+  })
+
+  test('a listener that throws at the fn-end of a body that threw ends the file', async () => {
+    const seen: string[] = []
+    const run = await runScript(
+      ({ test }) => {
+        test('a', () => {
+          throw new Error('body boom')
+        })
+        test('b', () => {})
+      },
+      {},
+      {
+        lifecycle: (event) => {
+          seen.push(describeEvent(event))
+          if (event.type === 'fn-end') throw new Error('handler boom')
+        },
+      },
+    )
+    assert.equal(run.file.state, 'fail')
+    assert.ok(run.file.errors.some((error) => error.message === 'handler boom'))
+    assert.equal(seen.at(-1), 'fn-end a failed')
+  })
+
+  // Any other dispatch throws out of `_runTestsForDescribeBlockOnce`, which has no `finally`: no
+  // `afterAll` runs, and the handler hears nothing more (no `run_finish`, no `teardown`).
+  test('a listener that throws at any other run event ends the file: no afterAll, no more events', async () => {
+    const seen: string[] = []
+    const run = await runScript(
+      ({ describe, test, afterAll, afterEach }, step) => {
+        afterAll(() => step('afterAll root'))
+        describe('block', () => {
+          afterEach(() => step('afterEach block'))
+          afterAll(() => step('afterAll block'))
+          test('a', () => step('a'))
+          test('b', () => step('b'))
+        })
+      },
+      {},
+      {
+        lifecycle: (event) => {
+          seen.push(describeEvent(event))
+          if (event.type === 'test-start' && event.ref.name === 'b') throw new Error('handler boom')
+        },
+      },
+    )
+    assert.deepEqual(run.trace, ['a', 'afterEach block'])
+    assert.equal(seen.at(-1), 'test-start b')
+    assert.equal(run.file.state, 'fail')
+    assert.ok(run.file.errors.some((error) => error.message === 'handler boom'))
+  })
+
+  test('a throw at a failed hook-end ends the file too (circus dispatches hook_failure in the catch)', async () => {
+    const seen: string[] = []
+    const run = await runScript(
+      ({ test, beforeEach }, step) => {
+        beforeEach(() => {
+          throw new Error('hook boom')
+        })
+        test('a', () => step('a'))
+        test('b', () => step('b'))
+      },
+      {},
+      {
+        lifecycle: (event) => {
+          seen.push(describeEvent(event))
+          if (event.type === 'hook-end' && event.failed) throw new Error('handler boom')
+        },
+      },
+    )
+    assert.equal(seen.at(-1), 'hook-end beforeEach of a failed')
+    assert.equal(run.file.state, 'fail')
+    assert.ok(run.file.errors.some((error) => error.message === 'handler boom'))
+  })
+
+  test('a throw in a concurrent group ends the file once every test of the group has ended', async () => {
+    const seen: string[] = []
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const run = await runScript(
+      ({ test }, step) => {
+        test.concurrent('a', async () => {
+          await gate
+          step('a done')
+        })
+        test.concurrent('b', () => step('b'))
+        test('after', () => step('after'))
+      },
+      {},
+      {
+        lifecycle: (event) => {
+          seen.push(describeEvent(event))
+          if (event.type === 'test-started' && event.ref.name === 'b') {
+            // `a` is still waiting: it ends only after the throw.
+            release()
+            throw new Error('handler boom')
+          }
+        },
+      },
+    )
+    assert.equal(seen.at(-1), 'test-started b')
+    assert.ok(run.trace.includes('a done'), 'the running sibling finished before the file ended')
+    assert.ok(!run.trace.includes('after'))
+    const fileEnd = run.events.findIndex((event) => event.type === 'file-end')
+    assert.equal(fileEnd, run.events.length - 1, 'nothing of the file comes after its file-end')
+    assert.equal(run.file.state, 'fail')
+  })
+
+  // `LazyHost.addHook` (eager lazy values) adds hooks no test file declared: circus has no such
+  // hook, so the listener never hears of it, and the declared hooks keep their own events.
+  test('a hook LazyHost.addHook appended is not a lifecycle hook and shifts no declared hook', async () => {
+    const seen: string[] = []
+    const run = await runScript(
+      ({ test, beforeEach }, step, runtime) => {
+        beforeEach(() => step('a'))
+        const suite = runtime.lazyHost.collecting()
+        assert.ok(suite !== undefined)
+        runtime.lazyHost.addHook(suite, 'beforeEach', () => step('lazy'))
+        beforeEach(() => {
+          throw new Error('b boom')
+        })
+        test('t', () => {})
+      },
+      {},
+      { lifecycle: (event) => void seen.push(describeEvent(event)) },
+    )
+    assert.deepEqual(run.trace, ['a', 'lazy'])
+    assert.deepEqual(
+      seen.filter((line) => line.startsWith('hook-') || line.startsWith('define-hook')),
+      [
+        'define-hook beforeEach in script.test.ts',
+        'define-hook beforeEach in script.test.ts',
+        'hook-start beforeEach of t',
+        'hook-end beforeEach of t',
+        'hook-start beforeEach of t',
+        'hook-end beforeEach of t failed',
+      ],
+    )
+  })
+
   test('a collection failure still tears down nothing: no file-teardown for a file that did not collect', async () => {
     const seen: string[] = []
     await runScript(

@@ -397,12 +397,11 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
         shuffle = shuffleFor(relativePath, fileOptions)
         file.lifecycle = fileOptions.lifecycle
         if (file.lifecycle !== undefined) {
+          const namePattern = fileOptions.testNamePattern ?? pattern
           await file.lifecycle({
             type: 'file-setup',
             root: file.root,
-            ...(filters.testNamePattern === undefined
-              ? {}
-              : { testNamePattern: filters.testNamePattern.source }),
+            ...(namePattern === undefined ? {} : { testNamePattern: patternText(namePattern) }),
           })
         }
         collected = await collect(file)
@@ -499,6 +498,11 @@ function describeType(value: unknown): string {
 }
 
 /** `-t` as a `RegExp`: a string is compiled with the policy's flags. */
+/** A name pattern's text as it was given, for the lifecycle's `file-setup`: circus hands the string on. */
+function patternText(pattern: string | RegExp): string {
+  return typeof pattern === 'string' ? pattern : pattern.source
+}
+
 function toRegExp(pattern: string | RegExp, flags: string): RegExp {
   return typeof pattern === 'string' ? new RegExp(pattern, flags) : pattern
 }

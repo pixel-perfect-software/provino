@@ -276,6 +276,8 @@ export type {
 } from './runtime/lazy-host.ts'
 export type {
   LifecycleEvent,
+  LifecycleHookKind,
+  LifecycleHookRef,
   LifecycleListener,
   LifecycleMode,
   LifecycleRef,

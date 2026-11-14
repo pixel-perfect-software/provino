@@ -5,7 +5,6 @@
 // are called synchronously while the file is collected and their result is not awaited. A run with
 // no listener pays for none of it.
 import type { AnyFunction } from '../policy/behaviour.ts'
-import type { RuntimeHookKind } from './events.ts'
 import type { TaskId } from './tree.ts'
 
 /**
@@ -16,6 +15,28 @@ import type { TaskId } from './tree.ts'
 export interface LifecycleRef {
   readonly type: 'file' | 'suite' | 'test'
   readonly name: string
+}
+
+/**
+ * The kinds of hook a test file declares.
+ * @public
+ */
+export type LifecycleHookKind =
+  | 'beforeAll'
+  | 'beforeEach'
+  | 'afterEach'
+  | 'afterAll'
+  | 'aroundAll'
+  | 'aroundEach'
+
+/**
+ * A hook the file declared, as the events name it: the same object `define-hook`, `hook-start` and
+ * `hook-end` carry, so a listener can key what it builds by it. A hook the runtime adds for itself
+ * (an eager lazy value's) is never one: no event names it.
+ * @public
+ */
+export interface LifecycleHookRef {
+  readonly kind: LifecycleHookKind
 }
 
 /**
@@ -32,7 +53,12 @@ export type LifecycleMode = 'only' | 'skip' | 'todo' | undefined
  * @public
  */
 export type LifecycleEvent =
-  | { readonly type: 'file-setup'; readonly root: LifecycleRef; readonly testNamePattern?: string }
+  | {
+      readonly type: 'file-setup'
+      readonly root: LifecycleRef
+      /** The file's name pattern as it was given: the string itself, or a `RegExp`'s `source`. */
+      readonly testNamePattern?: string
+    }
   | { readonly type: 'file-teardown' }
   | {
       readonly type: 'define-suite-start'
@@ -43,14 +69,9 @@ export type LifecycleEvent =
   | { readonly type: 'define-suite-end'; readonly ref: LifecycleRef; readonly mode: LifecycleMode }
   | {
       readonly type: 'define-hook'
+      readonly hook: LifecycleHookRef
       readonly owner: LifecycleRef
-      readonly kind:
-        | 'beforeAll'
-        | 'beforeEach'
-        | 'afterEach'
-        | 'afterAll'
-        | 'aroundAll'
-        | 'aroundEach'
+      readonly kind: LifecycleHookKind
       readonly fn: AnyFunction
       readonly timeoutMs: number | undefined
     }
@@ -101,17 +122,23 @@ export type LifecycleEvent =
     }
   | {
       readonly type: 'hook-start'
+      readonly hook: LifecycleHookRef
       readonly owner: LifecycleRef
-      readonly kind: RuntimeHookKind
-      readonly ordinal: number
+      readonly kind: LifecycleHookKind
       /** The test the hook runs for; `undefined` for a suite's hook. */
       readonly test: LifecycleRef | undefined
     }
   | {
+      /**
+       * The hook ended. A listener that throws at a `hook-end` that did not fail makes the hook fail
+       * with what it threw, and hears a second `hook-end` with that failure; a throw at any other
+       * run event (a failed `hook-end` among them) ends the file's run there, with no further hook
+       * or event.
+       */
       readonly type: 'hook-end'
+      readonly hook: LifecycleHookRef
       readonly owner: LifecycleRef
-      readonly kind: RuntimeHookKind
-      readonly ordinal: number
+      readonly kind: LifecycleHookKind
       readonly test: LifecycleRef | undefined
       readonly failed: boolean
       /** What the hook threw; meaningful when `failed`. */
@@ -119,6 +146,12 @@ export type LifecycleEvent =
     }
   | { readonly type: 'fn-start'; readonly ref: LifecycleRef }
   | {
+      /**
+       * The body ended. A listener that throws at the `fn-end` of a body that returned is taken as
+       * the body having thrown that: it is the test's failure (reversed for a test expected to
+       * fail, as the body's own throw would be), and the listener hears a second `fn-end` with the
+       * result. A throw at the `fn-end` of a body that threw ends the file's run.
+       */
       readonly type: 'fn-end'
       readonly ref: LifecycleRef
       readonly failed: boolean
