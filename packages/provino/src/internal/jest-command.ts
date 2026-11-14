@@ -317,9 +317,13 @@ async function listFiles(
 }
 
 /**
- * The coverage of a `provino jest` run, when the global config collects it with the babel
- * provider: Jest's CoverageReporter, and the notice `_addUntestedFiles` writes on a terminal while
- * the files no test loaded are covered (`RUNNING_TEST_COLOR`, bold dim, then `clearLine`).
+ * The coverage of a `provino jest` run, when the global config collects it: Jest's
+ * CoverageReporter, and the notice `_addUntestedFiles` writes on a terminal while the files no test
+ * loaded are covered (`RUNNING_TEST_COLOR`, bold dim, then `clearLine`). The reporter and the
+ * threshold hook are the same for either provider (`CoverageSummary` holds the map, whatever
+ * collected it): what a provider adds is its collector in the workers' config, which the dialect's
+ * `to-neutral` supplies. Jest's `v8` provider has none yet (T8.12), so a run with it collects
+ * nothing and this reporter has nothing to write; once it does, its map is checked here.
  */
 async function coverageFor(
   globalConfig: JestGlobalConfig,
@@ -330,7 +334,7 @@ async function coverageFor(
     readonly stderr: NodeJS.WritableStream
   },
 ): Promise<{ readonly reporter: CoverageReporter; readonly hooks: RunCoverageHooks } | undefined> {
-  if (!globalConfig.collectCoverage || globalConfig.coverageProvider === 'v8') return undefined
+  if (!globalConfig.collectCoverage) return undefined
   // The reporter brings `@provino/coverage/node`: loaded only when the run collects (T1.10).
   const { createCoverageReporter } = await import('./coverage-reporter.ts')
   const { env, stdout, stderr } = io
@@ -511,7 +515,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     const reporterResults = results ?? (collecting ? undefined : newResults())
     const env = io.env ?? process.env
     // `--coverage` (B23b): Jest's CoverageReporter, and the notice on a terminal while the files no
-    // test loaded are covered. A `--collectTests` run collects nothing; v8 is T8.12's (warned).
+    // test loaded are covered. A `--collectTests` run collects nothing; v8 collects none yet (T8.12, warned).
     const coverage = collecting
       ? undefined
       : await coverageFor(read.globalConfig, { cwd, env, stdout, stderr })
