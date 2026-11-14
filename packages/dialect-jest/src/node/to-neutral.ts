@@ -159,9 +159,6 @@ export function jestProjectToNeutral(
   // `--coverage` (or the key): the files that count, as `shouldInstrument` decides (B23b), under
   // either provider (T8.12). A `--collectTests` run executes nothing, so it collects nothing.
   const collects = globalConfig.collectCoverage && !globalConfig.collectTests
-  if (collects && globalConfig.coverageThreshold !== undefined) {
-    notApplied(diagnostics, 'coverageThreshold', 'T8.11')
-  }
 
   const aliases: NeutralAlias[] = project.moduleNameMapper.map(([pattern, target]) => ({
     pattern,

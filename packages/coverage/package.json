@@ -55,10 +55,12 @@
     "magic-string": "catalog:",
     "oxc-parser": "catalog:",
     "picomatch": "catalog:",
+    "tinyglobby": "catalog:",
     "v8-to-istanbul": "catalog:"
   },
   "devDependencies": {
     "@babel/core": "catalog:",
+    "@jest/reporters": "catalog:",
     "@jest/transform": "catalog:",
     "@types/istanbul-lib-coverage": "catalog:",
     "@types/istanbul-lib-report": "catalog:",

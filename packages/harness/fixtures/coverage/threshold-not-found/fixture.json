@@ -1,0 +1,28 @@
+{
+  "description": "Groups no file matches under Jest 30.5.2 (T8.11): a path and a glob that name nothing report `Jest: Coverage data for <group> was not found.`, in config order, while a `global` that is met adds no line. Read by `provino`'s `jest-coverage-thresholds.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "collectCoverageFrom": ["src/**/*.ts"],
+      "coverageReporters": ["json-summary"],
+      "coverageThreshold": {
+        "./nowhere": {
+          "lines": 10
+        },
+        "global": {
+          "statements": 10
+        },
+        "./src/**/*.js": {
+          "statements": 10
+        }
+      }
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^Jest: "
+  }
+}

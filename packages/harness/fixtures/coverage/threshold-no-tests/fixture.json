@@ -1,0 +1,31 @@
+{
+  "description": "`--passWithNoTests` with no test file to run, under Jest 30.5.2 (B23b review): Jest still runs its CoverageReporter on an empty map, so the reports are written (an empty `text-summary` and `coverage-summary.json`) and every group that names a path or a glob reports `Jest: Coverage data for <group> was not found.` (`global` adds nothing: an empty summary reads `Unknown`), which makes the run exit 1 despite the flag. Read by `provino`'s `jest-coverage-thresholds.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "collectCoverageFrom": ["src/**/*.ts"],
+      "coverageReporters": ["text-summary", "json-summary"],
+      "coverageThreshold": {
+        "global": {
+          "statements": 100
+        },
+        "./src/": {
+          "lines": 10
+        },
+        "./src/**/*.ts": {
+          "statements": 10
+        }
+      }
+    }
+  },
+  "run": {
+    "raw": true,
+    "argv": {
+      "jest": ["--passWithNoTests", "matches-no-file"]
+    },
+    "capture": ["exitCode", "stdout", "stderr", "file:coverage/coverage-summary.json"],
+    "keepLines": "^(Jest: |=+ Coverage summary|Statements|Branches|Functions|Lines)"
+  }
+}

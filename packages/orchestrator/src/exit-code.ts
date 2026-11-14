@@ -72,9 +72,10 @@ export interface ExitCodeOptions {
  * 3. a file failed: `exitCodes.failure`;
  * 4. the run's snapshots fail it: obsolete snapshots that the policy's `snapshot.obsolete` says
  *    fail the run in this update mode (Jest: `snapshot.failure`): `exitCodes.failure`;
- * 5. an unhandled error, when the policy's `unhandledErrors` is `fail-run`: `exitCodes.unhandled`;
- * 6. a reporter failed: `exitCodes.failure`;
- * 7. otherwise `ExitCode.Pass`.
+ * 5. the run's coverage missed a threshold: `exitCodes.failure`;
+ * 6. an unhandled error, when the policy's `unhandledErrors` is `fail-run`: `exitCodes.unhandled`;
+ * 7. a reporter failed: `exitCodes.failure`;
+ * 8. otherwise `ExitCode.Pass`.
  * @public
  */
 export function exitCodeFor(summary: RunSummary, options: ExitCodeOptions): number {
@@ -88,6 +89,7 @@ export function exitCodeFor(summary: RunSummary, options: ExitCodeOptions): numb
   if (summary.snapshotsFail ?? snapshotRunFails(summary.snapshots, options.policy.snapshot)) {
     return orchestrator.exitCodes.failure
   }
+  if ((summary.coverage?.thresholdFailures.length ?? 0) > 0) return orchestrator.exitCodes.failure
   if (orchestrator.unhandledErrors === 'fail-run' && summary.unhandled.length > 0) {
     return orchestrator.exitCodes.unhandled
   }

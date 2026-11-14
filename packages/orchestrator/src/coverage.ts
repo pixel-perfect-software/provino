@@ -13,6 +13,7 @@ import {
 import { serializeError } from '@provino/rpc'
 import type {
   CoverageSummary,
+  CoverageThresholdGroup,
   IstanbulFileCoverageData,
   RawCoverage,
   SerializedProjectConfig,
@@ -39,6 +40,20 @@ export interface RunCoverageHooks {
    * a block whose count is its parent's, so two shards' converted maps have different branches.
    */
   readonly onTake?: (raw: RawCoverage) => void
+  /**
+   * The thresholds to check the run's coverage against (T8.11), in config order. The failures,
+   * worded by the first project's policy (`coverage.thresholdMessages`), are
+   * `CoverageSummary.thresholdFailures`, and any of them fails the run.
+   */
+  readonly thresholds?: readonly CoverageThresholdGroup[]
+  /** What a relative threshold group is resolved against. Defaults to the process's directory. */
+  readonly thresholdsCwd?: string
+  /**
+   * Whether a run that found no test file still reports its coverage, over an empty map, and
+   * checks the thresholds (Jest's `--passWithNoTests`: its scheduler runs on an empty list, where
+   * without the flag it prints `No tests found` and exits first). Defaults to no.
+   */
+  readonly reportEmptyRun?: boolean
 }
 
 /** A project of the run, with the parts of its worker config coverage reads (seeded or not). */
@@ -70,20 +85,24 @@ async function untestedCandidates(project: CoveredProject): Promise<readonly str
 /**
  * Merges what the workers sent, adds the files no test loaded, remaps, and sums the run's coverage.
  * `projects` are the projects that ran a file, in the run's order: a file two of them name is
- * covered for the first.
+ * covered for the first. `first` is the run's first project, whose policy words the threshold
+ * failures: it is `projects[0]` unless no project had a file (an empty run still checks its
+ * thresholds, as Jest's CoverageReporter does over an empty map).
  * @public
  */
 export async function finishCoverage(
   store: Pick<RawCoverageStore, 'entries'>,
   projects: readonly CoveredProject[],
   options: RunCoverageHooks = {},
+  first: CoveredProject | undefined = projects[0],
 ): Promise<CoverageSummary> {
   const reporting = await loadCoverageReporting()
   const aggregate = reporting.createCoverageAggregate()
   for (const raw of store.entries) aggregate.add(raw)
 
-  // The provider is the run's (Jest's is a global option): every project has the same one.
-  const v8 = projects[0]?.config.coverage?.provider === 'v8'
+  // The provider is the run's (Jest's is a global option): every project has the same one, and
+  // an empty run (no project had a file) takes it from the run's first project.
+  const v8 = first?.config.coverage?.provider === 'v8'
   const emptyV8: V8ScriptCoverage[] = []
   const untestedFailures: { path: string; error: ReturnType<typeof serializeError> }[] = []
   const candidates = await Promise.all(projects.map((project) => untestedCandidates(project)))
@@ -117,7 +136,6 @@ export async function finishCoverage(
     }
   }
 
-  const first = projects[0]
   const remapped =
     v8 && first !== undefined
       ? await reporting.convertV8Coverage(aggregate.v8, emptyV8, {
@@ -134,9 +152,16 @@ export async function finishCoverage(
         remapped.map.fileCoverageFor(path).toJSON() as unknown as IstanbulFileCoverageData,
       ]),
   )
+  const policy = first?.policy.coverage
+  const thresholdFailures =
+    policy === undefined || options.thresholds === undefined
+      ? []
+      : reporting.checkThresholds(remapped.map, options.thresholds, policy, {
+          cwd: options.thresholdsCwd ?? process.cwd(),
+        })
   return {
     totals: reporting.coverageTotals(remapped.map),
-    thresholdFailures: [],
+    thresholdFailures,
     map,
     ...(Object.keys(remapped.sources).length === 0 ? {} : { sources: remapped.sources }),
     ...(untestedFailures.length === 0 ? {} : { untestedFailures }),
