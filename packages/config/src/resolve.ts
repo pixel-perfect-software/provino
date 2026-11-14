@@ -18,6 +18,7 @@ import type {
   Policy,
   PolicyOverrides,
   ProvinoConfigInput,
+  SerializedCoverageConfig,
   SerializedLoaderConfig,
   SerializedProjectConfig,
   SerializedTransformConfig,
@@ -333,6 +334,7 @@ export async function resolveNeutralProject(
       fakeTimers: neutral.fakeTimers,
       seed: neutral.seed,
       resolution: neutral.resolution,
+      coverage: neutral.coverage,
     },
     { environments: options.environments, ci: options.ci },
   )
@@ -387,6 +389,8 @@ interface ProjectInput {
   readonly globalValues?: Readonly<Record<string, JsonValue>> | undefined
   readonly fakeTimers?: Readonly<Record<string, JsonValue>> | undefined
   readonly seed?: number | undefined
+  /** Which files count toward coverage (B23b); a neutral project's only, `undefined` for off. */
+  readonly coverage?: SerializedCoverageConfig | undefined
 }
 
 /** `record`, or `undefined` when it has no keys: an empty one is no setting. */
@@ -483,6 +487,7 @@ async function finishProject(
     ...(globalValues === undefined ? {} : { globalValues }),
     ...(fakeTimers === undefined ? {} : { fakeTimers }),
     ...(input.seed === undefined ? {} : { seed: input.seed }),
+    ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
     setupFiles,
     setupFilesAfterEnv,
     loader: {

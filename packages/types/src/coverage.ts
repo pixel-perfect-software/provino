@@ -1,6 +1,7 @@
 // Track 8 §Types → Coverage contract. The provider is loaded in both processes: the worker
 // creates a collector, the coordinator merges and reports.
 import type { JsonValue } from './clone-safe.ts'
+import type { SerializedError } from './runtime/tree.ts'
 import type { SourceMapV3 } from './transform.ts'
 
 /**
@@ -274,8 +275,16 @@ export interface CoverageTotals {
 export interface CoverageSummary {
   readonly totals: { readonly [M in CoverageMetric]: CoverageTotals }
   readonly thresholdFailures: readonly string[]
-  /** The merged Istanbul data per file, by absolute path (what `coverageMap` is made of). */
+  /**
+   * The merged Istanbul data per file, by absolute path, moved back to the sources (what Jest's
+   * `coverageMap` is made of).
+   */
   readonly map: Readonly<Record<string, IstanbulFileCoverageData>>
+  /** The files no test loaded whose coverage could not be made, each with why. Absent when none. */
+  readonly untestedFailures?: readonly {
+    readonly path: string
+    readonly error: SerializedError
+  }[]
 }
 
 /**

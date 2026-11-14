@@ -19,6 +19,7 @@ import type {
   SerializedLoaderConfig,
   SourceMapV3,
 } from '@provino/types'
+import { LoaderError } from './errors.ts'
 import { buildProjectLoader, type ProjectCoverage } from './project.ts'
 
 /**
@@ -35,7 +36,8 @@ export interface CoordinatorLoader extends Disposable {
   /**
    * `file` (an absolute path) transformed as a worker transforms a covered file: through the
    * project's transform with the instrumenter, before the module-runner rewrite. For files the
-   * tests never loaded. Needs the loader to have been created with `coverage`.
+   * tests never loaded. Needs the loader to have been created with `coverage`. A file the transform
+   * fails on throws `LOADER_TRANSFORM_FAILED`.
    */
   transformForCoverage(file: string): { readonly code: string; readonly map: SourceMapV3 | null }
   /** Forgets every module; further imports start over. */
@@ -90,6 +92,12 @@ export async function createCoordinatorLoader(
         consumer: 'import',
         instrument: true,
       })
+      // A file that doesn't transform (or instrument) is an error here, as Jest's transform throws.
+      const error = record.diagnostics.find((diagnostic) => diagnostic.severity === 'error')
+      if (error !== undefined) {
+        const where = error.loc === undefined ? '' : `:${error.loc.line}:${error.loc.column}`
+        throw new LoaderError('LOADER_TRANSFORM_FAILED', `${file}${where}: ${error.message}`)
+      }
       return { code: record.code, map: record.map }
     },
     dispose: () => {
