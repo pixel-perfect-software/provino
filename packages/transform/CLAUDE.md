@@ -129,3 +129,7 @@ Hoisting runs after the JSX and TypeScript step, so a factory can read names the
 ## Not done here
 
 The V8 code cache (T3.7) is built and measured but not called by the loader yet (its section above). The loader (B13c) turns `hoist` on, decides every edge and loads late imports (`packages/loader/CLAUDE.md`). Map composition is not deferred: mock-heavy-500 met its cold bar without it (B13c, `local`). The native hoist pass is Phase 3.
+
+## Coverage (B23b, U6)
+
+`createPipeline({ instrumenter })` takes a `CoverageInstrumenter` (from `@provino/coverage`, which this layer does not import: the worker passes it in). A request with `instrument: true` goes: strip (in place under `typescript: 'blank'`, D116, so the instrumented code keeps the source's offsets; Oxc's transform for the files the strip can't take, DV120) or the project's transformer (unless it reported `canInstrument` and got `instrument: true`) → instrument, with the composed map → `hoistMocks` → module-runner rewrite. No instrumenter is `TRANSFORM_OPTION_UNSUPPORTED`; a file the instrumenter can't read is `COVERAGE_INSTRUMENT_FAILED`. The instrumenter's `name` and the instrument flag are in the cache key and fingerprint, so an instrumented and a plain record never share an entry. `cacheModeFor({ coverage })` turns the V8 code cache off. `src/instrument.test.ts` holds the cases.
