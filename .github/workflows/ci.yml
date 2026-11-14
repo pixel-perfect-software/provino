@@ -113,7 +113,7 @@ jobs:
         run: pnpm boundaries
 
   suites:
-    name: Bench suites and recorded goldens (Jest 30.5, Vitest 5.0)
+    name: Bench suites (Jest 30.5, Vitest 5.0)
     if: ${{ github.event_name == 'push' || !startsWith(github.head_ref, 'task/') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -155,6 +155,47 @@ jobs:
           include: '^(packages/bench/|packages/harness/src/|packages/types/(src/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
           exclude: '^packages/[^/]+/src/.*\.test(-d)?\.ts$'
           keep: "^packages/(bench|harness)/"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          cache: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .tool-versions
+      - id: install
+        run: pnpm install --frozen-lockfile
+      # Every generated suite must pass under both real runners (Track 12 T12.12). app-500 and
+      # mock-heavy-500 (B13c) also run Provino (the `provino` bin, as a black box, all cores but one):
+      # every test passes, its normalized-json parses, and each test's status equals Jest's (B11).
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        run: pnpm provino-bench check app-500 --runner jest --runner provino
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
+        run: pnpm provino-bench check mock-heavy-500 --runner jest --runner provino
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.vitest.outputs.run == 'true' }}
+        run: pnpm provino-bench check app-500 --runner vitest
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.vitest.outputs.run == 'true' }}
+        run: pnpm provino-bench check mock-heavy-500 --runner vitest
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
+        run: pnpm provino-bench check isolate-heavy --runner jest --runner vitest
+      # The harness self-test (Track 12 T12.6, T12.16): the sample under real Jest and Vitest, its
+      # recording, the sidecars and the calibrated parity, then Provino (the `provino` bin) as a
+      # subject. It prints pass or fail per check and no Provino number, because these logs are
+      # public; the parity report goes to --out only when asked for, which this step doesn't.
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
+        run: pnpm provino-harness self-test --candidate provino
+
+
+  goldens:
+    # Split from `suites` (2026-11-14): together they took 19m47s of a 20-minute limit on main, and
+    # every branch that added goldens went over. Apart, they run side by side.
+    name: Recorded goldens (Jest 30.5, Vitest 5.0)
+    if: ${{ github.event_name == 'push' || !startsWith(github.head_ref, 'task/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history, so the branch can be diffed against main below.
+          fetch-depth: 0
       # What `record --check` reads (B14a): the recorder and every fixture, the runners' versions,
       # Node and the root scripts. A dialect's values aren't one: `policy-truth.test.ts` holds them
       # to the committed goldens in `pnpm test`.
@@ -180,28 +221,9 @@ jobs:
           node-version-file: .tool-versions
       - id: install
         run: pnpm install --frozen-lockfile
-      # Every generated suite must pass under both real runners (Track 12 T12.12). app-500 and
-      # mock-heavy-500 (B13c) also run Provino (the `provino` bin, as a black box, all cores but one):
-      # every test passes, its normalized-json parses, and each test's status equals Jest's (B11).
-      - if: ${{ steps.scope.outputs.run == 'true' }}
-        run: pnpm provino-bench check app-500 --runner jest --runner provino
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
-        run: pnpm provino-bench check mock-heavy-500 --runner jest --runner provino
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.vitest.outputs.run == 'true' }}
-        run: pnpm provino-bench check app-500 --runner vitest
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.vitest.outputs.run == 'true' }}
-        run: pnpm provino-bench check mock-heavy-500 --runner vitest
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
-        run: pnpm provino-bench check isolate-heavy --runner jest --runner vitest
       # Re-record every fixture and fail if a golden drifted (.claude/rules/tests.md).
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.goldens.outputs.run == 'true' }}
+      - if: ${{ steps.goldens.outputs.run == 'true' }}
         run: pnpm provino-harness record --check
-      # The harness self-test (Track 12 T12.6, T12.16): the sample under real Jest and Vitest, its
-      # recording, the sidecars and the calibrated parity, then Provino (the `provino` bin) as a
-      # subject. It prints pass or fail per check and no Provino number, because these logs are
-      # public; the parity report goes to --out only when asked for, which this step doesn't.
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
-        run: pnpm provino-harness self-test --candidate provino
       # T4.1: the mocking goldens regenerate byte-identically on the oldest Node we support. Below
       # 22.18 the recorder takes type stripping from NODE_OPTIONS (DECISIONS S1). Last in this job,
       # because it changes the Node every later step would run on.
