@@ -19,6 +19,7 @@ import type {
   SerializedLoaderConfig,
   SourceMapV3,
 } from '@provino/types'
+import { LoaderError } from './errors.ts'
 import { buildProjectLoader, type ProjectCoverage } from './project.ts'
 
 /**
@@ -38,6 +39,12 @@ export interface CoordinatorLoader extends Disposable {
    * tests never loaded. Needs the loader to have been created with `coverage`.
    */
   transformForCoverage(file: string): { readonly code: string; readonly map: SourceMapV3 | null }
+  /**
+   * What `specifier` imported from `from` (an absolute path) resolves to, as a `require` resolves
+   * it under the project's mappers, or `undefined` when it doesn't resolve. For the affected-test
+   * graph (B23c).
+   */
+  resolveDependency(specifier: string, from: string): string | undefined
   /** Forgets every module; further imports start over. */
   dispose(): void
 }
@@ -91,6 +98,12 @@ export async function createCoordinatorLoader(
         instrument: true,
       })
       return { code: record.code, map: record.map }
+    },
+    resolveDependency: () => {
+      throw new LoaderError(
+        'LOADER_NOT_IMPLEMENTED',
+        'CoordinatorLoader.resolveDependency is not implemented yet (B23c Phase 4).',
+      )
     },
     dispose: () => {
       for (const registry of registries.splice(0)) registry.dispose()

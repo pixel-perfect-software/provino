@@ -1,3 +1,4 @@
+import type { ChangedFilesProvider, DependencyExtractorFactory } from '../affected.ts'
 import type { JsonValue } from '../clone-safe.ts'
 import type { ProcessObject } from '../environment.ts'
 import type { IsolationTier } from '../isolation.ts'
@@ -74,6 +75,46 @@ export interface OrchestratorPolicy {
   readonly watch: {
     /** What the first watch run covers. Jest: `changed` (`all` with `--watchAll`). Vitest: `all`. research: track-09 L560 */
     readonly initialRun: 'changed' | 'all'
+  }
+  /**
+   * Where the files a change touched come from (`-o`, `--changedSince`, `--lastCommit`,
+   * `--changedFilesWithAncestor`, watch's own selection): a provider the coordinator loads, so the
+   * commands it runs (git, hg, sl) are the dialect's. Jest: `jestChangedFiles`
+   * (`@provino/dialect-jest/affected`; jest-changed-files rebuilt). Neutral and Vitest: `null`, so a
+   * selection by changed files is refused with `ORCH_NOT_IMPLEMENTED` (T11.16). research: track-09
+   */
+  readonly changedFiles: Behaviour<ChangedFilesProvider> | null
+  /** Which files a change reaches: how the dependency graph is read (Track 9, affected-test selection). */
+  readonly affected: {
+    /**
+     * What reads a file's import specifiers: a `Behaviour` the coordinator loads, or `null` for the
+     * lexer of `@provino/loader/graph`. Jest: `jestDependencyExtractor` (haste's regex extractor;
+     * which edges count is observable). Neutral and Vitest: `null`.
+     */
+    readonly extractor: Behaviour<DependencyExtractorFactory> | null
+    /**
+     * How a mock reaches the files that use it: `dir` is the mock directory's name, `adjacent`
+     * counts `<dir>/<basename>` beside a resolved file as an edge to it, and `byName` counts the
+     * root mock found by name for a specifier that doesn't resolve. Jest: `__mocks__`, both on.
+     * Neutral: `__mocks__`, adjacent only. `null`: no mock edges.
+     */
+    readonly mockEdges: {
+      readonly dir: string
+      readonly adjacent: boolean
+      readonly byName: boolean
+    } | null
+    /**
+     * What a change to the project's own inputs (its config file, setup files, global setup and
+     * teardown, environment module, root `package.json`, lockfiles and tsconfig) selects.
+     * `project-inputs`: every file of the project. `none`: only what the graph reaches (Jest's).
+     */
+    readonly invalidateAll: 'project-inputs' | 'none'
+    /**
+     * Where the graph comes from. `static`: the specifiers in the sources. `recorded-then-static`:
+     * a test file whose recorded `deps` are newer than every dependency uses the record, else the
+     * sources. Jest: `static`. Neutral: `recorded-then-static`.
+     */
+    readonly graph: 'static' | 'recorded-then-static'
   }
   /**
    * What an `include` glob (Jest's `testMatch`) is matched against. Jest: `absolute-path`, so a

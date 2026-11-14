@@ -137,6 +137,12 @@ export interface FileJob {
    * running a hook or a test body (Jest's `--collectTests`); no snapshot is written.
    */
   readonly collectOnly?: true
+  /**
+   * Absolute paths that changed since this worker last ran a file (watch mode): the worker drops
+   * the records of these modules before the file starts, so it loads their new code. Absent when
+   * none did.
+   */
+  readonly staleModules?: readonly string[]
 }
 
 /**
