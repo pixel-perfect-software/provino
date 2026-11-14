@@ -861,6 +861,10 @@ export function createRuntimeRunner(): WorkerRunner {
       const worker = parts
       const { job } = context
       if (!(await writableUnlessAborted(context.sink, context.signal))) return {}
+      // Watch mode: modules that changed since this worker's last file are read and compiled again.
+      if (job.staleModules !== undefined && job.staleModules.length > 0) {
+        worker.loader.dropRecords(job.staleModules)
+      }
 
       // The worker owns the mock registry, not core: a new one per file, or (isolation `none`, where
       // everything is kept) the worker's own, made for the first file and disposed in `stop`.
